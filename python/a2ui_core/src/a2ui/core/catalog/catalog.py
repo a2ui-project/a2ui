@@ -23,312 +23,22 @@ if sys.version_info >= (3, 13):
     from typing import TypeVar
 else:
     from typing_extensions import TypeVar
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel
 
-from ..common.semver import is_at_least_version, parse_semver
-from ..schema import ProtocolVersion
-
-
-def _generate_dynamic_type_def(
-    type_cls: Any, description: str | None = None
-) -> dict[str, Any]:
-    """Derives a JSON Schema definition from a Pydantic model.
-
-    Args:
-        type_cls: Pydantic model or type alias to convert.
-        description: Description to attach to the definition. Pydantic derives
-            descriptions from docstrings, which do not match the published
-            specification wording, so the generated one is always discarded and
-            replaced by this value when given.
-
-    Returns:
-        A JSON Schema definition with Pydantic's bookkeeping keys removed.
-    """
-    raw_schema = TypeAdapter(type_cls).json_schema()
-    if "$defs" in raw_schema:
-        del raw_schema["$defs"]
-    if "title" in raw_schema:
-        del raw_schema["title"]
-    if "description" in raw_schema:
-        del raw_schema["description"]
-    if "anyOf" in raw_schema:
-        items = raw_schema["anyOf"]
-        has_num = any(
-            isinstance(it, dict) and it.get("type") == "number" for it in items
-        )
-        if has_num:
-            items = [
-                it
-                for it in items
-                if not (isinstance(it, dict) and it.get("type") == "integer")
-            ]
-        raw_schema["oneOf"] = items
-        del raw_schema["anyOf"]
-    if description is not None:
-        return {"description": description, **raw_schema}
-    return raw_schema
-
-
-def _get_dynamic_types_defs(protocol_version: str = "1.0") -> dict[str, Any]:
-    common_base: dict[str, Any] = {
-        "ComponentId": {
-            "description": (
-                "The unique identifier for a component, used for both"
-                " definitions and references within the same surface."
-            ),
-            "type": "string",
-        },
-        "CallId": {
-            "description": "The unique identifier for a function call.",
-            "type": "string",
-        },
-        "Child": {
-            "$ref": "#/$defs/ComponentId",
-            "description": "A reference to a single child component ID.",
-        },
-        "TemplateChildList": {
-            "type": "object",
-            "description": (
-                "A template for generating a dynamic list of children from"
-                " a data model list. The `componentId` is the component"
-                " to use as a template."
-            ),
-            "properties": {
-                "componentId": {"$ref": "#/$defs/ComponentId"},
-                "path": {
-                    "type": "string",
-                    "description": (
-                        "The path to the list of component property"
-                        " objects in the data model."
-                    ),
-                },
-            },
-            "required": ["componentId", "path"],
-            "additionalProperties": False,
-        },
-        "ChildList": {
-            "description": (
-                "A list of child component IDs or a template for generating"
-                " a dynamic list."
-            ),
-            "oneOf": [
-                {
-                    "type": "array",
-                    "items": {"$ref": "#/$defs/ComponentId"},
-                    "description": "A static list of child component IDs.",
-                },
-                {
-                    "$ref": "#/$defs/TemplateChildList",
-                },
-            ],
-        },
-    }
-
-    if is_at_least_version(protocol_version, ProtocolVersion.V1_0):
-        from ..schema.v1_0.common_types import (
-            DataBinding as DataBindingV10,
-            DynamicBoolean as DynamicBooleanV10,
-            DynamicNumber as DynamicNumberV10,
-            DynamicString as DynamicStringV10,
-            DynamicStringList as DynamicStringListV10,
-            DynamicValue as DynamicValueV10,
-            FunctionCall as FunctionCallV10,
-        )
-
-        return {
-            **common_base,
-            "AccessibilityAttributes": {
-                "type": "object",
-                "description": (
-                    "Attributes to enhance accessibility when using assistive"
-                    " technologies like screen readers or model understanding."
-                ),
-                "properties": {
-                    "label": {
-                        "$ref": "#/$defs/DynamicString",
-                        "description": (
-                            "A short string, typically 1 to 3 words, used by"
-                            " assistive technologies to convey the purpose or"
-                            " intent of an element. For example, an input field"
-                            " might have an accessible label of 'User ID' or a"
-                            " button might be labeled 'Submit'."
-                        ),
-                    },
-                    "description": {
-                        "$ref": "#/$defs/DynamicString",
-                        "description": (
-                            "Additional information provided by assistive"
-                            " technologies about an element such as instructions,"
-                            " format requirements, or result of an action. For"
-                            " example, a mute button might have a label of 'Mute'"
-                            " and a description of 'Silences notifications about"
-                            " this conversation'."
-                        ),
-                    },
-                    "live": {
-                        "type": "string",
-                        "enum": ["off", "polite", "assertive"],
-                        "default": "off",
-                        "description": (
-                            "Controls screen reader announcements for dynamic updates"
-                            " (WAI-ARIA aria-live). 'polite' waits for user pause;"
-                            " 'assertive' interrupts immediately for alerts."
-                        ),
-                    },
-                    "hidden": {
-                        "$ref": "#/$defs/DynamicBoolean",
-                        "description": (
-                            "Hides the element and its children from assistive"
-                            " technologies when true. Default is false."
-                        ),
-                    },
-                },
-                "additionalProperties": False,
-            },
-            "DynamicString": _generate_dynamic_type_def(
-                DynamicStringV10, description="Represents a string"
-            ),
-            "DynamicNumber": _generate_dynamic_type_def(
-                DynamicNumberV10,
-                description=(
-                    "Represents a value that can be either a literal number, a path"
-                    " to a number in the data model, or a function call returning a"
-                    " number."
-                ),
-            ),
-            "DynamicBoolean": _generate_dynamic_type_def(
-                DynamicBooleanV10,
-                description=(
-                    "A boolean value that can be a literal, a path, or a function"
-                    " call returning a boolean."
-                ),
-            ),
-            "DynamicStringList": _generate_dynamic_type_def(
-                DynamicStringListV10,
-                description=(
-                    "Represents a value that can be either a literal array of"
-                    " strings, a path to a string array in the data model, or a"
-                    " function call returning a string array."
-                ),
-            ),
-            "DynamicValue": _generate_dynamic_type_def(DynamicValueV10),
-            "DataBinding": _generate_dynamic_type_def(DataBindingV10),
-            "FunctionCall": _generate_dynamic_type_def(FunctionCallV10),
-        }
-
-    from ..schema.v0_9.common_types import (
-        DataBinding as DataBindingV09,
-        DynamicValue as DynamicValueV09,
-        FunctionCall as FunctionCallV09,
-    )
-
-    return {
-        **common_base,
-        "AccessibilityAttributes": {
-            "type": "object",
-            "description": (
-                "Attributes to enhance accessibility when using assistive"
-                " technologies like screen readers."
-            ),
-            "properties": {
-                "label": {
-                    "$ref": "#/$defs/DynamicString",
-                    "description": (
-                        "A short string, typically 1 to 3 words, used by"
-                        " assistive technologies to convey the purpose or"
-                        " intent of an element. For example, an input field"
-                        " might have an accessible label of 'User ID' or a"
-                        " button might be labeled 'Submit'."
-                    ),
-                },
-                "description": {
-                    "$ref": "#/$defs/DynamicString",
-                    "description": (
-                        "Additional information provided by assistive"
-                        " technologies about an element such as instructions,"
-                        " format requirements, or result of an action. For"
-                        " example, a mute button might have a label of 'Mute'"
-                        " and a description of 'Silences notifications about"
-                        " this conversation'."
-                    ),
-                },
-            },
-            "additionalProperties": False,
-        },
-        "DynamicString": {
-            "description": "Represents a string",
-            "oneOf": [
-                {"type": "string"},
-                {"$ref": "#/$defs/DataBinding"},
-                {
-                    "allOf": [
-                        {"$ref": "#/$defs/FunctionCall"},
-                        {"properties": {"returnType": {"const": "string"}}},
-                    ]
-                },
-            ],
-        },
-        "DynamicNumber": {
-            "description": (
-                "Represents a value that can be either a literal number, a path"
-                " to a number in the data model, or a function call returning a"
-                " number."
-            ),
-            "oneOf": [
-                {"type": "number"},
-                {"$ref": "#/$defs/DataBinding"},
-                {
-                    "allOf": [
-                        {"$ref": "#/$defs/FunctionCall"},
-                        {"properties": {"returnType": {"const": "number"}}},
-                    ]
-                },
-            ],
-        },
-        "DynamicBoolean": {
-            "description": (
-                "A boolean value that can be a literal, a path, or a function"
-                " call returning a boolean."
-            ),
-            "oneOf": [
-                {"type": "boolean"},
-                {"$ref": "#/$defs/DataBinding"},
-                {
-                    "allOf": [
-                        {"$ref": "#/$defs/FunctionCall"},
-                        {"properties": {"returnType": {"const": "boolean"}}},
-                    ]
-                },
-            ],
-        },
-        "DynamicStringList": {
-            "description": (
-                "Represents a value that can be either a literal array of"
-                " strings, a path to a string array in the data model, or a"
-                " function call returning a string array."
-            ),
-            "oneOf": [
-                {"type": "array", "items": {"type": "string"}},
-                {"$ref": "#/$defs/DataBinding"},
-                {
-                    "allOf": [
-                        {"$ref": "#/$defs/FunctionCall"},
-                        {"properties": {"returnType": {"const": "array"}}},
-                    ]
-                },
-            ],
-        },
-        "DynamicValue": _generate_dynamic_type_def(DynamicValueV09),
-        "DataBinding": _generate_dynamic_type_def(DataBindingV09),
-        "FunctionCall": _generate_dynamic_type_def(FunctionCallV09),
-    }
-
-
+from ..common.semver import is_at_least_version, parse_semver, to_protocol_version
 from ..common.uax31 import (
     assert_uax31_identifier as assert_uax31_identifier,
     is_valid_uax31_identifier as is_valid_uax31_identifier,
 )
 from ..exceptions import A2uiCatalogError
+from ..schema import ProtocolVersion
+from ..schema._dynamic_types import clean_schema_node
+from ..schema._json_schema import inline_marked_defs
+from ..schema.common_types_schema import (
+    get_common_types_catalog_defs,
+    get_dynamic_type_index,
+)
+from .components import ComponentApi, ComponentImplementation, ModelComponentApi
 from .functions import (
     AllowedCallers,
     FunctionApi,
@@ -336,7 +46,6 @@ from .functions import (
     FunctionReturnType,
     create_function_implementation,
 )
-from .components import ComponentApi, ComponentImplementation, ModelComponentApi
 from .reference_map import ComponentRefSpec, build_component_ref_map
 
 
@@ -550,14 +259,6 @@ def inline_local_refs(
     return node
 
 
-def _is_ref(item: Any, target_ref: str) -> bool:
-    return isinstance(item, dict) and item.get("$ref") == target_ref
-
-
-def _is_type(item: Any, target_type: str) -> bool:
-    return isinstance(item, dict) and item.get("type") == target_type
-
-
 def _collect_defs_refs(node: Any, refs: set[str]) -> None:
     """Recursively collects local #/$defs/ reference targets."""
     if isinstance(node, dict):
@@ -573,126 +274,6 @@ def _collect_defs_refs(node: Any, refs: set[str]) -> None:
     elif isinstance(node, list):
         for item in node:
             _collect_defs_refs(item, refs)
-
-
-def _clean_schema_node(
-    node: Any,
-    referenced_dynamics: set[str] | None = None,
-    is_properties_dict: bool = False,
-    is_union_container: bool = False,
-) -> Any:
-    """Recursively cleans auto-generated Pydantic schema attributes (titles, null types, redundant anyOf wrappers, dynamic value expansions)."""
-    if referenced_dynamics is None:
-        referenced_dynamics = set()
-
-    if isinstance(node, dict):
-        cleaned = {}
-        for k, v in node.items():
-            if k == "title" and not is_properties_dict:
-                continue
-            cleaned[k] = _clean_schema_node(
-                v,
-                referenced_dynamics=referenced_dynamics,
-                is_properties_dict=(k == "properties"),
-                is_union_container=(k in ("anyComponent", "anyFunction")),
-            )
-
-        if (
-            "$ref" in cleaned
-            and isinstance(cleaned["$ref"], str)
-            and cleaned["$ref"].startswith("#/$defs/")
-        ):
-            ref_target = cleaned["$ref"].split("/")[-1]
-            referenced_dynamics.add(ref_target)
-
-        if "default" in cleaned and cleaned["default"] is None:
-            del cleaned["default"]
-
-        union_key = (
-            "anyOf" if "anyOf" in cleaned else ("oneOf" if "oneOf" in cleaned else None)
-        )
-        if union_key and isinstance(cleaned[union_key], list):
-            items = [
-                item
-                for item in cleaned[union_key]
-                if not (isinstance(item, dict) and item.get("type") == "null")
-            ]
-            if len(items) == 1 and not is_union_container:
-                single_item = items[0]
-                parent_attrs = {k: v for k, v in cleaned.items() if k != union_key}
-                if isinstance(single_item, dict):
-                    merged = dict(single_item)
-                    for k, v in parent_attrs.items():
-                        if k not in merged:
-                            merged[k] = v
-                    return _clean_schema_node(
-                        merged,
-                        referenced_dynamics=referenced_dynamics,
-                        is_properties_dict=False,
-                    )
-                else:
-                    return single_item
-            else:
-                has_databinding = any(
-                    _is_ref(it, "#/$defs/DataBinding") for it in items
-                )
-                has_func_call = any(_is_ref(it, "#/$defs/FunctionCall") for it in items)
-                if has_databinding and has_func_call:
-                    str_type = any(_is_type(it, "string") for it in items)
-                    num_type = any(
-                        _is_type(it, "number") or _is_type(it, "integer")
-                        for it in items
-                    )
-                    bool_type = any(_is_type(it, "boolean") for it in items)
-                    array_or_obj = any(
-                        isinstance(it, dict)
-                        and (
-                            it.get("type") in ("array", "object")
-                            or "additionalProperties" in it
-                        )
-                        for it in items
-                    )
-
-                    types_count = sum([str_type, num_type, bool_type, array_or_obj])
-
-                    target_def = None
-                    if types_count > 1:
-                        target_def = "DynamicValue"
-                    elif str_type:
-                        target_def = "DynamicString"
-                    elif num_type:
-                        target_def = "DynamicNumber"
-                    elif bool_type:
-                        target_def = "DynamicBoolean"
-                    else:
-                        target_def = "DynamicValue"
-
-                    if target_def:
-                        referenced_dynamics.add(target_def)
-                        parent_attrs = {
-                            k: v for k, v in cleaned.items() if k != union_key
-                        }
-                        res = {"$ref": f"#/$defs/{target_def}"}
-                        res.update(parent_attrs)
-                        return res
-
-                if union_key == "anyOf":
-                    del cleaned["anyOf"]
-                    cleaned["oneOf"] = items
-                else:
-                    cleaned["oneOf"] = items
-
-        return cleaned
-    elif isinstance(node, list):
-        return [
-            _clean_schema_node(
-                item,
-                referenced_dynamics=referenced_dynamics,
-                is_properties_dict=False,
-            )
-            for item in node
-        ]
-    return node
 
 
 TComponent = TypeVar("TComponent", bound=ComponentApi, default=Any)
@@ -719,10 +300,9 @@ class Catalog(Generic[TComponent, TFunction]):
         self.protocol_version = protocol_version
         self.instructions = instructions
         self.defs: dict[str, Any] = copy.deepcopy(defs) if defs else {}
-        # Shared type definitions supplied by the catalog's own common types
-        # document. These take precedence over the built-in definitions derived
-        # from the Pydantic schema models, so a catalog that ships a reduced or
-        # customized common types document validates against that document.
+        # Shared type definitions that override the built-in common types
+        # definitions derived from the Pydantic schema models, for a catalog
+        # that validates against a reduced or customized common types document.
         self.common_types_defs: dict[str, Any] = (
             copy.deepcopy(common_types_defs) if common_types_defs else {}
         )
@@ -858,30 +438,40 @@ class Catalog(Generic[TComponent, TFunction]):
 
         if defs:
             schema["$defs"] = defs
+        # Models that stand for nested objects (e.g. `ComponentCommonMetadata`)
+        # go back inline, as the specification writes them.
+        schema = inline_marked_defs(schema)
 
         referenced_dynamics: set[str] = set()
+        try:
+            protocol_version = to_protocol_version(self.protocol_version)
+        except ValueError as e:
+            raise A2uiCatalogError(str(e)) from e
+        dynamic_index = get_dynamic_type_index(protocol_version)
         cleaned_schema = cast(
             dict[str, Any],
-            _clean_schema_node(schema, referenced_dynamics=referenced_dynamics),
+            clean_schema_node(
+                schema,
+                referenced_dynamics=referenced_dynamics,
+                dynamic_index=dynamic_index,
+            ),
         )
 
         if referenced_dynamics:
             if "$defs" not in cleaned_schema:
                 cleaned_schema["$defs"] = {}
-            if any(
-                d in referenced_dynamics
-                for d in (
-                    "DynamicString",
-                    "DynamicNumber",
-                    "DynamicBoolean",
-                    "DynamicValue",
-                    "DynamicStringList",
-                )
-            ):
+            if referenced_dynamics & dynamic_index.names:
                 referenced_dynamics.add("DataBinding")
                 referenced_dynamics.add("FunctionCall")
+            # Versions without common types (v0.8) fall back to v0.9, as the
+            # dynamic type index does.
+            common_types_version = (
+                ProtocolVersion.V0_9
+                if protocol_version is ProtocolVersion.V0_8
+                else protocol_version
+            )
             dynamic_defs = {
-                **_get_dynamic_types_defs(self.protocol_version),
+                **get_common_types_catalog_defs(common_types_version),
                 **self.common_types_defs,
             }
             queue = deque(referenced_dynamics)
@@ -895,15 +485,17 @@ class Catalog(Generic[TComponent, TFunction]):
                             referenced_dynamics.add(target)
                             queue.append(target)
 
+            # The returned schema gets copies, so mutating it leaves this
+            # catalog's `common_types_defs` intact.
             for dyn in sorted(referenced_dynamics):
                 if dyn in dynamic_defs:
                     if dyn not in cleaned_schema["$defs"]:
-                        cleaned_schema["$defs"][dyn] = dynamic_defs[dyn]
+                        cleaned_schema["$defs"][dyn] = copy.deepcopy(dynamic_defs[dyn])
                     elif isinstance(cleaned_schema["$defs"][dyn], dict) and isinstance(
                         dynamic_defs[dyn], dict
                     ):
                         cleaned_schema["$defs"][dyn] = {
-                            **dynamic_defs[dyn],
+                            **copy.deepcopy(dynamic_defs[dyn]),
                             **cleaned_schema["$defs"][dyn],
                         }
 
@@ -943,7 +535,6 @@ class Catalog(Generic[TComponent, TFunction]):
         catalog_schema: Mapping[str, Any],
         protocol_version: str | None = None,
         catalog_id: str | None = None,
-        common_types_schema: Mapping[str, Any] | None = None,
     ) -> "CatalogApi":
         """Constructs a schema-only Catalog directly from raw JSON Schema.
 
@@ -951,9 +542,6 @@ class Catalog(Generic[TComponent, TFunction]):
             catalog_schema: Raw catalog JSON Schema document.
             protocol_version: Protocol version, if not declared in the schema.
             catalog_id: Catalog identifier, if not declared in the schema.
-            common_types_schema: Optional common types document supplying the
-                shared definitions the catalog references. When omitted, shared
-                types resolve from the built-in Pydantic-derived definitions.
 
         Returns:
             A catalog whose schema is self-contained, with every cross-document
@@ -1075,12 +663,7 @@ class Catalog(Generic[TComponent, TFunction]):
                         )
                     )
 
-        common_types_defs = None
-        if common_types_schema:
-            raw_defs = common_types_schema.get("$defs")
-            if isinstance(raw_defs, dict):
-                common_types_defs = _normalize_external_schema_refs(dict(raw_defs))
-
+        # `catalog_schema` merges in the built-in common types defs.
         return CatalogApi(
             catalog_id=catalog_id,
             protocol_version=p_ver,
@@ -1091,7 +674,6 @@ class Catalog(Generic[TComponent, TFunction]):
             or {},
             instructions=inlined_catalog_schema.get("instructions"),
             defs=inlined_catalog_schema.get("$defs"),
-            common_types_defs=common_types_defs,
         )
 
 

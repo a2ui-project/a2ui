@@ -21,6 +21,7 @@ from .semver import (
     normalize_version_string,
     parse_semver,
     to_canonical_version,
+    to_protocol_version,
     to_semver,
 )
 
@@ -35,6 +36,7 @@ __all__ = [
     "normalize_version_string",
     "parse_semver",
     "to_canonical_version",
+    "to_protocol_version",
     "to_semver",
     "compare_semver",
     "is_at_least_version",

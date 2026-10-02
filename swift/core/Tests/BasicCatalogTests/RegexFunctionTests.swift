@@ -58,10 +58,11 @@ struct RegexFunctionTests {
     #expect(result == .boolean(true))
   }
 
-  @Test func evaluatesToFalseWhenPatternIsInvalid() throws {
-    let result = try function.evaluate(
-      arguments: ["value": .string("foo"), "pattern": .string("[invalid")], context: context)
-    #expect(result == .boolean(false))
+  @Test func throwsErrorWhenPatternIsInvalid() throws {
+    #expect(throws: FunctionError.self) {
+      try function.evaluate(
+        arguments: ["value": .string("foo"), "pattern": .string("[invalid")], context: context)
+    }
   }
 
   @Test func evaluatesToFalseWhenValueIsMissing() throws {

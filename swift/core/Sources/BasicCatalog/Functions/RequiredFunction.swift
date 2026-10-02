@@ -43,8 +43,8 @@ public final class RequiredFunction: FunctionImplementation, Sendable {
       return .boolean(!str.isEmpty)
     case .array(let arr):
       return .boolean(!arr.isEmpty)
-    case .object(let dict):
-      return .boolean(!dict.isEmpty)
+    case .object:
+      return .boolean(true)
     default:
       return .boolean(true)
     }

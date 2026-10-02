@@ -529,6 +529,17 @@ export class GenericBinder<T> {
     return res;
   }
 
+  private resolveActionContext(context: unknown): Record<string, unknown> | undefined {
+    if (typeof context !== 'object' || context === null || Array.isArray(context)) {
+      return undefined;
+    }
+    const res: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(context)) {
+      res[k] = this.resolveDeepSync(v, 1);
+    }
+    return res;
+  }
+
   /**
    * Resolves a server-bound `event` action payload at invocation time, preserving
    * the `event` wrapper while evaluating nested `context` and `userMessage` fields.
@@ -542,9 +553,7 @@ export class GenericBinder<T> {
       const ev = obj.event as Record<string, unknown>;
       const resolvedEvent: Record<string, unknown> = {
         ...ev,
-        context: ev.context
-          ? (this.resolveDeepSync(ev.context, 1) as Record<string, unknown>)
-          : undefined,
+        context: ev.context ? this.resolveActionContext(ev.context) : undefined,
       };
       // `userMessage` is a DynamicString; the agent expects it already
       // resolved to a plain string.
@@ -556,9 +565,7 @@ export class GenericBinder<T> {
     if ('name' in obj) {
       const resolved: Record<string, unknown> = {
         ...obj,
-        context: obj.context
-          ? (this.resolveDeepSync(obj.context, 1) as Record<string, unknown>)
-          : undefined,
+        context: obj.context ? this.resolveActionContext(obj.context) : undefined,
       };
       if (obj['userMessage'] !== undefined) {
         resolved['userMessage'] = this.resolveDeepSync(obj['userMessage'], 1);

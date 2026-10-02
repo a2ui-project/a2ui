@@ -39,9 +39,11 @@ public final class AndFunction: FunctionImplementation, Sendable {
   public init() {}
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
-    guard let values = arguments["values"]?.arrayValue else { return .boolean(false) }
+    guard let values = arguments["values"]?.arrayValue, values.count >= 2 else {
+      throw FunctionError.executionFailed(name: "and", message: "AndFunction requires at least 2 values")
+    }
     for v in values {
-      if v.boolValue != true {
+      if !v.isTruthy {
         return .boolean(false)
       }
     }

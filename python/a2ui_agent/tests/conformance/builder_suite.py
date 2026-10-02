@@ -46,12 +46,12 @@ from a2ui.core.schema.v0_9 import (
 )
 from a2ui.core import ValidationConfig
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import (
-    COMMON_TYPES_SCHEMA_KEY,
-    SERVER_TO_CLIENT_SCHEMA_KEY,
-    SPEC_VERSION_MAP,
+from a2ui.schema.constants import SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
+from a2ui.schema.utils import (
+    find_repo_root,
+    load_common_types_schema,
+    load_from_bundled_resource,
 )
-from a2ui.schema.utils import find_repo_root, load_from_bundled_resource
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 CONFORMANCE_DIR = os.path.join(REPO_ROOT, "conformance", "agent", "builder")
@@ -266,9 +266,7 @@ def basic_catalog_schema() -> A2uiCatalog:
             s2c_schema=load_from_bundled_resource(
                 CATALOG_VERSION, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
             ),
-            common_types_schema=load_from_bundled_resource(
-                CATALOG_VERSION, COMMON_TYPES_SCHEMA_KEY, SPEC_VERSION_MAP
-            ),
+            common_types_schema=load_common_types_schema(CATALOG_VERSION),
         )
     return _catalog
 

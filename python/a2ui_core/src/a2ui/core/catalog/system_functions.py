@@ -18,11 +18,11 @@ The protocol reserves the `@` namespace for functions the renderer provides, so
 a system function is available to any catalog whose protocol version defines it,
 including catalogs that never declare it.
 
-A system function is defined once, here, in terms of the version-neutral types
-in `a2ui.core.schema.common_types`. It carries the protocol version that
-introduced it and remains available in every version after that, so a new
-protocol version inherits the whole set without registering anything. A version
-that wants these functions in its catalog references them, as
+A system function is defined once, here, in terms of the types of the protocol
+version that introduced it (`a2ui.core.schema.v1_0.common_types` for `@index`),
+and remains available in every version after that, so a new protocol version
+inherits the whole set without registering anything. A version that wants these
+functions in its catalog references them, as
 `basic_catalog/v1_0/function_impls.py` does.
 """
 
@@ -35,7 +35,8 @@ from pydantic import Field
 from ..common.semver import is_at_least_version
 from ..exceptions import A2uiValidationError
 from ..schema import ProtocolVersion
-from ..schema.common_types import DynamicNumber, StrictBaseModel
+from ..schema.common_types import StrictBaseModel
+from ..schema.v1_0.common_types import DynamicNumber
 from .functions import (
     FunctionApi,
     FunctionImplementation,
