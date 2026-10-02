@@ -139,7 +139,8 @@
     "build": {
       "command": "tsup && node scripts/postbuild.mjs",
       "dependencies": [
-        "../../typescript/web_core:build"
+        "../../typescript/web_core:build",
+        "../markdown/markdown-it:build"
       ],
       "files": [
         "src/**/*",
