@@ -16,14 +16,16 @@
 
 import type {ComponentContext, ComponentNode} from '@a2ui/web_core/v0_9';
 import type {A2uiWebComponentElement} from '@a2ui/web_core/v0_9/universal';
-import {HostRegistry} from '../host_registry';
+import {HostRegistry, isReactRendered, ownerAbove} from '../host_registry';
 import type {ReactComponentImplementation} from '../react_component_implementation';
 
 /**
  * The custom element that stands in the DOM for a node implemented in React
- * (for example `<a2ui-react-badge>`). It holds no implementation: given its
- * `node`, it registers with its surface's `HostRegistry`, and `A2uiSurface`
- * portals the node's React content into it.
+ * (for example `<a2ui-react-badge>`). It holds no implementation. When React
+ * creates it, React renders the node's content as its children. When another
+ * renderer creates it (a Lit `Column` rendering its children), it registers
+ * with its surface's `HostRegistry` under the nearest React-rendered element
+ * above it, whose React content portals the node's content into it.
  */
 export interface ReactHostElement extends A2uiWebComponentElement {
   node?: ComponentNode<ReactComponentImplementation>;
@@ -64,13 +66,13 @@ export class ReactWcHost extends HTMLElement implements ReactHostElement {
   private register() {
     const node = this._node;
     const surface = node?.context?.dataContext.surface;
-    if (!this.isConnected || !node || !surface) return;
+    if (!this.isConnected || !node || !surface || isReactRendered(this)) return;
     const registry = HostRegistry.forSurface(surface);
     // A node from another surface moves the host to that surface.
     if (this.registry !== registry) {
       this.registry?.delete(this);
       this.registry = registry;
     }
-    registry.add(this, node);
+    registry.add(this, node, ownerAbove(this));
   }
 }

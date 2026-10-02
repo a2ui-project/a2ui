@@ -25,15 +25,54 @@ export interface HostEntry {
 }
 
 /**
- * The React host elements currently connected for one surface, each with its
- * node. Hosts add themselves once connected and given a node, wherever they
- * are in the DOM; `A2uiSurface` subscribes and renders a portal into each one.
+ * Identifies an element that React rendered through `WebComponentNode`. The
+ * React content rendered beside that element portals the hosts it owns: the
+ * React hosts another renderer (a Lit `Column`, say) created below it.
+ */
+export class HostOwner {
+  // Nominal: only `new HostOwner()` is one.
+  declare private readonly nominal: never;
+}
+
+const rendered = new WeakMap<Element, HostOwner>();
+
+/** Records that React rendered `element`, under the identity `owner`. */
+export function markReactRendered(element: Element, owner: HostOwner): void {
+  rendered.set(element, owner);
+}
+
+/**
+ * Whether React rendered `element`. React renders the content of a host it
+ * created as the host's children; only a host another renderer created is
+ * portaled.
+ */
+export function isReactRendered(element: Element): boolean {
+  return rendered.has(element);
+}
+
+/**
+ * The owner of the nearest element above `element` that React rendered,
+ * crossing shadow roots; `null` when there is none.
+ */
+export function ownerAbove(element: Element): HostOwner | null {
+  let current: Node | null = element.parentNode;
+  while (current) {
+    const owner = current instanceof Element ? rendered.get(current) : undefined;
+    if (owner) return owner;
+    current = current instanceof ShadowRoot ? current.host : current.parentNode;
+  }
+  return null;
+}
+
+/**
+ * The React hosts currently connected for one surface that another renderer
+ * created, each with its node and its owner (see `HostOwner`). The owner's
+ * content portals the entry, so the React tree nests the way the DOM does.
  */
 export class HostRegistry {
   private static readonly registries = new WeakMap<SurfaceModel<ComponentApi>, HostRegistry>();
 
   /** The registry of `surface`; hosts find it through their node's context. */
-
   static forSurface(surface: SurfaceModel<ComponentApi>): HostRegistry {
     let registry = HostRegistry.registries.get(surface);
     if (!registry) {
@@ -43,36 +82,71 @@ export class HostRegistry {
     return registry;
   }
 
-  private readonly hosts = new Map<ReactHostElement, ComponentNode<ReactComponentImplementation>>();
-  private snapshot: readonly HostEntry[] = [];
-  private readonly listeners = new Set<() => void>();
+  private readonly hosts = new Map<ReactHostElement, {entry: HostEntry; owner: HostOwner | null}>();
+  private readonly snapshots = new Map<HostOwner | null, readonly HostEntry[]>();
+  private readonly listeners = new Map<HostOwner | null, Set<() => void>>();
 
-  add(host: ReactHostElement, node: ComponentNode<ReactComponentImplementation>): void {
-    if (this.hosts.get(host) === node) return;
-    this.hosts.set(host, node);
-    this.publish();
+  add(
+    host: ReactHostElement,
+    node: ComponentNode<ReactComponentImplementation>,
+    owner: HostOwner | null,
+  ): void {
+    const current = this.hosts.get(host);
+    if (current && current.entry.node === node && current.owner === owner) return;
+    this.hosts.set(host, {entry: {host, node}, owner});
+    if (current && current.owner !== owner) this.publish(current.owner);
+    this.publish(owner);
   }
 
   delete(host: ReactHostElement): void {
-    if (this.hosts.delete(host)) this.publish();
+    const current = this.hosts.get(host);
+    if (!current) return;
+    this.hosts.delete(host);
+    this.publish(current.owner);
   }
 
   has(host: ReactHostElement): boolean {
     return this.hosts.has(host);
   }
 
-  readonly subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
+  /** Every registered host, in registration order. */
+  entries(): readonly HostEntry[] {
+    return [...this.hosts.values()].map(({entry}) => entry);
+  }
+
+  /** Notifies `listener` when the hosts owned by `owner` change. */
+  subscribe(owner: HostOwner | null, listener: () => void): () => void {
+    let listeners = this.listeners.get(owner);
+    if (!listeners) {
+      listeners = new Set();
+      this.listeners.set(owner, listeners);
+    }
+    listeners.add(listener);
     return () => {
-      this.listeners.delete(listener);
+      listeners.delete(listener);
     };
-  };
+  }
 
-  readonly getSnapshot = (): readonly HostEntry[] => this.snapshot;
+  /** The hosts owned by `owner`; the same array until they change. */
+  getSnapshot(owner: HostOwner | null): readonly HostEntry[] {
+    let snapshot = this.snapshots.get(owner);
+    if (!snapshot) {
+      snapshot = this.compute(owner);
+      this.snapshots.set(owner, snapshot);
+    }
+    return snapshot;
+  }
 
-  private publish(): void {
-    this.snapshot = [...this.hosts].map(([host, node]) => ({host, node}));
+  private compute(owner: HostOwner | null): readonly HostEntry[] {
+    const result: HostEntry[] = [];
+    for (const {entry, owner: entryOwner} of this.hosts.values()) {
+      if (entryOwner === owner) result.push(entry);
+    }
+    return result;
+  }
 
-    for (const listener of this.listeners) listener();
+  private publish(owner: HostOwner | null): void {
+    this.snapshots.set(owner, this.compute(owner));
+    for (const listener of this.listeners.get(owner) ?? []) listener();
   }
 }

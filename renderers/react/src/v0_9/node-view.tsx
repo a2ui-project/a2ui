@@ -20,11 +20,17 @@
  *
  * A node renders as its implementation's custom element (`ChildElement`). For
  * a React implementation that element is a host (`catalog/react_host_element.ts`)
- * into which `A2uiSurface` portals `NodeContent`: the implementation's `view`
- * with the host's node and a `buildChild` that renders child nodes as their own
- * elements. Each factory-made implementation carries a generated `view` (see
- * `adapter.tsx`) that subscribes to its node's props through `useNodeView`, so
- * a data change re-renders exactly the affected component.
+ * and React renders `NodeContent` inside it: the implementation's `view` with
+ * the host's node and a `buildChild` that renders child nodes as their own
+ * elements. A Web Component renders its own children; the React hosts it
+ * creates register with the surface under the nearest React-rendered element
+ * above them, and `HostedChildren` beside that element portals `NodeContent`
+ * into each. The React tree therefore nests like the DOM, so context, error
+ * boundaries and events pass from a component to the components it renders,
+ * whether or not a Web Component sits in between. Each factory-made
+ * implementation carries a generated `view` (see `adapter.tsx`) that subscribes
+ * to its node's props through `useNodeView`, so a data change re-renders
+ * exactly the affected component.
  *
  * Every node that reaches a host is resolved: `A2uiSurface` prepares the
  * catalogs, so `impl` is a web component, and the parent only renders nodes
@@ -33,6 +39,7 @@
 
 import type React from 'react';
 import {memo, useCallback, useEffect, useMemo, useSyncExternalStore} from 'react';
+import {createPortal} from 'react-dom';
 import {
   type ComponentContext,
   type ComponentNode,
@@ -52,6 +59,7 @@ import type {
   ReactComponentImplementation,
 } from './react_component_implementation';
 import {WebComponentNode} from './web_component_node';
+import {HostOwner, HostRegistry} from './host_registry';
 
 /** The context of a node a host renders. */
 function contextOf(node: ComponentNode): ComponentContext {
@@ -276,20 +284,62 @@ const RenderFallback: React.FC<{
  * inline error.
  */
 export const ChildElement = memo(({node}: {node: ComponentNode<ReactCatalogComponent>}) => {
+  const owner = useMemo(() => new HostOwner(), []);
   if (node.state === 'unknown-type') {
     return <div style={{color: 'red'}}>Unknown component type: {node.type}</div>;
   }
   if (node.isPlaceholder || !node.impl || !node.context) {
     return <LoadingPlaceholder componentId={node.componentId} />;
   }
-  return <WebComponentNode node={node} />;
+  if ('render' in node.impl) {
+    // A React implementation: its host is React's own element, so its content
+    // is simply the element's children.
+    return (
+      <WebComponentNode node={node} owner={owner}>
+        <NodeContent node={node} />
+      </WebComponentNode>
+    );
+  }
+  // A Web Component renders its own children, among them React hosts that
+  // React did not create. They register under this element, and their
+  // content is portaled from here, inside whatever the parent view wraps
+  // this element in.
+  const surface = node.context.dataContext.surface as SurfaceModel<ReactCatalogComponent>;
+  return (
+    <>
+      <WebComponentNode node={node} owner={owner} />
+      <HostedChildren surface={surface} owner={owner} />
+    </>
+  );
 });
 ChildElement.displayName = 'ChildElement';
 
 /**
- * The content `A2uiSurface` portals into one host: the node's implementation,
- * with children as their elements. Memoized so a registry update, which
- * re-renders `A2uiSurface`, leaves existing portals alone.
+ * One portal per React host owned by `owner`: a host registered for `surface`
+ * whose nearest React-rendered element above it in the DOM is the one `owner`
+ * identifies (`null`: there is none). Separate from the owner's view so that
+ * a host connecting or disconnecting below it re-renders only this list.
+ */
+export const HostedChildren: React.FC<{
+  surface: SurfaceModel<ReactCatalogComponent>;
+  owner: HostOwner | null;
+}> = ({surface, owner}) => {
+  const registry = HostRegistry.forSurface(surface);
+  const subscribe = useCallback(
+    (listener: () => void) => registry.subscribe(owner, listener),
+    [registry, owner],
+  );
+  const getSnapshot = useCallback(() => registry.getSnapshot(owner), [registry, owner]);
+  const hosts = useSyncExternalStore(subscribe, getSnapshot);
+  return (
+    <>{hosts.map(({host, node}) => createPortal(<NodeContent node={node} />, host, node.id))}</>
+  );
+};
+
+/**
+ * The content of one host: the node's implementation, with children as their
+ * elements. Memoized so a registry update, which re-renders `HostedChildren`,
+ * leaves existing portals alone.
  */
 export const NodeContent = memo(({node}: {node: ComponentNode<ReactCatalogComponent>}) => {
   const surface = contextOf(node).dataContext.surface as SurfaceModel<ReactCatalogComponent>;
