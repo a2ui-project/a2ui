@@ -2183,7 +2183,7 @@ function validateDispatchActionTestCase(testCase) {
   const dispatched = [];
   surface.onAction.subscribe(evt => dispatched.push(evt));
 
-  const ctx = new DataContext(model, scope || '/', surface);
+  const ctx = new DataContext(surface, scope || '/');
 
   if (errorSpec) {
     assert.throws(() => {

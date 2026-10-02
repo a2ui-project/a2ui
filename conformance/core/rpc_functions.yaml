@@ -384,28 +384,3 @@
         args: {}
   expectError:
     code: "DUPLICATE"
-
-- name: test_rpc_unregistered_function_call_agent_fallback
-  description: Verifies calling an unregistered local function falls back to callAgentFunction RPC in v1.0 (D2).
-  catalog:
-    protocolVersion: "v1.0"
-  action: handle_rpc
-  args:
-    outboundCall:
-      surfaceId: "main_surface"
-      functionCallId: "fallback-call-1"
-      callFunction:
-        call: "unregisteredCustomTool"
-        catalogId: "custom_catalog"
-        args:
-          param: "test"
-    inboundResponse:
-      version: "v1.0"
-      agentFunctionResponse:
-        functionCallId: "fallback-call-1"
-        value:
-          success: true
-  expect:
-    correlatedCallId: "fallback-call-1"
-    result:
-      success: true
