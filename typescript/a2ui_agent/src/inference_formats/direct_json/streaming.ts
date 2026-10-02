@@ -732,9 +732,11 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
         if (typeof dmObj === 'object' && dmObj !== null && 'value' in dmObj) {
           const valueMap = dmObj.value;
           if (typeof valueMap === 'object' && valueMap !== null) {
+            // Every parse builds new arrays and objects, so values are compared by content,
+            // as Python's `!=` does, rather than by reference.
             const delta: Record<string, any> = {};
             for (const [k, v] of Object.entries(valueMap)) {
-              if (this.yieldedDataModel[k] !== v) {
+              if (this.stableStringify(this.yieldedDataModel[k]) !== this.stableStringify(v)) {
                 delta[k] = v;
               }
             }
