@@ -15,7 +15,7 @@
  */
 
 import React, {useEffect, useState} from 'react';
-import {useA2UI, A2UIRenderer} from '@a2ui/react';
+import {useA2UI, A2UIRenderer} from '@a2ui/react/v0_8';
 import type {Types} from '@a2ui/lit/0.8';
 import {allFixtures, type FixtureName, type ComponentFixture} from '../../fixtures';
 

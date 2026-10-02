@@ -29,9 +29,9 @@ import {
   getValue,
   type A2uiClientAction,
 } from '@a2ui/web_core/v0_9';
-import {createComponentImplementation, type ReactComponentImplementation} from '../../src/v0_9';
-import {NodeSurfaceContext} from '../../src/v0_9/node-view';
-import {A2uiSurface} from '../../src/v0_9/A2uiSurface';
+import {createComponentImplementation, type ReactComponentImplementation} from '../../src/adapter';
+import {NodeSurfaceContext} from '../../src/node-view';
+import {A2uiSurface} from '../../src/A2uiSurface';
 import {basicCatalog} from '../../src/v0_9/catalog/basic';
 
 /** View render counts, keyed per component instance. */

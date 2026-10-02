@@ -102,4 +102,22 @@ describe('React Explorer Sidebars & Navigation', () => {
 
     expect(getActiveTitle()).toEqual(initialTitle);
   });
+
+  it('should switch between v0.9 and v1.0 galleries using the version selector', async () => {
+    const versionSelect = container.querySelector(
+      'select[aria-label="Protocol Version"]',
+    ) as HTMLSelectElement;
+    expect(versionSelect).toBeInstanceOf(HTMLSelectElement);
+    expect(versionSelect.value).toBe('v0.9');
+
+    await act(async () => {
+      versionSelect.value = 'v1.0';
+      versionSelect.dispatchEvent(new Event('change', {bubbles: true}));
+      await whenSettled();
+    });
+
+    expect(versionSelect.value).toBe('v1.0');
+    const navItems = container.querySelectorAll('[class*="navItem"]');
+    expect(navItems.length).toBeGreaterThan(0);
+  });
 });

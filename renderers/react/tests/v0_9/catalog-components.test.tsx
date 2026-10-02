@@ -17,7 +17,7 @@
 import {describe, it, expect, vi} from 'vitest';
 import {screen, fireEvent, act, within} from '@testing-library/react';
 import {Catalog, ComponentModel} from '@a2ui/web_core/v0_9';
-import {renderA2uiComponent, renderedElement} from '../utils';
+import {renderA2uiComponent} from '../utils';
 
 import {
   Text,
@@ -241,7 +241,7 @@ describe('Basic Catalog Components', () => {
       const {view} = renderA2uiComponent(Column, {
         children: ['c1'],
       });
-      expect(renderedElement(view.container)).toHaveStyle({flexDirection: 'column'});
+      expect(view.container.firstChild).toHaveStyle({flexDirection: 'column'});
     });
 
     it('List supports dynamic templates with scoped data context', () => {
@@ -306,9 +306,7 @@ describe('Basic Catalog Components', () => {
 
     it('Divider renders a themed line', () => {
       const {view} = renderA2uiComponent(Divider, {axis: 'horizontal'});
-      expect(renderedElement(view.container)).toHaveStyle({
-        height: 'var(--a2ui-border-width, 1px)',
-      });
+      expect(view.container.firstChild).toHaveStyle({height: 'var(--a2ui-border-width, 1px)'});
     });
   });
 

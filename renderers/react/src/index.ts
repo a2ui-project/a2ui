@@ -14,4 +14,14 @@
  * limitations under the License.
  */
 
-export * from './v0_8/index';
+export * from './A2uiSurface';
+export * from './adapter';
+export * from './to-web-component';
+export {useSignalValue, A2uiNodeById, type AnyComponentImplementation} from './node-view';
+export type {
+  NodeBuildChild,
+  NodeViewProps,
+  ReactA2uiComponentProps,
+  ReactComponentImplementation,
+} from './react_component_implementation';
+export {MarkdownContext, useMarkdownRenderer} from './context/MarkdownContext';

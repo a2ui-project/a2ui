@@ -27,13 +27,17 @@
 import React, {useCallback, useLayoutEffect, useMemo, useSyncExternalStore} from 'react';
 import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
 import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
-import type {ReactComponentImplementation} from './react_component_implementation';
 
-import {LoadingPlaceholder, NodeSurfaceContext, NodeView} from './node-view';
+import {
+  LoadingPlaceholder,
+  NodeSurfaceContext,
+  NodeView,
+  type AnyComponentImplementation,
+} from './node-view';
 import {useMarkdownRenderer} from './markdown-context';
 
 export const A2uiSurface: React.FC<{
-  surface: SurfaceModel<ReactComponentImplementation>;
+  surface: SurfaceModel<AnyComponentImplementation>;
 }> = ({surface}) => {
   // web_core's basic catalog reads its markdown renderer from a module-level
   // slot. A layout effect sets it during commit, so it is in place before any
@@ -54,7 +58,7 @@ export const A2uiSurface: React.FC<{
   // The factory reads nothing; the dependency exists to reset the box when
   // the surface is swapped.
   const box = useMemo(
-    () => ({resolver: undefined as NodeResolver<ReactComponentImplementation> | undefined}),
+    () => ({resolver: undefined as NodeResolver<AnyComponentImplementation> | undefined}),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [surface],
   );

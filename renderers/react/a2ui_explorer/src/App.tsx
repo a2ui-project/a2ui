@@ -16,19 +16,17 @@
 
 import {useState, useEffect, useSyncExternalStore, useCallback, useRef} from 'react';
 import {MessageProcessor, type SurfaceModel, type A2uiClientAction} from '@a2ui/web_core/v0_9';
-import {
-  basicCatalog,
-  A2uiSurface,
-  MarkdownContext,
-  type ReactComponentImplementation,
-} from '@a2ui/react/v0_9';
-import {getDemoItems} from './examples';
+import {A2uiSurface, MarkdownContext, type AnyComponentImplementation} from '@a2ui/react';
+import {basicCatalog as basicCatalogV09} from '@a2ui/react/v0_9';
+import {basicCatalog as basicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
+import {getDemoItems, type DemoItem} from './examples';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import styles from './App.module.css';
 
-const demoItems = getDemoItems();
+const demoItemsV09 = getDemoItems('v0.9');
+const demoItemsV10 = getDemoItems('v1.0');
 
-const DataModelViewer = ({surface}: {surface: SurfaceModel<ReactComponentImplementation>}) => {
+const DataModelViewer = ({surface}: {surface: SurfaceModel<AnyComponentImplementation>}) => {
   const subscribeHook = useCallback(
     (callback: () => void) => {
       const bound = surface.dataModel.subscribe('/', callback);
@@ -61,6 +59,11 @@ export interface AppProps {
    */
   initialExampleId?: string;
   /**
+   * Protocol version to select on initial component load. Defaults to 'v0.9'.
+   * @internal @visibleForTesting
+   */
+  initialVersion?: 'v0.9' | 'v1.0';
+  /**
    * Callback to intercept dispatched actions.
    * @internal @visibleForTesting
    */
@@ -77,12 +80,35 @@ interface LogEntry {
   action: A2uiClientAction;
 }
 
-export const App = ({initialExampleId, onAction}: AppProps) => {
-  const [selectedExampleId, setSelectedExampleId] = useState(initialExampleId ?? demoItems[0].id);
-  const selectedItem = demoItems.find(e => e.id === selectedExampleId);
+export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
+  const [selectedVersion, setSelectedVersion] = useState<'v0.9' | 'v1.0'>(() => {
+    if (initialVersion) {
+      return initialVersion;
+    }
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const version = urlParams.get('version');
+      if (version === 'v1.0' || version === '1.0') {
+        return 'v1.0';
+      }
+    }
+    return 'v0.9';
+  });
+
+  const demoItems: DemoItem[] = selectedVersion === 'v1.0' ? demoItemsV10 : demoItemsV09;
+  const [selectedExampleId, setSelectedExampleId] = useState(initialExampleId ?? demoItems[0]?.id);
+  const selectedItem = demoItems.find(e => e.id === selectedExampleId) ?? demoItems[0];
+
+  const handleVersionChange = (newVersion: 'v0.9' | 'v1.0') => {
+    setSelectedVersion(newVersion);
+    const items = newVersion === 'v1.0' ? demoItemsV10 : demoItemsV09;
+    if (items.length > 0) {
+      setSelectedExampleId(items[0].id);
+    }
+  };
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [processor, setProcessor] = useState<MessageProcessor<ReactComponentImplementation> | null>(
+  const [processor, setProcessor] = useState<MessageProcessor<AnyComponentImplementation> | null>(
     null,
   );
   const [surfaces, setSurfaces] = useState<string[]>([]);
@@ -191,7 +217,7 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [demoItems]);
 
   // Initialize or reset processor
   const resetProcessor = useCallback(
@@ -200,8 +226,8 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
         if (prevProcessor) {
           prevProcessor.model.dispose();
         }
-        const newProcessor = new MessageProcessor<ReactComponentImplementation>(
-          [basicCatalog],
+        const newProcessor = new MessageProcessor<AnyComponentImplementation>(
+          [basicCatalogV09, basicCatalogV10],
           async (action: A2uiClientAction) => {
             setLogs(l => [...l, {time: new Date().toISOString(), action}]);
             if (onActionRef.current) {
@@ -290,6 +316,21 @@ export const App = ({initialExampleId, onAction}: AppProps) => {
           <div>
             <h1 className={styles.h1}>A2UI React Explorer</h1>
             <p className={styles.subtitle}>Preview and interact with React components</p>
+          </div>
+          <div className={styles.versionSelectorContainer}>
+            <label htmlFor="version-select" className={styles.versionLabel}>
+              Version:
+            </label>
+            <select
+              id="version-select"
+              className={styles.versionSelect}
+              value={selectedVersion}
+              onChange={e => handleVersionChange(e.target.value as 'v0.9' | 'v1.0')}
+              aria-label="Protocol Version"
+            >
+              <option value="v0.9">v0.9</option>
+              <option value="v1.0">v1.0</option>
+            </select>
           </div>
         </div>
         <div className={styles.stepperControls}>
