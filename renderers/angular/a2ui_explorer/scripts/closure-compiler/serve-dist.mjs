@@ -59,8 +59,21 @@ const server = http.createServer((req, res) => {
   let filePath = path.join(distDir, pathname === '/' ? 'index.html' : pathname);
   const relative = path.relative(distDir, filePath);
   const isSafe = !relative.startsWith('..') && !path.isAbsolute(relative);
-  if (!isSafe || !fs.existsSync(filePath)) {
-    filePath = path.join(distDir, 'index.html'); // SPA routing fallback
+  if (!isSafe) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+  if (!fs.existsSync(filePath)) {
+    const reqExt = path.extname(pathname);
+    const isStaticAsset = reqExt && reqExt !== '.html' && mimeTypes[reqExt];
+    if (!isStaticAsset) {
+      filePath = path.join(distDir, 'index.html'); // SPA routing fallback
+    } else {
+      res.writeHead(404, {'Content-Type': 'text/plain'});
+      res.end(`Not Found: ${pathname}`);
+      return;
+    }
   }
   const ext = path.extname(filePath);
   const contentType = mimeTypes[ext] || 'application/octet-stream';
