@@ -141,16 +141,16 @@ a2ui/core/
 │   ├── events                      # EventSource / listener plumbing
 │   └── semver                      # Protocol version comparison
 ├── expressions/                    # Protocol-version-agnostic expression parser
-├── basic_catalog/                  # Bundled default components and operators
+├── basic_catalog/                  # Bundled default components and functions
 │   ├── v0_8/                       # Conforms to spec v0.8
 │   ├── v0_9/                       # Conforms to spec v0.9, v0.9.1
 │   ├── v1_0/                       # Conforms to spec v1.0
-│   ├── operator_apis               # Operator function signatures
-│   └── locale_config               # Locale defaults for formatting functions
+│   └── locale_formatting           # CLDR locale rules Babel does not implement
 ├── catalog/                        # Catalog declarations
 │   ├── catalog                     # Catalog base class & inlining
 │   ├── components                  # Component declarations & API
-│   └── functions                   # Function declarations & implementations
+│   ├── functions                   # Function declarations & implementations
+│   └── system_functions            # Runtime-supplied '@' functions, shared by all versions
 ├── state/                          # Reactive Layout State Models
 │   ├── component_model             # Component property structures
 │   ├── data_model                  # Value dictionary binding paths
@@ -863,7 +863,6 @@ A component belongs to exactly one catalog, and from v1.0 one surface may mix ca
 - Raise `A2uiCatalogError` when a resolved `catalogId` is not one this processor supports.
 - Record the catalog on the `SurfaceModel` when the surface is created, so a later `updateComponents` resolves against it.
 - Expose `processMessages` as the single entry point for applying a payload to surface state and checking each message against the surface it joins. An agent uses it over its own output too, keeping a processor for the session so each payload is checked against the state the previous ones built.
-- Check every surface a payload creates as one graph once the payload has been applied: a `root` component exists, every reference resolves, and every component is reachable from the root. These three cannot be answered as each message arrives, because a payload may declare a parent before its child, so they answer for the surface the payload leaves behind rather than for each message in turn. `ValidationConfig` governs which of them run, so a caller whose transport delivers one surface across several payloads relaxes the ones that span them. A surface the payload only updates is an incremental update to a render it does not own, and is not held to them.
 - Envelope parsing is `AgentToRendererMessage.parseAll(payload, protocolVersion)`, not a validator method: it needs no catalog, which is what lets a payload be read before each message is matched to its surface.
 
 Envelope parsing takes no catalog: the protocol version tag and the single-update-type rule read none. Make it a static on the message type, so a payload can be parsed before each message is matched to a surface, and so to a catalog.

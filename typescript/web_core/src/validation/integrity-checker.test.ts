@@ -20,10 +20,10 @@
 
 import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
-import {getComponentReferences, validateRecursionAndPaths} from './integrity-checker.js';
-import {A2uiIntegrityError, A2uiRecursionError, A2uiValidationError} from '../errors.js';
+import {getComponentReferences} from './integrity-checker.js';
+import {A2uiIntegrityError, A2uiRecursionError} from '../errors.js';
 import {buildComponentRefMap, ComponentRefMap} from '../catalog/reference-map.js';
-import {BASIC_COMPONENTS} from '../v1_0/basic_catalog/components/basic_components.js';
+import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 
 describe('Integrity Verification', () => {
@@ -152,63 +152,6 @@ describe('Integrity Verification', () => {
         ['c3', 'sections[0].children[1]'],
         ['c4', 'sections[1].children[0]'],
       ]);
-    });
-  });
-
-  describe('validateRecursionAndPaths', () => {
-    it('passes valid path syntax', () => {
-      const data = {path: '/valid/path', nested: [{path: '/another'}]};
-      assert.doesNotThrow(() => validateRecursionAndPaths(data));
-    });
-
-    it('throws on unescaped invalid path syntax', () => {
-      const data = {path: 'invalid~path//double'};
-      assert.throws(
-        () => validateRecursionAndPaths(data),
-        (err: unknown) =>
-          err instanceof A2uiValidationError && err.message.includes('Invalid path syntax'),
-      );
-    });
-
-    it('throws when global recursion depth limit is exceeded', () => {
-      let deepList: unknown[] = [];
-      for (let i = 0; i < 52; i++) {
-        deepList = [deepList];
-      }
-      assert.throws(
-        () => validateRecursionAndPaths(deepList),
-        (err: unknown) =>
-          err instanceof A2uiRecursionError &&
-          err.message.includes('Global recursion limit exceeded'),
-      );
-    });
-
-    it('throws when function call recursion depth limit is exceeded', () => {
-      const deepCall: Record<string, unknown> = {};
-      let curr = deepCall;
-      for (let i = 0; i < 6; i++) {
-        curr.call = 'func';
-        const nextArgs: Record<string, unknown> = {};
-        curr.args = nextArgs;
-        curr = nextArgs;
-      }
-      assert.throws(
-        () => validateRecursionAndPaths(deepCall),
-        (err: unknown) =>
-          err instanceof A2uiRecursionError && err.message.includes('Recursion limit exceeded'),
-      );
-    });
-
-    it('throws when wrapped functionCall recursion depth limit is exceeded', () => {
-      let wrappedCall: Record<string, unknown> = {call: 'leaf', args: {}};
-      for (let i = 0; i < 6; i++) {
-        wrappedCall = {functionCall: wrappedCall};
-      }
-      assert.throws(
-        () => validateRecursionAndPaths(wrappedCall),
-        (err: unknown) =>
-          err instanceof A2uiRecursionError && err.message.includes('Recursion limit exceeded'),
-      );
     });
   });
 

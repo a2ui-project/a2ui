@@ -74,9 +74,6 @@ from .function_apis import (
     OrApi,
     NotApi,
 )
-from .operator_apis import (
-    IndexApi,
-)
 from .function_impls import (
     BASIC_FUNCTION_IMPLEMENTATIONS,
     create_basic_catalog_functions,
@@ -158,7 +155,6 @@ __all__ = [
     "AndApi",
     "OrApi",
     "NotApi",
-    "IndexApi",
     "BASIC_FUNCTION_IMPLEMENTATIONS",
     "create_basic_catalog_functions",
     "BasicCatalog",

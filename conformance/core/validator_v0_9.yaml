@@ -84,7 +84,8 @@
             const: Canvas
           children:
             type: array
-            items: {type: string}
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
         required:
           - component
           - children
@@ -1247,3 +1248,182 @@
       expectError:
         category: ValidationError
         message: Duplicate component ID
+
+- name: test_v09_topology_structured_array_item_dangling_child_error
+  description: Tests that a dangling child reference inside a structured array item (Tabs.tabs[].child) fails validation in v0.9 strict mode.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Tabs
+                tabs:
+                  - title: Overview
+                    child: tab_one
+                  - title: Details
+                    child: missing_tab
+              - id: tab_one
+                component: Text
+                text: First
+      expectError:
+        category: ValidationError
+        message: missing_tab
+
+- name: test_v09_topology_plain_string_property_not_treated_as_child_ref
+  description: Tests that a plain string property whose value happens to match another component's ID does not make that component reachable in v0.9 strict mode.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text: orphan_id
+              - id: orphan_id
+                component: Text
+                text: Still orphaned
+      expectError:
+        category: ValidationError
+        message: orphan_id
+
+- name: test_v09_child_list_template_missing_path_error
+  description: Tests that a ChildList template object missing its required 'path' property fails schema validation in v0.9.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: List
+                children:
+                  componentId: item
+              - id: item
+                component: Text
+                text: Item
+      expectError:
+        category: ValidationError
+
+- name: test_v09_update_data_model_invalid_path_error
+  description: Tests that an updateDataModel message with an invalid JSON Pointer escape ('~2') fails validation in v0.9.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateDataModel:
+            surfaceId: s1
+            path: /user/~2invalid
+            value: Alice
+      expectError:
+        category: ValidationError
+        message: Invalid path syntax
+
+- name: test_v09_function_argument_schema_mismatch_error
+  description: Tests that a function call passing an argument of the wrong type fails schema validation in v0.9.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  call: formatNumber
+                  args:
+                    value: not_a_number
+      expectError:
+        category: ValidationError
+
+- name: test_v09_theme_schema_validation_error
+  description: Tests that an invalid theme property on createSurface fails schema validation in v0.9.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+            theme:
+              primaryColor: not-a-hex-color
+      expectError:
+        category: ValidationError
+
+- name: test_v09_incremental_update_same_component_id_across_messages
+  description: Tests that updating the same component ID across separate updateComponents messages succeeds in v0.9 strict mode.
+  action: validate
+  protocolVersion: v0.9
+  catalogPaths:
+    - specification/v0_9/catalogs/basic/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: v0.9
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text: Initial
+        - version: v0.9
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text: Updated

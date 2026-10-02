@@ -38,6 +38,9 @@ import {FunctionInvoker} from '../catalog/function_invoker.js';
 import {SurfaceModel} from '../state/surface-model.js';
 
 import {Catalog, CatalogInterface} from '../catalog/types.js';
+import {isAtLeastVersion} from '../common/semver.js';
+import {SpecVersion} from '../spec_versions.js';
+import {IndexApi} from '../v1_0/functions/system_functions.js';
 
 const schemaKeysCache = new WeakMap<z.ZodTypeAny, Set<string> | null>();
 
@@ -148,7 +151,13 @@ export function validateFunctionArgs(
     );
   }
 
-  const fn = catalog?.functions?.get?.(functionName);
+  const fn =
+    catalog?.functions?.get?.(functionName) ??
+    (functionName === '@index' &&
+    catalog?.protocolVersion &&
+    isAtLeastVersion(catalog.protocolVersion, SpecVersion.V1_0)
+      ? IndexApi
+      : undefined);
   if (!fn?.schema) {
     return;
   }
@@ -246,6 +255,8 @@ export class DataContext {
   /** Explicit collection iteration index supplied to this context, if any. */
   readonly explicitIndex?: number;
   private readonly warnedPaths: Set<string>;
+  private _isUserActivated = false;
+  private _isPassiveEvaluation = false;
 
   readonly surface?: SurfaceModel<any>;
 
@@ -275,6 +286,16 @@ export class DataContext {
     this.explicitIndex = index;
     this.parent = parent;
     this.warnedPaths = parent ? parent.warnedPaths : new Set<string>();
+  }
+
+  /** Whether the current function evaluation was initiated by an active user action. */
+  get isUserActivated(): boolean {
+    return this._isUserActivated || Boolean(this.parent?.isUserActivated);
+  }
+
+  /** Whether the current function evaluation is running inside a passive reactive binding. */
+  get isPassiveEvaluation(): boolean {
+    return this._isPassiveEvaluation || Boolean(this.parent?.isPassiveEvaluation);
   }
 
   /**
@@ -377,7 +398,7 @@ export class DataContext {
    * @param depth The current recursion depth when evaluating nested arguments or expressions.
    * @returns The synchronously resolved value.
    */
-  resolveDynamicValue<V>(value: unknown, depth = 0): V {
+  resolveDynamicValue<V>(value: unknown, depth = 0, userActivated = false): V {
     if (depth > MAX_DYNAMIC_VALUE_DEPTH) {
       const err = new A2uiExpressionError(
         `Maximum dynamic value nesting depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH})`,
@@ -394,7 +415,7 @@ export class DataContext {
       if (!DataContext.containsDynamicValue(value)) {
         return value as V;
       }
-      return value.map(item => this.resolveDynamicValue(item, depth + 1)) as V;
+      return value.map(item => this.resolveDynamicValue(item, depth + 1, userActivated)) as V;
     }
 
     const rec = value as Record<string, unknown>;
@@ -409,7 +430,7 @@ export class DataContext {
     }
 
     if (DataContext.isFunctionCallObject(rec)) {
-      return this.resolveFunctionCallValue<V>(value as FunctionCall, depth);
+      return this.resolveFunctionCallValue<V>(rec as unknown as FunctionCall, depth, userActivated);
     }
 
     return this.resolvePlainObjectValue<V>(rec, depth);
@@ -420,9 +441,10 @@ export class DataContext {
    *
    * @param call Function call definition to execute.
    * @param depth Current recursion depth for nested expression tracking.
+   * @param userActivated Whether the evaluation was initiated by an active user action.
    * @returns The resolved function return value.
    */
-  private resolveFunctionCallValue<V>(call: FunctionCall, depth = 0): V {
+  private resolveFunctionCallValue<V>(call: FunctionCall, depth = 0, userActivated = false): V {
     let targetCatalog: Catalog<any>;
     try {
       // Resolve before validating: the arguments must be checked against the
@@ -435,17 +457,24 @@ export class DataContext {
     }
     const args: Record<string, unknown> = {};
     for (const [key, argVal] of Object.entries(call.args ?? {})) {
-      args[key] = this.resolveDynamicValue(argVal, depth + 1);
+      args[key] = this.resolveDynamicValue(argVal, depth + 1, userActivated);
     }
 
     const abortController = new AbortController();
-    const result = this.evaluateFunctionReactive<V>(
-      call.call,
-      args,
-      abortController.signal,
-      call.catalogId,
-      targetCatalog.invoker,
-    );
+    const prevActivated = this._isUserActivated;
+    this._isUserActivated = prevActivated || userActivated;
+    let result: Signal<V> | V;
+    try {
+      result = this.evaluateFunctionReactive<V>(
+        call.call,
+        args,
+        abortController.signal,
+        call.catalogId,
+        targetCatalog.invoker,
+      );
+    } finally {
+      this._isUserActivated = prevActivated;
+    }
 
     if (result === undefined) {
       return undefined as unknown as V;
@@ -589,13 +618,13 @@ export class DataContext {
 
       if (Object.keys(argSignals).length === 0) {
         const abortController = new AbortController();
-        const result = this.evaluateFunctionReactive<V>(
-          call.call,
-          {},
-          abortController.signal,
-          call.catalogId,
-          targetCatalog.invoker,
-        );
+        const result = this.evaluateFunctionPassive<V>({
+          name: call.call,
+          args: {},
+          abortSignal: abortController.signal,
+          catalogId: call.catalogId,
+          resolvedInvoker: targetCatalog.invoker,
+        });
         const sig = isSignal(result) ? result : signal(result as V);
         sig.unsubscribe = () => abortController.abort();
         return sig;
@@ -625,13 +654,13 @@ export class DataContext {
           }
           abortController = new AbortController();
 
-          const res = this.evaluateFunctionReactive<V>(
-            call.call,
+          const res = this.evaluateFunctionPassive<V>({
+            name: call.call,
             args,
-            abortController.signal,
-            call.catalogId,
-            targetCatalog.invoker,
-          );
+            abortSignal: abortController.signal,
+            catalogId: call.catalogId,
+            resolvedInvoker: targetCatalog.invoker,
+          });
 
           if (isSignal(res)) {
             innerUnsubscribe = effect(() => {
@@ -706,7 +735,7 @@ export class DataContext {
       };
     }
     if ('functionCall' in action) {
-      return this.resolveDynamicValue(action.functionCall);
+      return this.resolveDynamicValue(action.functionCall, 0, true);
     }
     return action;
   }
@@ -735,6 +764,23 @@ export class DataContext {
       throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
     }
     return target;
+  }
+
+  private evaluateFunctionPassive<V>(options: {
+    name: string;
+    args: Record<string, unknown>;
+    abortSignal?: AbortSignal;
+    catalogId?: string;
+    resolvedInvoker?: FunctionInvoker;
+  }): Signal<V> | V {
+    const {name, args, abortSignal, catalogId, resolvedInvoker} = options;
+    const prevPassive = this._isPassiveEvaluation;
+    this._isPassiveEvaluation = true;
+    try {
+      return this.evaluateFunctionReactive<V>(name, args, abortSignal, catalogId, resolvedInvoker);
+    } finally {
+      this._isPassiveEvaluation = prevPassive;
+    }
   }
 
   /**

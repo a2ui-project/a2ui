@@ -106,9 +106,13 @@
       "types": "./dist/src/v1_0/index.d.ts",
       "default": "./dist/src/v1_0/index.js"
     },
-    "./v1_0/basic_catalog": {
-      "types": "./dist/src/v1_0/basic_catalog/index.d.ts",
-      "default": "./dist/src/v1_0/basic_catalog/index.js"
+    "./catalogs/basic/v1": {
+      "types": "./dist/src/catalogs/basic/v1/index.d.ts",
+      "default": "./dist/src/catalogs/basic/v1/index.js"
+    },
+    "./universal": {
+      "types": "./dist/src/universal/index.d.ts",
+      "default": "./dist/src/universal/index.js"
     },
     "./data/*": {
       "types": "./dist/src/v0_8/data/*.d.ts",
@@ -150,7 +154,7 @@
   },
   "wireit": {
     "generate-zod-schemas": {
-      "command": "node scripts/generate-standard-defs.mjs && node scripts/generate-zod-schemas.mjs && node scripts/generate-superset-common-types.mjs && node src/v0_9/scripts/generate-catalog.mjs && node src/v1_0/scripts/generate-catalog.mjs && prettier --write \"src/**/*.ts\"",
+      "command": "node scripts/generate-standard-defs.mjs && node scripts/generate-zod-schemas.mjs && node scripts/generate-superset-common-types.mjs && node src/v0_9/scripts/generate-catalog.mjs && node src/catalogs/basic/v1/scripts/generate-catalog.mjs && prettier --write \"src/**/*.ts\"",
       "files": [
         "../../specification/v0_8/json/*.json",
         "../../specification/v0_9/catalogs/**/*.json",
@@ -169,7 +173,7 @@
         "src/v0_9/scripts/generate-schemas.mjs",
         "src/v1_0/scripts/generate-schemas.mjs",
         "src/v0_9/scripts/generate-catalog.mjs",
-        "src/v1_0/scripts/generate-catalog.mjs"
+        "src/catalogs/basic/v1/scripts/generate-catalog.mjs"
       ],
       "output": [
         "src/v0_8/standard_defs.ts",
@@ -189,8 +193,8 @@
         "src/v1_0/schema/renderer-capabilities.ts",
         "src/v1_0/schema/catalog-definition.ts",
         "src/v1_0/schema/index.ts",
-        "src/v1_0/basic_catalog/components/basic_components.ts",
-        "src/v1_0/basic_catalog/functions/basic_functions_api.ts"
+        "src/catalogs/basic/v1/components/basic_components.ts",
+        "src/catalogs/basic/v1/functions/basic_functions_api.ts"
       ]
     },
     "copy-spec": {
