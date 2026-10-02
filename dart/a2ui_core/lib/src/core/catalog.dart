@@ -261,6 +261,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           catalogId: catalogId,
         );
       }
+      if (compVal.keys.any((k) => k is! String)) {
+        throw A2uiCatalogError(
+          "Component '$compName' schema keys must be strings.",
+          catalogId: catalogId,
+        );
+      }
       final Map<String, Object?> compMap = compVal is Map<String, Object?>
           ? compVal
           : compVal.cast<String, Object?>();
@@ -332,7 +338,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     if (allOf is List) {
       for (final Object? sub in allOf) {
         if (sub is! Map) continue;
-        final Map<String, Object?> subMap = sub.cast<String, Object?>();
+        final Map<String, Object?> subMap = sub is Map<String, Object?>
+            ? sub
+            : sub.cast<String, Object?>();
         final Object? ref = subMap[r'$ref'];
         if (ref is String) {
           if (_isComponentCommonRef(ref)) {
@@ -397,7 +405,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final Iterable<String> segments = pointer
         .substring(2)
         .split('/')
-        .map((s) => s.replaceAll('~1', '/').replaceAll('~0', '~'));
+        .map((s) => s.replaceAllMapped(
+              RegExp(r'~([01])'),
+              (m) => m[1] == '1' ? '/' : '~',
+            ));
     Object? current = rootDoc;
     for (final seg in segments) {
       if (current is Map && current.containsKey(seg)) {
@@ -626,8 +637,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
     final rawProps = <String, Object?>{};
     final rawReq = <String>[];
-    if (raw['properties'] is Map) {
-      rawProps.addAll((raw['properties'] as Map).cast<String, Object?>());
+    if (raw['properties'] is Map<String, Object?>) {
+      rawProps.addAll(raw['properties'] as Map<String, Object?>);
     }
     if (raw['required'] is List) {
       rawReq.addAll((raw['required'] as List).cast<String>());
@@ -635,9 +646,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     if (raw['allOf'] is List) {
       for (final branch in raw['allOf'] as List) {
         if (branch is Map) {
-          if (branch['properties'] is Map) {
+          if (branch['properties'] is Map<String, Object?>) {
             rawProps.addAll(
-              (branch['properties'] as Map).cast<String, Object?>(),
+              branch['properties'] as Map<String, Object?>,
             );
           }
           if (branch['required'] is List) {
@@ -681,8 +692,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       for (final Object? item in node) {
         _restoreRefs(item);
       }
-    } else if (node is Map) {
-      final Map<String, Object?> map = node.cast<String, Object?>();
+    } else if (node is Map<String, Object?>) {
+      final map = node;
       final Object? desc = map['description'];
       if (desc is String && desc.startsWith('REF:')) {
         final List<String> parts = desc.substring(4).split('|');
