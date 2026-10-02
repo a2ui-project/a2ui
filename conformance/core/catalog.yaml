@@ -998,3 +998,11 @@
             "@call": openUrl
             args: {url: "https://example.com"}
             bogus: 1
+
+- name: test_v10_published_mcp_catalog_is_self_contained
+  description: Tests that the published v1.0 MCP catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/mcp/v1/catalog.json"
+  expect:
+    selfContained: true
