@@ -168,6 +168,54 @@ describe('A2uiLitElement', () => {
     document.body.removeChild(el);
   });
 
+  it('should not dispose or recreate controller when assigned an equivalent context', async () => {
+    const basicProcessor = new MessageProcessor([basicCatalog]);
+    basicProcessor.processMessages([
+      {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 'basic-surface',
+          catalogId: basicCatalog.id,
+        },
+      },
+      {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 'basic-surface',
+          components: [
+            {id: 'root', component: 'Text', text: 'Root'},
+            {id: 'child_id', component: 'Text', text: 'Child'},
+          ],
+        },
+      },
+    ]);
+    const basicSurface = basicProcessor.model.getSurface('basic-surface')!;
+
+    const el = document.createElement('test-a2ui-element') as any;
+    document.body.appendChild(el);
+
+    const context1 = new ComponentContext(basicSurface, 'root', '/');
+    await asyncUpdate(el, (e: any) => {
+      e.context = context1;
+    });
+
+    assert.strictEqual(controllerCreatedCount, 1);
+    assert.strictEqual(disposedCount, 0);
+    const firstChildContext = lastRenderResult?.values?.[0];
+    assert.ok(firstChildContext instanceof ComponentContext);
+
+    const context2 = new ComponentContext(basicSurface, 'root', '/');
+    await asyncUpdate(el, (e: any) => {
+      e.context = context2;
+    });
+
+    assert.strictEqual(disposedCount, 0);
+    assert.strictEqual(controllerCreatedCount, 1);
+    assert.strictEqual(lastRenderResult?.values?.[0], firstChildContext);
+
+    document.body.removeChild(el);
+  });
+
   it('takes its context and its children from an assigned node', async () => {
     const nodeProcessor = new MessageProcessor([basicCatalog]);
     nodeProcessor.processMessages([

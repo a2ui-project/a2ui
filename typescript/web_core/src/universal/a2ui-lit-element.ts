@@ -252,6 +252,11 @@ export abstract class A2uiLitElement<
    *
    * @returns A Lit template result containing the rendered child component, or `nothing` if the reference is empty.
    */
+  private _childContexts = new WeakMap<
+    ComponentContext['componentModel'],
+    Map<string, ComponentContext>
+  >();
+
   protected renderNode(childRef?: A2uiChildRef, customPath?: string) {
     if (!childRef) return nothing;
     const {surface, path: parentPath} = this.context.dataContext;
@@ -273,7 +278,8 @@ export abstract class A2uiLitElement<
       componentId = childRef;
     }
 
-    if (!componentId || !surface.componentsModel?.get(componentId)) {
+    const childModel = componentId ? surface.componentsModel?.get(componentId) : undefined;
+    if (!componentId || !childModel) {
       return nothing;
     }
 
@@ -286,7 +292,16 @@ export abstract class A2uiLitElement<
       }
     }
 
-    const childContext = new ComponentContext(surface, componentId, path);
+    let pathMap = this._childContexts.get(childModel);
+    if (!pathMap) {
+      pathMap = new Map();
+      this._childContexts.set(childModel, pathMap);
+    }
+    let childContext = pathMap.get(path);
+    if (!childContext || childContext.dataContext.surface !== surface) {
+      childContext = new ComponentContext(surface, componentId, path);
+      pathMap.set(path, childContext);
+    }
     const childCatalog = (childContext.componentModel.catalog ??
       surface.defaultCatalog) as Catalog<WebComponentImplementation>;
     return renderA2uiNode(childContext, childCatalog);
@@ -303,17 +318,26 @@ export abstract class A2uiLitElement<
    */
   override willUpdate(changedProperties: PropertyValues) {
     super.willUpdate(changedProperties);
+    const prevContext = changedProperties.get('context') as ComponentContext | undefined;
     let contextChanged = changedProperties.has('context');
     if (changedProperties.has('node') && this.node?.context && this.node.context !== this.context) {
       this.context = this.node.context;
       contextChanged = true;
     }
     if (contextChanged && this.context) {
-      if (this._controller) {
-        this.removeController(this._controller);
-        this._controller.dispose();
+      const isSameTarget =
+        this._controller !== undefined &&
+        prevContext !== undefined &&
+        prevContext.componentModel === this.context.componentModel &&
+        prevContext.dataContext.path === this.context.dataContext.path &&
+        prevContext.dataContext.surface === this.context.dataContext.surface;
+      if (!isSameTarget) {
+        if (this._controller) {
+          this.removeController(this._controller);
+          this._controller.dispose();
+        }
+        this._controller = this.createController();
       }
-      this._controller = this.createController();
     }
   }
 
