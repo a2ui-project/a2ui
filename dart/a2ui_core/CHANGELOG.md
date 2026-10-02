@@ -25,6 +25,9 @@
 - `ExpressionParser` rejects a number literal outside the double range, such as
   `1e999`, with `A2uiExpressionError`. It used to return `double.infinity`,
   which `jsonEncode` can't encode.
+- `ExpressionParser` parses the `null` keyword as an empty string, as the
+  TypeScript and Python parsers do. A template still drops it, so the change
+  shows in function arguments: `${f(x: null)}` now passes `''` instead of null.
 - `MessageProcessor`, `PayloadValidator`, and `Catalog` align surface lifecycle
   error reporting (`A2uiIntegrityError` and `A2uiRecursionError` extending
   `A2uiValidationError`, per-message completeness validation, safe no-op
