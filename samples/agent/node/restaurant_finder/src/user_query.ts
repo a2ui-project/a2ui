@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-import type {Message} from '@a2a-js/sdk';
-
-import type {VersionProfile} from './versions.js';
+import type {InboundMessage} from './a2a.js';
 
 /** What the agent needs from one inbound A2A message. */
 export interface UserQuery {
@@ -32,44 +30,12 @@ export interface UserQuery {
  * Turns an inbound message into a model query. UI actions from the restaurant surfaces
  * become the sentences the prompt expects; plain text is passed through.
  */
-export function parseUserQuery(message: Message, profile: VersionProfile): UserQuery {
-  let useStreaming = true;
-  let uiEventPart: Record<string, unknown> | undefined;
-
-  for (const part of message.parts ?? []) {
-    if ('data' in part && typeof part.data === 'object' && part.data !== null) {
-      const dataMap = part.data as Record<string, unknown>;
-      if (typeof dataMap.useStreaming === 'boolean') {
-        useStreaming = dataMap.useStreaming;
-      }
-      if (
-        dataMap.version === profile.version &&
-        dataMap.action &&
-        typeof dataMap.action === 'object'
-      ) {
-        uiEventPart = dataMap.action as Record<string, unknown>;
-      } else if (dataMap.userAction && typeof dataMap.userAction === 'object') {
-        uiEventPart = dataMap.userAction as Record<string, unknown>;
-      }
-    }
+export function buildUserQuery({text, action, useStreaming}: InboundMessage): UserQuery {
+  if (!action) {
+    return {query: text || 'Hello!', useStreaming};
   }
 
-  if (!uiEventPart) {
-    const texts: string[] = [];
-    for (const part of message.parts ?? []) {
-      if ('text' in part && typeof part.text === 'string' && part.text) {
-        texts.push(part.text);
-      }
-    }
-    return {query: texts.join('') || 'Hello!', useStreaming};
-  }
-
-  const actionName = typeof uiEventPart.name === 'string' ? uiEventPart.name : undefined;
-  const ctx =
-    typeof uiEventPart.context === 'object' && uiEventPart.context !== null
-      ? (uiEventPart.context as Record<string, unknown>)
-      : {};
-
+  const {name: actionName, context: ctx} = action;
   let query: string;
   if (actionName === 'book_restaurant') {
     const restaurantName = (ctx.restaurantName as string) ?? 'Unknown Restaurant';

@@ -37,6 +37,63 @@ export function toA2aParts(part: ResponsePart): Part[] {
   );
 }
 
+/** A UI action carried by an inbound message. */
+export interface UiAction {
+  /** The action's name, if it has one. */
+  name?: string;
+  /** The action's context; empty when the message carries none. */
+  context: Record<string, unknown>;
+}
+
+/** What an inbound A2A message carries, before the agent interprets it. */
+export interface InboundMessage {
+  /** The message's text parts, joined. Empty when there are none. */
+  text: string;
+  /** The UI action the message carries, if any. */
+  action?: UiAction;
+  /** False when the client wants every part in the final status instead of streamed. */
+  useStreaming: boolean;
+}
+
+/**
+ * Reads the text, the UI action and the streaming preference from an inbound message.
+ *
+ * A data part carries the action as `action` when its `version` is the one the agent
+ * answers in, or as a legacy `userAction` otherwise. When several parts carry one, the
+ * last wins.
+ */
+export function readInboundMessage(message: Message, version: string): InboundMessage {
+  let useStreaming = true;
+  let rawAction: Record<string, unknown> | undefined;
+  const texts: string[] = [];
+
+  for (const part of message.parts ?? []) {
+    if ('text' in part && typeof part.text === 'string' && part.text) {
+      texts.push(part.text);
+    }
+    if ('data' in part && typeof part.data === 'object' && part.data !== null) {
+      const data = part.data as Record<string, unknown>;
+      if (typeof data.useStreaming === 'boolean') {
+        useStreaming = data.useStreaming;
+      }
+      if (data.version === version && data.action && typeof data.action === 'object') {
+        rawAction = data.action as Record<string, unknown>;
+      } else if (data.userAction && typeof data.userAction === 'object') {
+        rawAction = data.userAction as Record<string, unknown>;
+      }
+    }
+  }
+
+  const action: UiAction | undefined = rawAction && {
+    name: typeof rawAction.name === 'string' ? rawAction.name : undefined,
+    context:
+      typeof rawAction.context === 'object' && rawAction.context !== null
+        ? (rawAction.context as Record<string, unknown>)
+        : {},
+  };
+  return {text: texts.join(''), action, useStreaming};
+}
+
 /** Publishes the A2A events of one task: its creation and its status updates. */
 export class TaskEvents {
   constructor(
