@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../../binding/node_props_accessors.dart';
+import '../../surface/surface_scope.dart';
 import '../component_implementation.dart';
 
 class _SimultaneousTapRecognizer extends TapGestureRecognizer {
@@ -45,16 +46,28 @@ final flutterModalImplementation = FlutterComponentImplementation(
 
     if (trigger == null) return const SizedBox.shrink();
 
+    final A2uiSurfaceScope? scope = A2uiSurfaceScope.maybeOf(context);
+
     void openDialog() {
       if (content != null) {
         showDialog<void>(
           context: context,
-          builder: (dialogContext) => Dialog(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: buildChild(content),
-            ),
-          ),
+          builder: (dialogContext) {
+            Widget dialogContent = buildChild(content);
+            if (scope != null) {
+              dialogContent = A2uiSurfaceScope(
+                surface: scope.surface,
+                resolver: scope.resolver,
+                child: dialogContent,
+              );
+            }
+            return Dialog(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: dialogContent,
+              ),
+            );
+          },
         );
       }
     }

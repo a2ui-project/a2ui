@@ -100,7 +100,7 @@ class _ChoicePickerWidgetState extends State<_ChoicePickerWidget> {
     }
 
     // Extract options
-    final Object? rawOptions = node.rawProp('options');
+    final Object? rawOptions = node.value('options');
     final List<({String label, String value})> options = [];
     if (rawOptions is List) {
       for (final Object? opt in rawOptions) {
@@ -110,8 +110,11 @@ class _ChoicePickerWidgetState extends State<_ChoicePickerWidget> {
           final String optLabel = optLbl is ResolvedBinding
               ? optLbl.value?.toString() ?? ''
               : optLbl?.toString() ?? '';
-          if (optVal != null) {
-            options.add((label: optLabel, value: optVal.toString()));
+          final String optValue = optVal is ResolvedBinding
+              ? optVal.value?.toString() ?? ''
+              : optVal?.toString() ?? '';
+          if (optValue.isNotEmpty) {
+            options.add((label: optLabel, value: optValue));
           }
         }
       }

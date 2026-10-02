@@ -16,6 +16,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
+import '../../binding/node_props_accessors.dart';
 import '../component_implementation.dart';
 
 /// The basic catalog `Tabs` component implementation.
@@ -36,7 +37,7 @@ final flutterTabsImplementation = FlutterComponentImplementation(
     required: ['tabs'],
   ),
   builder: (context, node, buildChild) {
-    final Object? rawTabs = node.props.peek()['tabs'];
+    final Object? rawTabs = node.value('tabs');
     if (rawTabs is! List || rawTabs.isEmpty) {
       return const SizedBox.shrink();
     }

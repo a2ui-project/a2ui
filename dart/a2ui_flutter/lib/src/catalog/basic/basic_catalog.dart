@@ -75,7 +75,9 @@ createBasicCatalog({
     functions: [...defaultFunctions, ...additionalFunctions],
     themeSchema: Schema.object(
       properties: {
-        'primaryColor': Schema.string(pattern: r'^#[0-9a-fA-F]{6}$'),
+        'primaryColor': Schema.string(
+          pattern: r'^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$',
+        ),
       },
       additionalProperties: true,
     ),
