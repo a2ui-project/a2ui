@@ -55,11 +55,10 @@ final flutterListImplementation = FlutterComponentImplementation(
       );
     }
 
-    return ListView.builder(
+    return ListView(
       shrinkWrap: true,
       physics: const ClampingScrollPhysics(),
-      itemCount: children.length,
-      itemBuilder: (context, index) => buildChild(children[index]),
+      children: [for (final child in children) buildChild(child)],
     );
   },
 );

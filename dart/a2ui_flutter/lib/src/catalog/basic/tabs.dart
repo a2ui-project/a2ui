@@ -71,6 +71,9 @@ final flutterTabsImplementation = FlutterComponentImplementation(
         children: [
           TabBar(
             isScrollable: tabEntries.length > 3,
+            tabAlignment: tabEntries.length > 3
+                ? TabAlignment.start
+                : TabAlignment.fill,
             tabs: [for (final entry in tabEntries) Tab(text: entry.title)],
           ),
           SizedBox(
