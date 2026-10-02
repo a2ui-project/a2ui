@@ -45,7 +45,6 @@ Protocol versions are handled in a few fixed places, and adding a version means 
 
 ### **What is NOT Implemented (and Why)**
 
-- **v0.8 Protocol Support**: v0.8 uses a different message model (`beginRendering` and `surfaceUpdate`) from v0.9 and v1.0, so it is out of scope for this SDK.
 - **Express / Elemental / Atom Inference Formats**: Only Direct JSON (`<a2ui-json>`) is implemented. The `InferenceFormat` seam remains cleanly open for their future addition.
 - **Extended Catalog Transformers and Utils**: Only the specific catalog transformers required by the baseline features are implemented. Extended `catalog_transformers` and `utils` packages described by the module blueprint are omitted until a concrete use case necessitates them.
 
