@@ -116,3 +116,10 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** The TypeScript port started from the same regex. A review of this package pointed out the corruption, and only the TypeScript side was changed.
 - **What it risks:** For the same model output, the two SDKs can emit different string values. Conformance does not catch it: `test_compile_json_trailing_commas_removed` has no comma inside a string.
 - **Done looks like:** Python skips string literals as well, and a conformance case with a `,}` inside a string value pins the behaviour.
+
+### Python's partial data model parse cuts inside strings
+
+- **What it is:** While an `updateDataModel` message streams, Python's `_sniff_partial_data_model` in `direct_json/streaming.py` completes every open object on the brace stack and parses it. When a completed fragment doesn't parse, it cuts the fragment at its last comma with `rsplit(",", 1)` and tries again, including commas inside string values. TypeScript parses only the innermost open object that holds the `updateDataModel` key, and cuts only at commas outside strings.
+- **Why it exists:** The TypeScript port started from the same loop. A review of this package flagged the in-string cuts and the parse count, and only the TypeScript side was changed. Neither SDK was seen producing a wrong value, because later cuts are tried first and a cut inside a string only runs after they all fail.
+- **What it risks:** Python does several times more parsing per chunk. On a 64 KB, 200-item list streamed in 20-character chunks, the old TypeScript loop took 3.8 s and the new one 2.1 s; Python follows the old loop.
+- **Done looks like:** Python parses only the message fragment and cuts outside strings.
