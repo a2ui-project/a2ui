@@ -17,7 +17,7 @@
 import {describe, test, expect} from 'vitest';
 import {A2uiRequestProcessor} from '../../../src/processor/processor.js';
 import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
-import {A2uiValidationError, A2uiStateError} from '../../../src/errors.js';
+import {A2uiIntegrityError, A2uiValidationError} from '../../../src/errors.js';
 
 const basicCatalogV10 = await loadBasicCatalog('v1.0');
 
@@ -78,7 +78,7 @@ describe('A2uiRequestProcessor', () => {
 
     // Second parse throws because the surface 'test_surface_id' already exists in the same processor.
     // This pins down the latent behavior that parseResponse is stateful across calls.
-    expect(() => processor.parseResponse(payload)).toThrow(A2uiStateError);
+    expect(() => processor.parseResponse(payload)).toThrow(A2uiIntegrityError);
   });
 
   test('promptSnippet includes the configured examples', () => {
