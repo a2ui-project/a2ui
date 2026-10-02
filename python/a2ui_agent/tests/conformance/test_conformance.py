@@ -29,16 +29,17 @@ from a2ui.core import (
     A2uiParseError,
     A2uiRecursionError,
     A2uiValidationError,
+    Catalog,
     MessageProcessor,
 )
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
 from a2ui.schema import (
-    A2uiCatalog,
     CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
+    validate_components,
 )
 from a2ui.parser.errors import A2uiCompilationError
 
@@ -117,32 +118,21 @@ class MemoryCatalogProvider:
 def setup_catalog(catalog_config):
     version = str(catalog_config.get("protocolVersion", "v0.9")).removeprefix("v")
 
-    s2c_schema = catalog_config.get("s2cSchema")
-    if isinstance(s2c_schema, str):
-        s2c_schema = load_json_file(s2c_schema)
-
     catalog_schema = catalog_config.get("catalogSchema")
     if isinstance(catalog_schema, str):
         catalog_schema = load_json_file(catalog_schema)
     elif catalog_schema is None:
         catalog_schema = {}
+    else:
+        catalog_schema = dict(catalog_schema)
 
-    common_types_schema = catalog_config.get("commonTypesSchema")
-    if isinstance(common_types_schema, str):
-        common_types_schema = load_json_file(common_types_schema)
-    elif common_types_schema is None:
-        common_types_schema = {}
+    name = catalog_config.get("name", "test_catalog")
+    if "catalogId" not in catalog_schema:
+        catalog_schema["catalogId"] = name
 
-    custom_cuttable_keys = catalog_config.get("customCuttableKeys")
-    return A2uiCatalog(
-        version=version,
-        name=catalog_config.get("name", "test_catalog"),
-        s2c_schema=s2c_schema,
-        common_types_schema=common_types_schema,
-        catalog_schema=catalog_schema,
-        custom_cuttable_keys=frozenset(custom_cuttable_keys)
-        if custom_cuttable_keys is not None
-        else None,
+    return Catalog.from_json(
+        catalog_schema,
+        protocol_version=f"v{version}",
     )
 
 
@@ -198,7 +188,13 @@ cases_parser = get_conformance_cases("agent/legacy/streaming_parser.yaml")
 def test_parser_conformance(name, test_case):
     catalog_config = test_case["catalog"]
     catalog = setup_catalog(catalog_config)
-    parser = DirectJsonStreamParser(catalog=catalog)
+    custom_cuttable_keys = catalog_config.get("customCuttableKeys")
+    parser = DirectJsonStreamParser(
+        catalog=catalog,
+        custom_cuttable_keys=frozenset(custom_cuttable_keys)
+        if custom_cuttable_keys is not None
+        else None,
+    )
     if test_case.get("disableValidation"):
         parser._validator = None
 
@@ -306,7 +302,13 @@ def test_schema_manager_conformance(name, test_case):
             if "expect" in test_case:
                 expected = test_case["expect"]
                 if isinstance(expected, dict):
-                    assert selected.catalog_schema == expected
+                    actual = {
+                        "catalogId": selected.catalog_id,
+                        "components": {
+                            k: v.schema for k, v in selected.components.items()
+                        },
+                    }
+                    assert actual == expected
             expect_selected = test_case.get("expectSelected")
             if expect_selected:
                 assert selected.catalog_id == expect_selected
@@ -334,7 +336,11 @@ def test_schema_manager_conformance(name, test_case):
                 c.catalog_id for c in direct_json_format._supported_catalogs
             ] == exp_ids
         elif isinstance(expected, dict):
-            assert selected.catalog_schema == expected
+            actual = {
+                "catalogId": selected.catalog_id,
+                "components": {k: v.schema for k, v in selected.components.items()},
+            }
+            assert actual == expected
 
     elif action == "generate_prompt":
         version = args.get("version", VERSION_0_8)
@@ -388,7 +394,6 @@ def test_schema_manager_conformance(name, test_case):
         if not spec_ver_key.startswith("v"):
             spec_ver_key = f"v{spec_ver_key}"
 
-        from a2ui.core import Catalog
         from a2ui.schema.utils import get_basic_catalog_path
 
         with open(get_basic_catalog_path(spec_ver_key), "r", encoding="utf-8") as f:
@@ -435,7 +440,13 @@ def test_schema_manager_conformance(name, test_case):
     elif action == "process_chunk":
         catalog_config = test_case.get("catalog", {})
         catalog = setup_catalog(catalog_config)
-        parser = DirectJsonStreamParser(catalog=catalog)
+        custom_cuttable_keys = catalog_config.get("customCuttableKeys")
+        parser = DirectJsonStreamParser(
+            catalog=catalog,
+            custom_cuttable_keys=frozenset(custom_cuttable_keys)
+            if custom_cuttable_keys is not None
+            else None,
+        )
         if test_case.get("disableValidation"):
             parser._validator = None
 
@@ -622,15 +633,14 @@ UNSUPPORTED = {
 
 
 def setup_catalog_from_document(relative_path):
-    """Builds an A2uiCatalog from a conformance catalog fixture path."""
+    """Builds a Catalog from a conformance catalog fixture path."""
     document = load_json_file(relative_path)
     version = str(document.get("protocolVersion", "1.0"))
     config = CatalogConfig.from_path(
         name=os.path.basename(relative_path).replace(".json", ""),
         catalog_path=_get_conformance_path(relative_path),
     )
-    catalog = A2uiCatalog.from_config(config, version=version)
-    return dataclasses.replace(catalog, experiments=V1_0_EXPERIMENTS)
+    return config.to_catalog(version=version)
 
 
 def make_parser(args):
@@ -653,7 +663,10 @@ def make_parser(args):
     if format_name == "direct_json":
         from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 
-        return DirectJsonParser(catalog=catalog, validator=catalog.validate_components)
+        return DirectJsonParser(
+            catalog=catalog,
+            validator=lambda payload: validate_components(catalog, payload),
+        )
 
     raise ValueError(f"Unknown inference format: {format_name}")
 

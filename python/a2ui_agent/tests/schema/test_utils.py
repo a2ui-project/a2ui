@@ -152,15 +152,11 @@ class TestSchemaUtils(unittest.TestCase):
         self.assertEqual(remove_strict_validation(schema), expected)
 
     def test_catalog_schema_helper_extended(self):
-        from a2ui.schema.catalog import A2uiCatalog
+        from a2ui.core import Catalog
         from a2ui.schema.schema_helper import CatalogSchemaHelper
 
-        catalog = A2uiCatalog(
-            version="v0.9",
-            name="helper_test",
-            s2c_schema={},
-            common_types_schema={},
-            catalog_schema={
+        catalog = Catalog.from_json(
+            {
                 "catalogId": "test",
                 "components": {
                     "CustomButton": {
@@ -192,6 +188,7 @@ class TestSchemaUtils(unittest.TestCase):
                     }
                 },
             },
+            protocol_version="v0.9",
         )
 
         helper = CatalogSchemaHelper(catalog)

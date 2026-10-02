@@ -28,6 +28,7 @@ from a2ui.schema.constants import (
     A2UI_CLOSE_TAG,
     SURFACE_ID_KEY,
     CATALOG_COMPONENTS_KEY,
+    DEFAULT_CUTTABLE_KEYS,
 )
 from a2ui.core.validation import analyze_topology
 from a2ui.parser.response_part import ResponsePart
@@ -38,10 +39,14 @@ from a2ui.core.validation import (
     SchemaValidator,
     ValidationConfig,
 )
-from a2ui.core import A2uiParseError, A2uiIntegrityError, A2uiValidationError
-
-if TYPE_CHECKING:
-    from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import (
+    A2uiIntegrityError,
+    A2uiParseError,
+    A2uiValidationError,
+    Catalog,
+    CatalogApi,
+    PayloadValidator,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,26 +58,51 @@ class DirectJsonStreamParser:
     (V08 or V09) depending on the catalog version.
     """
 
-    def __new__(cls, catalog: A2uiCatalog) -> DirectJsonStreamParser:
+    def __new__(
+        cls,
+        catalog: CatalogApi,
+        custom_cuttable_keys: frozenset[str] | None = None,
+    ) -> DirectJsonStreamParser:
         if cls is DirectJsonStreamParser:
-            version = catalog.version
+            version = str(catalog.protocol_version).removeprefix("v")
             # Lazy import inside __new__ to prevent circular import errors, as the
             # version-specific subclass modules import DirectJsonStreamParser from this module.
             if version == VERSION_0_8:
                 from .streaming_v08 import DirectJsonStreamParserV08
 
-                return DirectJsonStreamParserV08(catalog=catalog)
+                return DirectJsonStreamParserV08(
+                    catalog=catalog, custom_cuttable_keys=custom_cuttable_keys
+                )
             else:
                 from .streaming_v09 import DirectJsonStreamParserV09
 
-                return DirectJsonStreamParserV09(catalog=catalog)
+                return DirectJsonStreamParserV09(
+                    catalog=catalog, custom_cuttable_keys=custom_cuttable_keys
+                )
         return super().__new__(cls)
 
-    def __init__(self, catalog: A2uiCatalog):
+    def __init__(
+        self,
+        catalog: CatalogApi,
+        custom_cuttable_keys: frozenset[str] | None = None,
+    ):
         self._catalog = catalog
-        self._validator = getattr(catalog, "validator", None)
-        self._version = catalog.version
-        self._cuttable_keys = catalog.cuttable_keys
+        self._validator: PayloadValidator | None = PayloadValidator(
+            catalog, config=STRICT_VALIDATION
+        )
+        self._version = str(catalog.protocol_version).removeprefix("v")
+        if catalog is None:
+            base_cuttable_keys: frozenset[str] = frozenset()
+        else:
+            keys = getattr(catalog, "cuttable_keys", None)
+            if keys is not None and not callable(keys):
+                base_cuttable_keys = frozenset(keys)
+            else:
+                base_cuttable_keys = frozenset(DEFAULT_CUTTABLE_KEYS)
+        if custom_cuttable_keys is not None:
+            self._cuttable_keys = base_cuttable_keys | frozenset(custom_cuttable_keys)
+        else:
+            self._cuttable_keys = base_cuttable_keys
         self._schema_helper = CatalogSchemaHelper(catalog)
 
         self._found_delimiter = False
@@ -244,7 +274,13 @@ class DirectJsonStreamParser:
 
     def _get_s2c_validator(self) -> Any:
         if not hasattr(self, "_s2c_validator_cached"):
-            if not self._catalog.s2c_schema:
+            from a2ui.schema.utils import (
+                load_agent_to_renderer_schema,
+                load_common_types_schema,
+            )
+
+            s2c_schema = load_agent_to_renderer_schema(self._version)
+            if not s2c_schema:
                 self._s2c_validator_cached = None
             else:
                 from referencing import Registry, Resource
@@ -252,9 +288,10 @@ class DirectJsonStreamParser:
 
                 registry = Registry()
                 ver = f"v{self._version.removeprefix('v')}"
-                if self._catalog.common_types_schema:
+                common_types_schema = load_common_types_schema(self._version)
+                if common_types_schema:
                     res_ct = Resource.from_contents(
-                        self._catalog.common_types_schema,
+                        common_types_schema,
                         default_specification=referencing.jsonschema.DRAFT202012,
                     )
                     registry = (
@@ -273,13 +310,14 @@ class DirectJsonStreamParser:
                         )
                     )
                 if self._catalog.catalog_schema:
-                    import copy
-
                     cat_schema_to_register = copy.deepcopy(
                         dict(self._catalog.catalog_schema)
                     )
+                    defs = cat_schema_to_register.setdefault("$defs", {})
+                    defs.setdefault(
+                        "theme", {"type": "object", "additionalProperties": True}
+                    )
                     if "components" in cat_schema_to_register:
-                        defs = cat_schema_to_register.setdefault("$defs", {})
                         if "anyComponent" not in defs:
                             defs["anyComponent"] = {
                                 "oneOf": [
@@ -307,7 +345,7 @@ class DirectJsonStreamParser:
                         )
                     )
                 self._s2c_validator_cached = SchemaValidator(
-                    self._catalog.s2c_schema,
+                    s2c_schema,
                     registry=registry,
                 )
         return self._s2c_validator_cached
@@ -1036,7 +1074,7 @@ class DirectJsonStreamParser:
                 comp_models[cid] = ComponentModel(
                     cid,
                     c_type,
-                    getattr(self._catalog, "core_catalog", None),
+                    self._catalog,
                     props,
                 )
 
@@ -1335,13 +1373,15 @@ class DirectJsonStreamParser:
         """
         child_fields: set[str] = set()
         comp_type = obj.get("component")
-        core_cat = getattr(self._catalog, "core_catalog", self._catalog)
-        if core_cat and comp_type and hasattr(core_cat, "reference_map"):
-            if comp_type in core_cat.reference_map:
-                ref_spec = core_cat.reference_map[comp_type]
-                child_fields.update(ref_spec.single_child_props)
-                child_fields.update(ref_spec.list_child_props)
-                child_fields.update(ref_spec.nested_child_slots.keys())
+        ref_map = getattr(self._catalog, "component_ref_map", None) or getattr(
+            self._catalog, "reference_map", None
+        )
+        if ref_map and comp_type and comp_type in ref_map:
+            ref_spec = ref_map[comp_type]
+            child_fields.update(ref_spec.single_refs)
+            child_fields.update(ref_spec.list_refs)
+            child_fields.update(ref_spec.nested_refs.keys())
+            if child_fields:
                 return child_fields
 
         from a2ui.core.state import is_v0_8_heuristic_child_prop_key

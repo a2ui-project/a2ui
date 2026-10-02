@@ -18,7 +18,7 @@ import json
 import os
 import tempfile
 import unittest
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import Catalog
 from a2ui.schema.constants import VERSION_1_0
 from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
 
@@ -28,17 +28,9 @@ class TestElementalPromptGenerator(unittest.TestCase):
 
     def setUp(self):
         # Rich catalog testing all mapping branches of _map_schema_to_ts_type
-        self.catalog = A2uiCatalog(
-            version=VERSION_1_0,
-            name="rich_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={
-                "$id": (
-                    "https://a2ui.org/specification/v1_0/json/agent_to_renderer.json"
-                ),
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-            },
-            common_types_schema={},
+        self.catalog = Catalog.from_json(
+            protocol_version=VERSION_1_0,
+            catalog_id="https://a2ui.org/rich_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/rich_catalog",
                 "components": {
@@ -48,12 +40,12 @@ class TestElementalPromptGenerator(unittest.TestCase):
                     "RichComponent": {
                         "properties": {
                             "checks": {"type": "array", "items": {"type": "string"}},
-                            "refComponent": {"$ref": "#/definitions/ComponentId"},
-                            "refChildList": {"$ref": "#/definitions/ChildList"},
-                            "refAction": {"$ref": "#/definitions/Action"},
-                            "refString": {"$ref": "#/definitions/DynamicString"},
-                            "refNumber": {"$ref": "#/definitions/DynamicNumber"},
-                            "refBoolean": {"$ref": "#/definitions/DynamicBoolean"},
+                            "refComponent": {"$ref": "#/$defs/ComponentId"},
+                            "refChildList": {"$ref": "#/$defs/ChildList"},
+                            "refAction": {"$ref": "#/$defs/Action"},
+                            "refString": {"$ref": "#/$defs/DynamicString"},
+                            "refNumber": {"$ref": "#/$defs/DynamicNumber"},
+                            "refBoolean": {"$ref": "#/$defs/DynamicBoolean"},
                             "nestedObj": {
                                 "type": "object",
                                 "properties": {"path": {"type": "string"}},
@@ -113,7 +105,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
                         },
                     },
                 },
-                "definitions": {
+                "$defs": {
                     "ComponentId": {"type": "string"},
                     "ChildList": {"type": "array", "items": {"type": "string"}},
                     "Action": {"type": "object"},
@@ -157,12 +149,9 @@ class TestElementalPromptGenerator(unittest.TestCase):
 
     def test_catalog_description_initializes_helper_and_decompiles_instructions(self):
         """Verifies helper initialization and JSON instructions decompiling in catalog_description."""
-        custom_catalog = A2uiCatalog(
-            version=VERSION_1_0,
-            name="custom_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        custom_catalog = Catalog.from_json(
+            protocol_version=VERSION_1_0,
+            catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
                 "instructions": (
@@ -202,12 +191,9 @@ class TestElementalPromptGenerator(unittest.TestCase):
         self,
     ):
         """Verifies helper initialization and list JSON instructions decompiling in catalog_description."""
-        custom_catalog = A2uiCatalog(
-            version=VERSION_1_0,
-            name="custom_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        custom_catalog = Catalog.from_json(
+            protocol_version=VERSION_1_0,
+            catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
                 "instructions": (
@@ -354,12 +340,9 @@ class TestElementalPromptGenerator(unittest.TestCase):
 
     def test_catalog_instructions_json_decompilation(self):
         """Test catalog instructions containing JSON blocks are converted to HTML blocks."""
-        cat_with_instructions = A2uiCatalog(
-            version=VERSION_1_0,
-            name="inst_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        cat_with_instructions = Catalog.from_json(
+            protocol_version=VERSION_1_0,
+            catalog_id="https://a2ui.org/inst_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/inst_catalog",
                 "instructions": (

@@ -166,11 +166,13 @@ class ExpressPromptGenerator(PromptGenerator):
         validate: bool = False,
     ) -> str:
         """Loads and formats few-shot Express DSL examples."""
+        from a2ui.schema.catalog import load_examples
+
         target_catalog = catalog or self.catalog
         if not target_catalog or not self._format or not self._format.examples_path:
             return ""
-        raw_examples = target_catalog.load_examples(
-            self._format.examples_path, validate=validate
+        raw_examples = load_examples(
+            target_catalog, self._format.examples_path, validate=validate
         )
         if not raw_examples:
             return ""
@@ -520,9 +522,11 @@ class ExpressPromptGenerator(PromptGenerator):
         Returns:
             The complete system prompt string explaining A2UI Express and its catalog.
         """
+        from a2ui.schema.catalog import prune_catalog_components
+
         catalog = self._format.catalog if self._format else None
-        if catalog and (allowed_components or allowed_messages):
-            catalog = catalog.with_pruning(allowed_components, allowed_messages)
+        if catalog and allowed_components:
+            catalog = prune_catalog_components(catalog, allowed_components)
 
         if self._format:
             self.helper = CatalogSchemaHelper(catalog) if catalog else None

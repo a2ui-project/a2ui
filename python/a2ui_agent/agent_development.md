@@ -10,8 +10,8 @@ The `agent_sdk` revolves around three main classes:
 
 - **`CatalogConfig`**: Defines the metadata for a component catalog (name,
   schema path, examples path).
-- **`A2uiCatalog`**: Represents a processed catalog, providing methods for
-  validation and LLM instruction rendering.
+- **`Catalog`**: Represents a component catalog from `a2ui.core`, providing
+  component and function schemas for validation and LLM instruction rendering.
 - **`A2uiSchemaManager`**: The central coordinator that loads catalogs, manages
   versioning, and generates system prompts.
 
@@ -155,18 +155,20 @@ Use this approach if you wait for the LLM to finish its entire response before p
 
 **1. Parse, Validate, and Fix**
 
-Validate the LLM's JSON output before returning it. The SDK's `A2uiCatalog` validates the payload and attempts to fix simple errors (e.g., trailing commas).
+Validate the LLM's JSON output before returning it. The SDK's `PayloadValidator` validates the payload and the parser attempts to fix simple errors (e.g., trailing commas).
 
 ```python
+from a2ui.core import PayloadValidator
 from a2ui.parser.parser import parse_response
 
 # Parse the full response into parts
 response_parts = parse_response(full_text)
+validator = PayloadValidator(selected_catalog)
 
 for part in response_parts:
   if part.a2ui_json:
     # Validate against schema
-    selected_catalog.validate_components(part.a2ui_json)
+    validator.validate(part.a2ui_json)
 ```
 
 **2. Stream the A2UI Payload**
@@ -331,7 +333,7 @@ When the LLM calls the UI tool, the toolset uses the dynamic catalog to:
 2. **Parse and Fix Payloads**: Parse and fix the LLM's generated JSON using the
    parser and payload-fixer.
 3. **Validate Payloads**: Validate the LLM's generated JSON against the specific
-   `A2uiCatalog` object's validator.
+   `Catalog` object via `PayloadValidator`.
 
 ### 3. Multiple Version Support
 

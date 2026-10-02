@@ -18,26 +18,28 @@ from collections.abc import Mapping, Sequence
 import copy
 from typing import Any, Callable
 
-from a2ui.schema.utils import (
-    load_agent_to_renderer_schema,
-    load_common_types_schema,
-)
-from a2ui.inference_format import InferenceFormat
+from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
 from a2ui.core.schema.v0_9 import V09Capabilities
-
+from a2ui.inference_format import InferenceFormat
+from a2ui.inference_formats.direct_json.parser import DirectJsonParser
+from a2ui.inference_formats.direct_json.prompt_generator import DirectJsonPromptGenerator
+from a2ui.schema.catalog import (
+    CatalogConfig,
+    load_examples,
+    prune_catalog_components,
+)
 from a2ui.schema.constants import (
-    INLINE_CATALOGS_KEY,
     CATALOG_COMPONENTS_KEY,
-    INLINE_CATALOG_NAME,
+    INLINE_CATALOGS_KEY,
     VERSION_0_8,
     VERSION_0_9,
     VERSION_0_9_1,
     VERSION_1_0,
 )
-from a2ui.schema.catalog import CatalogConfig, A2uiCatalog
-from a2ui.core import A2uiCatalogError
-from a2ui.inference_formats.direct_json.parser import DirectJsonParser
-from a2ui.inference_formats.direct_json.prompt_generator import DirectJsonPromptGenerator
+from a2ui.schema.utils import (
+    load_agent_to_renderer_schema,
+    load_common_types_schema,
+)
 
 
 class DirectJsonFormat(InferenceFormat):
@@ -59,7 +61,8 @@ class DirectJsonFormat(InferenceFormat):
             version: The A2UI protocol specification version (e.g. "0.9").
             catalogs: Optional list of catalog configurations.
             accepts_inline_catalogs: Whether inline catalog definitions are allowed.
-            schema_modifiers: Optional schema modifier functions to post-process schemas.
+            schema_modifiers: Optional schema modifier functions to post-process
+              schemas.
             experiments: Optional set of enabled experimental feature flags.
         """
         self._version = version
@@ -68,9 +71,10 @@ class DirectJsonFormat(InferenceFormat):
 
         self._server_to_client_schema: dict[str, Any] = {}
         self._common_types_schema: dict[str, Any] = {}
-        self._supported_catalogs: list[A2uiCatalog] = []
+        self._supported_catalogs: list[CatalogApi] = []
         self._catalog_example_paths: dict[str, str] = {}
-        self._schema_modifiers = schema_modifiers or []
+        self._catalog_cuttable_keys: dict[str, frozenset[str]] = {}
+        self._schema_modifiers = list(schema_modifiers) if schema_modifiers else []
         self._parser: DirectJsonParser | None = None
         self._prompt_generator: DirectJsonPromptGenerator | None = None
         self._load_schemas(version, catalogs or [])
@@ -136,55 +140,29 @@ class DirectJsonFormat(InferenceFormat):
 
         # Process catalogs
         for config in catalogs:
-            catalog_schema = config.provider.load()
-            catalog_schema = self._apply_modifiers(catalog_schema)
-            catalog = A2uiCatalog(
-                version=version,
-                name=config.name,
-                catalog_schema=catalog_schema,
-                s2c_schema=self._server_to_client_schema,
-                common_types_schema=self._common_types_schema,
-                custom_cuttable_keys=config.custom_cuttable_keys,
-                experiments=self.experiments,
+            catalog = config.to_catalog(
+                version=version, schema_modifiers=self._schema_modifiers
             )
             self._supported_catalogs.append(catalog)
             if config.examples_path:
                 self._catalog_example_paths[catalog.catalog_id] = config.examples_path
+            if config.custom_cuttable_keys is not None:
+                self._catalog_cuttable_keys[catalog.catalog_id] = (
+                    config.custom_cuttable_keys
+                )
 
     def _select_catalog(
         self,
         client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-    ) -> A2uiCatalog:
-        """Selects the component catalog for the prompt based on client capabilities.
-
-        Selection priority:
-        1. If inline catalogs are provided (and accepted by the agent), their
-           components are merged on top of a base catalog. The base is determined
-           by supportedCatalogIds (if also provided) or the agent's default catalog.
-         2. If only supportedCatalogIds is provided, pick the first mutually
-            supported catalog.
-         3. Fallback to the first agent-supported catalog (usually the bundled catalog).
-
-        Args:
-           client_ui_capabilities: A dictionary of client UI capabilities, containing
-             inline catalogs and client-supported catalog IDs.
-
-        Returns:
-           The resolved A2uiCatalog.
-        Raises:
-           ValueError: If inline catalogs are sent but not accepted, or if no
-             mutually supported catalog is found.
-        """
+    ) -> CatalogApi:
+        """Selects the component catalog for the prompt based on client capabilities."""
         if not self._supported_catalogs:
-            raise A2uiCatalogError(
-                "No supported catalogs found."
-            )  # This should not happen.
+            raise A2uiCatalogError("No supported catalogs found.")
 
         if not client_ui_capabilities:
             return self._supported_catalogs[0]
 
         if isinstance(client_ui_capabilities, Mapping):
-            # Inject default supportedCatalogIds if missing to pass validation
             data = dict(client_ui_capabilities)
             if (
                 "supportedCatalogIds" not in data
@@ -194,7 +172,9 @@ class DirectJsonFormat(InferenceFormat):
             try:
                 capabilities = V09Capabilities.model_validate(data)
             except Exception as e:
-                raise A2uiCatalogError(f"Invalid client capabilities format: {e}")
+                raise A2uiCatalogError(
+                    f"Invalid client capabilities format: {e}"
+                ) from e
         else:
             capabilities = client_ui_capabilities
 
@@ -210,8 +190,6 @@ class DirectJsonFormat(InferenceFormat):
             )
 
         if inline_catalogs:
-            # Determine the base catalog: use supportedCatalogIds if provided,
-            # otherwise fall back to the agent's default catalog.
             base_catalog = self._supported_catalogs[0]
             if client_supported_catalog_ids:
                 agent_supported_catalogs = {
@@ -229,15 +207,17 @@ class DirectJsonFormat(InferenceFormat):
                 inline_components = inline_catalog_schema.get(
                     CATALOG_COMPONENTS_KEY, {}
                 )
-                merged_schema[CATALOG_COMPONENTS_KEY].update(inline_components)
+                merged_schema.setdefault(CATALOG_COMPONENTS_KEY, {}).update(
+                    inline_components
+                )
 
-            return A2uiCatalog(
-                version=self._version,
-                name=INLINE_CATALOG_NAME,
+            if "$defs" in merged_schema and "anyComponent" in merged_schema["$defs"]:
+                del merged_schema["$defs"]["anyComponent"]
+
+            return Catalog.from_json(
                 catalog_schema=merged_schema,
-                s2c_schema=self._server_to_client_schema,
-                common_types_schema=self._common_types_schema,
-                experiments=self.experiments,
+                protocol_version=self._version,
+                catalog_id=base_catalog.catalog_id,
             )
 
         if not client_supported_catalog_ids:
@@ -258,33 +238,18 @@ class DirectJsonFormat(InferenceFormat):
         client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
         allowed_components: Sequence[str] | None = None,
         allowed_messages: Sequence[str] | None = None,
-    ) -> A2uiCatalog:
-        """Selects and prunes the catalog according to client capabilities and restrictions.
-
-        Args:
-            client_ui_capabilities: Optional client UI capability details.
-            allowed_components: Optional list of component tags allowed.
-            allowed_messages: Optional list of message types allowed.
-
-        Returns:
-            The selected and pruned A2uiCatalog instance.
-        """
+    ) -> CatalogApi:
+        """Selects and prunes the catalog according to client capabilities and restrictions."""
+        del allowed_messages
         catalog = self._select_catalog(client_ui_capabilities)
-        pruned_catalog = catalog.with_pruning(allowed_components, allowed_messages)
-        return pruned_catalog
+        return prune_catalog_components(catalog, allowed_components)
 
-    def load_examples(self, catalog: A2uiCatalog, validate: bool = False) -> str:
-        """Loads and optionally validates few-shot examples for the specified catalog.
-
-        Args:
-            catalog: The A2uiCatalog to load examples for.
-            validate: Whether to validate the examples on load.
-
-        Returns:
-            The examples text block, or an empty string.
-        """
+    def load_examples(self, catalog: CatalogApi, validate: bool = False) -> str:
+        """Loads and optionally validates few-shot examples for the specified catalog."""
         if catalog.catalog_id in self._catalog_example_paths:
-            return catalog.load_examples(
-                self._catalog_example_paths[catalog.catalog_id], validate=validate
+            return load_examples(
+                catalog,
+                self._catalog_example_paths[catalog.catalog_id],
+                validate=validate,
             )
         return ""

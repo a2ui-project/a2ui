@@ -22,7 +22,7 @@ These unit tests specifically cover Python language-specific aspects that
 conformance suites leave to the SDK implementation:
 - Multi-threaded execution and compiler thread safety
 - Custom Python exception hierarchies and error properties (e.g. ExpressCompilerError subclasses)
-- Catalog polymorphism (accepting Catalog models, A2uiCatalog instances, and raw dictionaries)
+- Catalog initialization from Catalog models
 - Python schema helper initialization validation and feature flag gating
 """
 
@@ -31,7 +31,6 @@ import os
 import unittest
 
 from a2ui.core import Catalog
-from a2ui.schema import A2uiCatalog, CatalogConfig
 from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
@@ -145,23 +144,12 @@ btnLabel = Text("Click Thread 2")
         envelope3 = compiler.compile(continuation_dsl)[0]
         self.assertEqual(len(envelope3["createSurface"]["components"]), 2)
 
-    def test_polymorphic_catalog_initialization(self):
-        """Verifies compiler, decompiler, prompt generator, and parser with polymorphic catalogs."""
-        # 1. Load raw dict
+    def test_catalog_initialization(self):
+        """Verifies compiler, decompiler, prompt generator, and parser with Catalog."""
         with open(self.catalog_path, "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
 
-        # 2. Construct Catalog model
         core_catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
-
-        # 3. Construct A2uiCatalog model
-        a2ui_catalog = A2uiCatalog(
-            version="0.9.1",
-            name="basic_catalog",
-            s2c_schema={},
-            common_types_schema={},
-            catalog_schema=catalog_dict,
-        )
 
         dsl = """root = Column([repField, valueField])
 repField = TextField("Representative", $/form/rep, "Enter name")
@@ -169,8 +157,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
 
         expected_components_count = 3
 
-        # Test with each polymorphic input
-        for cat_input in [core_catalog, a2ui_catalog]:
+        for cat_input in [core_catalog]:
             # Compiler
             compiler = ExpressCompiler(cat_input)
             envelope = compiler.compile(dsl, surface_id="test_surf")[0]

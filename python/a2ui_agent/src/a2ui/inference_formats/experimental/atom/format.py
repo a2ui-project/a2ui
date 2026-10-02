@@ -14,7 +14,7 @@
 
 """Format definition for A2UI Atom (S-Expression AST inference format)."""
 
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
 from a2ui.parser.parser import Parser
 
@@ -45,7 +45,7 @@ class AtomFormat(InferenceFormat):
 
     def __init__(
         self,
-        catalog: A2uiCatalog | None = None,
+        catalog: CatalogApi | None = None,
         surface_id: str = "main",
         examples_path: str | None = None,
     ):
