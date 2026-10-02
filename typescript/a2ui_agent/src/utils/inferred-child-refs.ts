@@ -20,18 +20,15 @@
  *
  * The stream processor needs to know which properties hold child component ids, so it
  * can hold a component back until its children arrive. It reads that from the catalog's
- * reference map. For a few components the map is empty even though the component has
- * children, and this file fills the gap by treating properties named like `child` or
- * `children` as references. There are two such cases:
+ * reference map. When a catalog lists children as plain strings without a `$ref`, the map
+ * is empty even though the component has children, and this file fills the gap by
+ * treating properties named like `child` or `children` as references.
  *
- * - `Tabs.tabs` in the v0.9 and v1.0 basic catalogs. The catalog declares the child with
- *   a `$ref`, but web_core's catalog loader drops references inside arrays of inline
- *   objects. See "Arrays of inline objects lose their child references" in KNOWN_GAPS.md.
- * - Catalogs that list children as plain strings without a `$ref`. The catalogs in
- *   `conformance/agent/legacy/streaming_parser.yaml` do this, and two of its cases,
- *   `test_partial_children_lists_v09` and
- *   `test_sniff_partial_component_discards_empty_children_dict_v09`, fail without
- *   inference.
+ * The basic catalogs don't need this, because they declare every child with a `$ref`. The
+ * catalogs in `conformance/agent/legacy/streaming_parser.yaml` use plain strings, and two
+ * of its cases, `test_partial_children_lists_v09` and
+ * `test_sniff_partial_component_discards_empty_children_dict_v09`, fail without
+ * inference.
  *
  * Inference runs only for components with no formal references at all. A component that
  * declares any `$ref` child is taken from the schema alone.
@@ -40,8 +37,8 @@
  * that the catalog's reference map doesn't cover falls back to
  * `is_v0_8_heuristic_child_prop_key` from `a2ui.core.state`, for every protocol version.
  *
- * Delete this file once web_core keeps references in inline arrays and the conformance
- * catalogs declare their children with `$ref`.
+ * Delete this file once the conformance catalogs declare their children with `$ref`
+ * (#2978).
  */
 
 const SINGLE_CHILD_PROPERTY_NAMES: ReadonlySet<string> = new Set([
