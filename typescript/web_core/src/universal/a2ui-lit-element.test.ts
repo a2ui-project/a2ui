@@ -205,9 +205,9 @@ describe('A2uiLitElement', () => {
     assert.strictEqual(el.context, root.context);
     assert.strictEqual(controllerCreatedCount, 1);
     // renderNode('child_id') hands the child element the child's own node.
-    assert.ok(JSON.stringify(lastRenderResult).includes('a2ui-basic-text'));
-    assert.strictEqual(lastRenderResult.values[0], childNode);
-    assert.strictEqual(lastRenderResult.values[1], childNode.context);
+    const childEl = el.shadowRoot.querySelector('a2ui-basic-text');
+    assert.strictEqual(childEl.node, childNode);
+    assert.strictEqual(childEl.context, childNode.context);
 
     // Reassigning the same node changes nothing.
     await asyncUpdate(el, (e: any) => {

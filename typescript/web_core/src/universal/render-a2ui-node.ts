@@ -15,13 +15,38 @@
  */
 
 import {nothing} from 'lit';
-import {html, unsafeStatic} from 'lit/static-html.js';
+import {Directive, directive, type DirectiveResult} from 'lit/directive.js';
 import {ComponentContext} from '../resolution/component-context.js';
 import {isComponentNode, type ComponentNode} from '../resolution/component-node.js';
 import {Catalog} from '../catalog/types.js';
 import {isWebComponentImplementation} from './is_web_component_implementation.js';
 import {registerUniversalElement} from './register_universal_element.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
+import type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
+
+/**
+ * Keeps one custom element per child position, so a parent re-render
+ * updates the element in place instead of replacing it. The element is
+ * recreated only when the tag name changes.
+ */
+class A2uiElementDirective extends Directive {
+  private tagName?: string;
+  private element?: A2uiWebComponentElement;
+
+  render(tagName: string, context: ComponentContext, node?: ComponentNode) {
+    if (!this.element || this.tagName !== tagName) {
+      this.tagName = tagName;
+      this.element = document.createElement(tagName) as A2uiWebComponentElement;
+    }
+    if (node) {
+      this.element.node = node;
+    }
+    this.element.context = context;
+    return this.element;
+  }
+}
+
+const a2uiElement = directive(A2uiElementDirective);
 
 /**
  * Pure function that acts as a generic container for A2UI components.
@@ -32,21 +57,22 @@ import type {WebComponentImplementation} from './web_component_implementation.js
  *
  * @param context The component context defining the data model and type to render.
  * @param catalog The catalog of component implementations.
- * @returns A Lit TemplateResult representing the resolved component, or `nothing` if the component is invalid or unresolvable.
+ * @returns A Lit directive result rendering the component's custom element, or `nothing` if the component is invalid or unresolvable.
  */
 export function renderA2uiNode(
   context: ComponentContext,
   catalog: Catalog<WebComponentImplementation>,
-): ReturnType<typeof html> | typeof nothing;
+): DirectiveResult | typeof nothing;
 /**
  * Renders a resolved node as its implementation's custom element, handing
  * the element the node and its context.
  *
  * @param node The resolved node to render.
- * @returns A Lit TemplateResult, or `nothing` for a placeholder, a disposed
- * node, or an implementation that is not a Web Component.
+ * @returns A Lit directive result rendering the component's custom element,
+ * or `nothing` for a placeholder, a disposed node, or an implementation that
+ * is not a Web Component.
  */
-export function renderA2uiNode(node: ComponentNode): ReturnType<typeof html> | typeof nothing;
+export function renderA2uiNode(node: ComponentNode): DirectiveResult | typeof nothing;
 export function renderA2uiNode(
   source: ComponentContext | ComponentNode,
   catalog?: Catalog<WebComponentImplementation>,
@@ -72,8 +98,7 @@ export function renderA2uiNode(
     registerUniversalElement(implementation);
   }
 
-  const tag = unsafeStatic(implementation.tagName);
-  return html`<${tag} .context=${source}></${tag}>`;
+  return a2uiElement(implementation.tagName, source);
 }
 
 function renderNode(node: ComponentNode) {
@@ -88,6 +113,5 @@ function renderNode(node: ComponentNode) {
   if (isWebComponentImplementation(implementation)) {
     registerUniversalElement(implementation);
   }
-  const tag = unsafeStatic(implementation.tagName);
-  return html`<${tag} .node=${node} .context=${node.context}></${tag}>`;
+  return a2uiElement(implementation.tagName, node.context, node);
 }
