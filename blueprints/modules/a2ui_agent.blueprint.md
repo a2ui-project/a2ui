@@ -887,12 +887,6 @@ The Express format package under `a2ui/inference_formats/express/` contains:
 - `decompiler`: `ExpressDecompiler`, converting `AgentToRendererMessage` payload lists back into Express DSL string format.
 - `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`.
 
-Express does not stream. `ExpressParser.supports_streaming` is False and it does not implement `parse_chunk`: an Express block resolves references across its whole body, so a partial block names components that are not yet defined and cannot be compiled into anything. An agent using Express buffers the response and parses it whole.
-
-#### Message allowlist
-
-Like the direct JSON factory, `ExpressFormatFactory` takes `allowed_messages` and passes it to every format it creates, so an agent can keep a model from, for example, deleting surfaces in either format. Express has no message schema to prune. Its prompt describes each message type by the statements that compile to it, and the allowlist decides which of those statements the prompt teaches: without `deleteSurface`, the prompt never mentions `deleteSurface(...)`. Rules that every statement uses, such as how to write strings, are always present. A name that is not a message type of the protocol version is an error, as it is for direct JSON.
-
 ```python
 class ExpressFormatFactory(InferenceFormatFactory):
     """Factory for instantiating ExpressFormat strategies bound to active catalogs."""
@@ -901,21 +895,13 @@ class ExpressFormatFactory(InferenceFormatFactory):
         """Initializes ExpressFormatFactory.
 
         Args:
-            allowed_messages: Optional list of allowed payload envelope names. None
-                allows every message type of the protocol version.
+            allowed_messages: Optional list of allowed payload envelope names. The
+                prompt teaches only the statements that compile to them.
         """
         self.allowed_messages = allowed_messages
-
-    def create_format(
-        self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]],
-        examples: Optional[Sequence[Sequence[AgentToRendererMessage]]] = None,
-    ) -> InferenceFormat:
-        """Constructs an ExpressFormat whose prompt generator receives allowed_messages."""
-        pass
 ```
 
-Like the direct JSON allowlist, this one shapes the prompt only. The parser still compiles every statement it reads.
+Express does not stream. `ExpressParser.supports_streaming` is False and it does not implement `parse_chunk`: an Express block resolves references across its whole body, so a partial block names components that are not yet defined and cannot be compiled into anything. An agent using Express buffers the response and parses it whole.
 
 #### Grammar and parser generation
 

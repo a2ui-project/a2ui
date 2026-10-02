@@ -32,13 +32,6 @@ Do not replace simple "is" or "are" verbs with flowery equivalents.
 
 Do not use synonyms just to avoid repeating a subject's name (e.g., "the eponymous character," "the titular protagonist," "the celebrated author"). It is acceptable to repeat the name or use pronouns naturally.
 
-### Prefer literal words to idioms
-
-Choose the word that states the meaning directly over an idiom whose meaning depends on context. Idioms are harder to read for non-native speakers and for anyone skimming instructions.
-
-- Instead of: "Leave the version _alone_."
-- Write: "Leave the version _untouched_."
-
 ## 2. Content & tone
 
 ### No "puffery" or forced significance
@@ -145,14 +138,6 @@ Use em dashes sparingly, as language models often overuse them for emphasis. Pre
 Never generate a citation unless you are looking at the source.
 Do not invent URLs or DOIs.
 Do not assume a book exists or contains a specific fact without verification.
-
-### Link what you mention
-
-In prose (GitHub comments, PR descriptions, READMEs, documentation and similar) link everything the reader may want to open: files, functions and line ranges, test and conformance cases, packages, issues, pull requests and external pages.
-
-- Pin links to code to a commit SHA rather than a branch, so line anchors keep pointing at the lines you meant after the branch moves. For a Markdown file, add `?plain=1` so a line anchor such as `#L10-L20` works.
-- Link only to what the reader can see at the link target. If your change is not pushed yet, link to the current version, or post/update the reply after the push.
-- Before posting, check that every link resolves.
 
 ## 6. Communication (chat context)
 
