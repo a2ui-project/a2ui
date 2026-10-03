@@ -372,11 +372,12 @@ void main() {
     void send(MessageProcessor processor, List<AgentToRendererMessage> m) =>
         processor.processMessages(AgentToRendererMessagePayload(m));
 
-    CreateSurfaceMessage create() =>
-        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id);
+    CreateSurfaceMessage create() => CreateSurfaceMessage(
+        version: 'v0.9', surfaceId: 's1', catalogId: catalog.id);
 
     UpdateComponentsMessage update(List<Map<String, Object?>> components) =>
-        UpdateComponentsMessage(surfaceId: 's1', components: components);
+        UpdateComponentsMessage(
+            version: 'v0.9', surfaceId: 's1', components: components);
 
     SurfaceComponentsModel componentsOf(MessageProcessor processor) =>
         processor.groupModel.getSurface('s1')!.componentsModel;
@@ -461,7 +462,8 @@ void main() {
 
     test('deleteSurface for an unknown surface throws', () {
       expect(
-        () => send(processorWith(), [DeleteSurfaceMessage(surfaceId: 'nope')]),
+        () => send(processorWith(),
+            [DeleteSurfaceMessage(version: 'v0.9', surfaceId: 'nope')]),
         throwsA(
           isA<A2uiIntegrityError>().having(
             (e) => e.message,
@@ -477,7 +479,8 @@ void main() {
       // what is reported.
       expect(
         () => send(processorWith(), [
-          UpdateDataModelMessage(surfaceId: 's1', path: '/a~2', value: 'x'),
+          UpdateDataModelMessage(
+              version: 'v0.9', surfaceId: 's1', path: '/a~2', value: 'x'),
         ]),
         throwsA(
           isA<A2uiValidationError>().having(
@@ -497,6 +500,7 @@ void main() {
       expect(
         () => send(processorWith(), [
           UpdateDataModelMessage(
+            version: 'v0.9',
             surfaceId: 's1',
             path: 'invalid path [0]',
             value: 'data',
@@ -585,7 +589,8 @@ void main() {
         send(processor, [create()]);
         expect(
           () => send(processor, [
-            UpdateDataModelMessage(surfaceId: 's1', path: '/a', value: 1),
+            UpdateDataModelMessage(
+                version: 'v0.9', surfaceId: 's1', path: '/a', value: 1),
           ]),
           throwsA(isA<A2uiValidationError>()),
         );
@@ -664,14 +669,16 @@ void main() {
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
-          CreateSurfaceMessage(surfaceId: 's1', catalogId: 'cat1'),
+          CreateSurfaceMessage(
+              version: 'v0.9', surfaceId: 's1', catalogId: 'cat1'),
         ]),
       );
     });
 
     void update(Map<String, Object?> component) => processor.processMessages(
           AgentToRendererMessagePayload([
-            UpdateComponentsMessage(surfaceId: 's1', components: [component]),
+            UpdateComponentsMessage(
+                version: 'v0.9', surfaceId: 's1', components: [component]),
           ]),
         );
 
