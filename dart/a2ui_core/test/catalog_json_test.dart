@@ -96,8 +96,7 @@ void main() {
         components: const [],
         functions: [function],
       );
-      final Map<dynamic, dynamic> functions =
-          catalog.catalogSchema['functions']! as Map;
+      final functions = catalog.catalogSchema['functions']! as Map;
       return (functions[function.name]! as Map).cast<String, Object?>();
     }
 
@@ -119,7 +118,7 @@ void main() {
     });
 
     test('is call before protocol 1.0 or without a version', () {
-      for (final version in ['v0.9', 'v0.9.1', null]) {
+      for (final String? version in ['v0.9', 'v0.9.1', null]) {
         final Map<String, Object?> schema = functionSchema(version);
         expect(
           (schema['properties']! as Map).containsKey('call'),
