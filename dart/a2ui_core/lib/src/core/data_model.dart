@@ -46,7 +46,8 @@ class DataModel {
   /// caller values round-trip with their original keys intact.
   static Object? _own(Object? value) {
     if (value is Map) {
-      if (value.keys.every((Object? key) => key is String)) {
+      if (value is Map<String, Object?> ||
+          value.keys.every((Object? key) => key is String)) {
         return <String, Object?>{
           for (final MapEntry<Object?, Object?> entry in value.entries)
             entry.key as String: _own(entry.value),
@@ -69,9 +70,8 @@ class DataModel {
     throw A2uiDataError('Invalid path type: ${path.runtimeType}');
   }
 
-  static String _canonicalPath(DataPath dataPath) => dataPath.isAbsolute
-      ? dataPath.toString()
-      : DataPath(dataPath.segments).toString();
+  static String _canonicalPath(DataPath dataPath) =>
+      dataPath.isAbsolute ? dataPath.toString() : '/$dataPath';
 
   /// Resolves [path] against an optional [basePath] into an absolute JSON
   /// Pointer string.

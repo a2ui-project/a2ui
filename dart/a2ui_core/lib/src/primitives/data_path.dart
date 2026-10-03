@@ -85,7 +85,7 @@ class DataPath {
   bool get isEmpty => segments.isEmpty;
 
   /// Joins this path with another path or segment.
-  DataPath append(Object? other) {
+  DataPath append(Object other) {
     if (other is DataPath) {
       return DataPath(
         [...segments, ...other.segments],
