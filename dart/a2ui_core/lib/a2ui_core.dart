@@ -42,6 +42,8 @@ export 'src/primitives/protocol_version.dart';
 // Reactivity (re-exports preact_signals primitives).
 export 'src/primitives/reactivity.dart';
 export 'src/primitives/uax31.dart';
+export 'src/primitives/reference_schema.dart'
+    show ComponentRefMap, ListRef, NestedRef, RefFields, RefKind, SingleRef;
 export 'src/processing/basic_functions.dart';
 export 'src/processing/expressions.dart';
 // Processing & expressions.
