@@ -12,8 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
+
+import 'conformance/conformance_harness.dart';
 
 typedef _RendererCatalog = Catalog<ComponentApi, FunctionImplementation>;
 
@@ -73,7 +78,7 @@ void main() {
         'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
       );
       expect(v09.functions.keys.toSet(), _functionNames);
-      expect(v09.components, isEmpty);
+      expect(v09.protocolVersion, 'v0.9');
     });
 
     test('v1.0 matches the published catalog document', () {
@@ -82,7 +87,7 @@ void main() {
         'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
       );
       expect(v10.functions.keys.toSet(), _functionNames);
-      expect(v10.components, isEmpty);
+      expect(v10.protocolVersion, '1.0');
     });
 
     test('validators return booleans in v0.9 and results in v1.0', () {
@@ -118,6 +123,68 @@ void main() {
       expect(props(v09, 'regex').keys, ['value', 'pattern']);
       expect(props(v09, 'openUrl').keys, ['url']);
       expect(props(v09, 'and').keys, ['values']);
+    });
+  });
+
+  group('BasicCatalog components', () {
+    /// The published catalog document a factory implements.
+    Map<String, Object?> published(String path) =>
+        jsonDecode(File(resolveConformancePath('../$path')).readAsStringSync())
+            as Map<String, Object?>;
+
+    for (final (String label, _RendererCatalog catalog, String path) in [
+      ('v0.9', v09, 'specification/v0_9/catalogs/basic/catalog.json'),
+      ('v1.0', v10, 'catalogs/basic/v1/catalog.json'),
+    ]) {
+      test('$label declares every published component, in order', () {
+        final Map<String, Object?> document = published(path);
+        final components = document['components']! as Map<String, Object?>;
+
+        expect(catalog.components.keys.toList(), components.keys.toList());
+        for (final MapEntry<String, ComponentApi> entry
+            in catalog.components.entries) {
+          expect(entry.value.name, entry.key);
+        }
+      });
+
+      test('$label component schemas are the published ones', () {
+        final CatalogApi parsed = Catalog.fromJson(
+          published(path),
+          protocolVersion: catalog.protocolVersion,
+        );
+
+        for (final String name in parsed.components.keys) {
+          expect(
+            catalog.components[name]!.schema.value,
+            parsed.components[name]!.schema.value,
+            reason: name,
+          );
+        }
+      });
+
+      test('$label carries the published identity and theme', () {
+        final Map<String, Object?> document = published(path);
+        final Object? defs = document[r'$defs'];
+
+        expect(catalog.id, document['catalogId']);
+        expect(catalog.schemaId, document[r'$id']);
+        expect(catalog.title, document['title']);
+        expect(catalog.description, document['description']);
+        expect(catalog.themeSchema?.value, (defs as Map?)?['theme']);
+      });
+    }
+
+    test('v1.0 components reference the shared types as the spec does', () {
+      final String text = jsonEncode(v10.components['Row']!.schema.value);
+
+      expect(text, contains('common_types.json#/\$defs/ChildList'));
+    });
+
+    test('each call builds an independent component map', () {
+      final _RendererCatalog other = BasicCatalog.v0_9();
+
+      expect(identical(other.components, v09.components), isFalse);
+      expect(other.components.keys, v09.components.keys);
     });
   });
 

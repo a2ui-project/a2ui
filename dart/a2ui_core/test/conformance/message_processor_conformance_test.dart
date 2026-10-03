@@ -16,7 +16,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 import '../support/renderer_catalog.dart';
@@ -56,10 +55,15 @@ const Map<String, String> _reservedKeysExpectedFailures = {
           'component cannot be validated.',
 };
 
+/// The `validate` cases in `core/functions.yaml` expected to fail, each naming
+/// the change that clears it.
+const Map<String, String> _functionsExpectedFailures = {};
+
 /// Runs the shared message-processor suites against [MessageProcessor] and
 /// [DataContext]: `core/message_processor_v0_9.yaml`,
-/// `core/message_processor_v1_0.yaml`, and the `process_messages` cases of
-/// `core/reserved_keys.yaml`.
+/// `core/message_processor_v1_0.yaml`, the `process_messages` cases of
+/// `core/reserved_keys.yaml`, and the `validate` cases of
+/// `core/functions.yaml`, which render basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
   _registerSuite(
@@ -70,6 +74,11 @@ void main() {
     'core/reserved_keys.yaml',
     onlyAction: 'process_messages',
     expectedFailures: _reservedKeysExpectedFailures,
+  );
+  _registerSuite(
+    'core/functions.yaml',
+    onlyAction: 'validate',
+    expectedFailures: _functionsExpectedFailures,
   );
 }
 
@@ -219,7 +228,9 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
         ),
     ];
   }
-  if (testCase['catalog'] case final Map<String, Object?> document) {
+  if (testCase['catalog'] case final Map<String, Object?> document
+      when document.containsKey('components') ||
+          document.containsKey('catalogId')) {
     return [
       rendererCatalog(
         document,
@@ -228,11 +239,18 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
       ),
     ];
   }
+  // A case naming no catalog document, or only a protocol version, runs
+  // against the basic catalog of its version, under whichever id its
+  // messages use.
   final expectError = testCase['expectError'] as Map<String, Object?>?;
-  if (expectError?['category'] == 'CatalogError') {
-    return [_ConformanceCatalog('test-catalog', version)];
-  }
-  return [_ConformanceCatalog(_catalogIdOf(testCase), version)];
+  return [
+    basicCatalogFor(
+      version,
+      asCatalogId: expectError?['category'] == 'CatalogError'
+          ? 'test-catalog'
+          : _catalogIdOf(testCase),
+    ),
+  ];
 }
 
 /// The protocol version a case targets: the one it declares, else the one
@@ -498,31 +516,4 @@ String _align(String pattern) {
     return "($pattern|Field 'createSurface\\.surfaceId' must be a String)";
   }
   return pattern;
-}
-
-class _ConformanceCatalog
-    extends Catalog<ComponentApi, FunctionImplementation> {
-  _ConformanceCatalog(String id, String protocolVersion)
-      : super(
-          id: id,
-          protocolVersion: protocolVersion,
-          components: [
-            ComponentApi(
-              name: 'Text',
-              schema: Schema.fromMap({'type': 'object'}),
-            ),
-            ComponentApi(
-              name: 'Button',
-              schema: Schema.fromMap({'type': 'object'}),
-            ),
-            ComponentApi(
-              name: 'Label',
-              schema: Schema.fromMap({'type': 'object'}),
-            ),
-            MinimalRowApi(),
-            MinimalColumnApi(),
-            MinimalTextFieldApi(),
-          ],
-          functions: [CapitalizeFunction()],
-        );
 }

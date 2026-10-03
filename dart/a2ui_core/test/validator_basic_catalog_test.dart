@@ -59,10 +59,63 @@ void main() {
     });
   });
 
-  group('validating the basic catalog examples', () {
-    final examples = Directory(
-      resolveConformancePath('../specification/v0_9_1/catalogs/basic/examples'),
-    );
+  group('BasicCatalog child references', () {
+    for (final (String label, Catalog<ComponentApi, FunctionImplementation> catalog)
+        in [('v0.9', BasicCatalog.v0_9()), ('v1.0', BasicCatalog.v1_0())]) {
+      test('$label declares the child references of its layout components',
+          () {
+        final Map<String, ComponentRefFields> refs = extractComponentRefFields(
+          catalog,
+        );
+
+        expect(refs['Card']!.single, {'child'});
+        expect(refs['Button']!.single, {'child'});
+        expect(refs['Modal']!.single, {'trigger', 'content'});
+        expect(refs['Row']!.list, {'children'});
+        expect(refs['Column']!.list, {'children'});
+        expect(refs['List']!.list, {'children'});
+        expect(refs['Tabs']!.list, {'tabs'});
+        expect(refs['Tabs']!.nested, {
+          'tabs': {'child'},
+        });
+        expect(refs.keys, isNot(contains('Text')));
+      });
+    }
+  });
+
+  _registerExamples(
+    'the v0.9.1 basic catalog examples against the v0.9.1 document',
+    '../specification/v0_9_1/catalogs/basic/examples',
+    () => rendererCatalog(basicCatalogDocument()),
+    A2uiProtocolVersion.v0_9,
+  );
+  _registerExamples(
+    'the v0.9 basic catalog examples against BasicCatalog.v0_9()',
+    '../specification/v0_9/catalogs/basic/examples',
+    BasicCatalog.v0_9,
+    A2uiProtocolVersion.v0_9,
+  );
+  _registerExamples(
+    'the v1.0 basic catalog examples against BasicCatalog.v1_0()',
+    '../catalogs/basic/v1/examples',
+    BasicCatalog.v1_0,
+    A2uiProtocolVersion.v1_0,
+    skip: 'B2 (#2994): the v1.0 common types the v1.0 component schemas '
+        'reference are not embedded yet.',
+  );
+}
+
+/// Registers a test per example payload in [directory], each processed by a
+/// [MessageProcessor] over the catalog [catalog] builds.
+void _registerExamples(
+  String description,
+  String directory,
+  Catalog<ComponentApi, FunctionImplementation> Function() catalog,
+  A2uiProtocolVersion version, {
+  String? skip,
+}) {
+  group(description, skip: skip, () {
+    final examples = Directory(resolveConformancePath(directory));
     final List<File> files = examples.listSync().whereType<File>().where((f) {
       return f.path.endsWith('.json');
     }).toList()
@@ -91,16 +144,13 @@ void main() {
         // `31_incremental-dashboard` streams components across messages where
         // placeholders become orphaned when their parents are updated.
         final processor = MessageProcessor<ComponentApi>(
-          catalogs: [rendererCatalog(basicCatalogDocument())],
-          defaultVersion: A2uiProtocolVersion.v0_9,
+          catalogs: [catalog()],
+          defaultVersion: version,
           validationConfig: ValidationConfig.relaxed,
         );
         expect(
           () => processor.processMessages(
-            AgentToRendererMessage.parseAll(
-              payload,
-              protocolVersion: A2uiProtocolVersion.v0_9,
-            ),
+            AgentToRendererMessage.parseAll(payload, protocolVersion: version),
           ),
           returnsNormally,
         );

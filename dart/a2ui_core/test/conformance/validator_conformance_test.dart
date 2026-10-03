@@ -197,7 +197,7 @@ void _runCase(Map<String, Object?> testCase) {
   final String version = _versionOf(testCase, allPayloads);
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(
-      _documentsFor(testCase, version),
+      _documentsFor(testCase),
       allPayloads,
       version,
     ),
@@ -236,33 +236,22 @@ void _runCase(Map<String, Object?> testCase) {
 ///
 /// A case either lists its catalogs under `catalogPaths` or states one under
 /// `catalog`, which is the document itself unless it carries a
-/// `catalog_schema` path. A case naming none is checked against the v0.9
-/// basic catalog.
-List<Map<String, Object?>> _documentsFor(
-  Map<String, Object?> testCase,
-  String version,
-) {
+/// `catalog_schema` path. A `catalog` block holding only a `protocolVersion`
+/// declares no document. A case declaring none is checked against the SDK's
+/// basic catalog for its version (see [_catalogsFor]).
+List<Map<String, Object?>> _documentsFor(Map<String, Object?> testCase) {
   final List<Map<String, Object?>> documents = [];
   if (testCase['catalogPaths'] case final List<Object?> paths) {
     for (final path in paths) {
       if (path is String) documents.add(_document(path));
     }
   } else if (testCase['catalog'] case final Map<String, Object?> catalog) {
-    documents.add(
-      catalog.containsKey('catalog_schema')
-          ? _document(catalog['catalog_schema'])
-          : catalog,
-    );
-  }
-
-  if (documents.isEmpty) {
-    documents.add(
-      _document(
-        compareVersions(version, 'v1.0') >= 0
-            ? 'catalogs/basic/v1/catalog.json'
-            : 'specification/v0_9/catalogs/basic/catalog.json',
-      ),
-    );
+    if (catalog.containsKey('catalog_schema')) {
+      documents.add(_document(catalog['catalog_schema']));
+    } else if (catalog.containsKey('components') ||
+        catalog.containsKey('catalogId')) {
+      documents.add(catalog);
+    }
   }
   return documents;
 }
@@ -338,8 +327,14 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
     ];
   }
 
-  final Map<String, Object?> document = documents.single;
   final Set<String> ids = _catalogIdsNamedBy(payload);
+  if (documents.isEmpty) {
+    if (ids.isEmpty) return [basicCatalogFor(version)];
+    return [
+      for (final String id in ids) basicCatalogFor(version, asCatalogId: id),
+    ];
+  }
+  final Map<String, Object?> document = documents.single;
   if (ids.isEmpty) {
     ids.add(document['catalogId'] as String? ?? 'standard');
   }

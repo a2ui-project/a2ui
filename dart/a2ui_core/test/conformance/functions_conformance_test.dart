@@ -25,13 +25,6 @@ const Map<String, Type> _categoryToError = {
   'ValidationError': A2uiValidationError,
 };
 
-/// The reason `validate` cases are skipped: they render basic-catalog
-/// components (`Text`, `Column`) on a v1.0 surface and assert resolved
-/// component properties, none of which this SDK provides yet.
-const String _validateSkipReason =
-    'Blocked on B7-components/B3b: needs basic-catalog components, v1.0 '
-    'message processing and resolved component assertions.';
-
 /// The basic catalog a case runs against, chosen by its protocol version.
 ///
 /// A case that names no version runs against v0.9, as in the Python harness,
@@ -76,9 +69,13 @@ Object? _evaluate(Map<String, Object?> testCase) {
 }
 
 void main() {
-  final List<Map<String, Object?>> cases = loadConformanceSuite(
-    'core/functions.yaml',
-  );
+  // The suite's `validate` cases render basic-catalog components on a
+  // surface, so `message_processor_conformance_test.dart` runs them.
+  final List<Map<String, Object?>> cases = [
+    for (final Map<String, Object?> testCase
+        in loadConformanceSuite('core/functions.yaml'))
+      if (testCase['action'] != 'validate') testCase,
+  ];
 
   group('functions conformance', () {
     for (final testCase in cases) {
@@ -87,9 +84,6 @@ void main() {
 
       test(name, () {
         switch (action) {
-          case 'validate':
-            markTestSkipped(_validateSkipReason);
-            return;
           case 'evaluate_function':
             final Object? expectError =
                 testCase['expectError'] ?? testCase['expect_error'];
