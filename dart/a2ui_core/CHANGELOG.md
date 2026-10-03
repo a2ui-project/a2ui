@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- `DataContext` adds `parent`, `index`, `childContext(path, {index})`, and
+  `subscribeDynamicValue`, which returns a `DataSubscription`. `nested` now
+  returns a child context linked to its parent. In v1.0 contexts, the
+  `@index` system function returns the enclosing template item's index plus
+  an optional `offset`, and throws `A2uiValidationError` outside a collection
+  template. Dynamic values nested deeper than `maxDynamicValueDepth` (1000)
+  fail with `A2uiExpressionError`. `DataModel` adds `has(path)`.
+- `NodeResolver` links each node's data context to its parent node's context
+  and gives template children their item index. `ComponentNode.context`
+  exposes the node's `ComponentContext` (null for placeholders), and
+  `NodeResolver` accepts an optional `catalog:` that must be the surface's
+  default catalog. `ChildNode` adds `index` for template-expanded entries.
+- **Behavior change:** A data binding to a path missing from the data model
+  emits one `MISSING_DATA_BINDING` warning per path on `SurfaceModel.onWarning`.
+  `NodeResolver` delivers these after the tree update commits, and
+  `ComponentContext` takes an `onMissingData` reporter to override delivery.
+- **Behavior change:** `GenericBinder` binds the `accessibility` envelope
+  property's `label` and `description` as dynamic strings on every component,
+  including components whose schema does not declare `accessibility`.
+- **Behavior change:** Template `ChildList`s in v1.0 surfaces bind their
+  `path` with the v1.0 `@path` key, so v1.0 templates expand.
+
 - **Breaking:** `SurfaceModel.catalog` is replaced by a nullable
   `defaultCatalog`, and the constructor's `catalog:` argument by
   `defaultCatalog:`. `SurfaceModel` adds `availableCatalogs`, `metadata`,
