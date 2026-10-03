@@ -103,6 +103,22 @@ void main() {
       );
     });
 
+    test('handles non-String map keys in updateDataModel.value', () {
+      final messageJson = <String, Object?>{
+        'version': 'v0.9',
+        'updateDataModel': {
+          'surfaceId': 's1',
+          'path': '/items',
+          'value': <Object?, Object?>{
+            1: 'one',
+            2: <Object?, Object?>{true: 'nested'},
+          },
+        },
+      };
+
+      expect(() => checkPathsAndRecursion(messageJson), returnsNormally);
+    });
+
     test('v0.9 mode validates path bindings, templates, and call depth', () {
       expect(
         () => checkPathsAndRecursion(

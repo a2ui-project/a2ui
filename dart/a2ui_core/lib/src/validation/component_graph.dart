@@ -198,14 +198,15 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
     }
 
     if (node is! Map) return;
-    final Map<String, Object?> object = node.cast<String, Object?>();
 
     if (inDataValue) {
-      for (final Object? value in object.values) {
+      for (final Object? value in node.values) {
         traverse(value, depth + 1, callDepth, inDataValue: true);
       }
       return;
     }
+
+    final Map<Object?, Object?> object = node;
 
     final Object? udm = object['updateDataModel'];
     if (udm is Map && (object.length == 1 || object.containsKey('version'))) {
@@ -246,7 +247,7 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
           '$maxFunctionCallDepth',
         );
       }
-      for (final MapEntry<String, Object?> entry in object.entries) {
+      for (final MapEntry<Object?, Object?> entry in object.entries) {
         traverse(
           entry.value,
           depth + 1,
