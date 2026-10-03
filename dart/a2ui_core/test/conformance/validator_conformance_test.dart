@@ -24,9 +24,106 @@ import 'conformance_harness.dart';
 /// Conformance cases in `core/validator_v0_9.yaml` that are expected to fail.
 const Map<String, String> _v09ExpectedFailures = {};
 
-/// Runs the shared `conformance/core/validator_v0_9.yaml` suite against
-/// [MessageProcessor.processMessages], the entry point for checking a payload
-/// on its own.
+/// Cases in `core/validator_v1_0.yaml` expected to fail, each naming the
+/// change that clears it.
+const Map<String, String> _v10ExpectedFailures = {
+  'test_custom_catalog_1_0':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_component_nesting_depth_limit_exceeded_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_component_nesting_depth_within_limit':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_data_model_nesting_depth_limit_exceeded_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_incremental_update_circular_reference_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_incremental_update_duplicate_component_id_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_incremental_update_same_component_id_across_messages':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_incremental_update_self_reference_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_incremental_update_without_root':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_multi_surface_independent_roots':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_multi_surface_missing_root_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_topology_circular_reference_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_topology_dangling_child_reference_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_topology_missing_root_component_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_topology_orphaned_component_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_topology_plain_string_property_not_treated_as_child_ref':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_topology_self_reference_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_topology_structured_array_item_dangling_child_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_topology_template_child_reachable':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_topology_template_dangling_reference_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_v10_uax31_invalid_identifier_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_validator_1_0':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+};
+
+/// The `validate` cases in `core/reserved_keys.yaml` expected to fail.
+const Map<String, String> _reservedKeysExpectedFailures = {
+  'test_escaped_doubled_at_unescaping':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_plain_object_escaped_doubled_at_key':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_plain_object_with_literal_path_and_call':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_reserved_at_call_index':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_reserved_at_call_valid':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_reserved_at_path_valid':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+};
+
+/// Cases in `core/composition_constraints.yaml` expected to fail.
+const Map<String, String> _compositionExpectedFailures = {
+  'test_composition_surface_implicit_parent_container':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_composition_unallowed_child_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_composition_unallowed_parent_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+};
+
+/// Cases in `core/validation_result.yaml` expected to fail.
+const Map<String, String> _validationResultExpectedFailures = {
+  'test_validation_result_boolean_fallback':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_validation_result_dynamic_object_return':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+};
+
+/// Cases in `core/index_function.yaml` expected to fail.
+const Map<String, String> _indexFunctionExpectedFailures = {
+  'test_index_function_in_collection_loop':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_index_function_nested_path':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_index_function_outside_loop_error':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+  'test_index_function_with_offset':
+      'B2: the v1.0 common types and validator rules are not embedded yet.',
+};
+
+/// Runs the shared validator suites against [MessageProcessor.processMessages],
+/// the entry point for checking a payload on its own: the `validate` cases of
+/// `core/validator_v0_9.yaml`, `core/validator_v1_0.yaml`,
+/// `core/reserved_keys.yaml`, `core/composition_constraints.yaml`,
+/// `core/validation_result.yaml` and `core/index_function.yaml`.
 ///
 /// Cases targeting a protocol version this SDK does not implement are skipped
 /// with a reason, so the suite doubles as the implementation checklist.
@@ -35,13 +132,38 @@ void main() {
     'core/validator_v0_9.yaml',
     expectedFailures: _v09ExpectedFailures,
   );
+  _registerValidatorSuite(
+    'core/validator_v1_0.yaml',
+    expectedFailures: _v10ExpectedFailures,
+  );
+  _registerValidatorSuite(
+    'core/reserved_keys.yaml',
+    expectedFailures: _reservedKeysExpectedFailures,
+  );
+  _registerValidatorSuite(
+    'core/composition_constraints.yaml',
+    expectedFailures: _compositionExpectedFailures,
+  );
+  _registerValidatorSuite(
+    'core/validation_result.yaml',
+    expectedFailures: _validationResultExpectedFailures,
+  );
+  _registerValidatorSuite(
+    'core/index_function.yaml',
+    expectedFailures: _indexFunctionExpectedFailures,
+  );
 }
 
 void _registerValidatorSuite(
   String suite, {
   Map<String, String> expectedFailures = const {},
 }) {
-  final List<ConformanceTestCase> cases = loadConformanceSuite(suite);
+  // Other actions in a shared suite, such as `process_messages`, run in the
+  // message-processor harness.
+  final List<ConformanceTestCase> cases = [
+    for (final ConformanceTestCase testCase in loadConformanceSuite(suite))
+      if ((testCase['action'] ?? 'validate') == 'validate') testCase,
+  ];
 
   group('conformance $suite', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
@@ -58,8 +180,8 @@ void _registerValidatorSuite(
 /// Why a case cannot run yet, or null when it can.
 String? _skipReason(ConformanceTestCase testCase) {
   final String? version = caseVersion(testCase);
-  if (version != null && version != '0.9') {
-    return 'Targets protocol v$version; this harness runs v0.9 cases only.';
+  if (version != null && compareVersions(version, 'v0.9') < 0) {
+    return 'Targets protocol v$version, which this SDK does not implement.';
   }
   return null;
 }
@@ -72,9 +194,13 @@ void _runCase(Map<String, Object?> testCase) {
         for (final Object? item in raw) (item as Map).cast<String, Object?>(),
   ];
 
+  final String version = _versionOf(testCase, allPayloads);
   final processor = MessageProcessor<ComponentApi>(
-    catalogs: _catalogsFor(_documentsFor(testCase), allPayloads),
-    defaultVersion: A2uiProtocolVersion.v0_9,
+    catalogs: _catalogsFor(
+      _documentsFor(testCase, version),
+      allPayloads,
+      version,
+    ),
     commonTypesSchema: _commonTypesFor(testCase),
   );
 
@@ -92,14 +218,7 @@ void _runCase(Map<String, Object?> testCase) {
         (stepIndex == steps.length - 1
             ? (testCase['expectError'] ?? testCase['expect_error'])
             : null);
-    void run() {
-      processor.processMessages(
-        AgentToRendererMessage.parseAll(
-          payload,
-          protocolVersion: A2uiProtocolVersion.v0_9,
-        ),
-      );
-    }
+    void run() => processor.processMessages(payload);
 
     if (expectError != null) {
       expect(
@@ -119,7 +238,10 @@ void _runCase(Map<String, Object?> testCase) {
 /// `catalog`, which is the document itself unless it carries a
 /// `catalog_schema` path. A case naming none is checked against the v0.9
 /// basic catalog.
-List<Map<String, Object?>> _documentsFor(Map<String, Object?> testCase) {
+List<Map<String, Object?>> _documentsFor(
+  Map<String, Object?> testCase,
+  String version,
+) {
   final List<Map<String, Object?>> documents = [];
   if (testCase['catalogPaths'] case final List<Object?> paths) {
     for (final path in paths) {
@@ -134,9 +256,30 @@ List<Map<String, Object?>> _documentsFor(Map<String, Object?> testCase) {
   }
 
   if (documents.isEmpty) {
-    documents.add(_document('specification/v0_9/catalogs/basic/catalog.json'));
+    documents.add(
+      _document(
+        compareVersions(version, 'v1.0') >= 0
+            ? 'catalogs/basic/v1/catalog.json'
+            : 'specification/v0_9/catalogs/basic/catalog.json',
+      ),
+    );
   }
   return documents;
+}
+
+/// The protocol version a case's payloads declare, else the one the case
+/// declares, else v0.9.
+///
+/// A catalog document written before v1.0 declares no version, so the
+/// catalogs a case builds take this one.
+String _versionOf(
+  Map<String, Object?> testCase,
+  List<Map<String, Object?>> payloads,
+) {
+  for (final envelope in payloads) {
+    if (envelope['version'] case final String version) return version;
+  }
+  return caseVersion(testCase) ?? 'v0.9';
 }
 
 /// The shared common-types document a case declares, or null to use the copy
@@ -186,11 +329,12 @@ Map<String, Object?> _document(Object? value) {
 List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
   List<Map<String, Object?>> documents,
   List<Map<String, Object?>> payload,
+  String version,
 ) {
   if (documents.length > 1) {
     return [
       for (final Map<String, Object?> document in documents)
-        rendererCatalog(document),
+        rendererCatalog(document, protocolVersion: version),
     ];
   }
 
@@ -200,7 +344,8 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
     ids.add(document['catalogId'] as String? ?? 'standard');
   }
   return [
-    for (final String id in ids) rendererCatalog(document, asCatalogId: id),
+    for (final String id in ids)
+      rendererCatalog(document, asCatalogId: id, protocolVersion: version),
   ];
 }
 

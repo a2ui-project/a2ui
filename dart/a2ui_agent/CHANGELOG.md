@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Payload validation builds its `MessageProcessor` with `defaultVersion`, and
+  gives a catalog that declares no `protocolVersion` the v0.9 it validates
+  against, now that `a2ui_core` rejects a catalog without one.
+
 - The Direct JSON message reader and the Express decompiler reject a
   `createSurface` message without a `catalogId` with `A2uiValidationError`,
   now that `a2ui_core` makes the field optional for v1.0.
