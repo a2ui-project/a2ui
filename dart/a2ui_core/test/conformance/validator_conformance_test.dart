@@ -278,8 +278,8 @@ Matcher _matchesError(Object? expectError) {
     matchers.add(
       predicate<Object?>(
         (e) =>
-            e is! A2uiValidationError ||
-            e.code == 'VALIDATION_FAILED' ||
+            e is! A2uiError ||
+            (e is A2uiValidationError && e.code == 'VALIDATION_FAILED') ||
             e.code == expectedCode,
         'has code "$expectedCode" when populated',
       ),
@@ -288,10 +288,15 @@ Matcher _matchesError(Object? expectError) {
   if (expected['path'] case final String expectedPath) {
     matchers.add(
       predicate<Object?>(
-        (e) =>
-            e is! A2uiValidationError ||
-            e.path == null ||
-            e.path == expectedPath,
+        (e) {
+          if (e is A2uiValidationError) {
+            return e.path == null || e.path == expectedPath;
+          }
+          if (e is A2uiDataError) {
+            return e.path == null || e.path == expectedPath;
+          }
+          return true;
+        },
         'has path "$expectedPath" when populated',
       ),
     );

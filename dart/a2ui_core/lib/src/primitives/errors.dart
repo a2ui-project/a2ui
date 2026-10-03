@@ -81,7 +81,7 @@ class A2uiValidationError extends A2uiError {
     super.message, {
     super.code = 'VALIDATION_FAILED',
     this.path,
-    List<A2uiErrorDetail> errors = const [],
+    List<A2uiErrorDetail> errors = const <A2uiErrorDetail>[],
     this.details,
     super.cause,
   }) : errors = List.unmodifiable(errors);
@@ -116,6 +116,13 @@ class A2uiDataError extends A2uiError {
     super.code = 'DATA_ERROR',
     super.cause,
   });
+
+  @override
+  String toString() {
+    final location = (path != null && path!.isNotEmpty) ? ' ($path)' : '';
+    final causeSuffix = cause != null ? ' (cause: $cause)' : '';
+    return '$runtimeType [$code]$location: $message$causeSuffix';
+  }
 }
 
 /// Thrown during string interpolation and function evaluation.
@@ -198,13 +205,13 @@ class A2uiIntegrityError extends A2uiValidationError {
 
   A2uiIntegrityError(
     super.message, {
-    this.componentIds = const [],
+    List<String> componentIds = const <String>[],
     super.code = 'INTEGRITY_ERROR',
     super.path,
     super.errors,
     super.details,
     super.cause,
-  });
+  }) : componentIds = List.unmodifiable(componentIds);
 }
 
 /// Thrown when a component graph cycles or exceeds the depth cap.
@@ -214,11 +221,11 @@ class A2uiRecursionError extends A2uiValidationError {
 
   A2uiRecursionError(
     super.message, {
-    this.cycle = const [],
+    List<String> cycle = const <String>[],
     super.code = 'RECURSION_ERROR',
     super.path,
     super.errors,
     super.details,
     super.cause,
-  });
+  }) : cycle = List.unmodifiable(cycle);
 }

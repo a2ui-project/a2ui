@@ -138,6 +138,10 @@ void main() {
       expect(integrityError, isA<A2uiError>());
       expect(integrityError.code, 'INTEGRITY_ERROR');
       expect(integrityError.componentIds, ['c1']);
+      expect(
+        () => integrityError.componentIds.add('c2'),
+        throwsUnsupportedError,
+      );
       expect(integrityError.path, '/components/0/child');
       expect(integrityError.cause, same(cause));
 
@@ -145,6 +149,7 @@ void main() {
       expect(recursionError, isA<A2uiError>());
       expect(recursionError.code, 'RECURSION_ERROR');
       expect(recursionError.cycle, ['a', 'b', 'a']);
+      expect(() => recursionError.cycle.add('c'), throwsUnsupportedError);
       expect(recursionError.path, '/components/0');
       expect(recursionError.cause, same(cause));
     });
@@ -198,6 +203,7 @@ void main() {
       expect(catalogError.catalogId, 'cat-1');
       expect(expressionError.expression, r'${foo}');
       expect(dataError.path, '/a/b');
+      expect(dataError.toString(), contains('(/a/b)'));
       expect(unsupportedVersionError.version, 'v9.9');
       expect(parseError.rawContent, '{bad');
     });

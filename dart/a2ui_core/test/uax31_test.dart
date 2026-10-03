@@ -90,7 +90,7 @@ void main() {
       expect(
         () => assertUax31Identifier(
           'bad-name',
-          "component identifier: 'bad-name'",
+          context: "component identifier: 'bad-name'",
         ),
         throwsA(
           isA<A2uiCatalogError>().having(

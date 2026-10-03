@@ -62,10 +62,10 @@ void assertValidUax31Identifier(
 ///
 /// Throws an [A2uiCatalogError] when [name] is not a valid UAX #31 identifier.
 void assertUax31Identifier(
-  String name, [
+  String name, {
   String context = 'Identifier',
   bool allowLeadingAt = false,
-]) {
+}) {
   assertValidUax31Identifier(
     name,
     context: context,
