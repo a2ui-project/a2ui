@@ -428,4 +428,163 @@ void main() {
       expect(ctx3.isV10, isFalse);
     });
   });
+
+  group('DataContext resolution scope', () {
+    DataContext v10Context({
+      ExpressionErrorReporter? onError,
+      MissingDataReporter? onMissingData,
+      String path = '/',
+    }) =>
+        DataContext(
+          dataModel,
+          (name, args, context) => throw ArgumentError('Function not found'),
+          path,
+          onError: onError,
+          protocolVersion: 'v1.0',
+          onMissingData: onMissingData,
+        );
+
+    test('childContext links to its parent and resolves relative paths', () {
+      dataModel.set('/items', [
+        {'name': 'A'},
+        {'name': 'B'},
+      ]);
+      final DataContext root = v10Context();
+      final DataContext item = root.childContext('items').childContext(
+            '1',
+            index: 1,
+          );
+      expect(item.parent!.parent, same(root));
+      expect(item.path, '/items/1');
+      expect(item.resolveSync({'@path': 'name'}), 'B');
+      expect(root.parent, isNull);
+    });
+
+    test('index prefers the nearest explicit index, then the path', () {
+      final DataContext root = v10Context();
+      expect(root.index, isNull);
+      final DataContext outer = root.childContext('rows/2', index: 2);
+      expect(outer.index, 2);
+      final DataContext inner = outer.childContext('cells/4', index: 4);
+      expect(inner.index, 4);
+      // A non-template child inherits its ancestor's index.
+      expect(inner.childContext('.').index, 4);
+      expect(outer.childContext('label').index, 2);
+      // Without an explicit index, a trailing numeric segment counts.
+      expect(root.childContext('items/7').index, 7);
+    });
+
+    test('@index resolves to the iteration index plus offset', () {
+      final DataContext item = v10Context().childContext('items/3', index: 3);
+      expect(item.resolveSync({'@call': '@index', 'args': {}}), 3);
+      expect(
+        item.resolveSync({
+          '@call': '@index',
+          'args': {'offset': 1},
+        }),
+        4,
+      );
+      expect(
+        item.resolveListenable({
+          '@call': '@index',
+          'args': {'offset': 10},
+        }).value,
+        13,
+      );
+    });
+
+    test('@index outside a collection scope raises A2uiValidationError', () {
+      expect(
+        () => v10Context().resolveSync({'@call': '@index', 'args': {}}),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            '@index function can only be evaluated inside a collection '
+                'template iteration scope.',
+          ),
+        ),
+      );
+      final reported = <A2uiExpressionError>[];
+      expect(
+        v10Context(onError: reported.add)
+            .resolveSync({'@call': '@index', 'args': {}}),
+        isNull,
+      );
+      expect(reported.single.message, contains('collection template'));
+    });
+
+    test('@index is not a system function before v1.0', () {
+      final legacy = DataContext(
+        dataModel,
+        (name, args, context) => throw ArgumentError('Function not found'),
+        '/items/0',
+        index: 0,
+      );
+      expect(
+        () => legacy.resolveSync({'call': '@index', 'args': {}}),
+        throwsArgumentError,
+      );
+    });
+
+    test('subscribeDynamicValue fires on change and stops after unsubscribe',
+        () {
+      dataModel.set('/name', 'Alice');
+      final seen = <Object?>[];
+      final DataSubscription subscription = v10Context().subscribeDynamicValue(
+        {'@path': '/name'},
+        seen.add,
+      );
+      expect(subscription.value, 'Alice');
+      expect(seen, isEmpty);
+      dataModel.set('/name', 'Bob');
+      expect(seen, ['Bob']);
+      expect(subscription.value, 'Bob');
+      subscription.unsubscribe();
+      dataModel.set('/name', 'Carol');
+      expect(seen, ['Bob']);
+      subscription.unsubscribe();
+    });
+
+    test('rejects dynamic values nested deeper than maxDynamicValueDepth', () {
+      Object? nest(int depth) {
+        Object? value = {'@path': '/x'};
+        for (var i = 0; i < depth; i++) {
+          value = [value];
+        }
+        return value;
+      }
+
+      dataModel.set('/x', 1);
+      expect(maxDynamicValueDepth, 1000);
+      Object? unwrap(Object? value) {
+        while (value is List) {
+          value = value.single;
+        }
+        return value;
+      }
+
+      expect(unwrap(v10Context().resolveSync(nest(maxDynamicValueDepth))), 1);
+      expect(
+        () => v10Context().resolveSync(nest(maxDynamicValueDepth + 1)),
+        throwsA(isA<A2uiExpressionError>()),
+      );
+      final reported = <A2uiExpressionError>[];
+      v10Context(onError: reported.add)
+          .resolveListenable(nest(maxDynamicValueDepth + 1));
+      expect(reported.single.message, contains('depth'));
+    });
+
+    test('reports each missing binding path once per context tree', () {
+      dataModel.set('/present', 1);
+      final missing = <String>[];
+      final DataContext root = v10Context(onMissingData: missing.add);
+      final DataContext child = root.childContext('items/0', index: 0);
+      root.resolveSync({'@path': '/absent'});
+      child.resolveListenable({'@path': '/absent'});
+      child.resolveSync({'@path': 'field'});
+      root.resolveSync({'@path': '/present'});
+      expect(missing, ['/absent', '/items/0/field']);
+    });
+  });
 }

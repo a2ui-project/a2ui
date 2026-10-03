@@ -325,4 +325,201 @@ void main() {
       },
     );
   });
+
+  group('NodeResolver resolution context', () {
+    late SurfaceModel<ComponentApi> surface;
+    late NodeResolver<ComponentApi> resolver;
+    late List<A2uiClientError> errors;
+
+    setUp(() {
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'scope-catalog',
+        components: [
+          ComponentApi(
+            name: 'List',
+            schema: Schema.object(
+              properties: {'children': CommonSchemas.childList},
+            ),
+          ),
+          ComponentApi(
+            name: 'Text',
+            schema: Schema.object(
+              properties: {'text': CommonSchemas.dynamicString},
+            ),
+          ),
+          ComponentApi(
+            name: 'Button',
+            schema: Schema.object(properties: {'action': CommonSchemas.action}),
+          ),
+        ],
+      );
+      surface = SurfaceModel<ComponentApi>(
+        'scope',
+        defaultCatalog: catalog,
+        protocolVersion: 'v1.0',
+      );
+      errors = [];
+      surface.onError.addListener(errors.add);
+      resolver = NodeResolver<ComponentApi>(surface, catalog: catalog);
+      addTearDown(() {
+        resolver.dispose();
+        surface.dispose();
+      });
+    });
+
+    void add(String id, String type, Map<String, Object?> properties) =>
+        surface.componentsModel.addComponent(
+          ComponentModel(id, type, properties),
+        );
+
+    List<ComponentNode> childrenOf(ComponentNode node) =>
+        (node.props.peek()['children']! as List).cast<ComponentNode>();
+
+    Object? textOf(ComponentNode node) =>
+        (node.props.peek()['text']! as ResolvedBinding<Object?>).value;
+
+    test('nested template lists expose the index of each level', () {
+      surface.dataModel.set('/rows', [
+        {
+          'cells': ['a', 'b'],
+        },
+        {
+          'cells': ['c'],
+        },
+      ]);
+      add('root', 'List', {
+        'children': {'componentId': 'row', 'path': '/rows'},
+      });
+      add('row', 'List', {
+        'children': {'componentId': 'cell', 'path': 'cells'},
+      });
+      add('cell', 'Text', {
+        'text': {'@call': '@index', 'args': {}},
+      });
+
+      final ComponentNode root = resolver.rootNode.value!;
+      expect(root.context!.dataContext.index, isNull);
+      final List<ComponentNode> rows = childrenOf(root);
+      expect([for (final row in rows) row.context!.dataContext.index], [0, 1]);
+      expect(rows[1].context!.dataContext.parent, same(root.context!.dataContext));
+      final List<List<ComponentNode>> cells = [
+        for (final row in rows) childrenOf(row),
+      ];
+      expect(
+        [
+          for (final rowCells in cells)
+            [for (final cell in rowCells) cell.context!.dataContext.index],
+        ],
+        [
+          [0, 1],
+          [0],
+        ],
+      );
+      expect(
+        [
+          for (final rowCells in cells) [for (final cell in rowCells) textOf(cell)],
+        ],
+        [
+          [0, 1],
+          [0],
+        ],
+      );
+      expect(errors, isEmpty);
+    });
+
+    test('@index with offset 1 yields 1..n', () {
+      surface.dataModel.set('/items', ['x', 'y', 'z']);
+      add('root', 'List', {
+        'children': {'componentId': 'item', 'path': '/items'},
+      });
+      add('item', 'Text', {
+        'text': {
+          '@call': '@index',
+          'args': {'offset': 1},
+        },
+      });
+      expect(
+        childrenOf(resolver.rootNode.value!).map(textOf),
+        [1, 2, 3],
+      );
+    });
+
+    test('@index at the root is reported and resolves to null', () {
+      add('root', 'Text', {
+        'text': {'@call': '@index', 'args': {}},
+      });
+      expect(textOf(resolver.rootNode.value!), isNull);
+      expect(errors.single.code, 'EXPRESSION_ERROR');
+      expect(
+        errors.single.message,
+        '@index function can only be evaluated inside a collection template '
+        'iteration scope.',
+      );
+    });
+
+    test('ComponentNode.context.dispatchAction reaches onAction', () async {
+      final actions = <A2uiClientAction>[];
+      surface.onAction.addListener(actions.add);
+      add('root', 'Button', {
+        'action': {
+          'event': {'name': 'tap'},
+        },
+      });
+      final ComponentNode root = resolver.rootNode.value!;
+      await root.context!.dispatchAction({
+        'event': {'name': 'tap', 'context': <String, Object?>{}},
+      });
+      expect(actions.single.name, 'tap');
+      expect(actions.single.sourceComponentId, 'root');
+    });
+
+    test('placeholders have no context', () {
+      add('root', 'List', {
+        'children': ['missing'],
+      });
+      final ComponentNode placeholder =
+          childrenOf(resolver.rootNode.value!).single;
+      expect(placeholder.isPlaceholder, isTrue);
+      expect(placeholder.context, isNull);
+    });
+
+    test('binds the accessibility envelope property at the root', () {
+      surface.dataModel.set('/label', 'Greeting');
+      add('root', 'Text', {
+        'text': 'Hello',
+        'accessibility': {
+          'label': {'@path': '/label'},
+          'live': 'polite',
+        },
+      });
+      final accessibility = resolver.rootNode.value!.props
+          .peek()['accessibility']! as Map<String, Object?>;
+      expect(
+        (accessibility['label']! as ResolvedBinding<Object?>).value,
+        'Greeting',
+      );
+      expect(accessibility['live'], 'polite');
+      _expectReadOnlyNull(accessibility['description']);
+      surface.dataModel.set('/label', 'Hi');
+      expect(
+        ((resolver.rootNode.value!.props.peek()['accessibility']!
+                as Map<String, Object?>)['label']! as ResolvedBinding<Object?>)
+            .value,
+        'Hi',
+      );
+    });
+
+    test('rejects a catalog other than the surface default catalog', () {
+      expect(
+        () => NodeResolver<ComponentApi>(
+          surface,
+          catalog: Catalog<ComponentApi, FunctionImplementation>(
+            id: 'other',
+            components: [],
+          ),
+        ),
+        throwsA(isA<A2uiStateError>()),
+      );
+    });
+  });
 }
