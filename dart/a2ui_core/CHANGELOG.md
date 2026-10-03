@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Added `ValidationResult` and `A2uiReturnType.validationResult` for structured
+  client-side validation outcomes (`valid`, `message`, `code`, `severity`), and
+  exposed `validationResults` alongside `isValid` and `validationErrors` on
+  resolved component properties.
+- Fixed `checks` evaluation in `GenericBinder`:
+  - Rules evaluate once during initial binding without a duplicate object-branch
+    pass.
+  - `_subscribe` skips invoking its reactive callback during the initial
+    synchronous pass so rebuilds do not write into stale property maps.
+  - Non-map rule entries emit a `VALIDATION_FAILED` client error on the surface
+    instead of throwing a `TypeError`.
+  - Checkable properties are classified from schema markers or `CheckRule` item
+    structure rather than matching the property name `'checks'`.
+- `ReferenceSchemaReader` resolves external `common_types.json#/$defs/...`
+  pointers against the embedded `common_types.json` document so catalogs loaded
+  via `Catalog.fromJson` classify `Checkable`, `DynamicValue`, `Action`, and
+  `ChildList` properties identically to code-constructed catalogs.
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
 - `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.

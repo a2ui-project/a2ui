@@ -14,17 +14,11 @@
 
 import 'dart:async';
 
-import 'package:a2ui_core/src/core/catalog.dart';
-import 'package:a2ui_core/src/core/common_schemas.dart';
-import 'package:a2ui_core/src/core/component_model.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/core/contexts.dart';
-import 'package:a2ui_core/src/core/messages.dart';
-import 'package:a2ui_core/src/core/minimal_catalog.dart';
-import 'package:a2ui_core/src/core/surface_model.dart';
-import 'package:a2ui_core/src/primitives/cancellation.dart';
 import 'package:a2ui_core/src/rendering/binder.dart';
-import 'package:a2ui_core/src/resolution/resolved_binding.dart';
-import 'package:json_schema_builder/json_schema_builder.dart';
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
 import 'package:test/test.dart';
 
 /// A catalog function that hands its resolved arguments to [onExecute].
@@ -414,14 +408,252 @@ void main() {
       final context = ComponentContext(surface, comp);
       final binder = GenericBinder(context, MinimalTextFieldApi().schema);
 
-      // Wait for Timer.run in GenericBinder
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-
       expect(binder.resolvedProps.value['isValid'], false);
       expect(binder.resolvedProps.value['validationErrors'], ['Must be valid']);
+      expect(binder.resolvedProps.value['validationResults'], [
+        const ValidationResult(
+          valid: false,
+          message: 'Must be valid',
+          severity: 'error',
+        ),
+      ]);
 
       surface.dataModel.set('/valid', true);
       expect(binder.resolvedProps.value['isValid'], true);
+      expect(binder.resolvedProps.value['validationErrors'], isEmpty);
+      expect(binder.resolvedProps.value['validationResults'], isEmpty);
+      binder.dispose();
+    });
+
+    test('evaluates checks returning ValidationResult maps and instances', () {
+      final customCatalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'validation-test',
+        components: [MinimalTextFieldApi()],
+        functions: [
+          _SpyFunction('checkResult', (args) => args['result']),
+        ],
+      );
+      final SurfaceModel<ComponentApi> customSurface =
+          SurfaceModel('s-val', catalog: customCatalog);
+      customSurface.dataModel.set('/r1', {'valid': true});
+      customSurface.dataModel.set('/r2', {
+        'valid': false,
+        'message': 'Function error message',
+        'code': 'ERR_CUSTOM',
+        'severity': 'error',
+      });
+      customSurface.dataModel.set('/r3', {
+        'valid': false,
+        'message': 'Weak password',
+        'code': 'WARN_WEAK',
+        'severity': 'warning',
+      });
+      customSurface.dataModel.set('/r4', {
+        'valid': false,
+        'message': 'Helpful hint',
+        'code': 'INFO_HINT',
+        'severity': 'info',
+      });
+      customSurface.dataModel.set('/r5', {'valid': false});
+
+      final comp = ComponentModel('c1', 'TextField', {
+        'label': 'Input',
+        'checks': [
+          {
+            'condition': {
+              'call': 'checkResult',
+              'args': {
+                'result': {'path': '/r1'},
+              },
+            },
+            'message': 'Fallback 1',
+          },
+          {
+            'condition': {
+              'call': 'checkResult',
+              'args': {
+                'result': {'path': '/r2'},
+              },
+            },
+            'message': 'Fallback 2',
+          },
+          {
+            'condition': {
+              'call': 'checkResult',
+              'args': {
+                'result': {'path': '/r3'},
+              },
+            },
+            'message': 'Fallback 3',
+          },
+          {
+            'condition': {
+              'call': 'checkResult',
+              'args': {
+                'result': {'path': '/r4'},
+              },
+            },
+            'message': 'Fallback 4',
+          },
+          {
+            'condition': {
+              'call': 'checkResult',
+              'args': {
+                'result': {'path': '/r5'},
+              },
+            },
+            'message': 'Fallback 5',
+          },
+        ],
+      });
+      customSurface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(customSurface, comp);
+      final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+
+      expect(binder.resolvedProps.value['isValid'], isFalse);
+      expect(binder.resolvedProps.value['validationErrors'], [
+        'Function error message',
+        'Fallback 5',
+      ]);
+      expect(binder.resolvedProps.value['validationResults'], [
+        const ValidationResult(
+          valid: false,
+          message: 'Function error message',
+          code: 'ERR_CUSTOM',
+          severity: 'error',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Weak password',
+          code: 'WARN_WEAK',
+          severity: 'warning',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Helpful hint',
+          code: 'INFO_HINT',
+          severity: 'info',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Fallback 5',
+          severity: 'error',
+        ),
+      ]);
+
+      // Resolve errors while keeping warning and info active: isValid becomes
+      // true.
+      customSurface.dataModel.set('/r2', {'valid': true});
+      customSurface.dataModel.set(
+        '/r5',
+        const ValidationResult(valid: true),
+      );
+      expect(binder.resolvedProps.value['isValid'], isTrue);
+      expect(binder.resolvedProps.value['validationErrors'], isEmpty);
+      expect(binder.resolvedProps.value['validationResults'], [
+        const ValidationResult(
+          valid: false,
+          message: 'Weak password',
+          code: 'WARN_WEAK',
+          severity: 'warning',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Helpful hint',
+          code: 'INFO_HINT',
+          severity: 'info',
+        ),
+      ]);
+
+      binder.dispose();
+      customSurface.dispose();
+    });
+
+    test('reports validation error for non-map rule entries in checks', () {
+      final errors = <A2uiClientError>[];
+      surface.onError.addListener(errors.add);
+      surface.dataModel.set('/valid', false);
+
+      final comp = ComponentModel('c1', 'TextField', {
+        'label': 'Name',
+        'checks': [
+          42,
+          'not-a-rule-map',
+          {
+            'condition': {'path': '/valid'},
+            'message': 'Must be valid',
+          },
+        ],
+      });
+      surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+
+      expect(errors, hasLength(2));
+      expect(errors[0].code, 'VALIDATION_FAILED');
+      expect(errors[0].path, '/checks/0');
+      expect(errors[1].code, 'VALIDATION_FAILED');
+      expect(errors[1].path, '/checks/1');
+
+      expect(binder.resolvedProps.value['isValid'], isFalse);
+      expect(binder.resolvedProps.value['validationErrors'], ['Must be valid']);
+      expect(binder.resolvedProps.value['validationResults'], [
+        const ValidationResult(
+          valid: false,
+          message: 'Must be valid',
+          severity: 'error',
+        ),
+      ]);
+
+      binder.dispose();
+    });
+
+    test('ValidationResult serializes and compares by value', () {
+      final parsed = ValidationResult.fromJson({
+        'valid': false,
+        'message': 'Invalid input',
+        'code': 'ERR_INVALID',
+        'severity': 'warning',
+      });
+      const expected = ValidationResult(
+        valid: false,
+        message: 'Invalid input',
+        code: 'ERR_INVALID',
+        severity: 'warning',
+      );
+      expect(parsed, equals(expected));
+      expect(parsed.hashCode, equals(expected.hashCode));
+      expect(parsed.toJson(), {
+        'valid': false,
+        'message': 'Invalid input',
+        'code': 'ERR_INVALID',
+        'severity': 'warning',
+      });
+      expect(
+        const ValidationResult(valid: true).toJson(),
+        {'valid': true},
+      );
+      expect(
+        ValidationResult.fromEvaluation(true).toJson(),
+        {'valid': true},
+      );
+      expect(
+        ValidationResult.fromJson({
+          'valid': true,
+          'severity': 'error',
+        }).severity,
+        isNull,
+      );
+      expect(
+        () => ValidationResult(valid: true, severity: 'error'),
+        throwsA(isA<AssertionError>()),
+      );
+      expect(
+        () => ValidationResult(valid: false, severity: 'invalid'),
+        throwsA(isA<AssertionError>()),
+      );
     });
   });
 }
