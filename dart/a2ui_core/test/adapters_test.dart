@@ -87,7 +87,7 @@ void main() {
     });
 
     test('records v0.9.1 on operations from v0.9.1 messages', () {
-      final ops = adapter.toOperations({
+      final List<InternalOperation> ops = adapter.toOperations({
         'version': 'v0.9.1',
         'deleteSurface': {'surfaceId': 's1'},
       });

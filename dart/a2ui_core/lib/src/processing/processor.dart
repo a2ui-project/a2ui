@@ -225,7 +225,7 @@ class MessageProcessor<T extends ComponentApi> {
     final List<_RoutedMessage> routed = [
       for (final Object? item in _itemsOf(payload)) _route(item),
     ];
-    for (final _RoutedMessage message in routed) {
+    for (final message in routed) {
       _apply(message);
     }
   }
@@ -275,7 +275,7 @@ class MessageProcessor<T extends ComponentApi> {
         );
       case final Map<Object?, Object?> envelope
           when envelope.keys.every((key) => key is String):
-        final json = envelope.cast<String, Object?>();
+        final Map<String, Object?> json = envelope.cast<String, Object?>();
         return (
           json: json,
           operations: adapterRegistry.resolve(json).toOperations(json),

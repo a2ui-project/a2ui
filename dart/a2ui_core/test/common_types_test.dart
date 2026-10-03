@@ -72,7 +72,8 @@ void main() {
 
     test('is what a processor resolves against by default', () {
       final catalog = MinimalCatalog();
-      final processor = MessageProcessor(catalogs: [catalog]);
+      final MessageProcessor<ComponentApi> processor =
+          MessageProcessor(catalogs: [catalog]);
       expect(processor.commonTypesSchema, isNull);
       expect(
         processor
