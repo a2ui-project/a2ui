@@ -17,10 +17,12 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import '../core/catalog.dart';
 import '../core/component_model.dart';
 import '../core/messages.dart';
+import '../core/renderer_capabilities.dart';
 import '../core/surface_group_model.dart';
 import '../core/surface_model.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
+import '../primitives/semver.dart';
 import '../validation/component_graph.dart';
 import '../validation/component_refs.dart';
 import '../validation/validation_config.dart';
@@ -264,7 +266,11 @@ class MessageProcessor<T extends ComponentApi> {
 
   void _processCreateSurface(CreateSurfaceMessage message) {
     final Catalog<T, FunctionImplementation> catalog = catalogFor(
-      message.catalogId,
+      message.catalogId ??
+          (throw A2uiValidationError(
+            "Message 'createSurface' for surface '${message.surfaceId}' names "
+            'no catalogId.',
+          )),
     );
 
     if (groupModel.getSurface(message.surfaceId) != null) {
@@ -468,118 +474,113 @@ class MessageProcessor<T extends ComponentApi> {
     groupModel.deleteSurface(message.surfaceId);
   }
 
-  /// Generates client capabilities.
+  /// The capabilities object this processor's renderer advertises, with one
+  /// entry per version in [CapabilitiesOptions.versions].
+  ///
+  /// Each entry lists the id of every catalog in [catalogs]. With
+  /// [CapabilitiesOptions.includeInlineCatalogs] it also carries the catalogs
+  /// themselves, shaped for that entry's version as
+  /// [A2uiVersionCapabilities.toJson] describes: the legacy inline catalog
+  /// below v1.0, the standalone catalog schema document from v1.0.
+  ///
+  /// Throws [A2uiValidationError] if [CapabilitiesOptions.versions] is empty.
+  A2uiRendererCapabilities getRendererCapabilities(
+    CapabilitiesOptions options,
+  ) {
+    if (options.versions.isEmpty) {
+      throw A2uiValidationError(
+        'At least one protocol version must be provided in '
+        'CapabilitiesOptions to generate renderer capabilities.',
+      );
+    }
+    final List<String> catalogIds = List.unmodifiable([
+      for (final Catalog<T, FunctionImplementation> catalog in catalogs)
+        catalog.id,
+    ]);
+    final List<CatalogApi> inlineCatalogs =
+        options.includeInlineCatalogs ? List.unmodifiable(catalogs) : const [];
+    return A2uiRendererCapabilities(
+      versions: {
+        for (final A2uiProtocolVersion version in options.versions)
+          version: A2uiVersionCapabilities(
+            supportedCatalogIds: catalogIds,
+            inlineCatalogs: inlineCatalogs,
+            componentEnvelopeRef: options.componentEnvelopeRef,
+          ),
+      },
+    );
+  }
+
+  /// The v0.9 capabilities object, as JSON.
+  ///
+  /// Equivalent to [getRendererCapabilities] for v0.9 alone, serialized.
   Map<String, dynamic> getClientCapabilities({
     bool includeInlineCatalogs = false,
-  }) {
-    final v09 = <String, dynamic>{
-      'supportedCatalogIds': catalogs.map((c) => c.id).toList(),
+  }) =>
+      getRendererCapabilities(
+        CapabilitiesOptions(
+          versions: const [A2uiProtocolVersion.v0_9],
+          includeInlineCatalogs: includeInlineCatalogs,
+        ),
+      ).toJson();
+
+  /// The data models of the surfaces created with `sendDataModel`, in the
+  /// shape of the `a2uiClientDataModel` object the renderer sends with each
+  /// message: `{'version': ..., 'surfaces': {<surfaceId>: <data model>}}`.
+  ///
+  /// With a [version], only surfaces whose protocol version is compatible
+  /// with it (see [isCatalogVersionCompatible]) are included, along with
+  /// surfaces that record no version. Without one, the version is the one
+  /// the surfaces share, or v1.0 when none records a version.
+  ///
+  /// Returns null when no surface qualifies. Throws [A2uiValidationError] if
+  /// [version] is omitted and the surfaces record different versions.
+  Map<String, Object?>? getRendererDataModel({A2uiProtocolVersion? version}) {
+    final List<SurfaceModel<T>> enabled = [
+      for (final SurfaceModel<T> surface in groupModel.allSurfaces)
+        if (surface.sendDataModel) surface,
+    ];
+    if (enabled.isEmpty) return null;
+
+    if (version != null) {
+      final surfaces = <String, Object?>{
+        for (final SurfaceModel<T> surface in enabled)
+          if (surface.protocolVersion == null ||
+              isCatalogVersionCompatible(
+                surface.protocolVersion!,
+                version.jsonValue,
+              ))
+            surface.id: surface.dataModel.get('/'),
+      };
+      if (surfaces.isEmpty) return null;
+      return {'version': version.jsonValue, 'surfaces': surfaces};
+    }
+
+    final Set<String> versions = {
+      for (final SurfaceModel<T> surface in enabled)
+        if (surface.protocolVersion case final String declared)
+          A2uiProtocolVersion.tryParse(declared)?.jsonValue ?? declared,
     };
-
-    if (includeInlineCatalogs) {
-      v09['inlineCatalogs'] = catalogs.map(_generateInlineCatalog).toList();
+    if (versions.length > 1) {
+      throw A2uiValidationError(
+        'Multiple protocol versions detected among active surfaces: '
+        '${(versions.toList()..sort()).join(', ')}. Specify a target '
+        'protocol version in getRendererDataModel(version).',
+      );
     }
-
-    return {'v0.9': v09};
-  }
-
-  Map<String, dynamic> _generateInlineCatalog(
-    Catalog<T, FunctionImplementation> catalog,
-  ) {
-    final components = <String, dynamic>{};
-    for (final MapEntry<String, T> entry in catalog.components.entries) {
-      final Map<String, dynamic> jsonSchema = entry.value.schema.toJsonMap();
-      _processRefs(jsonSchema);
-
-      // Wrap in A2UI envelope
-      components[entry.key] = {
-        'allOf': [
-          {'\$ref': 'common_types.json#/\$defs/ComponentCommon'},
-          {
-            'properties': {
-              'component': {'const': entry.key},
-              ...?(jsonSchema['properties'] as Map<String, dynamic>?),
-            },
-            'required': ['component', ...?(jsonSchema['required'] as List?)],
-          },
-        ],
-      };
-    }
-
-    final List<Map<String, Object>> functions = catalog.functions.values.map((
-      f,
-    ) {
-      final Map<String, dynamic> jsonSchema = f.argumentSchema.toJsonMap();
-      _processRefs(jsonSchema);
-      return {
-        'name': f.name,
-        'returnType': f.returnType.jsonValue,
-        'parameters': jsonSchema,
-      };
-    }).toList();
-
-    Map<String, dynamic>? theme;
-    if (catalog.themeSchema != null) {
-      theme = catalog.themeSchema!.toJsonMap();
-      _processRefs(theme);
-      theme = theme['properties'] as Map<String, dynamic>?;
-    }
-
     return {
-      'catalogId': catalog.id,
-      if (components.isNotEmpty) 'components': components,
-      if (functions.isNotEmpty) 'functions': functions,
-      if (theme != null) 'theme': theme,
+      'version': versions.isEmpty
+          ? A2uiProtocolVersion.v1_0.jsonValue
+          : versions.single,
+      'surfaces': <String, Object?>{
+        for (final SurfaceModel<T> surface in enabled)
+          surface.id: surface.dataModel.get('/'),
+      },
     };
   }
 
-  void _processRefs(Object? node) {
-    if (node is! Map) return;
-
-    if (node['description'] is String &&
-        (node['description'] as String).startsWith('REF:')) {
-      final desc = node['description'] as String;
-      final List<String> parts = desc.substring(4).split('|');
-      final String ref = parts[0];
-      final String? actualDesc = parts.length > 1 ? parts[1] : null;
-
-      node.clear();
-      node['\$ref'] = ref;
-      if (actualDesc != null) {
-        node['description'] = actualDesc;
-      }
-      return;
-    }
-
-    node.forEach((key, value) {
-      if (value is Map) {
-        _processRefs(value);
-      } else if (value is List) {
-        for (final Object? item in value) {
-          if (item is Map) {
-            _processRefs(item);
-          }
-        }
-      }
-    });
-  }
-
-  /// Aggregates data models for surfaces with sendDataModel enabled.
-  Map<String, dynamic>? getClientDataModel() {
-    final surfaces = <String, dynamic>{};
-    for (final SurfaceModel<T> surface in groupModel.allSurfaces) {
-      if (surface.sendDataModel) {
-        surfaces[surface.id] = surface.dataModel.get('/');
-      }
-    }
-
-    if (surfaces.isEmpty) return null;
-
-    return {'version': 'v0.9', 'surfaces': surfaces};
-  }
-
-  /// Alias for [getClientDataModel] for cross-SDK ergonomics.
-  Map<String, dynamic>? getRendererDataModel() => getClientDataModel();
+  /// Equivalent to [getRendererDataModel] with no version.
+  Map<String, dynamic>? getClientDataModel() => getRendererDataModel();
 }
 
 extension SchemaExtension on Schema {

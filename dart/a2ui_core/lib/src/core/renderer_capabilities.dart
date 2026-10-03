@@ -12,9 +12,40 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:json_schema_builder/json_schema_builder.dart';
+
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
+import '../primitives/semver.dart';
 import 'catalog.dart';
+
+/// Options for `MessageProcessor.getRendererCapabilities`.
+class CapabilitiesOptions {
+  /// The protocol versions to describe, one capabilities entry each.
+  ///
+  /// Must not be empty.
+  final List<A2uiProtocolVersion> versions;
+
+  /// Whether each version entry carries every catalog inline, in addition to
+  /// listing its id.
+  final bool includeInlineCatalogs;
+
+  /// The `$ref` of the envelope schema each inline component is wrapped in.
+  ///
+  /// See [A2uiVersionCapabilities.componentEnvelopeRef].
+  final String? componentEnvelopeRef;
+
+  const CapabilitiesOptions({
+    required this.versions,
+    this.includeInlineCatalogs = false,
+    this.componentEnvelopeRef,
+  });
+}
+
+/// The envelope that legacy inline catalogs wrap each component in when no
+/// [A2uiVersionCapabilities.componentEnvelopeRef] is given.
+const String _legacyComponentEnvelopeRef =
+    r'common_types.json#/$defs/ComponentCommon';
 
 /// The catalogs a renderer can render for one protocol version, mirroring
 /// `A2uiVersionCapabilities` in `client_capabilities.json`.
@@ -26,9 +57,19 @@ class A2uiVersionCapabilities {
   /// `acceptsInlineCatalogs`.
   final List<CatalogApi> inlineCatalogs;
 
+  /// The `$ref` of the envelope schema that [toJson] wraps each inline
+  /// component in.
+  ///
+  /// Below v1.0 every component is wrapped, in
+  /// `common_types.json#/$defs/ComponentCommon` when this is null. From v1.0
+  /// components are wrapped only when this is set. This is an emitter option,
+  /// not a wire field: [A2uiVersionCapabilities.fromJson] never sets it.
+  final String? componentEnvelopeRef;
+
   A2uiVersionCapabilities({
     required this.supportedCatalogIds,
     this.inlineCatalogs = const [],
+    this.componentEnvelopeRef,
   });
 
   /// Parses a version capabilities object.
@@ -70,14 +111,236 @@ class A2uiVersionCapabilities {
     );
   }
 
-  Map<String, Object?> toJson() => {
+  /// Serializes these capabilities as the entry for [version].
+  ///
+  /// The shape of each inline catalog depends on [version]. Below v1.0 it is
+  /// the legacy inline catalog: components wrapped in the
+  /// [componentEnvelopeRef] envelope, `functions` as a list of definitions,
+  /// and `theme` as the theme's property map. From v1.0 it is the standalone
+  /// catalog schema document, [Catalog.catalogSchema].
+  ///
+  /// Schemas built from `CommonSchemas` mark shared definitions with a
+  /// description of the form `REF:uri|text`; both shapes replace such a node
+  /// with a `$ref` to `uri`.
+  Map<String, Object?> toJson({required A2uiProtocolVersion version}) => {
         'supportedCatalogIds': supportedCatalogIds,
         if (inlineCatalogs.isNotEmpty)
           'inlineCatalogs': [
             for (final CatalogApi catalog in inlineCatalogs)
-              catalog.catalogSchema,
+              if (version.isAtLeast(A2uiProtocolVersion.v1_0))
+                _catalogDocument(catalog, componentEnvelopeRef)
+              else
+                _legacyInlineCatalog(
+                  catalog,
+                  componentEnvelopeRef ?? _legacyComponentEnvelopeRef,
+                ),
           ],
       };
+}
+
+/// The standalone catalog schema document for [catalog], with each component
+/// wrapped in [envelopeRef] when one is given.
+Map<String, Object?> _catalogDocument(CatalogApi catalog, String? envelopeRef) {
+  // catalogSchema builds a fresh copy, so it can be rewritten in place.
+  final Map<String, Object?> document = catalog.catalogSchema;
+  if (envelopeRef != null) {
+    (document['components']! as Map<String, Object?>).updateAll(
+      (_, schema) => <String, Object?>{
+        'allOf': <Object?>[
+          <String, Object?>{r'$ref': envelopeRef},
+          schema,
+        ],
+      },
+    );
+  }
+  _resolveRefDescriptions(document);
+  return document;
+}
+
+/// The legacy (below v1.0) inline catalog for [catalog].
+Map<String, Object?> _legacyInlineCatalog(
+  CatalogApi catalog,
+  String envelopeRef,
+) {
+  final components = <String, Object?>{
+    for (final MapEntry<String, ComponentApi> entry
+        in catalog.components.entries)
+      entry.key: <String, Object?>{
+        'allOf': <Object?>[
+          <String, Object?>{r'$ref': envelopeRef},
+          _legacyComponentBody(
+            entry.key,
+            _resolvedCopy(entry.value.schema.value),
+            envelopeRef,
+          ),
+        ],
+      },
+  };
+  final functions = <Object?>[
+    for (final FunctionApi function in catalog.functions.values)
+      <String, Object?>{
+        'name': function.name,
+        'returnType': function.returnType.jsonValue,
+        'parameters': _resolvedCopy(function.argumentSchema.value),
+      },
+  ];
+  final Schema? themeSchema = catalog.themeSchema;
+  final Object? theme = themeSchema == null
+      ? null
+      : _resolvedCopy(themeSchema.value)['properties'];
+  return {
+    'catalogId': catalog.id,
+    if (components.isNotEmpty) 'components': components,
+    if (functions.isNotEmpty) 'functions': functions,
+    if (theme != null) 'theme': theme,
+  };
+}
+
+/// The second `allOf` member of a legacy component: [schema]'s properties
+/// and required list, led by the `component` discriminator.
+///
+/// `id` and `component` are dropped from the component's own properties and
+/// required list, since the envelope and the discriminator supply them.
+Map<String, Object?> _legacyComponentBody(
+  String name,
+  Map<String, Object?> schema,
+  String envelopeRef,
+) {
+  final Map<String, Object?> body = _legacySchemaBody(schema, envelopeRef);
+  final Map<String, Object?> properties =
+      (body['properties'] as Map<String, Object?>?) ?? const {};
+  final List<Object?> required =
+      (body['required'] as List<Object?>?) ?? const [];
+  return {
+    ...body,
+    'properties': <String, Object?>{
+      'component': <String, Object?>{'const': name},
+      for (final MapEntry<String, Object?> entry in properties.entries)
+        if (entry.key != 'id' && entry.key != 'component')
+          entry.key: entry.value,
+    },
+    'required': <Object?>[
+      'component',
+      for (final Object? key in required)
+        if (key != 'id' && key != 'component') key,
+    ],
+  };
+}
+
+/// Reduces an object schema to the keywords the legacy shape keeps:
+/// `properties`, `required`, `anyOf`, `oneOf`, and `allOf` members that
+/// cannot be merged.
+///
+/// The legacy shape has no `type` or `additionalProperties`, so those and
+/// other keywords are dropped, as they always were. `allOf` members are
+/// merged into the result, a property declared twice keeping the later
+/// declaration. A `$ref`, whether it is the schema itself, an `allOf` member
+/// or a branch, becomes an `allOf` member, except one naming [envelopeRef],
+/// which the legacy wrapper already applies. `anyOf` and
+/// `oneOf` branches are reduced the same way and kept, since they constrain
+/// the component rather than describe it.
+Map<String, Object?> _legacySchemaBody(
+  Map<String, Object?> schema,
+  String envelopeRef,
+) {
+  final properties = <String, Object?>{};
+  final required = <Object?>[];
+  final allOf = <Object?>[];
+  final branches = <String, List<Object?>>{};
+
+  void merge(Map<Object?, Object?> node) {
+    // A reference cannot be merged without resolving it, so it is kept as an
+    // allOf member, which constrains the result the same way.
+    if (node[r'$ref'] case final String ref) {
+      if (ref != envelopeRef) allOf.add(<String, Object?>{r'$ref': ref});
+    }
+    if (node['properties'] case final Map<Object?, Object?> nodeProperties) {
+      for (final MapEntry<Object?, Object?> entry in nodeProperties.entries) {
+        properties[entry.key! as String] = entry.value;
+      }
+    }
+    if (node['required'] case final List<Object?> nodeRequired) {
+      for (final key in nodeRequired) {
+        if (!required.contains(key)) required.add(key);
+      }
+    }
+    if (node['allOf'] case final List<Object?> members) {
+      for (final member in members) {
+        if (member is Map) merge(member);
+      }
+    }
+    for (final keyword in const ['anyOf', 'oneOf']) {
+      if (node[keyword] case final List<Object?> options) {
+        final reduced = <Object?>[
+          for (final Object? option in options)
+            option is Map
+                ? _legacySchemaBody(option.cast<String, Object?>(), envelopeRef)
+                : option,
+        ];
+        if (branches.containsKey(keyword)) {
+          // A second set of branches for the same keyword must hold as well,
+          // so it joins the conjunction instead of replacing the first.
+          allOf.add(<String, Object?>{keyword: reduced});
+        } else {
+          branches[keyword] = reduced;
+        }
+      }
+    }
+  }
+
+  merge(schema);
+  return {
+    if (properties.isNotEmpty) 'properties': properties,
+    if (required.isNotEmpty) 'required': required,
+    ...branches,
+    if (allOf.isNotEmpty) 'allOf': allOf,
+  };
+}
+
+/// A deep copy of [schema] with its `REF:` descriptions resolved.
+Map<String, Object?> _resolvedCopy(Map<String, Object?> schema) {
+  final copy = _deepCopy(schema)! as Map<String, Object?>;
+  _resolveRefDescriptions(copy);
+  return copy;
+}
+
+Object? _deepCopy(Object? value) => switch (value) {
+      final Map<Object?, Object?> map => <String, Object?>{
+          for (final MapEntry<Object?, Object?> entry in map.entries)
+            entry.key! as String: _deepCopy(entry.value),
+        },
+      final List<Object?> list => <Object?>[
+          for (final Object? item in list) _deepCopy(item),
+        ],
+      _ => value,
+    };
+
+/// Replaces, in place, every node whose description has the form
+/// `REF:uri|text` with `{"$ref": "uri", "description": "text"}`, the
+/// convention `CommonSchemas` uses to mark a shared definition.
+///
+/// Only call this on a copy: the schemas it would otherwise rewrite are
+/// shared statics.
+void _resolveRefDescriptions(Object? node) {
+  if (node is List) {
+    node.forEach(_resolveRefDescriptions);
+    return;
+  }
+  if (node is! Map) return;
+  final Object? description = node['description'];
+  if (description is String && description.startsWith('REF:')) {
+    final int separator = description.indexOf('|');
+    node
+      ..clear()
+      ..[r'$ref'] = separator < 0
+          ? description.substring(4)
+          : description.substring(4, separator);
+    if (separator >= 0) {
+      node['description'] = description.substring(separator + 1);
+    }
+    return;
+  }
+  node.values.forEach(_resolveRefDescriptions);
 }
 
 /// The rendering capabilities a renderer advertises, mirroring
@@ -163,13 +426,25 @@ class A2uiRendererCapabilities {
     );
   }
 
-  /// The capabilities declared for [version], or null if it declares none.
-  A2uiVersionCapabilities? forVersion(A2uiProtocolVersion version) =>
-      versions[version];
+  /// The capabilities declared for [version], or for a version compatible
+  /// with it (see [isCatalogVersionCompatible]) when [version] itself is not
+  /// declared, so a renderer declaring v0.9.1 serves a v0.9 agent and the
+  /// reverse. Null if no compatible version is declared.
+  A2uiVersionCapabilities? forVersion(A2uiProtocolVersion version) {
+    final A2uiVersionCapabilities? declared = versions[version];
+    if (declared != null) return declared;
+    for (final MapEntry<A2uiProtocolVersion, A2uiVersionCapabilities> entry
+        in versions.entries) {
+      if (isCatalogVersionCompatible(entry.key.jsonValue, version.jsonValue)) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
 
   Map<String, Object?> toJson() => {
         for (final MapEntry<A2uiProtocolVersion, A2uiVersionCapabilities> entry
             in versions.entries)
-          entry.key.jsonValue: entry.value.toJson(),
+          entry.key.jsonValue: entry.value.toJson(version: entry.key),
       };
 }
