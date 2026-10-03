@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Added `MessageProcessor.getRendererCapabilities(CapabilitiesOptions)`,
+  which returns an `A2uiRendererCapabilities` with one entry per requested
+  version and raises `A2uiValidationError` for an empty version list. Inline
+  catalogs use the legacy shape below v1.0 and the standalone catalog schema
+  document from v1.0. `CapabilitiesOptions.componentEnvelopeRef` sets the
+  envelope each inline component is wrapped in.
+- **Breaking:** `A2uiVersionCapabilities.toJson` takes a required `version`
+  and shapes inline catalogs for it; `A2uiRendererCapabilities.toJson` and
+  `getRendererCapabilities` use the same code. `A2uiVersionCapabilities`
+  adds `componentEnvelopeRef`.
+- **Behavior change:** Legacy inline catalogs no longer drop the properties
+  and required entries of `allOf` component schemas. `allOf` members are
+  merged, `$ref` members other than the envelope stay in `allOf`, `anyOf` and
+  `oneOf` branches are kept, and `id` and `component` are dropped from a
+  component's own properties. `getClientCapabilities` now calls
+  `getRendererCapabilities` for v0.9.
+- **Behavior change:** `getRendererDataModel` takes an optional `version`.
+  With one, it returns only the surfaces compatible with that version. Without
+  one, it reports the version the surfaces share, defaults to `v1.0` when none
+  records a version, and raises `A2uiValidationError` when the surfaces record
+  different versions. It returns `Map<String, Object?>?`.
+  `getClientDataModel` now calls it, so it no longer always reports `v0.9`.
 - **Breaking:** Message constructors no longer default `version` to
   `'v0.9'`; every `AgentToRendererMessage` and `RendererToAgentMessage`
   subclass takes a required `version`. `A2uiClientAction.fromJson` and
