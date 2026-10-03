@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- **Behavior change:** `MessageProcessor` checks the component graph on every
+  `updateComponents` message. It used to check completeness once per payload,
+  and only for the surfaces that payload created. Each batch is applied to a copy of the
+  surface's components first, and the result must pass the root, dangling
+  reference, cycle, depth and reachability checks `validationConfig` requires
+  before anything is committed. A surface streamed across several messages
+  needs `ValidationConfig.relaxed`, or the individual `allow*` flags.
+- **Behavior change:** `ValidationConfig.none` (`validateSchemas: false`) turns
+  off catalog schema checks only. Duplicate-id, cycle, depth, root, dangling
+  reference and reachability checks still run, with strict defaults. This is
+  stricter than the TypeScript SDK, which skips every check without a config,
+  and matches Python.
+- `ValidationConfig` adds `allowUnknownElements`, `validateSchemas`,
+  `targetVersion`, `allowedMessages`, `rootId`, `maxDepth` and the `none`
+  preset. `ValidationConfig.relaxed` now also sets
+  `allowUnknownElements`, matching TypeScript's `RELAXED_VALIDATION`.
+- An `updateComponents` entry that omits `component` is checked against the
+  existing component's type and catalog schema; its properties still replace
+  the existing ones.
+- `ComponentModel` adds `catalog` (the component's `catalogId`) and `metadata`,
+  and `properties` no longer holds `catalogId` or `metadata`. A component whose
+  `catalogId` changes is recreated, as for a change of type.
+- `SurfaceModel` adds `rootId`, defaulting to `root` or to
+  `ValidationConfig.rootId`, and `NodeResolver` roots the tree at it.
+- `SurfaceComponentsModel` adds `getAll()`, `has()`, `size`, `entries`, `keys`,
+  `values`, `getChildIds()`, `validateTopology()`, `detectCycles()`,
+  `validateReferences()` and `validateComponentsUpdate()`.
+
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
 - `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.
