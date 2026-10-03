@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Add `Catalog.refMap`, a cached `ComponentRefMap` of each component type's
+  child-reference properties. `MessageProcessor` graph validation and
+  `NodeResolver` both read it, so a property the validator checks is one the
+  resolver mounts. `ComponentRefMap`, `RefFields` and the `RefKind` types
+  (`SingleRef`, `ListRef`, `NestedRef`) are now exported.
+- Recognize v1.0 `common_types.json#/$defs/Child` (and `#/$defs/Child`) as a
+  single child reference, for dangling-reference and orphan checks and for
+  resolution.
+- **Behavior change:** `NodeResolver` now mounts an unmarked string `child`
+  and string-array `children`, which graph validation already checked.
+  Previously such a catalog validated but rendered its children as plain ids.
+- **Behavior change:** a dangling id inside a child list is reported with its
+  index (`children[2]` rather than `children`), and only an object with both a
+  string `componentId` and a string `path` is read as a `ChildList` template.
+
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
 - `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.
