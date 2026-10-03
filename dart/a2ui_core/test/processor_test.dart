@@ -460,18 +460,12 @@ void main() {
       expect(root.properties, {'text': 'y'});
     });
 
-    test('deleteSurface for an unknown surface throws', () {
-      expect(
-        () => send(processorWith(),
-            [DeleteSurfaceMessage(version: 'v0.9', surfaceId: 'nope')]),
-        throwsA(
-          isA<A2uiIntegrityError>().having(
-            (e) => e.message,
-            'message',
-            contains('nope'),
-          ),
-        ),
-      );
+    test('deleteSurface for an unknown surface is a no-op', () {
+      final MessageProcessor<ComponentApi> processor = processorWith();
+      send(processor, [
+        DeleteSurfaceMessage(version: 'v0.9', surfaceId: 'nope'),
+      ]);
+      expect(processor.groupModel.getSurface('nope'), isNull);
     });
 
     test('checks path syntax before looking up the surface', () {
