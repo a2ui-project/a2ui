@@ -16,6 +16,7 @@ import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/validation/common_types.g.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
@@ -33,6 +34,36 @@ void main() {
         reason: 'lib/src/validation/common_types.g.dart has drifted from the '
             'specification. Run `dart run tool/generate_common_types.dart`.',
       );
+    });
+
+    test('embeds the v1.0 document verbatim', () {
+      final String specification = File(
+        resolveConformancePath('../specification/v1_0/json/common_types.json'),
+      ).readAsStringSync();
+
+      expect(
+        commonTypesV1_0Json,
+        specification,
+        reason: 'lib/src/validation/common_types.g.dart has drifted from the '
+            'specification. Run `dart run tool/generate_common_types.dart`.',
+      );
+    });
+
+    test('picks the document by catalog protocol version', () {
+      for (final String? version in [null, 'v0.9', '0.9', 'v0.9.1']) {
+        expect(
+          PayloadValidator.commonTypesForProtocolVersion(version)[r'$id'],
+          'https://a2ui.org/specification/v0_9/common_types.json',
+          reason: '$version',
+        );
+      }
+      for (final version in ['v1.0', '1.0', 'v1.2']) {
+        expect(
+          PayloadValidator.commonTypesForProtocolVersion(version)[r'$id'],
+          'https://a2ui.org/specification/v1_0/common_types.json',
+          reason: version,
+        );
+      }
     });
 
     test('parses to the v0.9 document', () {
@@ -89,6 +120,71 @@ void main() {
         ).commonTypesSchema,
         isEmpty,
       );
+    });
+  });
+
+  group('CommonSchemas', () {
+    test('carries the v0.9 definitions', () {
+      for (final Schema schema in [
+        CommonSchemas.dynamicNumber,
+        CommonSchemas.dynamicStringList,
+        CommonSchemas.dynamicValue,
+        CommonSchemas.accessibilityAttributes,
+        CommonSchemas.checkRule,
+        CommonSchemas.componentCommon,
+      ]) {
+        expect(schema.value, isNotEmpty);
+      }
+      expect(CommonSchemas.dynamicNumber.validateSync(3), isEmpty);
+      expect(
+        CommonSchemas.dynamicNumber.validateSync({'path': '/n'}),
+        isEmpty,
+      );
+      expect(CommonSchemas.componentCommon.validateSync({}), isNotEmpty);
+    });
+
+    test('carries the v1.0 definitions keyed on @path and @call', () {
+      expect(
+        CommonSchemasV1.dataBinding.validateSync({'@path': '/a'}),
+        isEmpty,
+      );
+      expect(
+        CommonSchemasV1.dataBinding.validateSync({'path': '/a'}),
+        isNotEmpty,
+      );
+      expect(
+        CommonSchemasV1.functionCall.validateSync({'@call': 'f'}),
+        isEmpty,
+      );
+      expect(
+        CommonSchemasV1.functionCall.validateSync({'call': 'f'}),
+        isNotEmpty,
+      );
+      for (final Schema schema in [
+        CommonSchemasV1.dynamicString,
+        CommonSchemasV1.dynamicNumber,
+        CommonSchemasV1.dynamicBoolean,
+        CommonSchemasV1.dynamicStringList,
+        CommonSchemasV1.accessibilityAttributes,
+        CommonSchemasV1.checkRule,
+        CommonSchemasV1.componentCommon,
+      ]) {
+        expect(schema.value, isNotEmpty);
+      }
+    });
+
+    test('v1.0 DynamicValue rejects unknown single-@ keys', () {
+      final Schema schema = CommonSchemasV1.dynamicValue;
+
+      expect(schema.value.toString(), contains('propertyNames'));
+      expect(schema.value.toString(), contains(r'^@([^@]|$)'));
+      expect(schema.validateSync({'@if': true}), isNotEmpty);
+      expect(schema.validateSync({'@': 'x'}), isNotEmpty);
+      expect(schema.validateSync({'@@path': '/x'}), isEmpty);
+      expect(schema.validateSync({'path': 'a', 'call': 'b'}), isEmpty);
+      expect(schema.validateSync({'@path': '/a'}), isEmpty);
+      expect(schema.validateSync({'@call': 'f'}), isEmpty);
+      expect(schema.validateSync('text'), isEmpty);
     });
   });
 }
