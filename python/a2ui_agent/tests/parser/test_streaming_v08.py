@@ -15,9 +15,7 @@
 import copy
 import pytest
 
-pytestmark = pytest.mark.skip(
-    reason="TODO: validation package was removed from a2ui_agent library"
-)
+
 from a2ui.schema.constants import (
     A2UI_OPEN_TAG,
     A2UI_CLOSE_TAG,
@@ -28,95 +26,13 @@ from a2ui.parser.constants import (
     MSG_TYPE_SURFACE_UPDATE,
     MSG_TYPE_BEGIN_RENDERING,
 )
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import Catalog
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser.response_part import ResponsePart
 
 
 @pytest.fixture
 def mock_catalog():
-    s2c_schema = {
-        "title": "A2UI Message Schema",
-        "type": "object",
-        "additionalProperties": False,
-        "properties": {
-            "beginRendering": {
-                "type": "object",
-                "properties": {
-                    "surfaceId": {"type": "string"},
-                    "root": {"type": "string"},
-                },
-                "required": ["surfaceId", "root"],
-            },
-            "surfaceUpdate": {
-                "type": "object",
-                "properties": {
-                    "surfaceId": {
-                        "type": "string",
-                    },
-                    "components": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "id": {
-                                    "type": "string",
-                                },
-                                "component": {
-                                    "type": "object",
-                                    "additionalProperties": True,
-                                },
-                            },
-                            "required": ["id", "component"],
-                        },
-                    },
-                },
-                "required": ["surfaceId", "components"],
-            },
-            "dataModelUpdate": {
-                "type": "object",
-                "properties": {
-                    "surfaceId": {"type": "string"},
-                    "contents": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "key": {"type": "string"},
-                                "valueString": {"type": "string"},
-                                "valueNumber": {"type": "number"},
-                                "valueBoolean": {"type": "boolean"},
-                                "valueMap": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "key": {"type": "string"},
-                                            "valueString": {"type": "string"},
-                                            "valueNumber": {"type": "number"},
-                                            "valueBoolean": {"type": "boolean"},
-                                        },
-                                        "required": ["key"],
-                                    },
-                                },
-                            },
-                            "required": ["key"],
-                        },
-                    },
-                },
-                "required": ["surfaceId", "contents"],
-            },
-            "deleteSurface": {
-                "type": "object",
-                "properties": {
-                    "surfaceId": {
-                        "type": "string",
-                    }
-                },
-                "required": ["surfaceId"],
-            },
-        },
-    }
     catalog_schema = {
         "catalogId": "test_catalog",
         "components": {
@@ -189,17 +105,10 @@ def mock_catalog():
             },
         },
     }
-    common_types_schema = {
-        "$id": "https://a2ui.org/specification/v0_8/common_types.json",
-        "type": "object",
-        "$defs": {},
-    }
-    return A2uiCatalog(
-        version=VERSION_0_8,
-        name="test_catalog",
-        s2c_schema=s2c_schema,
-        common_types_schema=common_types_schema,
+    return Catalog.from_json(
         catalog_schema=catalog_schema,
+        protocol_version=VERSION_0_8,
+        catalog_id="test_catalog",
     )
 
 
@@ -243,7 +152,7 @@ def assertResponseContainsText(response, expected_text):
 
 
 def test_add_msg_type_deduplication(mock_catalog):
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     parser.add_msg_type(MSG_TYPE_SURFACE_UPDATE)
     parser.add_msg_type(MSG_TYPE_SURFACE_UPDATE)
     assert parser.msg_types == [MSG_TYPE_SURFACE_UPDATE]
@@ -255,10 +164,10 @@ def test_add_msg_type_deduplication(mock_catalog):
 
 
 def test_streaming_msg_type_deduplication(mock_catalog):
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     # 1. Send partial chunk that triggers sniffing
     chunk1 = A2UI_OPEN_TAG + '[{"surfaceUpdate": {"surfaceId": "s1", "components": ['
-    parser.process_chunk(chunk1)
+    parser.parse_chunk(chunk1)
 
     # Sniffing should have added surfaceUpdate
     assert MSG_TYPE_SURFACE_UPDATE in parser.msg_types
@@ -269,7 +178,7 @@ def test_streaming_msg_type_deduplication(mock_catalog):
         '{"id": "root", "component": {"Text": {"text": "hi"}}}]}]'
         f" {A2UI_CLOSE_TAG}"
     )
-    parser.process_chunk(chunk2)
+    parser.parse_chunk(chunk2)
 
     # After completion, msg_types is reset
     assert parser.msg_types == []
@@ -277,7 +186,7 @@ def test_streaming_msg_type_deduplication(mock_catalog):
 
 def test_v08_path_heuristic_adds_slash(mock_catalog):
     """Tests that v0.8 adds a leading slash to relative paths."""
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     # Disable validation for simplicity
     parser._validator = None
 
@@ -287,7 +196,7 @@ def test_v08_path_heuristic_adds_slash(mock_catalog):
         + '[{"beginRendering": {"surfaceId": "s1", "root": "root"}}]'
         + A2UI_CLOSE_TAG
     )
-    list(parser.process_chunk(chunk_br))
+    list(parser.parse_chunk(chunk_br))
 
     # 2. Send surfaceUpdate with a relative path
     chunk_su = (
@@ -298,7 +207,7 @@ def test_v08_path_heuristic_adds_slash(mock_catalog):
     )
 
     messages = []
-    for part in parser.process_chunk(chunk_su):
+    for part in parser.parse_chunk(chunk_su):
         if part.a2ui_json:
             messages.extend(part.a2ui_json)
 

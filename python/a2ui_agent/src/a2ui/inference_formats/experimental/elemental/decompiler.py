@@ -17,16 +17,16 @@
 Reconstructs standard A2UI v1.0 JSON envelopes back into A2UI Elemental HTML5-like markup.
 """
 
+from collections.abc import Sequence
 import html
 import json
 import re
 from typing import Any
 from a2ui.core import CatalogApi
-from a2ui.schema import A2uiCatalog
+from a2ui.core.schema import AgentToRendererMessage
 
-from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
 from a2ui.inference_formats.experimental.express.constants import SurfaceOperation
-from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
+from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
 
 TAG_PREFIX = "ui-"
 
@@ -118,33 +118,62 @@ def _get_action_properties(helper: CatalogSchemaHelper, comp_name: str) -> list[
 class _ElementalDecompiler:
     """Decompiles A2UI JSON payloads back into A2UI Elemental HTML."""
 
-    def __init__(self, catalog: CatalogApi | A2uiCatalog):
+    def __init__(self, catalog: CatalogApi):
         self.helper = CatalogSchemaHelper(catalog)
 
-    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        wrapped_blocks = [
-            f"{A2UI_INFERENCE_OPEN_TAG}\n{b}\n{A2UI_INFERENCE_CLOSE_TAG}"
-            for b in blocks
-        ]
-        full_html = "\n\n".join(wrapped_blocks)
-        triple_backticks = chr(96) * 3
-        return f"{triple_backticks}html\n{full_html}\n{triple_backticks}"
-
-    def decompile(self, envelope_json: dict) -> str:
+    def decompile(
+        self,
+        envelope_json: (
+            Sequence[AgentToRendererMessage]
+            | Sequence[dict[str, Any]]
+            | dict[str, Any]
+            | str
+        ),
+    ) -> str:
         """Decompiles standard A2UI wire JSON into A2UI Elemental HTML."""
+        raw_items: Sequence[Any]
+        if isinstance(envelope_json, str):
+            parsed = json.loads(envelope_json)
+            raw_items = parsed if isinstance(parsed, list) else [parsed]
+        elif isinstance(envelope_json, dict):
+            raw_items = [envelope_json]
+        else:
+            raw_items = envelope_json
+
+        return "\n".join(
+            self._decompile_message(
+                item.model_dump(by_alias=True, exclude_none=True)
+                if hasattr(item, "model_dump")
+                else item
+            )
+            for item in raw_items
+        )
+
+    def _decompile_message(self, envelope_json: dict[str, Any]) -> str:
+        """Decompiles a single A2UI message dict into A2UI Elemental HTML."""
         # 1. Handle deleteSurface
         if SurfaceOperation.DELETE in envelope_json:
             surf_op = envelope_json[SurfaceOperation.DELETE]
             surface_id = surf_op.get("surfaceId", "")
             return f'<{TAG_PREFIX}delete-surface surface-id="{surface_id}" />'
 
-        # 2. Handle callFunction
-        if SurfaceOperation.CALL_FUNC in envelope_json:
-            func_op = envelope_json[SurfaceOperation.CALL_FUNC]
-            fn_name = func_op.get("call", "")
+        # 2. Handle callFunction / callRendererFunction
+        if (
+            "callRendererFunction" in envelope_json
+            or SurfaceOperation.CALL_FUNC in envelope_json
+        ):
+            if "callRendererFunction" in envelope_json:
+                crf = envelope_json["callRendererFunction"]
+                func_op = crf.get("callFunction", {})
+                fc_id = crf.get("functionCallId", "")
+                want_response = crf.get("wantResponse", True)
+            else:
+                func_op = envelope_json[SurfaceOperation.CALL_FUNC]
+                fc_id = envelope_json.get("functionCallId", "")
+                want_response = envelope_json.get("wantResponse", False)
+            fn_name = func_op.get("@call") or func_op.get("call", "")
+
             fn_args = func_op.get("args", {})
-            fc_id = envelope_json.get("functionCallId", "")
-            want_response = envelope_json.get("wantResponse", False)
 
             attrs = []
             if fc_id:

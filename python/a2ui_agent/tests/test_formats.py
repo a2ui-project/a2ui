@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import pytest
-from a2ui.schema import A2uiCatalog, VERSION_0_9
+from a2ui.core import Catalog
+from a2ui.schema import VERSION_0_9
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
 from a2ui.adk import A2uiPartConverter
 from google.genai import types as genai_types
@@ -26,12 +27,8 @@ from a2ui.inference_formats.experimental.elemental import (
 
 @pytest.fixture
 def test_catalog():
-    return A2uiCatalog(
-        version=VERSION_0_9,
-        name="test_catalog",
-        s2c_schema={},
-        common_types_schema={},
-        catalog_schema={
+    return Catalog.from_json(
+        {
             "catalogId": "https://a2ui.org/test_catalog",
             "components": {
                 "Text": {
@@ -44,6 +41,7 @@ def test_catalog():
                 }
             },
         },
+        protocol_version=f"v{VERSION_0_9}",
     )
 
 
@@ -63,21 +61,19 @@ def test_schema_strategy_prompt_generation(test_catalog):
     )
 
     direct_json_format = DirectJsonFormat(version=VERSION_0_9, catalogs=[config])
-    prompt = direct_json_format.generate_system_prompt(
-        role_description="You are a helpful assistant.",
-        workflow_description="Please adhere to constraints.",
-        include_schema=True,
+    selected = direct_json_format.get_selected_catalog(
         client_ui_capabilities={
             "supportedCatalogIds": ["https://a2ui.org/test_catalog"]
-        },
+        }
     )
-    assert "You are a helpful assistant." in prompt
-    assert "Please adhere to constraints." in prompt
+    direct_json_format.prompt_generator.selected_catalog = selected
+    prompt = direct_json_format.prompt_generator.generate()
+    assert "## Workflow Description:" in prompt
     assert "### Catalog Schema:" in prompt
 
 
 def test_schema_parser(test_catalog):
-    parser = DirectJsonParser(test_catalog)
+    parser = DirectJsonParser([test_catalog])
     parsed = parser.parse_response(
         '<a2ui-json>[{"createSurface": {"surfaceId": "main", "layout": {"component":'
         ' "Text"}}}]</a2ui-json>'
@@ -87,7 +83,7 @@ def test_schema_parser(test_catalog):
 
 
 def test_schema_parser_with_nested_close_tag(test_catalog):
-    parser = DirectJsonParser(test_catalog)
+    parser = DirectJsonParser([test_catalog])
     # The JSON string literal itself contains '</a2ui-json>'
     response = (
         "<a2ui-json>[{\n"
@@ -155,15 +151,15 @@ def test_supports_streaming_property(test_catalog):
     assert elemental_fmt.parser.supports_streaming is False
 
 
-def test_process_chunk_raises_not_implemented(test_catalog):
+def test_parse_chunk_raises_not_implemented(test_catalog):
     express_parser = ExpressParser(test_catalog)
     with pytest.raises(NotImplementedError) as exc_info:
-        express_parser.process_chunk("chunk")
+        express_parser.parse_chunk("chunk")
     assert "Streaming is not supported by ExpressParser" in str(exc_info.value)
 
     elemental_parser = ElementalParser(test_catalog)
     with pytest.raises(NotImplementedError) as exc_info:
-        elemental_parser.process_chunk("chunk")
+        elemental_parser.parse_chunk("chunk")
     assert "Streaming is not supported by ElementalParser" in str(exc_info.value)
 
 
@@ -176,10 +172,20 @@ def test_decompiler_delegation(test_catalog):
         def load(self):
             return test_catalog.catalog_schema
 
+    from a2ui.core.schema.v0_9 import AgentToRendererMessage as V09Message
+    from a2ui.core.schema.v1_0 import AgentToRendererMessage as V10Message
+    from a2ui.parser import RawA2uiPart, RawResponsePart
+    from pydantic import TypeAdapter
+
     config = CatalogConfig(name="test_catalog", provider=DummyProvider())
     # Verify Direct JSON Parser Decompile
     direct_json_fmt = DirectJsonFormat(version=VERSION_0_9, catalogs=[config])
-    payload = {"createSurface": {"surfaceId": "main"}}
+    payload = [
+        TypeAdapter(V09Message).validate_python({
+            "version": "v0.9",
+            "createSurface": {"surfaceId": "main", "catalogId": "test_catalog"},
+        })
+    ]
     direct_decompile = direct_json_fmt.parser.decompile(payload)
     assert "createSurface" in direct_decompile
     assert "main" in direct_decompile
@@ -187,58 +193,63 @@ def test_decompiler_delegation(test_catalog):
     # Verify Express Parser Decompile
     express_fmt = ExpressFormat(catalog=test_catalog)
     expr_parser = express_fmt.parser
-    envelope = {
-        "version": "v1.0",
-        "createSurface": {
-            "surfaceId": "main",
-            "components": [{
-                "id": "root",
-                "component": "Text",
-                "text": "Hello World",
-            }],
-        },
-    }
+    envelope = [
+        TypeAdapter(V10Message).validate_python({
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "main",
+                "catalogId": "test_catalog",
+                "components": [{
+                    "id": "root",
+                    "component": "Text",
+                    "text": "Hello World",
+                }],
+            },
+        })
+    ]
     decompiled_dsl = expr_parser.decompile(envelope)
     assert 'root = Text("Hello World")' in decompiled_dsl
 
-    # Verify wrap_decompiled_blocks implementation
+    # Verify wrap implementation
     assert (
-        direct_json_fmt.parser.wrap_decompiled_blocks(["{}", "{}"])
+        direct_json_fmt.parser.wrap(
+            [RawResponsePart(part=RawA2uiPart(a2ui_raw="{}\n{}"))]
+        )
         == "<a2ui-json>\n{}\n{}\n</a2ui-json>"
     )
     assert (
-        expr_parser.wrap_decompiled_blocks(["a = 1", "b = 2"])
+        expr_parser.wrap([RawResponsePart(part=RawA2uiPart(a2ui_raw="a = 1\nb = 2"))])
         == "<a2ui>\na = 1\nb = 2\n</a2ui>"
     )
 
-    # Verify abstract PromptGenerator generate pass
+    # Verify abstract PromptGenerator generate
     from a2ui.prompt.generator import PromptGenerator
 
     class DummyPromptGenerator(PromptGenerator):
 
-        def generate(self, *args, **kwargs):
-            return super().generate(*args, **kwargs)
+        def generate(self) -> str:
+            return "role"
 
-    assert DummyPromptGenerator().generate("role") == "role"
+    assert DummyPromptGenerator().generate() == "role"
 
     # Verify invalid catalog_id check
-    bad_catalog = A2uiCatalog(
-        version="1.0",
-        name="bad",
-        experiments=None,
-        s2c_schema={},
-        common_types_schema={},
-        catalog_schema={"catalogId": 12345},
-    )
     from a2ui.core import A2uiCatalogError
+    from a2ui.schema import A2uiCatalogProvider, CatalogConfig
+
+    class _BadProvider(A2uiCatalogProvider):
+
+        def load(self):
+            return {"catalogId": 12345}
 
     with pytest.raises(A2uiCatalogError) as ctx:
-        _ = bad_catalog.catalog_id
+        _ = CatalogConfig(name="bad", provider=_BadProvider()).to_catalog(version="1.0")
     assert "catalogId is not a string" in str(ctx.value)
 
     # Verify empty pruned components and messages fallback
-    assert test_catalog._with_pruned_components([]) is test_catalog
-    assert test_catalog._with_pruned_messages([]) is test_catalog
+    from a2ui.schema import prune_catalog_components, prune_messages_schema
+
+    assert prune_catalog_components(test_catalog, []) is test_catalog
+    assert prune_messages_schema({}, []) == {}
 
 
 def test_direct_json_stream_parser_record_inline_components_surface_id(
@@ -248,7 +259,7 @@ def test_direct_json_stream_parser_record_inline_components_surface_id(
         DirectJsonStreamParserV09,
     )
 
-    parser = DirectJsonStreamParserV09(catalog=test_catalog)
+    parser = DirectJsonStreamParserV09(catalogs=[test_catalog])
     parser.surface_id = "main_surface"
     parser._record_inline_components(
         "custom_surface", [{"id": "c1", "component": "Text"}]
@@ -263,7 +274,7 @@ def test_direct_json_stream_parser_record_inline_components_surface_id(
 def test_direct_json_stream_parser_leaf_child_fields(test_catalog):
     from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 
-    parser = DirectJsonStreamParser(catalog=test_catalog)
+    parser = DirectJsonStreamParser(catalogs=[test_catalog])
     # Text is defined in reference_map with no child props
     fields = parser._get_child_fields_for_obj(
         {"component": "Text", "id": "t1", "text": "Click me", "label": "Submit"}
@@ -281,3 +292,73 @@ def test_direct_json_stream_parser_leaf_child_fields(test_catalog):
     assert "child" in unmapped_fields
     assert "children" in unmapped_fields
     assert "label" not in unmapped_fields
+
+
+def test_direct_json_parser_and_stream_parser_multiple_catalogs(test_catalog):
+    from a2ui.core import A2uiCatalogError
+    from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
+
+    second_schema = {
+        "catalogId": "https://a2ui.org/custom_catalog",
+        "components": {
+            "CustomPanel": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "component": {"type": "string", "enum": ["CustomPanel"]},
+                    "headerChild": {"$ref": "common_types.json#/$defs/ComponentId"},
+                },
+                "required": ["id", "component", "headerChild"],
+            },
+        },
+    }
+    second_catalog = Catalog.from_json(
+        catalog_schema=second_schema,
+        protocol_version=VERSION_0_9,
+        catalog_id="https://a2ui.org/custom_catalog",
+    )
+
+    # v0.8 and v0.9 only support a single catalog
+    with pytest.raises(A2uiCatalogError, match="Only a single catalog is supported"):
+        DirectJsonParser([test_catalog, second_catalog])
+
+    with pytest.raises(A2uiCatalogError, match="Only a single catalog is supported"):
+        DirectJsonStreamParser(catalogs=[test_catalog, second_catalog])
+
+    # v1.0 supports multiple catalogs
+    v1_cat_1 = Catalog.from_json(
+        catalog_schema={
+            "catalogId": "https://a2ui.org/v1/cat1",
+            "components": {
+                "Text": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "component": {"type": "string", "enum": ["Text"]},
+                    },
+                }
+            },
+        },
+        protocol_version="v1.0",
+        catalog_id="https://a2ui.org/v1/cat1",
+    )
+    v1_cat_2 = Catalog.from_json(
+        catalog_schema=second_schema,
+        protocol_version="v1.0",
+        catalog_id="https://a2ui.org/custom_catalog",
+    )
+
+    parser = DirectJsonParser([v1_cat_1, v1_cat_2])
+    assert parser.catalogs == [v1_cat_1, v1_cat_2]
+
+    stream_parser = DirectJsonStreamParser(catalogs=[v1_cat_1, v1_cat_2])
+    assert stream_parser.catalogs == [v1_cat_1, v1_cat_2]
+    fields = stream_parser._get_child_fields_for_obj(
+        {"component": "CustomPanel", "id": "p1", "headerChild": "t1"}
+    )
+    assert fields == {"headerChild"}
+
+    with pytest.raises(A2uiCatalogError, match="At least one catalog"):
+        DirectJsonParser([])
+    with pytest.raises(A2uiCatalogError, match="At least one catalog"):
+        DirectJsonStreamParser([])

@@ -23,7 +23,7 @@ from typing import Any, Literal, Optional, Sequence
 
 import yaml
 
-from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
@@ -48,14 +48,9 @@ from a2ui.transformers.macros import (
     MacroExpander,
     macro,
 )
-from a2ui.core import A2uiValidationError
+from a2ui.core import A2uiValidationError, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import (
-    SERVER_TO_CLIENT_SCHEMA_KEY,
-    SPEC_VERSION_MAP,
-)
-from a2ui.schema.utils import load_common_types_schema, load_from_bundled_resource
+from a2ui.schema.constants import VERSION_0_9_1
 from pydantic import TypeAdapter
 
 _message_adapter: TypeAdapter[AgentToRendererMessage] = TypeAdapter(
@@ -68,7 +63,7 @@ CONFORMANCE_DIR = os.path.abspath(
 GOLDEN_DIR = os.path.join(CONFORMANCE_DIR, "golden")
 SUITE_PATH = os.path.join(CONFORMANCE_DIR, "macros.yaml")
 
-CATALOG_VERSION = "0.9.1"
+PROTOCOL_VERSION = VERSION_0_9_1
 
 
 # =============================================================================
@@ -349,23 +344,15 @@ def run_case(case: Case) -> Any:
 # Validation
 # =============================================================================
 
-_catalog: Optional[A2uiCatalog] = None
+_catalog: Optional[CatalogApi] = None
 
 
-def basic_catalog_schema() -> A2uiCatalog:
-    """Loads the bundled basic catalog, memoized because schema loading is slow."""
+def basic_catalog_schema() -> CatalogApi:
+    """Loads the basic catalog, memoized because schema loading is slow."""
     global _catalog
     if _catalog is None:
-        config = BasicCatalog.get_config(CATALOG_VERSION)
-        _catalog = A2uiCatalog(
-            version=CATALOG_VERSION,
-            name="basic",
-            catalog_schema=config.provider.load(),
-            s2c_schema=load_from_bundled_resource(
-                CATALOG_VERSION, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
-            ),
-            common_types_schema=load_common_types_schema(CATALOG_VERSION),
-        )
+        _catalog = BasicCatalog(PROTOCOL_VERSION)
+        _catalog.protocol_version = PROTOCOL_VERSION
     return _catalog
 
 
@@ -376,7 +363,7 @@ def validate_payload(payload: list[dict[str, Any]], case: Case) -> None:
 
     config = case.validation.to_config()
     has_create = any(isinstance(m, dict) and "createSurface" in m for m in payload)
-    catalogs = [basic_catalog_schema().core_catalog]
+    catalogs = [basic_catalog_schema()]
     if case.catalog_id and case.catalog_id != getattr(catalogs[0], "catalog_id", None):
         alias_cat = copy.copy(catalogs[0])
         alias_cat.catalog_id = case.catalog_id

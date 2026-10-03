@@ -46,7 +46,7 @@ Usage Examples:
     async def check_enabled(ctx: ReadonlyContext) -> bool:
       return await some_condition(ctx)
 
-    async def get_catalog(ctx: ReadonlyContext) -> catalog.A2uiCatalog:
+    async def get_catalog(ctx: ReadonlyContext) -> CatalogApi:
       return await fetch_catalog(ctx)
 
     async def get_examples(ctx: ReadonlyContext) -> str:
@@ -98,8 +98,8 @@ from google.genai import types as genai_types
 
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from a2ui.parser.payload_fixer import parse_and_fix
-from a2ui.schema import catalog
-from a2ui.core import A2uiValidationError
+from a2ui.schema.catalog import render_as_llm_instructions, validate_components
+from a2ui.core import A2uiValidationError, Catalog, CatalogApi
 
 from a2ui.schema import constants
 from a2ui.schema.constants import (
@@ -115,7 +115,7 @@ A2uiEnabledProvider: TypeAlias = Callable[
 ]
 A2uiCatalogProvider: TypeAlias = Callable[
     [readonly_context.ReadonlyContext],
-    catalog.A2uiCatalog | Awaitable[catalog.A2uiCatalog],
+    CatalogApi | Awaitable[CatalogApi],
 ]
 A2uiExamplesProvider: TypeAlias = Callable[
     [readonly_context.ReadonlyContext], str | Awaitable[str]
@@ -129,7 +129,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
     def __init__(
         self,
         a2ui_enabled: bool | A2uiEnabledProvider,
-        a2ui_catalog: catalog.A2uiCatalog | A2uiCatalogProvider,
+        a2ui_catalog: CatalogApi | A2uiCatalogProvider,
         a2ui_examples: str | A2uiExamplesProvider,
     ):
         super().__init__()
@@ -200,7 +200,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
         def __init__(
             self,
-            a2ui_catalog: catalog.A2uiCatalog | A2uiCatalogProvider,
+            a2ui_catalog: CatalogApi | A2uiCatalogProvider,
             a2ui_examples: str | A2uiExamplesProvider,
         ):
             self._a2ui_catalog = a2ui_catalog
@@ -255,7 +255,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
         async def _resolve_a2ui_catalog(
             self, ctx: readonly_context.ReadonlyContext
-        ) -> catalog.A2uiCatalog:
+        ) -> CatalogApi:
             """The resolved self.a2ui_catalog field to construct instruction for this agent.
 
             Args:
@@ -264,7 +264,9 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             Returns:
                 The A2UI catalog object.
             """
-            if isinstance(self._a2ui_catalog, catalog.A2uiCatalog):
+            if isinstance(self._a2ui_catalog, Catalog) or not callable(
+                self._a2ui_catalog
+            ):
                 return self._a2ui_catalog
             else:
                 a2ui_catalog = self._a2ui_catalog(ctx)
@@ -284,7 +286,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
             a2ui_catalog = await self._resolve_a2ui_catalog(tool_context)
 
-            instruction = a2ui_catalog.render_as_llm_instructions()
+            instruction = render_as_llm_instructions(a2ui_catalog)
             examples = await self._resolve_a2ui_examples(tool_context)
 
             llm_request.append_instructions([instruction, examples])
@@ -304,7 +306,12 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
                 a2ui_catalog = await self._resolve_a2ui_catalog(tool_context)
                 a2ui_json_payload = parse_and_fix(a2ui_json)
-                a2ui_catalog.validate_components(a2ui_json_payload)
+                errors = validate_components(a2ui_catalog, a2ui_json_payload)
+                if isinstance(errors, list) and errors:
+                    raise A2uiValidationError(
+                        f"Validation failed with {len(errors)} error(s)",
+                        details=errors,
+                    )
 
                 logger.info(
                     f"Validated call to tool {self.TOOL_NAME} with"

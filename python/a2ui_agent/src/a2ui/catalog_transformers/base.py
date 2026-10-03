@@ -12,6 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .provider import BasicCatalog
+"""Abstract base interface for catalog transformation rules."""
 
-__all__ = ["BasicCatalog"]
+from abc import ABC, abstractmethod
+
+from a2ui.core.catalog import CatalogApi
+
+
+class CatalogTransformer(ABC):
+    """Abstract base interface for transformation rules applied to catalog schemas."""
+
+    @abstractmethod
+    def transform(self, catalog: CatalogApi) -> CatalogApi:
+        """Transforms a CatalogApi into a modified CatalogApi."""
+
+
+__all__ = [
+    "CatalogTransformer",
+]

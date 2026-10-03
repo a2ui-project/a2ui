@@ -10,8 +10,8 @@ The `agent_sdk` revolves around three main classes:
 
 - **`CatalogConfig`**: Defines the metadata for a component catalog (name,
   schema path, examples path).
-- **`A2uiCatalog`**: Represents a processed catalog, providing methods for
-  validation and LLM instruction rendering.
+- **`Catalog`**: Represents a component catalog from `a2ui.core`, providing
+  component and function schemas for validation and LLM instruction rendering.
 - **`A2uiSchemaManager`**: The central coordinator that loads catalogs, manages
   versioning, and generates system prompts.
 
@@ -27,15 +27,16 @@ The first step in any A2UI-enabled agent is initializing the
 `A2uiSchemaManager`.
 
 ```python
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.constants import VERSION_0_9
 from a2ui.strategies.schema import A2uiSchemaManager
-from a2ui.schema.catalog import CatalogConfig
-from a2ui.basic_catalog.provider import BasicCatalog
 
 # Define your catalogs (basic or bring your own) with optional examples
-basic_catalog_config = BasicCatalog.get_config(
-    version=VERSION_0_9,
-    examples_path="examples"
+basic_catalog_config = CatalogConfig.from_catalog(
+    "basic",
+    BasicCatalog(VERSION_0_9),
+    examples_path="examples",
 )
 my_catalog_config = CatalogConfig.from_path(
     name="my_custom_catalog",
@@ -65,22 +66,15 @@ Notes:
 
 ### Step 2: Generate System Prompt
 
-Use the `generate_system_prompt` method to assemble the LLM's system
-instructions. This method takes your high-level descriptions (role, workflow, UI
-goals) and automatically injects the relevant A2UI JSON Schema and few-shot
-examples from your catalog configuration.
+Use `prompt_generator.generate()` to generate the A2UI prompt snippet (containing workflow rules, the A2UI JSON Schema, and few-shot examples from your catalog configuration) and combine it with your high-level role and UI descriptions.
 
 ```python
-instruction = schema_manager.generate_system_prompt(
-    role_description="You are a helpful assistant...",
-    workflow_description="Analyze the request and return UI...",
-    ui_description="Use the following components...",
-    include_schema=True,  # Injects the raw JSON schema
-    include_examples=True,  # Injects few-shot examples
-    # Optional: prune schema to save tokens
-    allowed_components=["Heading", "Text", "Button"],
-    allowed_messages=["CreateSurfaceMessage", "UpdateSurfaceMessage"],
-)
+instruction = "\n\n".join([
+    "You are a helpful assistant...",
+    schema_manager.prompt_generator.generate(),
+    "Analyze the request and return UI...",
+    "## UI Description:\nUse the following components...",
+])
 ```
 
 ### Step 3: Build an LLM Agent with the System Prompt
@@ -154,18 +148,20 @@ Use this approach if you wait for the LLM to finish its entire response before p
 
 **1. Parse, Validate, and Fix**
 
-Validate the LLM's JSON output before returning it. The SDK's `A2uiCatalog` validates the payload and attempts to fix simple errors (e.g., trailing commas).
+Validate the LLM's JSON output before returning it. The SDK's `PayloadValidator` validates the payload and the parser attempts to fix simple errors (e.g., trailing commas).
 
 ```python
+from a2ui.core import PayloadValidator
 from a2ui.parser.parser import parse_response
 
 # Parse the full response into parts
 response_parts = parse_response(full_text)
+validator = PayloadValidator(selected_catalog)
 
 for part in response_parts:
   if part.a2ui_json:
     # Validate against schema
-    selected_catalog.validate_components(part.a2ui_json)
+    validator.validate(part.a2ui_json)
 ```
 
 **2. Stream the A2UI Payload**
@@ -204,12 +200,12 @@ Use this approach for sub-second UI updates. The `DirectJsonStreamParser` **auto
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.a2a.parts import create_a2ui_part
 
-parser = DirectJsonStreamParser(catalog=selected_catalog)
+parser = DirectJsonStreamParser(catalogs=[selected_catalog])
 
 # Inside your LLM stream loop:
 for chunk in llm_response_stream:
     # Process text chunks as they arrive
-    response_parts = parser.process_chunk(chunk.text)
+    response_parts = parser.parse_chunk(chunk.text)
 
     for part in response_parts:
         if part.a2ui_json:
@@ -234,20 +230,19 @@ for chunk in llm_response_stream:
 ### 1. Simple Agents with Static Schemas
 
 For agents with a fixed set of UI capabilities, simply use the `schema_manager`
-to generate the system instruction.
+to generate the prompt snippet and combine it with your instructions.
 
 **Example Samples:**
 [restaurant_finder](../../samples/agent/adk/restaurant_finder)
 
 ```python
 # Generate system prompt
-instruction = schema_manager.generate_system_prompt(
-    role_description="You are a helpful assistant...",
-    workflow_description="Analyze the request and return UI...",
-    ui_description="Use the following components...",
-    include_schema=True,
-    include_examples=True,
-)
+instruction = "\n\n".join([
+    "You are a helpful assistant...",
+    schema_manager.prompt_generator.generate(),
+    "Analyze the request and return UI...",
+    "## UI Description:\nUse the following components...",
+])
 
 # Use with your LLM framework (e.g., ADK)
 agent = LlmAgent(instruction=instruction, ...)
@@ -330,7 +325,7 @@ When the LLM calls the UI tool, the toolset uses the dynamic catalog to:
 2. **Parse and Fix Payloads**: Parse and fix the LLM's generated JSON using the
    parser and payload-fixer.
 3. **Validate Payloads**: Validate the LLM's generated JSON against the specific
-   `A2uiCatalog` object's validator.
+   `Catalog` object via `PayloadValidator`.
 
 ### 3. Multiple Version Support
 

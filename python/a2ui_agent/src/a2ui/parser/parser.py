@@ -14,115 +14,169 @@
 
 """Abstract parser interface and legacy parsing compatibility helpers."""
 
-import warnings
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Any
+from collections.abc import Sequence
+import warnings
+
 from a2ui.core import A2uiError
-from .response_part import ResponsePart
+from a2ui.core.schema import AgentToRendererMessage
+
+from .response_part import (
+    A2uiPart,
+    RawA2uiPart,
+    RawResponsePart,
+    ResponsePart,
+    TextPart,
+)
 
 
 class Parser(ABC):
-    """Abstract interface defining the response parser and compiler."""
+    """Abstract base class for response parsers.
+
+    Responsible for tokenizing LLM output streams, unwrapping format tags, and
+    compiling raw format expressions into standard A2UI payload messages.
+    """
 
     @abstractmethod
-    def has_format_content(self, content: str, *, complete: bool = False) -> bool:
-        """Checks if the content contains blocks belonging to this parser's format.
+    def has_format_content(self, content: str, complete: bool = False) -> bool:
+        """Reports whether the content carries a block written in this format.
+
+        A caller uses this to decide whether a response is this format's
+        business at all, without paying for a parse. It reads the sentinel tags
+        only and never compiles.
 
         Args:
-            content: The raw LLM response.
-            complete: If True, checks that the format block is closed/complete.
+            content: Raw string response emitted by the LLM, possibly partial.
+            complete: Whether to require a closed block. False matches an
+                opening tag on its own, which is what a streaming caller needs
+                to know it has started receiving a payload.
 
         Returns:
-            True if the content contains blocks belonging to this format.
+            True when the content carries a block belonging to this format.
         """
-        pass
-
-    def parse_response(self, content: str) -> list[ResponsePart]:
-        """Parses full response content into standard JSON payload parts by unwrapping and compiling.
-
-        Args:
-            content: The raw LLM response.
-
-        Returns:
-            A list of ResponsePart objects containing text and compiled JSON.
-        """
-        parts = self.unwrap(content)
-        parsed_so_far: list[ResponsePart] = []
-        for part in parts:
-            if part.a2ui_raw is not None:
-                try:
-                    part.a2ui_json = self.compile(part.a2ui_raw, is_final=part.is_final)
-                except A2uiError as e:
-                    # The compiler already said what kind of failure this is.
-                    # Re-raising it as something else would throw that away, so
-                    # it travels out as it came, carrying the parts that were
-                    # read before it.
-                    setattr(e, "partial_results", parsed_so_far)
-                    raise
-                except Exception as e:
-                    from .errors import A2uiCompilationError
-
-                    raise A2uiCompilationError(
-                        message=str(e),
-                        raw_content=part.a2ui_raw,
-                        partial_results=parsed_so_far,
-                    ) from e
-            parsed_so_far.append(part)
-        return parts
 
     @abstractmethod
-    def unwrap(self, content: str) -> list[ResponsePart]:
-        """Tokenizes response content into raw format-content parts.
-
-        Args:
-            content: The raw LLM response.
-
-        Returns:
-            A list of ResponsePart objects with a2ui_raw populated.
-        """
-        pass
+    def wrap(self, blocks: Sequence[RawResponsePart]) -> str:
+        """Converts a sequence of RawResponseParts to a string, adding enclosing tags or markers around each raw A2UI section and concatenating conversational text parts."""
 
     @abstractmethod
-    def compile(
-        self, format_content: str, *, is_final: bool = True
-    ) -> list[dict[str, Any]]:
-        """Compiles raw format-content (inference format string) to structured A2UI messages.
+    def unwrap(self, content: str) -> list[RawResponsePart]:
+        """Tokenizes the LLM response into an ordered list of RawResponsePart objects, extracting raw format content between sentinel tags while preserving chronological order.
 
         Args:
-            format_content: The raw format-content extracted from response.
-            is_final: Whether this format block is complete (not truncated).
+            content: Raw string response emitted by the LLM.
 
         Returns:
-            A list of compiled A2UI message dictionaries.
+            An ordered list of RawResponsePart objects representing alternating
+            slices of conversational text and tagged A2UI payload blocks
+            exactly as emitted by the LLM.
         """
-        pass
+
+    @abstractmethod
+    def compile(self, format_content: str) -> list[AgentToRendererMessage]:
+        """Compiles a raw format content string into a list of validated A2UI message structures.
+
+        Args:
+            format_content: The uncompiled raw payload string (e.g. raw JSON or
+                DSL expression).
+
+        Returns:
+            List of compiled AgentToRendererMessage objects.
+        """
+
+    @abstractmethod
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
+        """Decompiles structured A2UI payload messages into this format's raw notation.
+
+        Args:
+            a2ui_payload: Sequence of AgentToRendererMessage objects to convert to
+                raw format text.
+
+        Returns:
+            Raw format content string representing the messages.
+        """
+
+    def parse_response(self, content: str, wrapped: bool = True) -> list[ResponsePart]:
+        """Generic non-streaming response parsing.
+
+        Unwraps raw LLM text and compiles valid A2UI payloads, preserving the
+        exact chronological order of conversational text and A2UI payload
+        blocks.
+
+        Args:
+            content: Complete raw text response emitted by the LLM.
+            wrapped: Whether the output is expected to be wrapped inside format
+                sentinel tags.
+
+        Returns:
+            List of ResponsePart objects (TextPart / A2uiPart).
+        """
+        if wrapped:
+            parts = self.unwrap(content)
+            result: list[ResponsePart] = []
+            for raw_part in parts:
+                if isinstance(raw_part, RawResponsePart):
+                    if isinstance(raw_part.part, TextPart):
+                        result.append(raw_part.part)
+                    elif isinstance(raw_part.part, RawA2uiPart):
+                        compiled = self.compile(raw_part.part.a2ui_raw)
+                        result.append(A2uiPart(a2ui=compiled))
+                elif isinstance(raw_part, ResponsePart):
+                    if raw_part.a2ui_raw is not None:
+                        try:
+                            raw_part.a2ui_json = self.compile(raw_part.a2ui_raw)
+                        except A2uiError as e:
+                            setattr(e, "partial_results", result)
+                            raise
+                        except Exception as e:
+                            from .errors import A2uiCompilationError
+
+                            raise A2uiCompilationError(
+                                message=str(e),
+                                raw_content=raw_part.a2ui_raw,
+                                partial_results=result,
+                            ) from e
+                    result.append(raw_part)
+            return result
+        return [A2uiPart(a2ui=self.compile(content))]
 
     @property
     def supports_streaming(self) -> bool:
-        """Whether the parser supports streaming token chunk compilation."""
+        """Whether this parser can read a response incrementally through parse_chunk.
+
+        A format can only stream if a partial block already means something.
+        Direct JSON can, because an unfinished object can be healed and re-read
+        as it grows. Express cannot: its notation resolves references across
+        the whole block, so a block is read once it is closed and not before.
+        A parser that returns False here buffers the response and is parsed
+        whole through parse_response.
+        """
         return False
 
-    def process_chunk(self, chunk: str) -> list[ResponsePart]:
-        """Processes a streamed token chunk (incremental parsing).
+    def parse_chunk(self, chunk: str, wrapped: bool = True) -> list[ResponsePart]:
+        """Processes streaming response chunks incrementally.
+
+        Implemented only by parsers whose supports_streaming is True. The
+        default refuses, so that a caller handed a non-streaming parser fails
+        at the call rather than silently receiving nothing.
 
         Args:
-            chunk: The next text chunk from the stream.
+            chunk: Incremental text chunk received from the LLM stream.
+            wrapped: Whether the output stream is expected to be wrapped inside
+                format sentinel tags.
 
         Returns:
-            A list of parsed or completed ResponsePart objects.
+            List of newly parsed ResponsePart objects (incremental delta)
+            extracted since the last chunk.
+
+        Raises:
+            NotImplementedError: If this format does not support streaming.
         """
         raise NotImplementedError(
             f"Streaming is not supported by {self.__class__.__name__}"
         )
-
-    @abstractmethod
-    def decompile(self, val: dict[str, Any]) -> str:
-        """Decompiles a structured A2UI payload into this format's raw notation."""
-        pass
-
-    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
-        return "\n".join(blocks)
 
 
 def has_a2ui_parts(content: str) -> bool:
@@ -141,7 +195,7 @@ def has_a2ui_parts(content: str) -> bool:
         DeprecationWarning,
         stacklevel=2,
     )
-    from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
+    from a2ui.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 
     return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
 
@@ -156,12 +210,13 @@ def parse_response(content: str) -> list[ResponsePart]:
         A list of ResponsePart objects.
     """
     warnings.warn(
-        "parse_response is deprecated. Please use format.parser.parse_response(...) "
-        "on your InferenceFormat instance instead.",
+        "parse_response is deprecated. Please use format.parser.parse_response(...)"
+        " on your InferenceFormat instance instead.",
         DeprecationWarning,
         stacklevel=2,
     )
     from a2ui.inference_formats.direct_json.parser import unwrap_response
+
     from .payload_fixer import parse_and_fix
 
     parts = unwrap_response(content)
@@ -169,3 +224,10 @@ def parse_response(content: str) -> list[ResponsePart]:
         if part.a2ui_raw is not None:
             part.a2ui_json = parse_and_fix(part.a2ui_raw)
     return parts
+
+
+__all__ = [
+    "Parser",
+    "has_a2ui_parts",
+    "parse_response",
+]

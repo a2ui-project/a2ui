@@ -25,9 +25,9 @@ from a2ui.adk import (
     A2uiExamplesProvider,
     SendA2uiToClientToolset,
 )
-from a2ui.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig, VERSION_0_8, VERSION_0_9
+from a2ui.schema import CatalogConfig, VERSION_0_9
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.planners.built_in_planner import BuiltInPlanner
@@ -156,8 +156,9 @@ class RizzchartsAgent:
                     ),
                     examples_path=f"../examples/rizzcharts_catalog/{version}",
                 ),
-                BasicCatalog.get_config(
-                    version=version,
+                CatalogConfig.from_catalog(
+                    "basic",
+                    BasicCatalog(version),
                     examples_path=f"../examples/standard_catalog/{version}",
                 ),
             ],
@@ -251,14 +252,12 @@ class RizzchartsAgent:
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
         instruction = (
-            inference_format.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                workflow_description=WORKFLOW_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_schema=False,
-                include_examples=False,
-                validate_examples=False,
-            )
+            "\n\n".join([
+                ROLE_DESCRIPTION,
+                WORKFLOW_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+                inference_format.prompt_generator.generate(),
+            ])
             if inference_format
             else ""
         )

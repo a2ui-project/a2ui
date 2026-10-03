@@ -43,15 +43,17 @@ from google.genai import types
 from prompt_builder import get_text_prompt, ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
 from tools import get_contact_info
 
-from a2ui.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
 from a2ui.parser import ResponsePart, parse_response
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
+    CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
+    validate_components,
 )
 from a2ui.a2a import (
     create_a2ui_part,
@@ -100,8 +102,10 @@ class ContactAgent:
         return DirectJsonFormat(
             version=version,
             catalogs=[
-                BasicCatalog.get_config(
-                    version=version, examples_path=f"examples/{version}"
+                CatalogConfig.from_catalog(
+                    "basic",
+                    BasicCatalog(version),
+                    examples_path=f"examples/{version}",
                 )
             ],
             schema_modifiers=[remove_strict_validation],
@@ -169,14 +173,12 @@ class ContactAgent:
         LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.6-flash")
 
         instruction = (
-            inference_format.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                workflow_description=WORKFLOW_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_examples=True,
-                include_schema=True,
-                validate_examples=False,  # Missing inline_catalogs for OrgChart and WebFrame validation
-            )
+            "\n\n".join([
+                ROLE_DESCRIPTION,
+                WORKFLOW_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+                inference_format.prompt_generator.generate(),
+            ])
             if inference_format
             else get_text_prompt()
         )
@@ -440,7 +442,7 @@ class ContactAgent:
                     self._parsers.move_to_end(session_id)
                 else:
                     self._parsers[session_id] = DirectJsonStreamParser(
-                        catalog=selected_catalog
+                        catalogs=[selected_catalog]
                     )
                     if len(self._parsers) > self._max_parsers:
                         self._parsers.popitem(last=False)
@@ -511,7 +513,7 @@ class ContactAgent:
                                 "--- ContactAgent.stream: Validating against"
                                 " A2UI_SCHEMA... ---"
                             )
-                            selected_catalog.validate_components(parsed_json_data)
+                            validate_components(selected_catalog, parsed_json_data)
 
                             logger.info(
                                 "--- ContactAgent.stream: UI JSON successfully parsed"

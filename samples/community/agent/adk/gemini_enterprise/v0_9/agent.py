@@ -35,6 +35,7 @@ from a2ui.schema import (
     CatalogConfig,
     VERSION_0_9,
     remove_strict_validation,
+    validate_components,
 )
 from a2ui.schema.manager import A2uiSchemaManager
 from google.adk.agents import run_config
@@ -187,13 +188,11 @@ class A2uiDemoAgent:
         model_name = model_env.split("/")[-1]
 
         instruction = (
-            schema_manager.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_schema=True,
-                include_examples=True,
-                validate_examples=True,
-            )
+            "\n\n".join([
+                ROLE_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+                schema_manager.prompt_generator.generate(),
+            ])
             if schema_manager
             else get_text_prompt()
         )
@@ -326,7 +325,7 @@ class A2uiDemoAgent:
                     self._parsers.move_to_end(session_id)
                 else:
                     self._parsers[session_id] = DirectJsonStreamParser(
-                        catalog=selected_catalog
+                        catalogs=[selected_catalog]
                     )
                     if len(self._parsers) > self._max_parsers:
                         self._parsers.popitem(last=False)
@@ -374,7 +373,7 @@ class A2uiDemoAgent:
                             "--- A2uiDemoAgent.stream: Validating against"
                             " A2UI_SCHEMA... ---"
                         )
-                        selected_catalog.validate_components(parsed_json_data)
+                        validate_components(selected_catalog, parsed_json_data)
                         # --- End Validation Steps ---
 
                         logger.info(

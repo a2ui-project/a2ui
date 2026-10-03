@@ -14,7 +14,7 @@
 
 from collections.abc import ItemsView, KeysView, Mapping, ValuesView
 from typing import Any
-from ..catalog import Catalog
+from ..catalog import Catalog, CatalogApi
 from ..common.events import EventSource
 from ..exceptions import (
     A2uiErrorDetail,
@@ -34,7 +34,7 @@ from ..validation.payload_validator import ValidationConfig
 class SurfaceComponentsModel:
     """Manages the adjacency map of component configs in a surface."""
 
-    def __init__(self, default_catalog: Catalog[Any, Any] | None = None) -> None:
+    def __init__(self, default_catalog: CatalogApi | None = None) -> None:
         self.default_catalog = default_catalog
         self._components: dict[str, ComponentModel] = {}
         self.on_created = EventSource()

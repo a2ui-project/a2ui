@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import re
 import json
 from typing import Any, TYPE_CHECKING
@@ -23,23 +24,30 @@ from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.constants import *
 from a2ui.schema.constants import SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
 from a2ui.core.validation import RELAXED_VALIDATION
-from a2ui.core import A2uiValidationError
-
-if TYPE_CHECKING:
-    from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import A2uiValidationError, CatalogApi
 
 
 class DirectJsonStreamParserV09(DirectJsonStreamParser):
-    """Streaming parser implementation for A2UI v0.9 specification."""
+    """Streaming parser implementation for A2UI v0.9/v1.0 specification."""
 
-    def __init__(self, catalog: A2uiCatalog):
-        super().__init__(catalog=catalog)
-        # v0.9 default root is "root"
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi] | CatalogApi | None = None,
+        custom_cuttable_keys: frozenset[str] | None = None,
+        *,
+        catalog: CatalogApi | None = None,
+    ):
+        super().__init__(
+            catalogs=catalogs,
+            custom_cuttable_keys=custom_cuttable_keys,
+            catalog=catalog,
+        )
+        # v0.9/v1.0 default root is "root"
         self._default_root_id = DEFAULT_ROOT_ID
 
     @property
     def _placeholder_component(self) -> dict[str, Any]:
-        """Returns a v0.9 flat style placeholder component specification."""
+        """Returns a v0.9/v1.0 flat style placeholder component specification."""
         return {
             'component': 'Row',
             'children': [],
@@ -51,7 +59,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         return MSG_TYPE_UPDATE_DATA_MODEL
 
     def is_protocol_msg(self, obj: dict[str, Any]) -> bool:
-        """Checks if the object is a recognized v0.9 message."""
+        """Checks if the object is a recognized v0.9/v1.0 message."""
         return any(
             k in obj
             for k in (
@@ -59,6 +67,8 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
                 MSG_TYPE_UPDATE_COMPONENTS,
                 MSG_TYPE_UPDATE_DATA_MODEL,
                 MSG_TYPE_DELETE_SURFACE,
+                'callRendererFunction',
+                'agentFunctionResponse',
             )
         )
 
@@ -77,6 +87,10 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
 
         self.surface_id = get_latest_value('surfaceId')
 
+        parsed_cat_id = get_latest_value('catalogId')
+        if parsed_cat_id is not None:
+            self.catalog_id = parsed_cat_id
+
         parsed_root = get_latest_value('root')
         if parsed_root is not None:
             self.root_id = parsed_root
@@ -87,6 +101,10 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
             self.add_msg_type(MSG_TYPE_UPDATE_COMPONENTS)
         if f'"{MSG_TYPE_UPDATE_DATA_MODEL}":' in self._json_buffer:
             self.add_msg_type(MSG_TYPE_UPDATE_DATA_MODEL)
+        if '"callRendererFunction":' in self._json_buffer:
+            self.add_msg_type('callRendererFunction')
+        if '"agentFunctionResponse":' in self._json_buffer:
+            self.add_msg_type('agentFunctionResponse')
 
     def _handle_complete_object(
         self,
@@ -126,6 +144,8 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         if MSG_TYPE_CREATE_SURFACE in obj:
             val = obj[MSG_TYPE_CREATE_SURFACE]
             if isinstance(val, dict):
+                if 'catalogId' in val:
+                    self.catalog_id = val.get('catalogId')
                 self.root_id = val.get('root', self.root_id or DEFAULT_ROOT_ID)
                 self._record_inline_components(sid, val.get('components'))
             self._buffered_start_message = obj
@@ -165,9 +185,18 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
             return True
 
         if MSG_TYPE_UPDATE_DATA_MODEL in obj:
-
             self.add_msg_type(MSG_TYPE_UPDATE_DATA_MODEL)
             self.update_data_model(obj[MSG_TYPE_UPDATE_DATA_MODEL], messages)
+            self._yield_messages([obj], messages)
+            return True
+
+        if 'callRendererFunction' in obj or 'agentFunctionResponse' in obj:
+            msg_key = (
+                'callRendererFunction'
+                if 'callRendererFunction' in obj
+                else 'agentFunctionResponse'
+            )
+            self.add_msg_type(msg_key)
             self._yield_messages([obj], messages)
             return True
 
@@ -176,8 +205,11 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
     def _construct_sniffed_data_model_message(
         self, active_msg_type: str, delta_msg_payload: dict[str, Any]
     ) -> dict[str, Any]:
-        """Returns the message to yield for a partial data model update for v0.9."""
-        return {'version': 'v0.9', active_msg_type: delta_msg_payload}
+        """Returns the message to yield for a partial data model update for v0.9/v1.0."""
+        ver = self._version
+        if not ver.startswith('v'):
+            ver = f'v{ver}'
+        return {'version': ver, active_msg_type: delta_msg_payload}
 
     def _sniff_partial_data_model(self, messages: list[ResponsePart]) -> None:
         """Sniffs for partial data model updates in v0.9 (value property)."""
@@ -263,7 +295,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         }
         if self.surface_id:
             payload[SURFACE_ID_KEY] = self.surface_id
-        version = getattr(self._catalog, 'version', None) or 'v0.9'
+        version = getattr(self._catalog, 'protocol_version', None) or 'v0.9'
         if not str(version).startswith('v'):
             version = f'v{version}'
         return {'version': version, MSG_TYPE_UPDATE_COMPONENTS: payload}
@@ -304,3 +336,9 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
                     if k not in (SURFACE_ID_KEY, 'root'):
                         self._yielded_data_model[k] = v
         return True
+
+
+class DirectJsonStreamParserV10(DirectJsonStreamParserV09):
+    """Streaming parser implementation for A2UI v1.0 specification."""
+
+    pass

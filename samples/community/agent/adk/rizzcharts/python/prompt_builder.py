@@ -15,7 +15,7 @@
 """Prompt builder for the rizzcharts agent."""
 
 # pylint: disable=g-importing-member, line-too-long
-from a2ui.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import CatalogConfig, VERSION_0_9, remove_strict_validation
 from agent import ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
@@ -31,8 +31,9 @@ if __name__ == "__main__":
                 catalog_path="rizzcharts_catalog_definition.json",
                 examples_path=f"../examples/rizzcharts_catalog/{version}",
             ),
-            BasicCatalog.get_config(
-                version=version,
+            CatalogConfig.from_catalog(
+                "basic",
+                BasicCatalog(version),
                 examples_path=f"../examples/standard_catalog/{version}",
             ),
         ],
@@ -42,39 +43,28 @@ if __name__ == "__main__":
 
     # Generate prompt for rizzcharts catalog
     print("Building prompt and validating rizzcharts examples...")
-    system_prompt = inference_format.generate_system_prompt(
-        role_description=ROLE_DESCRIPTION,
-        workflow_description=WORKFLOW_DESCRIPTION,
-        ui_description=UI_DESCRIPTION,
-        include_schema=True,
-        include_examples=True,
-        validate_examples=True,
-    )
+    system_prompt = "\n\n".join([
+        ROLE_DESCRIPTION,
+        WORKFLOW_DESCRIPTION,
+        f"## UI Description:\n{UI_DESCRIPTION}",
+        inference_format.prompt_generator.generate(),
+    ])
 
     output = system_prompt
 
     # Also validate standard catalog examples
     print("Validating standard catalog examples...")
-    # We can trigger this by selecting the basic catalog
-    std_prompt = inference_format.generate_system_prompt(
-        role_description=ROLE_DESCRIPTION,
-        workflow_description=WORKFLOW_DESCRIPTION,
-        ui_description=UI_DESCRIPTION,
+    std_catalog = inference_format.get_selected_catalog(
         client_ui_capabilities={
             "supported_catalog_ids": [
                 "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
             ]
-        },
-        include_schema=False,
-        include_examples=True,
-        validate_examples=True,
+        }
     )
+    std_examples = inference_format.load_examples(std_catalog, validate=True)
 
-    if std_prompt:
-        output += "\n\n### Standard Catalog Examples:\n"
-        # Find the start of examples in std_prompt
-        if "### Examples:" in std_prompt:
-            output += std_prompt.split("### Examples:")[1]
+    if std_examples:
+        output += f"\n\n### Standard Catalog Examples:\n{std_examples}"
 
     print(output)
 

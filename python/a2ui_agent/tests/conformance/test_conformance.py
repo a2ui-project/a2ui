@@ -22,7 +22,6 @@ from .conformance_helpers import (
     load_conformance_yaml as load_tests,
 )
 
-from a2ui.basic_catalog import BasicCatalog
 from a2ui.core import (
     A2uiCatalogError,
     A2uiError,
@@ -30,15 +29,17 @@ from a2ui.core import (
     A2uiParseError,
     A2uiRecursionError,
     A2uiValidationError,
+    Catalog,
     MessageProcessor,
 )
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
 from a2ui.schema import (
-    A2uiCatalog,
     CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
+    validate_components,
 )
 from a2ui.parser.errors import A2uiCompilationError
 
@@ -117,32 +118,21 @@ class MemoryCatalogProvider:
 def setup_catalog(catalog_config):
     version = str(catalog_config.get("protocolVersion", "v0.9")).removeprefix("v")
 
-    s2c_schema = catalog_config.get("s2cSchema")
-    if isinstance(s2c_schema, str):
-        s2c_schema = load_json_file(s2c_schema)
-
     catalog_schema = catalog_config.get("catalogSchema")
     if isinstance(catalog_schema, str):
         catalog_schema = load_json_file(catalog_schema)
     elif catalog_schema is None:
         catalog_schema = {}
+    else:
+        catalog_schema = dict(catalog_schema)
 
-    common_types_schema = catalog_config.get("commonTypesSchema")
-    if isinstance(common_types_schema, str):
-        common_types_schema = load_json_file(common_types_schema)
-    elif common_types_schema is None:
-        common_types_schema = {}
+    name = catalog_config.get("name", "test_catalog")
+    if "catalogId" not in catalog_schema:
+        catalog_schema["catalogId"] = name
 
-    custom_cuttable_keys = catalog_config.get("customCuttableKeys")
-    return A2uiCatalog(
-        version=version,
-        name=catalog_config.get("name", "test_catalog"),
-        s2c_schema=s2c_schema,
-        common_types_schema=common_types_schema,
-        catalog_schema=catalog_schema,
-        custom_cuttable_keys=frozenset(custom_cuttable_keys)
-        if custom_cuttable_keys is not None
-        else None,
+    return Catalog.from_json(
+        catalog_schema,
+        protocol_version=f"v{version}",
     )
 
 
@@ -196,9 +186,31 @@ cases_parser = get_conformance_cases("agent/legacy/streaming_parser.yaml")
     "name, test_case", cases_parser, ids=[c[0] for c in cases_parser]
 )
 def test_parser_conformance(name, test_case):
-    catalog_config = test_case["catalog"]
-    catalog = setup_catalog(catalog_config)
-    parser = DirectJsonStreamParser(catalog=catalog)
+    catalogs_config = test_case.get("catalogs")
+    if catalogs_config:
+        catalogs = [setup_catalog(c) for c in catalogs_config]
+        custom_cuttable_keys = test_case.get("customCuttableKeys")
+    else:
+        catalog_config = test_case["catalog"]
+        catalogs = [setup_catalog(catalog_config)]
+        custom_cuttable_keys = catalog_config.get("customCuttableKeys")
+    expect_init_error = test_case.get("expectError")
+    if expect_init_error and not test_case.get("steps") and "input" not in test_case:
+        with assert_raises(expect_init_error):
+            DirectJsonStreamParser(
+                catalogs=catalogs,
+                custom_cuttable_keys=frozenset(custom_cuttable_keys)
+                if custom_cuttable_keys is not None
+                else None,
+            )
+        return
+
+    parser = DirectJsonStreamParser(
+        catalogs=catalogs,
+        custom_cuttable_keys=frozenset(custom_cuttable_keys)
+        if custom_cuttable_keys is not None
+        else None,
+    )
     if test_case.get("disableValidation"):
         parser._validator = None
 
@@ -213,9 +225,9 @@ def test_parser_conformance(name, test_case):
         expect_error = step.get("expectError") or test_case.get("expectError")
         if expect_error:
             with assert_raises(expect_error):
-                parser.process_chunk(step["input"])
+                parser.parse_chunk(step["input"])
         else:
-            parts = parser.process_chunk(step["input"])
+            parts = parser.parse_chunk(step["input"])
             assert_parts_match(parts, step["expect"])
 
 
@@ -306,7 +318,13 @@ def test_schema_manager_conformance(name, test_case):
             if "expect" in test_case:
                 expected = test_case["expect"]
                 if isinstance(expected, dict):
-                    assert selected.catalog_schema == expected
+                    actual = {
+                        "catalogId": selected.catalog_id,
+                        "components": {
+                            k: v.schema for k, v in selected.components.items()
+                        },
+                    }
+                    assert actual == expected
             expect_selected = test_case.get("expectSelected")
             if expect_selected:
                 assert selected.catalog_id == expect_selected
@@ -334,7 +352,11 @@ def test_schema_manager_conformance(name, test_case):
                 c.catalog_id for c in direct_json_format._supported_catalogs
             ] == exp_ids
         elif isinstance(expected, dict):
-            assert selected.catalog_schema == expected
+            actual = {
+                "catalogId": selected.catalog_id,
+                "components": {k: v.schema for k, v in selected.components.items()},
+            }
+            assert actual == expected
 
     elif action == "generate_prompt":
         version = args.get("version", VERSION_0_8)
@@ -346,13 +368,11 @@ def test_schema_manager_conformance(name, test_case):
         if examples_path:
             examples_path = get_conformance_path(examples_path)
 
-        config = BasicCatalog.get_config(version)
-        if examples_path:
-            config = CatalogConfig(
-                name=config.name,
-                provider=config.provider,
-                examples_path=examples_path,
-            )
+        config = CatalogConfig.from_catalog(
+            "basic",
+            BasicCatalog(version),
+            examples_path=examples_path,
+        )
 
         accepts_inline = args.get("acceptsInlineCatalogs", False)
         direct_json_format = DirectJsonFormat(
@@ -361,16 +381,22 @@ def test_schema_manager_conformance(name, test_case):
             accepts_inline_catalogs=accepts_inline,
         )
 
-        output = direct_json_format.generate_system_prompt(
-            role_description=role,
-            workflow_description=workflow,
-            ui_description=ui_desc,
-            include_schema=args.get("includeSchema", False),
-            include_examples=args.get("includeExamples", False),
+        selected_catalog = direct_json_format.get_selected_catalog(
             client_ui_capabilities=args.get("clientUiCapabilities"),
             allowed_components=args.get("allowedComponents"),
             allowed_messages=args.get("allowedMessages"),
         )
+        direct_json_format.prompt_generator.selected_catalog = selected_catalog
+        snippet = direct_json_format.prompt_generator.generate()
+        parts = []
+        if role:
+            parts.append(role)
+        parts.append(snippet)
+        if workflow:
+            parts.append(workflow)
+        if ui_desc:
+            parts.append(f"## UI Description:\n{ui_desc}")
+        output = "\n\n".join(parts)
 
         output_normalized = re.sub(r"\s+", "", output.strip())
 
@@ -390,7 +416,6 @@ def test_schema_manager_conformance(name, test_case):
         if not spec_ver_key.startswith("v"):
             spec_ver_key = f"v{spec_ver_key}"
 
-        from a2ui.core import Catalog
         from a2ui.schema.utils import get_basic_catalog_path
 
         with open(get_basic_catalog_path(spec_ver_key), "r", encoding="utf-8") as f:
@@ -435,9 +460,20 @@ def test_schema_manager_conformance(name, test_case):
                 assert actual.a2ui_json == exp.get("a2ui")
 
     elif action == "process_chunk":
-        catalog_config = test_case.get("catalog", {})
-        catalog = setup_catalog(catalog_config)
-        parser = DirectJsonStreamParser(catalog=catalog)
+        catalogs_config = test_case.get("catalogs")
+        if catalogs_config:
+            catalogs = [setup_catalog(c) for c in catalogs_config]
+            custom_cuttable_keys = test_case.get("customCuttableKeys")
+        else:
+            catalog_config = test_case.get("catalog", {})
+            catalogs = [setup_catalog(catalog_config)]
+            custom_cuttable_keys = catalog_config.get("customCuttableKeys")
+        parser = DirectJsonStreamParser(
+            catalogs=catalogs,
+            custom_cuttable_keys=frozenset(custom_cuttable_keys)
+            if custom_cuttable_keys is not None
+            else None,
+        )
         if test_case.get("disableValidation"):
             parser._validator = None
 
@@ -451,9 +487,9 @@ def test_schema_manager_conformance(name, test_case):
             expect_error = step.get("expectError") or test_case.get("expectError")
             if expect_error:
                 with assert_raises(expect_error):
-                    parser.process_chunk(step["input"])
+                    parser.parse_chunk(step["input"])
             else:
-                parts = parser.process_chunk(step["input"])
+                parts = parser.parse_chunk(step["input"])
                 assert_parts_match(parts, step["expect"])
 
 
@@ -516,36 +552,15 @@ KNOWN_GAPS = {
         "the text before a block is attached to the same part as the payload"
         " rather than being a part of its own"
     ),
-    # `wrap` is `wrap_decompiled_blocks` here and takes raw payload strings
-    # rather than parts, so it always writes a tagged block and can neither
-    # write a text part nor leave the tags off.
-    "test_wrap_express_text_only_parts_are_the_text": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so a text"
-        " part cannot be written"
-    ),
-    "test_wrap_text_only_parts_are_the_text": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so a text"
-        " part cannot be written"
-    ),
-    "test_wrap_express_no_parts_is_an_empty_string": (
-        "wrap_decompiled_blocks writes an empty tagged block rather than an"
-        " empty string"
-    ),
-    "test_wrap_no_parts_is_an_empty_string": (
-        "wrap_decompiled_blocks writes an empty tagged block rather than an"
-        " empty string"
-    ),
+    # `wrap` joins parts with `\n`, and `unwrap` attaches preceding text to the
+    # payload part rather than keeping it as a separate text part.
     "test_wrap_express_restores_tags_and_order": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so the text"
-        " part is dropped and does not survive the round trip"
+        "round-trip unwrap attaches preceding text to the payload part rather"
+        " than keeping it as a separate text part"
     ),
     "test_wrap_keeps_text_and_blocks_in_order": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so the text"
-        " parts are dropped and do not survive the round trip"
-    ),
-    "test_wrap_express_tags_sit_on_their_own_lines": (
-        "wrap_decompiled_blocks takes raw blocks rather than parts, so the text"
-        " part is dropped"
+        "round-trip unwrap attaches preceding text to the payload part rather"
+        " than keeping it as a separate text part"
     ),
     # Direct JSON unwrapping raises where the suites return parts. These are
     # the three decisions the suite header calls out as departures from
@@ -564,15 +579,6 @@ KNOWN_GAPS = {
     "test_unwrap_unterminated_block_is_not_final": (
         "an unterminated block raises ParseError rather than coming back as a"
         " part that is not final"
-    ),
-    # The rest.
-    "test_parse_response_express_unwrapped_compiles_the_whole_body": (
-        "parse_response takes no `wrapped` argument, so a response the case"
-        " declares unwrapped cannot be handed to the compiler whole"
-    ),
-    "test_parse_response_unwrapped_compiles_the_whole_body": (
-        "parse_response takes no `wrapped` argument, so a response the case"
-        " declares unwrapped cannot be handed to the compiler whole"
     ),
     # Compiler. The direct JSON parser validates components against the catalog
     # but not the message envelope, so the envelope's `version` goes unchecked.
@@ -598,15 +604,14 @@ UNSUPPORTED = {
 
 
 def setup_catalog_from_document(relative_path):
-    """Builds an A2uiCatalog from a conformance catalog fixture path."""
+    """Builds a Catalog from a conformance catalog fixture path."""
     document = load_json_file(relative_path)
     version = str(document.get("protocolVersion", "1.0"))
     config = CatalogConfig.from_path(
         name=os.path.basename(relative_path).replace(".json", ""),
         catalog_path=_get_conformance_path(relative_path),
     )
-    catalog = A2uiCatalog.from_config(config, version=version)
-    return dataclasses.replace(catalog, experiments=V1_0_EXPERIMENTS)
+    return config.to_catalog(version=version)
 
 
 def make_parser(args):
@@ -629,7 +634,10 @@ def make_parser(args):
     if format_name == "direct_json":
         from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 
-        return DirectJsonParser(catalog=catalog, validator=catalog.validate_components)
+        return DirectJsonParser(
+            catalogs=[catalog],
+            validator=lambda payload: validate_components(catalog, payload),
+        )
 
     raise ValueError(f"Unknown inference format: {format_name}")
 
@@ -703,10 +711,14 @@ cases_decompiler = get_marked_conformance_cases(
 
 @pytest.mark.parametrize("name, test_case", cases_decompiler)
 def test_decompiler_conformance(name, test_case):
+    from a2ui.core.schema.v1_0 import AgentToRendererMessage
+    from pydantic import TypeAdapter
+
     parser = make_parser(test_case["args"])
     messages = test_case["messages"]
 
-    notation = parser.decompile(messages if len(messages) > 1 else messages[0])
+    adapter = TypeAdapter(list[AgentToRendererMessage])
+    notation = parser.decompile(adapter.validate_python(messages))
 
     for fragment in test_case.get("expect_contains", []):
         assert fragment in notation, f"{fragment!r} not in {notation!r}"
@@ -723,12 +735,6 @@ def test_decompiler_conformance(name, test_case):
 # compiles each block it finds.
 #
 # The unwrap and wrap cases carry no catalog, because neither call consults one.
-#
-# This SDK names `wrap` `wrap_decompiled_blocks` and gives it a list of raw
-# payload strings rather than the parts the blueprint declares, so it can only
-# write blocks and has nowhere to put a text part. The harness calls it with the
-# raw blocks a case names; a case whose parts are not all payload therefore
-# fails, and is marked as the gap it is rather than worked around here.
 
 
 def assert_raw_parts_match(actual_parts, expected_parts):
@@ -744,10 +750,21 @@ def assert_raw_parts_match(actual_parts, expected_parts):
 
 
 def wrap_parts(parser, parts):
-    """Writes parts back out through whatever this SDK offers for `wrap`."""
-    return parser.wrap_decompiled_blocks(
-        [part["a2ui_raw"] for part in parts if "a2ui_raw" in part]
-    )
+    """Writes parts back out through `parser.wrap`."""
+    from a2ui.parser import RawA2uiPart, RawResponsePart, TextPart
+
+    raw_parts = []
+    for part in parts:
+        if "a2ui_raw" in part:
+            raw_parts.append(
+                RawResponsePart(
+                    part=RawA2uiPart(a2ui_raw=part["a2ui_raw"]),
+                    is_final=part.get("is_final", True),
+                )
+            )
+        elif "text" in part:
+            raw_parts.append(RawResponsePart(part=TextPart(text=part["text"])))
+    return parser.wrap(raw_parts)
 
 
 cases_response_parser = get_marked_conformance_cases(

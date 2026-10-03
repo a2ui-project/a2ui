@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from a2ui.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import VERSION_0_9, remove_strict_validation
+from a2ui.schema import (
+    CatalogConfig,
+    VERSION_0_9,
+    remove_strict_validation,
+)
 
 ROLE_DESCRIPTION = (
     "You are a helpful restaurant finding assistant. Your final output MUST be an A2UI"
@@ -52,30 +56,35 @@ def get_text_prompt() -> str:
     """
 
 
+def get_ui_prompt(inference_format: DirectJsonFormat) -> str:
+    """Constructs the full system prompt for a UI-enabled restaurant agent."""
+    return "\n\n".join([
+        ROLE_DESCRIPTION,
+        f"## UI Description:\n{UI_DESCRIPTION}",
+        inference_format.prompt_generator.generate(),
+    ])
+
+
 if __name__ == "__main__":
-    # Example of how to use the A2UI Schema Manager to generate a system prompt
+    # Example of how to use the A2UI inference format to generate a system prompt
     # In your actual application, you would call this from your main agent logic.
 
     # You can now easily construct a prompt with the relevant examples.
     # For a different agent (e.g., a flight booker), you would pass in
     # different examples but use the same `get_ui_prompt` function.
     version = VERSION_0_9
-    restaurant_prompt = DirectJsonFormat(
+    inference_format = DirectJsonFormat(
         version,
         catalogs=[
-            BasicCatalog.get_config(
-                version=version,
+            CatalogConfig.from_catalog(
+                "basic",
+                BasicCatalog(version),
                 examples_path=f"examples/{version}",
             )
         ],
         schema_modifiers=[remove_strict_validation],
-    ).generate_system_prompt(
-        role_description=ROLE_DESCRIPTION,
-        ui_description=UI_DESCRIPTION,
-        include_schema=True,
-        include_examples=True,
-        validate_examples=True,
     )
+    restaurant_prompt = get_ui_prompt(inference_format)
 
     print(restaurant_prompt)
 

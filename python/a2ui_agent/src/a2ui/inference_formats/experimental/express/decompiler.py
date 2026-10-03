@@ -18,14 +18,16 @@ Reconstructs standard A2UI v1.0 JSON envelopes back into A2UI Express DSL code,
 tailored for prompt tokens compression.
 """
 
+from collections.abc import Sequence
+import json
 import re
 from typing import Any
 from a2ui.core import CatalogApi
-from a2ui.schema import A2uiCatalog
+from a2ui.core.schema import AgentToRendererMessage
 
-from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
-from .schema_helper import CatalogSchemaHelper
+
 from .constants import SurfaceOperation
+from .schema_helper import CatalogSchemaHelper
 
 
 def _flatten_data_model(data_dict: dict) -> list[tuple[str, Any]]:
@@ -109,47 +111,59 @@ class _ExpressDecompiler:
 
     def __init__(
         self,
-        catalog: CatalogApi | A2uiCatalog,
+        catalog: CatalogApi,
     ):
         """Initializes the decompiler with the specified catalog.
 
         Args:
-            catalog: A Catalog or an A2uiCatalog.
+            catalog: A Catalog instance.
         """
         self.helper = CatalogSchemaHelper(catalog)
 
-    def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        """Wraps individual decompiled A2UI Express DSL blocks within sentinel tags.
-
-        Args:
-            blocks: A list of decompiled A2UI Express DSL statement strings.
-
-        Returns:
-            The merged A2UI Express DSL string enclosed within opening and closing sentinel tags.
-        """
-        full_dsl = "\n".join(blocks)
-        return f"{A2UI_INFERENCE_OPEN_TAG}\n{full_dsl}\n{A2UI_INFERENCE_CLOSE_TAG}"
-
     def decompile(
         self,
-        envelope_json: dict[str, Any] | list[dict[str, Any]],
+        envelope_json: (
+            Sequence[AgentToRendererMessage]
+            | Sequence[dict[str, Any]]
+            | dict[str, Any]
+            | str
+        ),
         use_keyword_args: bool = False,
     ) -> str:
         """Decompiles standard A2UI wire JSON into clean A2UI Express lines.
 
         Args:
-            envelope_json: Standard A2UI wire JSON envelope dict or list of message dicts.
+            envelope_json: Sequence of AgentToRendererMessage objects, dicts, or raw JSON string.
             use_keyword_args: Whether to format component arguments as keyword parameters (e.g., param=value).
 
         Returns:
             The decompiled A2UI Express DSL string.
         """
-        if isinstance(envelope_json, list):
-            return "\n".join(
-                self.decompile(item, use_keyword_args=use_keyword_args)
-                for item in envelope_json
-                if item
+        raw_items: Sequence[Any]
+        if isinstance(envelope_json, str):
+            parsed = json.loads(envelope_json)
+            raw_items = parsed if isinstance(parsed, list) else [parsed]
+        elif isinstance(envelope_json, dict):
+            raw_items = [envelope_json]
+        else:
+            raw_items = envelope_json
+
+        return "\n".join(
+            self._decompile_message(
+                item.model_dump(by_alias=True, exclude_none=True)
+                if hasattr(item, "model_dump")
+                else item,
+                use_keyword_args=use_keyword_args,
             )
+            for item in raw_items
+        )
+
+    def _decompile_message(
+        self,
+        envelope_json: dict[str, Any],
+        use_keyword_args: bool = False,
+    ) -> str:
+        """Decompiles a single A2UI message dict into clean A2UI Express lines."""
         # Handle deleteSurface action
         if SurfaceOperation.DELETE in envelope_json:
             surf_op = envelope_json[SurfaceOperation.DELETE]
@@ -183,7 +197,8 @@ class _ExpressDecompiler:
                 func_op = envelope_json.get(SurfaceOperation.CALL_FUNC)
             if not isinstance(func_op, dict):
                 func_op = {}
-            fn_name = func_op.get("call", "")
+            fn_name = func_op.get("@call") or func_op.get("call", "")
+
             fn_args = func_op.get("args", {})
             args_list = []
             if fn_name in self.helper.functions:

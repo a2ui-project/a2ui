@@ -14,10 +14,6 @@
 
 """Format definition for A2UI Atom (S-Expression AST inference format)."""
 
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.inference_format import InferenceFormat
-from a2ui.parser.parser import Parser
-
 try:
     from google.adk.utils.feature_decorator import experimental
 except ImportError:
@@ -26,8 +22,13 @@ except ImportError:
         return cls
 
 
-from .prompt_generator import AtomPromptGenerator
+from a2ui.core import CatalogApi
+from a2ui.inference_format import InferenceFormat
+from a2ui.parser.parser import Parser
+
+
 from .parser import AtomParser
+from .prompt_generator import AtomPromptGenerator
 
 
 @experimental
@@ -45,7 +46,7 @@ class AtomFormat(InferenceFormat):
 
     def __init__(
         self,
-        catalog: A2uiCatalog | None = None,
+        catalog: CatalogApi | None = None,
         surface_id: str = "main",
         examples_path: str | None = None,
     ):
@@ -77,10 +78,14 @@ class AtomFormat(InferenceFormat):
             self._prompt_generator = AtomPromptGenerator(self)
         return self._prompt_generator
 
+    def create_parser(self) -> Parser:
+        """Creates a new parser instance bound to this format strategy."""
+        self._ensure_catalog()
+        return AtomParser(self.catalog, self.surface_id)
+
     @property
     def parser(self) -> Parser:
         """The parser instance configured for Atom format."""
         if self._parser is None:
-            self._ensure_catalog()
-            self._parser = AtomParser(self.catalog, self.surface_id)
+            self._parser = self.create_parser()
         return self._parser

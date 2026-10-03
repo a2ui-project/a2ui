@@ -20,15 +20,10 @@ from typing import Any, Dict, List, Sequence, Tuple, Type
 
 from pydantic import TypeAdapter
 
-from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.core import Catalog, CatalogApi
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import (
-    SERVER_TO_CLIENT_SCHEMA_KEY,
-    SPEC_VERSION_MAP,
-)
-from a2ui.schema.utils import load_common_types_schema, load_from_bundled_resource
 from a2ui.transformers.macros import MacroExpander
 
 
@@ -46,16 +41,7 @@ class MacroAgentRuntime:
         self.protocol_version = protocol_version
 
         # 1. Base Catalog
-        basic_config = BasicCatalog.get_config(catalog_version)
-        self.server_catalog = A2uiCatalog(
-            version=catalog_version,
-            name="basic",
-            catalog_schema=basic_config.provider.load(),
-            s2c_schema=load_from_bundled_resource(
-                catalog_version, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
-            ),
-            common_types_schema=load_common_types_schema(catalog_version),
-        )
+        self.server_catalog: CatalogApi = BasicCatalog(catalog_version)
 
         # 2. Macro Expander
         self.expander = MacroExpander(macros)
@@ -82,10 +68,10 @@ class MacroAgentRuntime:
 
     def generate_system_prompt(self, role_description: str) -> str:
         """Generates system instruction with catalog schema and formatting rules."""
-        return self.format.prompt_generator.generate(
-            role_description=role_description,
-            include_schema=True,
-        )
+        return "\n\n".join([
+            role_description,
+            self.format.prompt_generator.generate(),
+        ])
 
     def compile_dsl(self, dsl: str, surface_id: str = "main") -> List[Dict[str, Any]]:
         """Compiles Express DSL containing macros and lowers output messages to transport."""

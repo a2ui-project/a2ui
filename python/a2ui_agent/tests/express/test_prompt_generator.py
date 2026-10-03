@@ -18,26 +18,19 @@ import json
 import os
 import tempfile
 import unittest
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import VERSION_1_0
+from a2ui.catalog_transformers import ComponentPruningTransformer
+from a2ui.core import Catalog
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
+from a2ui.schema.constants import VERSION_1_0
 
 
 class TestExpressPromptGenerator(unittest.TestCase):
     """Test suite covering Express prompt generation, examples pruning, and validation."""
 
     def setUp(self):
-        self.catalog = A2uiCatalog(
-            version=VERSION_1_0,
-            name="test_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={
-                "$id": (
-                    "https://a2ui.org/specification/v1_0/json/agent_to_renderer.json"
-                ),
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-            },
-            common_types_schema={},
+        self.catalog = Catalog.from_json(
+            protocol_version=VERSION_1_0,
+            catalog_id="https://a2ui.org/test_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/test_catalog",
                 "components": {
@@ -61,13 +54,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
         express_format = ExpressFormat(catalog=self.catalog)
         generator = express_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="You are a helpful assistant.",
-            workflow_description="Please adhere to constraints.",
-            include_schema=True,
-        )
-        self.assertIn("You are a helpful assistant.", prompt)
-        self.assertIn("Please adhere to constraints.", prompt)
+        prompt = generator.generate()
         self.assertIn("# A2UI Express DSL Output Contract", prompt)
         self.assertIn("Text(", prompt)
 
@@ -78,15 +65,12 @@ class TestExpressPromptGenerator(unittest.TestCase):
         self.assertIn("Text(", desc)
 
     def test_express_allowed_components_pruning(self):
-        express_format = ExpressFormat(catalog=self.catalog)
+        pruned_catalog = ComponentPruningTransformer(["Button"]).transform(self.catalog)
+        express_format = ExpressFormat(catalog=pruned_catalog)
         generator = express_format.prompt_generator
 
         # Only allow other component tags, Text should be pruned out
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            allowed_components=["Button"],
-        )
+        prompt = generator.generate()
         self.assertNotIn("Text(", prompt)
 
     def test_express_include_examples_transformation(self):
@@ -111,18 +95,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
         express_format = ExpressFormat(catalog=self.catalog, examples_path=md_file_path)
         generator = express_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            workflow_description="Custom workflow instructions",
-            ui_description="Custom UI rules",
-            include_schema=True,
-            include_examples=True,
-            validate_examples=False,
-        )
-
-        # Verify workflow_description and ui_description are included
-        self.assertIn("Custom workflow instructions", prompt)
-        self.assertIn("Custom UI rules", prompt)
+        prompt = generator.generate()
 
         # Verify examples are included and decompiled
         self.assertIn("### Examples:", prompt)
@@ -150,12 +123,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
         )
         generator = express_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            include_examples=True,
-            validate_examples=True,
-        )
+        prompt = generator.generate()
 
         self.assertIn("### Examples:", prompt)
 
@@ -185,12 +153,9 @@ class TestExpressPromptGenerator(unittest.TestCase):
 
     def test_express_signatures_with_object_properties(self):
         """Test component signatures generation for object properties with map keys."""
-        cat_map_obj = A2uiCatalog(
-            version=VERSION_1_0,
-            name="map_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        cat_map_obj = Catalog.from_json(
+            protocol_version=VERSION_1_0,
+            catalog_id="https://a2ui.org/map_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/map_catalog",
                 "components": {
@@ -218,12 +183,9 @@ class TestExpressPromptGenerator(unittest.TestCase):
     def test_express_schema_helper_methods(self):
         from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper as ExpressCatalogSchemaHelper
 
-        cat = A2uiCatalog(
-            version=VERSION_1_0,
-            name="express_helper_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        cat = Catalog.from_json(
+            protocol_version=VERSION_1_0,
+            catalog_id="test",
             catalog_schema={
                 "catalogId": "test",
                 "components": {

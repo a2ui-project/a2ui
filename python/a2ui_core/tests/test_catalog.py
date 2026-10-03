@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field, ValidationError
 import pytest
 from a2ui.core.catalog import (
     Catalog,
+    CatalogApi,
     ComponentApi,
     FunctionApi,
     FunctionImplementation,
@@ -37,7 +38,7 @@ from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
 
 class _TestValidatorHelper:
 
-    def __init__(self, catalog: Catalog[Any, Any]):
+    def __init__(self, catalog: CatalogApi):
         self.validator = PayloadValidator(catalog=catalog)
 
     def validate_component(self, comp_or_list: Any) -> None:
@@ -64,7 +65,7 @@ class _TestValidatorHelper:
         self.validator.validate_theme(theme)
 
 
-def _val(catalog: Catalog[TComponent, TFunction]) -> _TestValidatorHelper:
+def _val(catalog: CatalogApi) -> _TestValidatorHelper:
     return _TestValidatorHelper(catalog)
 
 
@@ -442,9 +443,17 @@ def test_seamless_mixed_catalogs():
 
 
 def test_basic_catalog_initialization():
-    catalog = BasicCatalog()
+    catalog = BasicCatalog(ProtocolVersion.V0_9)
     assert catalog.protocol_version == PROTOCOL_VERSION
     assert "https://a2ui.org/specification" in catalog.catalog_id
+
+    # Test shared factory with different versions
+    assert BasicCatalog("0.8").protocol_version == "v0.8"
+    assert BasicCatalog("0.9").protocol_version == "v0.9"
+    assert BasicCatalog("1.0").protocol_version == "v1.0"
+
+    with pytest.raises(TypeError):
+        BasicCatalog()  # type: ignore[call-arg]
 
 
 def test_catalog_v1_0_additions():
@@ -893,7 +902,11 @@ def test_v1_0_catalogs_inline_component_metadata():
     assert "metadata" not in basic_catalog["components"]["Text"]["properties"]
     assert "ComponentCommonMetadata" not in basic_catalog["$defs"]
     # No internal schema-generation marker leaks into a published catalog.
-    for schema in (json_catalog, basic_catalog, BasicCatalog().catalog_schema):
+    for schema in (
+        json_catalog,
+        basic_catalog,
+        BasicCatalog(ProtocolVersion.V0_9).catalog_schema,
+    ):
         assert '"x-a2ui-' not in json.dumps(schema)
 
 

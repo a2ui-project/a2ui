@@ -99,12 +99,11 @@ def main():
     from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
     express_format = ExpressFormat(catalog=catalog)
-    system_prompt = express_format.prompt_generator.generate(
-        role_description=(
-            "You are a helpful UI assistant that outputs interfaces using A2UI Express"
-            " DSL."
-        ),
-        include_schema=True,
+    role_description = (
+        "You are a helpful UI assistant that outputs interfaces using A2UI Express DSL."
+    )
+    system_prompt = (
+        f"{role_description}\n\n{express_format.prompt_generator.generate()}"
     )
 
     print("Compiling weather forecast Express DSL...")

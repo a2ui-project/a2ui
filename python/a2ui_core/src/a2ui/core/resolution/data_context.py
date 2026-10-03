@@ -18,7 +18,7 @@ import copy
 import inspect
 import warnings
 from typing import Any, Callable, Final, Generic
-from ..catalog.catalog import Catalog, TComponent, TFunction
+from ..catalog.catalog import CatalogApi, TComponent, TFunction
 from ..state.data_model import DataModel
 from ..state.surface_model import SurfaceModel
 from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS, PayloadValidator
@@ -430,7 +430,7 @@ class DataContext(Generic[TComponent, TFunction]):
                     f" ({MAX_FUNCTION_CALL_ARGS})"
                 )
 
-            target_catalog: Catalog[TComponent, TFunction] | None = None
+            target_catalog: CatalogApi | None = None
             if catalog_id is not None:
                 target_catalog = self.surface.available_catalogs.get(catalog_id)
                 if not target_catalog:

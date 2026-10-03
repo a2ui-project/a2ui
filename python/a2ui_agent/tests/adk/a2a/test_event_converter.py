@@ -18,11 +18,11 @@ from unittest.mock import MagicMock, patch
 
 from a2ui.adk.a2a.event_converter import A2uiEventConverter
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import Catalog
 
 
 def test_event_converter_injects_catalog():
-    catalog_mock = MagicMock(spec=A2uiCatalog)
+    catalog_mock = MagicMock(spec=Catalog)
     event_mock = MagicMock()
     invocation_context_mock = MagicMock()
     # Correctly access session via mock
@@ -71,7 +71,7 @@ def test_event_converter_falls_back_without_catalog():
 
 
 def test_event_converter_propagates_fallback_text():
-    catalog_mock = MagicMock(spec=A2uiCatalog)
+    catalog_mock = MagicMock(spec=Catalog)
     event_mock = MagicMock()
     invocation_context_mock = MagicMock()
     invocation_context_mock.session.state = {"system:a2ui_catalog": catalog_mock}

@@ -18,8 +18,9 @@ import json
 import os
 import unittest
 
+from pydantic import TypeAdapter
 from a2ui.core import Catalog
-from a2ui.schema import A2uiCatalog
+from a2ui.core.schema.v1_0 import AgentToRendererMessage
 from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
 
 from a2ui.schema.utils import find_repo_root, get_spec_dir
@@ -27,6 +28,7 @@ from a2ui.schema.utils import find_repo_root, get_spec_dir
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_DIR = get_spec_dir("v1_0")
 CATALOG_PATH = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
+_MESSAGES_ADAPTER = TypeAdapter(list[AgentToRendererMessage])
 
 
 class TestElementalParser(unittest.TestCase):
@@ -45,7 +47,9 @@ class TestElementalParser(unittest.TestCase):
             "version": "v1.0",
             "deleteSurface": {"surfaceId": "dashboard-surface-1"},
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertEqual(
             html_output, '<ui-delete-surface surface-id="dashboard-surface-1" />'
         )
@@ -54,14 +58,18 @@ class TestElementalParser(unittest.TestCase):
         decompiler = ElementalParser(self.catalog)
         envelope = {
             "version": "v1.0",
-            "functionCallId": "call_1",
-            "wantResponse": True,
-            "callFunction": {
-                "call": "openUrl",
-                "args": {"url": "https://example.com"},
+            "callRendererFunction": {
+                "functionCallId": "call_1",
+                "callFunction": {
+                    "catalogId": "basic",
+                    "call": "openUrl",
+                    "args": {"url": "https://example.com"},
+                },
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertEqual(
             html_output,
             '<ui-call-function id="call_1" name="openUrl" url="https://example.com"'
@@ -77,7 +85,9 @@ class TestElementalParser(unittest.TestCase):
                 "value": {"foo": "bar", "num": 42},
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         expected = (
             '<body id="my-surf">\n'
             '  <script type="application/json">\n'
@@ -113,7 +123,9 @@ class TestElementalParser(unittest.TestCase):
                 ],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         expected = (
             '<body id="test-surf">\n'
             '  <link rel="catalog" href="https://a2ui.org/catalog.json">\n'
@@ -154,7 +166,9 @@ class TestElementalParser(unittest.TestCase):
                 ],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         expected = (
             '<body id="test-surf">\n'
             '  <script type="application/json">\n'
@@ -186,7 +200,9 @@ class TestElementalParser(unittest.TestCase):
                 }],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertIn("options=\"{['Red', 'Blue']}\"", html_output)
 
     def test_decompile_complex_slot_property(self):
@@ -206,7 +222,9 @@ class TestElementalParser(unittest.TestCase):
                 }],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertIn('<script type="application/json" slot="options">', html_output)
         self.assertIn('"label": "Red"', html_output)
         self.assertIn('"value": "red"', html_output)
@@ -237,7 +255,9 @@ class TestElementalParser(unittest.TestCase):
                 ],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertIn("onclick=\"{Event('submit', {id: 123})}\"", html_output)
 
     def test_decompile_checks_with_implicit_value(self):
@@ -260,7 +280,9 @@ class TestElementalParser(unittest.TestCase):
                 }],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         # The 'value' argument in 'required' should be omitted because it matches the component's value path
         self.assertIn('checks="{[required()]}"', html_output)
 
@@ -284,7 +306,9 @@ class TestElementalParser(unittest.TestCase):
                 }],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertIn(
             "checks=\"{[required(message: 'DOB is required')]}\"", html_output
         )
@@ -312,7 +336,9 @@ class TestElementalParser(unittest.TestCase):
                 ],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         expected_list = (
             '  <ui-list id="list_1" path="{$/items}">\n'
             "    <template>\n"
@@ -323,12 +349,9 @@ class TestElementalParser(unittest.TestCase):
         self.assertIn(expected_list, html_output)
 
     def test_decompile_custom_template_property(self):
-        catalog = A2uiCatalog(
-            version="1.0",
-            name="custom_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        catalog = Catalog.from_json(
+            protocol_version="1.0",
+            catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
                 "components": {
@@ -339,7 +362,7 @@ class TestElementalParser(unittest.TestCase):
         )
         decompiler = ElementalParser(catalog)
         envelope = {
-            "version": "1.0",
+            "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [
@@ -348,37 +371,36 @@ class TestElementalParser(unittest.TestCase):
                 ],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertIn("<template>", html_output)
         self.assertIn('<ui-text id="item_1"', html_output)
 
     def test_decompile_named_slots(self):
-        catalog = A2uiCatalog(
-            version="1.0",
-            name="custom_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        catalog = Catalog.from_json(
+            protocol_version="1.0",
+            catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
                 "components": {
                     "CustomCard": {
                         "properties": {
-                            "leading": {"$ref": "#/definitions/ComponentId"},
+                            "leading": {"$ref": "#/$defs/ComponentId"},
                             "trailing": {
                                 "type": "array",
-                                "items": {"$ref": "#/definitions/ComponentId"},
+                                "items": {"$ref": "#/$defs/ComponentId"},
                             },
                         }
                     },
                     "Text": {"properties": {"text": {"type": "string"}}},
                 },
-                "definitions": {"ComponentId": {"type": "string"}},
+                "$defs": {"ComponentId": {"type": "string"}},
             },
         )
         decompiler = ElementalParser(catalog)
         envelope = {
-            "version": "1.0",
+            "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [
@@ -393,7 +415,9 @@ class TestElementalParser(unittest.TestCase):
                 ],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertIn('slot="leading"', html_output)
         self.assertIn('slot="trailing"', html_output)
 
@@ -412,7 +436,9 @@ class TestElementalParser(unittest.TestCase):
                 }],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertIn('disabled="{true}"', html_output)
         self.assertIn('required="{false}"', html_output)
         self.assertIn('placeholder="{null}"', html_output)
@@ -438,7 +464,9 @@ class TestElementalParser(unittest.TestCase):
                 }],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertIn('checks="{[required()]}"', html_output)
 
     def test_decompile_dict_expressions_and_function_calls(self):
@@ -467,25 +495,24 @@ class TestElementalParser(unittest.TestCase):
                 ],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertIn("onclick=\"{openUrl(url: 'https://example.com')}\"", html_output)
         self.assertIn('<script type="application/json" slot="text">', html_output)
         self.assertIn('"foo": "bar"', html_output)
 
     def test_decompile_multiple_actions_prefixing(self):
-        catalog = A2uiCatalog(
-            version="1.0",
-            name="custom_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        catalog = Catalog.from_json(
+            protocol_version="1.0",
+            catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
                 "components": {
                     "MultiActionButton": {
                         "properties": {
-                            "onPress": {"$ref": "#/definitions/Action"},
-                            "ongoing": {"$ref": "#/definitions/Action"},
+                            "onPress": {"$ref": "#/$defs/Action"},
+                            "ongoing": {"$ref": "#/$defs/Action"},
                         }
                     }
                 },
@@ -493,7 +520,7 @@ class TestElementalParser(unittest.TestCase):
         )
         decompiler = ElementalParser(catalog)
         envelope = {
-            "version": "1.0",
+            "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [{
@@ -512,7 +539,9 @@ class TestElementalParser(unittest.TestCase):
                 }],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertIn("on-press=\"{Event('press')}\"", html_output)
         self.assertIn("on-ongoing=\"{Event('going')}\"", html_output)
 
@@ -520,7 +549,7 @@ class TestElementalParser(unittest.TestCase):
         """Test decompilation of call objects and arbitrary dict expressions in Elemental format."""
         decompiler = ElementalParser(self.catalog)
         envelope = {
-            "version": "1.0",
+            "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [{
@@ -534,7 +563,9 @@ class TestElementalParser(unittest.TestCase):
                 }],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertIn("formatDate", html_output)
         self.assertIn("key_one", html_output)
 
@@ -542,7 +573,7 @@ class TestElementalParser(unittest.TestCase):
         """Test decompilation of contractable options list where label equals value."""
         decompiler = ElementalParser(self.catalog)
         envelope = {
-            "version": "1.0",
+            "version": "v1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [{
@@ -555,7 +586,9 @@ class TestElementalParser(unittest.TestCase):
                 }],
             },
         }
-        html_output = decompiler.decompile(envelope)
+        html_output = decompiler.decompile(
+            _MESSAGES_ADAPTER.validate_python([envelope])
+        )
         self.assertIn("options", html_output)
 
 

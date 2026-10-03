@@ -14,34 +14,47 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import copy
 import json
 import logging
 import re
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from a2ui.parser.constants import *
-from a2ui.schema.constants import (
-    VERSION_0_9,
-    VERSION_0_8,
-    A2UI_OPEN_TAG,
-    A2UI_CLOSE_TAG,
-    SURFACE_ID_KEY,
-    CATALOG_COMPONENTS_KEY,
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiIntegrityError,
+    A2uiParseError,
+    A2uiValidationError,
+    Catalog,
+    CatalogApi,
+    PayloadValidator,
 )
-from a2ui.core.validation import analyze_topology
-from a2ui.parser.response_part import ResponsePart
-from a2ui.schema.schema_helper import CatalogSchemaHelper
 from a2ui.core.validation import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
     SchemaValidator,
     ValidationConfig,
+    analyze_topology,
 )
-from a2ui.core import A2uiParseError, A2uiIntegrityError, A2uiValidationError
 
-if TYPE_CHECKING:
-    from a2ui.schema.catalog import A2uiCatalog
+
+from a2ui.parser.constants import (
+    MSG_TYPE_CREATE_SURFACE,
+    MSG_TYPE_SURFACE_UPDATE,
+    MSG_TYPE_UPDATE_COMPONENTS,
+)
+from a2ui.parser.response_part import ResponsePart
+from a2ui.schema.constants import (
+    A2UI_CLOSE_TAG,
+    A2UI_OPEN_TAG,
+    CATALOG_COMPONENTS_KEY,
+    DEFAULT_CUTTABLE_KEYS,
+    SURFACE_ID_KEY,
+    VERSION_0_8,
+    VERSION_0_9,
+)
+from a2ui.schema.schema_helper import CatalogSchemaHelper
 
 logger = logging.getLogger(__name__)
 
@@ -53,27 +66,112 @@ class DirectJsonStreamParser:
     (V08 or V09) depending on the catalog version.
     """
 
-    def __new__(cls, catalog: A2uiCatalog) -> DirectJsonStreamParser:
+    def __new__(
+        cls,
+        catalogs: Sequence[CatalogApi] | CatalogApi | None = None,
+        custom_cuttable_keys: frozenset[str] | None = None,
+        *,
+        catalog: CatalogApi | None = None,
+    ) -> DirectJsonStreamParser:
+        actual_catalogs = catalogs if catalogs is not None else catalog
+        if actual_catalogs is None:
+            raise A2uiCatalogError("At least one catalog must be provided.")
+        if isinstance(actual_catalogs, (Sequence, set)) and not isinstance(
+            actual_catalogs, (str, bytes)
+        ):
+            catalog_list = list(actual_catalogs)
+        else:
+            catalog_list = [actual_catalogs]
+
+        if not catalog_list:
+            raise A2uiCatalogError("At least one catalog must be provided.")
+
+        if len(catalog_list) > 1:
+            for c in catalog_list:
+                ver = str(getattr(c, "protocol_version", "")).removeprefix("v")
+                if ver in ("0.8", "0.9", "0.9.1") or (ver and ver < "1.0"):
+                    raise A2uiCatalogError(
+                        "Only a single catalog is supported for protocol version"
+                        f" v{ver}. Multiple catalogs are supported in v1.0 and later."
+                    )
+
         if cls is DirectJsonStreamParser:
-            version = catalog.version
+            version = str(catalog_list[0].protocol_version).removeprefix("v")
             # Lazy import inside __new__ to prevent circular import errors, as the
             # version-specific subclass modules import DirectJsonStreamParser from this module.
             if version == VERSION_0_8:
                 from .streaming_v08 import DirectJsonStreamParserV08
 
-                return DirectJsonStreamParserV08(catalog=catalog)
+                return DirectJsonStreamParserV08(
+                    catalogs=catalog_list, custom_cuttable_keys=custom_cuttable_keys
+                )
+            elif version >= "1.0":
+                from .streaming_v09 import DirectJsonStreamParserV10
+
+                return DirectJsonStreamParserV10(
+                    catalogs=catalog_list, custom_cuttable_keys=custom_cuttable_keys
+                )
             else:
                 from .streaming_v09 import DirectJsonStreamParserV09
 
-                return DirectJsonStreamParserV09(catalog=catalog)
+                return DirectJsonStreamParserV09(
+                    catalogs=catalog_list, custom_cuttable_keys=custom_cuttable_keys
+                )
         return super().__new__(cls)
 
-    def __init__(self, catalog: A2uiCatalog):
-        self._catalog = catalog
-        self._validator = getattr(catalog, "validator", None)
-        self._version = catalog.version
-        self._cuttable_keys = catalog.cuttable_keys
-        self._schema_helper = CatalogSchemaHelper(catalog)
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi] | CatalogApi | None = None,
+        custom_cuttable_keys: frozenset[str] | None = None,
+        *,
+        catalog: CatalogApi | None = None,
+    ):
+        actual_catalogs = catalogs if catalogs is not None else catalog
+        if actual_catalogs is None:
+            raise A2uiCatalogError("At least one catalog must be provided.")
+        if isinstance(actual_catalogs, (Sequence, set)) and not isinstance(
+            actual_catalogs, (str, bytes)
+        ):
+            catalog_list = list(actual_catalogs)
+        else:
+            catalog_list = [actual_catalogs]
+
+        if not catalog_list:
+            raise A2uiCatalogError("At least one catalog must be provided.")
+
+        if len(catalog_list) > 1:
+            for c in catalog_list:
+                ver = str(getattr(c, "protocol_version", "")).removeprefix("v")
+                if ver in ("0.8", "0.9", "0.9.1") or (ver and ver < "1.0"):
+                    raise A2uiCatalogError(
+                        "Only a single catalog is supported for protocol version"
+                        f" v{ver}. Multiple catalogs are supported in v1.0 and later."
+                    )
+
+        self._catalogs = catalog_list
+        self.catalogs = self._catalogs
+        self._catalogs_by_id: dict[str, CatalogApi] = {
+            c.catalog_id: c for c in self._catalogs if c.catalog_id
+        }
+        self._surface_catalogs: dict[str, CatalogApi] = {}
+        self._unbound_catalog_id: str | None = None
+        self._default_catalog = self._catalogs[0]
+        self._validator: PayloadValidator | None = PayloadValidator(
+            self._default_catalog, config=STRICT_VALIDATION
+        )
+        self._version = str(self._default_catalog.protocol_version).removeprefix("v")
+        base_cuttable_keys: frozenset[str] = frozenset(DEFAULT_CUTTABLE_KEYS)
+        for c in self._catalogs:
+            keys = getattr(c, "cuttable_keys", None)
+            if keys is not None and not callable(keys):
+                base_cuttable_keys |= frozenset(keys)
+        if custom_cuttable_keys is not None:
+            self._cuttable_keys = base_cuttable_keys | frozenset(custom_cuttable_keys)
+        else:
+            self._cuttable_keys = base_cuttable_keys
+        self._schema_helpers: dict[int, CatalogSchemaHelper] = {
+            id(c): CatalogSchemaHelper(c) for c in self._catalogs
+        }
 
         self._found_delimiter = False
         self._buffer = ""
@@ -128,6 +226,49 @@ class DirectJsonStreamParser:
         self._found_valid_json_in_block = False
 
     @property
+    def _catalog(self) -> CatalogApi:
+        if self._surface_id and self._surface_id in self._surface_catalogs:
+            return self._surface_catalogs[self._surface_id]
+        if (
+            self._unbound_catalog_id
+            and self._unbound_catalog_id in self._catalogs_by_id
+        ):
+            return self._catalogs_by_id[self._unbound_catalog_id]
+        return self._default_catalog
+
+    @property
+    def _schema_helper(self) -> CatalogSchemaHelper:
+        cat = self._catalog
+        helper = self._schema_helpers.get(id(cat))
+        if helper is None:
+            helper = CatalogSchemaHelper(cat)
+            self._schema_helpers[id(cat)] = helper
+        return helper
+
+    def _resolve_catalog_for_component(
+        self, comp: dict[str, Any], comp_type: str | None = None
+    ) -> CatalogApi:
+        comp_cat_id = comp.get("catalogId") if isinstance(comp, dict) else None
+        if isinstance(comp_cat_id, str) and comp_cat_id in self._catalogs_by_id:
+            return self._catalogs_by_id[comp_cat_id]
+        active_cat = self._catalog
+        if comp_type is None and isinstance(comp, dict):
+            c_val = comp.get("component")
+            if isinstance(c_val, str):
+                comp_type = c_val
+            elif isinstance(c_val, dict) and c_val:
+                comp_type = next(iter(c_val.keys()))
+        if comp_type:
+            active_helper = self._schema_helpers.get(id(active_cat))
+            if active_helper and comp_type in active_helper.components:
+                return active_cat
+            for cat in self._catalogs:
+                helper = self._schema_helpers.get(id(cat))
+                if helper and comp_type in helper.components:
+                    return cat
+        return active_cat
+
+    @property
     def _placeholder_component(self) -> dict[str, Any]:
         """Returns the version-specific placeholder component.
 
@@ -174,6 +315,28 @@ class DirectJsonStreamParser:
         if value is not None and self._unbound_root_id is not None:
             self._root_ids[value] = self._unbound_root_id
             self._unbound_root_id = None
+        if value is not None and self._unbound_catalog_id is not None:
+            if self._unbound_catalog_id in self._catalogs_by_id:
+                self._surface_catalogs[value] = self._catalogs_by_id[
+                    self._unbound_catalog_id
+                ]
+            self._unbound_catalog_id = None
+
+    @property
+    def catalog_id(self) -> str | None:
+        if self._surface_id and self._surface_id in self._surface_catalogs:
+            return self._surface_catalogs[self._surface_id].catalog_id
+        return self._unbound_catalog_id or self._default_catalog.catalog_id
+
+    @catalog_id.setter
+    def catalog_id(self, value: str | None) -> None:
+        if self._surface_id:
+            if value is not None and value in self._catalogs_by_id:
+                self._surface_catalogs[self._surface_id] = self._catalogs_by_id[value]
+            else:
+                self._surface_catalogs.pop(self._surface_id, None)
+        else:
+            self._unbound_catalog_id = value
 
     @property
     def root_id(self) -> str | None:
@@ -244,7 +407,13 @@ class DirectJsonStreamParser:
 
     def _get_s2c_validator(self) -> Any:
         if not hasattr(self, "_s2c_validator_cached"):
-            if not self._catalog.s2c_schema:
+            from a2ui.schema.utils import (
+                load_agent_to_renderer_schema,
+                load_common_types_schema,
+            )
+
+            s2c_schema = load_agent_to_renderer_schema(self._version)
+            if not s2c_schema:
                 self._s2c_validator_cached = None
             else:
                 from referencing import Registry, Resource
@@ -252,9 +421,10 @@ class DirectJsonStreamParser:
 
                 registry = Registry()
                 ver = f"v{self._version.removeprefix('v')}"
-                if self._catalog.common_types_schema:
+                common_types_schema = load_common_types_schema(self._version)
+                if common_types_schema:
                     res_ct = Resource.from_contents(
-                        self._catalog.common_types_schema,
+                        common_types_schema,
                         default_specification=referencing.jsonschema.DRAFT202012,
                     )
                     registry = (
@@ -272,15 +442,37 @@ class DirectJsonStreamParser:
                             res_ct,
                         )
                     )
-                if self._catalog.catalog_schema:
-                    import copy
-
-                    cat_schema_to_register = copy.deepcopy(
-                        dict(self._catalog.catalog_schema)
+                catalog_schemas = [
+                    c.catalog_schema for c in self._catalogs if c.catalog_schema
+                ]
+                if catalog_schemas:
+                    cat_schema_to_register = copy.deepcopy(dict(catalog_schemas[0]))
+                    defs = cat_schema_to_register.get("$defs")
+                    if not isinstance(defs, dict):
+                        defs = {}
+                        cat_schema_to_register["$defs"] = defs
+                    components = cat_schema_to_register.get("components")
+                    if isinstance(components, dict):
+                        components = dict(components)
+                        cat_schema_to_register["components"] = components
+                    for extra_schema in catalog_schemas[1:]:
+                        extra_defs = extra_schema.get("$defs")
+                        if isinstance(extra_defs, dict):
+                            for k, v in extra_defs.items():
+                                if k != "anyComponent":
+                                    defs.setdefault(k, copy.deepcopy(v))
+                        extra_comps = extra_schema.get("components")
+                        if isinstance(extra_comps, dict):
+                            if not isinstance(components, dict):
+                                components = {}
+                                cat_schema_to_register["components"] = components
+                            for k, v in extra_comps.items():
+                                components.setdefault(k, copy.deepcopy(v))
+                    defs.setdefault(
+                        "theme", {"type": "object", "additionalProperties": True}
                     )
-                    if "components" in cat_schema_to_register:
-                        defs = cat_schema_to_register.setdefault("$defs", {})
-                        if "anyComponent" not in defs:
+                    if isinstance(cat_schema_to_register.get("components"), dict):
+                        if "anyComponent" not in defs or len(catalog_schemas) > 1:
                             defs["anyComponent"] = {
                                 "oneOf": [
                                     {"$ref": f"#/components/{comp_name}"}
@@ -307,7 +499,7 @@ class DirectJsonStreamParser:
                         )
                     )
                 self._s2c_validator_cached = SchemaValidator(
-                    self._catalog.s2c_schema,
+                    s2c_schema,
                     registry=registry,
                 )
         return self._s2c_validator_cached
@@ -353,6 +545,7 @@ class DirectJsonStreamParser:
         self._pending_messages.pop(sid, None)
         self._yielded_ids.pop(sid, None)
         self._components_by_surface.pop(sid, None)
+        self._surface_catalogs.pop(sid, None)
 
         # Clear contents for this surface
         self._yielded_contents = {
@@ -363,7 +556,7 @@ class DirectJsonStreamParser:
 
         self._deleted_surfaces.add(sid)
 
-    def process_chunk(self, chunk: str) -> list[ResponsePart]:
+    def parse_chunk(self, chunk: str, wrapped: bool = True) -> list[ResponsePart]:
         """Processes a chunk of text and returns any complete A2UI messages found.
 
         This is the primary entry point for the streaming parser. It handles the
@@ -372,10 +565,12 @@ class DirectJsonStreamParser:
 
         Args:
             chunk: The chunk of raw text (e.g., from an LLM stream) to process.
+            wrapped: Whether the stream is wrapped in A2UI tags.
 
         Returns:
             A list of parsed A2UI message dictionaries.
         """
+        del wrapped
         messages = []
         self._buffer += chunk
 
@@ -463,9 +658,11 @@ class DirectJsonStreamParser:
 
         if messages:
             logger.debug(
-                f"DEBUG: process_chunk returning {len(messages)} messages: {messages}"
+                f"DEBUG: parse_chunk returning {len(messages)} messages: {messages}"
             )
         return messages
+
+    process_chunk = parse_chunk
 
     def _reset_json_state(self) -> None:
         """Resets the JSON-specific parsing state (e.g., at the end of a block)."""
@@ -921,7 +1118,9 @@ class DirectJsonStreamParser:
             # v0.9/v1.0 flat style: check the whole component object for empty dicts
             if _has_empty_dict(comp):
                 return
-            required_fields = self._schema_helper.get_component_required(comp_type)
+            cat = self._resolve_catalog_for_component(comp, comp_type)
+            helper = self._schema_helpers.get(id(cat), self._schema_helper)
+            required_fields = helper.get_component_required(comp_type)
             for req in required_fields:
                 if req not in comp:
                     return
@@ -933,9 +1132,9 @@ class DirectJsonStreamParser:
             if type_name:
                 props = comp_type.get(type_name, {})
                 if isinstance(props, dict):
-                    required_fields = self._schema_helper.get_component_required(
-                        type_name
-                    )
+                    cat = self._resolve_catalog_for_component(comp, type_name)
+                    helper = self._schema_helpers.get(id(cat), self._schema_helper)
+                    required_fields = helper.get_component_required(type_name)
                     for req in required_fields:
                         if req not in props:
                             return
@@ -1033,10 +1232,11 @@ class DirectJsonStreamParser:
                 else:
                     c_type = ""
                     props = {}
+                comp_cat = self._resolve_catalog_for_component(cdef, c_type)
                 comp_models[cid] = ComponentModel(
                     cid,
                     c_type,
-                    getattr(self._catalog, "core_catalog", None),
+                    comp_cat,
                     props,
                 )
 
@@ -1120,6 +1320,7 @@ class DirectJsonStreamParser:
 
             for rid in sorted(list(available_reachable)):
                 comp = copy.deepcopy(self._seen_components[rid])
+
                 # Apply path placeholders and prune unseen children in a single pass
                 self._process_component_topology(comp, extra_components)
                 processed_components.append(comp)
@@ -1335,13 +1536,18 @@ class DirectJsonStreamParser:
         """
         child_fields: set[str] = set()
         comp_type = obj.get("component")
-        core_cat = getattr(self._catalog, "core_catalog", self._catalog)
-        if core_cat and comp_type and hasattr(core_cat, "reference_map"):
-            if comp_type in core_cat.reference_map:
-                ref_spec = core_cat.reference_map[comp_type]
-                child_fields.update(ref_spec.single_child_props)
-                child_fields.update(ref_spec.list_child_props)
-                child_fields.update(ref_spec.nested_child_slots.keys())
+        cat = self._resolve_catalog_for_component(
+            obj, comp_type if isinstance(comp_type, str) else None
+        )
+        ref_map = getattr(cat, "component_ref_map", None) or getattr(
+            cat, "reference_map", None
+        )
+        if ref_map and comp_type and comp_type in ref_map:
+            ref_spec = ref_map[comp_type]
+            child_fields.update(ref_spec.single_refs)
+            child_fields.update(ref_spec.list_refs)
+            child_fields.update(ref_spec.nested_refs.keys())
+            if child_fields:
                 return child_fields
 
         from a2ui.core.state import is_v0_8_heuristic_child_prop_key

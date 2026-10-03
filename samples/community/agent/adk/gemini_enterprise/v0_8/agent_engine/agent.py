@@ -28,11 +28,12 @@ from a2ui.a2a import (
     get_a2ui_agent_extension,
     parse_response_to_parts,
 )
-from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.parser.parser import parse_response
 from a2ui.core.schema.common_modifiers import remove_strict_validation
 from a2ui.core.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8
 from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.schema import CatalogConfig, validate_components
 import dotenv
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
@@ -80,8 +81,9 @@ class ContactAgent:
         return DirectJsonFormat(
             version=version,
             catalogs=[
-                BasicCatalog.get_config(
-                    version=version,
+                CatalogConfig.from_catalog(
+                    "basic",
+                    BasicCatalog(version),
                     examples_path=os.path.join(
                         os.path.dirname(__file__), f"examples/{version}"
                     ),
@@ -153,14 +155,12 @@ class ContactAgent:
         """Builds the LLM agent for the contact agent."""
 
         instruction = (
-            inference_format.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                workflow_description=WORKFLOW_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_schema=True,
-                include_examples=True,
-                validate_examples=True,
-            )
+            "\n\n".join([
+                ROLE_DESCRIPTION,
+                WORKFLOW_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+                inference_format.prompt_generator.generate(),
+            ])
             if inference_format
             else get_text_prompt()
         )
@@ -330,7 +330,7 @@ class ContactAgent:
                                 "--- ContactAgent.fetch_response: Validating against"
                                 " A2UI_SCHEMA... ---"
                             )
-                            selected_catalog.validate_components(parsed_json_data)
+                            validate_components(selected_catalog, parsed_json_data)
                             # --- End Validation Steps ---
 
                             print(

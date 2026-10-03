@@ -15,9 +15,7 @@
 import copy
 import pytest
 
-pytestmark = pytest.mark.skip(
-    reason="TODO: validation package was removed from a2ui_agent library"
-)
+
 from a2ui.schema.constants import (
     A2UI_OPEN_TAG,
     A2UI_CLOSE_TAG,
@@ -28,106 +26,13 @@ from a2ui.parser.constants import (
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
 )
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import Catalog
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser.response_part import ResponsePart
 
 
 @pytest.fixture
 def mock_catalog():
-    s2c_schema = {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://a2ui.org/specification/v0_9/server_to_client.json",
-        "title": "A2UI Message Schema",
-        "type": "object",
-        "oneOf": [
-            {"$ref": "#/$defs/CreateSurfaceMessage"},
-            {"$ref": "#/$defs/UpdateComponentsMessage"},
-            {"$ref": "#/$defs/UpdateDataModelMessage"},
-            {"$ref": "#/$defs/DeleteSurfaceMessage"},
-        ],
-        "$defs": {
-            "CreateSurfaceMessage": {
-                "type": "object",
-                "properties": {
-                    "version": {"const": "v0.9"},
-                    "createSurface": {
-                        "type": "object",
-                        "properties": {
-                            "surfaceId": {
-                                "type": "string",
-                            },
-                            "catalogId": {
-                                "type": "string",
-                            },
-                            "theme": {
-                                "type": "object",
-                                "additionalProperties": True,
-                            },
-                        },
-                        "required": ["surfaceId", "catalogId"],
-                        "additionalProperties": False,
-                    },
-                },
-                "required": ["version", "createSurface"],
-                "additionalProperties": False,
-            },
-            "UpdateComponentsMessage": {
-                "type": "object",
-                "properties": {
-                    "version": {"const": "v0.9"},
-                    "updateComponents": {
-                        "type": "object",
-                        "properties": {
-                            "surfaceId": {
-                                "type": "string",
-                            },
-                            "components": {
-                                "type": "array",
-                                "minItems": 1,
-                                "items": {"$ref": "catalog.json#/$defs/anyComponent"},
-                            },
-                        },
-                        "required": ["surfaceId", "components"],
-                        "additionalProperties": False,
-                    },
-                },
-                "required": ["version", "updateComponents"],
-                "additionalProperties": False,
-            },
-            "UpdateDataModelMessage": {
-                "type": "object",
-                "properties": {
-                    "version": {"const": "v0.9"},
-                    "updateDataModel": {
-                        "type": "object",
-                        "properties": {
-                            "surfaceId": {
-                                "type": "string",
-                            },
-                            "value": {"additionalProperties": True},
-                        },
-                        "required": ["surfaceId"],
-                        "additionalProperties": False,
-                    },
-                },
-                "required": ["version", "updateDataModel"],
-                "additionalProperties": False,
-            },
-            "DeleteSurfaceMessage": {
-                "type": "object",
-                "properties": {
-                    "version": {"const": "v0.9"},
-                    "deleteSurface": {
-                        "type": "object",
-                        "properties": {"surfaceId": {"type": "string"}},
-                        "required": ["surfaceId"],
-                    },
-                },
-                "required": ["version", "deleteSurface"],
-            },
-        },
-    }
     catalog_schema = {
         "catalogId": "test_catalog",
         "components": {
@@ -254,64 +159,10 @@ def mock_catalog():
             },
         },
     }
-    common_types_schema = {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://a2ui.org/specification/v0_9/common_types.json",
-        "title": "A2UI Common Types",
-        "$defs": {
-            "ComponentId": {
-                "type": "string",
-            },
-            "AccessibilityAttributes": {
-                "type": "object",
-                "properties": {
-                    "label": {
-                        "$ref": "#/$defs/DynamicString",
-                    }
-                },
-            },
-            "Action": {"type": "object", "additionalProperties": True},
-            "ComponentCommon": {
-                "type": "object",
-                "properties": {"id": {"$ref": "#/$defs/ComponentId"}},
-                "required": ["id"],
-            },
-            "DataBinding": {"type": "object"},
-            "DynamicString": {
-                "anyOf": [{"type": "string"}, {"$ref": "#/$defs/DataBinding"}]
-            },
-            "DynamicValue": {
-                "anyOf": [
-                    {"type": "object"},
-                    {"type": "array"},
-                    {"$ref": "#/$defs/DataBinding"},
-                ]
-            },
-            "DynamicNumber": {
-                "anyOf": [{"type": "number"}, {"$ref": "#/$defs/DataBinding"}]
-            },
-            "ChildList": {
-                "oneOf": [
-                    {"type": "array", "items": {"$ref": "#/$defs/ComponentId"}},
-                    {
-                        "type": "object",
-                        "properties": {
-                            "componentId": {"$ref": "#/$defs/ComponentId"},
-                            "path": {"type": "string"},
-                        },
-                        "required": ["componentId", "path"],
-                        "additionalProperties": False,
-                    },
-                ]
-            },
-        },
-    }
-    return A2uiCatalog(
-        version=VERSION_0_9,
-        name="test_catalog",
-        s2c_schema=s2c_schema,
-        common_types_schema=common_types_schema,
+    return Catalog.from_json(
         catalog_schema=catalog_schema,
+        protocol_version=VERSION_0_9,
+        catalog_id="test_catalog",
     )
 
 
@@ -355,7 +206,7 @@ def assertResponseContainsText(response, expected_text):
 
 
 def test_add_msg_type_deduplication(mock_catalog):
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     parser.add_msg_type(MSG_TYPE_UPDATE_COMPONENTS)
     parser.add_msg_type(MSG_TYPE_UPDATE_COMPONENTS)
     assert parser.msg_types == [MSG_TYPE_UPDATE_COMPONENTS]
@@ -367,14 +218,14 @@ def test_add_msg_type_deduplication(mock_catalog):
 
 
 def test_streaming_msg_type_deduplication(mock_catalog):
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     # 1. Send partial chunk that triggers sniffing
     chunk1 = (
         A2UI_OPEN_TAG
         + '[{"version": "v0.9", "updateComponents": {"surfaceId": "s1",'
         ' "components": [{"id": "root", "component": "Text", "text": "Hello"}'
     )
-    parser.process_chunk(chunk1)
+    parser.parse_chunk(chunk1)
 
     assert MSG_TYPE_UPDATE_COMPONENTS in parser.msg_types
     assert parser.msg_types.count(MSG_TYPE_UPDATE_COMPONENTS) == 1
@@ -383,7 +234,7 @@ def test_streaming_msg_type_deduplication(mock_catalog):
     chunk2 = (
         f', {{"id": "c1", "component": "Text", "text": "hi"}}]}}}} {A2UI_CLOSE_TAG}'
     )
-    parser.process_chunk(chunk2)
+    parser.parse_chunk(chunk2)
 
     # After completion, msg_types is reset
     assert not parser.msg_types
@@ -391,7 +242,7 @@ def test_streaming_msg_type_deduplication(mock_catalog):
 
 def test_v09_path_heuristic_relative_path(mock_catalog):
     """Tests that v0.9 allows relative paths (no leading slash)."""
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     # Disable validation to avoid needing full catalog for this test
     parser._validator = None
 
@@ -402,7 +253,7 @@ def test_v09_path_heuristic_relative_path(mock_catalog):
         ' "c1"}}]'
         + A2UI_CLOSE_TAG
     )
-    list(parser.process_chunk(chunk_cs))
+    list(parser.parse_chunk(chunk_cs))
 
     # 2. Update components with a relative path
     chunk_uc = (
@@ -414,7 +265,7 @@ def test_v09_path_heuristic_relative_path(mock_catalog):
     )
 
     messages = []
-    for part in parser.process_chunk(chunk_uc):
+    for part in parser.parse_chunk(chunk_uc):
         if part.a2ui_json:
             messages.extend(part.a2ui_json)
 
@@ -425,7 +276,7 @@ def test_v09_path_heuristic_relative_path(mock_catalog):
 
 def test_v09_path_heuristic_absolute_path(mock_catalog):
     """Tests that v0.9 still supports absolute paths (leading slash)."""
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     parser._validator = None
 
     # 1. Create surface
@@ -435,7 +286,7 @@ def test_v09_path_heuristic_absolute_path(mock_catalog):
         ' "c1"}}]'
         + A2UI_CLOSE_TAG
     )
-    list(parser.process_chunk(chunk_cs))
+    list(parser.parse_chunk(chunk_cs))
 
     # 2. Update components with an absolute path
     chunk_uc = (
@@ -446,7 +297,7 @@ def test_v09_path_heuristic_absolute_path(mock_catalog):
     )
 
     messages = []
-    for part in parser.process_chunk(chunk_uc):
+    for part in parser.parse_chunk(chunk_uc):
         if part.a2ui_json:
             messages.extend(part.a2ui_json)
 
@@ -457,7 +308,7 @@ def test_v09_path_heuristic_absolute_path(mock_catalog):
 
 def test_v09_single_top_level_object(mock_catalog):
     """Tests that v0.9 supports a single top-level object without array wrapping."""
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
 
     chunk = (
         A2UI_OPEN_TAG
@@ -465,7 +316,7 @@ def test_v09_single_top_level_object(mock_catalog):
         + A2UI_CLOSE_TAG
     )
     messages = []
-    for part in parser.process_chunk(chunk):
+    for part in parser.parse_chunk(chunk):
         if part.a2ui_json:
             messages.extend(part.a2ui_json)
 
@@ -475,7 +326,7 @@ def test_v09_single_top_level_object(mock_catalog):
 
 def test_v09_multiple_top_level_objects(mock_catalog):
     """Tests that v0.9 supports multiple consecutive top-level objects without array wrapping."""
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
 
     chunk = (
         A2UI_OPEN_TAG
@@ -486,7 +337,7 @@ def test_v09_multiple_top_level_objects(mock_catalog):
         + A2UI_CLOSE_TAG
     )
     messages = []
-    for part in parser.process_chunk(chunk):
+    for part in parser.parse_chunk(chunk):
         if part.a2ui_json:
             messages.extend(part.a2ui_json)
 
@@ -497,7 +348,7 @@ def test_v09_multiple_top_level_objects(mock_catalog):
 
 def test_v09_leaf_component_child_fields_not_heuristic(mock_catalog):
     """Tests that components with no child fields defined in reference_map do not use heuristics."""
-    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     child_fields = parser._get_child_fields_for_obj(
         {"component": "Text", "id": "t1", "text": "Hello world", "customProp": "Value"}
     )

@@ -13,13 +13,26 @@
 # limitations under the License.
 
 from . import constants as constants
-from .catalog import A2uiCatalog, CatalogConfig
-from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
+from .catalog import (
+    CatalogConfig,
+    load_examples,
+    prune_catalog_components,
+    prune_common_types_schema,
+    prune_messages_schema,
+    render_as_llm_instructions,
+    validate_components,
+    validate_payload,
+)
+from .catalog_provider import (
+    A2uiCatalogProvider,
+    FileSystemCatalogProvider,
+    InMemoryCatalogProvider,
+)
 from .common_modifiers import remove_strict_validation
 from .constants import (
+    A2UI_CLIENT_CAPABILITIES_KEY,
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
-    A2UI_CLIENT_CAPABILITIES_KEY,
     BASE_SCHEMA_URL,
     CATALOG_COMPONENTS_KEY,
     CATALOG_ID_KEY,
@@ -33,10 +46,9 @@ from .constants import (
 )
 
 __all__ = [
+    "A2UI_CLIENT_CAPABILITIES_KEY",
     "A2UI_CLOSE_TAG",
     "A2UI_OPEN_TAG",
-    "A2UI_CLIENT_CAPABILITIES_KEY",
-    "A2uiCatalog",
     "A2uiCatalogProvider",
     "BASE_SCHEMA_URL",
     "CATALOG_COMPONENTS_KEY",
@@ -44,6 +56,7 @@ __all__ = [
     "CATALOG_SCHEMA_KEY",
     "CatalogConfig",
     "FileSystemCatalogProvider",
+    "InMemoryCatalogProvider",
     "PROTOCOL_VERSION_MAP",
     "SPEC_VERSION_MAP",
     "VERSION_0_8",
@@ -51,5 +64,12 @@ __all__ = [
     "VERSION_0_9_1",
     "VERSION_1_0",
     "constants",
+    "load_examples",
+    "prune_catalog_components",
+    "prune_common_types_schema",
+    "prune_messages_schema",
     "remove_strict_validation",
+    "render_as_llm_instructions",
+    "validate_components",
+    "validate_payload",
 ]

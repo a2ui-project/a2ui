@@ -3229,3 +3229,93 @@
                     text: "Streaming v1.0"
                 dataModel:
                   count: 10
+
+- name: test_v1_0_streaming_multi_catalog_resolution
+  description: Verifies streaming v1.0 updateComponents with multiple catalogs resolving components across catalogs.
+  protocolVersion: "v1.0"
+  catalogs:
+    - protocolVersion: "v1.0"
+      catalogSchema:
+        catalogId: "https://a2ui.org/catalogs/basic"
+        components:
+          Text:
+            type: object
+            properties:
+              id: {type: string}
+              component: {type: string, enum: ["Text"]}
+              text: {type: string}
+            required: ["id", "component", "text"]
+          Column:
+            type: object
+            properties:
+              id: {type: string}
+              component: {type: string, enum: ["Column"]}
+              children:
+                type: array
+                items: {type: string}
+            required: ["id", "component", "children"]
+    - protocolVersion: "v1.0"
+      catalogSchema:
+        catalogId: "https://a2ui.org/catalogs/custom"
+        components:
+          CustomMetric:
+            type: object
+            properties:
+              id: {type: string}
+              component: {type: string, enum: ["CustomMetric"]}
+              value: {type: number}
+            required: ["id", "component", "value"]
+  disableValidation: true
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "main"
+                catalogId: "https://a2ui.org/catalogs/basic"
+    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["t1", "m1"]}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "component": "CustomMetric", "value": 42}]}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateComponents:
+                surfaceId: "main"
+                components:
+                  - id: "m1"
+                    component: "CustomMetric"
+                    value: 42
+                  - id: "root"
+                    component: "Column"
+                    children: ["t1", "m1"]
+                  - id: "t1"
+                    component: "Text"
+                    text: "Users"
+
+- name: test_v0_9_multiple_catalogs_rejected
+  description: Verifies that multiple catalogs are rejected with CatalogError for v0.9 protocol.
+  action: process_chunk
+  catalogs:
+    - protocolVersion: "v0.9"
+      catalogSchema:
+        catalogId: "cat1"
+    - protocolVersion: "v0.9"
+      catalogSchema:
+        catalogId: "cat2"
+  expectError:
+    category: "CatalogError"
+    message: "Only a single catalog is supported"
+
+- name: test_v0_8_multiple_catalogs_rejected
+  description: Verifies that multiple catalogs are rejected with CatalogError for v0.8 protocol.
+  action: process_chunk
+  catalogs:
+    - protocolVersion: "v0.8"
+      catalogSchema:
+        catalogId: "cat1"
+    - protocolVersion: "v0.8"
+      catalogSchema:
+        catalogId: "cat2"
+  expectError:
+    category: "CatalogError"
+    message: "Only a single catalog is supported"

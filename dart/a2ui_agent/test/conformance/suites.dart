@@ -94,11 +94,10 @@ List<CatalogApi> caseCatalogs(Map<String, Object?> args) => [
 ];
 
 CatalogTransformer _transformer(Object? spec) => switch (spec) {
-  {'component_pruning': final List<Object?> names} =>
-    ComponentPruningTransformer(names.cast<String>()),
-  {'function_pruning': final List<Object?> names} => FunctionPruningTransformer(
-    names.cast<String>(),
-  ),
+  {'component_pruning': final List<Object?>? names} =>
+    ComponentPruningTransformer(names?.cast<String>()),
+  {'function_pruning': final List<Object?>? names} =>
+    FunctionPruningTransformer(names?.cast<String>()),
   _ => throw ArgumentError.value(spec, 'spec', 'Unknown transformer'),
 };
 

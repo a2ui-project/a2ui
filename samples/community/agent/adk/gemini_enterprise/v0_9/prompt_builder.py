@@ -132,7 +132,7 @@ def get_text_prompt() -> str:
 if __name__ == "__main__":
     # Example of how to use the A2UI Schema Manager to generate a system prompt.
     version = VERSION_0_9
-    demo_prompt = A2uiSchemaManager(
+    schema_manager = A2uiSchemaManager(
         version,
         catalogs=[
             CatalogConfig.from_path(
@@ -142,13 +142,12 @@ if __name__ == "__main__":
             )
         ],
         schema_modifiers=[remove_strict_validation],
-    ).generate_system_prompt(
-        role_description=ROLE_DESCRIPTION,
-        ui_description=UI_DESCRIPTION,
-        include_schema=True,
-        include_examples=True,
-        validate_examples=True,
     )
+    demo_prompt = "\n\n".join([
+        ROLE_DESCRIPTION,
+        f"## UI Description:\n{UI_DESCRIPTION}",
+        schema_manager.prompt_generator.generate(),
+    ])
 
     print(demo_prompt)
 

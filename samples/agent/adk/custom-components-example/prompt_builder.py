@@ -14,7 +14,6 @@
 
 import json
 
-from a2ui.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
@@ -25,6 +24,7 @@ from a2ui.schema import (
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
+    render_as_llm_instructions,
 )
 from typing import Any
 
@@ -90,14 +90,12 @@ if __name__ == "__main__":
         accepts_inline_catalogs=True,
         schema_modifiers=[remove_strict_validation],
     )
-    contact_prompt = transport_format.generate_system_prompt(
-        role_description=ROLE_DESCRIPTION,
-        workflow_description=WORKFLOW_DESCRIPTION,
-        ui_description=UI_DESCRIPTION,
-        include_schema=True,
-        include_examples=True,
-        validate_examples=False,
-    )
+    contact_prompt = "\n\n".join([
+        ROLE_DESCRIPTION,
+        WORKFLOW_DESCRIPTION,
+        f"## UI Description:\n{UI_DESCRIPTION}",
+        direct_json_format.prompt_generator.generate(),
+    ])
     print(contact_prompt)
     with open("generated_prompt.txt", "w") as f:
         f.write(contact_prompt)
@@ -107,19 +105,19 @@ if __name__ == "__main__":
         inline_catalog = json.load(f)
 
     client_ui_capabilities = {"inlineCatalogs": [inline_catalog]}
-    inline_catalog = transport_format.get_selected_catalog(
+    inline_catalog = direct_json_format.get_selected_catalog(
         client_ui_capabilities=client_ui_capabilities,
     )
-    request_prompt = inline_catalog.render_as_llm_instructions()
+    request_prompt = render_as_llm_instructions(inline_catalog)
     print(request_prompt)
     with open("request_prompt.txt", "w") as f:
         f.write(request_prompt)
     print("\nGenerated request prompt saved to request_prompt.txt")
 
-    basic_catalog = inference_format.get_selected_catalog(
+    basic_catalog = direct_json_format.get_selected_catalog(
         client_ui_capabilities=client_ui_capabilities
     )
-    examples = inference_format.load_examples(
+    examples = direct_json_format.load_examples(
         basic_catalog,
         validate=True,
     )

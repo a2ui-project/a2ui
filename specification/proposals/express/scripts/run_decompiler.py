@@ -84,20 +84,22 @@ def decompile_example(example_path: str, catalog_path: str) -> str:
             f"Could not find any 'updateComponents' message in {example_path}"
         )
 
-    envelope = {
+    from a2ui.core.schema.v1_0 import CreateSurfaceMessage
+
+    envelope = CreateSurfaceMessage.model_validate({
         "version": "v1.0",
         "createSurface": {
             "surfaceId": surface_id,
             "catalogId": catalog_id,
             "components": components_list,
         },
-    }
+    })
 
     with open(catalog_path, "r", encoding="utf-8") as f:
         catalog_dict = json.load(f)
     catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
     decompiler = ExpressParser(catalog)
-    return decompiler.decompile(envelope)
+    return decompiler.decompile([envelope])
 
 
 def main():
