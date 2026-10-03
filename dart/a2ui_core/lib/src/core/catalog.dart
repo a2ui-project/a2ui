@@ -162,44 +162,59 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     this.description,
     this.protocolVersion,
     this.instructions,
-  })  : components = _indexByName(id, 'component', components),
-        functions = _indexByName(id, 'function', functions);
+  })  : components = _indexComponents(id, components),
+        functions = _indexFunctions(id, functions);
 
-  static Map<String, T> _indexByName<T>(
+  static Map<String, T> _indexComponents<T extends ComponentApi>(
     String catalogId,
-    String kind,
     List<T> items,
   ) {
     final byName = <String, T>{};
     for (final item in items) {
-      final String name = switch (item) {
-        final ComponentApi component => component.name,
-        final FunctionApi function => function.name,
-        _ => throw ArgumentError.value(item, 'items'),
-      };
-      if (kind == 'component' && name == reservedComponentName) {
+      if (item.name == reservedComponentName) {
         throw A2uiCatalogError(
           "Catalog '$catalogId' declares a component named "
           "'$reservedComponentName', which is reserved.",
           catalogId: catalogId,
         );
       }
-      if (kind == 'function' && name.startsWith('@')) {
-        throw A2uiCatalogError(
-          "Catalog '$catalogId' declares a function named '$name'; names "
-          "starting with '@' are reserved.",
-          catalogId: catalogId,
-        );
-      }
-      if (byName.containsKey(name)) {
-        throw A2uiCatalogError(
-          "Catalog '$catalogId' declares more than one $kind named '$name'.",
-          catalogId: catalogId,
-        );
-      }
-      byName[name] = item;
+      _addUnique(byName, catalogId, 'component', item.name, item);
     }
     return byName;
+  }
+
+  static Map<String, T> _indexFunctions<T extends FunctionApi>(
+    String catalogId,
+    List<T> items,
+  ) {
+    final byName = <String, T>{};
+    for (final item in items) {
+      if (item.name.startsWith('@')) {
+        throw A2uiCatalogError(
+          "Catalog '$catalogId' declares a function named '${item.name}'; "
+          "names starting with '@' are reserved.",
+          catalogId: catalogId,
+        );
+      }
+      _addUnique(byName, catalogId, 'function', item.name, item);
+    }
+    return byName;
+  }
+
+  static void _addUnique<T>(
+    Map<String, T> byName,
+    String catalogId,
+    String kind,
+    String name,
+    T item,
+  ) {
+    if (byName.containsKey(name)) {
+      throw A2uiCatalogError(
+        "Catalog '$catalogId' declares more than one $kind named '$name'.",
+        catalogId: catalogId,
+      );
+    }
+    byName[name] = item;
   }
 
   /// Parses a catalog document into a schema-only [Catalog].
