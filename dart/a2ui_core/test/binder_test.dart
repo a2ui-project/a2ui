@@ -423,5 +423,237 @@ void main() {
       surface.dataModel.set('/valid', true);
       expect(binder.resolvedProps.value['isValid'], true);
     });
+
+    test(
+      'v1.0 @path produces WritableBinding while plain path is read-only (#81)',
+      () {
+        final v1Surface = SurfaceModel<ComponentApi>(
+          's-v1',
+          catalog: catalog,
+          protocolVersion: 'v1.0',
+        );
+        addTearDown(v1Surface.dispose);
+        v1Surface.dataModel.set('/val', 'initial');
+
+        final comp = ComponentModel('c1', 'Text', {
+          'text': {'@path': '/val'},
+        });
+        v1Surface.componentsModel.addComponent(comp);
+
+        final context = ComponentContext(v1Surface, comp);
+        final binder = GenericBinder(context, MinimalTextApi().schema);
+
+        final Object? binding = binder.resolvedProps.value['text'];
+        expect(binding, isA<WritableBinding<Object?>>());
+        final writable = binding as WritableBinding<Object?>;
+        expect(writable.value, 'initial');
+        expect(writable.path, '/val');
+
+        writable.set('updated-v1');
+        expect(v1Surface.dataModel.get('/val'), 'updated-v1');
+
+        // Plain {'path': '/val'} in v1.0 is a literal map, not a WritableBinding.
+        final comp2 = ComponentModel('c2', 'Text', {
+          'text': {'path': '/val'},
+        });
+        v1Surface.componentsModel.addComponent(comp2);
+        final binder2 = GenericBinder(
+          ComponentContext(v1Surface, comp2),
+          MinimalTextApi().schema,
+        );
+        final Object? plainBinding = binder2.resolvedProps.value['text'];
+        expect(plainBinding, isNot(isA<WritableBinding<Object?>>()));
+        expect((plainBinding as ResolvedBinding<Object?>).value, {
+          'path': '/val',
+        });
+      },
+    );
+
+    test(
+      'v1.0 local function actions execute @call and reject plain call (#81)',
+      () async {
+        final calls = <Map<String, dynamic>>[];
+        final actions = <A2uiClientAction>[];
+        final errors = <A2uiClientError>[];
+        final v1Surface = SurfaceModel<ComponentApi>(
+          's-v1-fn',
+          protocolVersion: 'v1.0',
+          catalog: Catalog<ComponentApi, FunctionImplementation>(
+            id: 'test-v1',
+            components: [MinimalButtonApi()],
+            functions: [
+              _SpyFunction('spy', (args) {
+                calls.add(args);
+                return null;
+              }),
+              _SpyFunction('failAsync', (_) async {
+                await Future<void>.delayed(Duration.zero);
+                throw StateError('v1 async boom');
+              }),
+            ],
+          ),
+        );
+        addTearDown(v1Surface.dispose);
+        v1Surface.onAction.addListener(actions.add);
+        v1Surface.onError.addListener(errors.add);
+        v1Surface.dataModel.set('/items/0/label', 'v1-item');
+
+        Future<void> invokeV1Action(
+          Map<String, dynamic> action, {
+          String? basePath,
+        }) async {
+          final comp = ComponentModel('c1', 'Button', {
+            'child': 'c2',
+            'action': action,
+          });
+          v1Surface.componentsModel.removeComponent('c1');
+          v1Surface.componentsModel.addComponent(comp);
+          final ctx = ComponentContext(v1Surface, comp, basePath: basePath);
+          final binder = GenericBinder(ctx, MinimalButtonApi().schema);
+          final callback =
+              binder.resolvedProps.value['action'] as Future<void> Function();
+          await callback();
+          binder.dispose();
+        }
+
+        await invokeV1Action({
+          'functionCall': {
+            '@call': 'spy',
+            'args': {
+              'label': {'@path': 'label'},
+            },
+          },
+        }, basePath: '/items/0');
+        expect(calls, [
+          {'label': 'v1-item'},
+        ]);
+        expect(actions, isEmpty);
+        expect(errors, isEmpty);
+
+        calls.clear();
+        await invokeV1Action({
+          '@call': 'spy',
+          'args': {
+            'label': {'@path': 'label'},
+          },
+        }, basePath: '/items/0');
+        expect(calls, [
+          {'label': 'v1-item'},
+        ]);
+
+        // Async failure in v1.0 @call reports function name in error message.
+        await invokeV1Action({
+          'functionCall': {'@call': 'failAsync', 'args': <String, Object?>{}},
+        });
+        expect(errors, hasLength(1));
+        expect(errors.single.message, contains('failAsync'));
+
+        // Plain 'call' in v1.0 is not a function call; fails action dispatch.
+        errors.clear();
+        calls.clear();
+        await invokeV1Action({
+          'functionCall': {'call': 'spy', 'args': <String, Object?>{}},
+        });
+        expect(calls, isEmpty);
+        expect(actions, isEmpty);
+        expect(errors, hasLength(1));
+        expect(errors.single.code, 'INVALID_ACTION');
+      },
+    );
+
+    test('v1.0 ChildListTemplate expands items using bindingFor (#81)', () {
+      final v1Surface = SurfaceModel<ComponentApi>(
+        's-v1-tpl',
+        catalog: catalog,
+        protocolVersion: 'v1.0',
+      );
+      addTearDown(v1Surface.dispose);
+      v1Surface.dataModel.set('/todos', [
+        {'title': 'One'},
+        {'title': 'Two'},
+      ]);
+
+      final comp = ComponentModel('c1', 'Row', {
+        'children': {'path': '/todos', 'componentId': 'todo-item'},
+      });
+      v1Surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(v1Surface, comp);
+      final binder = GenericBinder(context, MinimalRowApi().schema);
+
+      final children =
+          binder.resolvedProps.value['children'] as List<ChildNode>;
+      expect(children, [
+        ChildNode('todo-item', '/todos/0'),
+        ChildNode('todo-item', '/todos/1'),
+      ]);
+
+      v1Surface.dataModel.set('/todos', [
+        {'title': 'One'},
+        {'title': 'Two'},
+        {'title': 'Three'},
+      ]);
+      final updated = binder.resolvedProps.value['children'] as List<ChildNode>;
+      expect(updated, hasLength(3));
+      expect(updated[2], ChildNode('todo-item', '/todos/2'));
+    });
+
+    test(
+      'reports unrecognized action payloads via onError (#65)',
+      () async {
+        final actions = <A2uiClientAction>[];
+        final errors = <A2uiClientError>[];
+        surface.onAction.addListener(actions.add);
+        surface.onError.addListener(errors.add);
+
+        final comp = ComponentModel('c1', 'Button', {
+          'child': 'c2',
+          'action': {'unexpected': 'payload'},
+        });
+        surface.componentsModel.addComponent(comp);
+
+        final context = ComponentContext(surface, comp);
+        final binder = GenericBinder(context, MinimalButtonApi().schema);
+        final callback =
+            binder.resolvedProps.value['action'] as Future<void> Function();
+        await callback();
+
+        expect(actions, isEmpty);
+        expect(errors, hasLength(1));
+        expect(errors.single.code, 'INVALID_ACTION');
+        expect(errors.single.surfaceId, 's1');
+      },
+    );
+
+    test('resolves dynamic binding to an action payload before dispatching',
+        () async {
+      final actions = <A2uiClientAction>[];
+      final errors = <A2uiClientError>[];
+      surface.onAction.addListener(actions.add);
+      surface.onError.addListener(errors.add);
+      surface.dataModel.set('/boundAction', {
+        'event': {
+          'name': 'bound_submit',
+          'context': {'from': 'binding'},
+        },
+      });
+
+      final comp = ComponentModel('c1', 'Button', {
+        'child': 'c2',
+        'action': {'path': '/boundAction'},
+      });
+      surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(context, MinimalButtonApi().schema);
+      final callback =
+          binder.resolvedProps.value['action'] as Future<void> Function();
+      await callback();
+
+      expect(errors, isEmpty);
+      expect(actions, hasLength(1));
+      expect(actions.single.name, 'bound_submit');
+      expect(actions.single.context, {'from': 'binding'});
+    });
   });
 }
