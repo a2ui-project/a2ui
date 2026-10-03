@@ -584,7 +584,7 @@ class A2uiClientError {
     this.path,
     this.details,
   }) {
-    if (code == validationFailedCode && (path == null || path!.isEmpty)) {
+    if (code == validationFailedCode && (path == null || path == '')) {
       throw A2uiValidationError(
         "Field 'error.path' is required of a '$validationFailedCode' error.",
       );
