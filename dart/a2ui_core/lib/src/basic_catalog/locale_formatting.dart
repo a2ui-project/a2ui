@@ -112,8 +112,13 @@ String formatCurrency(
 final RegExp _dateTokens = RegExp(
   'yyyy|yy|MMMM|MMM|MM|M|EEEE|E|dd|d|HH|H|hh|h|mm|ss|a',
 );
-final RegExp _isoOffset = RegExp(r'(?:Z|[+-]\d{2}:?\d{2})$');
-final RegExp _numericOffset = RegExp(r'([+-])(\d{2}):?(\d{2})$');
+
+/// The offset at the end of a timestamp's time part: `Z`, `+hh`, `+hhmm` or
+/// `+hh:mm`. Matched only after the `T` (or space) that starts the time, so
+/// the day of a date-only string such as `2026-09-04` is not read as `-04`.
+final RegExp _timeOffset = RegExp(
+  r'[T ]\d{2}(?::?\d{2}(?::?\d{2}(?:[.,]\d+)?)?)?(?:([zZ])|([+-])(\d{2})(?::?(\d{2}))?)$',
+);
 
 /// A parsed timestamp: the UTC instant, and the same instant shifted so its
 /// UTC fields read as the wall-clock time the timestamp was written with.
@@ -124,7 +129,10 @@ typedef _Timestamp = ({DateTime instant, DateTime shifted});
 _Timestamp? _parseTimestamp(String value) {
   final DateTime? parsed = DateTime.tryParse(value);
   if (parsed == null) return null;
-  if (!_isoOffset.hasMatch(value)) {
+  final RegExpMatch? offset = _timeOffset.firstMatch(value);
+  final bool hasOffset =
+      offset != null && (offset[1] != null || offset[2] != null);
+  if (!hasOffset) {
     final utc = DateTime.utc(
       parsed.year,
       parsed.month,
@@ -139,10 +147,11 @@ _Timestamp? _parseTimestamp(String value) {
   }
   final DateTime instant = parsed.toUtc();
   var offsetMinutes = 0;
-  final RegExpMatch? match = _numericOffset.firstMatch(value);
-  if (match != null) {
-    final sign = match[1] == '-' ? -1 : 1;
-    offsetMinutes = sign * (int.parse(match[2]!) * 60 + int.parse(match[3]!));
+  if (offset[2] != null) {
+    final sign = offset[2] == '-' ? -1 : 1;
+    final int hours = int.parse(offset[3]!);
+    final int minutes = offset[4] == null ? 0 : int.parse(offset[4]!);
+    offsetMinutes = sign * (hours * 60 + minutes);
   }
   return (
     instant: instant,

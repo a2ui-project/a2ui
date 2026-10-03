@@ -440,6 +440,11 @@ void main() {
     test('keeps the wall-clock time of an offset timestamp', () {
       expect(format('2026-09-04T23:30:00-05:00', 'yyyy-MM-dd'), '2026-09-04');
       expect(format('2026-09-04T23:30:00-05:00', 'HH:mm'), '23:30');
+      expect(format('2026-09-04T23:30:00-0530', 'HH:mm'), '23:30');
+      expect(format('2026-09-04T23:30:00+05', 'yyyy-MM-dd HH:mm'),
+          '2026-09-04 23:30');
+      expect(format('2026-09-04T23:30+05', 'ISO'), '2026-09-04T18:30:00.000Z');
+      expect(format('2026-09-04T23:30:00.5z', 'HH:mm'), '23:30');
     });
 
     test('treats a timestamp without an offset as UTC', () {
