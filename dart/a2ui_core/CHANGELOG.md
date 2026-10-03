@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- Added `BasicCatalog.v0_9()` and `BasicCatalog.v1_0()`, which carry the
+  basic catalog's 14 functions (`required`, `regex`, `length`, `numeric`,
+  `email`, `formatString`, `formatNumber`, `formatCurrency`, `formatDate`,
+  `pluralize`, `openUrl`, `and`, `or`, `not`) with the published catalog ids
+  and argument names. Components follow in a later release.
+  - v0.9 validation rules return `bool`; v1.0 rules return a
+    `ValidationResult` with a failure message.
+  - Formatting uses `package:intl` for the `locale` argument (default
+    `en-US`). `formatDate` reads a timestamp without an offset as UTC, keeps
+    the wall-clock time of one with an offset, and emits the UTC instant for
+    the `ISO` pattern.
+  - `openUrl` accepts only absolute `http`, `https`, `mailto` and `tel` URLs
+    and passes them to an `OpenUrlCallback`. Without a callback it throws,
+    which a binder reports as `EXECUTION_ERROR`.
+- `FormatStringFunction` now delegates to the basic catalog's `formatString`:
+  it coerces a non-string `value` instead of throwing, renders integral
+  doubles without `.0`, and resolves template bindings and calls on a v1.0
+  surface.
+- Added a conformance runner for `conformance/core/functions.yaml`. Its
+  `validate` cases are skipped until basic-catalog components and v1.0
+  message processing land.
 - Added `ValidationResult` and `A2uiReturnType.validationResult` for structured
   client-side validation outcomes (`valid`, `message`, `code`, `severity`), and
   exposed `validationResults` alongside `isValid` and `validationErrors` on

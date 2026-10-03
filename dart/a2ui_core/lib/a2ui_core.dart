@@ -18,6 +18,8 @@
 /// Implements protocol v0.9.
 library;
 
+// Basic catalog with evaluable functions.
+export 'src/basic_catalog/basic_catalog.dart';
 // Protocol models.
 export 'src/core/catalog.dart';
 export 'src/core/common.dart';
