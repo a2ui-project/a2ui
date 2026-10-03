@@ -57,8 +57,10 @@ void main() {
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
-          CreateSurfaceMessage(surfaceId: 's1', catalogId: 'cat1'),
-          CreateSurfaceMessage(surfaceId: 's2', catalogId: 'cat2'),
+          CreateSurfaceMessage(
+              version: 'v0.9', surfaceId: 's1', catalogId: 'cat1'),
+          CreateSurfaceMessage(
+              version: 'v0.9', surfaceId: 's2', catalogId: 'cat2'),
         ]),
       );
     });
@@ -67,6 +69,7 @@ void main() {
         processor.processMessages(
           AgentToRendererMessagePayload([
             UpdateComponentsMessage(
+              version: 'v0.9',
               surfaceId: surfaceId,
               components: [
                 {'id': 'root', 'component': component, 'a': 'x'},
@@ -160,6 +163,7 @@ void main() {
           () => processor.processMessages(
             AgentToRendererMessagePayload([
               UpdateComponentsMessage(
+                version: 'v0.9',
                 surfaceId: 's1',
                 components: [
                   {
@@ -197,6 +201,7 @@ void main() {
           () => processor.processMessages(
             AgentToRendererMessagePayload([
               UpdateComponentsMessage(
+                version: 'v0.9',
                 surfaceId: 's1',
                 components: [
                   {
@@ -229,6 +234,7 @@ void main() {
           () => processor.processMessages(
             AgentToRendererMessagePayload([
               UpdateComponentsMessage(
+                version: 'v0.9',
                 surfaceId: 's1',
                 components: [
                   {'id': 'b', 'component': 'Text', 'text': 'new'},
@@ -276,7 +282,8 @@ void main() {
     test('processMessages applies a lone message', () {
       processor.processMessages(
         AgentToRendererMessagePayload.of(
-          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+          CreateSurfaceMessage(
+              version: 'v0.9', surfaceId: 's1', catalogId: catalog.id),
         ),
       );
 
@@ -326,8 +333,10 @@ void main() {
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
-          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+          CreateSurfaceMessage(
+              version: 'v0.9', surfaceId: 's1', catalogId: catalog.id),
           UpdateComponentsMessage(
+            version: 'v0.9',
             surfaceId: 's1',
             components: [
               {'id': 'root', 'component': 'Text', 'text': 'first'},
