@@ -46,9 +46,6 @@ const Map<String, String> _v10ExpectedFailures = {
   'test_v10_create_surface_metadata_extension_key_must_be_identifier':
       'B2: metadata extension keys are not checked against the v1.0 schema '
           'yet.',
-  'test_delete_non_existent_surface_is_safe_noop':
-      'Pending ruling: v1.0 makes deleting an unknown surface a no-op, but '
-          'B1 (#2991) made it an A2uiIntegrityError.',
 };
 
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to

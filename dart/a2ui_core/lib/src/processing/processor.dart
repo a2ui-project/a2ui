@@ -324,7 +324,8 @@ class MessageProcessor<T extends ComponentApi> {
             .dataModel
             .set(operation.path ?? '/', operation.value);
       case DeleteSurfaceOp():
-        _surfaceFor(operation.surfaceId);
+        // An unknown surface id is a no-op, matching the conformance suite
+        // and the TypeScript and Python SDKs.
         groupModel.deleteSurface(operation.surfaceId);
       case CallRendererFunctionOp():
       case AgentFunctionResponseOp():
