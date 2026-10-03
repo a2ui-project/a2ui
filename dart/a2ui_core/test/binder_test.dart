@@ -423,5 +423,60 @@ void main() {
       surface.dataModel.set('/valid', true);
       expect(binder.resolvedProps.value['isValid'], true);
     });
+
+    test('handles non-list checks without TypeError and reports error', () {
+      final errors = <A2uiClientError>[];
+      surface.onError.addListener(errors.add);
+
+      final comp = ComponentModel('c1', 'TextField', {
+        'label': 'Name',
+        'checks': 'not-a-list',
+      });
+      surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+
+      expect(binder.resolvedProps.value['isValid'], isTrue);
+      expect(binder.resolvedProps.value['validationErrors'], isEmpty);
+      expect(errors, isNotEmpty);
+      expect(errors.first.code, 'VALIDATION_FAILED');
+    });
+
+    test('handles non-map and untyped map entries in checks without TypeError',
+        () async {
+      final errors = <A2uiClientError>[];
+      surface.onError.addListener(errors.add);
+
+      final comp = ComponentModel('c1', 'TextField', {
+        'label': 'Name',
+        'checks': <Object?>[
+          'not-a-map',
+          <Object?, Object?>{
+            'condition': <Object?, Object?>{'path': '/valid'},
+            'message': 'Must be valid',
+          },
+        ],
+      });
+      surface.componentsModel.addComponent(comp);
+      surface.dataModel.set('/valid', false);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(binder.resolvedProps.value['isValid'], isFalse);
+      expect(
+        binder.resolvedProps.value['validationErrors'],
+        ['Must be valid'],
+      );
+      expect(errors, isNotEmpty);
+      expect(errors.first.code, 'VALIDATION_FAILED');
+
+      surface.dataModel.set('/valid', true);
+      expect(binder.resolvedProps.value['isValid'], isTrue);
+      expect(binder.resolvedProps.value['validationErrors'], isEmpty);
+    });
   });
 }
