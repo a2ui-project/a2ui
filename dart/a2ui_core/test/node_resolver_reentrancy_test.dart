@@ -289,42 +289,40 @@ void main() {
 
     test(
       'a throwing error listener does not strand queued diagnostics',
-      () async {
-        final listenerFailures = <Object>[];
-        await runZonedGuarded(
-          () async {
-            final surface = SurfaceModel<ComponentApi>(
-              'surf',
-              catalog: _catalog(),
-            );
-            final NodeResolver<ComponentApi> resolver = _resolver(surface);
-            var errors = 0;
-            surface.onError.addListener((error) {
-              if (error.code == 'UNKNOWN_COMPONENT_TYPE') {
-                errors++;
-                if (errors == 1) {
-                  throw StateError('listener failed');
-                }
-              }
-            });
-
-            _add(surface, 'weird', 'Bogus', {});
-            _add(surface, 'other', 'Bogus', {});
-            _add(surface, 'root', 'Column', {
-              'children': ['weird', 'other'],
-            });
-
-            expect(errors, 2);
-            _expectLiveTree(resolver);
-            _add(surface, 'unreferenced', 'Text', {'text': 'ready'});
-            expect(errors, 2);
-            // dispatchError keeps its async error propagation. Resolution and
-            // the diagnostic queue have already completed above.
-            await Future<void>.delayed(Duration.zero);
-          },
-          (Object error, StackTrace stackTrace) => listenerFailures.add(error),
+      () {
+        final surface = SurfaceModel<ComponentApi>(
+          'surf',
+          catalog: _catalog(),
         );
-        expect(listenerFailures, [isA<StateError>()]);
+        final NodeResolver<ComponentApi> resolver = _resolver(surface);
+        var errors = 0;
+        var secondListenerErrors = 0;
+        surface.onError.addListener((error) {
+          if (error.code == 'UNKNOWN_COMPONENT_TYPE') {
+            errors++;
+            if (errors == 1) {
+              throw StateError('listener failed');
+            }
+          }
+        });
+        surface.onError.addListener((error) {
+          if (error.code == 'UNKNOWN_COMPONENT_TYPE') {
+            secondListenerErrors++;
+          }
+        });
+
+        _add(surface, 'weird', 'Bogus', {});
+        _add(surface, 'other', 'Bogus', {});
+        _add(surface, 'root', 'Column', {
+          'children': ['weird', 'other'],
+        });
+
+        expect(errors, 2);
+        expect(secondListenerErrors, 2);
+        _expectLiveTree(resolver);
+        _add(surface, 'unreferenced', 'Text', {'text': 'ready'});
+        expect(errors, 2);
+        expect(secondListenerErrors, 2);
       },
     );
 
