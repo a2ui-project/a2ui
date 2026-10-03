@@ -43,6 +43,7 @@ class CommonSchemas {
           'boolean',
           'array',
           'object',
+          'validationResult',
           'any',
           'void',
         ],
