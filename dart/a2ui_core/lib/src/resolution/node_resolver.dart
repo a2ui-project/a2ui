@@ -32,7 +32,6 @@ import 'ref_fields.dart';
 
 final _log = Logger('a2ui_core.resolution');
 
-const String _rootComponentId = 'root';
 const String _rootDataPath = '/';
 // Structured slots and parent identity keep payload delimiters out of keys.
 typedef _ChildSlot = (String, int?, String?);
@@ -63,6 +62,9 @@ class _NodeRecord<T extends ComponentApi> {
   final RefFields refFields;
   final ComponentModel? componentModel;
 
+  /// The template iteration index this node was created with, if any.
+  final int? index;
+
   /// The deduplication entry this cyclic stand-in belongs to. Retirement must
   /// not clear a newer entry installed by a reentrant repair or replacement.
   final Set<String>? diagnosticCodes;
@@ -83,6 +85,7 @@ class _NodeRecord<T extends ComponentApi> {
     required this.parent,
     required this.refFields,
     this.componentModel,
+    this.index,
     this.diagnosticCodes,
   });
 }
@@ -149,6 +152,8 @@ class NodeResolver<T extends ComponentApi> {
   final Map<_DiagnosticScope, Set<String>> _dispatchedErrors = {};
   final Queue<String> _pendingWarnings = Queue();
   final Set<String> _warnedReferencePaths = {};
+  final Queue<A2uiWarning> _pendingSurfaceWarnings = Queue();
+  final Set<String> _warnedMissingDataPaths = {};
 
   /// Builds a resolver over [_surface], subscribing to its component model and
   /// resolving the existing tree if a root is already present.
@@ -157,7 +162,20 @@ class NodeResolver<T extends ComponentApi> {
   /// surface. The resolver holds listeners on the surface's component model
   /// and unregisters them on its own disposal, so tearing the surface down
   /// first leaves those listeners attached to a disposed model.
-  NodeResolver(this._surface) {
+  ///
+  /// When given, [catalog] must be the surface's
+  /// [SurfaceModel.defaultCatalog]; each component still resolves against the
+  /// catalog it names. Throws [A2uiStateError] for any other catalog.
+  NodeResolver(
+    this._surface, {
+    Catalog<T, FunctionImplementation>? catalog,
+  }) {
+    if (catalog != null && !identical(catalog, _surface.defaultCatalog)) {
+      throw A2uiStateError(
+        'NodeResolver requires the default catalog of surface '
+        "'${_surface.id}', not catalog '${catalog.id}'.",
+      );
+    }
     _onCreatedListener = (component) {
       _runUpdate(() => _onComponentCreated(component));
     };
@@ -168,7 +186,7 @@ class NodeResolver<T extends ComponentApi> {
     _surface.componentsModel.onDeleted.addListener(_onDeletedListener);
 
     _runUpdate(() {
-      if (_surface.componentsModel.get(_rootComponentId) != null) {
+      if (_surface.componentsModel.get(_surface.rootId) != null) {
         _buildRoot();
       }
     });
@@ -187,6 +205,7 @@ class NodeResolver<T extends ComponentApi> {
     } catch (_) {
       _discardPendingErrors();
       _pendingWarnings.clear();
+      _pendingSurfaceWarnings.clear();
       rethrow;
     } finally {
       _updateDepth--;
@@ -238,6 +257,18 @@ class NodeResolver<T extends ComponentApi> {
         ),
       ),
     );
+    _scheduleFallbackFlush();
+  }
+
+  // Bindings resolve while binders build, so the warning waits for the
+  // update's diagnostic boundary like an expression error.
+  void _reportMissingData(String path) {
+    if (_disposed || !_warnedMissingDataPaths.add(path)) return;
+    _pendingSurfaceWarnings.add(missingDataBindingWarning(path));
+    _scheduleFallbackFlush();
+  }
+
+  void _scheduleFallbackFlush() {
     if (_updateDepth == 0 && !_dispatchingErrors && !_errorFlushScheduled) {
       // Normally drained synchronously once the rebuild finishes; a rebuild
       // that changes no binding value emits nothing, so schedule a fallback.
@@ -266,9 +297,13 @@ class NodeResolver<T extends ComponentApi> {
     }
     _dispatchingErrors = true;
     try {
-      while (_pendingErrors.isNotEmpty || _pendingWarnings.isNotEmpty) {
+      while (_pendingErrors.isNotEmpty ||
+          _pendingSurfaceWarnings.isNotEmpty ||
+          _pendingWarnings.isNotEmpty) {
         if (_pendingErrors.isNotEmpty) {
           _surface.dispatchError(_pendingErrors.removeFirst().error);
+        } else if (_pendingSurfaceWarnings.isNotEmpty) {
+          _surface.dispatchWarning(_pendingSurfaceWarnings.removeFirst());
         } else {
           _log.warning(_pendingWarnings.removeFirst());
         }
@@ -276,6 +311,7 @@ class NodeResolver<T extends ComponentApi> {
     } finally {
       _discardPendingErrors();
       _pendingWarnings.clear();
+      _pendingSurfaceWarnings.clear();
       _dispatchingErrors = false;
     }
   }
@@ -312,6 +348,8 @@ class NodeResolver<T extends ComponentApi> {
       _pendingErrors.clear();
       _pendingWarnings.clear();
       _warnedReferencePaths.clear();
+      _pendingSurfaceWarnings.clear();
+      _warnedMissingDataPaths.clear();
     });
   }
 
@@ -322,7 +360,7 @@ class NodeResolver<T extends ComponentApi> {
       return;
     }
     final MutableComponentNode<T> node = _createNode(
-      _rootComponentId,
+      _surface.rootId,
       _rootDataPath,
       _rootEdgeKey,
       null,
@@ -341,7 +379,7 @@ class NodeResolver<T extends ComponentApi> {
     if (_surface.componentsModel.get(component.id) == null) {
       return;
     }
-    if (component.id == _rootComponentId) {
+    if (component.id == _surface.rootId) {
       _buildRoot();
     }
     final Set<MutableComponentNode<T>>? waiting = _pendingParents.remove(
@@ -389,7 +427,7 @@ class NodeResolver<T extends ComponentApi> {
         _disposeNode(oldRoot);
         // A destruction listener may already have rebuilt the root. Reconcile
         // current model state and do not overwrite that listener's root.
-        if (_surface.componentsModel.get(_rootComponentId) != null) {
+        if (_surface.componentsModel.get(_surface.rootId) != null) {
           _buildRoot();
         }
       }
@@ -411,6 +449,7 @@ class NodeResolver<T extends ComponentApi> {
     _EdgeKey edgeKey,
     MutableComponentNode<T>? parent, {
     int occurrence = 1,
+    int? index,
   }) {
     final ComponentModel? model = _surface.componentsModel.get(componentId);
     if (model == null) {
@@ -433,14 +472,34 @@ class NodeResolver<T extends ComponentApi> {
       return record.node;
     }
 
-    final T? api = _surface.catalog.components[model.type];
+    final Catalog<T, FunctionImplementation> catalog;
+    try {
+      catalog = _surface.resolveCatalog(model.catalog);
+    } on A2uiCatalogError catch (error) {
+      _reportOnce('UNKNOWN_CATALOG', componentId, dataPath, error.message);
+      return _registerNode(
+        _placeholderNode(
+          componentId,
+          dataPath,
+          NodeState.unknownType,
+          type: model.type,
+          occurrence: occurrence,
+        ),
+        edgeKey: edgeKey,
+        parent: parent,
+        occurrence: occurrence,
+        refFields: const {},
+        componentModel: model,
+      ).node;
+    }
+    final T? api = catalog.components[model.type];
     if (api == null) {
       _reportOnce(
         'UNKNOWN_COMPONENT_TYPE',
         componentId,
         dataPath,
         "Component '$componentId' has type '${model.type}', which is "
-            "not in catalog '${_surface.catalog.id}'.",
+            "not in catalog '${catalog.id}'.",
       );
       return _registerNode(
         _placeholderNode(
@@ -460,6 +519,15 @@ class NodeResolver<T extends ComponentApi> {
 
     _clearDispatched(componentId, dataPath);
     final Schema schema = api.schema;
+    final context = ComponentContext(
+      _surface,
+      model,
+      basePath: dataPath,
+      onError: _reportExpressionError,
+      parentDataContext: parent?.context?.dataContext,
+      index: index,
+      onMissingData: _reportMissingData,
+    );
     final _NodeRecord<T> record = _registerNode(
       MutableComponentNode<T>(
         _instanceIdFor(componentId, dataPath, occurrence),
@@ -468,27 +536,20 @@ class NodeResolver<T extends ComponentApi> {
         dataPath,
         const {},
         api,
-      ),
+      )..context = context,
       edgeKey: edgeKey,
       parent: parent,
       occurrence: occurrence,
       refFields: extractRefFields(
         schema,
-        document: _surface.catalog.catalogSchema,
+        document: catalog.catalogSchema,
       ),
       componentModel: model,
+      index: index,
     );
     final GenericBinder binder;
     try {
-      binder = GenericBinder(
-        ComponentContext(
-          _surface,
-          model,
-          basePath: dataPath,
-          onError: _reportExpressionError,
-        ),
-        schema,
-      );
+      binder = GenericBinder(context, schema);
     } catch (_) {
       _disposeNode(record.node);
       rethrow;
@@ -521,6 +582,16 @@ class NodeResolver<T extends ComponentApi> {
     return record.node;
   }
 
+  /// The api for [model]'s type in the catalog [model] resolves to, or null
+  /// when that catalog is not available on the surface or lacks the type.
+  T? _componentApiFor(ComponentModel model) {
+    try {
+      return _surface.resolveCatalog(model.catalog).components[model.type];
+    } on A2uiCatalogError {
+      return null;
+    }
+  }
+
   MutableComponentNode<T> _placeholderNode(
     String componentId,
     String dataPath,
@@ -546,6 +617,7 @@ class NodeResolver<T extends ComponentApi> {
     required int occurrence,
     required RefFields refFields,
     ComponentModel? componentModel,
+    int? index,
   }) {
     final record = _NodeRecord<T>(
       node: node,
@@ -554,6 +626,7 @@ class NodeResolver<T extends ComponentApi> {
       occurrence: occurrence,
       refFields: refFields,
       componentModel: componentModel,
+      index: index,
       diagnosticCodes: node.state == NodeState.cyclic
           ? _dispatchedErrors[(node.componentId, node.dataPath)]
           : null,
@@ -572,8 +645,9 @@ class NodeResolver<T extends ComponentApi> {
     String dataPath,
     _EdgeKey edgeKey,
     MutableComponentNode<T> parent,
-    int occurrence,
-  ) {
+    int occurrence, {
+    int? index,
+  }) {
     final MutableComponentNode<T>? existing = _nodesByEdge[edgeKey];
     if (_isCyclic(componentId, dataPath, parent)) {
       // Node identity is parent-scoped, so a cyclic payload would otherwise
@@ -606,8 +680,7 @@ class NodeResolver<T extends ComponentApi> {
     }
     if (existing != null && !existing.disposed) {
       final ComponentModel? model = _surface.componentsModel.get(componentId);
-      final T? api =
-          model == null ? null : _surface.catalog.components[model.type];
+      final T? api = model == null ? null : _componentApiFor(model);
       // A placeholder stays up to date only while its own state's
       // preconditions hold, so a pending node whose definition arrives with
       // an unknown type is replaced (once) by an unknown-type node, and
@@ -617,6 +690,7 @@ class NodeResolver<T extends ComponentApi> {
       final bool upToDate = existing.componentId == componentId &&
           existing.dataPath == dataPath &&
           _records[existing]?.occurrence == occurrence &&
+          (existing.isPlaceholder || _records[existing]?.index == index) &&
           (existing.isPlaceholder
               ? (model == null && existing.state == NodeState.pending) ||
                   (model != null &&
@@ -642,6 +716,7 @@ class NodeResolver<T extends ComponentApi> {
       edgeKey,
       parent,
       occurrence: occurrence,
+      index: index,
     );
   }
 
@@ -680,8 +755,9 @@ class NodeResolver<T extends ComponentApi> {
     MutableComponentNode<T> resolveChild(
       _ChildSlot slot,
       String componentId,
-      String dataPath,
-    ) {
+      String dataPath, {
+      int? index,
+    }) {
       final occurrenceKey = (componentId, dataPath);
       final int occurrence = (occurrences[occurrenceKey] ?? 0) + 1;
       occurrences[occurrenceKey] = occurrence;
@@ -694,6 +770,7 @@ class NodeResolver<T extends ComponentApi> {
           edgeKey,
           record.node,
           occurrence,
+          index: index,
         );
       } catch (_) {
         // Children created earlier in this pass have no owner until the
@@ -741,7 +818,12 @@ class NodeResolver<T extends ComponentApi> {
           next[key] = List<Object?>.generate(count, (index) {
             final Object? item = value[index];
             if (item is ChildNode) {
-              return resolveChild((key, index, null), item.id, item.basePath);
+              return resolveChild(
+                (key, index, null),
+                item.id,
+                item.basePath,
+                index: item.index,
+              );
             }
             if (item is String && item.isNotEmpty) {
               return resolveChild(

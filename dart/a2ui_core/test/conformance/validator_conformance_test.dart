@@ -49,13 +49,12 @@ void main() {
 String? _skipReason(Map<String, Object?> testCase) {
   final String? version = caseVersion(testCase);
   if (version != null && version != '0.9') {
-    return 'Targets protocol v$version; this SDK implements v0.9 only.';
+    return 'Targets protocol v$version; this harness runs v0.9 cases only.';
   }
   return null;
 }
 
 void _runCase(Map<String, Object?> testCase) {
-  final Map<String, String> surfaceCatalogs = {};
   final List<Map<String, Object?>> steps = _steps(testCase);
   final List<Map<String, Object?>> allPayloads = [
     for (final Map<String, Object?> step in steps)
@@ -77,23 +76,6 @@ void _runCase(Map<String, Object?> testCase) {
       for (final Object? item in rawPayload)
         (item as Map).cast<String, Object?>(),
     ];
-
-    for (final envelope in payload) {
-      if (envelope['createSurface'] case final Map<String, Object?> body) {
-        if (body['surfaceId'] case final String surfaceId) {
-          if (body['catalogId'] case final String catalogId) {
-            surfaceCatalogs[surfaceId] = catalogId;
-          }
-        }
-      }
-    }
-
-    // An incremental single-step payload presupposes a surface the client
-    // already holds. Multi-step cases create the surface in an earlier step and
-    // retain it on the shared processor across steps.
-    if (stepIndex == 0) {
-      _seedReferencedSurfaces(processor, payload, surfaceCatalogs);
-    }
 
     final Object? expectError = step['expectError'] ??
         step['expect_error'] ??
@@ -156,47 +138,6 @@ Map<String, Object?>? _commonTypesFor(Map<String, Object?> testCase) {
     }
   }
   return null;
-}
-
-/// Creates any surface [payload] updates but does not itself create.
-///
-/// A payload that only updates components is incremental: it describes a
-/// change to a surface the client already has. The suite states the payload
-/// alone, so the surface it assumes is created here, empty, and the payload is
-/// then applied to it. References into it still resolve against nothing, which
-/// is what the dangling-reference cases rely on.
-///
-/// A case running several steps creates the surface in an earlier one, so
-/// [surfaceCatalogs] holds the catalog it named there and the seeded surface
-/// is created against that same catalog.
-void _seedReferencedSurfaces(
-  MessageProcessor<ComponentApi> processor,
-  List<Map<String, Object?>> payload,
-  Map<String, String> surfaceCatalogs,
-) {
-  final created = <String>{
-    for (final Map<String, Object?> envelope in payload)
-      if (envelope['createSurface'] case final Map<String, Object?> body)
-        if (body['surfaceId'] case final String id) id,
-  };
-  final referenced = <String>{
-    for (final Map<String, Object?> envelope in payload)
-      for (final String key in const ['updateComponents', 'updateDataModel'])
-        if (envelope[key] case final Map<String, Object?> body)
-          if (body['surfaceId'] case final String id)
-            if (!created.contains(id)) id,
-  };
-  if (referenced.isEmpty) return;
-
-  processor.processMessages(
-    AgentToRendererMessagePayload([
-      for (final String id in referenced)
-        CreateSurfaceMessage(
-          surfaceId: id,
-          catalogId: surfaceCatalogs[id] ?? processor.catalogs.first.id,
-        ),
-    ]),
-  );
 }
 
 /// The steps a case runs, whether it declares one payload or several.

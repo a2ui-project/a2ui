@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_core/src/core/contexts.dart' show ComponentContext;
 import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
@@ -25,7 +24,7 @@ void main() {
 
     setUp(() {
       catalog = MinimalCatalog();
-      surface = SurfaceModel('s1', catalog: catalog);
+      surface = SurfaceModel('s1', defaultCatalog: catalog);
     });
 
     test('rebuilds multiple dynamic properties in one coherent emission', () {
@@ -167,7 +166,7 @@ void main() {
         );
         final trackingSurface = SurfaceModel<ComponentApi>(
           's',
-          catalog: trackingCatalog,
+          defaultCatalog: trackingCatalog,
         );
         final comp = ComponentModel('pair', 'Pair', {
           'a': 'old',
@@ -236,7 +235,7 @@ void main() {
       final trackingCatalog = _TrackingCatalog(onExecute: () => callCount++);
       final trackingSurface = SurfaceModel<ComponentApi>(
         's1',
-        catalog: trackingCatalog,
+        defaultCatalog: trackingCatalog,
       );
 
       final comp = ComponentModel('c1', 'Text', {
@@ -285,7 +284,7 @@ void main() {
       final trackingCatalog = _TrackingCatalog(onExecute: () => callCount++);
       final trackingSurface = SurfaceModel<ComponentApi>(
         's1',
-        catalog: trackingCatalog,
+        defaultCatalog: trackingCatalog,
       );
 
       final comp = ComponentModel('c1', 'Text', {

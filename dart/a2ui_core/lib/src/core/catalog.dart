@@ -16,6 +16,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
+import '../primitives/semver.dart';
 import '../validation/schema_resolution.dart';
 import 'contexts.dart';
 
@@ -129,10 +130,28 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// The document's `description`, when it declares one.
   final String? description;
 
+  /// The A2UI protocol version this catalog is written for, such as `'v1.0'`.
+  ///
+  /// A surface accepts only catalogs whose version is compatible with its
+  /// own (see [isCatalogVersionCompatible]). Null means unversioned, which
+  /// every surface accepts.
+  final String? protocolVersion;
+
+  /// Markdown design guidelines for this catalog, which agents add to the
+  /// prompt alongside its components and functions.
+  final String? instructions;
+
   final Map<String, C> components;
   final Map<String, F> functions;
   final Schema? themeSchema;
 
+  /// The component name the protocol reserves for the surface itself.
+  static const String reservedComponentName = 'Surface';
+
+  /// Throws [A2uiCatalogError] when two components or two functions share a
+  /// name, when a component is named [reservedComponentName], or when a
+  /// function name starts with `@`, which the protocol reserves for its own
+  /// functions.
   Catalog({
     required this.id,
     required List<C> components,
@@ -141,8 +160,62 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     this.schemaId,
     this.title,
     this.description,
-  })  : components = {for (final c in components) c.name: c},
-        functions = {for (final f in functions) f.name: f};
+    this.protocolVersion,
+    this.instructions,
+  })  : components = _indexComponents(id, components),
+        functions = _indexFunctions(id, functions);
+
+  static Map<String, T> _indexComponents<T extends ComponentApi>(
+    String catalogId,
+    List<T> items,
+  ) {
+    final byName = <String, T>{};
+    for (final item in items) {
+      if (item.name == reservedComponentName) {
+        throw A2uiCatalogError(
+          "Catalog '$catalogId' declares a component named "
+          "'$reservedComponentName', which is reserved.",
+          catalogId: catalogId,
+        );
+      }
+      _addUnique(byName, catalogId, 'component', item.name, item);
+    }
+    return byName;
+  }
+
+  static Map<String, T> _indexFunctions<T extends FunctionApi>(
+    String catalogId,
+    List<T> items,
+  ) {
+    final byName = <String, T>{};
+    for (final item in items) {
+      if (item.name.startsWith('@')) {
+        throw A2uiCatalogError(
+          "Catalog '$catalogId' declares a function named '${item.name}'; "
+          "names starting with '@' are reserved.",
+          catalogId: catalogId,
+        );
+      }
+      _addUnique(byName, catalogId, 'function', item.name, item);
+    }
+    return byName;
+  }
+
+  static void _addUnique<T>(
+    Map<String, T> byName,
+    String catalogId,
+    String kind,
+    String name,
+    T item,
+  ) {
+    if (byName.containsKey(name)) {
+      throw A2uiCatalogError(
+        "Catalog '$catalogId' declares more than one $kind named '$name'.",
+        catalogId: catalogId,
+      );
+    }
+    byName[name] = item;
+  }
 
   /// Parses a catalog document into a schema-only [Catalog].
   ///
@@ -150,8 +223,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// published catalog documents, and the list of definitions used by inline
   /// catalogs in renderer capabilities.
   ///
-  /// A catalog document is version-agnostic: any `protocolVersion` it
-  /// declares is ignored rather than checked against this SDK.
+  /// A `protocolVersion` the document declares is kept in [protocolVersion]
+  /// rather than checked against this SDK; a surface checks it against its
+  /// own version.
   ///
   /// Throws [A2uiCatalogError] if the document is malformed or conflicts with
   /// [expectedCatalogId].
@@ -205,6 +279,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       schemaId: document[r'$id'] as String?,
       title: document['title'] as String?,
       description: document['description'] as String?,
+      protocolVersion: document['protocolVersion'] as String?,
+      instructions: document['instructions'] as String?,
     );
   }
 
@@ -368,6 +444,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         if (title != null) 'title': title,
         if (description != null) 'description': description,
         'catalogId': id,
+        if (protocolVersion != null) 'protocolVersion': protocolVersion,
+        if (instructions != null) 'instructions': instructions,
         'components': {
           for (final MapEntry<String, C> entry in components.entries)
             entry.key: _deepCopyValue(entry.value.schema.value),
@@ -389,7 +467,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                     'const': entry.value.returnType.jsonValue,
                   },
                 },
-                'required': <Object?>['call', 'args'],
+                // A call to a function without required parameters may omit
+                // `args` altogether.
+                'required': <Object?>[
+                  'call',
+                  if (_hasRequiredParameters(entry.value.argumentSchema))
+                    'args',
+                ],
                 'unevaluatedProperties': false,
               },
           },
@@ -428,7 +512,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         schemaId: schemaId,
         title: title,
         description: description,
+        protocolVersion: protocolVersion,
+        instructions: instructions,
       );
+
+  static bool _hasRequiredParameters(Schema schema) {
+    final Object? required = schema.value['required'];
+    return required is List && required.isNotEmpty;
+  }
 
   static Object? _deepCopyValue(Object? value) {
     if (value is Map) {

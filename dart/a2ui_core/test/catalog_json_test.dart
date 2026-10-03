@@ -16,6 +16,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
@@ -86,4 +87,133 @@ void main() {
       );
     });
   });
+  group('Catalog hygiene', () {
+    ComponentApi component(String name) =>
+        ComponentApi(name: name, schema: Schema.object());
+
+    test('rejects two components with one name', () {
+      expect(
+        () => CatalogApi(
+          id: 'c',
+          components: [component('Text'), component('Text')],
+        ),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('rejects two functions with one name', () {
+      final fn = FunctionApi(name: 'now', argumentSchema: Schema.object());
+      expect(
+        () => CatalogApi(id: 'c', components: const [], functions: [fn, fn]),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('rejects the reserved component name Surface', () {
+      expect(
+        () => CatalogApi(id: 'c', components: [component('Surface')]),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(
+        () => Catalog.fromJson({
+          'catalogId': 'c',
+          'components': {
+            'Surface': {'type': 'object'},
+          },
+        }),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('rejects a custom function whose name starts with @', () {
+      expect(
+        () => Catalog.fromJson({
+          'catalogId': 'c',
+          'components': <String, Object?>{},
+          'functions': [
+            {'name': '@custom', 'returnType': 'string'},
+          ],
+        }),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('reads instructions and protocolVersion from a document', () {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'c',
+        'protocolVersion': 'v1.0',
+        'instructions': 'Prefer cards.',
+        'components': <String, Object?>{},
+      });
+
+      expect(catalog.instructions, 'Prefer cards.');
+      expect(catalog.protocolVersion, 'v1.0');
+      expect(catalog.catalogSchema['instructions'], 'Prefer cards.');
+      expect(catalog.copyWith().instructions, 'Prefer cards.');
+      expect(catalog.copyWith().protocolVersion, 'v1.0');
+    });
+
+    test('requires args in catalogSchema only for required parameters', () {
+      final CatalogApi catalog = CatalogApi(
+        id: 'c',
+        components: const [],
+        functions: [
+          FunctionApi(name: 'now', argumentSchema: Schema.object()),
+          FunctionApi(
+            name: 'upper',
+            argumentSchema: Schema.object(
+              properties: {'value': Schema.string()},
+              required: ['value'],
+            ),
+          ),
+        ],
+      );
+      final functions =
+          catalog.catalogSchema['functions']! as Map<String, Object?>;
+
+      expect((functions['now']! as Map)['required'], ['call']);
+      expect((functions['upper']! as Map)['required'], ['call', 'args']);
+    });
+
+    test('invoke checks arguments against the function schema', () {
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'c',
+        components: const [],
+        functions: [_EchoFunction()],
+      );
+      final context = DataContext(DataModel(), (_, __, ___) => null, '/');
+
+      expect(catalog.invoke('echo', {'value': 'hi'}, context), 'hi');
+      expect(
+        () => catalog.invoke('echo', {'value': 3}, context),
+        throwsA(isA<A2uiExpressionError>()),
+      );
+      expect(
+        () => catalog.invoke('echo', <String, dynamic>{}, context),
+        throwsA(isA<A2uiExpressionError>()),
+      );
+      // A null argument is unresolved data, which the function handles.
+      expect(catalog.invoke('echo', {'value': null}, context), isNull);
+    });
+  });
+}
+
+/// Returns its `value` argument, which its schema requires to be a string.
+class _EchoFunction extends FunctionImplementation {
+  _EchoFunction()
+      : super(
+          name: 'echo',
+          argumentSchema: Schema.object(
+            properties: {'value': Schema.string()},
+            required: ['value'],
+          ),
+        );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) =>
+      args['value'];
 }

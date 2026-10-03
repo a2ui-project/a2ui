@@ -33,10 +33,15 @@ class FunctionCall {
   final Map<String, dynamic> args;
   final A2uiReturnType returnType;
 
+  /// The catalog the function belongs to, when the call names one. Otherwise
+  /// the function resolves against the surface's default catalog.
+  final String? catalogId;
+
   FunctionCall({
     required this.call,
     required this.args,
     this.returnType = A2uiReturnType.boolean,
+    this.catalogId,
   });
 
   factory FunctionCall.fromJson(Map<String, dynamic> json) {
@@ -47,6 +52,7 @@ class FunctionCall {
       returnType: A2uiReturnType.fromJson(
         json['returnType'] as String? ?? 'boolean',
       ),
+      catalogId: json['catalogId'] as String?,
     );
   }
 
@@ -54,6 +60,7 @@ class FunctionCall {
         'call': call,
         'args': args,
         'returnType': returnType.jsonValue,
+        if (catalogId != null) 'catalogId': catalogId,
       };
 }
 

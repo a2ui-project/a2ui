@@ -675,10 +675,10 @@ void main() {
       'a': 'x',
     };
 
-    test('checks an incremental payload against the sole catalog', () {
-      // A payload that only updates a surface carries no catalog id, and an
-      // agent negotiates one catalog before it generates anything, so the
-      // components are checked rather than skipped.
+    test('checks an incremental payload against the surface default', () {
+      // A payload that only updates a surface carries no catalog id, so its
+      // components are checked against the catalog the surface was created
+      // with rather than skipped.
       expect(
         () => holding(['cat1'], surfaceCatalog: 'cat1').processMessages(
           AgentToRendererMessage.parseAll(
@@ -696,6 +696,38 @@ void main() {
           ),
         ),
         throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('does not fall back to a sole catalog', () {
+      // v1.0 resolves a component through its own catalogId or the surface
+      // default only. A surface created without a catalog has no default,
+      // and the processor supporting exactly one catalog does not change
+      // that.
+      final MessageProcessor<ComponentApi> processor = over(['cat1']);
+      processor.processMessages(
+        AgentToRendererMessagePayload.of(
+          CreateSurfaceMessage(version: 'v0.9', surfaceId: 's1'),
+        ),
+      );
+      expect(processor.groupModel.getSurface('s1')!.defaultCatalog, isNull);
+      expect(
+        () => processor.processMessages(
+          AgentToRendererMessage.parseAll(
+            incremental(alpha()),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(
+        () => processor.processMessages(
+          AgentToRendererMessage.parseAll(
+            incremental(alpha(catalogId: 'cat1')),
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          ),
+        ),
+        returnsNormally,
       );
     });
 

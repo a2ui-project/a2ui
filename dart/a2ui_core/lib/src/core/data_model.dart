@@ -58,6 +58,9 @@ class DataModel {
     return currentNode;
   }
 
+  /// Whether a value, possibly null, exists at the JSON pointer [path].
+  bool has(String path) => _hasPath(DataPath.parse(path));
+
   bool _hasPath(DataPath dataPath) {
     if (dataPath.isEmpty) return true;
     Object? currentNode = _data;
