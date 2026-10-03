@@ -13,7 +13,9 @@
 // limitations under the License.
 
 import '../core/catalog.dart';
+import '../core/contexts.dart';
 import '../core/validation_result.dart';
+import '../primitives/cancellation.dart';
 import 'function_support.dart';
 import 'locale_formatting.dart';
 import 'v0_9/components.dart';
@@ -40,7 +42,8 @@ export 'function_support.dart' show OpenUrlCallback;
 /// references for v0.9; the v1.0 shared types are not embedded yet, so a
 /// v1.0 surface on this catalog cannot be validated.
 ///
-/// Each catalog also carries the 14 functions of the published document:
+/// Each catalog also carries the 14 functions of the published document,
+/// with the argument schemas and return types the document declares:
 /// the validation rules `required`, `regex`, `length`, `numeric` and
 /// `email`; the formatters `formatString`, `formatNumber`,
 /// `formatCurrency`, `formatDate` and `pluralize`; `openUrl`; and the logic
@@ -80,20 +83,50 @@ abstract final class BasicCatalog {
         basicFunctionsV1_0(locale: locale, openUrl: openUrl),
       );
 
-  /// The [published] document's components, theme and identity, with
-  /// [functions] in place of its function signatures.
+  /// The [published] document's components, theme, identity and function
+  /// signatures, each function evaluated by its entry in [implementations].
   static Catalog<ComponentApi, FunctionImplementation> _fromPublished(
     CatalogApi published,
-    List<FunctionImplementation> functions,
-  ) =>
-      Catalog(
-        id: published.id,
-        schemaId: published.schemaId,
-        title: published.title,
-        description: published.description,
-        protocolVersion: published.protocolVersion,
-        components: published.components.values.toList(),
-        functions: functions,
-        themeSchema: published.themeSchema,
-      );
+    List<FunctionImplementation> implementations,
+  ) {
+    final Map<String, FunctionImplementation> byName = {
+      for (final FunctionImplementation function in implementations)
+        function.name: function,
+    };
+    return Catalog(
+      id: published.id,
+      schemaId: published.schemaId,
+      title: published.title,
+      description: published.description,
+      protocolVersion: published.protocolVersion,
+      components: published.components.values.toList(),
+      functions: [
+        for (final FunctionApi signature in published.functions.values)
+          _PublishedFunction(signature, byName[signature.name]!),
+      ],
+      themeSchema: published.themeSchema,
+    );
+  }
+}
+
+/// A basic catalog function with the published signature: the argument
+/// schema and return type of the catalog document, evaluated by
+/// [_implementation].
+final class _PublishedFunction extends FunctionImplementation {
+  _PublishedFunction(FunctionApi signature, this._implementation)
+      : super(
+          name: signature.name,
+          argumentSchema: signature.argumentSchema,
+          returnType: signature.returnType,
+        );
+
+  final FunctionImplementation _implementation;
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) =>
+      _implementation.execute(args, context, cancellationSignal);
 }

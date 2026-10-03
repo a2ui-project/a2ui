@@ -252,8 +252,9 @@ void _runExpectCatalogCase(
 /// - `$id`, `title`, `description`, `protocolVersion` and `instructions` are
 ///   dropped. The reference harness drops the first four; `instructions` has
 ///   no [Catalog] field until B4 (#2995).
-/// - A function's own `description` is dropped, because [FunctionApi]
-///   carries none for [Catalog.catalogSchema] to emit.
+/// - A function's own `description` and `requiresUserActivation` (the v1.0
+///   `openUrl` declares it) are dropped, because [FunctionApi] carries
+///   neither for [Catalog.catalogSchema] to emit.
 /// - `enum` and `required` lists are sorted, since their order has no
 ///   meaning.
 Map<String, Object?> _consolidate(
@@ -284,7 +285,9 @@ Map<String, Object?> _consolidate(
 
   if (inlined['functions'] case final Map<String, Object?> functions) {
     for (final Object? function in functions.values) {
-      (function! as Map<String, Object?>).remove('description');
+      (function! as Map<String, Object?>)
+        ..remove('description')
+        ..remove('requiresUserActivation');
     }
   }
 

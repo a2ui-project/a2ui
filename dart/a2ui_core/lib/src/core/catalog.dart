@@ -412,20 +412,34 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             // this rebuilds that shape rather than listing the parts:
             // `anyFunction` and every `DynamicString` reach these through
             // `#/functions/<name>`, and a different shape would silently stop
-            // matching.
+            // matching. From 1.0 the return type is a keyword of the entry
+            // rather than a property of the call, and the entry leaves other
+            // properties unconstrained, as the published v1 catalogs do.
             for (final MapEntry<String, F> entry in functions.entries)
-              entry.key: <String, Object?>{
-                'type': 'object',
-                'properties': <String, Object?>{
-                  _callKey: <String, Object?>{'const': entry.key},
-                  'args': _deepCopyValue(entry.value.argumentSchema.value),
-                  'returnType': <String, Object?>{
-                    'const': entry.value.returnType.jsonValue,
-                  },
-                },
-                'required': <Object?>[_callKey, 'args'],
-                'unevaluatedProperties': false,
-              },
+              entry.key: _callKey == '@call'
+                  ? <String, Object?>{
+                      'type': 'object',
+                      'returnType': entry.value.returnType.jsonValue,
+                      'properties': <String, Object?>{
+                        '@call': <String, Object?>{'const': entry.key},
+                        'args':
+                            _deepCopyValue(entry.value.argumentSchema.value),
+                      },
+                      'required': const <Object?>['@call', 'args'],
+                    }
+                  : <String, Object?>{
+                      'type': 'object',
+                      'properties': <String, Object?>{
+                        'call': <String, Object?>{'const': entry.key},
+                        'args':
+                            _deepCopyValue(entry.value.argumentSchema.value),
+                        'returnType': <String, Object?>{
+                          'const': entry.value.returnType.jsonValue,
+                        },
+                      },
+                      'required': const <Object?>['call', 'args'],
+                      'unevaluatedProperties': false,
+                    },
           },
         r'$defs': {
           if (themeSchema != null) 'theme': _deepCopyValue(themeSchema!.value),
@@ -434,6 +448,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
               for (final String name in components.keys)
                 {r'$ref': '#/components/$name'},
             ],
+            // Every component schema pins `component` to its name, which is
+            // what selects the branch.
+            if (components.isNotEmpty)
+              'discriminator': <String, Object?>{'propertyName': 'component'},
           },
           if (functions.isNotEmpty)
             'anyFunction': {
