@@ -102,7 +102,14 @@ abstract final class BasicCatalog {
       components: published.components.values.toList(),
       functions: [
         for (final FunctionApi signature in published.functions.values)
-          _PublishedFunction(signature, byName[signature.name]!),
+          _PublishedFunction(
+            signature,
+            byName[signature.name] ??
+                (throw StateError(
+                  "Published basic catalog function '${signature.name}' has "
+                  'no implementation.',
+                )),
+          ),
       ],
       themeSchema: published.themeSchema,
     );
