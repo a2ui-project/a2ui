@@ -21,6 +21,9 @@ import 'package:test/test.dart';
 import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
+/// Conformance cases in `core/validator_v0_9.yaml` that are expected to fail.
+const Map<String, String> _v09ExpectedFailures = {};
+
 /// Runs the shared `conformance/core/validator_v0_9.yaml` suite against
 /// [MessageProcessor.processMessages], the entry point for checking a payload
 /// on its own.
@@ -28,25 +31,32 @@ import 'conformance_harness.dart';
 /// Cases targeting a protocol version this SDK does not implement are skipped
 /// with a reason, so the suite doubles as the implementation checklist.
 void main() {
-  final List<Map<String, Object?>> cases = loadConformanceSuite(
+  _registerValidatorSuite(
     'core/validator_v0_9.yaml',
+    expectedFailures: _v09ExpectedFailures,
   );
+}
 
-  group('conformance core/validator_v0_9.yaml', () {
+void _registerValidatorSuite(
+  String suite, {
+  Map<String, String> expectedFailures = const {},
+}) {
+  final List<ConformanceTestCase> cases = loadConformanceSuite(suite);
+
+  group('conformance $suite', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
-    for (final testCase in cases) {
-      test(
-        testCase['name']! as String,
-        () => _runCase(testCase),
-        skip: _skipReason(testCase),
-      );
-    }
+    runConformanceSuite(
+      cases,
+      _runCase,
+      expectedFailures: expectedFailures,
+      skipReason: _skipReason,
+    );
   });
 }
 
 /// Why a case cannot run yet, or null when it can.
-String? _skipReason(Map<String, Object?> testCase) {
+String? _skipReason(ConformanceTestCase testCase) {
   final String? version = caseVersion(testCase);
   if (version != null && version != '0.9') {
     return 'Targets protocol v$version; this SDK implements v0.9 only.';
@@ -260,21 +270,23 @@ Set<String> _catalogIdsNamedBy(List<Map<String, Object?>> payload) => <String>{
           if (body['catalogId'] case final String id) id,
     };
 
-/// Matches the error a case expects, by category and message.
+/// Matches the error a case expects, by category, message, code, and path.
 ///
 /// `details` is not asserted. It carries the field path and code a Pydantic
-/// model reports, which this SDK does not model; the category and message
-/// pin the same behaviour.
+/// model reports, which this SDK does not model; the category, message, code,
+/// and path pin the same behaviour.
 Matcher _matchesError(Object? expectError) {
   if (expectError is String) {
     return _messageMatches(expectError);
   }
   final Map<String, Object?> expected =
       (expectError! as Map).cast<String, Object?>();
-  final Matcher category = _categoryMatches(expected['category'] as String?);
-  final Object? message = expected['message'];
-  if (message is! String) return category;
-  return allOf(category, _messageMatches(message));
+  final matchers = <Matcher>[
+    _categoryMatches(expected['category'] as String?),
+    if (expected['message'] case final String message) _messageMatches(message),
+    matchesErrorFields(expected),
+  ];
+  return allOf(matchers);
 }
 
 Matcher _categoryMatches(String? category) => switch (category) {
