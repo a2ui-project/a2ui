@@ -119,6 +119,7 @@ abstract class AgentToRendererMessage {
             surfaceId: _required<String>(body, 'surfaceId', key),
             path: _optional<String>(body, 'path', key),
             value: body['value'],
+            hasValue: body.containsKey('value'),
           );
         case 'deleteSurface':
           return DeleteSurfaceMessage(
@@ -390,12 +391,28 @@ class UpdateDataModelMessage extends AgentToRendererMessage {
   final String? path;
   final Object? value;
 
+  /// Whether this message carries a `value` entry on the wire.
+  ///
+  /// Distinguishes an explicit `value: null` (which deletes the key at [path])
+  /// from a v0.9 message that omits `value` altogether. Defaults to `true` so
+  /// `UpdateDataModelMessage(surfaceId: 's', value: null)` emits
+  /// `'value': null` in [toJson].
+  final bool hasValue;
+
   UpdateDataModelMessage({
     super.version,
     required this.surfaceId,
     this.path,
     this.value,
-  });
+    this.hasValue = true,
+  }) {
+    if (!hasValue && value != null) {
+      throw A2uiValidationError(
+        "UpdateDataModelMessage cannot have a non-null 'value' when "
+        "'hasValue' is false.",
+      );
+    }
+  }
 
   @override
   Map<String, dynamic> toJson() => {
@@ -403,7 +420,7 @@ class UpdateDataModelMessage extends AgentToRendererMessage {
         'updateDataModel': {
           'surfaceId': surfaceId,
           if (path != null) 'path': path,
-          if (value != null) 'value': value,
+          if (hasValue) 'value': value,
         },
       };
 }
@@ -528,7 +545,7 @@ class A2uiClientAction {
         'name': name,
         'surfaceId': surfaceId,
         'sourceComponentId': sourceComponentId,
-        'timestamp': timestamp.toIso8601String(),
+        'timestamp': timestamp.toUtc().toIso8601String(),
         'context': context,
         if (userMessage != null && userMessage!.isNotEmpty)
           'userMessage': userMessage,
@@ -556,16 +573,23 @@ class A2uiClientError {
 
   final Object? details;
 
+  /// Creates a client-side error report.
+  ///
+  /// Throws [A2uiValidationError] when [code] is [validationFailedCode] and
+  /// [path] is null or empty.
   A2uiClientError({
     required this.code,
     required this.surfaceId,
     required this.message,
     this.path,
     this.details,
-  }) : assert(
-          code != validationFailedCode || path != null,
-          "A '$validationFailedCode' error must name the 'path' that failed.",
-        );
+  }) {
+    if (code == validationFailedCode && (path == null || path!.isEmpty)) {
+      throw A2uiValidationError(
+        "Field 'error.path' is required of a '$validationFailedCode' error.",
+      );
+    }
+  }
 
   /// The error code whose variant requires [path].
   static const String validationFailedCode = 'VALIDATION_FAILED';
@@ -573,12 +597,12 @@ class A2uiClientError {
   /// Parses the body of an `error` envelope.
   ///
   /// Throws [A2uiValidationError] for a missing or mistyped field, and for a
-  /// [validationFailedCode] error that names no [path]: the variant requires
-  /// it, and it is the only field saying what failed.
+  /// [validationFailedCode] error that names no non-empty [path]: the variant
+  /// requires it, and it is the only field saying what failed.
   factory A2uiClientError.fromJson(Map<String, dynamic> json) {
     final String code = _required<String>(json, 'code', 'error');
     final String? path = _optional<String>(json, 'path', 'error');
-    if (code == validationFailedCode && path == null) {
+    if (code == validationFailedCode && (path == null || path.isEmpty)) {
       throw A2uiValidationError(
         "Field 'error.path' is required of a '$validationFailedCode' error.",
         details: json,
