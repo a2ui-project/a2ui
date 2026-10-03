@@ -225,7 +225,7 @@ void main() {
       );
     });
 
-    test('asserts expectError.path when error exposes non-null path', () {
+    test('asserts expectError.path when error exposes path property', () {
       final matchingDataError = A2uiDataError(
         'Invalid pointer',
         path: '/items/01',
@@ -234,6 +234,7 @@ void main() {
         'Invalid pointer',
         path: '/items/0',
       );
+      final nullPathDataError = A2uiDataError('Invalid pointer');
       final matchingValidationError = _PathValidationError(
         'Unallowed child',
         path: '/components/0/children/1',
@@ -246,6 +247,10 @@ void main() {
       );
       expect(
         wrongPathDataError,
+        isNot(matchesErrorFields(const {'path': '/items/01'})),
+      );
+      expect(
+        nullPathDataError,
         isNot(matchesErrorFields(const {'path': '/items/01'})),
       );
       expect(

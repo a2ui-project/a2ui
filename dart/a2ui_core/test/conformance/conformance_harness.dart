@@ -174,34 +174,34 @@ String? extractErrorCode(A2uiError error) {
   return code.isEmpty ? null : code;
 }
 
-/// Reads the error `path` from [error] if its runtime type exposes a non-null
-/// string `path`.
+/// Reads the error `path` from [error] if its runtime type exposes a `path`
+/// property, returning `(supported, value)`.
 ///
 /// `A2uiDataError` exposes `path` directly; `A2uiValidationError` gains `path`
 /// in B2a.
-String? extractErrorPath(A2uiError error) {
+(bool, String?) extractErrorPath(A2uiError error) {
   if (error is A2uiDataError) {
-    return error.path;
+    return (true, error.path);
   }
   try {
     final Object? path = (error as dynamic).path;
-    if (path is String) {
-      return path;
+    if (path is String?) {
+      return (true, path);
     }
   } catch (_) {
     // Error type does not expose `path` yet.
   }
-  return null;
+  return (false, null);
 }
 
 /// Matches `code` and `path` expectations declared in an `expectError` block
 /// against a thrown [A2uiError].
 ///
 /// When `expectError` specifies `code` or `path`:
-/// - If the thrown [A2uiError] exposes a non-null value for that field, asserts
-///   equality with the expected value.
-/// - If the thrown [A2uiError] does not expose the field (or its value is
-///   null), invokes [onUnassertedField] (defaulting to [markTestSkipped]) with
+/// - If the thrown [A2uiError] exposes that field, asserts equality with the
+///   expected value.
+/// - If the thrown [A2uiError] does not expose the field, invokes
+///   [onUnassertedField] (defaulting to [markTestSkipped]) with
 ///   `"code/path not asserted: ..."` rather than silently passing.
 Matcher matchesErrorFields(
   Map<String, Object?> expectedError, {
@@ -245,8 +245,8 @@ class _ErrorFieldsMatcher extends Matcher {
     }
 
     if (expectedPath != null) {
-      final String? actualPath = extractErrorPath(item);
-      if (actualPath == null) {
+      final (bool supported, String? actualPath) = extractErrorPath(item);
+      if (!supported) {
         unasserted.add('path "$expectedPath"');
       } else if (actualPath != expectedPath) {
         matchState['reason'] =
