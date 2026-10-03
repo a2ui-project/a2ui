@@ -388,23 +388,35 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     return [
       for (final MapEntry<Object?, Object?> entry in raw.entries)
         if (allowed == null || allowed.contains(entry.key! as String))
-          ComponentApi(
-            name: entry.key! as String,
-            schema: Schema.fromMap(_asSchemaMap(entry.value)),
-            allowedParents: _parseTypeList(
-              _asSchemaMap(entry.value)['allowedParents'],
-              'allowedParents',
-              entry.key! as String,
-              catalogId,
-            ),
-            allowedChildren: _parseTypeList(
-              _asSchemaMap(entry.value)['allowedChildren'],
-              'allowedChildren',
-              entry.key! as String,
-              catalogId,
-            ),
+          _parseComponent(
+            entry.key! as String,
+            _asSchemaMap(entry.value),
+            catalogId,
           ),
     ];
+  }
+
+  static ComponentApi _parseComponent(
+    String name,
+    Map<String, Object?> schema,
+    String catalogId,
+  ) {
+    return ComponentApi(
+      name: name,
+      schema: Schema.fromMap(schema),
+      allowedParents: _parseTypeList(
+        schema['allowedParents'],
+        'allowedParents',
+        name,
+        catalogId,
+      ),
+      allowedChildren: _parseTypeList(
+        schema['allowedChildren'],
+        'allowedChildren',
+        name,
+        catalogId,
+      ),
+    );
   }
 
   static List<FunctionApi> _parseFunctions(
