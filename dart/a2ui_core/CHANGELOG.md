@@ -2,6 +2,100 @@
 
 ## Unreleased
 
+- **Breaking:** `SurfaceModel.catalog` is replaced by a nullable
+  `defaultCatalog`, and the constructor's `catalog:` argument by
+  `defaultCatalog:`. `SurfaceModel` adds `availableCatalogs`, `metadata`,
+  `onWarning`/`dispatchWarning` (with the new `A2uiWarning`), and
+  `resolveCatalog(catalogId)`, which resolves an item's own `catalogId`, then
+  the default, and otherwise throws `A2uiCatalogError`. There is no fallback to
+  a sole catalog. A catalog whose `protocolVersion` is incompatible with the
+  surface's throws `A2uiCatalogError` at construction.
+- **Behavior change:** `NodeResolver`, `GenericBinder` and `DataContext`
+  resolve components and function calls through `surface.resolveCatalog`, so a
+  component or function call naming another catalog's `catalogId` renders or
+  runs with that catalog. `FunctionCall` adds `catalogId`, and `DataContext`
+  adds `invokerForCatalog`.
+- **Behavior change:** `MessageProcessor` gives each surface the processor
+  catalogs compatible with its protocol version as `availableCatalogs`, and
+  `createSurface` without a `catalogId` creates a surface with no default
+  catalog instead of throwing. A component that names no catalog on such a
+  surface throws `A2uiCatalogError`, even when the processor supports one
+  catalog. `createSurface` metadata is kept on `SurfaceModel.metadata`.
+- **Behavior change:** `SurfaceGroupModel.addSurface` throws `A2uiStateError`
+  for a surface id it already holds, instead of ignoring the new surface.
+- **Behavior change:** `Catalog` throws `A2uiCatalogError` for two components
+  or two functions with one name, for a component named `Surface`, and for a
+  function name starting with `@`.
+- **Behavior change:** `Catalog.invoke` checks arguments against the
+  function's argument schema and throws `A2uiExpressionError` on a mismatch
+  before the function runs. Null arguments, such as bindings to missing data,
+  are not checked.
+- `SurfaceModel.dispatchAction` copies the action's `catalogId` onto
+  `A2uiClientAction.catalogId`.
+- `Catalog` adds `protocolVersion` and `instructions`, read by
+  `Catalog.fromJson` and written by `catalogSchema`. `catalogSchema` requires
+  `args` only for functions with required parameters.
+
+- **Behavior change:** `MessageProcessor` checks the component graph on every
+  `updateComponents` message. It used to check completeness once per payload,
+  and only for the surfaces that payload created. Each batch is applied to a copy of the
+  surface's components first, and the result must pass the root, dangling
+  reference, cycle, depth and reachability checks `validationConfig` requires
+  before anything is committed. A surface streamed across several messages
+  needs `ValidationConfig.relaxed`, or the individual `allow*` flags.
+- **Behavior change:** `ValidationConfig.none` (`validateSchemas: false`) turns
+  off catalog schema checks only. Duplicate-id, cycle, depth, root, dangling
+  reference and reachability checks still run, with strict defaults. This is
+  stricter than the TypeScript SDK, which skips every check without a config,
+  and matches Python.
+- `ValidationConfig` adds `allowUnknownElements`, `validateSchemas`,
+  `targetVersion`, `allowedMessages`, `rootId`, `maxDepth` and the `none`
+  preset. `ValidationConfig.relaxed` now also sets
+  `allowUnknownElements`, matching TypeScript's `RELAXED_VALIDATION`.
+- An `updateComponents` entry that omits `component` is checked against the
+  existing component's type and catalog schema; its properties still replace
+  the existing ones.
+- `ComponentModel` adds `catalog` (the component's `catalogId`) and `metadata`,
+  and `properties` no longer holds `catalogId` or `metadata`. A component whose
+  `catalogId` changes is recreated, as for a change of type.
+- `SurfaceModel` adds `rootId`, defaulting to `root` or to
+  `ValidationConfig.rootId`, and `NodeResolver` roots the tree at it.
+- `SurfaceComponentsModel` adds `getAll()`, `has()`, `size`, `entries`, `keys`,
+  `values`, `getChildIds()`, `validateTopology()`, `detectCycles()`,
+  `validateReferences()` and `validateComponentsUpdate()`.
+- **Breaking:** Message constructors no longer default `version` to
+  `'v0.9'`; every `AgentToRendererMessage` and `RendererToAgentMessage`
+  subclass takes a required `version`. `A2uiClientAction.fromJson` and
+  `A2uiClientError.fromJson` take a required `protocolVersion`.
+- `A2uiProtocolVersion` adds `v0_9_1` and `v1_0`. `'v0.9.1'` now parses to
+  `v0_9_1` instead of `v0_9`. The enum adds `parse`, `major`, `minor`,
+  `compareTo` and `isAtLeast`. Payload parsers and `PayloadValidator` accept
+  v0.9.1 envelopes where v0.9 is configured, and the reverse.
+  `A2uiRendererCapabilities.forVersion` falls back to a compatible declared
+  version in the same way.
+- Added `isCatalogVersionCompatible` and `compareVersions`, matching the
+  TypeScript and Python SDKs.
+- Added the v1.0 messages `CallRendererFunctionMessage`,
+  `AgentFunctionResponseMessage`, `CallAgentFunctionMessage` and
+  `RendererFunctionResponseMessage`, with `A2uiFunctionResponse` and
+  `A2uiFunctionResponseError` for function results. They are rejected in
+  v0.9 and v0.9.1 envelopes.
+- `CreateSurfaceMessage.catalogId` is optional, as v1.0 allows. The class adds
+  the v1.0 `components`, `dataModel` and `metadata` fields. v1.0 rejects
+  `theme`, and v0.9 rejects the v1.0 fields.
+- `A2uiClientAction` adds `catalogId` and `metadata`.
+- `A2uiClientError` follows the v1.0 rules. `UNALLOWED_PARENT` and
+  `UNALLOWED_CHILD` are path errors like `VALIDATION_FAILED`, and path errors
+  reject extra fields. A generic error names exactly one of `surfaceId` and
+  the new `functionCallId`, and keeps its other fields in
+  `additionalProperties`. `surfaceId` is now nullable.
+- Envelope parsing checks each version's allowed and required keys. It
+  rejects unknown envelope and body keys, an empty `components` list, and a
+  v1.0 `updateDataModel` without `value`. A new oracle test checks the parsers
+  against the specification's envelope schemas.
+- `PayloadValidator.commonTypesFor` throws for v1.0, whose common types this
+  package does not embed yet.
+
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
 - `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.

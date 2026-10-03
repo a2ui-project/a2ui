@@ -32,7 +32,6 @@ import 'ref_fields.dart';
 
 final _log = Logger('a2ui_core.resolution');
 
-const String _rootComponentId = 'root';
 const String _rootDataPath = '/';
 // Structured slots and parent identity keep payload delimiters out of keys.
 typedef _ChildSlot = (String, int?, String?);
@@ -168,7 +167,7 @@ class NodeResolver<T extends ComponentApi> {
     _surface.componentsModel.onDeleted.addListener(_onDeletedListener);
 
     _runUpdate(() {
-      if (_surface.componentsModel.get(_rootComponentId) != null) {
+      if (_surface.componentsModel.get(_surface.rootId) != null) {
         _buildRoot();
       }
     });
@@ -322,7 +321,7 @@ class NodeResolver<T extends ComponentApi> {
       return;
     }
     final MutableComponentNode<T> node = _createNode(
-      _rootComponentId,
+      _surface.rootId,
       _rootDataPath,
       _rootEdgeKey,
       null,
@@ -341,7 +340,7 @@ class NodeResolver<T extends ComponentApi> {
     if (_surface.componentsModel.get(component.id) == null) {
       return;
     }
-    if (component.id == _rootComponentId) {
+    if (component.id == _surface.rootId) {
       _buildRoot();
     }
     final Set<MutableComponentNode<T>>? waiting = _pendingParents.remove(
@@ -389,7 +388,7 @@ class NodeResolver<T extends ComponentApi> {
         _disposeNode(oldRoot);
         // A destruction listener may already have rebuilt the root. Reconcile
         // current model state and do not overwrite that listener's root.
-        if (_surface.componentsModel.get(_rootComponentId) != null) {
+        if (_surface.componentsModel.get(_surface.rootId) != null) {
           _buildRoot();
         }
       }
@@ -433,14 +432,34 @@ class NodeResolver<T extends ComponentApi> {
       return record.node;
     }
 
-    final T? api = _surface.catalog.components[model.type];
+    final Catalog<T, FunctionImplementation> catalog;
+    try {
+      catalog = _surface.resolveCatalog(model.catalog);
+    } on A2uiCatalogError catch (error) {
+      _reportOnce('UNKNOWN_CATALOG', componentId, dataPath, error.message);
+      return _registerNode(
+        _placeholderNode(
+          componentId,
+          dataPath,
+          NodeState.unknownType,
+          type: model.type,
+          occurrence: occurrence,
+        ),
+        edgeKey: edgeKey,
+        parent: parent,
+        occurrence: occurrence,
+        refFields: const {},
+        componentModel: model,
+      ).node;
+    }
+    final T? api = catalog.components[model.type];
     if (api == null) {
       _reportOnce(
         'UNKNOWN_COMPONENT_TYPE',
         componentId,
         dataPath,
         "Component '$componentId' has type '${model.type}', which is "
-            "not in catalog '${_surface.catalog.id}'.",
+            "not in catalog '${catalog.id}'.",
       );
       return _registerNode(
         _placeholderNode(
@@ -474,7 +493,7 @@ class NodeResolver<T extends ComponentApi> {
       occurrence: occurrence,
       refFields: extractRefFields(
         schema,
-        document: _surface.catalog.catalogSchema,
+        document: catalog.catalogSchema,
       ),
       componentModel: model,
     );
@@ -519,6 +538,16 @@ class NodeResolver<T extends ComponentApi> {
       record.binderUnsubscribe = unsubscribe;
     }
     return record.node;
+  }
+
+  /// The api for [model]'s type in the catalog [model] resolves to, or null
+  /// when that catalog is not available on the surface or lacks the type.
+  T? _componentApiFor(ComponentModel model) {
+    try {
+      return _surface.resolveCatalog(model.catalog).components[model.type];
+    } on A2uiCatalogError {
+      return null;
+    }
   }
 
   MutableComponentNode<T> _placeholderNode(
@@ -606,8 +635,7 @@ class NodeResolver<T extends ComponentApi> {
     }
     if (existing != null && !existing.disposed) {
       final ComponentModel? model = _surface.componentsModel.get(componentId);
-      final T? api =
-          model == null ? null : _surface.catalog.components[model.type];
+      final T? api = model == null ? null : _componentApiFor(model);
       // A placeholder stays up to date only while its own state's
       // preconditions hold, so a pending node whose definition arrives with
       // an unknown type is replaced (once) by an unknown-type node, and

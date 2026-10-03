@@ -47,7 +47,7 @@ void main() {
   late List<A2uiClientError> errors;
 
   setUp(() {
-    surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+    surface = SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
     resolver = NodeResolver(surface);
     errors = [];
     surface.onError.addListener(errors.add);
@@ -201,7 +201,7 @@ void main() {
 
         // The existing card remains resolved, while a new reference cannot find
         // an implementation. Both conditions concern card at the root scope.
-        surface.catalog.components.remove('Card');
+        surface.defaultCatalog!.components.remove('Card');
         surface.componentsModel.get('other')!.properties = {'child': 'card'};
         expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
         expect(reports('CYCLIC_REFERENCE'), 1);
@@ -243,7 +243,7 @@ void main() {
         });
         expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
 
-        surface.catalog.components['Bogus'] = ComponentApi(
+        surface.defaultCatalog!.components['Bogus'] = ComponentApi(
           name: 'Bogus',
           schema: Schema.object(),
         );
@@ -251,7 +251,7 @@ void main() {
           'children': ['weird'],
         };
         expect(children().single.state, NodeState.resolved);
-        surface.catalog.components.remove('Bogus');
+        surface.defaultCatalog!.components.remove('Bogus');
         // Removing and restoring only the edge forces a fresh catalog lookup.
         surface.componentsModel.get('root')!.properties = {
           'children': <String>[],

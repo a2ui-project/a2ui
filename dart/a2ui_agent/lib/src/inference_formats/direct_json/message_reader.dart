@@ -69,16 +69,22 @@ class MessageReader {
     _checkFields(envelope);
     switch (message) {
       case CreateSurfaceMessage():
+        final String catalogId =
+            message.catalogId ??
+            (throw A2uiValidationError(
+              "Surface '${message.surfaceId}' names no catalogId.",
+              details: envelope,
+            ));
         final PayloadValidator<ComponentApi, FunctionApi> validator =
-            _validators[message.catalogId] ??
+            _validators[catalogId] ??
             (throw A2uiValidationError(
               "Surface '${message.surfaceId}' names catalog "
-              "'${message.catalogId}', which is not active. Active catalogs: "
+              "'$catalogId', which is not active. Active catalogs: "
               '${_validators.keys.join(', ')}.',
               details: envelope,
             ));
         validator.validateTheme(message.theme);
-        surfaces[message.surfaceId] = message.catalogId;
+        surfaces[message.surfaceId] = catalogId;
       case UpdateComponentsMessage():
         if (message.components.isEmpty) {
           throw A2uiValidationError(

@@ -220,7 +220,7 @@ void main() {
     late List<A2uiClientError> clientErrors;
 
     setUp(() {
-      surface = SurfaceModel('surf-1', catalog: MinimalCatalog());
+      surface = SurfaceModel('surf-1', defaultCatalog: MinimalCatalog());
       component = ComponentModel('root', 'Text', {});
       clientErrors = [];
       surface.onError.addListener(clientErrors.add);

@@ -58,7 +58,7 @@ _Fixture _setup(Map<String, dynamic> properties) {
     components: [ComponentApi(name: 'Group', schema: _groupSchema())],
     functions: [],
   );
-  final surface = SurfaceModel<ComponentApi>('surf-1', catalog: catalog);
+  final surface = SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
   final resolver = NodeResolver<ComponentApi>(surface);
   final model = ComponentModel('root', 'Group', properties);
   surface.componentsModel.addComponent(model);

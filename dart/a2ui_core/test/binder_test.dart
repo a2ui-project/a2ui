@@ -50,7 +50,7 @@ void main() {
 
     setUp(() {
       catalog = MinimalCatalog();
-      surface = SurfaceModel('s1', catalog: catalog);
+      surface = SurfaceModel('s1', defaultCatalog: catalog);
     });
 
     test('resolves dynamic properties', () {
@@ -111,7 +111,7 @@ void main() {
         errors.clear();
         spySurface = SurfaceModel(
           's2',
-          catalog: Catalog<ComponentApi, FunctionImplementation>(
+          defaultCatalog: Catalog<ComponentApi, FunctionImplementation>(
             id: 'test',
             components: [MinimalButtonApi()],
             functions: [
