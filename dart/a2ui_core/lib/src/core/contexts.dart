@@ -66,6 +66,20 @@ class DataContext {
   static bool _isSingleAtKey(String key) =>
       key.startsWith('@') && !key.startsWith('@@');
 
+  static Map<String, dynamic> _asStringKeyedMap(Map<Object?, Object?> map) {
+    final result = <String, dynamic>{};
+    for (final MapEntry<Object?, Object?> entry in map.entries) {
+      final Object? key = entry.key;
+      if (key is! String) {
+        throw A2uiValidationError(
+          'Dynamic map keys must be Strings, got ${key.runtimeType}.',
+        );
+      }
+      result[key] = entry.value;
+    }
+    return result;
+  }
+
   void _validateReservedDirectives(Iterable<Object?> keys) {
     for (final key in keys) {
       if (key is String &&
@@ -100,16 +114,12 @@ class DataContext {
   /// bindings or calls is returned as-is rather than copied.
   Object? resolveSync(Object? value) {
     if (isV10) {
-      if (value is Map &&
-          value.containsKey('@path') &&
-          value['@path'] is String) {
-        final pathVal = value['@path'] as String;
-        return dataModel.get(resolvePath(pathVal));
+      if (value is Map && value.containsKey('@path')) {
+        final binding = DataBinding.fromJson(_asStringKeyedMap(value));
+        return dataModel.get(resolvePath(binding.path));
       }
-      if (value is Map &&
-          value.containsKey('@call') &&
-          value['@call'] is String) {
-        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+      if (value is Map && value.containsKey('@call')) {
+        final call = FunctionCall.fromJson(_asStringKeyedMap(value));
         final args = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
           args[entry.key] = resolveSync(entry.value);
@@ -121,10 +131,11 @@ class DataContext {
         return result;
       }
       if (value is Map) {
-        _validateReservedDirectives(value.keys);
+        final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
+        _validateReservedDirectives(stringMap.keys);
         final result = <String, dynamic>{};
-        for (final MapEntry<Object?, Object?> entry in value.entries) {
-          final keyStr = entry.key as String;
+        for (final MapEntry<String, dynamic> entry in stringMap.entries) {
+          final String keyStr = entry.key;
           final String unescapedKey =
               keyStr.startsWith('@@') ? keyStr.substring(1) : keyStr;
           result[unescapedKey] = resolveSync(entry.value);
@@ -142,7 +153,7 @@ class DataContext {
       if (value is Map &&
           value.containsKey('call') &&
           value['call'] is String) {
-        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+        final call = FunctionCall.fromJson(_asStringKeyedMap(value));
         final args = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
           args[entry.key] = resolveSync(entry.value);
@@ -154,11 +165,11 @@ class DataContext {
         return result;
       }
       if (value is Map) {
+        final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
         if (!_containsDynamicValue(value)) return value;
         final result = <String, dynamic>{};
-        for (final MapEntry<Object?, Object?> entry in value.entries) {
-          final keyStr = entry.key as String;
-          result[keyStr] = resolveSync(entry.value);
+        for (final MapEntry<String, dynamic> entry in stringMap.entries) {
+          result[entry.key] = resolveSync(entry.value);
         }
         return result;
       }
@@ -196,16 +207,12 @@ class DataContext {
   /// payloads resolve per entry, mirroring [resolveSync].
   ReadonlySignal<Object?> resolveListenable(Object? value) {
     if (isV10) {
-      if (value is Map &&
-          value.containsKey('@path') &&
-          value['@path'] is String) {
-        final pathVal = value['@path'] as String;
-        return dataModel.watch(resolvePath(pathVal));
+      if (value is Map && value.containsKey('@path')) {
+        final binding = DataBinding.fromJson(_asStringKeyedMap(value));
+        return dataModel.watch(resolvePath(binding.path));
       }
-      if (value is Map &&
-          value.containsKey('@call') &&
-          value['@call'] is String) {
-        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+      if (value is Map && value.containsKey('@call')) {
+        final call = FunctionCall.fromJson(_asStringKeyedMap(value));
         return computed(() {
           final args = <String, dynamic>{};
           for (final MapEntry<String, dynamic> entry in call.args.entries) {
@@ -222,12 +229,12 @@ class DataContext {
         });
       }
       if (value is Map) {
-        _validateReservedDirectives(value.keys);
+        final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
+        _validateReservedDirectives(stringMap.keys);
         final entries = <String, ReadonlySignal<Object?>>{
-          for (final MapEntry<Object?, Object?> e in value.entries)
-            (e.key.toString().startsWith('@@')
-                ? e.key.toString().substring(1)
-                : e.key.toString()): resolveListenable(e.value),
+          for (final MapEntry<String, dynamic> e in stringMap.entries)
+            (e.key.startsWith('@@') ? e.key.substring(1) : e.key):
+                resolveListenable(e.value),
         };
         return computed(() => {
               for (final e in entries.entries) e.key: e.value.value,
@@ -244,7 +251,7 @@ class DataContext {
       if (value is Map &&
           value.containsKey('call') &&
           value['call'] is String) {
-        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+        final call = FunctionCall.fromJson(_asStringKeyedMap(value));
         return computed(() {
           final args = <String, dynamic>{};
           for (final MapEntry<String, dynamic> entry in call.args.entries) {
@@ -261,12 +268,13 @@ class DataContext {
         });
       }
       if (value is Map) {
+        final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
         if (!_containsDynamicValue(value)) {
           return signal(value);
         }
         final Map<String, ReadonlySignal<Object?>> entries = {
-          for (final MapEntry<Object?, Object?> entry in value.entries)
-            entry.key as String: resolveListenable(entry.value),
+          for (final MapEntry<String, dynamic> entry in stringMap.entries)
+            entry.key: resolveListenable(entry.value),
         };
         return computed(
           () => {
@@ -400,10 +408,19 @@ class ComponentContext {
   }
 
   /// Returns a context for rendering a child component.
+  ///
+  /// Throws [A2uiStateError] if [childId] does not exist on the surface or if
+  /// [basePath] is not an absolute JSON Pointer path starting with `/`.
   ComponentContext childContext(String childId, {String? basePath}) {
+    if (basePath != null && !basePath.startsWith('/')) {
+      throw A2uiStateError(
+        "Base path for child context must be absolute (start with '/'), "
+        "got '$basePath'.",
+      );
+    }
     final ComponentModel? childModel = surface.componentsModel.get(childId);
     if (childModel == null) {
-      throw ArgumentError('Child component not found: $childId');
+      throw A2uiStateError('Child component not found: $childId');
     }
     return ComponentContext(
       surface,
@@ -417,10 +434,12 @@ class ComponentContext {
 extension CatalogInvokerExtension
     on Catalog<ComponentApi, FunctionImplementation> {
   /// Invokes a catalog function by name with the given arguments.
+  ///
+  /// Throws [A2uiCatalogError] if [name] is not registered in this catalog.
   Object? invoke(String name, Map<String, dynamic> args, DataContext context) {
     final FunctionImplementation? fn = functions[name];
     if (fn == null) {
-      throw ArgumentError('Function not found: $name');
+      throw A2uiCatalogError('Function not found: $name', catalogId: id);
     }
     return fn.execute(args, context);
   }

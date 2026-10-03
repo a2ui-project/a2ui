@@ -228,8 +228,9 @@ class GenericBinder {
 
       case Behavior.structural:
         if (value is Map &&
-            value.containsKey('path') &&
-            value.containsKey('componentId')) {
+            value['path'] is String &&
+            value['componentId'] is String &&
+            value.keys.every((k) => k is String)) {
           final tpl = ChildListTemplate.fromJson(
             Map<String, dynamic>.from(value),
           );
@@ -267,10 +268,13 @@ class GenericBinder {
         return value;
 
       case Behavior.checkable:
-        final List<Object?> rules = value is List ? value.cast<Object?>() : [];
+        final List<Map<String, dynamic>> rules = _extractCheckRules(
+          value,
+          path,
+          reportErrors: true,
+        );
         final List<bool> results = List.filled(rules.length, true);
         final List<String> messages = rules
-            .cast<Map<String, dynamic>>()
             .map((r) => r['message']?.toString() ?? 'Validation failed')
             .toList();
 
@@ -286,8 +290,7 @@ class GenericBinder {
 
         for (var i = 0; i < rules.length; i++) {
           if (_disposed) return null;
-          final Object? condition =
-              (rules[i] as Map<String, dynamic>)['condition'] ?? rules[i];
+          final Object? condition = rules[i]['condition'] ?? rules[i];
           final ReadonlySignal<Object?> sig =
               context.dataContext.resolveListenable(condition);
           results[i] = sig.value == true;
@@ -310,7 +313,9 @@ class GenericBinder {
         final Map<String, BehaviorNode> shape = behavior.shape ?? {};
 
         for (final MapEntry<Object?, Object?> entry in value.entries) {
-          final key = entry.key as String;
+          final Object? rawKey = entry.key;
+          if (rawKey is! String) continue;
+          final String key = rawKey;
           final BehaviorNode childBehavior =
               shape[key] ?? BehaviorNode(Behavior.static);
           result[key] = _resolveAndBind(
@@ -336,12 +341,13 @@ class GenericBinder {
         if (!_disposed &&
             shape.containsKey('checks') &&
             result.containsKey('checks')) {
-          final List<Object?> rules =
-              (value['checks'] as List?)?.cast<Object?>() ?? [];
+          final List<Map<String, dynamic>> typedRules = _extractCheckRules(
+            value['checks'],
+            [...path, 'checks'],
+            reportErrors: false,
+          );
           var isValid = true;
           final errors = <String>[];
-          final List<Map<String, dynamic>> typedRules =
-              rules.cast<Map<String, dynamic>>();
           for (final rule in typedRules) {
             if (_disposed) return null;
             final Object? condition = rule['condition'] ?? rule;
@@ -379,6 +385,48 @@ class GenericBinder {
       case Behavior.static:
         return value;
     }
+  }
+
+  List<Map<String, dynamic>> _extractCheckRules(
+    Object? rawChecks,
+    List<String> checksPath, {
+    required bool reportErrors,
+  }) {
+    if (rawChecks is! List) {
+      if (reportErrors) {
+        context.surface.dispatchError(
+          A2uiClientError(
+            code: 'VALIDATION_FAILED',
+            surfaceId: context.surface.id,
+            path: '/${checksPath.join('/')}',
+            message:
+                'Expected "checks" to be a List, got ${rawChecks.runtimeType}.',
+          ),
+        );
+      }
+      return const [];
+    }
+    final result = <Map<String, dynamic>>[];
+    for (var i = 0; i < rawChecks.length; i++) {
+      final Object? item = rawChecks[i];
+      if (item is! Map || item.keys.any((k) => k is! String)) {
+        if (reportErrors) {
+          context.surface.dispatchError(
+            A2uiClientError(
+              code: 'VALIDATION_FAILED',
+              surfaceId: context.surface.id,
+              path: '/${[...checksPath, '$i'].join('/')}',
+              message:
+                  'Expected check rule at index $i to be a string-keyed Map, '
+                  'got ${item.runtimeType}.',
+            ),
+          );
+        }
+        continue;
+      }
+      result.add(Map<String, dynamic>.from(item));
+    }
+    return result;
   }
 
   void _updateDeepValue(List<String> path, Object? newValue) {

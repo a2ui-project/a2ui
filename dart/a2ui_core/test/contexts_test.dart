@@ -427,5 +427,151 @@ void main() {
       );
       expect(ctx3.isV10, isFalse);
     });
+
+    test(
+      'throws A2uiValidationError on malformed @path, @call, args, or map keys',
+      () {
+        final v10Context = DataContext(
+          dataModel,
+          mockInvoker,
+          '/',
+          protocolVersion: 'v1.0',
+        );
+
+        expect(
+          () => v10Context.resolveSync({'@path': 123}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveListenable({'@path': 123}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveSync({'@path': null}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveSync({'@call': null}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveListenable({'@call': null}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveSync({'@call': 123}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveSync({
+            '@call': 'uppercase',
+            'args': 'not_a_map',
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveListenable({
+            '@call': 'uppercase',
+            'args': 'not_a_map',
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveSync(<Object?, Object?>{123: 'bad_key'}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () =>
+              v10Context.resolveListenable(<Object?, Object?>{123: 'bad_key'}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+
+        final v09Context = DataContext(
+          dataModel,
+          mockInvoker,
+          '/',
+          protocolVersion: 'v0.9',
+        );
+        expect(
+          () => v09Context.resolveSync({
+            'call': 'uppercase',
+            'args': 'not_a_map',
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v09Context.resolveListenable({
+            'call': 'uppercase',
+            'args': 'not_a_map',
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v09Context.resolveSync(<Object?, Object?>{123: 'bad_key'}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () =>
+              v09Context.resolveListenable(<Object?, Object?>{123: 'bad_key'}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      },
+    );
+  });
+
+  group('ComponentContext.childContext and CatalogInvokerExtension error types',
+      () {
+    late SurfaceModel surface;
+    late ComponentModel component;
+
+    setUp(() {
+      surface = SurfaceModel('surf-err', catalog: MinimalCatalog());
+      component = ComponentModel('root', 'Column', {});
+      surface.componentsModel.addComponent(component);
+      surface.componentsModel.addComponent(ComponentModel('child', 'Text', {}));
+      addTearDown(surface.dispose);
+    });
+
+    test('childContext throws A2uiStateError when child component is missing',
+        () {
+      final componentContext = ComponentContext(surface, component);
+      expect(
+        () => componentContext.childContext('nonexistent'),
+        throwsA(isA<A2uiStateError>()),
+      );
+    });
+
+    test('childContext throws A2uiStateError when basePath is not absolute',
+        () {
+      final componentContext = ComponentContext(surface, component);
+      expect(
+        () => componentContext.childContext('child', basePath: 'relative/path'),
+        throwsA(isA<A2uiStateError>()),
+      );
+      expect(
+        () => componentContext.childContext('child', basePath: ''),
+        throwsA(isA<A2uiStateError>()),
+      );
+    });
+
+    test(
+        'CatalogInvokerExtension.invoke throws A2uiCatalogError on unknown '
+        'function', () {
+      final componentContext = ComponentContext(surface, component);
+      expect(
+        () => surface.catalog.invoke(
+          'unknownFn',
+          const {},
+          componentContext.dataContext,
+        ),
+        throwsA(
+          isA<A2uiCatalogError>().having(
+            (e) => e.catalogId,
+            'catalogId',
+            surface.catalog.id,
+          ),
+        ),
+      );
+    });
   });
 }
