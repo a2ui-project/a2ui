@@ -78,7 +78,7 @@ void _add(
     surface.componentsModel.addComponent(ComponentModel(id, type, properties));
 
 _Fixture _fixture(Catalog<ComponentApi, FunctionImplementation> catalog) {
-  final surface = SurfaceModel<ComponentApi>('s', catalog: catalog);
+  final surface = SurfaceModel<ComponentApi>('s', defaultCatalog: catalog);
   final resolver = NodeResolver<ComponentApi>(surface);
   addTearDown(() {
     resolver.dispose();

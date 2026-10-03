@@ -309,7 +309,7 @@ class MessageProcessor<T extends ComponentApi> {
 
     final surface = SurfaceModel<T>(
       message.surfaceId,
-      catalog: catalog,
+      defaultCatalog: catalog,
       theme: message.theme ?? {},
       sendDataModel: message.sendDataModel,
       protocolVersion: protocolVersion.jsonValue,

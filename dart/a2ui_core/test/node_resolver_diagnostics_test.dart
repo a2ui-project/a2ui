@@ -47,7 +47,7 @@ void main() {
   late List<A2uiClientError> errors;
 
   setUp(() {
-    surface = SurfaceModel<ComponentApi>('surf', catalog: _catalog());
+    surface = SurfaceModel<ComponentApi>('surf', defaultCatalog: _catalog());
     resolver = NodeResolver(surface);
     errors = [];
     surface.onError.addListener(errors.add);

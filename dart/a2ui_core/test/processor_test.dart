@@ -624,7 +624,7 @@ void main() {
     test('NodeResolver roots the tree at the surface rootId', () {
       final surface = SurfaceModel<ComponentApi>(
         's1',
-        catalog: catalog,
+        defaultCatalog: catalog,
         rootId: 'main',
       );
       final resolver = NodeResolver<ComponentApi>(surface);
