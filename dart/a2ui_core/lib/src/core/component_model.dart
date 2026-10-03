@@ -247,13 +247,15 @@ class SurfaceComponentsModel {
       checkComponentsUpdate(components, config, refFields);
 
   /// [validateComponentsUpdate] with [refFields] in place of this model's,
-  /// for a batch that draws on catalogs the model has not seen.
+  /// for a batch that draws on catalogs the model has not seen, and
+  /// [defaultRootId] as the root when [ValidationConfig.rootId] is null.
   @internal
   void checkComponentsUpdate(
     List<Map<String, Object?>> components,
     ValidationConfig config,
-    Map<String, ComponentRefFields> refFields,
-  ) {
+    Map<String, ComponentRefFields> refFields, {
+    String defaultRootId = 'root',
+  }) {
     checkDuplicateComponentIds(components);
     // Each component as its type and the map its references are read from.
     // Existing components lend their properties map rather than a copy.
@@ -285,7 +287,7 @@ class SurfaceComponentsModel {
     checkComponentGraph(candidate.keys.toSet(), (String id) {
       final (String type, Map<String, Object?> source) = candidate[id]!;
       return componentReferences(source, refFields[type]);
-    }, config);
+    }, config, defaultRootId: defaultRootId);
   }
 
   /// Disposes of the model and all its components.

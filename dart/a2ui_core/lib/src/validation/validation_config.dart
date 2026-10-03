@@ -115,32 +115,6 @@ class ValidationConfig {
   /// already, but still needs a surface it can render.
   static const ValidationConfig none = ValidationConfig(validateSchemas: false);
 
-  /// A copy of this configuration with the given fields replaced.
-  ValidationConfig copyWith({
-    bool? allowOrphanComponents,
-    bool? allowDanglingReferences,
-    bool? allowMissingRoot,
-    bool? allowUnknownElements,
-    bool? validateSchemas,
-    A2uiProtocolVersion? targetVersion,
-    List<String>? allowedMessages,
-    String? rootId,
-    int? maxDepth,
-  }) =>
-      ValidationConfig(
-        allowOrphanComponents:
-            allowOrphanComponents ?? this.allowOrphanComponents,
-        allowDanglingReferences:
-            allowDanglingReferences ?? this.allowDanglingReferences,
-        allowMissingRoot: allowMissingRoot ?? this.allowMissingRoot,
-        allowUnknownElements: allowUnknownElements ?? this.allowUnknownElements,
-        validateSchemas: validateSchemas ?? this.validateSchemas,
-        targetVersion: targetVersion ?? this.targetVersion,
-        allowedMessages: allowedMessages ?? this.allowedMessages,
-        rootId: rootId ?? this.rootId,
-        maxDepth: maxDepth ?? this.maxDepth,
-      );
-
   @override
   String toString() =>
       'ValidationConfig(allowOrphanComponents: $allowOrphanComponents, '

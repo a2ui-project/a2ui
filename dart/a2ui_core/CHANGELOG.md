@@ -18,8 +18,8 @@
   stricter than the TypeScript SDK, which skips every check without a config,
   and matches Python.
 - `ValidationConfig` adds `allowUnknownElements`, `validateSchemas`,
-  `targetVersion`, `allowedMessages`, `rootId`, `maxDepth`, `copyWith` and the
-  `none` preset. `ValidationConfig.relaxed` now also sets
+  `targetVersion`, `allowedMessages`, `rootId`, `maxDepth` and the `none`
+  preset. `ValidationConfig.relaxed` now also sets
   `allowUnknownElements`, matching TypeScript's `RELAXED_VALIDATION`.
 - An `updateComponents` entry that omits `component` is checked against the
   existing component's type and catalog schema; its properties still replace

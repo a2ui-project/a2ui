@@ -256,16 +256,19 @@ class MessageProcessor<T extends ComponentApi> {
   void _processMessage(AgentToRendererMessage message) {
     final List<String>? allowed = validationConfig.allowedMessages;
     if (allowed != null) {
-      final Map<String, Object?> json = message.toJson();
-      final String name = json.keys.firstWhere(
-        (String key) => key != 'version',
-        orElse: () => message.runtimeType.toString(),
-      );
+      // Named by type rather than read from `toJson`, which would serialize
+      // a whole component batch just to find its key.
+      final String name = switch (message) {
+        CreateSurfaceMessage() => 'createSurface',
+        UpdateComponentsMessage() => 'updateComponents',
+        UpdateDataModelMessage() => 'updateDataModel',
+        DeleteSurfaceMessage() => 'deleteSurface',
+        _ => message.runtimeType.toString(),
+      };
       if (!allowed.contains(name)) {
         throw A2uiValidationError(
           "Message '$name' is not permitted by "
           'ValidationConfig.allowedMessages.',
-          details: json,
         );
       }
     }
@@ -346,10 +349,9 @@ class MessageProcessor<T extends ComponentApi> {
     );
     model.checkComponentsUpdate(
       resolved,
-      validationConfig.rootId == null
-          ? validationConfig.copyWith(rootId: surface.rootId)
-          : validationConfig,
+      validationConfig,
       refFields,
+      defaultRootId: surface.rootId,
     );
 
     // Pass 2: mutation. Only reached when the whole batch is valid.
