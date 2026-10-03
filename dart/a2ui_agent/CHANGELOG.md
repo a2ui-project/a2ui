@@ -2,6 +2,10 @@
 
 ## 0.0.1-wip005
 
+- pub.dev now recognizes the license. The package `LICENSE` linked
+  `https://` where the Apache text has `http://`, which pana does not match,
+  and carried the root's notice for `eval/bin/transcrypt`, a file outside
+  this package. Also a longer `description`.
 - Catalogs are typed `CatalogApi`, the new name of `a2ui_core`'s
   `SchemaCatalog`.
 - Implemented the rest of the agent SDK blueprint API for protocol v0.9:
