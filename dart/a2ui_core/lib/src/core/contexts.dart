@@ -291,13 +291,14 @@ class DataContext {
 
   /// Invokes a function, reporting a failure only when a reporter was supplied.
   Object? _evaluateFunction(String name, Map<String, dynamic> args) {
-    if (args.length > maxFunctionCallArgs) {
-      throw A2uiValidationError(
-        "Function call '$name' exceeds maximum allowed arguments count "
-        '($maxFunctionCallArgs)',
-      );
-    }
     try {
+      if (args.length > maxFunctionCallArgs) {
+        throw A2uiExpressionError(
+          "Function call '$name' exceeds maximum allowed arguments count "
+          '($maxFunctionCallArgs)',
+          expression: name,
+        );
+      }
       return _invoke(name, args, this);
     } catch (error) {
       final ExpressionErrorReporter? onError = _onError;

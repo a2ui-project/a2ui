@@ -976,6 +976,29 @@ void v1RulesTests() {
       );
     });
 
+    test('does not walk v1.0 metadata extensions for directives', () {
+      expect(
+        () => _versionedValidator('v1.0').validateComponent({
+          ..._box('x'),
+          'metadata': {
+            'extensions': {
+              'ld': {'@context': 'https://schema.org'},
+            },
+          },
+        }),
+        returnsNormally,
+      );
+      expect(
+        () => _versionedValidator('v1.0').validateComponent({
+          ..._box('x'),
+          'metadata': {
+            'extensions': {'bad-key': 1},
+          },
+        }),
+        throwsA(_validationError(path: '/metadata/extensions/bad-key')),
+      );
+    });
+
     test('still checks v1.0 accessibility against the common types', () {
       expect(
         () => _versionedValidator('v1.0').validateComponent({
@@ -1012,6 +1035,16 @@ void v1RulesTests() {
           'protocolVersion': 'v1.0',
           'components': {
             'my-box': {'type': 'object'},
+          },
+        }),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(
+        () => Catalog.fromJson({
+          'catalogId': 'c',
+          'protocolVersion': 'v1.0',
+          'components': {
+            '@Box': {'type': 'object'},
           },
         }),
         throwsA(isA<A2uiCatalogError>()),
@@ -1286,6 +1319,25 @@ void v1RulesTests() {
           'label': {'@path': '/name'},
         }),
         throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('rejects a fragment that is not a JSON Pointer', () {
+      expect(
+        () => PayloadValidator<ComponentApi, FunctionApi>(
+          catalog: Catalog.fromJson({
+            'catalogId': 'c',
+            'components': {
+              'Anchored': {
+                'type': 'object',
+                'properties': {
+                  'x': {r'$ref': '$_v0_9CommonTypes#anchor'},
+                },
+              },
+            },
+          }),
+        ).validateComponent({'id': 'a', 'component': 'Anchored', 'x': 1}),
+        throwsA(isA<A2uiCatalogError>()),
       );
     });
 

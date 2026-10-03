@@ -267,9 +267,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   /// Checks the names a v1.0 catalog declares against UAX #31.
   static void _checkIdentifiers(Map<String, Object?> json, String catalogId) {
-    void check(String name, String context) {
+    // Only function and argument names may start with `@`, as system
+    // functions such as `@index` do.
+    void check(String name, String context, {bool allowLeadingAt = false}) {
       try {
-        assertUax31Identifier(name, context: context, allowLeadingAt: true);
+        assertUax31Identifier(
+          name,
+          context: context,
+          allowLeadingAt: allowLeadingAt,
+        );
       } on A2uiCatalogError catch (error) {
         throw A2uiCatalogError(error.message, catalogId: catalogId);
       }
@@ -311,9 +317,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       _ => const <(String, Object?)>[],
     };
     for (final (String name, Object? args) in definitions) {
-      check(name, "function identifier '$name'");
+      check(name, "function identifier '$name'", allowLeadingAt: true);
       for (final String arg in propertyNames(args)) {
-        check(arg, "argument identifier '$arg' in function '$name'");
+        check(
+          arg,
+          "argument identifier '$arg' in function '$name'",
+          allowLeadingAt: true,
+        );
       }
     }
   }

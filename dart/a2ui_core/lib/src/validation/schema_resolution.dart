@@ -282,6 +282,8 @@ Object? inlineLocalRefs(
 ///
 /// A segment indexes into a list when it is a decimal index within range.
 Object? followJsonPointer(Object? document, String pointer) {
+  if (pointer.isEmpty) return document;
+  if (!pointer.startsWith('/')) return null;
   var current = document;
   for (final String raw in pointer.split('/').skip(1)) {
     final String segment = raw.replaceAll('~1', '/').replaceAll('~0', '~');

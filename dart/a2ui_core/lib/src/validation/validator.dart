@@ -44,9 +44,23 @@ const List<String> _v1EnvelopeKeys = [
 
 /// The envelope keys from v1.0 checked against `ComponentCommon` rather than
 /// dropped, unless the component's own schema declares them.
-const Map<String, String> _v1CommonEnvelopeTypes = {
-  'accessibility': r'common_types.json#/$defs/AccessibilityAttributes',
-  'metadata': r'common_types.json#/$defs/ComponentCommon/properties/metadata',
+///
+/// `metadata` restates `ComponentCommon/properties/metadata` instead of
+/// referencing it: `Extensions` constrains its keys with a `\p{XID_Start}`
+/// pattern that `json_schema_builder` does not compile in Unicode mode, so
+/// every key would fail. [PayloadValidator.validateComponent] checks those
+/// keys against UAX #31 itself.
+const Map<String, Map<String, Object?>> _v1CommonEnvelopeTypes = {
+  'accessibility': {
+    r'$ref': r'common_types.json#/$defs/AccessibilityAttributes',
+  },
+  'metadata': {
+    'type': 'object',
+    'properties': {
+      'extensions': {'type': 'object'},
+    },
+    'additionalProperties': false,
+  },
 };
 
 /// Matches a key reserved for protocol directives from v1.0: a single leading
@@ -281,18 +295,35 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     );
 
     if (!_v1) return;
-    for (final MapEntry<String, String> entry
+    for (final MapEntry<String, Map<String, Object?>> entry
         in _v1CommonEnvelopeTypes.entries) {
       final String key = entry.key;
       if (!component.containsKey(key) || declared.contains(key)) continue;
       final Object? value = component[key];
-      _validateNested(value, '/$key');
+      // `metadata.extensions` holds arbitrary vendor JSON, so only
+      // `accessibility` carries dynamic values to walk.
+      if (key == 'accessibility') _validateNested(value, '/$key');
       _throwOnErrors(
         _resolvedEnvelopeSchemas[key]!.validateSync(value),
         "Component '$id' has an invalid '$key'",
         component,
         path: '/$key',
       );
+    }
+    if (component['metadata']
+        case {
+          'extensions': final Map<Object?, Object?> extensions,
+        } when !declared.contains('metadata')) {
+      for (final Object? name in extensions.keys) {
+        if (name is! String || !isValidUax31Identifier(name)) {
+          throw A2uiValidationError(
+            "Component '$id' has a metadata extension key '$name' that is "
+            'not a valid UAX #31 identifier',
+            path: '/metadata/extensions/${_escape('$name')}',
+            details: component,
+          );
+        }
+      }
     }
   }
 
@@ -575,9 +606,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       };
 
   Map<String, Schema> get _resolvedEnvelopeSchemas => _resolvedEnvelope ??= {
-        for (final MapEntry<String, String> entry
+        for (final MapEntry<String, Map<String, Object?>> entry
             in _v1CommonEnvelopeTypes.entries)
-          entry.key: _resolve({r'$ref': entry.value}),
+          entry.key: _resolve(entry.value),
       };
 
   Schema _resolve(Map<String, Object?> schema) => Schema.fromMap(
