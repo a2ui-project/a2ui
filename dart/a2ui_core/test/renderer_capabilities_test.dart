@@ -79,7 +79,7 @@ void main() {
 
     test('round trips through JSON', () {
       final caps = A2uiVersionCapabilities(supportedCatalogIds: ['a']);
-      expect(caps.toJson(), {
+      expect(caps.toJson(version: A2uiProtocolVersion.v0_9), {
         'supportedCatalogIds': ['a'],
       });
     });
@@ -211,7 +211,8 @@ void main() {
   group('MessageProcessor.getRendererCapabilities', () {
     const legacyEnvelope = r'common_types.json#/$defs/ComponentCommon';
 
-    MessageProcessor<ComponentApi> processorFor(List<ComponentApi> components) =>
+    MessageProcessor<ComponentApi> processorFor(
+            List<ComponentApi> components) =>
         MessageProcessor<ComponentApi>(
           catalogs: [
             Catalog<ComponentApi, FunctionImplementation>(
@@ -458,7 +459,7 @@ void main() {
     });
 
     test('wraps v1.0 components in componentEnvelopeRef when given', () {
-      final Schema schema = Schema.object(
+      final schema = Schema.object(
         properties: {'text': Schema.string()},
       );
       final MessageProcessor<ComponentApi> processor = processorFor([

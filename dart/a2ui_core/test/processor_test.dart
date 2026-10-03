@@ -324,31 +324,40 @@ void main() {
               as Map<String, Object?>;
 
       // Below v1.0: the legacy shape, with components wrapped in the
-      // ComponentCommon envelope and no `$schema`.
+      // ComponentCommon envelope and no `$schema`. Button's schema is an
+      // allOf of CommonSchemas.checkable, a shared definition that stays a
+      // `$ref`, and an object whose properties are merged into the body.
       final Map<String, Object?> legacy = firstInline('v0.9');
       expect(legacy.containsKey(r'$schema'), isFalse);
-      expect((legacy['components']! as Map)['Alpha'], {
-        'allOf': [
-          {r'$ref': r'common_types.json#/$defs/ComponentCommon'},
-          {
-            'properties': {
-              'component': {'const': 'Alpha'},
-              'a': {'type': 'string'},
-            },
-            'required': ['component', 'a'],
-          },
-        ],
+      final button = (legacy['components']! as Map)['Button'] as Map;
+      final buttonMembers = button['allOf'] as List;
+      expect(buttonMembers.first, {
+        r'$ref': r'common_types.json#/$defs/ComponentCommon',
       });
+      final buttonBody = buttonMembers[1] as Map;
+      expect(buttonBody['allOf'], [
+        {r'$ref': r'common_types.json#/$defs/Checkable'},
+      ]);
+      expect((buttonBody['properties'] as Map).keys, [
+        'component',
+        'child',
+        'variant',
+        'action',
+      ]);
+      expect(
+        (buttonBody['properties'] as Map)['component'],
+        {'const': 'Button'},
+      );
+      expect(buttonBody['required'],
+          containsAll(['component', 'child', 'action']));
 
       // At v1.0: the standalone catalog schema document.
       final Map<String, Object?> current = firstInline('v1.0');
       expect(current[r'$schema'], Catalog.jsonSchemaDialect);
-      expect(current['catalogId'], 'cat1');
+      expect(current['catalogId'], catalog.id);
       expect(
         ((current[r'$defs']! as Map)['anyComponent'] as Map)['oneOf'],
-        [
-          {r'$ref': '#/components/Alpha'},
-        ],
+        contains(equals({r'$ref': '#/components/Button'})),
       );
 
       // _processRefs rewrites maps in place, so the emitter must work on
@@ -374,11 +383,15 @@ void main() {
 
     group('getRendererDataModel', () {
       late MessageProcessor<ComponentApi> dataProcessor;
+      final dataCatalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'cat1',
+        components: [ComponentApi(name: 'Alpha', schema: Schema.object())],
+      );
 
       void addSurface(String id, String? version, {bool send = true}) {
         final surface = SurfaceModel<ComponentApi>(
           id,
-          catalog: namedCatalog('cat1', 'Alpha'),
+          catalog: dataCatalog,
           sendDataModel: send,
           protocolVersion: version,
         );
@@ -388,7 +401,7 @@ void main() {
 
       setUp(() {
         dataProcessor = MessageProcessor<ComponentApi>(
-          catalogs: [namedCatalog('cat1', 'Alpha')],
+          catalogs: [dataCatalog],
           protocolVersion: A2uiProtocolVersion.v0_9,
         );
       });
