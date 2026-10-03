@@ -874,7 +874,7 @@ A component belongs to exactly one catalog, and from v1.0 one surface may mix ca
 - Build one validator per supported catalog, on first use, and reuse it, so resolved component schemas are cached across messages rather than rebuilt per batch.
 - Resolve the catalog for each item in this order: the `catalogId` the item names for itself, which must be one of the surface's available catalogs, then the surface's default from `createSurface`. Raise `A2uiCatalogError` when neither settles it, rather than skipping the item — skipping would report a payload valid that nothing had checked. There is no fallback to a sole supported catalog, as the v1.0 specification requires.
 - Raise `A2uiCatalogError` when a resolved `catalogId` is not one this processor supports.
-- Record the catalog on the `SurfaceModel` when the surface is created, so a later `updateComponents` resolves against it.
+- Record the default and available catalogs on the `SurfaceModel` when the surface is created, so a later `updateComponents` resolves against them.
 - Expose `processMessages` as the single entry point for applying a payload to surface state and checking each message against the surface it joins. An agent uses it over its own output too, keeping a processor for the session so each payload is checked against the state the previous ones built.
 - Envelope parsing is `AgentToRendererMessage.parseAll(payload, protocolVersion)`, not a validator method: it needs no catalog, which is what lets a payload be read before each message is matched to its surface.
 
