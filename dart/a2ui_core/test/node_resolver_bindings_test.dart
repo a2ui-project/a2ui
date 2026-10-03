@@ -394,14 +394,15 @@ void main() {
         'children': {'componentId': 'cell', 'path': 'cells'},
       });
       add('cell', 'Text', {
-        'text': {'@call': '@index', 'args': {}},
+        'text': {'@call': '@index', 'args': <String, Object?>{}},
       });
 
       final ComponentNode root = resolver.rootNode.value!;
       expect(root.context!.dataContext.index, isNull);
       final List<ComponentNode> rows = childrenOf(root);
       expect([for (final row in rows) row.context!.dataContext.index], [0, 1]);
-      expect(rows[1].context!.dataContext.parent, same(root.context!.dataContext));
+      expect(
+          rows[1].context!.dataContext.parent, same(root.context!.dataContext));
       final List<List<ComponentNode>> cells = [
         for (final row in rows) childrenOf(row),
       ];
@@ -417,7 +418,8 @@ void main() {
       );
       expect(
         [
-          for (final rowCells in cells) [for (final cell in rowCells) textOf(cell)],
+          for (final rowCells in cells)
+            [for (final cell in rowCells) textOf(cell)],
         ],
         [
           [0, 1],
@@ -446,7 +448,7 @@ void main() {
 
     test('@index at the root is reported and resolves to null', () {
       add('root', 'Text', {
-        'text': {'@call': '@index', 'args': {}},
+        'text': {'@call': '@index', 'args': <String, Object?>{}},
       });
       expect(textOf(resolver.rootNode.value!), isNull);
       expect(errors.single.code, 'EXPRESSION_ERROR');

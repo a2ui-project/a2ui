@@ -476,7 +476,8 @@ void main() {
 
     test('@index resolves to the iteration index plus offset', () {
       final DataContext item = v10Context().childContext('items/3', index: 3);
-      expect(item.resolveSync({'@call': '@index', 'args': {}}), 3);
+      expect(item.resolveSync({'@call': '@index', 'args': <String, Object?>{}}),
+          3);
       expect(
         item.resolveSync({
           '@call': '@index',
@@ -495,7 +496,8 @@ void main() {
 
     test('@index outside a collection scope raises A2uiValidationError', () {
       expect(
-        () => v10Context().resolveSync({'@call': '@index', 'args': {}}),
+        () => v10Context()
+            .resolveSync({'@call': '@index', 'args': <String, Object?>{}}),
         throwsA(
           isA<A2uiValidationError>().having(
             (e) => e.message,
@@ -508,7 +510,7 @@ void main() {
       final reported = <A2uiExpressionError>[];
       expect(
         v10Context(onError: reported.add)
-            .resolveSync({'@call': '@index', 'args': {}}),
+            .resolveSync({'@call': '@index', 'args': <String, Object?>{}}),
         isNull,
       );
       expect(reported.single.message, contains('collection template'));
@@ -522,7 +524,8 @@ void main() {
         index: 0,
       );
       expect(
-        () => legacy.resolveSync({'call': '@index', 'args': {}}),
+        () =>
+            legacy.resolveSync({'call': '@index', 'args': <String, Object?>{}}),
         throwsArgumentError,
       );
     });

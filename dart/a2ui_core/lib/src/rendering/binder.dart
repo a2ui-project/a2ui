@@ -47,15 +47,23 @@ class ChildNode {
   /// The absolute data path for this reference's component instance.
   final String basePath;
 
-  ChildNode(this.id, this.basePath);
+  /// The item's 0-based position when a template expanded this reference;
+  /// null for an entry of a static id array.
+  final int? index;
+
+  ChildNode(this.id, this.basePath, {this.index});
 
   @override
   bool operator ==(Object other) =>
-      other is ChildNode && id == other.id && basePath == other.basePath;
+      other is ChildNode &&
+      id == other.id &&
+      basePath == other.basePath &&
+      index == other.index;
 
   @override
-  int get hashCode => Object.hash(id, basePath);
+  int get hashCode => Object.hash(id, basePath, index);
 
+  /// Serializes the id and scope; [index] is implied by [basePath].
   Map<String, dynamic> toJson() => {'id': id, 'basePath': basePath};
 }
 
@@ -97,7 +105,7 @@ class GenericBinder {
           .resolveCatalog(context.componentModel.catalog)
           .catalogSchema,
     );
-    _behaviorTree = _scrapeSchemaBehavior(schema.value);
+    _behaviorTree = _withAccessibility(_scrapeSchemaBehavior(schema.value));
     _resolvedProps = signal<Map<String, dynamic>>({});
     connect();
   }
@@ -236,7 +244,9 @@ class GenericBinder {
             Map<String, dynamic>.from(value),
           );
           final ReadonlySignal<Object?> sig =
-              context.dataContext.resolveListenable({'path': tpl.path});
+              context.dataContext.resolveListenable({
+            context.dataContext.isV10 ? '@path' : 'path': tpl.path,
+          });
 
           List<ChildNode> resolveChildren(Object? val) {
             final List<Object?> list = val is List ? val.cast<Object?>() : [];
@@ -249,6 +259,7 @@ class GenericBinder {
               (i) => ChildNode(
                 tpl.componentId,
                 nestedCtx.resolvePath(i.toString()),
+                index: i,
               ),
             );
           }
@@ -516,6 +527,33 @@ class GenericBinder {
 
     return BehaviorNode(Behavior.static);
   }
+
+  /// Adds the `accessibility` envelope property to a component's root
+  /// behavior when its schema does not declare one, so its `label` and
+  /// `description` resolve as dynamic strings on every component.
+  static BehaviorNode _withAccessibility(BehaviorNode root) {
+    final Map<String, BehaviorNode>? shape = root.shape;
+    if (root.type != Behavior.object ||
+        shape == null ||
+        shape.containsKey(_accessibilityProperty)) {
+      return root;
+    }
+    return BehaviorNode(
+      Behavior.object,
+      shape: {
+        ...shape,
+        _accessibilityProperty: BehaviorNode(
+          Behavior.object,
+          shape: {
+            'label': BehaviorNode(Behavior.dynamic),
+            'description': BehaviorNode(Behavior.dynamic),
+          },
+        ),
+      },
+    );
+  }
+
+  static const String _accessibilityProperty = 'accessibility';
 
   /// Runs a local function action against the component's data context.
   ///

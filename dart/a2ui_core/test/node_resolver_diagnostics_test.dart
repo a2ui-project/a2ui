@@ -399,17 +399,18 @@ void main() {
 
       expect(
         [for (final warning in warnings) (warning.code, warning.path)],
-        [('MISSING_DATA_BINDING', '/missing'), ('MISSING_DATA_BINDING', '/other')],
+        [
+          ('MISSING_DATA_BINDING', '/missing'),
+          ('MISSING_DATA_BINDING', '/other')
+        ],
       );
       expect(warnings.first.surfaceId, 'bound');
       expect(rootsAtWarning, everyElement(isNotNull));
 
       // Rebuilding a binding to the same missing path does not warn again.
-      boundSurface.componentsModel.addComponent(
-        ComponentModel('a', 'Label', {
-          'text': {'path': '/missing'},
-        }),
-      );
+      boundSurface.componentsModel.get('a')!.properties = {
+        'text': {'path': '/missing'},
+      };
       expect(warnings, hasLength(2));
     });
 
