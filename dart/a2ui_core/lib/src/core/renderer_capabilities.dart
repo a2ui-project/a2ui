@@ -234,8 +234,9 @@ Map<String, Object?> _legacyComponentBody(
 /// The legacy shape has no `type` or `additionalProperties`, so those and
 /// other keywords are dropped, as they always were. `allOf` members are
 /// merged into the result, a property declared twice keeping the later
-/// declaration; a `$ref` member stays in `allOf`, except one naming
-/// [envelopeRef], which the legacy wrapper already applies. `anyOf` and
+/// declaration. A `$ref`, whether it is the schema itself, an `allOf` member
+/// or a branch, becomes an `allOf` member, except one naming [envelopeRef],
+/// which the legacy wrapper already applies. `anyOf` and
 /// `oneOf` branches are reduced the same way and kept, since they constrain
 /// the component rather than describe it.
 Map<String, Object?> _legacySchemaBody(
@@ -248,6 +249,11 @@ Map<String, Object?> _legacySchemaBody(
   final branches = <String, List<Object?>>{};
 
   void merge(Map<Object?, Object?> node) {
+    // A reference cannot be merged without resolving it, so it is kept as an
+    // allOf member, which constrains the result the same way.
+    if (node[r'$ref'] case final String ref) {
+      if (ref != envelopeRef) allOf.add(<String, Object?>{r'$ref': ref});
+    }
     if (node['properties'] case final Map<Object?, Object?> nodeProperties) {
       for (final MapEntry<Object?, Object?> entry in nodeProperties.entries) {
         properties[entry.key! as String] = entry.value;
@@ -260,12 +266,7 @@ Map<String, Object?> _legacySchemaBody(
     }
     if (node['allOf'] case final List<Object?> members) {
       for (final member in members) {
-        if (member is! Map) continue;
-        if (member.containsKey(r'$ref')) {
-          if (member[r'$ref'] != envelopeRef) allOf.add(member);
-        } else {
-          merge(member);
-        }
+        if (member is Map) merge(member);
       }
     }
     for (final keyword in const ['anyOf', 'oneOf']) {

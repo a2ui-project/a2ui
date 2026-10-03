@@ -396,6 +396,64 @@ void main() {
       });
     });
 
+    test('keeps \$ref branches and \$ref schemas in the legacy shape', () {
+      final MessageProcessor<ComponentApi> processor = processorFor([
+        ComponentApi(
+          name: 'Variant',
+          schema: Schema.fromMap({
+            'oneOf': [
+              {r'$ref': 'shared.json#/A'},
+              {r'$ref': 'shared.json#/B'},
+            ],
+          }),
+        ),
+        ComponentApi(
+          name: 'Alias',
+          schema: Schema.fromMap({r'$ref': 'shared.json#/Alias'}),
+        ),
+      ]);
+
+      expect(inlineComponents(processor, A2uiProtocolVersion.v0_9), {
+        'Variant': {
+          'allOf': [
+            {r'$ref': legacyEnvelope},
+            {
+              'properties': {
+                'component': {'const': 'Variant'},
+              },
+              'required': ['component'],
+              'oneOf': [
+                {
+                  'allOf': [
+                    {r'$ref': 'shared.json#/A'},
+                  ],
+                },
+                {
+                  'allOf': [
+                    {r'$ref': 'shared.json#/B'},
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        'Alias': {
+          'allOf': [
+            {r'$ref': legacyEnvelope},
+            {
+              'properties': {
+                'component': {'const': 'Alias'},
+              },
+              'required': ['component'],
+              'allOf': [
+                {r'$ref': 'shared.json#/Alias'},
+              ],
+            },
+          ],
+        },
+      });
+    });
+
     test('honors componentEnvelopeRef in the legacy shape', () {
       final MessageProcessor<ComponentApi> processor = processorFor([
         ComponentApi(name: 'Plain', schema: Schema.object()),
@@ -573,6 +631,16 @@ void main() {
         for (final A2uiProtocolVersion version in A2uiProtocolVersion.values)
           version.jsonValue: caps.toJson(version: version),
       });
+      // Pin the shapes independently of toJson: both v0.9 releases share the
+      // legacy shape, and v1.0 carries the catalog document.
+      expect(emitted['v0.9.1'], emitted['v0.9']);
+      expect(
+        ((emitted['v0.9']! as Map)['inlineCatalogs'] as List).single,
+        isNot(contains(r'$schema')),
+      );
+      expect((emitted['v1.0']! as Map)['inlineCatalogs'], [
+        catalog.catalogSchema,
+      ]);
     });
   });
 }
