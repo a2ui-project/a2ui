@@ -14,6 +14,7 @@
 
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
+import '../validation/component_graph.dart' show maxFunctionCallArgs;
 import 'catalog.dart';
 import 'common.dart';
 import 'component_model.dart';
@@ -291,6 +292,13 @@ class DataContext {
   /// Invokes a function, reporting a failure only when a reporter was supplied.
   Object? _evaluateFunction(String name, Map<String, dynamic> args) {
     try {
+      if (args.length > maxFunctionCallArgs) {
+        throw A2uiExpressionError(
+          "Function call '$name' exceeds maximum allowed arguments count "
+          '($maxFunctionCallArgs)',
+          expression: name,
+        );
+      }
       return _invoke(name, args, this);
     } catch (error) {
       final ExpressionErrorReporter? onError = _onError;

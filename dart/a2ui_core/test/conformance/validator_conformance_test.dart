@@ -260,21 +260,48 @@ Set<String> _catalogIdsNamedBy(List<Map<String, Object?>> payload) => <String>{
           if (body['catalogId'] case final String id) id,
     };
 
-/// Matches the error a case expects, by category and message.
-///
-/// `details` is not asserted. It carries the field path and code a Pydantic
-/// model reports, which this SDK does not model; the category and message
-/// pin the same behaviour.
+/// Matches the error a case expects, by category, message, and populated
+/// [A2uiValidationError] `code` / `path` fields.
 Matcher _matchesError(Object? expectError) {
   if (expectError is String) {
     return _messageMatches(expectError);
   }
   final Map<String, Object?> expected =
       (expectError! as Map).cast<String, Object?>();
-  final Matcher category = _categoryMatches(expected['category'] as String?);
-  final Object? message = expected['message'];
-  if (message is! String) return category;
-  return allOf(category, _messageMatches(message));
+  final matchers = <Matcher>[
+    _categoryMatches(expected['category'] as String?),
+  ];
+  if (expected['message'] case final String message) {
+    matchers.add(_messageMatches(message));
+  }
+  if (expected['code'] case final String expectedCode) {
+    matchers.add(
+      predicate<Object?>(
+        (e) =>
+            e is! A2uiError ||
+            (e is A2uiValidationError && e.code == 'VALIDATION_FAILED') ||
+            e.code == expectedCode,
+        'has code "$expectedCode" when populated',
+      ),
+    );
+  }
+  if (expected['path'] case final String expectedPath) {
+    matchers.add(
+      predicate<Object?>(
+        (e) {
+          if (e is A2uiValidationError) {
+            return e.path == null || e.path == expectedPath;
+          }
+          if (e is A2uiDataError) {
+            return e.path == null || e.path == expectedPath;
+          }
+          return true;
+        },
+        'has path "$expectedPath" when populated',
+      ),
+    );
+  }
+  return allOf(matchers);
 }
 
 Matcher _categoryMatches(String? category) => switch (category) {
