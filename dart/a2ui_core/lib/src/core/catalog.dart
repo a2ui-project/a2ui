@@ -374,8 +374,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// The key a function call names its function under: the reserved `@call`
   /// from protocol `1.0`, and `call` before it or when [protocolVersion] is
   /// unset.
-  String get _callKey =>
-      compareVersions(protocolVersion ?? '', 'v1.0') >= 0 ? '@call' : 'call';
+  String get _callKey {
+    final String? version = protocolVersion;
+    return version != null && compareVersions(version, 'v1.0') >= 0
+        ? '@call'
+        : 'call';
+  }
 
   /// The catalog document for this catalog, as JSON.
   ///

@@ -92,11 +92,13 @@ class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> groupModel;
   final List<Catalog<T, FunctionImplementation>> catalogs;
 
-  /// The protocol version this processor assumes where no message declares
-  /// one, or null for none.
+  /// The protocol version this processor targets by default, or null for
+  /// none.
   ///
-  /// Messages are not checked against it: each is routed on the version it
-  /// declares, through [adapterRegistry].
+  /// It does not supply a version for messages. Every message must declare
+  /// its own `version`, and a message without one is rejected. Each message is
+  /// routed on the version it declares, through [adapterRegistry], and is not
+  /// checked against this one.
   final A2uiProtocolVersion? defaultVersion;
 
   /// The adapters messages are routed through, one per protocol version.
@@ -386,11 +388,17 @@ class MessageProcessor<T extends ComponentApi> {
     }
 
     groupModel.addSurface(surface);
-    if (operation.dataModel case final Map<String, Object?> dataModel) {
-      surface.dataModel.set('/', dataModel);
+    try {
+      if (operation.dataModel case final Map<String, Object?> dataModel) {
+        surface.dataModel.set('/', dataModel);
+      }
+      if (batch != null) _applyComponents(surface, batch);
+      surface.metadata = operation.metadata;
+    } catch (_) {
+      // Do not leave a half-initialized surface registered.
+      groupModel.deleteSurface(operation.surfaceId);
+      rethrow;
     }
-    if (batch != null) _applyComponents(surface, batch);
-    surface.metadata = operation.metadata;
   }
 
   /// The default catalog of the surface [operation] creates.
