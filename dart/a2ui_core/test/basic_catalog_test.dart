@@ -16,6 +16,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_core/src/basic_catalog/v0_9/catalog.g.dart';
+import 'package:a2ui_core/src/basic_catalog/v1_0/catalog.g.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
@@ -131,6 +133,28 @@ void main() {
     Map<String, Object?> published(String path) =>
         jsonDecode(File(resolveConformancePath('../$path')).readAsStringSync())
             as Map<String, Object?>;
+
+    for (final (String constant, String embedded, String path) in [
+      (
+        'basicCatalogV0_9Json',
+        basicCatalogV0_9Json,
+        'specification/v0_9/catalogs/basic/catalog.json',
+      ),
+      (
+        'basicCatalogV1_0Json',
+        basicCatalogV1_0Json,
+        'catalogs/basic/v1/catalog.json'
+      ),
+    ]) {
+      test('$constant is identical to $path', () {
+        expect(
+          embedded,
+          File(resolveConformancePath('../$path')).readAsStringSync(),
+          reason: '$constant has drifted from $path. Run '
+              '`dart run tool/generate_basic_catalogs.dart`.',
+        );
+      });
+    }
 
     for (final (String label, _RendererCatalog catalog, String path) in [
       ('v0.9', v09, 'specification/v0_9/catalogs/basic/catalog.json'),

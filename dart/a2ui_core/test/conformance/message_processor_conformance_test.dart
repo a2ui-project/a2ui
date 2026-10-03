@@ -16,6 +16,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 import '../support/renderer_catalog.dart';
@@ -24,6 +25,8 @@ import 'conformance_harness.dart';
 /// Cases in `core/message_processor_v1_0.yaml` expected to fail, each naming
 /// the change that clears it.
 const Map<String, String> _v10ExpectedFailures = {
+  'test_batch_atomic_rollback_on_candidate_topology_cycle':
+      'B2: the v1.0 common types are not embedded yet.',
   'test_batch_duplicate_component_ids_in_same_message_error':
       'B2: the v1.0 common types are not embedded yet.',
   'test_batch_multi_stage_lifecycle_pipeline':
@@ -57,7 +60,16 @@ const Map<String, String> _reservedKeysExpectedFailures = {
 
 /// The `validate` cases in `core/functions.yaml` expected to fail, each naming
 /// the change that clears it.
-const Map<String, String> _functionsExpectedFailures = {};
+const Map<String, String> _functionsExpectedFailures = {
+  'test_function_format_currency_locale_and_symbol':
+      'B2: the v1.0 common types are not embedded yet.',
+  'test_function_format_date_tr35_tokens':
+      'B2: the v1.0 common types are not embedded yet.',
+  'test_function_logical_and_or_not':
+      'B2: the v1.0 common types are not embedded yet.',
+  'test_function_pluralize_categories':
+      'B2: the v1.0 common types are not embedded yet.',
+};
 
 /// Runs the shared message-processor suites against [MessageProcessor] and
 /// [DataContext]: `core/message_processor_v0_9.yaml`,
@@ -126,6 +138,11 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
         strictMode ? ValidationConfig.strict : ValidationConfig.relaxed,
   );
 
+  if (testCase['steps'] case final List<Object?> steps) {
+    _runSteps(processor, testCase, steps.cast<Map<String, Object?>>());
+    return;
+  }
+
   final Object? expectError = testCase['expectError'];
   if (expectError != null) {
     expect(
@@ -141,6 +158,38 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
   final Map<String, Object?> expected =
       (testCase['expect'] as Map<String, Object?>?) ?? const {};
   _checkSurfaces(processor, expected, name);
+}
+
+/// Processes each step's payload in turn, as the validator harness does.
+///
+/// A step's own `expectError` applies to that step, and the case's applies to
+/// the last one. The case's `expect` is checked once every step has run.
+void _runSteps(
+  MessageProcessor<ComponentApi> processor,
+  Map<String, Object?> testCase,
+  List<Map<String, Object?>> steps,
+) {
+  final name = testCase['name']! as String;
+  for (var index = 0; index < steps.length; index++) {
+    final Map<String, Object?> step = steps[index];
+    final Object? payload = step['messages'] ?? step['payload'];
+    final Object? expectError = step['expectError'] ??
+        (index == steps.length - 1 ? testCase['expectError'] : null);
+    if (expectError != null) {
+      expect(
+        () => processor.processMessages(payload),
+        throwsA(_matchesError(expectError as Map<String, Object?>)),
+        reason: '$name: step $index',
+      );
+    } else {
+      processor.processMessages(payload);
+    }
+  }
+  _checkSurfaces(
+    processor,
+    (testCase['expect'] as Map<String, Object?>?) ?? const {},
+    name,
+  );
 }
 
 void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
@@ -198,9 +247,10 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
           rendererCatalog(item, protocolVersion: version),
     ];
   }
-  // v0.9 cases run over the permissive catalog below rather than the
-  // documents they name, as they always have here: they test processing, and
-  // the schema checks have their own suite.
+  // v0.9 cases naming documents run over the basic catalog with its schema
+  // checks relaxed (see [_permissive]): they test processing, the schema
+  // checks have their own suite, and several of them send a `Button` with
+  // only a `label`, which the v0.9 `Button` schema rejects.
   if (testCase['catalogPaths'] case final List<Object?> paths
       when compareVersions(version, 'v1.0') >= 0) {
     final List<Map<String, Object?>> documents = [
@@ -241,15 +291,17 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
   }
   // A case naming no catalog document, or only a protocol version, runs
   // against the basic catalog of its version, under whichever id its
-  // messages use.
+  // messages use. A case expecting a missing catalog gets one under another
+  // id.
   final expectError = testCase['expectError'] as Map<String, Object?>?;
+  final Catalog<ComponentApi, FunctionImplementation> basic = basicCatalogFor(
+    version,
+    asCatalogId: expectError?['category'] == 'CatalogError'
+        ? 'test-catalog'
+        : _catalogIdOf(testCase),
+  );
   return [
-    basicCatalogFor(
-      version,
-      asCatalogId: expectError?['category'] == 'CatalogError'
-          ? 'test-catalog'
-          : _catalogIdOf(testCase),
-    ),
+    if (testCase.containsKey('catalogPaths')) _permissive(basic) else basic,
   ];
 }
 
@@ -271,8 +323,14 @@ Set<String> _catalogIdsOf(Map<String, Object?> testCase) => <String>{
     };
 
 /// The messages a case processes, accepting both the bare list and the
-/// `{messages: [...]}` wrapper the protocol allows.
+/// `{messages: [...]}` wrapper the protocol allows, across all of its steps.
 List<Map<String, Object?>> _messagesOf(Map<String, Object?> testCase) {
+  if (testCase['steps'] case final List<Object?> steps) {
+    return [
+      for (final Object? step in steps)
+        ..._messagesOf((step! as Map).cast<String, Object?>()),
+    ];
+  }
   final Object? raw = testCase['messages'] ?? testCase['payload'];
   if (raw == null) return const [];
   final Object? list = raw is Map<String, Object?> ? raw['messages'] : raw;
@@ -517,3 +575,19 @@ String _align(String pattern) {
   }
   return pattern;
 }
+
+/// [catalog] with every component schema replaced by one that accepts any
+/// object, so its components and functions stay but payloads are not
+/// schema-checked.
+Catalog<ComponentApi, FunctionImplementation> _permissive(
+  Catalog<ComponentApi, FunctionImplementation> catalog,
+) =>
+    Catalog<ComponentApi, FunctionImplementation>(
+      id: catalog.id,
+      protocolVersion: catalog.protocolVersion,
+      components: [
+        for (final String name in catalog.components.keys)
+          ComponentApi(name: name, schema: Schema.fromMap({'type': 'object'})),
+      ],
+      functions: catalog.functions.values.toList(),
+    );

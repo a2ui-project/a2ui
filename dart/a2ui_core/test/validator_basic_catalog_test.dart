@@ -28,6 +28,8 @@ import 'support/renderer_catalog.dart';
 /// a valid v0.9 payload looks like, so they are the sharpest available check
 /// that validation is neither too strict nor too permissive.
 
+typedef _RendererCatalog = Catalog<ComponentApi, FunctionImplementation>;
+
 Map<String, Object?> _readJson(String relativePath) =>
     jsonDecode(File(resolveConformancePath(relativePath)).readAsStringSync())
         as Map<String, Object?>;
@@ -60,10 +62,17 @@ void main() {
   });
 
   group('BasicCatalog child references', () {
-    for (final (String label, Catalog<ComponentApi, FunctionImplementation> catalog)
-        in [('v0.9', BasicCatalog.v0_9()), ('v1.0', BasicCatalog.v1_0())]) {
+    for (final (String label, _RendererCatalog catalog, String? skip) in [
+      ('v0.9', BasicCatalog.v0_9(), null),
+      (
+        'v1.0',
+        BasicCatalog.v1_0(),
+        'B2 (#2994): child references are found through `ComponentId` and '
+            '`ChildList`, not the v1.0 `Child` type.',
+      ),
+    ]) {
       test('$label declares the child references of its layout components',
-          () {
+          skip: skip, () {
         final Map<String, ComponentRefFields> refs = extractComponentRefFields(
           catalog,
         );
@@ -110,7 +119,7 @@ void main() {
 void _registerExamples(
   String description,
   String directory,
-  Catalog<ComponentApi, FunctionImplementation> Function() catalog,
+  _RendererCatalog Function() catalog,
   A2uiProtocolVersion version, {
   String? skip,
 }) {
