@@ -38,16 +38,33 @@ class ValidationResult {
     this.message,
     this.code,
     this.severity,
-  });
+  })  : assert(
+          severity == null ||
+              severity == 'error' ||
+              severity == 'warning' ||
+              severity == 'info',
+          'Severity must be null, error, warning, or info',
+        ),
+        assert(
+          !valid || severity != 'error',
+          'A valid result cannot have error severity',
+        );
 
   /// Parses a [ValidationResult] from a JSON map.
   factory ValidationResult.fromJson(Map<String, Object?> json) {
+    final isValid = json['valid'] == true;
     final Object? rawMessage = json['message'];
+    final Object? rawSeverity = json['severity'];
+    final String? severity = (rawSeverity == 'warning' ||
+            rawSeverity == 'info' ||
+            (!isValid && rawSeverity == 'error'))
+        ? rawSeverity! as String
+        : null;
     return ValidationResult(
-      valid: json['valid'] == true,
+      valid: isValid,
       message: rawMessage?.toString(),
       code: json['code'] is String ? json['code'] as String : null,
-      severity: json['severity'] is String ? json['severity'] as String : null,
+      severity: severity,
     );
   }
 

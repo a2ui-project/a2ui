@@ -639,6 +639,21 @@ void main() {
         ValidationResult.fromEvaluation(true).toJson(),
         {'valid': true},
       );
+      expect(
+        ValidationResult.fromJson({
+          'valid': true,
+          'severity': 'error',
+        }).severity,
+        isNull,
+      );
+      expect(
+        () => ValidationResult(valid: true, severity: 'error'),
+        throwsA(isA<AssertionError>()),
+      );
+      expect(
+        () => ValidationResult(valid: false, severity: 'invalid'),
+        throwsA(isA<AssertionError>()),
+      );
     });
   });
 }
