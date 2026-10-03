@@ -139,7 +139,7 @@ MessageProcessor<ComponentApi> newProcessor({
 }) =>
     MessageProcessor<ComponentApi>(
       catalogs: [rendererCatalog(testCatalogDocument())],
-      protocolVersion: A2uiProtocolVersion.v0_9,
+      defaultVersion: A2uiProtocolVersion.v0_9,
       validationConfig: validationConfig,
       commonTypesSchema: withCommonTypes ? commonTypes() : const {},
     );
@@ -481,7 +481,7 @@ void main() {
 
       final inlinedProcessor = MessageProcessor<ComponentApi>(
         catalogs: [rendererCatalog(document)],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
       );
       expect(
         () => inlinedProcessor.processMessages(
@@ -602,7 +602,7 @@ void main() {
             for (final String id in ids)
               namedCatalog(id, id == 'cat1' ? 'Alpha' : 'Beta'),
           ],
-          protocolVersion: A2uiProtocolVersion.v0_9,
+          defaultVersion: A2uiProtocolVersion.v0_9,
         );
 
     /// A processor over [ids] already holding surface `s1`, created against

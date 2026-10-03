@@ -31,29 +31,40 @@ void main() {
   group('conformance core/catalog.yaml', () {
     test('suite has cases', () => expect(cases, isNotEmpty));
 
-    for (final testCase in cases) {
-      test(
-        testCase['name']! as String,
-        () => _runCase(testCase),
-        skip: _skipReason(testCase),
-      );
-    }
+    runConformanceSuite(
+      cases,
+      _runCase,
+      expectedFailures: _expectedFailures,
+      skipReason: _skipReason,
+    );
   });
 }
 
-/// Why a case cannot run yet, or null when it can.
-String? _skipReason(Map<String, Object?> testCase) {
-  final String? version = caseVersion(testCase);
-  if (version != null && version != '0.9' && version != '0.9.1') {
-    return 'Targets protocol v$version; this SDK implements v0.9 only.';
-  }
-  if (testCase.containsKey('expectCatalog') ||
-      testCase['useBasicCatalog'] == true) {
-    return 'expectCatalog checks the SDK implementation of the basic '
-        'catalog against the specification.';
-  }
-  return null;
-}
+/// Cases expected to fail, each naming the change that clears it.
+const Map<String, String> _expectedFailures = {
+  'test_v10_catalog_from_json_invalid_uax31_identifier_error':
+      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+  'test_v10_uax31_invalid_argument_name':
+      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+  'test_v10_uax31_invalid_armenian_hyphen_function_name':
+      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+  'test_v10_uax31_invalid_component_name':
+      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+  'test_v10_uax31_invalid_em_dash_property_name':
+      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+  'test_v10_uax31_invalid_en_dash_component_name':
+      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+  'test_v10_uax31_invalid_function_name':
+      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+  'test_v10_uax31_invalid_property_name':
+      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+};
+
+/// Why a case cannot run, or null when it can.
+String? _skipReason(Map<String, Object?> testCase) =>
+    caseVersion(testCase) == '0.8'
+        ? 'This SDK does not implement protocol v0.8.'
+        : null;
 
 void _runCase(Map<String, Object?> testCase) {
   final action = testCase['action'] as String?;
@@ -129,6 +140,10 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
 }
 
 void _runCatalogSchemaCase(Map<String, Object?> testCase) {
+  if (testCase['expectCatalog'] case final Map<String, Object?> spec) {
+    _runExpectCatalogCase(testCase, spec);
+    return;
+  }
   final Map<String, Object?> source = _document(
     testCase['catalogSchema'] ??
         testCase['catalog'] ??
@@ -190,6 +205,166 @@ void _runCatalogSchemaCase(Map<String, Object?> testCase) {
   _checkUnions(document, name);
   _checkSelfContained(document, name);
   _checkFixedPoint(document, name);
+}
+
+/// Checks the SDK's own implementation of a published catalog against that
+/// catalog, as the reference harness does.
+///
+/// The case names the published document by path; the [BasicCatalog] factory
+/// with the same `catalogId` is the implementation under test. Both sides are
+/// brought to the form [_consolidate] describes and must then be equal.
+void _runExpectCatalogCase(
+  Map<String, Object?> testCase,
+  Map<String, Object?> spec,
+) {
+  final name = testCase['name']! as String;
+  final Map<String, Object?> published = _document(testCase['catalogPath']);
+  final Catalog<ComponentApi, FunctionImplementation> catalog =
+      switch (published['catalogId']) {
+    BasicCatalog.v0_9Id => BasicCatalog.v0_9(),
+    BasicCatalog.v1_0Id => BasicCatalog.v1_0(),
+    final Object? other => fail('$name: no SDK implementation of $other.'),
+  };
+  expect(
+    compareVersions(catalog.protocolVersion!, caseVersion(testCase)!),
+    0,
+    reason: '$name: ${catalog.id} implements protocol '
+        '${catalog.protocolVersion}',
+  );
+
+  final Map<String, Object?> commonTypes = _document(spec['commonTypesPath']);
+  expect(
+    _consolidate(catalog.catalogSchema, commonTypes),
+    equals(_consolidate(_document(spec['catalogPath']), commonTypes)),
+    reason: name,
+  );
+}
+
+/// Brings a catalog document to the form an `expectCatalog` case compares.
+///
+/// Follows `consolidate_spec_catalog` in the Python harness: every `$ref`
+/// into another document becomes local, and the common types the document
+/// references, transitively, join its `$defs`. On top of that:
+/// - Definitions the document declares for itself, other than `theme` and the
+///   `anyComponent` and `anyFunction` unions, are inlined where referenced
+///   and dropped, because [Catalog.fromJson] inlines them and
+///   [Catalog.catalogSchema] emits only those three.
+/// - `$id`, `title`, `description`, `protocolVersion` and `instructions` are
+///   dropped. The reference harness drops the first four; `instructions` has
+///   no [Catalog] field until B4 (#2995).
+/// - A function's own `description` and `requiresUserActivation` (the v1.0
+///   `openUrl` declares it) are dropped, because [FunctionApi] carries
+///   neither for [Catalog.catalogSchema] to emit.
+/// - `enum` and `required` lists are sorted, since their order has no
+///   meaning.
+Map<String, Object?> _consolidate(
+  Map<String, Object?> document,
+  Map<String, Object?> commonTypes,
+) {
+  final consolidated = _localize(document)! as Map<String, Object?>;
+  for (final key in [
+    r'$id',
+    'title',
+    'description',
+    'protocolVersion',
+    'instructions',
+  ]) {
+    consolidated.remove(key);
+  }
+
+  final Map<String, Object?> defs =
+      (consolidated[r'$defs'] as Map<String, Object?>?) ?? {};
+  const kept = {'theme', 'anyComponent', 'anyFunction'};
+  final Map<String, Object?> own = {
+    for (final MapEntry<String, Object?> entry in defs.entries)
+      if (!kept.contains(entry.key)) entry.key: entry.value,
+  };
+  defs.removeWhere((key, _) => own.containsKey(key));
+  final inlined = _inlineDefs(consolidated, own)! as Map<String, Object?>;
+  inlined[r'$defs'] = defs;
+
+  if (inlined['functions'] case final Map<String, Object?> functions) {
+    for (final Object? function in functions.values) {
+      (function! as Map<String, Object?>)
+        ..remove('description')
+        ..remove('requiresUserActivation');
+    }
+  }
+
+  final commonDefs = (_localize(commonTypes)!
+      as Map<String, Object?>)[r'$defs']! as Map<String, Object?>;
+  final Set<String> pending = _defRefs(inlined);
+  while (pending.isNotEmpty) {
+    final String def = pending.first;
+    pending.remove(def);
+    if (!defs.containsKey(def) && commonDefs.containsKey(def)) {
+      defs[def] = commonDefs[def];
+      pending.addAll(_defRefs(commonDefs[def]));
+    }
+  }
+  return _sortSetKeywords(inlined)! as Map<String, Object?>;
+}
+
+/// A deep copy of [node] in which every `$ref` that points into a document,
+/// local or not, becomes a local `#/...` reference.
+Object? _localize(Object? node) {
+  if (node is List) return [for (final Object? item in node) _localize(item)];
+  if (node is! Map) return node;
+  return <String, Object?>{
+    for (final MapEntry<Object?, Object?> entry in node.entries)
+      entry.key! as String: entry.key == r'$ref' &&
+              entry.value is String &&
+              (entry.value! as String).contains('#/')
+          ? '#${(entry.value! as String).split('#').last}'
+          : _localize(entry.value),
+  };
+}
+
+/// [node] with each `#/$defs/<name>` reference to one of [defs] replaced by
+/// that definition, keywords beside the `$ref` winning as in
+/// [Catalog.fromJson].
+Object? _inlineDefs(Object? node, Map<String, Object?> defs) {
+  if (node is List) {
+    return [for (final Object? item in node) _inlineDefs(item, defs)];
+  }
+  if (node is! Map<String, Object?>) return node;
+  final Object? ref = node[r'$ref'];
+  if (ref is String && ref.startsWith(r'#/$defs/')) {
+    final Object? target = defs[ref.substring(r'#/$defs/'.length)];
+    if (target is Map<String, Object?>) {
+      return <String, Object?>{
+        ...(_inlineDefs(target, defs)! as Map<String, Object?>),
+        for (final MapEntry<String, Object?> entry in node.entries)
+          if (entry.key != r'$ref') entry.key: _inlineDefs(entry.value, defs),
+      };
+    }
+  }
+  return <String, Object?>{
+    for (final MapEntry<String, Object?> entry in node.entries)
+      entry.key: _inlineDefs(entry.value, defs),
+  };
+}
+
+/// The names of the definitions [node] references as `#/$defs/<name>`.
+Set<String> _defRefs(Object? node) => {
+      for (final String ref in _localRefs(node))
+        if (ref.startsWith(r'#/$defs/')) ref.substring(r'#/$defs/'.length),
+    };
+
+/// [node] with its `enum` and `required` lists sorted.
+Object? _sortSetKeywords(Object? node) {
+  if (node is List) {
+    return [for (final Object? item in node) _sortSetKeywords(item)];
+  }
+  if (node is! Map<String, Object?>) return node;
+  return <String, Object?>{
+    for (final MapEntry<String, Object?> entry in node.entries)
+      entry.key: (entry.key == 'enum' || entry.key == 'required') &&
+              entry.value is List
+          ? ([...(entry.value! as List<Object?>)]
+            ..sort((a, b) => jsonEncode(a).compareTo(jsonEncode(b))))
+          : _sortSetKeywords(entry.value),
+  };
 }
 
 /// Top-level keys the rebuilt document must carry, and must not carry.

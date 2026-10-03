@@ -16,6 +16,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_core/src/core/contexts.dart' show ComponentContext;
+import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
@@ -64,6 +66,112 @@ void main() {
         A2uiReturnType.string,
       );
     });
+
+    test('parses and round-trips validationResult function returnType', () {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'https://example.com/v1_validation_catalog',
+        'functions': {
+          'checkEmail': {
+            'type': 'object',
+            'properties': {
+              'call': {'const': 'checkEmail'},
+              'args': {
+                'type': 'object',
+                'properties': {
+                  'value': {'type': 'string'},
+                },
+                'required': ['value'],
+              },
+              'returnType': {'const': 'validationResult'},
+            },
+            'required': ['call', 'args'],
+          },
+          'checkInline': {
+            'returnType': 'validationResult',
+            'parameters': {
+              'type': 'object',
+              'properties': {
+                'value': {'type': 'string'},
+              },
+            },
+          },
+        },
+      });
+
+      expect(
+        catalog.functions['checkEmail']!.returnType,
+        A2uiReturnType.validationResult,
+      );
+      expect(
+        catalog.functions['checkInline']!.returnType,
+        A2uiReturnType.validationResult,
+      );
+
+      final Map<String, Object?> rebuilt = catalog.catalogSchema;
+      final CatalogApi reparsed = Catalog.fromJson(rebuilt);
+      expect(
+        reparsed.functions['checkEmail']!.returnType,
+        A2uiReturnType.validationResult,
+      );
+      expect(
+        reparsed.functions['checkInline']!.returnType,
+        A2uiReturnType.validationResult,
+      );
+    });
+
+    test(
+      'GenericBinder evaluates checks on a JSON-loaded catalog referencing '
+      'common_types.json#/\$defs/Checkable',
+      () {
+        final CatalogApi parsed = Catalog.fromJson(loadBasicCatalogJson());
+        final rendererCatalog = Catalog<ComponentApi, FunctionImplementation>(
+          id: parsed.id,
+          components: parsed.components.values.toList(),
+          functions: const [],
+        );
+        final surface = SurfaceModel<ComponentApi>(
+          's-json',
+          catalog: rendererCatalog,
+        );
+        addTearDown(surface.dispose);
+
+        surface.dataModel.set('/isValidEmail', false);
+        final model = ComponentModel('tf1', 'TextField', {
+          'label': 'Email',
+          'value': 'invalid@',
+          'checks': [
+            {
+              'condition': {'path': '/isValidEmail'},
+              'message': 'Enter a valid email address',
+            },
+          ],
+        });
+        surface.componentsModel.addComponent(model);
+
+        final binder = GenericBinder(
+          ComponentContext(surface, model),
+          rendererCatalog.components['TextField']!.schema,
+        );
+        addTearDown(binder.dispose);
+
+        expect(binder.resolvedProps.value['isValid'], isFalse);
+        expect(binder.resolvedProps.value['validationErrors'], [
+          'Enter a valid email address',
+        ]);
+        expect(binder.resolvedProps.value['validationResults'], [
+          const ValidationResult(
+            valid: false,
+            message: 'Enter a valid email address',
+            severity: 'error',
+          ),
+        ]);
+
+        surface.dataModel.set('/isValidEmail', true);
+        expect(binder.resolvedProps.value['isValid'], isTrue);
+        expect(binder.resolvedProps.value['validationErrors'], isEmpty);
+        expect(binder.resolvedProps.value['validationResults'], isEmpty);
+      },
+    );
   });
 
   group('Catalog generics', () {
@@ -83,6 +191,71 @@ void main() {
       expect(
         rendererCatalog.functions.values,
         everyElement(isA<FunctionImplementation>()),
+      );
+    });
+  });
+
+  group('catalogSchema function call key', () {
+    Map<String, Object?> functionSchema(String? protocolVersion) {
+      final function = CapitalizeFunction();
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'c',
+        protocolVersion: protocolVersion,
+        components: const [],
+        functions: [function],
+      );
+      final functions = catalog.catalogSchema['functions']! as Map;
+      return (functions[function.name]! as Map).cast<String, Object?>();
+    }
+
+    test('is @call from protocol 1.0', () {
+      for (final version in ['1.0', 'v1.0', 'v1.1']) {
+        final Map<String, Object?> schema = functionSchema(version);
+        expect(
+          (schema['properties']! as Map).keys,
+          containsAll(<String>['@call', 'args']),
+          reason: version,
+        );
+        expect(
+          (schema['properties']! as Map).containsKey('call'),
+          isFalse,
+          reason: version,
+        );
+        expect(schema['required'], ['@call', 'args'], reason: version);
+      }
+    });
+
+    test('is call before protocol 1.0 or without a version', () {
+      for (final String? version in ['v0.9', 'v0.9.1', null]) {
+        final Map<String, Object?> schema = functionSchema(version);
+        expect(
+          (schema['properties']! as Map).containsKey('call'),
+          isTrue,
+          reason: '$version',
+        );
+        expect(schema['required'], ['call', 'args'], reason: '$version');
+      }
+    });
+
+    test('carries the protocolVersion a document declares', () {
+      final CatalogApi parsed = Catalog.fromJson({
+        'catalogId': 'c',
+        'protocolVersion': '1.0',
+        'components': <String, Object?>{},
+      });
+      expect(parsed.protocolVersion, '1.0');
+      expect(parsed.catalogSchema['protocolVersion'], '1.0');
+      expect(
+        Catalog.fromJson({
+          'catalogId': 'c',
+          'components': <String, Object?>{},
+        }, protocolVersion: 'v0.9')
+            .protocolVersion,
+        'v0.9',
+      );
+      expect(
+        () => Catalog.fromJson({'catalogId': 'c', 'protocolVersion': 1}),
+        throwsA(isA<A2uiCatalogError>()),
       );
     });
   });
