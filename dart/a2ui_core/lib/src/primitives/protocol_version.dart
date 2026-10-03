@@ -16,17 +16,46 @@ import 'errors.dart';
 
 /// A version of the A2UI protocol.
 ///
-/// This SDK implements v0.9 only; [fromJson] rejects anything else, and a
-/// payload that omits the version.
-enum A2uiProtocolVersion {
-  /// Version 0.9, and the schema-compatible v0.9.1, which shares its wire
-  /// value.
-  v0_9('v0.9');
+/// This SDK implements v0.9, v0.9.1 and v1.0. [fromJson] rejects any other
+/// version, and a payload that omits the version.
+///
+/// Versions are ordered by release, so [compareTo] and [isAtLeast] gate
+/// behavior on a minimum version.
+enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
+  /// Version 0.9.
+  v0_9('v0.9', 0, 9, 0),
 
-  const A2uiProtocolVersion(this.jsonValue);
+  /// Version 0.9.1, which shares the v0.9 message shapes.
+  v0_9_1('v0.9.1', 0, 9, 1),
+
+  /// Version 1.0.
+  v1_0('v1.0', 1, 0, 0);
+
+  const A2uiProtocolVersion(
+      this.jsonValue, this.major, this.minor, this._patch);
 
   /// The value used for the `version` field on the wire.
   final String jsonValue;
+
+  /// The major version number: 0 for v0.9 and v0.9.1, 1 for v1.0.
+  final int major;
+
+  /// The minor version number: 9 for v0.9 and v0.9.1, 0 for v1.0.
+  final int minor;
+
+  final int _patch;
+
+  /// Compares release order: negative if this version precedes [other],
+  /// positive if it follows it, and zero if they are the same version.
+  @override
+  int compareTo(A2uiProtocolVersion other) {
+    if (major != other.major) return major - other.major;
+    if (minor != other.minor) return minor - other.minor;
+    return _patch - other._patch;
+  }
+
+  /// Whether this version is [other] or a later release.
+  bool isAtLeast(A2uiProtocolVersion other) => compareTo(other) >= 0;
 
   /// Parses the `version` field of an A2UI payload.
   ///
@@ -47,6 +76,14 @@ enum A2uiProtocolVersion {
         details: details,
       );
     }
+    return parse(value, details: details);
+  }
+
+  /// Parses a protocol version from its wire value, such as `'v1.0'`.
+  ///
+  /// Throws [A2uiValidationError] if [value] names a version this SDK does
+  /// not implement. [details] is attached to the error.
+  static A2uiProtocolVersion parse(String value, {Object? details}) {
     final A2uiProtocolVersion? version = tryParse(value);
     if (version != null) return version;
     throw A2uiValidationError(
@@ -56,13 +93,14 @@ enum A2uiProtocolVersion {
     );
   }
 
-  /// Parses a protocol version, returning null when [value] names one this
-  /// SDK does not implement.
+  /// Parses a protocol version from its wire value, returning null when
+  /// [value] names one this SDK does not implement.
   ///
-  /// For a version that must be present and supported, use [fromJson], which
-  /// reports why it was rejected.
+  /// Only the exact wire value matches: `'v0.9.1'` is [v0_9_1], and spellings
+  /// the envelope schemas reject, such as `'0.9'` or `'v1_0'`, are not
+  /// versions. For a version that must be present and supported, use
+  /// [fromJson] or [parse], which report why it was rejected.
   static A2uiProtocolVersion? tryParse(String value) {
-    if (value == 'v0.9.1' || value == '0.9.1') return A2uiProtocolVersion.v0_9;
     for (final A2uiProtocolVersion version in values) {
       if (version.jsonValue == value) return version;
     }

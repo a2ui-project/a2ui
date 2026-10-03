@@ -16,6 +16,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
+import '../primitives/semver.dart';
 import '../validation/schema_resolution.dart';
 import 'contexts.dart';
 
@@ -129,6 +130,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// The document's `description`, when it declares one.
   final String? description;
 
+  /// The protocol version this catalog targets, such as `v0.9` or `1.0`, or
+  /// null when it declares none.
+  ///
+  /// `MessageProcessor` creates a surface on this catalog only for a message
+  /// of a compatible version (see [isCatalogVersionCompatible]), and rejects a
+  /// catalog that declares none. From `1.0`, [catalogSchema] names a
+  /// function under the reserved `@call` key rather than `call`.
+  final String? protocolVersion;
+
   final Map<String, C> components;
   final Map<String, F> functions;
   final Schema? themeSchema;
@@ -141,6 +151,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     this.schemaId,
     this.title,
     this.description,
+    this.protocolVersion,
   })  : components = {for (final c in components) c.name: c},
         functions = {for (final f in functions) f.name: f};
 
@@ -150,14 +161,16 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// published catalog documents, and the list of definitions used by inline
   /// catalogs in renderer capabilities.
   ///
-  /// A catalog document is version-agnostic: any `protocolVersion` it
-  /// declares is ignored rather than checked against this SDK.
+  /// The catalog's [Catalog.protocolVersion] is the document's
+  /// `protocolVersion`, or [protocolVersion] when the document declares none,
+  /// as documents written before v1.0 do not.
   ///
   /// Throws [A2uiCatalogError] if the document is malformed or conflicts with
   /// [expectedCatalogId].
   static CatalogApi fromJson(
     Map<String, Object?> json, {
     String? expectedCatalogId,
+    String? protocolVersion,
   }) {
     final Object? rawId = json['catalogId'];
     if (rawId is! String || rawId.isEmpty) {
@@ -205,6 +218,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       schemaId: document[r'$id'] as String?,
       title: document['title'] as String?,
       description: document['description'] as String?,
+      protocolVersion: switch (document['protocolVersion']) {
+        null => protocolVersion,
+        final String declared => declared,
+        final Object other => throw A2uiCatalogError(
+            "Catalog 'protocolVersion' must be a string; got "
+            '${other.runtimeType}.',
+            catalogId: rawId,
+          ),
+      },
     );
   }
 
@@ -349,6 +371,16 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     throw A2uiCatalogError('Expected a JSON schema object, got $value.');
   }
 
+  /// The key a function call names its function under: the reserved `@call`
+  /// from protocol `1.0`, and `call` before it or when [protocolVersion] is
+  /// unset.
+  String get _callKey {
+    final String? version = protocolVersion;
+    return version != null && compareVersions(version, 'v1.0') >= 0
+        ? '@call'
+        : 'call';
+  }
+
   /// The catalog document for this catalog, as JSON.
   ///
   /// The catalog as a document, rebuilt from the components and functions it
@@ -368,6 +400,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         if (title != null) 'title': title,
         if (description != null) 'description': description,
         'catalogId': id,
+        if (protocolVersion != null) 'protocolVersion': protocolVersion,
         'components': {
           for (final MapEntry<String, C> entry in components.entries)
             entry.key: _deepCopyValue(entry.value.schema.value),
@@ -383,13 +416,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
               entry.key: <String, Object?>{
                 'type': 'object',
                 'properties': <String, Object?>{
-                  'call': <String, Object?>{'const': entry.key},
+                  _callKey: <String, Object?>{'const': entry.key},
                   'args': _deepCopyValue(entry.value.argumentSchema.value),
                   'returnType': <String, Object?>{
                     'const': entry.value.returnType.jsonValue,
                   },
                 },
-                'required': <Object?>['call', 'args'],
+                'required': <Object?>[_callKey, 'args'],
                 'unevaluatedProperties': false,
               },
           },

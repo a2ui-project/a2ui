@@ -99,7 +99,13 @@ class ExpressDecompiler {
             }
             i++;
           }
-          final CatalogSchemaHelper helper = _helper(message.catalogId);
+          final CatalogSchemaHelper helper = _helper(
+            message.catalogId ??
+                (throw A2uiValidationError(
+                  "Surface '${message.surfaceId}' names no catalogId, which "
+                  'the Express format requires.',
+                )),
+          );
           created[message.surfaceId] = helper;
           paragraphs.add(_create(message, helper, components, data));
         case UpdateComponentsMessage():

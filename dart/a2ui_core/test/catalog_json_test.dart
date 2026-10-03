@@ -86,4 +86,69 @@ void main() {
       );
     });
   });
+
+  group('catalogSchema function call key', () {
+    Map<String, Object?> functionSchema(String? protocolVersion) {
+      final function = CapitalizeFunction();
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'c',
+        protocolVersion: protocolVersion,
+        components: const [],
+        functions: [function],
+      );
+      final functions = catalog.catalogSchema['functions']! as Map;
+      return (functions[function.name]! as Map).cast<String, Object?>();
+    }
+
+    test('is @call from protocol 1.0', () {
+      for (final version in ['1.0', 'v1.0', 'v1.1']) {
+        final Map<String, Object?> schema = functionSchema(version);
+        expect(
+          (schema['properties']! as Map).keys,
+          containsAll(<String>['@call', 'args']),
+          reason: version,
+        );
+        expect(
+          (schema['properties']! as Map).containsKey('call'),
+          isFalse,
+          reason: version,
+        );
+        expect(schema['required'], ['@call', 'args'], reason: version);
+      }
+    });
+
+    test('is call before protocol 1.0 or without a version', () {
+      for (final String? version in ['v0.9', 'v0.9.1', null]) {
+        final Map<String, Object?> schema = functionSchema(version);
+        expect(
+          (schema['properties']! as Map).containsKey('call'),
+          isTrue,
+          reason: '$version',
+        );
+        expect(schema['required'], ['call', 'args'], reason: '$version');
+      }
+    });
+
+    test('carries the protocolVersion a document declares', () {
+      final CatalogApi parsed = Catalog.fromJson({
+        'catalogId': 'c',
+        'protocolVersion': '1.0',
+        'components': <String, Object?>{},
+      });
+      expect(parsed.protocolVersion, '1.0');
+      expect(parsed.catalogSchema['protocolVersion'], '1.0');
+      expect(
+        Catalog.fromJson({
+          'catalogId': 'c',
+          'components': <String, Object?>{},
+        }, protocolVersion: 'v0.9')
+            .protocolVersion,
+        'v0.9',
+      );
+      expect(
+        () => Catalog.fromJson({'catalogId': 'c', 'protocolVersion': 1}),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+  });
 }

@@ -38,6 +38,7 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(
 ) =>
     Catalog<ComponentApi, FunctionImplementation>(
       id: 'references',
+      protocolVersion: 'v0.9',
       components: [
         ComponentApi(name: 'Parent', schema: Schema.fromMap(schema)),
         ComponentApi(name: 'Leaf', schema: Schema.object()),
@@ -60,6 +61,7 @@ Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
   // has no functions.
   return Catalog<ComponentApi, FunctionImplementation>(
     id: parsed.id,
+    protocolVersion: 'v0.9',
     components: parsed.components.values.toList(),
   );
 }
@@ -436,11 +438,12 @@ void main() {
           });
           final processor = MessageProcessor<ComponentApi>(
             catalogs: [catalog],
-            protocolVersion: A2uiProtocolVersion.v0_9,
+            defaultVersion: A2uiProtocolVersion.v0_9,
           );
           processor.processMessages(
             AgentToRendererMessagePayload.of(
-              CreateSurfaceMessage(surfaceId: 's', catalogId: catalog.id),
+              CreateSurfaceMessage(
+                  version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
             ),
           );
           final SurfaceModel<ComponentApi> surface =
@@ -502,11 +505,13 @@ void main() {
       });
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
+        validationConfig: const ValidationConfig(allowDanglingReferences: true),
       );
       processor.processMessages(
         AgentToRendererMessagePayload.of(
-          CreateSurfaceMessage(surfaceId: 's', catalogId: catalog.id),
+          CreateSurfaceMessage(
+              version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
         ),
       );
       final SurfaceModel<ComponentApi> surface =
@@ -528,9 +533,9 @@ void main() {
       }
 
       surface.dataModel.set('/items', ['a', 'b']);
-      // The processor checks references only for surfaces the payload creates,
-      // so this update is applied and the resolver reports the template items
-      // as pending until a later payload delivers the component.
+      // The processor allows dangling references, so this update is applied
+      // and the resolver reports the template items as pending until a later
+      // payload delivers the component.
       process([
         {
           'id': 'root',
