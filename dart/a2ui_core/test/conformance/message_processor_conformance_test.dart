@@ -88,7 +88,12 @@ void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
   );
   _process(processor, _messagesOf(testCase));
 
-  final Map<String, dynamic>? actual = processor.getClientDataModel();
+  final Map<String, Object?> args =
+      (testCase['args'] as Map<String, Object?>?) ?? const {};
+  final Object? version = args['version'];
+  final Map<String, Object?>? actual = processor.getRendererDataModel(
+    version: version is String ? A2uiProtocolVersion.parse(version) : null,
+  );
   final Object? expected = testCase['expect'];
   if (expected == null) {
     expect(actual, isNull, reason: name);
@@ -105,11 +110,21 @@ void _runGetRendererCapabilitiesCase(Map<String, Object?> testCase) {
   );
   final Map<String, Object?> args =
       (testCase['args'] as Map<String, Object?>?) ?? const {};
-  final includeInlineCatalogs = args['includeInlineCatalogs'] == true;
-
-  final Map<String, dynamic> actual = processor.getClientCapabilities(
-    includeInlineCatalogs: includeInlineCatalogs,
-  );
+  final Object? version = args['version'];
+  final Map<String, Object?> actual = processor
+      .getRendererCapabilities(
+        CapabilitiesOptions(
+          versions: [
+            if (version is String)
+              A2uiProtocolVersion.parse(version)
+            else
+              A2uiProtocolVersion.v0_9,
+          ],
+          includeInlineCatalogs: args['includeInlineCatalogs'] == true,
+          componentEnvelopeRef: args['componentEnvelopeRef'] as String?,
+        ),
+      )
+      .toJson();
   expect(actual, equals(testCase['expect']), reason: name);
 }
 

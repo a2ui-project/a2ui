@@ -16,6 +16,7 @@ import 'package:a2ui_core/src/core/catalog.dart';
 import 'package:a2ui_core/src/core/common_schemas.dart';
 import 'package:a2ui_core/src/core/messages.dart';
 import 'package:a2ui_core/src/core/minimal_catalog.dart';
+import 'package:a2ui_core/src/core/renderer_capabilities.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/primitives/errors.dart';
 import 'package:a2ui_core/src/primitives/protocol_version.dart';
@@ -305,21 +306,184 @@ void main() {
       expect(processor.groupModel.getSurface('s1'), isNotNull);
     });
 
-    test('getClientCapabilities does not corrupt shared schemas', () {
+    test('getRendererCapabilities emits both inline catalog shapes', () {
       final Object? descBefore =
           CommonSchemas.dynamicString.value['description'];
 
-      processor.getClientCapabilities(includeInlineCatalogs: true);
+      final Map<String, Object?> json = processor
+          .getRendererCapabilities(
+            const CapabilitiesOptions(
+              versions: [A2uiProtocolVersion.v0_9, A2uiProtocolVersion.v1_0],
+              includeInlineCatalogs: true,
+            ),
+          )
+          .toJson();
 
-      // _processRefs mutates maps in-place to replace REF: descriptions
-      // with $ref pointers. If toJsonMap uses a shallow copy, the shared
-      // CommonSchemas statics are corrupted.
+      Map<String, Object?> firstInline(String version) =>
+          ((json[version]! as Map)['inlineCatalogs'] as List).first
+              as Map<String, Object?>;
+
+      // Below v1.0: the legacy shape, with components wrapped in the
+      // ComponentCommon envelope and no `$schema`.
+      final Map<String, Object?> legacy = firstInline('v0.9');
+      expect(legacy.containsKey(r'$schema'), isFalse);
+      expect((legacy['components']! as Map)['Alpha'], {
+        'allOf': [
+          {r'$ref': r'common_types.json#/$defs/ComponentCommon'},
+          {
+            'properties': {
+              'component': {'const': 'Alpha'},
+              'a': {'type': 'string'},
+            },
+            'required': ['component', 'a'],
+          },
+        ],
+      });
+
+      // At v1.0: the standalone catalog schema document.
+      final Map<String, Object?> current = firstInline('v1.0');
+      expect(current[r'$schema'], Catalog.jsonSchemaDialect);
+      expect(current['catalogId'], 'cat1');
+      expect(
+        ((current[r'$defs']! as Map)['anyComponent'] as Map)['oneOf'],
+        [
+          {r'$ref': '#/components/Alpha'},
+        ],
+      );
+
+      // _processRefs rewrites maps in place, so the emitter must work on
+      // copies rather than on the shared CommonSchemas statics.
       expect(
         CommonSchemas.dynamicString.value['description'],
         equals(descBefore),
-        reason: 'CommonSchemas.dynamicString should not be mutated by '
-            'getClientCapabilities',
       );
+    });
+
+    test('getClientCapabilities is a v0.9 call-through', () {
+      expect(processor.getClientCapabilities(includeInlineCatalogs: true), {
+        'v0.9': processor
+            .getRendererCapabilities(
+              const CapabilitiesOptions(
+                versions: [A2uiProtocolVersion.v0_9],
+                includeInlineCatalogs: true,
+              ),
+            )
+            .toJson()['v0.9'],
+      });
+    });
+
+    group('getRendererDataModel', () {
+      late MessageProcessor<ComponentApi> dataProcessor;
+
+      void addSurface(String id, String? version, {bool send = true}) {
+        final surface = SurfaceModel<ComponentApi>(
+          id,
+          catalog: namedCatalog('cat1', 'Alpha'),
+          sendDataModel: send,
+          protocolVersion: version,
+        );
+        surface.dataModel.set('/', {'id': id});
+        dataProcessor.groupModel.addSurface(surface);
+      }
+
+      setUp(() {
+        dataProcessor = MessageProcessor<ComponentApi>(
+          catalogs: [namedCatalog('cat1', 'Alpha')],
+          protocolVersion: A2uiProtocolVersion.v0_9,
+        );
+      });
+
+      test('returns null when no surface sends its data model', () {
+        addSurface('s1', 'v0.9', send: false);
+        expect(dataProcessor.getRendererDataModel(), isNull);
+      });
+
+      test('derives the version from the surfaces', () {
+        addSurface('s1', 'v0.9');
+        addSurface('s2', 'v0.9', send: false);
+        expect(dataProcessor.getRendererDataModel(), {
+          'version': 'v0.9',
+          'surfaces': {
+            's1': {'id': 's1'},
+          },
+        });
+      });
+
+      test('defaults to v1.0 when no surface declares a version', () {
+        addSurface('s1', null);
+        expect(dataProcessor.getRendererDataModel(), {
+          'version': 'v1.0',
+          'surfaces': {
+            's1': {'id': 's1'},
+          },
+        });
+      });
+
+      test('raises when surfaces carry different versions', () {
+        addSurface('s1', 'v0.9');
+        addSurface('s2', 'v1.0');
+        expect(
+          () => dataProcessor.getRendererDataModel(),
+          throwsA(
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('v0.9, v1.0'), contains('getRendererDataModel')),
+            ),
+          ),
+        );
+      });
+
+      test('filters surfaces by the requested version', () {
+        addSurface('s1', 'v0.9');
+        addSurface('s2', 'v1.0');
+        addSurface('s3', 'v0.9.1');
+        addSurface('s4', null);
+
+        expect(
+          dataProcessor.getRendererDataModel(
+            version: A2uiProtocolVersion.v1_0,
+          ),
+          {
+            'version': 'v1.0',
+            'surfaces': {
+              's2': {'id': 's2'},
+              's4': {'id': 's4'},
+            },
+          },
+        );
+        expect(
+          dataProcessor.getRendererDataModel(
+            version: A2uiProtocolVersion.v0_9,
+          ),
+          {
+            'version': 'v0.9',
+            'surfaces': {
+              's1': {'id': 's1'},
+              's3': {'id': 's3'},
+              's4': {'id': 's4'},
+            },
+          },
+        );
+      });
+
+      test('returns null when no surface matches the requested version', () {
+        addSurface('s1', 'v0.9');
+        expect(
+          dataProcessor.getRendererDataModel(
+            version: A2uiProtocolVersion.v1_0,
+          ),
+          isNull,
+        );
+      });
+
+      test('getClientDataModel is a call-through', () {
+        addSurface('s1', 'v0.9');
+        expect(
+          dataProcessor.getClientDataModel(),
+          dataProcessor.getRendererDataModel(),
+        );
+      });
     });
 
     test('applies a fully valid batch of components', () {
