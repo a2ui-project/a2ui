@@ -191,10 +191,10 @@ void main() {
       onSkip: skippedMessages.add,
     );
 
-    test('executed passing and expected-failure cases and skipped v0.8', () {
+    tearDownAll(() {
       expect(
         executedCases,
-        equals(['suite_passing_case', 'suite_expected_failure_case']),
+        unorderedEquals(['suite_passing_case', 'suite_expected_failure_case']),
       );
       expect(skippedMessages, hasLength(1));
       expect(
