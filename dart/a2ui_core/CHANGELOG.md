@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- **Behavior change:** `MessageProcessor` checks the component graph on every
+  `updateComponents` message. It used to check completeness once per payload,
+  and only for the surfaces that payload created. Each batch is applied to a copy of the
+  surface's components first, and the result must pass the root, dangling
+  reference, cycle, depth and reachability checks `validationConfig` requires
+  before anything is committed. A surface streamed across several messages
+  needs `ValidationConfig.relaxed`, or the individual `allow*` flags.
+- **Behavior change:** `deleteSurface` for a surface that does not exist throws
+  `A2uiIntegrityError('Surface not found for message: <id>')` instead of doing
+  nothing.
+- **Behavior change:** `ValidationConfig.none` (`validateSchemas: false`) turns
+  off catalog schema checks only. Duplicate-id, cycle, depth, root, dangling
+  reference and reachability checks still run, with strict defaults. This is
+  stricter than the TypeScript SDK, which skips every check without a config,
+  and matches Python.
+- `ValidationConfig` adds `allowUnknownElements`, `validateSchemas`,
+  `targetVersion`, `allowedMessages`, `rootId`, `maxDepth`, `copyWith` and the
+  `none` preset. `ValidationConfig.relaxed` now also sets
+  `allowUnknownElements`, matching TypeScript's `RELAXED_VALIDATION`.
+- An `updateComponents` entry that omits `component` is checked against the
+  existing component's type and catalog schema; its properties still replace
+  the existing ones.
+- `ComponentModel` adds `catalog` (the component's `catalogId`) and `metadata`,
+  and `properties` no longer holds `catalogId` or `metadata`. A component whose
+  `catalogId` changes is recreated, as for a change of type.
+- `SurfaceModel` adds `rootId`, defaulting to `root` or to
+  `ValidationConfig.rootId`, and `NodeResolver` roots the tree at it.
+- `SurfaceComponentsModel` adds `getAll()`, `has()`, `size`, `entries`, `keys`,
+  `values`, `getChildIds()`, `validateTopology()`, `detectCycles()`,
+  `validateReferences()` and `validateComponentsUpdate()`.
+
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
 - `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.
@@ -34,8 +65,7 @@
   which `jsonEncode` can't encode.
 - `MessageProcessor`, `PayloadValidator`, and `Catalog` align surface lifecycle
   error reporting (`A2uiIntegrityError` and `A2uiRecursionError` extending
-  `A2uiValidationError`, per-message completeness validation, safe no-op
-  `deleteSurface` on unknown surfaces), support `"v0.9.1"` in
+  `A2uiValidationError`), support `"v0.9.1"` in
   `A2uiProtocolVersion.tryParse`, and pass the `message_processor_v0_9.yaml`,
   `validator_v0_9.yaml`, and `catalog.yaml` conformance suites.
 - `ExpressionParser` enforces recursion depth (`maxDepth = 100`), template

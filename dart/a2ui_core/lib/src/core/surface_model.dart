@@ -28,6 +28,12 @@ class SurfaceModel<T extends ComponentApi> {
   final bool sendDataModel;
   final String? protocolVersion;
 
+  /// The id of the component this surface's tree is rooted at.
+  ///
+  /// `root` unless set otherwise. `NodeResolver` builds the tree from it, and
+  /// `MessageProcessor` checks for it when `ValidationConfig.rootId` is null.
+  final String rootId;
+
   final DataModel dataModel;
   final SurfaceComponentsModel componentsModel;
 
@@ -46,8 +52,9 @@ class SurfaceModel<T extends ComponentApi> {
     this.theme = const {},
     this.sendDataModel = false,
     this.protocolVersion,
+    this.rootId = 'root',
   })  : dataModel = DataModel(),
-        componentsModel = SurfaceComponentsModel();
+        componentsModel = SurfaceComponentsModel(catalog: catalog);
 
   /// Emits an agent-bound action from this surface on [onAction].
   ///
