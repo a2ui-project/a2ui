@@ -32,6 +32,38 @@
 - `SurfaceComponentsModel` adds `getAll()`, `has()`, `size`, `entries`, `keys`,
   `values`, `getChildIds()`, `validateTopology()`, `detectCycles()`,
   `validateReferences()` and `validateComponentsUpdate()`.
+- **Breaking:** Message constructors no longer default `version` to
+  `'v0.9'`; every `AgentToRendererMessage` and `RendererToAgentMessage`
+  subclass takes a required `version`. `A2uiClientAction.fromJson` and
+  `A2uiClientError.fromJson` take a required `protocolVersion`.
+- `A2uiProtocolVersion` adds `v0_9_1` and `v1_0`. `'v0.9.1'` now parses to
+  `v0_9_1` instead of `v0_9`. The enum adds `parse`, `major`, `minor`,
+  `compareTo` and `isAtLeast`. Payload parsers and `PayloadValidator` accept
+  v0.9.1 envelopes where v0.9 is configured, and the reverse.
+  `A2uiRendererCapabilities.forVersion` falls back to a compatible declared
+  version in the same way.
+- Added `isCatalogVersionCompatible` and `compareVersions`, matching the
+  TypeScript and Python SDKs.
+- Added the v1.0 messages `CallRendererFunctionMessage`,
+  `AgentFunctionResponseMessage`, `CallAgentFunctionMessage` and
+  `RendererFunctionResponseMessage`, with `A2uiFunctionResponse` and
+  `A2uiFunctionResponseError` for function results. They are rejected in
+  v0.9 and v0.9.1 envelopes.
+- `CreateSurfaceMessage.catalogId` is optional, as v1.0 allows. The class adds
+  the v1.0 `components`, `dataModel` and `metadata` fields. v1.0 rejects
+  `theme`, and v0.9 rejects the v1.0 fields.
+- `A2uiClientAction` adds `catalogId` and `metadata`.
+- `A2uiClientError` follows the v1.0 rules. `UNALLOWED_PARENT` and
+  `UNALLOWED_CHILD` are path errors like `VALIDATION_FAILED`, and path errors
+  reject extra fields. A generic error names exactly one of `surfaceId` and
+  the new `functionCallId`, and keeps its other fields in
+  `additionalProperties`. `surfaceId` is now nullable.
+- Envelope parsing checks each version's allowed and required keys. It
+  rejects unknown envelope and body keys, an empty `components` list, and a
+  v1.0 `updateDataModel` without `value`. A new oracle test checks the parsers
+  against the specification's envelope schemas.
+- `PayloadValidator.commonTypesFor` throws for v1.0, whose common types this
+  package does not embed yet.
 
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
