@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+- **Breaking:** `SurfaceModel.catalog` is replaced by a nullable
+  `defaultCatalog`, and the constructor's `catalog:` argument by
+  `defaultCatalog:`. `SurfaceModel` adds `availableCatalogs`, `metadata`,
+  `onWarning`/`dispatchWarning` (with the new `A2uiWarning`), and
+  `resolveCatalog(catalogId)`, which resolves an item's own `catalogId`, then
+  the default, and otherwise throws `A2uiCatalogError`. There is no fallback to
+  a sole catalog. A catalog whose `protocolVersion` is incompatible with the
+  surface's throws `A2uiCatalogError` at construction.
+- **Behavior change:** `NodeResolver`, `GenericBinder` and `DataContext`
+  resolve components and function calls through `surface.resolveCatalog`, so a
+  component or function call naming another catalog's `catalogId` renders or
+  runs with that catalog. `FunctionCall` adds `catalogId`, and `DataContext`
+  adds `invokerForCatalog`.
+- **Behavior change:** `MessageProcessor` gives each surface the processor
+  catalogs compatible with its protocol version as `availableCatalogs`, and
+  `createSurface` without a `catalogId` creates a surface with no default
+  catalog instead of throwing. A component that names no catalog on such a
+  surface throws `A2uiCatalogError`, even when the processor supports one
+  catalog. `createSurface` metadata is kept on `SurfaceModel.metadata`.
+- **Behavior change:** `SurfaceGroupModel.addSurface` throws `A2uiStateError`
+  for a surface id it already holds, instead of ignoring the new surface.
+- **Behavior change:** `Catalog` throws `A2uiCatalogError` for two components
+  or two functions with one name, for a component named `Surface`, and for a
+  function name starting with `@`.
+- **Behavior change:** `Catalog.invoke` checks arguments against the
+  function's argument schema and throws `A2uiExpressionError` on a mismatch
+  before the function runs. Null arguments, such as bindings to missing data,
+  are not checked.
+- `SurfaceModel.dispatchAction` copies the action's `catalogId` onto
+  `A2uiClientAction.catalogId`.
+- `Catalog` adds `protocolVersion` and `instructions`, read by
+  `Catalog.fromJson` and written by `catalogSchema`. `catalogSchema` requires
+  `args` only for functions with required parameters.
+
 - **Behavior change:** `MessageProcessor` checks the component graph on every
   `updateComponents` message. It used to check completeness once per payload,
   and only for the surfaces that payload created. Each batch is applied to a copy of the
