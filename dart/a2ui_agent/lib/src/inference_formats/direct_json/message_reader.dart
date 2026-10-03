@@ -79,7 +79,7 @@ class MessageReader {
             _validators[catalogId] ??
             (throw A2uiValidationError(
               "Surface '${message.surfaceId}' names catalog "
-              "'${message.catalogId}', which is not active. Active catalogs: "
+              "'$catalogId', which is not active. Active catalogs: "
               '${_validators.keys.join(', ')}.',
               details: envelope,
             ));

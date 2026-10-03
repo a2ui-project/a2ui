@@ -566,11 +566,9 @@ A2uiFunctionResponse _functionResponse(
   );
 }
 
-/// Whether [version] is a v1.0 or later wire value.
-bool _isV1(String version) =>
-    A2uiProtocolVersion.tryParse(version)
-        ?.isAtLeast(A2uiProtocolVersion.v1_0) ??
-    false;
+/// Whether [version] is v1.0 or a later release, including releases this SDK
+/// does not implement yet.
+bool _isV1(String version) => compareVersions(version, 'v1.0') >= 0;
 
 /// Signals the client to create a new surface.
 class CreateSurfaceMessage extends AgentToRendererMessage {
