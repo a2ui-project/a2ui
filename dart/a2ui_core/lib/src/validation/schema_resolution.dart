@@ -22,6 +22,12 @@ const String _commonTypesDocument = 'common_types.json';
 /// definitions, however the reference spells the rest of the URL.
 const String _catalogDocument = 'catalog.json';
 
+/// The unions a catalog document may omit when it declares nothing for them.
+const Set<String> _catalogUnions = {
+  r'/$defs/anyFunction',
+  r'/$defs/anyComponent'
+};
+
 /// Rewrites a component schema so it can be validated without any I/O.
 ///
 /// Every definition the schema reaches — in the catalog [document] and in
@@ -148,6 +154,11 @@ class _RefResolver {
       if (commonTypes == null || commonTypes.isEmpty) return null;
       origin = _DocumentRef(commonTypes, 'commonTypes');
       found = followJsonPointer(commonTypes, pointer);
+    }
+    if (found is! Map && _catalogUnions.contains(pointer)) {
+      // A catalog without functions declares no `anyFunction`, which
+      // `common_types.json` still reaches from every dynamic value.
+      return null;
     }
     final Map<String, Object?>? fallback = _fallbackCommonTypes;
     if (found is! Map && origin.name == 'commonTypes' && fallback != null) {

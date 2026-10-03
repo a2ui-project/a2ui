@@ -46,7 +46,12 @@
 '<ref>'")` instead of silently leaving the subschema unconstrained, and
   pointers follow array indices (`#/$defs/X/oneOf/0`). A local
   `#/$defs/<Name>` the catalog does not define falls back to
-  `common_types.json`.
+  `common_types.json`. A shared type that only the other protocol version's
+  `common_types.json` defines (such as the v1.0 `Child` in a catalog that
+  declares no version) resolves against that document; types both versions
+  define, such as `DataBinding` and `FunctionCall`, always resolve against
+  the catalog's own version, so a v0.9 catalog does not accept `@path` or
+  `@call` shapes.
 - Validation errors carry JSON Pointer `path`s and per-error `errors` details;
   a dangling reference reports `/components/<index>/children/<n>`.
 

@@ -1254,6 +1254,41 @@ void v1RulesTests() {
       );
     });
 
+    test('a version-less catalog borrows only v1.0-only types', () {
+      final validator = PayloadValidator<ComponentApi, FunctionApi>(
+        catalog: Catalog.fromJson({
+          'catalogId': 'c',
+          'components': {
+            'Slot': {
+              'type': 'object',
+              'properties': {
+                'child': {r'$ref': r'common_types.json#/$defs/Child'},
+                'label': {r'$ref': r'common_types.json#/$defs/DynamicString'},
+              },
+            },
+          },
+        }),
+      );
+
+      expect(
+        () => validator.validateComponent({
+          'id': 's',
+          'component': 'Slot',
+          'child': 'leaf',
+          'label': {'path': '/name'},
+        }),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateComponent({
+          'id': 's',
+          'component': 'Slot',
+          'label': {'@path': '/name'},
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
     test('follows list indices in pointers', () {
       final validator = PayloadValidator<ComponentApi, FunctionApi>(
         catalog: Catalog.fromJson({

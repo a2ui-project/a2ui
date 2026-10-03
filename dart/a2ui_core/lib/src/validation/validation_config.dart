@@ -54,9 +54,10 @@ class ValidationConfig {
 
   /// Every check on: what a payload that renders a whole surface must pass.
   /// Whether a component type or function the catalog does not declare
-  /// passes validation unchecked instead of being rejected.
+  /// passes validation instead of being rejected.
   ///
-  /// Applies to catalogs below v1.0. From v1.0 an unknown function always
+  /// Such a component is accepted without a schema check. For functions this
+  /// applies to catalogs below v1.0; from v1.0 an unknown function always
   /// passes, because a renderer forwards it to the agent as a
   /// `callAgentFunction`.
   final bool allowUnknownElements;
@@ -71,6 +72,7 @@ class ValidationConfig {
     allowOrphanComponents: true,
     allowDanglingReferences: true,
     allowMissingRoot: true,
+    allowUnknownElements: true,
   );
 
   @override
