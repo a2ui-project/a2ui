@@ -67,6 +67,9 @@ class DataContext {
       key.startsWith('@') && !key.startsWith('@@');
 
   static Map<String, dynamic> _asStringKeyedMap(Map<Object?, Object?> map) {
+    if (map is Map<String, dynamic>) {
+      return map;
+    }
     final result = <String, dynamic>{};
     for (final MapEntry<Object?, Object?> entry in map.entries) {
       final Object? key = entry.key;
