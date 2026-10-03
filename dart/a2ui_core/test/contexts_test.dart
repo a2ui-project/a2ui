@@ -471,6 +471,7 @@ void main() {
       expect(outer.childContext('label').index, 2);
       // Without an explicit index, a trailing numeric segment counts.
       expect(root.childContext('items/7').index, 7);
+      expect(root.childContext('items/99999999999999999999').index, isNull);
     });
 
     test('@index resolves to the iteration index plus offset', () {

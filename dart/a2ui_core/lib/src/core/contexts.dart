@@ -142,7 +142,9 @@ class DataContext {
             (segment) => segment.isNotEmpty,
             orElse: () => '',
           );
-      if (_digits.hasMatch(last)) return int.parse(last);
+      // tryParse: a digit run too long for an int is not an index.
+      final int? parsed = _digits.hasMatch(last) ? int.tryParse(last) : null;
+      if (parsed != null) return parsed;
     }
     return null;
   }
