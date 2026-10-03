@@ -21,6 +21,7 @@ import '../core/surface_group_model.dart';
 import '../core/surface_model.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
+import '../primitives/semver.dart';
 import '../validation/component_graph.dart';
 import '../validation/component_refs.dart';
 import '../validation/validation_config.dart';
@@ -200,31 +201,6 @@ class MessageProcessor<T extends ComponentApi> {
     'metadata',
   };
 
-  /// The catalog one component is checked against.
-  ///
-  /// Settled in order: the [catalogId] the component names for itself, which
-  /// v1.0 allows so that one surface can mix catalogs; then the surface's
-  /// default, from `createSurface`; then the sole catalog this processor
-  /// supports, which is the agent case, where a catalog is negotiated before
-  /// anything is generated.
-  ///
-  /// Throws [A2uiCatalogError] when none of those settles it. Skipping the
-  /// component instead would report a payload valid that nothing had checked.
-  Catalog<T, FunctionImplementation> _catalogForComponent(
-    String id,
-    String? catalogId,
-    String? surfaceCatalogId,
-  ) {
-    final String? declared = catalogId ?? surfaceCatalogId;
-    if (declared != null) return catalogFor(declared);
-    if (catalogs.length == 1) return catalogs.single;
-    throw A2uiCatalogError(
-      "Component '$id' names no catalog and its surface has none, so the "
-      'catalog to check it against is ambiguous among: '
-      '${catalogs.map((c) => c.id).join(', ')}.',
-    );
-  }
-
   /// Which properties hold child references, across the catalogs a surface's
   /// components draw on.
   ///
@@ -232,16 +208,16 @@ class MessageProcessor<T extends ComponentApi> {
   /// come from several catalogs, so the reference fields are merged over all of
   /// them. The surface's own default wins a name two catalogs both declare.
   Map<String, ComponentRefFields> _refFieldsFor(
-    String? surfaceCatalogId,
+    SurfaceModel<T> surface,
     Iterable<String?> componentCatalogIds,
   ) {
     final ids = <String>{
-      if (surfaceCatalogId != null) surfaceCatalogId,
+      if (surface.defaultCatalog case final catalog?) catalog.id,
       for (final String? id in componentCatalogIds)
         if (id != null) id,
     };
     final Iterable<Catalog<T, FunctionImplementation>> involved =
-        ids.isEmpty ? catalogs : ids.map(catalogFor);
+        ids.map(surface.resolveCatalog);
 
     final merged = <String, ComponentRefFields>{};
     for (final catalog in involved) {
@@ -288,14 +264,17 @@ class MessageProcessor<T extends ComponentApi> {
     }
   }
 
+  /// Creates the surface [message] describes.
+  ///
+  /// A `catalogId` on the message becomes the surface's default catalog; a
+  /// message without one creates a surface with no default, whose items must
+  /// each name their catalog. The surface can use every catalog this
+  /// processor supports whose protocol version is compatible with
+  /// [protocolVersion].
   void _processCreateSurface(CreateSurfaceMessage message) {
-    final Catalog<T, FunctionImplementation> catalog = catalogFor(
-      message.catalogId ??
-          (throw A2uiValidationError(
-            "Message 'createSurface' for surface '${message.surfaceId}' names "
-            'no catalogId.',
-          )),
-    );
+    final String? catalogId = message.catalogId;
+    final Catalog<T, FunctionImplementation>? catalog =
+        catalogId == null ? null : catalogFor(catalogId);
 
     if (groupModel.getSurface(message.surfaceId) != null) {
       throw A2uiIntegrityError('Surface ${message.surfaceId} already exists.');
@@ -303,17 +282,27 @@ class MessageProcessor<T extends ComponentApi> {
 
     // The theme arrives once, with the surface, so it is checked here rather
     // than on every later message.
-    if (validationConfig.validateSchemas) {
+    if (catalog != null && validationConfig.validateSchemas) {
       validatorFor(catalog).validateTheme(message.theme);
     }
 
     final surface = SurfaceModel<T>(
       message.surfaceId,
       defaultCatalog: catalog,
+      availableCatalogs: [
+        for (final Catalog<T, FunctionImplementation> candidate in catalogs)
+          if (candidate.protocolVersion == null ||
+              isCatalogVersionCompatible(
+                candidate.protocolVersion!,
+                protocolVersion.jsonValue,
+              ))
+            candidate,
+      ],
       theme: message.theme ?? {},
       sendDataModel: message.sendDataModel,
       protocolVersion: protocolVersion.jsonValue,
       rootId: validationConfig.rootId ?? 'root',
+      metadata: message.metadata,
     );
     groupModel.addSurface(surface);
   }
@@ -344,7 +333,7 @@ class MessageProcessor<T extends ComponentApi> {
     // the root, references that resolve, cycles, depth and reachability, as
     // [validationConfig] requires.
     final Map<String, ComponentRefFields> refFields = _refFieldsFor(
-      surface.catalog.id,
+      surface,
       [
         for (final ComponentModel c in model.all) c.catalog,
         for (final Map<String, Object?> c in resolved)
@@ -456,11 +445,8 @@ class MessageProcessor<T extends ComponentApi> {
       if (metadata != null) 'metadata': metadata,
     };
 
-    final Catalog<T, FunctionImplementation> catalog = _catalogForComponent(
-      id,
-      catalogId,
-      surface.catalog.id,
-    );
+    final Catalog<T, FunctionImplementation> catalog =
+        surface.resolveCatalog(catalogId);
     if (validationConfig.validateSchemas) {
       validatorFor(catalog).validateComponent(full);
     }

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:json_schema_builder/json_schema_builder.dart';
+
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
 import 'catalog.dart';
@@ -28,6 +30,11 @@ typedef FunctionInvoker = Object? Function(
   DataContext context,
 );
 
+/// Returns the invoker for the catalog with [catalogId].
+///
+/// Throws [A2uiCatalogError] when no such catalog is available.
+typedef CatalogInvokerResolver = FunctionInvoker Function(String catalogId);
+
 /// Reports a failed function evaluation without depending on a surface.
 typedef ExpressionErrorReporter = void Function(A2uiExpressionError error);
 
@@ -40,19 +47,28 @@ typedef ExpressionErrorReporter = void Function(A2uiExpressionError error);
 class DataContext {
   final DataModel dataModel;
   final FunctionInvoker _invoke;
+  final CatalogInvokerResolver? _invokerForCatalog;
   final ExpressionErrorReporter? _onError;
   final String path;
   final String? protocolVersion;
 
   /// With [onError], failed invocations are reported and resolve to null.
   /// Without it, the original exception is rethrown.
+  ///
+  /// A function call naming no `catalogId` runs through [invoke]. One that
+  /// names a catalog runs through the invoker [invokerForCatalog] returns for
+  /// it; without [invokerForCatalog], such a call fails with
+  /// [A2uiCatalogError].
   DataContext(
     this.dataModel,
-    this._invoke,
+    FunctionInvoker invoke,
     this.path, {
     ExpressionErrorReporter? onError,
     this.protocolVersion,
-  }) : _onError = onError;
+    CatalogInvokerResolver? invokerForCatalog,
+  })  : _invoke = invoke,
+        _onError = onError,
+        _invokerForCatalog = invokerForCatalog;
 
   bool get isV10 {
     final String? v = protocolVersion;
@@ -114,7 +130,7 @@ class DataContext {
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
           args[entry.key] = resolveSync(entry.value);
         }
-        final Object? result = _evaluateFunction(call.call, args);
+        final Object? result = _evaluateFunction(call, args);
         if (result is ReadonlySignal) {
           return result.value;
         }
@@ -147,7 +163,7 @@ class DataContext {
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
           args[entry.key] = resolveSync(entry.value);
         }
-        final Object? result = _evaluateFunction(call.call, args);
+        final Object? result = _evaluateFunction(call, args);
         if (result is ReadonlySignal) {
           return result.value;
         }
@@ -214,7 +230,7 @@ class DataContext {
             );
             args[entry.key] = resolved.value;
           }
-          final Object? result = _evaluateFunction(call.call, args);
+          final Object? result = _evaluateFunction(call, args);
           if (result is ReadonlySignal) {
             return result.value;
           }
@@ -253,7 +269,7 @@ class DataContext {
             );
             args[entry.key] = resolved.value;
           }
-          final Object? result = _evaluateFunction(call.call, args);
+          final Object? result = _evaluateFunction(call, args);
           if (result is ReadonlySignal) {
             return result.value;
           }
@@ -289,9 +305,20 @@ class DataContext {
   }
 
   /// Invokes a function, reporting a failure only when a reporter was supplied.
-  Object? _evaluateFunction(String name, Map<String, dynamic> args) {
+  Object? _evaluateFunction(FunctionCall call, Map<String, dynamic> args) {
+    final String name = call.call;
     try {
-      return _invoke(name, args, this);
+      final String? catalogId = call.catalogId;
+      if (catalogId == null) return _invoke(name, args, this);
+      final CatalogInvokerResolver? invokerForCatalog = _invokerForCatalog;
+      if (invokerForCatalog == null) {
+        throw A2uiCatalogError(
+          "Function '$name' names catalog '$catalogId', but this context "
+          'has no catalogs to resolve it against.',
+          catalogId: catalogId,
+        );
+      }
+      return invokerForCatalog(catalogId)(name, args, this);
     } catch (error) {
       final ExpressionErrorReporter? onError = _onError;
       if (onError == null) rethrow;
@@ -314,6 +341,7 @@ class DataContext {
       resolvePath(relativePath),
       onError: _onError,
       protocolVersion: protocolVersion,
+      invokerForCatalog: _invokerForCatalog,
     );
   }
 
@@ -378,7 +406,8 @@ class ComponentContext {
     ExpressionErrorReporter? onError,
   }) : dataContext = DataContext(
           surface.dataModel,
-          surface.catalog.invoke,
+          (name, args, context) =>
+              surface.resolveCatalog(null).invoke(name, args, context),
           basePath ?? '/',
           onError: onError ??
               (error) {
@@ -392,6 +421,8 @@ class ComponentContext {
                 );
               },
           protocolVersion: surface.protocolVersion,
+          invokerForCatalog: (catalogId) =>
+              surface.resolveCatalog(catalogId).invoke,
         );
 
   /// Dispatches an action from the component.
@@ -417,11 +448,52 @@ class ComponentContext {
 extension CatalogInvokerExtension
     on Catalog<ComponentApi, FunctionImplementation> {
   /// Invokes a catalog function by name with the given arguments.
+  ///
+  /// Throws [ArgumentError] when the catalog has no function named [name],
+  /// and [A2uiExpressionError] when [args] do not match the function's
+  /// argument schema; the function does not run in either case.
+  ///
+  /// A null argument is an unresolved value, such as a binding to data that
+  /// is not there yet, so it is left for the function to handle rather than
+  /// checked against the schema.
   Object? invoke(String name, Map<String, dynamic> args, DataContext context) {
     final FunctionImplementation? fn = functions[name];
     if (fn == null) {
       throw ArgumentError('Function not found: $name');
     }
+    final List<ValidationError> errors = _argumentErrors(fn, args);
+    if (errors.isNotEmpty) {
+      throw A2uiExpressionError(
+        "Arguments to '$name' do not match its schema in catalog '$id': "
+        '${errors.map((e) => e.toErrorString()).join('; ')}',
+        expression: name,
+        details: args,
+      );
+    }
     return fn.execute(args, context);
+  }
+
+  static List<ValidationError> _argumentErrors(
+    FunctionImplementation fn,
+    Map<String, dynamic> args,
+  ) {
+    final Set<String> unresolved = {
+      for (final MapEntry<String, dynamic> entry in args.entries)
+        if (entry.value == null) entry.key,
+    };
+    if (unresolved.isEmpty) return fn.argumentSchema.validateSync(args);
+    final Map<String, Object?> schema = fn.argumentSchema.value;
+    final Object? required = schema['required'];
+    return Schema.fromMap({
+      ...schema,
+      if (required is List)
+        'required': [
+          for (final Object? key in required)
+            if (!unresolved.contains(key)) key,
+        ],
+    }).validateSync({
+      for (final MapEntry<String, dynamic> entry in args.entries)
+        if (entry.value != null) entry.key: entry.value,
+    });
   }
 }

@@ -154,7 +154,7 @@ void main() {
     });
 
     test('requires args in catalogSchema only for required parameters', () {
-      final catalog = CatalogApi(
+      final CatalogApi catalog = CatalogApi(
         id: 'c',
         components: const [],
         functions: [
@@ -186,12 +186,14 @@ void main() {
       expect(catalog.invoke('echo', {'value': 'hi'}, context), 'hi');
       expect(
         () => catalog.invoke('echo', {'value': 3}, context),
-        throwsA(isA<A2uiValidationError>()),
+        throwsA(isA<A2uiExpressionError>()),
       );
       expect(
         () => catalog.invoke('echo', <String, dynamic>{}, context),
-        throwsA(isA<A2uiValidationError>()),
+        throwsA(isA<A2uiExpressionError>()),
       );
+      // A null argument is unresolved data, which the function handles.
+      expect(catalog.invoke('echo', {'value': null}, context), isNull);
     });
   });
 }

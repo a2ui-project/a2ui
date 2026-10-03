@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
@@ -44,7 +43,7 @@ void main() {
 }
 
 void _runCase(Map<String, Object?> testCase) {
-  final String action = testCase['action']! as String;
+  final action = testCase['action']! as String;
   switch (action) {
     case 'select_catalog':
       _runSelectCatalogCase(testCase);
@@ -62,14 +61,13 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final args = testCase['args']! as Map<String, Object?>;
   final surfaceArgs = args['surface']! as Map<String, Object?>;
-  final surfaceId = surfaceArgs['id'] as String? ?? 'main_surface';
-  final String? defaultId = surfaceArgs['defaultCatalogId'] as String?;
-  final String surfaceVersion =
-      (testCase['catalog'] as Map<String, Object?>?)?['protocolVersion']
-              as String? ??
-          'v1.0';
+  final String surfaceId = surfaceArgs['id'] as String? ?? 'main_surface';
+  final defaultId = surfaceArgs['defaultCatalogId'] as String?;
+  final String surfaceVersion = (testCase['catalog']
+          as Map<String, Object?>?)?['protocolVersion'] as String? ??
+      'v1.0';
   final functionCall = args['functionCall'] as Map<String, Object?>?;
-  final String? functionName = functionCall?['call'] as String?;
+  final functionName = functionCall?['call'] as String?;
   final selections = <String>[];
 
   Catalog<ComponentApi, FunctionImplementation> catalogFor(
@@ -86,8 +84,7 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
         protocolVersion: version,
       );
 
-  final Map<String, Object?>? declared =
-      args['catalogs'] as Map<String, Object?>?;
+  final declared = args['catalogs'] as Map<String, Object?>?;
   final catalogs = <String, Catalog<ComponentApi, FunctionImplementation>>{
     if (declared != null)
       for (final MapEntry<String, Object?> entry in declared.entries)
@@ -98,9 +95,9 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
               surfaceVersion,
         )
     else
-      for (final Object? id in surfaceArgs['supportedCatalogIds']
-              as List<Object?>? ??
-          [defaultId])
+      for (final Object? id
+          in surfaceArgs['supportedCatalogIds'] as List<Object?>? ??
+              [defaultId])
         id! as String: catalogFor(id as String, surfaceVersion),
   };
 
@@ -127,13 +124,18 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
       }
     }
     if (functionCall != null) {
-      final model = ComponentModel('caller', 'Caller', const {});
-      final context = ComponentContext(
-        surface,
-        model,
-        onError: (error) => throw error,
+      // Wired as a component's context is: calls without a catalogId run in
+      // the default catalog, and calls with one in the catalog they name.
+      final context = DataContext(
+        surface.dataModel,
+        (name, args, context) =>
+            surface.resolveCatalog(null).invoke(name, args, context),
+        '/',
+        protocolVersion: surface.protocolVersion,
+        invokerForCatalog: (catalogId) =>
+            surface.resolveCatalog(catalogId).invoke,
       );
-      context.dataContext.resolveSync({
+      context.resolveSync({
         '@call': functionName,
         if (functionCall['catalogId'] != null)
           'catalogId': functionCall['catalogId'],

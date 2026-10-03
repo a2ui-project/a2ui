@@ -448,7 +448,8 @@ void unresolvedReferenceTests() {
     TestSetup nestedSetup() {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           nestedCatalog();
-      final surface = SurfaceModel<ComponentApi>('nested', defaultCatalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('nested', defaultCatalog: catalog);
       final resolver = NodeResolver<ComponentApi>(surface);
       addTearDown(() {
         resolver.dispose();
@@ -1100,7 +1101,8 @@ void main() {
             ),
           ],
         );
-        final surface = SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+        final surface =
+            SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
         final NodeResolver<ComponentApi> resolver = NodeResolver(surface);
         addTearDown(() {
           resolver.dispose();
@@ -1138,7 +1140,8 @@ void main() {
           ),
         ],
       );
-      final surface = SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       final NodeResolver<ComponentApi> resolver = NodeResolver(surface);
       addTearDown(() {
         resolver.dispose();
@@ -1159,7 +1162,8 @@ void main() {
     test('ignores a root removed before its creation event is handled', () {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           makeCatalog();
-      final surface = SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       var removedOnce = false;
       surface.componentsModel.onCreated.addListener((component) {
         if (component.id == 'root' && !removedOnce) {
@@ -1185,7 +1189,8 @@ void main() {
     test('re-arms a pending child removed during its creation event', () {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           makeCatalog();
-      final surface = SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       var removedOnce = false;
       surface.componentsModel.onCreated.addListener((component) {
         if (component.id == 'child' && !removedOnce) {
@@ -1321,7 +1326,8 @@ void main() {
         'and rebuilds it after deletion and re-send', () {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           makeCatalog();
-      final surface = SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       add(surface, 'root', 'Text', {'text': 'early'});
       final resolver = NodeResolver<ComponentApi>(surface);
       final ComponentNode? initial = resolver.rootNode.value;
@@ -1559,7 +1565,8 @@ void main() {
           ),
         ],
       );
-      final surface = SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       final resolver = NodeResolver<ComponentApi>(surface);
       addTearDown(() {
         resolver.dispose();
@@ -2309,7 +2316,8 @@ void main() {
         ],
         functions: [ping],
       );
-      final surface = SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       final resolver = NodeResolver<ComponentApi>(surface);
       final actions = <A2uiClientAction>[];
       final errors = <A2uiClientError>[];
@@ -2377,7 +2385,8 @@ void main() {
         components: makeCatalog().components.values.toList(),
         functions: [_JoinFunction()],
       );
-      final surface = SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       final resolver = NodeResolver<ComponentApi>(surface);
       addTearDown(() {
         resolver.dispose();

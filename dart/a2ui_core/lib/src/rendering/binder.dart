@@ -93,7 +93,9 @@ class GenericBinder {
   GenericBinder(this.context, this.schema) {
     _schemaReader = ReferenceSchemaReader(
       schema.value,
-      document: context.surface.catalog.catalogSchema,
+      document: context.surface
+          .resolveCatalog(context.componentModel.catalog)
+          .catalogSchema,
     );
     _behaviorTree = _scrapeSchemaBehavior(schema.value);
     _resolvedProps = signal<Map<String, dynamic>>({});

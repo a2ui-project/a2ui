@@ -43,7 +43,8 @@ void main() {
 
       // Create a new surface with the same ID and verify the group
       // only forwards from the new one (not a leaked old listener).
-      final surface2 = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
+      final surface2 =
+          SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
       group.addSurface(surface2);
 
       actionCount = 0;
@@ -150,8 +151,8 @@ void main() {
             .having((e) => e.catalogId, 'catalogId', catalogId);
 
     test('resolves an explicit catalog id the surface supports', () {
-      final a = catalogNamed('a');
-      final b = catalogNamed('b');
+      final Catalog<ComponentApi, FunctionImplementation> a = catalogNamed('a');
+      final Catalog<ComponentApi, FunctionImplementation> b = catalogNamed('b');
       final surface = SurfaceModel<ComponentApi>(
         's1',
         defaultCatalog: a,
@@ -163,7 +164,7 @@ void main() {
     });
 
     test('rejects an explicit catalog id the surface does not support', () {
-      final a = catalogNamed('a');
+      final Catalog<ComponentApi, FunctionImplementation> a = catalogNamed('a');
       final surface = SurfaceModel<ComponentApi>(
         's1',
         defaultCatalog: a,
@@ -182,8 +183,8 @@ void main() {
     });
 
     test('resolves an item without a catalog id to the default catalog', () {
-      final a = catalogNamed('a');
-      final b = catalogNamed('b');
+      final Catalog<ComponentApi, FunctionImplementation> a = catalogNamed('a');
+      final Catalog<ComponentApi, FunctionImplementation> b = catalogNamed('b');
       final surface = SurfaceModel<ComponentApi>(
         's1',
         defaultCatalog: a,
@@ -197,7 +198,7 @@ void main() {
     test('raises when there is neither a catalog id nor a default', () {
       // The surface supports exactly one catalog, and still does not fall
       // back to it: v1.0 forbids a fallback to the supported set.
-      final a = catalogNamed('a');
+      final Catalog<ComponentApi, FunctionImplementation> a = catalogNamed('a');
       final surface = SurfaceModel<ComponentApi>('s1', availableCatalogs: [a]);
 
       expect(surface.defaultCatalog, isNull);

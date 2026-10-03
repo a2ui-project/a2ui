@@ -363,7 +363,7 @@ void main() {
       ]);
 
       final Object? text = resolver.rootNode.peek()!.props.peek()['text'];
-      expect((text! as ResolvedBinding<Object?>).value, 'HELLO');
+      expect((text! as ResolvedBinding<Object?>).value, 'Hello');
     });
   });
 }
