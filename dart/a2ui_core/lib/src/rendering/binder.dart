@@ -163,10 +163,18 @@ class GenericBinder {
 
     switch (behavior.type) {
       case Behavior.dynamic:
+        final bool isV10 = context.dataContext.isV10;
         final ReadonlySignal<Object?> sig =
             context.dataContext.resolveListenable(value);
-        final String? boundPath = value is Map && value.containsKey('path')
-            ? value['path'] as String
+        // When the protocol's binding key is present (without `componentId` in
+        // pre-v1.0), cast its value to `String` so a malformed non-string path
+        // (such as `{'path': 42}`) throws `TypeError` during materialization.
+        final String? boundPath = value is Map &&
+                (isV10
+                    ? value.containsKey('@path')
+                    : (value.containsKey('path') &&
+                        !value.containsKey('componentId')))
+            ? (value[isV10 ? '@path' : 'path'] as String)
             : null;
         ResolvedBinding<Object?> wrap(Object? current) {
           final Object? snapshot = _snapshotBindingValue(current);
@@ -203,8 +211,8 @@ class GenericBinder {
           if (value is Map) {
             final Object? fc =
                 value['functionCall'] is Map ? value['functionCall'] : value;
-            if (fc is Map && fc['call'] is String) {
-              await _runLocalFunction(Map<String, dynamic>.from(fc));
+            if (isFunctionCallObject(fc, v1: context.dataContext.isV10)) {
+              await _runLocalFunction(Map<String, dynamic>.from(fc as Map));
               return;
             }
           }
@@ -212,15 +220,19 @@ class GenericBinder {
             context.dataContext,
             value,
           );
-          final Map<String, dynamic> resolvedAction;
           if (resolved is Map) {
-            resolvedAction = Map<String, dynamic>.from(resolved);
+            await context.dispatchAction(Map<String, dynamic>.from(resolved));
           } else {
-            resolvedAction = {
-              'event': {'name': value.toString()},
-            };
+            await context.surface.dispatchError(
+              A2uiClientError(
+                code: 'INVALID_ACTION',
+                surfaceId: context.surface.id,
+                message: 'Invalid action payload in component '
+                    "'${context.componentModel.id}': $value",
+                details: value,
+              ),
+            );
           }
-          await context.dispatchAction(resolvedAction);
         }
 
         _actionClosures[cacheKey] = (raw: value, closure: closure);
@@ -233,8 +245,8 @@ class GenericBinder {
           final tpl = ChildListTemplate.fromJson(
             Map<String, dynamic>.from(value),
           );
-          final ReadonlySignal<Object?> sig =
-              context.dataContext.resolveListenable({'path': tpl.path});
+          final ReadonlySignal<Object?> sig = context.dataContext
+              .resolveListenable(context.dataContext.bindingFor(tpl.path));
 
           List<ChildNode> resolveChildren(Object? val) {
             final List<Object?> list = val is List ? val.cast<Object?>() : [];
@@ -525,12 +537,12 @@ class GenericBinder {
       final Object? result = context.dataContext.resolveSync(functionCall);
       if (result is Future<Object?>) await result;
     } catch (e) {
+      final Object? fnName = functionCall['@call'] ?? functionCall['call'];
       await context.surface.dispatchError(
         A2uiClientError(
           code: 'EXECUTION_ERROR',
           surfaceId: context.surface.id,
-          message:
-              "Local function '${functionCall['call']}' failed in component "
+          message: "Local function '$fnName' failed in component "
               "'${context.componentModel.id}': $e",
         ),
       );
@@ -538,7 +550,12 @@ class GenericBinder {
   }
 
   Object? _resolveEventAction(DataContext dataContext, Object? value) {
-    return dataContext.resolveAction(value) ?? dataContext.resolveSync(value);
+    final Map<String, dynamic>? direct = dataContext.resolveAction(value);
+    if (direct != null) return direct;
+    if (isDataBindingObject(value, v1: dataContext.isV10)) {
+      return dataContext.resolveAction(dataContext.resolveSync(value));
+    }
+    return null;
   }
 
   /// Permanently disconnects this binder, including an interrupted rebuild.
