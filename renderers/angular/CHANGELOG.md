@@ -3,6 +3,7 @@
 - Migrate package root `@a2ui/angular` to export version-agnostic core services (`A2uiRendererService`, `SurfaceComponent`, `ComponentHostComponent`, etc.) and the v1.0 `BasicCatalog`.
   - **BREAKING CHANGE**: The package root no longer re-exports the v0.8 API (`export * from './v0_8/public-api'`) or the `A2UI_ANGULAR_VERSION` constant. v0.8 consumers must import from `@a2ui/angular/v0_8`.
 - Maintain `@a2ui/angular/v0_9` and `@a2ui/angular/v0_8` secondary entry points for version-specific components and catalogs.
+- (v0_9) `Slider` is continuous: it rendered with the browser's default step of 1, so a 0 to 1 slider could only rest at the two ends.
 - (v0_9) Fix `ComponentHostComponent` keeping the old component mounted after a component's type or catalog changes in place. [#2824](https://github.com/a2ui-project/a2ui/pull/2824)
 
 ## 0.11.0
