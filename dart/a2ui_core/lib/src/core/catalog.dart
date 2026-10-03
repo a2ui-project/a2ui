@@ -38,6 +38,7 @@ enum A2uiReturnType {
   boolean,
   array,
   object,
+  validationResult,
   any,
   void_;
 
@@ -45,7 +46,7 @@ enum A2uiReturnType {
   String get jsonValue => this == void_ ? 'void' : name;
 
   /// Parses from the JSON string representation, falling back to [any] for
-  /// unrecognized or extension return types (such as v1.0 `validationResult`).
+  /// unrecognized or extension return types.
   static A2uiReturnType fromJson(String value) {
     if (value == 'void') return void_;
     for (final A2uiReturnType candidate in values) {
