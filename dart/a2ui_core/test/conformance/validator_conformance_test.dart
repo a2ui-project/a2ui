@@ -59,7 +59,7 @@ void _registerValidatorSuite(
 String? _skipReason(ConformanceTestCase testCase) {
   final String? version = caseVersion(testCase);
   if (version != null && version != '0.9') {
-    return 'Targets protocol v$version; this SDK implements v0.9 only.';
+    return 'Targets protocol v$version; this harness runs v0.9 cases only.';
   }
   return null;
 }

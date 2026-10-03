@@ -440,7 +440,8 @@ void main() {
           );
           processor.processMessages(
             AgentToRendererMessagePayload.of(
-              CreateSurfaceMessage(surfaceId: 's', catalogId: catalog.id),
+              CreateSurfaceMessage(
+                  version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
             ),
           );
           final SurfaceModel<ComponentApi> surface =
@@ -507,7 +508,8 @@ void main() {
       );
       processor.processMessages(
         AgentToRendererMessagePayload.of(
-          CreateSurfaceMessage(surfaceId: 's', catalogId: catalog.id),
+          CreateSurfaceMessage(
+              version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
         ),
       );
       final SurfaceModel<ComponentApi> surface =
