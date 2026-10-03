@@ -160,6 +160,7 @@ class MinimalCatalog extends Catalog<ComponentApi, FunctionImplementation> {
   MinimalCatalog()
       : super(
           id: 'https://a2ui.org/specification/v0_9/catalogs/minimal/minimal_catalog.json',
+          protocolVersion: 'v0.9',
           components: [
             MinimalTextApi(),
             MinimalRowApi(),

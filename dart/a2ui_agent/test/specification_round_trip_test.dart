@@ -136,7 +136,7 @@ Map<String, Object?> _render(
 ) {
   final renderer = MessageProcessor<ComponentApi>(
     catalogs: [_rendererCatalog(catalog)],
-    protocolVersion: A2uiProtocolVersion.v0_9,
+    defaultVersion: A2uiProtocolVersion.v0_9,
     // Some examples replace a placeholder and leave it unreachable.
     validationConfig: ValidationConfig.relaxed,
   );

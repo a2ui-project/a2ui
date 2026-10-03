@@ -34,6 +34,11 @@ class SurfaceModel<T extends ComponentApi> {
   /// `MessageProcessor` checks for it when `ValidationConfig.rootId` is null.
   final String rootId;
 
+  /// The surface-level metadata from `createSurface`, holding at most an
+  /// `extensions` object, or null when it carried none. Defined from v1.0
+  /// only.
+  Map<String, Object?>? metadata;
+
   final DataModel dataModel;
   final SurfaceComponentsModel componentsModel;
 

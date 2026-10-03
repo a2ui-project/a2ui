@@ -38,6 +38,7 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(
 ) =>
     Catalog<ComponentApi, FunctionImplementation>(
       id: 'references',
+      protocolVersion: 'v0.9',
       components: [
         ComponentApi(name: 'Parent', schema: Schema.fromMap(schema)),
         ComponentApi(name: 'Leaf', schema: Schema.object()),
@@ -60,6 +61,7 @@ Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
   // has no functions.
   return Catalog<ComponentApi, FunctionImplementation>(
     id: parsed.id,
+    protocolVersion: 'v0.9',
     components: parsed.components.values.toList(),
   );
 }
@@ -436,7 +438,7 @@ void main() {
           });
           final processor = MessageProcessor<ComponentApi>(
             catalogs: [catalog],
-            protocolVersion: A2uiProtocolVersion.v0_9,
+            defaultVersion: A2uiProtocolVersion.v0_9,
           );
           processor.processMessages(
             AgentToRendererMessagePayload.of(
@@ -503,7 +505,7 @@ void main() {
       });
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
         validationConfig: const ValidationConfig(allowDanglingReferences: true),
       );
       processor.processMessages(

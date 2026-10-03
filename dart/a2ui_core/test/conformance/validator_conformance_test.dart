@@ -74,7 +74,7 @@ void _runCase(Map<String, Object?> testCase) {
 
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(_documentsFor(testCase), allPayloads),
-    protocolVersion: A2uiProtocolVersion.v0_9,
+    defaultVersion: A2uiProtocolVersion.v0_9,
     commonTypesSchema: _commonTypesFor(testCase),
   );
 

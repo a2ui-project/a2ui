@@ -56,7 +56,7 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
   final strictMode = testCase['strictMode'] == true;
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
-    protocolVersion: A2uiProtocolVersion.v0_9,
+    defaultVersion: A2uiProtocolVersion.v0_9,
     validationConfig:
         strictMode ? ValidationConfig.strict : ValidationConfig.relaxed,
   );
@@ -83,7 +83,7 @@ void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
-    protocolVersion: A2uiProtocolVersion.v0_9,
+    defaultVersion: A2uiProtocolVersion.v0_9,
     validationConfig: ValidationConfig.relaxed,
   );
   _process(processor, _messagesOf(testCase));
@@ -101,7 +101,7 @@ void _runGetRendererCapabilitiesCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
-    protocolVersion: A2uiProtocolVersion.v0_9,
+    defaultVersion: A2uiProtocolVersion.v0_9,
   );
   final Map<String, Object?> args =
       (testCase['args'] as Map<String, Object?>?) ?? const {};
@@ -351,6 +351,7 @@ class _ConformanceCatalog
   _ConformanceCatalog(String id)
       : super(
           id: id,
+          protocolVersion: 'v0.9',
           components: [
             ComponentApi(
               name: 'Text',

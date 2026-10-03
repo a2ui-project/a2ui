@@ -34,6 +34,7 @@ void main() {
     ) =>
         Catalog<ComponentApi, FunctionImplementation>(
           id: id,
+          protocolVersion: 'v0.9',
           components: [
             ComponentApi(
               name: component,
@@ -55,7 +56,7 @@ void main() {
     setUp(() {
       processor = MessageProcessor<ComponentApi>(
         catalogs: [namedCatalog('cat1', 'Alpha'), namedCatalog('cat2', 'Beta')],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
@@ -96,14 +97,25 @@ void main() {
     test('builds one validator per catalog and reuses it', () {
       final Catalog<ComponentApi, FunctionImplementation> cat1 =
           processor.catalogs.first;
-      expect(processor.validatorFor(cat1).catalog.id, 'cat1');
       expect(
-        processor.validatorFor(cat1),
-        same(processor.validatorFor(cat1)),
+          processor
+              .validatorFor(cat1, version: A2uiProtocolVersion.v0_9)
+              .catalog
+              .id,
+          'cat1');
+      expect(
+        processor.validatorFor(cat1, version: A2uiProtocolVersion.v0_9),
+        same(processor.validatorFor(cat1, version: A2uiProtocolVersion.v0_9)),
         reason: 'resolved component schemas are cached on the validator',
       );
       expect(
-        processor.validatorFor(processor.catalogs.last).catalog.id,
+        processor
+            .validatorFor(
+              processor.catalogs.last,
+              version: A2uiProtocolVersion.v0_9,
+            )
+            .catalog
+            .id,
         'cat2',
       );
     });
@@ -117,7 +129,7 @@ void main() {
       catalog = MinimalCatalog();
       processor = MessageProcessor(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
       );
     });
 
@@ -130,7 +142,7 @@ void main() {
       /// relax the checks that span payloads; see [ValidationConfig].
       MessageProcessor streaming() => MessageProcessor(
             catalogs: [catalog],
-            protocolVersion: A2uiProtocolVersion.v0_9,
+            defaultVersion: A2uiProtocolVersion.v0_9,
             validationConfig: ValidationConfig.relaxed,
           );
 
@@ -330,7 +342,7 @@ void main() {
       // reachability check is relaxed rather than the batch reshaped.
       final MessageProcessor processor = MessageProcessor(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
         validationConfig: const ValidationConfig(allowOrphanComponents: true),
       );
       processor.processMessages(
@@ -365,7 +377,7 @@ void main() {
     ]) =>
         MessageProcessor(
           catalogs: [catalog],
-          protocolVersion: A2uiProtocolVersion.v0_9,
+          defaultVersion: A2uiProtocolVersion.v0_9,
           validationConfig: config,
         );
 
@@ -649,6 +661,7 @@ void main() {
     Catalog<ComponentApi, FunctionImplementation> alphaCatalog(String id) =>
         Catalog<ComponentApi, FunctionImplementation>(
           id: id,
+          protocolVersion: 'v0.9',
           components: [
             ComponentApi(
               name: 'Alpha',
@@ -665,7 +678,7 @@ void main() {
     setUp(() {
       processor = MessageProcessor<ComponentApi>(
         catalogs: [alphaCatalog('cat1'), alphaCatalog('cat2')],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
       );
       processor.processMessages(
         AgentToRendererMessagePayload([

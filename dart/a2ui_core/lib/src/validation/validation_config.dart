@@ -75,11 +75,11 @@ class ValidationConfig {
   /// run, governed by the other flags.
   final bool validateSchemas;
 
-  /// The protocol version the processor must be built for, or null to accept
-  /// whichever version it is built for.
+  /// The protocol version the processor must default to, or null to accept
+  /// whichever version it defaults to.
   ///
   /// `MessageProcessor` throws `A2uiValidationError` on construction when this
-  /// is set and differs from its `protocolVersion`.
+  /// and its `defaultVersion` are both set and differ.
   final A2uiProtocolVersion? targetVersion;
 
   /// The message names a payload may contain, such as `createSurface` or
