@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_core/src/core/contexts.dart' show ComponentContext;
 import 'package:preact_signals/preact_signals.dart' show SignalEffectException;
 import 'package:test/test.dart';
 
@@ -514,6 +513,23 @@ void main() {
         isNull,
       );
       expect(reported.single.message, contains('collection template'));
+    });
+
+    test('@index rejects a non-numeric or non-finite offset', () {
+      final reported = <A2uiExpressionError>[];
+      final DataContext item =
+          v10Context(onError: reported.add).childContext('items/0', index: 0);
+      for (final Object offset in ['1', double.nan, double.infinity]) {
+        expect(
+          item.resolveSync({
+            '@call': '@index',
+            'args': {'offset': offset},
+          }),
+          isNull,
+        );
+      }
+      expect(reported, hasLength(3));
+      expect(reported.first.message, contains('finite number'));
     });
 
     test('@index is not a system function before v1.0', () {

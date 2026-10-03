@@ -11,7 +11,8 @@
   fail with `A2uiExpressionError`. `DataModel` adds `has(path)`.
 - `NodeResolver` links each node's data context to its parent node's context
   and gives template children their item index. `ComponentNode.context`
-  exposes the node's `ComponentContext` (null for placeholders), and
+  exposes the node's `ComponentContext` (null for placeholders), which the
+  package barrel now exports, and
   `NodeResolver` accepts an optional `catalog:` that must be the surface's
   default catalog. `ChildNode` adds `index` for template-expanded entries.
 - **Behavior change:** A data binding to a path missing from the data model

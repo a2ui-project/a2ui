@@ -440,10 +440,10 @@ class DataContext {
   /// Evaluates `@index`: the iteration [index] plus the optional `offset`.
   Object? _evaluateIndex(Map<String, dynamic> args) {
     final Object? offset = args['offset'];
-    if (offset != null && offset is! num) {
+    if (offset != null && (offset is! num || !offset.isFinite)) {
       throw A2uiExpressionError(
-        "Argument 'offset' of '$_indexFunctionName' must be a number, got "
-        '${offset.runtimeType}.',
+        "Argument 'offset' of '$_indexFunctionName' must be a finite number, "
+        'got $offset.',
         expression: _indexFunctionName,
       );
     }
