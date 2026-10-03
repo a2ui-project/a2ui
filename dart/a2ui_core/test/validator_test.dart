@@ -807,7 +807,7 @@ const String _v1CommonTypes =
 const String _v0_9CommonTypes =
     'https://a2ui.org/specification/v0_9/common_types.json';
 
-/// A function document shaped as [protocolVersion] spells a call: `@call` from
+/// A function document shaped as a protocol version spells a call: `@call` from
 /// v1.0, `call` before it.
 Map<String, Object?> _functionDocument(String name, {required bool v1}) => {
       'type': 'object',
@@ -1064,7 +1064,8 @@ void v1RulesTests() {
 
   group('PayloadValidator nested function calls', () {
     test('validates a nested v1.0 call against its function schema', () {
-      final validator = _versionedValidator('v1.0');
+      final PayloadValidator<ComponentApi, FunctionApi> validator =
+          _versionedValidator('v1.0');
 
       expect(
         () => validator.validateComponent(
@@ -1089,7 +1090,8 @@ void v1RulesTests() {
     });
 
     test('a v0.9 catalog still validates calls keyed on call', () {
-      final validator = _versionedValidator('v0.9');
+      final PayloadValidator<ComponentApi, FunctionApi> validator =
+          _versionedValidator('v0.9');
 
       expect(
         () => validator.validateComponent(
@@ -1149,7 +1151,8 @@ void v1RulesTests() {
             '@call': 'nope',
             'args': {for (var i = 0; i < count; i++) 'a$i': i},
           };
-      final validator = _versionedValidator('v1.0');
+      final PayloadValidator<ComponentApi, FunctionApi> validator =
+          _versionedValidator('v1.0');
 
       expect(maxFunctionCallArgs, 1000);
       expect(
@@ -1212,14 +1215,14 @@ void v1RulesTests() {
         () => Catalog.fromJson({
           'catalogId': 'c',
           'components': {
-            'Broken': {r'$ref': r'#/$defs/Missing'},
+            'Broken': {r'$ref': '#/components/Missing'},
           },
         }),
         throwsA(
           isA<A2uiCatalogError>().having(
             (e) => e.message,
             'message',
-            contains("Unresolvable schema reference: '#/\$defs/Missing'"),
+            contains("Unresolvable schema reference: '#/components/Missing'"),
           ),
         ),
       );
@@ -1234,6 +1237,7 @@ void v1RulesTests() {
               'type': 'object',
               'properties': {
                 'x': {r'$ref': '$_v0_9CommonTypes#/\$defs/Missing'},
+                'y': {r'$ref': r'#/$defs/AlsoMissing'},
               },
             },
           },

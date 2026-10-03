@@ -74,6 +74,12 @@ class A2uiError implements Exception {
 /// Thrown when JSON validation fails or schemas are mismatched.
 class A2uiValidationError extends A2uiError {
   final String? path;
+
+  /// The surface the failing payload targets, when the check knows it.
+  ///
+  /// A v1.0 `UNALLOWED_PARENT` or `UNALLOWED_CHILD` client error must name
+  /// both the surface and the [path].
+  final String? surfaceId;
   final List<A2uiErrorDetail> errors;
   final Object? details;
 
@@ -84,6 +90,7 @@ class A2uiValidationError extends A2uiError {
     List<A2uiErrorDetail> errors = const <A2uiErrorDetail>[],
     this.details,
     super.cause,
+    this.surfaceId,
   }) : errors = List.unmodifiable(errors);
 
   @override

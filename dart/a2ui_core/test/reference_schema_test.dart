@@ -41,6 +41,8 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(
 ) =>
     Catalog<ComponentApi, FunctionImplementation>(
       id: 'references',
+      // `Child` is a v1.0 common type.
+      protocolVersion: 'v1.0',
       components: [
         ComponentApi(name: 'Parent', schema: Schema.fromMap(schema)),
         ComponentApi(name: 'Leaf', schema: Schema.object()),
@@ -53,6 +55,8 @@ Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
 }) {
   final CatalogApi parsed = Catalog.fromJson({
     'catalogId': 'wire-references',
+    // `Child` is a v1.0 common type.
+    'protocolVersion': 'v1.0',
     r'$defs': definitions,
     'components': {
       'Parent': schema,
@@ -63,6 +67,7 @@ Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
   // has no functions.
   return Catalog<ComponentApi, FunctionImplementation>(
     id: parsed.id,
+    protocolVersion: parsed.protocolVersion,
     components: parsed.components.values.toList(),
   );
 }

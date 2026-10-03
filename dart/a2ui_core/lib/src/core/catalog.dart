@@ -17,6 +17,8 @@ import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
+import '../primitives/uax31.dart';
+import '../primitives/version_rules.dart';
 import '../validation/schema_resolution.dart';
 import 'contexts.dart';
 
@@ -29,7 +31,23 @@ class ComponentApi {
   final String name;
   final Schema schema;
 
-  const ComponentApi({required this.name, required this.schema});
+  /// The component types that may hold this one as a child, from the catalog
+  /// document's `allowedParents`.
+  ///
+  /// `Surface` stands for the surface itself, the implicit parent of the
+  /// component with id `root`. Null allows any parent.
+  final List<String>? allowedParents;
+
+  /// The component types this one may hold as children, from the catalog
+  /// document's `allowedChildren`. Null allows any child.
+  final List<String>? allowedChildren;
+
+  const ComponentApi({
+    required this.name,
+    required this.schema,
+    this.allowedParents,
+    this.allowedChildren,
+  });
 }
 
 /// The type of value a function returns.
@@ -130,6 +148,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// The document's `description`, when it declares one.
   final String? description;
 
+  /// The document's `protocolVersion`, such as `v1.0` or `1.0`, when it
+  /// declares one.
+  ///
+  /// Selects the validation rules applied to payloads drawing on this catalog:
+  /// v1.0 and later use the v1.0 rules (`@path` and `@call`, UAX #31
+  /// identifiers, reserved `@` keys), anything else, including none, the v0.9
+  /// rules.
+  final String? protocolVersion;
+
   final Map<String, C> components;
   final Map<String, F> functions;
   final Schema? themeSchema;
@@ -156,6 +183,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     this.schemaId,
     this.title,
     this.description,
+    this.protocolVersion,
   })  : components = {for (final c in components) c.name: c},
         functions = {for (final f in functions) f.name: f};
 
@@ -165,11 +193,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// published catalog documents, and the list of definitions used by inline
   /// catalogs in renderer capabilities.
   ///
-  /// A catalog document is version-agnostic: any `protocolVersion` it
-  /// declares is ignored rather than checked against this SDK.
+  /// A declared `protocolVersion` is kept as [protocolVersion] rather than
+  /// checked against this SDK. From v1.0, component names, their property
+  /// names, function names and argument names must be UAX #31 identifiers.
   ///
-  /// Throws [A2uiCatalogError] if the document is malformed or conflicts with
-  /// [expectedCatalogId].
+  /// Throws [A2uiCatalogError] if the document is malformed, conflicts with
+  /// [expectedCatalogId], or holds a local `$ref` that names nothing.
   static CatalogApi fromJson(
     Map<String, Object?> json, {
     String? expectedCatalogId,
@@ -186,6 +215,18 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         "declares '$rawId'.",
         catalogId: rawId,
       );
+    }
+
+    final Object? rawVersion = json['protocolVersion'];
+    if (rawVersion != null && rawVersion is! String) {
+      throw A2uiCatalogError(
+        "Catalog 'protocolVersion' must be a string.",
+        catalogId: rawId,
+      );
+    }
+    final protocolVersion = rawVersion as String?;
+    if (isProtocolV1OrLater(protocolVersion)) {
+      _checkIdentifiers(json, rawId);
     }
 
     final Set<String>? allowedComponents = _extractAllowedRefs(
@@ -220,6 +261,77 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       schemaId: document[r'$id'] as String?,
       title: document['title'] as String?,
       description: document['description'] as String?,
+      protocolVersion: protocolVersion,
+    );
+  }
+
+  /// Checks the names a v1.0 catalog declares against UAX #31.
+  static void _checkIdentifiers(Map<String, Object?> json, String catalogId) {
+    void check(String name, String context) {
+      try {
+        assertUax31Identifier(name, context: context, allowLeadingAt: true);
+      } on A2uiCatalogError catch (error) {
+        throw A2uiCatalogError(error.message, catalogId: catalogId);
+      }
+    }
+
+    Iterable<String> propertyNames(Object? schema) => switch (schema) {
+          {'properties': final Map<Object?, Object?> properties} =>
+            properties.keys.whereType<String>(),
+          _ => const <String>[],
+        };
+
+    if (json['components'] case final Map<Object?, Object?> components) {
+      for (final MapEntry<Object?, Object?> entry in components.entries) {
+        final name = entry.key! as String;
+        check(name, "component identifier '$name'");
+        for (final String property in propertyNames(entry.value)) {
+          check(property, "property identifier '$property' in '$name'");
+        }
+      }
+    }
+    final Object? functions = json['functions'];
+    final Iterable<(String, Object?)> definitions = switch (functions) {
+      final Map<Object?, Object?> map => [
+          for (final MapEntry<Object?, Object?> entry in map.entries)
+            (
+              entry.key! as String,
+              switch (entry.value) {
+                {'properties': {'args': final Object? args}} => args,
+                {'parameters': final Object? args} => args,
+                _ => null,
+              },
+            ),
+        ],
+      final List<Object?> list => [
+          for (final Object? entry in list)
+            if (entry case {'name': final String name})
+              (name, entry['parameters']),
+        ],
+      _ => const <(String, Object?)>[],
+    };
+    for (final (String name, Object? args) in definitions) {
+      check(name, "function identifier '$name'");
+      for (final String arg in propertyNames(args)) {
+        check(arg, "argument identifier '$arg' in function '$name'");
+      }
+    }
+  }
+
+  static List<String>? _parseTypeList(
+    Object? raw,
+    String key,
+    String component,
+    String catalogId,
+  ) {
+    if (raw == null) return null;
+    if (raw is List && raw.every((Object? item) => item is String)) {
+      return List<String>.unmodifiable(raw.cast<String>());
+    }
+    throw A2uiCatalogError(
+      "Component '$component' declares a '$key' that is not a list of "
+      'component type names.',
+      catalogId: catalogId,
     );
   }
 
@@ -269,6 +381,18 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           ComponentApi(
             name: entry.key! as String,
             schema: Schema.fromMap(_asSchemaMap(entry.value)),
+            allowedParents: _parseTypeList(
+              _asSchemaMap(entry.value)['allowedParents'],
+              'allowedParents',
+              entry.key! as String,
+              catalogId,
+            ),
+            allowedChildren: _parseTypeList(
+              _asSchemaMap(entry.value)['allowedChildren'],
+              'allowedChildren',
+              entry.key! as String,
+              catalogId,
+            ),
           ),
     ];
   }
@@ -377,54 +501,78 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// `$schema` is always emitted; `$id`, `title` and `description` are emitted
   /// when the parsed document declared them, so a document round trips through
   /// [Catalog.fromJson] with its identity intact.
-  Map<String, Object?> get catalogSchema => {
-        r'$schema': jsonSchemaDialect,
-        if (schemaId != null) r'$id': schemaId,
-        if (title != null) 'title': title,
-        if (description != null) 'description': description,
-        'catalogId': id,
-        'components': {
-          for (final MapEntry<String, C> entry in components.entries)
-            entry.key: _deepCopyValue(entry.value.schema.value),
-        },
-        if (functions.isNotEmpty)
-          'functions': {
-            // The document form of a function is the schema of a call to it, so
-            // this rebuilds that shape rather than listing the parts:
-            // `anyFunction` and every `DynamicString` reach these through
-            // `#/functions/<name>`, and a different shape would silently stop
-            // matching.
-            for (final MapEntry<String, F> entry in functions.entries)
-              entry.key: <String, Object?>{
-                'type': 'object',
-                'properties': <String, Object?>{
-                  'call': <String, Object?>{'const': entry.key},
-                  'args': _deepCopyValue(entry.value.argumentSchema.value),
-                  'returnType': <String, Object?>{
-                    'const': entry.value.returnType.jsonValue,
-                  },
+  Map<String, Object?> get catalogSchema {
+    final bool v1 = isProtocolV1OrLater(protocolVersion);
+    // From v1.0 a call names its function under `@call`.
+    final callKey = v1 ? '@call' : 'call';
+    return {
+      r'$schema': jsonSchemaDialect,
+      if (schemaId != null) r'$id': schemaId,
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (protocolVersion != null) 'protocolVersion': protocolVersion,
+      'catalogId': id,
+      'components': {
+        for (final MapEntry<String, C> entry in components.entries)
+          entry.key: _deepCopyValue(entry.value.schema.value),
+      },
+      if (functions.isNotEmpty)
+        'functions': {
+          // The document form of a function is the schema of a call to it, so
+          // this rebuilds that shape rather than listing the parts:
+          // `anyFunction` and every `DynamicString` reach these through
+          // `#/functions/<name>`, and a different shape would silently stop
+          // matching.
+          for (final MapEntry<String, F> entry in functions.entries)
+            entry.key: <String, Object?>{
+              'type': 'object',
+              'properties': <String, Object?>{
+                callKey: <String, Object?>{'const': entry.key},
+                'args': _deepCopyValue(entry.value.argumentSchema.value),
+                'returnType': <String, Object?>{
+                  'const': entry.value.returnType.jsonValue,
                 },
-                'required': <Object?>['call', 'args'],
-                'unevaluatedProperties': false,
               },
-          },
-        r'$defs': {
-          if (themeSchema != null) 'theme': _deepCopyValue(themeSchema!.value),
-          'anyComponent': {
-            'oneOf': [
-              for (final String name in components.keys)
-                {r'$ref': '#/components/$name'},
-            ],
-          },
-          if (functions.isNotEmpty)
-            'anyFunction': {
-              'oneOf': [
-                for (final String name in functions.keys)
-                  {r'$ref': '#/functions/$name'},
-              ],
+              'required': <Object?>[callKey, 'args'],
+              // v1.0's `FunctionCall` closes the object itself, after
+              // adding `catalogId` from `FunctionCommon`.
+              if (!v1) 'unevaluatedProperties': false,
             },
         },
-      };
+      r'$defs': {
+        if (themeSchema != null) 'theme': _deepCopyValue(themeSchema!.value),
+        'anyComponent': {
+          'oneOf': [
+            for (final String name in components.keys)
+              {r'$ref': '#/components/$name'},
+          ],
+        },
+        if (functions.isNotEmpty || v1)
+          'anyFunction': {
+            'oneOf': [
+              for (final String name in functions.keys)
+                {r'$ref': '#/functions/$name'},
+              // From v1.0 a call to a function the catalog does not declare
+              // is forwarded to the agent, so it matches with its arguments
+              // unchecked. `@index` is matched by `IndexSystemFunction`.
+              if (v1)
+                {
+                  'type': 'object',
+                  'properties': {
+                    '@call': {
+                      'not': {
+                        'enum': [...functions.keys, '@index'],
+                      },
+                    },
+                    'args': {'type': 'object'},
+                  },
+                  'required': ['@call'],
+                },
+            ],
+          },
+      },
+    };
+  }
 
   /// A copy of this catalog with the given components and functions.
   ///
@@ -443,6 +591,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         schemaId: schemaId,
         title: title,
         description: description,
+        protocolVersion: protocolVersion,
       );
 
   static Object? _deepCopyValue(Object? value) {

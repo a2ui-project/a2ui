@@ -49,9 +49,18 @@ class ValidationConfig {
     this.allowOrphanComponents = false,
     this.allowDanglingReferences = false,
     this.allowMissingRoot = false,
+    this.allowUnknownElements = false,
   });
 
   /// Every check on: what a payload that renders a whole surface must pass.
+  /// Whether a component type or function the catalog does not declare
+  /// passes validation unchecked instead of being rejected.
+  ///
+  /// Applies to catalogs below v1.0. From v1.0 an unknown function always
+  /// passes, because a renderer forwards it to the agent as a
+  /// `callAgentFunction`.
+  final bool allowUnknownElements;
+
   static const ValidationConfig strict = ValidationConfig();
 
   /// Every check off, for a surface delivered across several payloads.
@@ -68,5 +77,6 @@ class ValidationConfig {
   String toString() =>
       'ValidationConfig(allowOrphanComponents: $allowOrphanComponents, '
       'allowDanglingReferences: $allowDanglingReferences, '
-      'allowMissingRoot: $allowMissingRoot)';
+      'allowMissingRoot: $allowMissingRoot, '
+      'allowUnknownElements: $allowUnknownElements)';
 }

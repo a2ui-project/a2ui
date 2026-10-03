@@ -77,7 +77,7 @@ Matcher _violation(String code, {required String path, String? message}) =>
         .having(
           (e) => e.message,
           'message',
-          message == null ? anything : message,
+          message ?? anything,
         );
 
 void main() {

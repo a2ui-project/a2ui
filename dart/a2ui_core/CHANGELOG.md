@@ -2,6 +2,54 @@
 
 ## Unreleased
 
+- `PayloadValidator` takes its rules from the catalog: `Catalog.protocolVersion`
+  (parsed from the document's `protocolVersion`) selects the v1.0 rules for
+  v1.0 and later and the v0.9 rules otherwise, and the embedded
+  `common_types.json` for that version. `protocolVersion` and
+  `commonTypesSchema` become optional overrides, and the validator gains a
+  `config`. `MessageProcessor` no longer forces its v0.9 common types onto
+  each catalog unless a `commonTypesSchema` is passed. Adds
+  `PayloadValidator.commonTypesForProtocolVersion`,
+  `ValidationConfig.allowUnknownElements`, `A2uiValidationError.surfaceId`,
+  and `ComponentApi.allowedParents` / `allowedChildren`.
+- The package now embeds both `specification/v0_9/json/common_types.json` and
+  `specification/v1_0/json/common_types.json`. `CommonSchemas` gains
+  `dynamicNumber`, `dynamicStringList`, `dynamicValue`,
+  `accessibilityAttributes`, `checkRule` and `componentCommon`, and the new
+  `CommonSchemasV1` holds the v1.0 shapes keyed on `@path` and `@call`; its
+  `dynamicValue` rejects literal objects with reserved single-`@` keys.
+- **Behavior change:** envelope keys (`id`, `component`, `catalogId`, plus
+  `accessibility` and `metadata` from v1.0) are stripped from every component,
+  and from its schema's requirements, before the schema check. A closed
+  (`additionalProperties: false`) schema using `allOf` now validates, and v1.0
+  component `metadata` is never rejected for being undeclared; from v1.0,
+  `accessibility` and `metadata` are checked against `ComponentCommon`.
+- **Behavior change:** composition constraints. `allowedParents` and
+  `allowedChildren` in a catalog are enforced by `MessageProcessor`, with the
+  surface (`Surface`) as the implicit parent of `root`; violations throw
+  `A2uiValidationError` with code `UNALLOWED_PARENT` or `UNALLOWED_CHILD`, a
+  JSON Pointer `path` and the `surfaceId`.
+- **Behavior change:** `validateComponent` checks every nested function call
+  against the catalog's schema for it, keyed on `@call` for v1.0 catalogs and
+  `call` below that, and rejects calls passing more than 1000 arguments (also
+  checked when `DataContext` evaluates a call). For v1.0 catalogs, a call to a
+  function the catalog does not declare passes with its arguments unchecked,
+  because a renderer forwards it to the agent; below v1.0 it is rejected
+  unless `ValidationConfig.allowUnknownElements`. This deliberately differs
+  from the TypeScript and Python SDKs, which reject unknown functions.
+- **Behavior change:** v1.0 catalogs require UAX #31 identifiers for component
+  ids, component and property names, function names and argument names, and
+  reject objects with unrecognized single-`@` keys (code
+  `INVALID_RESERVED_KEY`); `@@name` remains an escaped literal key.
+- **Behavior change:** a `$ref` into a document the SDK holds that names
+  nothing now throws `A2uiCatalogError("Unresolvable schema reference:
+'<ref>'")` instead of silently leaving the subschema unconstrained, and
+  pointers follow array indices (`#/$defs/X/oneOf/0`). A local
+  `#/$defs/<Name>` the catalog does not define falls back to
+  `common_types.json`.
+- Validation errors carry JSON Pointer `path`s and per-error `errors` details;
+  a dangling reference reports `/components/<index>/children/<n>`.
+
 - Add `isValidUax31Identifier`, `assertValidUax31Identifier`, and `assertUax31Identifier` for UAX #31 identifier validation, `A2uiErrorDetail`, `cause` chaining on `A2uiError` subclasses, and `code`/`path`/`errors` on `A2uiValidationError` (with `A2uiSchemaError`, `A2uiUnsupportedVersionError`, and `A2uiOperationError`). `A2uiError` now takes `code` as a named parameter, and `A2uiValidationError` aligns its default code to `'VALIDATION_FAILED'`.
 - Add `Catalog.refMap`, a cached `ComponentRefMap` of each component type's
   child-reference properties. `MessageProcessor` graph validation and

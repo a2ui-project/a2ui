@@ -80,6 +80,12 @@ class MessageProcessor<T extends ComponentApi> {
   /// types unchecked.
   final Map<String, Object?> commonTypesSchema;
 
+  /// The [commonTypesSchema] the caller passed, if any.
+  ///
+  /// Without one, each validator resolves against the document for its own
+  /// catalog's `protocolVersion`.
+  final Map<String, Object?>? _commonTypesOverride;
+
   /// Which graph checks a surface must pass once a payload is applied.
   ///
   /// Defaults to [ValidationConfig.strict], which is what a payload carrying a
@@ -98,7 +104,8 @@ class MessageProcessor<T extends ComponentApi> {
     this.validationConfig = ValidationConfig.strict,
     Map<String, Object?>? commonTypesSchema,
     void Function(A2uiClientAction)? onAction,
-  })  : commonTypesSchema = commonTypesSchema ??
+  })  : _commonTypesOverride = commonTypesSchema,
+        commonTypesSchema = commonTypesSchema ??
             PayloadValidator.commonTypesFor(protocolVersion),
         groupModel = SurfaceGroupModel<T>() {
     if (onAction != null) {
@@ -124,8 +131,9 @@ class MessageProcessor<T extends ComponentApi> {
         catalog.id,
         () => PayloadValidator<T, FunctionImplementation>(
           catalog: catalog,
-          commonTypesSchema: commonTypesSchema,
+          commonTypesSchema: _commonTypesOverride,
           protocolVersion: protocolVersion,
+          config: validationConfig,
         ),
       );
 
@@ -243,6 +251,30 @@ class MessageProcessor<T extends ComponentApi> {
       extractComponentRefFields(catalog).forEach(
         (String type, ComponentRefFields fields) =>
             merged.putIfAbsent(type, () => fields),
+      );
+    }
+    return merged;
+  }
+
+  /// The composition constraints of the catalogs [components] draw on,
+  /// merged the way [_refFieldsFor] merges reference fields.
+  Map<String, CompositionRule> _compositionRulesFor(
+    String? surfaceCatalogId,
+    Iterable<Map<String, Object?>> components,
+  ) {
+    final ids = <String>{
+      if (surfaceCatalogId != null) surfaceCatalogId,
+      for (final Map<String, Object?> component in components)
+        if (component['catalogId'] case final String id) id,
+    };
+    final Iterable<Catalog<T, FunctionImplementation>> involved =
+        ids.isEmpty ? catalogs : ids.map(catalogFor);
+
+    final merged = <String, CompositionRule>{};
+    for (final catalog in involved) {
+      extractCompositionRules(catalog).forEach(
+        (String type, CompositionRule rule) =>
+            merged.putIfAbsent(type, () => rule),
       );
     }
     return merged;
@@ -402,6 +434,10 @@ class MessageProcessor<T extends ComponentApi> {
       for (final Map<String, Object?> comp in existing)
         if (comp['id'] case final String id) id: comp,
     };
+    final incomingIds = <String>{
+      for (final Map<String, Object?> comp in incoming)
+        if (comp['id'] case final String id) id,
+    };
     for (final comp in incoming) {
       final Object? rawId = comp['id'];
       if (rawId is! String) continue;
@@ -415,8 +451,21 @@ class MessageProcessor<T extends ComponentApi> {
         mergedById[rawId] = comp;
       }
     }
-    final List<Map<String, Object?>> mergedCandidate =
-        mergedById.values.toList();
+    // Incoming components first, in payload order, so error paths index into
+    // the payload's `components` where they can.
+    final List<Map<String, Object?>> mergedCandidate = [
+      for (final String id in incomingIds) mergedById[id]!,
+      for (final MapEntry<String, Map<String, Object?>> entry
+          in mergedById.entries)
+        if (!incomingIds.contains(entry.key)) entry.value,
+    ];
+
+    checkCompositionConstraints(
+      mergedCandidate,
+      refFields,
+      _compositionRulesFor(surface.catalog.id, mergedCandidate),
+      surfaceId: surface.id,
+    );
 
     // Check cycles and recursion depth over the candidate graph before
     // mutation.

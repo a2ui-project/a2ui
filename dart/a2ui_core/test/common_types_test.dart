@@ -140,7 +140,8 @@ void main() {
         CommonSchemas.dynamicNumber.validateSync({'path': '/n'}),
         isEmpty,
       );
-      expect(CommonSchemas.componentCommon.validateSync({}), isNotEmpty);
+      expect(CommonSchemas.componentCommon.validateSync(<String, Object?>{}),
+          isNotEmpty);
     });
 
     test('carries the v1.0 definitions keyed on @path and @call', () {
