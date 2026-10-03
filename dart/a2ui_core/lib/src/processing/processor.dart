@@ -468,8 +468,9 @@ class MessageProcessor<T extends ComponentApi> {
     surface.dataModel.set(message.path ?? '/', message.value);
   }
 
+  /// Deletes the surface, or does nothing if no surface has that id, matching
+  /// the conformance suite and the TypeScript and Python SDKs.
   void _processDeleteSurface(DeleteSurfaceMessage message) {
-    _surfaceFor(message.surfaceId);
     groupModel.deleteSurface(message.surfaceId);
   }
 
