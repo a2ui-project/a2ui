@@ -123,12 +123,9 @@ void main() {
       });
       addTearDown(unsubscribe);
       _add(surface, 'weird', 'Bogus');
-      expect(
-        () => _add(surface, 'root', 'Column', {
-          'children': ['weird'],
-        }),
-        throwsA(isA<Exception>()),
-      );
+      _add(surface, 'root', 'Column', {
+        'children': ['weird'],
+      });
       expect(reports('UNKNOWN_COMPONENT_TYPE'), 0);
       expect(resolver.activeNodeCount, 2);
       final ComponentModel root = surface.componentsModel.get('root')!;
@@ -160,12 +157,9 @@ void main() {
         }
       });
       addTearDown(unsubscribe);
-      expect(
-        () => _add(surface, 'root', 'Column', {
-          'children': ['known', 'later'],
-        }),
-        throwsA(isA<Exception>()),
-      );
+      _add(surface, 'root', 'Column', {
+        'children': ['known', 'later'],
+      });
       final ComponentModel root = surface.componentsModel.get('root')!;
       expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
       root.properties = {'children': <String>[]};

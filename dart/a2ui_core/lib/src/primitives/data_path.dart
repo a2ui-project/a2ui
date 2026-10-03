@@ -27,32 +27,55 @@ class DataPath {
     'prototype',
   };
 
+  static final RegExp _invalidEscapePattern = RegExp(r'~(?![01])');
+
   final List<String> segments;
 
-  DataPath(this.segments);
+  /// Whether the path starts with a slash (is absolute).
+  final bool isAbsolute;
+
+  DataPath(List<String> segments, {this.isAbsolute = true})
+      : segments = List<String>.unmodifiable(_validateSegments(segments));
+
+  static List<String> _validateSegments(
+    List<String> segments, [
+    String? rawPath,
+  ]) {
+    for (final segment in segments) {
+      if (_forbiddenKeys.contains(segment)) {
+        final pathContext = rawPath != null ? " in path '$rawPath'" : '';
+        throw A2uiDataError(
+          "Forbidden path segment '$segment'$pathContext.",
+          path: rawPath ?? segment,
+        );
+      }
+    }
+    return segments;
+  }
 
   /// Parses a JSON Pointer string into a [DataPath].
   factory DataPath.parse(String path) {
-    if (path.isEmpty || path == '/') {
-      return DataPath([]);
+    if (_invalidEscapePattern.hasMatch(path)) {
+      throw A2uiDataError(
+        "Invalid escape sequence in path '$path': "
+        "'~' must be followed by '0' or '1'.",
+        path: path,
+      );
     }
 
+    if (path.isEmpty || path == '/') {
+      return DataPath(const []);
+    }
+
+    final bool isAbsolute = path.startsWith('/');
     final List<String> segments = path
         .split('/')
         .where((s) => s.isNotEmpty)
         .map((s) => s.replaceAll('~1', '/').replaceAll('~0', '~'))
         .toList();
 
-    for (final segment in segments) {
-      if (_forbiddenKeys.contains(segment)) {
-        throw A2uiDataError(
-          "Forbidden path segment '$segment' in path '$path'.",
-          path: path,
-        );
-      }
-    }
-
-    return DataPath(segments);
+    _validateSegments(segments, path);
+    return DataPath(segments, isAbsolute: isAbsolute);
   }
 
   /// The number of segments in the path.
@@ -61,41 +84,52 @@ class DataPath {
   /// Whether the path is empty (points to the root).
   bool get isEmpty => segments.isEmpty;
 
-  /// Whether the path starts with a slash (is absolute).
-  bool get isAbsolute =>
-      true; // All parsed paths are treated as absolute for now in our context
-
   /// Joins this path with another path or segment.
   DataPath append(Object? other) {
     if (other is DataPath) {
-      return DataPath([...segments, ...other.segments]);
+      return DataPath(
+        [...segments, ...other.segments],
+        isAbsolute: isAbsolute,
+      );
     } else if (other is String) {
-      if (other.startsWith('/')) {
-        return DataPath.parse(other);
-      }
-      return DataPath([...segments, ...DataPath.parse(other).segments]);
+      return DataPath(
+        [...segments, ...DataPath.parse(other).segments],
+        isAbsolute: isAbsolute,
+      );
     }
-    return DataPath([...segments, other.toString()]);
+    final segment = other.toString();
+    return DataPath(
+      [...segments, segment],
+      isAbsolute: isAbsolute,
+    );
   }
 
   /// Returns the parent path.
   DataPath? get parent {
     if (segments.isEmpty) return null;
-    return DataPath(segments.sublist(0, segments.length - 1));
+    return DataPath(
+      segments.sublist(0, segments.length - 1),
+      isAbsolute: isAbsolute,
+    );
   }
 
   @override
   String toString() {
-    if (segments.isEmpty) return '/';
-    return '/${segments.map((s) => s.replaceAll('~', '~0').replaceAll('/', '~1')).join('/')}';
+    if (segments.isEmpty) return isAbsolute ? '/' : '';
+    final String joined = segments
+        .map((s) => s.replaceAll('~', '~0').replaceAll('/', '~1'))
+        .join('/');
+    return isAbsolute ? '/$joined' : joined;
   }
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is DataPath &&
+          isAbsolute == other.isAbsolute &&
           const ListEquality<String>().equals(segments, other.segments);
 
   @override
-  int get hashCode => const ListEquality<String>().hash(segments);
+  int get hashCode =>
+      Object.hash(isAbsolute, const ListEquality<String>().hash(segments));
 }

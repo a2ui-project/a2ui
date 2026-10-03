@@ -33,7 +33,62 @@ class DataModel {
   Object? _data;
   final Map<String, WeakReference<Signal<Object?>>> _signals = {};
 
-  DataModel([Object? initialData]) : _data = initialData ?? <String, Object?>{};
+  DataModel([Object? initialData])
+      : _data = _own(initialData) ?? <String, Object?>{};
+
+  /// Returns a modifiable deep copy of [value], normalizing string-keyed maps
+  /// to `Map<String, Object?>` and lists to `List<Object?>`.
+  ///
+  /// Maps whose keys are all strings (including empty `Map<dynamic, dynamic>`)
+  /// are normalized to `Map<String, Object?>` so JSON Pointer traversal works
+  /// uniformly regardless of the caller's map runtime type. Maps containing
+  /// non-string keys are deep-copied as `Map<Object?, Object?>` so opaque
+  /// caller values round-trip with their original keys intact.
+  static Object? _own(Object? value) {
+    if (value is Map) {
+      if (value.keys.every((Object? key) => key is String)) {
+        return <String, Object?>{
+          for (final MapEntry<Object?, Object?> entry in value.entries)
+            entry.key as String: _own(entry.value),
+        };
+      }
+      return <Object?, Object?>{
+        for (final MapEntry<Object?, Object?> entry in value.entries)
+          entry.key: _own(entry.value),
+      };
+    }
+    if (value is List) {
+      return <Object?>[for (final Object? entry in value) _own(entry)];
+    }
+    return value;
+  }
+
+  static DataPath _toDataPath(Object path) {
+    if (path is DataPath) return path;
+    if (path is String) return DataPath.parse(path);
+    throw A2uiDataError('Invalid path type: ${path.runtimeType}');
+  }
+
+  static String _canonicalPath(DataPath dataPath) => dataPath.isAbsolute
+      ? dataPath.toString()
+      : DataPath(dataPath.segments).toString();
+
+  /// Resolves [path] against an optional [basePath] into an absolute JSON
+  /// Pointer string.
+  static String resolvePath(String path, [String? basePath]) {
+    if (path.startsWith('/')) return path;
+    final String rawBase = basePath == null || basePath.isEmpty
+        ? '/'
+        : (basePath.startsWith('/') ? basePath : '/$basePath');
+    var trimmedBase = rawBase;
+    while (trimmedBase.length > 1 && trimmedBase.endsWith('/')) {
+      trimmedBase = trimmedBase.substring(0, trimmedBase.length - 1);
+    }
+    if (path.isEmpty || path == '.') return trimmedBase;
+
+    final base = trimmedBase == '/' ? '' : trimmedBase;
+    return '$base/$path';
+  }
 
   /// Synchronously gets data at a specific JSON pointer path.
   Object? get(String path) {
@@ -58,6 +113,10 @@ class DataModel {
     return currentNode;
   }
 
+  /// Returns whether [path] (a [String] or [DataPath]) physically exists in
+  /// the data model hierarchy.
+  bool hasPath(Object path) => _hasPath(_toDataPath(path));
+
   bool _hasPath(DataPath dataPath) {
     if (dataPath.isEmpty) return true;
     Object? currentNode = _data;
@@ -78,6 +137,15 @@ class DataModel {
     return true;
   }
 
+  /// Deletes the value at [path] (a [String] or [DataPath]).
+  ///
+  /// Equivalent to `set(path, null)`: removes the key from its parent map,
+  /// sets an in-bounds list slot to `null`, or resets the root to `{}`.
+  void delete(Object path) {
+    final DataPath dataPath = _toDataPath(path);
+    set(_canonicalPath(dataPath), null);
+  }
+
   /// Updates data at a specific path and notifies subscribers.
   void set(String path, Object? value) {
     final dataPath = DataPath.parse(path);
@@ -87,7 +155,7 @@ class DataModel {
 
     batch(() {
       if (dataPath.isEmpty) {
-        _data = value ?? <String, Object?>{};
+        _data = _own(value) ?? <String, Object?>{};
       } else {
         if (_data != null && _data is! Map && _data is! List) {
           throw A2uiDataError(
@@ -145,7 +213,7 @@ class DataModel {
           if (value == null) {
             current.remove(lastSegment);
           } else {
-            current[lastSegment] = value;
+            current[lastSegment] = _own(value);
           }
         } else if (current is List<Object?>) {
           final int? index = _parseListIndex(lastSegment);
@@ -167,7 +235,7 @@ class DataModel {
             while (current.length <= index) {
               current.add(null);
             }
-            current[index] = value;
+            current[index] = _own(value);
           } else if (index < current.length) {
             current[index] = null;
           }
@@ -189,7 +257,7 @@ class DataModel {
   /// Returns a [ReadonlySignal] for a specific path.
   /// Internally cached using a [WeakReference] to prevent leaks.
   ReadonlySignal<T?> watch<T>(String path) {
-    final normalizedPath = DataPath.parse(path).toString();
+    final String normalizedPath = _canonicalPath(DataPath.parse(path));
     final WeakReference<Signal<Object?>>? ref = _signals[normalizedPath];
     if (ref != null) {
       final Signal<Object?>? sig = ref.target;
@@ -205,7 +273,7 @@ class DataModel {
   }
 
   void _notifyPathAndRelated(DataPath dataPath) {
-    final changedPath = dataPath.toString();
+    final String changedPath = _canonicalPath(dataPath);
     final String changedDescendantPrefix = _descendantPrefix(changedPath);
     for (final String entryPath in _signals.keys.toList()) {
       if (changedPath == entryPath ||

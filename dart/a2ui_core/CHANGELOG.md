@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- `DataPath` preserves whether a parsed or constructed path is relative or
+  absolute (`isAbsolute`), omits the leading `/` from `toString()` when
+  relative, validates RFC 6901 `~0`/`~1` escape sequences in `DataPath.parse`,
+  and enforces forbidden prototype-pollution segment names (`__proto__`,
+  `constructor`, `prototype`) in `DataPath` construction, parsing, and `append`
+  for all argument types.
+- **Breaking:** `DataModel` takes a modifiable deep copy of incoming data on
+  initialization and `set`, normalizing string-keyed maps (including untyped
+  `Map<dynamic, dynamic>`) to `Map<String, Object?>` and lists to
+  `List<Object?>` so external mutations do not alias internal state and
+  untyped maps are traversable.
+- Add `DataModel.delete`, `DataModel.hasPath`, and `DataModel.resolvePath`.
+- `EventNotifier.emit` isolates listener exceptions, logging them via
+  `Logger('a2ui.EventNotifier')` and continuing delivery to remaining
+  listeners.
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
 - `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.
