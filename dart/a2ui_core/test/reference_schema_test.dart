@@ -503,6 +503,7 @@ void main() {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
         protocolVersion: A2uiProtocolVersion.v0_9,
+        validationConfig: const ValidationConfig(allowDanglingReferences: true),
       );
       processor.processMessages(
         AgentToRendererMessagePayload.of(
@@ -528,9 +529,9 @@ void main() {
       }
 
       surface.dataModel.set('/items', ['a', 'b']);
-      // The processor checks references only for surfaces the payload creates,
-      // so this update is applied and the resolver reports the template items
-      // as pending until a later payload delivers the component.
+      // The processor allows dangling references, so this update is applied
+      // and the resolver reports the template items as pending until a later
+      // payload delivers the component.
       process([
         {
           'id': 'root',

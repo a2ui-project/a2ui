@@ -234,12 +234,14 @@ typedef ProcessorSetup = ({
 
 ProcessorSetup setupProcessor([
   Catalog<ComponentApi, FunctionImplementation>? catalog,
+  ValidationConfig validationConfig = ValidationConfig.strict,
 ]) {
   final Catalog<ComponentApi, FunctionImplementation> effectiveCatalog =
       catalog ?? makeCatalog();
   final processor = MessageProcessor<ComponentApi>(
     catalogs: [effectiveCatalog],
     protocolVersion: A2uiProtocolVersion.v0_9,
+    validationConfig: validationConfig,
   );
   processor.processMessages(
     AgentToRendererMessagePayload.of(
@@ -302,11 +304,13 @@ void processorContractTests() {
     test(
       'applies a typed missing marked reference and reports it as pending',
       () {
-        // The processor checks references only for surfaces the payload
-        // creates, so an update to an existing surface is applied as-is and
-        // the resolver reports the not-yet-arrived child as a placeholder,
-        // upgraded in place when the child arrives.
-        final ProcessorSetup fixture = setupProcessor();
+        // A processor that allows dangling references applies the update,
+        // and the resolver reports the not-yet-arrived child as a
+        // placeholder, upgraded in place when the child arrives.
+        final ProcessorSetup fixture = setupProcessor(
+          null,
+          const ValidationConfig(allowDanglingReferences: true),
+        );
         processComponents(fixture, [
           {'id': 'root', 'component': 'Card', 'child': 'missing'},
         ]);
