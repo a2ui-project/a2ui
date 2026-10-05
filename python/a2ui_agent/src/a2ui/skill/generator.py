@@ -49,7 +49,9 @@ class SkillGenerator:
             if inst:
                 cat_blocks.append(inst)
             ex = prompt_gen.generate_examples(catalog=c)
-            if ex:
+            # A format whose examples aren't kept per catalog returns the same
+            # examples for each catalog, so they're added once.
+            if ex and ex not in ex_blocks:
                 ex_blocks.append(ex)
 
         body_parts = []
@@ -154,8 +156,18 @@ class SkillGenerator:
         skill_set.add(self.generate_core_skill(name=core_name))
 
         # 2. Per-Catalog Skills
+        # A format whose examples aren't kept per catalog returns the same
+        # examples for each catalog, so only the first catalog skill gets them.
         resolved_catalogs = _resolve_catalogs_list(catalogs, self.fmt)
+        prompt_gen = self.fmt.prompt_generator
+        seen_examples: set[str] = set()
         for cat in resolved_catalogs:
-            skill_set.add(self.generate_catalog_skill(cat))
+            examples = prompt_gen.generate_examples(catalog=cat)
+            skill_set.add(
+                self.generate_catalog_skill(
+                    cat, include_examples=examples not in seen_examples
+                )
+            )
+            seen_examples.add(examples)
 
         return skill_set

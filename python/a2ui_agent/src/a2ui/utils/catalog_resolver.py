@@ -69,18 +69,19 @@ def resolve_catalogs(
         protocol version, for example `{"v1.0": {"supportedCatalogIds": [...]}}`.
         Either a mapping or a capabilities model from `a2ui.core`. `None`, for a
         request that carries no capabilities, activates every registered
-        catalog in registration order.
+        catalog in registration order, and returns an empty list if none is
+        registered.
       accepts_inline_catalogs: Whether inline catalogs become active.
 
     Returns:
       The active catalogs.
 
     Raises:
-      A2uiCatalogError: If no catalog is active, for example because the
-        renderer names none of the registered catalogs or sends an empty
-        `supportedCatalogIds` without inline catalogs. Also raised if the
-        registered catalogs read different capabilities keys, since one
-        capabilities entry can't describe them all.
+      A2uiCatalogError: If capabilities are given and no catalog is active, for
+        example because the renderer names none of the registered catalogs or
+        sends an empty `supportedCatalogIds` without inline catalogs. Also
+        raised if the registered catalogs read different capabilities keys,
+        since one capabilities entry can't describe them all.
       A2uiValidationError: If the capabilities have no valid entry for the
         protocol version of the registered catalogs.
     """

@@ -38,13 +38,13 @@ _A2UI_EXAMPLES_KEY = "system:a2ui_examples"
 
 
 def get_a2ui_catalog(ctx: ReadonlyContext):
-    """Retrieves the A2UI catalog from the session state.
+    """Retrieves the active A2UI catalogs from the session state.
 
     Args:
-        ctx: The ReadonlyContext for resolving the catalog.
+        ctx: The ReadonlyContext for resolving the catalogs.
 
     Returns:
-        The A2UI catalog or None if not found.
+        The active A2UI catalogs or None if not found.
     """
     return ctx.state.get(_A2UI_CATALOG_KEY)
 
@@ -118,9 +118,9 @@ class McpAppProxyAgentExecutor(A2aAgentExecutor):
                 if context.message and context.message.metadata
                 else None
             )
-            a2ui_catalog = self._agent.resolve_catalogs(
+            a2ui_catalogs = self._agent.resolve_catalogs(
                 active_ui_version, client_capabilities
-            )[0]
+            )
 
             # TODO: Load examples from files.
             examples = ""
@@ -133,7 +133,7 @@ class McpAppProxyAgentExecutor(A2aAgentExecutor):
                     actions=EventActions(
                         state_delta={
                             _A2UI_ENABLED_KEY: True,
-                            _A2UI_CATALOG_KEY: a2ui_catalog,
+                            _A2UI_CATALOG_KEY: a2ui_catalogs,
                             _A2UI_EXAMPLES_KEY: examples,
                         }
                     ),

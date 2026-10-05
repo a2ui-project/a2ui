@@ -95,8 +95,6 @@ class DirectJsonParser(Parser):
         self._stream_parser: Any | None = None
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
-        from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
-
         if complete:
             return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
         return A2UI_OPEN_TAG in content

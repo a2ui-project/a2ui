@@ -15,9 +15,6 @@
 import copy
 import pytest
 
-pytestmark = pytest.mark.skip(
-    reason="TODO: validation package was removed from a2ui_agent library"
-)
 from a2ui.schema.constants import (
     A2UI_OPEN_TAG,
     A2UI_CLOSE_TAG,
@@ -314,7 +311,8 @@ def test_v09_single_top_level_object(mock_catalog):
 
     chunk = (
         A2UI_OPEN_TAG
-        + '{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "c1"}}'
+        + '{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId":'
+        ' "test_catalog"}}'
         + A2UI_CLOSE_TAG
     )
     messages = []
@@ -333,7 +331,7 @@ def test_v09_multiple_top_level_objects(mock_catalog):
     chunk = (
         A2UI_OPEN_TAG
         + '{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId":'
-        ' "c1"}}\n'
+        ' "test_catalog"}}\n'
         + '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":'
         ' [{"id": "root", "component": "Text", "text": "Hello"}]}}'
         + A2UI_CLOSE_TAG

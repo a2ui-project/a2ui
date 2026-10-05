@@ -36,7 +36,7 @@ from a2ui.inference_formats.direct_json import (
     DirectJsonParser,
     DirectJsonStreamParser,
 )
-from a2ui.parser.errors import A2uiCompilationError
+from a2ui.parser import A2uiCompilationError
 from a2ui.schema import (
     CatalogConfig,
     VERSION_0_8,
@@ -119,6 +119,13 @@ class MemoryCatalogProvider:
 
 
 def setup_catalog(catalog_config):
+    """Builds the catalog that a legacy case describes.
+
+    The case's `s2cSchema` and `commonTypesSchema` are ignored on purpose. A
+    core `Catalog` validates against the published schemas for its protocol
+    version, so the simplified fixture schemas have no place to go. Cases that
+    need a stricter or looser schema must express it in `catalogSchema`.
+    """
     version = str(catalog_config.get("protocolVersion", "v0.9")).removeprefix("v")
 
     catalog_schema = catalog_config.get("catalogSchema")

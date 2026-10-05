@@ -293,3 +293,110 @@ def test_no_catalogs_is_a_catalog_error():
 def test_catalogs_of_incompatible_versions_are_a_catalog_error():
     with pytest.raises(A2uiCatalogError, match="incompatible protocol versions"):
         validate_payload([_BASIC, BasicCatalog("1.0")], [])
+
+
+def test_full_v0_9_flow_on_the_basic_catalog_is_accepted():
+    surface = "contact-card"
+    payload = [
+        {
+            "version": "v0.9",
+            "createSurface": {"surfaceId": surface, "catalogId": _BASIC.catalog_id},
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": surface,
+                "components": [
+                    {
+                        "id": "root",
+                        "component": "Column",
+                        "children": ["avatar", "name", "email", "submit"],
+                    },
+                    {"id": "avatar", "component": "Image", "url": {"path": "/image"}},
+                    {"id": "name", "component": "Text", "text": {"path": "/name"}},
+                    {
+                        "id": "email",
+                        "component": "TextField",
+                        "label": "Email",
+                        "value": {"path": "/email"},
+                    },
+                    {
+                        "id": "submit",
+                        "component": "Button",
+                        "child": "submit_label",
+                        "action": {"event": {"name": "submit"}},
+                    },
+                    {"id": "submit_label", "component": "Text", "text": "Send"},
+                ],
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateDataModel": {
+                "surfaceId": surface,
+                "path": "/",
+                "value": {"name": "Ada", "email": "ada@example.com", "image": "a.png"},
+            },
+        },
+        {"version": "v0.9", "deleteSurface": {"surfaceId": surface}},
+    ]
+
+    validate_payload([_BASIC], payload)
+
+
+def test_full_v0_8_flow_on_the_basic_catalog_is_accepted():
+    surface = "contact-card"
+    payload = [
+        {"beginRendering": {"surfaceId": surface, "root": "root"}},
+        {
+            "surfaceUpdate": {
+                "surfaceId": surface,
+                "components": [
+                    {
+                        "id": "root",
+                        "component": {
+                            "Column": {
+                                "children": {
+                                    "explicitList": ["profile_image", "info_row"]
+                                }
+                            }
+                        },
+                    },
+                    {
+                        "id": "profile_image",
+                        "component": {
+                            "Image": {"url": {"path": "/image"}, "usageHint": "avatar"}
+                        },
+                    },
+                    {
+                        "id": "info_row",
+                        "component": {
+                            "Row": {"children": {"explicitList": ["icon", "name"]}}
+                        },
+                    },
+                    {
+                        "id": "icon",
+                        "component": {"Icon": {"name": {"literalString": "mail"}}},
+                    },
+                    {
+                        "id": "name",
+                        "component": {
+                            "Text": {"text": {"path": "/name"}, "usageHint": "h2"}
+                        },
+                    },
+                ],
+            }
+        },
+        {
+            "dataModelUpdate": {
+                "surfaceId": surface,
+                "contents": [
+                    {"key": "name", "valueString": "Ada"},
+                    {"key": "image", "valueString": "a.png"},
+                ],
+            }
+        },
+        {"deleteSurface": {"surfaceId": surface}},
+    ]
+
+    validate_payload([BasicCatalog("0.8")], payload)

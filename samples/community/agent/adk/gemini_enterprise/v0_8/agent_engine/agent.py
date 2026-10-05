@@ -93,10 +93,10 @@ class ContactAgent:
         """Builds the AgentCard for this agent, describing its capabilities and skills."""
         extensions = []
         if self._inference_formats:
-            for version, sm in self._inference_formats.items():
+            for version, fmt in self._inference_formats.items():
                 ext = get_a2ui_agent_extension(
                     version,
-                    supported_catalog_ids=[c.catalog_id for c in sm.catalogs],
+                    supported_catalog_ids=[c.catalog_id for c in fmt.catalogs],
                 )
                 extensions.append(ext)
 

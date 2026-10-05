@@ -135,7 +135,7 @@ inference_format = DirectJsonFormat(
 )
 
 # Generate the full system prompt
-A2UI_AND_AGENT_INSTRUCTION = inference_format.generate_system_prompt(
+A2UI_AND_AGENT_INSTRUCTION = inference_format.prompt_generator.generate(
     role_description=ROLE_DESCRIPTION,
     ui_description=UI_DESCRIPTION,
     include_schema=True,

@@ -120,13 +120,13 @@ class TestExpressPromptGenerator(unittest.TestCase):
         self.assertIn("### Examples:", prompt)
         self.assertIn('root = Text("Hello World")', prompt)
 
-    @unittest.skip("TODO: validation package was removed from a2ui_agent library")
     def test_express_examples_validation(self):
         # Write a valid standard A2UI JSON example file
         example_payload = {
-            "version": "1.0",
+            "version": "v1.0",
             "createSurface": {
                 "surfaceId": "welcome",
+                "catalogId": self.catalog.catalog_id,
                 "components": [
                     {"id": "root", "component": "Text", "text": "Hello World"}
                 ],

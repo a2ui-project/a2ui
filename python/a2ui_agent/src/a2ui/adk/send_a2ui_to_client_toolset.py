@@ -32,7 +32,9 @@ Key Components:
 Usage Examples:
 
   1. Defining Providers:
-    You can use simple values or callables (sync or async) for enablement, catalog schema, and examples.
+    You can use simple values or callables (sync or async) for enablement, catalogs, and examples.
+    The catalog value or provider gives one catalog or a sequence of them, such as the
+    catalogs that `a2ui.utils.resolve_catalogs` returns.
 
     ```python
     # Simple boolean and dict
@@ -46,15 +48,15 @@ Usage Examples:
     async def check_enabled(ctx: ReadonlyContext) -> bool:
       return await some_condition(ctx)
 
-    async def get_catalog(ctx: ReadonlyContext) -> CatalogApi:
-      return await fetch_catalog(ctx)
+    async def get_catalogs(ctx: ReadonlyContext) -> Sequence[CatalogApi]:
+      return await fetch_catalogs(ctx)
 
     async def get_examples(ctx: ReadonlyContext) -> str:
       return await fetch_examples(ctx)
 
     toolset = SendA2uiToClientToolset(
         a2ui_enabled=check_enabled,
-        a2ui_catalog=get_catalog,
+        a2ui_catalog=get_catalogs,
         a2ui_examples=get_examples,
     )
     ```
@@ -68,7 +70,7 @@ Usage Examples:
         tools=[
             SendA2uiToClientToolset(
                 a2ui_enabled=check_enabled,
-                a2ui_catalog=get_catalog,
+                a2ui_catalog=get_catalogs,
                 a2ui_examples=get_examples,
             ),
         ],
@@ -78,6 +80,7 @@ Usage Examples:
 
 import inspect
 import logging
+from collections.abc import Sequence
 from typing import (
     Any,
     Awaitable,
@@ -115,7 +118,10 @@ A2uiEnabledProvider: TypeAlias = Callable[
 ]
 A2uiCatalogProvider: TypeAlias = Callable[
     [readonly_context.ReadonlyContext],
-    CatalogApi | Awaitable[CatalogApi],
+    CatalogApi
+    | Sequence[CatalogApi]
+    | Awaitable[CatalogApi]
+    | Awaitable[Sequence[CatalogApi]],
 ]
 A2uiExamplesProvider: TypeAlias = Callable[
     [readonly_context.ReadonlyContext], str | Awaitable[str]
@@ -129,7 +135,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
     def __init__(
         self,
         a2ui_enabled: bool | A2uiEnabledProvider,
-        a2ui_catalog: CatalogApi | A2uiCatalogProvider,
+        a2ui_catalog: CatalogApi | Sequence[CatalogApi] | A2uiCatalogProvider,
         a2ui_examples: str | A2uiExamplesProvider,
     ):
         super().__init__()
@@ -189,8 +195,8 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         Returns:
             A configured A2uiPartConverter.
         """
-        catalog = await self._ui_tool._resolve_a2ui_catalog(ctx)
-        return A2uiPartConverter(catalog)
+        catalogs = await self._ui_tool._resolve_a2ui_catalogs(ctx)
+        return A2uiPartConverter(catalogs[0])
 
     class _SendA2uiJsonToClientTool(base_tool.BaseTool):
         TOOL_NAME = A2UI_TOOL_NAME
@@ -200,7 +206,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
         def __init__(
             self,
-            a2ui_catalog: CatalogApi | A2uiCatalogProvider,
+            a2ui_catalog: CatalogApi | Sequence[CatalogApi] | A2uiCatalogProvider,
             a2ui_examples: str | A2uiExamplesProvider,
         ):
             self._a2ui_catalog = a2ui_catalog
@@ -253,26 +259,25 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                     a2ui_examples = await a2ui_examples
                 return a2ui_examples
 
-        async def _resolve_a2ui_catalog(
+        async def _resolve_a2ui_catalogs(
             self, ctx: readonly_context.ReadonlyContext
-        ) -> CatalogApi:
-            """The resolved self.a2ui_catalog field to construct instruction for this agent.
+        ) -> list[CatalogApi]:
+            """The catalogs that the self.a2ui_catalog field resolves to.
 
             Args:
                 ctx: The readonly_context.ReadonlyContext to resolve the provider with.
 
             Returns:
-                The A2UI catalog object.
+                The active catalogs. A single catalog becomes a list of one.
             """
-            if isinstance(self._a2ui_catalog, Catalog) or not callable(
-                self._a2ui_catalog
-            ):
-                return self._a2ui_catalog
-            else:
-                a2ui_catalog = self._a2ui_catalog(ctx)
-                if inspect.isawaitable(a2ui_catalog):
-                    a2ui_catalog = await a2ui_catalog
-                return a2ui_catalog
+            catalogs: Any = self._a2ui_catalog
+            if callable(catalogs) and not isinstance(catalogs, Catalog):
+                catalogs = catalogs(ctx)
+                if inspect.isawaitable(catalogs):
+                    catalogs = await catalogs
+            if isinstance(catalogs, Sequence):
+                return list(catalogs)
+            return [catalogs]
 
         async def process_llm_request(
             self,
@@ -284,9 +289,9 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                 tool_context=tool_context, llm_request=llm_request
             )
 
-            a2ui_catalog = await self._resolve_a2ui_catalog(tool_context)
+            a2ui_catalogs = await self._resolve_a2ui_catalogs(tool_context)
 
-            instruction = schema_to_prompt([a2ui_catalog])
+            instruction = schema_to_prompt(a2ui_catalogs)
             examples = await self._resolve_a2ui_examples(tool_context)
 
             llm_request.append_instructions([instruction, examples])
@@ -304,9 +309,9 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                         f" arg {self.A2UI_JSON_ARG_NAME} "
                     )
 
-                a2ui_catalog = await self._resolve_a2ui_catalog(tool_context)
+                a2ui_catalogs = await self._resolve_a2ui_catalogs(tool_context)
                 a2ui_json_payload = parse_and_fix(a2ui_json)
-                validate_payload([a2ui_catalog], a2ui_json_payload)
+                validate_payload(a2ui_catalogs, a2ui_json_payload)
 
                 logger.info(
                     f"Validated call to tool {self.TOOL_NAME} with"

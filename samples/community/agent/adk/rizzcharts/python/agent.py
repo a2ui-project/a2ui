@@ -233,10 +233,6 @@ class RizzchartsAgent:
         }
         return DirectJsonFormat(catalogs, examples_path=configs[0].examples_path)
 
-        self._a2ui_enabled_provider = a2ui_enabled_provider
-        self._a2ui_catalog_provider = a2ui_catalog_provider
-        self._a2ui_examples_provider = a2ui_examples_provider
-
     def _build_agent_card(self) -> AgentCard:
         """Returns the AgentCard defining this agent's metadata and skills.
 
@@ -245,11 +241,11 @@ class RizzchartsAgent:
         """
         extensions = []
         if self._inference_formats:
-            for version, sm in self._inference_formats.items():
+            for version, fmt in self._inference_formats.items():
                 ext = get_a2ui_agent_extension(
                     version,
                     self._accepts_inline_catalogs,
-                    [c.catalog_id for c in sm.catalogs],
+                    [c.catalog_id for c in fmt.catalogs],
                 )
                 extensions.append(ext)
 

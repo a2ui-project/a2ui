@@ -47,16 +47,18 @@ class DirectJsonPromptGenerator(PromptGenerator):
     def generate_catalog_instructions(
         self,
         include_schema: bool = True,
-        catalog: Any | None = None,
+        catalog: CatalogApi | None = None,
     ) -> str:
         """Returns LLM instructions for a catalog or all of the format's catalogs."""
         if not include_schema:
             return ""
-        return schema_to_prompt([catalog] if catalog else self._format.catalogs)
+        return schema_to_prompt(
+            [catalog] if catalog is not None else self._format.catalogs
+        )
 
     def generate_examples(
         self,
-        catalog: Any | None = None,
+        catalog: CatalogApi | None = None,
         validate: bool = False,
     ) -> str:
         """Loads and formats the format's few-shot examples.

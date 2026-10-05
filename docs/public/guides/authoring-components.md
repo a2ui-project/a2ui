@@ -254,14 +254,15 @@ if use_ui:
 The Agent uses [SendA2uiToClientToolset](../../../python/a2ui_agent/src/a2ui/adk/send_a2ui_to_client_toolset.py) to give the agent a tool that it can use to send A2UI to the client.
 
 ```python
-from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
+from a2ui.adk import SendA2uiToClientToolset
 from a2ui.utils import resolve_catalogs
 
-a2ui_catalog = resolve_catalogs(self.catalog_configs, capabilities)[0]
+a2ui_catalogs = resolve_catalogs(self.catalog_configs, capabilities)
 agent.tools = [
     SendA2uiToClientToolset(
-        a2ui_catalog=a2ui_catalog,
         a2ui_enabled=True,
+        a2ui_catalog=a2ui_catalogs,
+        a2ui_examples=examples,
     )
 ]
 ```
@@ -271,9 +272,7 @@ agent.tools = [
 Invocations of the tool in [SendA2uiToClientToolset](../../../python/a2ui_agent/src/a2ui/adk/send_a2ui_to_client_toolset.py) by the LLM are intercepted in the A2A Agent Executor using the [A2uiEventConverter](../../../python/a2ui_agent/src/a2ui/adk/a2a/event_converter.py). This automatically translates tool calls into A2A Dataparts with the A2UI payload.
 
 ```python
-from a2ui.adk.a2a.event_converter import (
-    A2uiEventConverter,
-)
+from a2ui.adk import A2uiEventConverter
 
 config = A2aAgentExecutorConfig(event_converter=A2uiEventConverter())
 ```

@@ -82,9 +82,9 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
                 if context.message and context.message.metadata
                 else None
             )
-            a2ui_catalog = self._agent.resolve_catalogs(
+            a2ui_catalogs = self._agent.resolve_catalogs(
                 active_ui_version, client_capabilities
-            )[0]
+            )
 
             examples = ""
 
@@ -96,7 +96,7 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
                     actions=EventActions(
                         state_delta={
                             _A2UI_ENABLED_KEY: True,
-                            _A2UI_CATALOG_KEY: a2ui_catalog,
+                            _A2UI_CATALOG_KEY: a2ui_catalogs,
                             _A2UI_EXAMPLES_KEY: examples,
                         }
                     ),

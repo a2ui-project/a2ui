@@ -38,7 +38,7 @@ async def test_toolset_init_bool():
 
     # Access the tool to check schema resolution
     tool = toolset._ui_tools[0]
-    assert await tool._resolve_a2ui_catalog(ctx) == catalog_mock
+    assert await tool._resolve_a2ui_catalogs(ctx) == [catalog_mock]
 
 
 @pytest.mark.asyncio
@@ -56,7 +56,7 @@ async def test_toolset_init_callable():
 
     # Access the tool to check schema resolution
     tool = toolset._ui_tools[0]
-    assert await tool._resolve_a2ui_catalog(ctx) == catalog_mock
+    assert await tool._resolve_a2ui_catalogs(ctx) == [catalog_mock]
     assert await tool._resolve_a2ui_examples(ctx) == "examples"
     enabled_mock.assert_called_once_with(ctx)
     catalog_mock.assert_not_called()  # It's an object, not a callable in this test
@@ -86,7 +86,7 @@ async def test_toolset_init_async_callable():
 
     # Access the tool to check schema resolution
     tool = toolset._ui_tools[0]
-    assert await tool._resolve_a2ui_catalog(ctx) == catalog_mock
+    assert await tool._resolve_a2ui_catalogs(ctx) == [catalog_mock]
     assert await tool._resolve_a2ui_examples(ctx) == "examples"
 
 
@@ -147,8 +147,28 @@ def test_send_tool_get_declaration():
 async def test_send_tool_resolve_catalog():
     catalog_mock = MagicMock(spec=Catalog)
     tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(catalog_mock, "examples")
-    catalog = await tool._resolve_a2ui_catalog(MagicMock(spec=ReadonlyContext))
-    assert catalog == catalog_mock
+    catalogs = await tool._resolve_a2ui_catalogs(MagicMock(spec=ReadonlyContext))
+    assert catalogs == [catalog_mock]
+
+
+@pytest.mark.asyncio
+async def test_send_tool_resolves_a_catalog_sequence():
+    catalogs = (MagicMock(spec=Catalog), MagicMock(spec=Catalog))
+    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(catalogs, "examples")
+    resolved = await tool._resolve_a2ui_catalogs(MagicMock(spec=ReadonlyContext))
+    assert resolved == list(catalogs)
+
+
+@pytest.mark.asyncio
+async def test_send_tool_resolves_a_provider_of_a_catalog_sequence():
+    catalogs = [MagicMock(spec=Catalog), MagicMock(spec=Catalog)]
+
+    async def provider(_ctx):
+        return catalogs
+
+    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(provider, "examples")
+    resolved = await tool._resolve_a2ui_catalogs(MagicMock(spec=ReadonlyContext))
+    assert resolved == catalogs
 
 
 @pytest.mark.asyncio
@@ -340,6 +360,58 @@ async def test_send_tool_run_async_rejects_invalid_payload_for_real_catalog():
     assert "error" in result
     assert "Failed to call A2UI tool" in result["error"]
     assert "'text' is a required property" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_send_tool_accepts_a_surface_on_any_of_its_catalogs():
+    other = Catalog.from_json(
+        catalog_schema={
+            "catalogId": "urn:other",
+            "components": {
+                "Marquee": {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Marquee"},
+                        "text": {"type": "string"},
+                    },
+                    "required": ["component", "text"],
+                }
+            },
+        },
+        protocol_version="0.9",
+    )
+    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
+        [BasicCatalog("0.9"), other], "examples"
+    )
+    tool_context_mock = MagicMock(spec=ToolContext)
+    tool_context_mock.state = {}
+    tool_context_mock.actions = MagicMock(skip_summarization=False)
+    payload = [
+        {
+            "version": "v0.9",
+            "createSurface": {"surfaceId": "s1", "catalogId": "urn:other"},
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [{"id": "root", "component": "Marquee", "text": "Hi"}],
+            },
+        },
+    ]
+    args = {
+        SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: (
+            json.dumps(payload)
+        )
+    }
+
+    result = await tool.run_async(args=args, tool_context=tool_context_mock)
+
+    assert result == {
+        SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY: (
+            payload
+        )
+    }
 
 
 # endregion

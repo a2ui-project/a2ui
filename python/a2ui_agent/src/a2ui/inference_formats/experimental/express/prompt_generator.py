@@ -515,7 +515,9 @@ class ExpressPromptGenerator(PromptGenerator):
             ui_description: Optional UI context or rules.
             client_ui_capabilities: Optional client UI capability details.
             allowed_components: Optional list of component tags the LLM may use.
-            allowed_messages: Optional list of A2UI message types allowed.
+              The list is read literally, so an empty list keeps no component.
+            allowed_messages: Ignored. This format's prompt has no message schema
+              to restrict.
             include_schema: Whether to include component schemas in the prompt.
             include_examples: Whether to include few-shot examples.
             validate_examples: Whether to validate few-shot examples on generation.

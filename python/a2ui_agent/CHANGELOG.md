@@ -65,6 +65,13 @@
     Inline catalogs become catalogs of their own instead of being merged into
     the selected one, and ones the agent doesn't accept are dropped instead
     of raising.
+  - `resolve_catalogs` reads capabilities keyed by protocol version, such as
+    `{"v0.9": {"supportedCatalogIds": [...]}}`. A flat capabilities object, a
+    bare `V09Capabilities` model or an empty mapping raises
+    `A2uiValidationError` instead of falling back to the default catalog. No
+    capabilities at all activates every registered catalog instead of the
+    first one, and an empty `supportedCatalogIds` without inline catalogs
+    raises `A2uiCatalogError`.
   - `accepts_inline_catalogs` and `experiments` are removed from the format.
     The agent card still takes `accepts_inline_catalogs`.
   - The prompt describes every catalog of the format, and
@@ -96,6 +103,10 @@
 - `SendA2uiToClientToolset` now returns a tool error, with the validation
   message, for a payload that fails validation. Before, it ignored the errors
   that `validate_components` returned (#2966).
+- `SendA2uiToClientToolset`'s `a2ui_catalog` value or provider can give a
+  sequence of catalogs, such as the ones `resolve_catalogs` returns. The prompt
+  describes all of them and a payload may use any of them. A single catalog
+  still works (#2966).
 - The schema helpers of the Express, Elemental and Atom formats inline a
   catalog's local references with `inline_local_refs` from `a2ui.core`, as
   `Catalog.from_json` does, so a catalog built from models, such as

@@ -66,21 +66,21 @@ Notes:
 
 ### Step 2: Generate System Prompt
 
-Use the `generate_system_prompt` method to assemble the LLM's system
+Use the format's `prompt_generator.generate` method to assemble the LLM's system
 instructions. This method takes your high-level descriptions (role, workflow, UI
 goals) and automatically injects the relevant A2UI JSON Schema and few-shot
 examples from your catalog configuration.
 
 ```python
-instruction = inference_format.generate_system_prompt(
+instruction = inference_format.prompt_generator.generate(
     role_description="You are a helpful assistant...",
     workflow_description="Analyze the request and return UI...",
     ui_description="Use the following components...",
     include_schema=True,  # Injects the raw JSON schema
     include_examples=True,  # Injects few-shot examples
     # Optional: prune schema to save tokens
-    allowed_components=["Heading", "Text", "Button"],
-    allowed_messages=["CreateSurfaceMessage", "UpdateSurfaceMessage"],
+    allowed_components=["Text", "Button", "Column"],
+    allowed_messages=["CreateSurfaceMessage", "UpdateComponentsMessage"],
 )
 ```
 
@@ -158,11 +158,10 @@ Use this approach if you wait for the LLM to finish its entire response before p
 Validate the LLM's JSON output before returning it. The parser attempts to fix simple errors (e.g., trailing commas), and `validate_payload` raises `A2uiValidationError` if a renderer holding the catalog would reject the payload.
 
 ```python
-from a2ui.parser import parse_response
 from a2ui.utils import validate_payload
 
 # Parse the full response into parts
-response_parts = parse_response(full_text)
+response_parts = inference_format.parser.parse_response(full_text)
 
 for part in response_parts:
   if part.a2ui_json:
@@ -181,7 +180,7 @@ Wrap the validated payloads in an A2A `DataPart` with the correct MIME type (`ap
 The `parse_response_to_parts` helper is the most efficient way to split text, extract JSON, validate, and wrap into A2A `Part` objects in one go.
 
 ```python
-from a2ui.a2a.parts import parse_response_to_parts
+from a2ui.a2a import parse_response_to_parts
 
 yield {
     "is_task_complete": True,
@@ -203,7 +202,7 @@ Use this approach for sub-second UI updates. The `DirectJsonStreamParser` **auto
 > ```
 
 ```python
-from a2ui.a2a.parts import create_a2ui_part
+from a2ui.a2a import create_a2ui_part
 
 parser = inference_format.create_stream_parser(selected_catalog)
 
@@ -242,7 +241,7 @@ to generate the system instruction.
 
 ```python
 # Generate system prompt
-instruction = inference_format.generate_system_prompt(
+instruction = inference_format.prompt_generator.generate(
     role_description="You are a helpful assistant...",
     workflow_description="Analyze the request and return UI...",
     ui_description="Use the following components...",

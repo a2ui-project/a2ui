@@ -20,25 +20,6 @@ import logging
 import re
 from typing import Any
 
-from a2ui.parser.constants import *
-from a2ui.schema.constants import (
-    VERSION_0_9,
-    VERSION_0_8,
-    A2UI_OPEN_TAG,
-    A2UI_CLOSE_TAG,
-    SURFACE_ID_KEY,
-    CATALOG_COMPONENTS_KEY,
-    DEFAULT_PROGRESSIVE_KEYS,
-)
-from a2ui.core.validation import analyze_topology
-from a2ui.parser.response_part import ResponsePart
-from a2ui.schema.schema_helper import CatalogSchemaHelper
-from a2ui.utils import validate_payload
-from a2ui.core.validation import (
-    RELAXED_VALIDATION,
-    STRICT_VALIDATION,
-    ValidationConfig,
-)
 from a2ui.core import (
     A2uiIntegrityError,
     A2uiParseError,
@@ -46,6 +27,25 @@ from a2ui.core import (
     CatalogApi,
     PayloadValidator,
 )
+from a2ui.core.validation import (
+    RELAXED_VALIDATION,
+    STRICT_VALIDATION,
+    ValidationConfig,
+    analyze_topology,
+)
+from a2ui.parser.constants import *
+from a2ui.parser.response_part import ResponsePart
+from a2ui.schema.constants import (
+    A2UI_CLOSE_TAG,
+    A2UI_OPEN_TAG,
+    CATALOG_COMPONENTS_KEY,
+    DEFAULT_PROGRESSIVE_KEYS,
+    SURFACE_ID_KEY,
+    VERSION_0_8,
+    VERSION_0_9,
+)
+from a2ui.schema.schema_helper import CatalogSchemaHelper
+from a2ui.utils import validate_payload
 
 logger = logging.getLogger(__name__)
 
@@ -1301,10 +1301,8 @@ class DirectJsonStreamParser:
         """
         child_fields: set[str] = set()
         comp_type = obj.get("component")
-        ref_map = getattr(self._catalog, "component_ref_map", None) or getattr(
-            self._catalog, "reference_map", None
-        )
-        if ref_map and comp_type and comp_type in ref_map:
+        ref_map = self._catalog.component_ref_map
+        if isinstance(comp_type, str) and comp_type in ref_map:
             ref_spec = ref_map[comp_type]
             child_fields.update(ref_spec.single_refs)
             child_fields.update(ref_spec.list_refs)

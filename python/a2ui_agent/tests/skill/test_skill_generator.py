@@ -19,6 +19,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock
 
+from a2ui.core import Catalog
 from a2ui.inference_formats.experimental.express import ExpressFormat
 from a2ui.schema import CatalogConfig
 from a2ui.skill import SkillGenerator
@@ -195,6 +196,29 @@ class TestSkillGenerator(unittest.TestCase):
         gen = SkillGenerator(mock_fmt)
         skill = gen.generate_catalog_skill(self.catalog)
         self.assertEqual(skill.content, "\n")
+
+    def test_examples_shared_by_catalogs_are_added_once(self):
+        """Verifies examples the format returns for every catalog aren't repeated."""
+        other = Catalog.from_json(
+            catalog_schema={"catalogId": "https://a2ui.org/other", "components": {}},
+            protocol_version="1.0",
+        )
+        mock_fmt = MagicMock()
+        mock_fmt.catalogs = [self.catalog, other]
+        mock_fmt.catalog = None
+        mock_fmt.prompt_generator.generate_base_rules.return_value = "RULES"
+        mock_fmt.prompt_generator.generate_catalog_instructions.return_value = "INST"
+        mock_fmt.prompt_generator.generate_examples.return_value = "SHARED EXAMPLES"
+        gen = SkillGenerator(mock_fmt)
+
+        skill = gen.generate_skill()
+        self.assertEqual(skill.content.count("SHARED EXAMPLES"), 1)
+
+        skill_set = gen.generate_skillset()
+        examples_per_skill = [
+            text.count("SHARED EXAMPLES") for text in skill_set.to_dict().values()
+        ]
+        self.assertEqual(sorted(examples_per_skill), [0, 0, 1])
 
 
 if __name__ == "__main__":
