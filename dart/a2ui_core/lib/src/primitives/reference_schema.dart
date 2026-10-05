@@ -53,26 +53,37 @@ typedef RefFields = Map<String, RefKind>;
 /// Reads common-type references and schema structure without a renderer.
 ///
 /// Local pointers resolve against the component root first, then the catalog
-/// document, and finally the embedded `common_types.json` definitions. Wire
-/// pointers and Dart `REF:` descriptions identify the same common types. Local
-/// pointer and combinator cycles are bounded by schema-map identity; reading
-/// never fetches external documents over I/O.
+/// document, and finally the `common_types.json` document supplied by the
+/// caller (the embedded v0.9 document by default). Wire pointers and Dart
+/// `REF:` descriptions identify the same common types. Local pointer and
+/// combinator cycles are bounded by schema-map identity; reading never fetches
+/// external documents over I/O.
 class ReferenceSchemaReader {
-  static final Map<String, Object?> _commonTypes =
+  static final Map<String, Object?> _defaultCommonTypes =
       jsonDecode(commonTypesV0_9Json) as Map<String, Object?>;
 
   final Map<String, Object?> root;
   final Map<String, Object?> document;
 
+  /// The `common_types.json` document that resolves external
+  /// `common_types.json#/$defs/...` pointers and local pointers that neither
+  /// [root] nor [document] defines.
+  ///
+  /// Defaults to the embedded v0.9 document. A caller that knows the catalog's
+  /// protocol version passes the matching document, since `CheckRule` and
+  /// other shared shapes differ between versions.
+  final Map<String, Object?> commonTypes;
+
   /// Whether an unmarked object schema carrying `componentId` and `path`
   /// counts as a child list.
   final bool structuralChildLists;
 
-  const ReferenceSchemaReader(
+  ReferenceSchemaReader(
     this.root, {
     this.document = const {},
     this.structuralChildLists = true,
-  });
+    Map<String, Object?>? commonTypes,
+  }) : commonTypes = commonTypes ?? _defaultCommonTypes;
 
   /// Flattens local indirection, `common_types.json` references, and schema
   /// combinators, retaining `$ref` siblings. The component root remains in
@@ -91,10 +102,10 @@ class ReferenceSchemaReader {
           collect(
             _follow(root, ref) ??
                 _follow(document, ref) ??
-                _follow(_commonTypes, ref),
+                _follow(commonTypes, ref),
           );
         } else if (_commonTypesFragment(ref) case final String fragment) {
-          collect(_follow(_commonTypes, fragment));
+          collect(_follow(commonTypes, fragment));
         }
       }
       for (final keyword in const ['allOf', 'anyOf', 'oneOf']) {
