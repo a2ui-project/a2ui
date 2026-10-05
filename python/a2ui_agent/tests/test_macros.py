@@ -39,6 +39,7 @@ from a2ui.builder.v0_9.catalogs.basic import (
     Row,
     Text,
 )
+from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.core.schema.v0_9 import UpdateComponentsMessage, UpdateComponents
@@ -424,14 +425,18 @@ def test_macro_catalog_pruning():
         "Text": {"type": "object", "properties": {"text": {"type": "string"}}},
     })
 
-    # Prune primitives via passthrough_components so model only sees MiniBadge and Text:
-    expander = MacroExpander([MiniBadge], passthrough_components=["Text"])
-    pruned_cat = expander.transform_to_inference_catalog(base_cat)
-    comps = pruned_cat.catalog_schema["components"]
-    assert "Button" not in comps
-    assert "Card" not in comps
-    assert "Text" in comps
-    assert "MiniBadge" in comps
+    expander = MacroExpander([MiniBadge])
+    inference_cat = expander.transform_to_inference_catalog(base_cat)
+    # Prune primitives so model only sees MiniBadge and Text:
+    pruned_cat = ComponentPruningTransformer(["MiniBadge", "Text"]).transform(
+        inference_cat
+    )
+    schema = pruned_cat.catalog_schema
+    assert set(schema["components"]) == {"MiniBadge", "Text"}
+    assert {ref["$ref"] for ref in schema["$defs"]["anyComponent"]["oneOf"]} == {
+        "#/components/MiniBadge",
+        "#/components/Text",
+    }
 
 
 def test_macro_schema_any_and_dict_types():

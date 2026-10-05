@@ -18,17 +18,14 @@ from collections.abc import Mapping, Sequence
 import copy
 from typing import Any, Callable
 
+from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
 from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.inference_format import InferenceFormat
 from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 from a2ui.inference_formats.direct_json.prompt_generator import DirectJsonPromptGenerator
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
-from a2ui.schema.catalog import (
-    CatalogConfig,
-    load_examples,
-    prune_catalog_components,
-)
+from a2ui.schema.catalog import CatalogConfig, load_examples
 from a2ui.schema.constants import (
     CATALOG_COMPONENTS_KEY,
     INLINE_CATALOGS_KEY,
@@ -274,7 +271,8 @@ class DirectJsonFormat(InferenceFormat):
 
         Args:
             client_ui_capabilities: Optional client UI capability details.
-            allowed_components: Optional list of component tags allowed.
+            allowed_components: Optional names of the components to keep. `None`
+                keeps every component, and an empty list keeps none.
             allowed_messages: Accepted for compatibility. A catalog does not hold
                 the server-to-client schema, so the prompt generator applies this
                 restriction when it renders the schemas instead.
@@ -284,7 +282,9 @@ class DirectJsonFormat(InferenceFormat):
         """
         del allowed_messages
         catalog = self._select_catalog(client_ui_capabilities)
-        return prune_catalog_components(catalog, allowed_components)
+        if allowed_components is not None:
+            catalog = ComponentPruningTransformer(allowed_components).transform(catalog)
+        return catalog
 
     def create_stream_parser(
         self, catalog: CatalogApi | None = None

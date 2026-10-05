@@ -229,14 +229,17 @@ def test_decompiler_delegation(test_catalog):
             return {"catalogId": 12345}
 
     with pytest.raises(A2uiCatalogError) as ctx:
-        _ = CatalogConfig(name="bad", provider=_BadProvider()).to_catalog(protocol_version="1.0")
+        _ = CatalogConfig(name="bad", provider=_BadProvider()).to_catalog(
+            protocol_version="1.0"
+        )
     assert "catalogId is not a string" in str(ctx.value)
 
-    # Verify empty pruned components and messages fallback
-    from a2ui.schema import prune_catalog_components, prune_messages_schema
+    # An empty allowlist keeps nothing. Keeping everything means not pruning.
+    from a2ui.catalog_transformers import ComponentPruningTransformer
+    from a2ui.utils import prune_messages_schema
 
-    assert prune_catalog_components(test_catalog, []) is test_catalog
-    assert prune_messages_schema({}, []) == {}
+    assert not ComponentPruningTransformer([]).transform(test_catalog).components
+    assert prune_messages_schema({}, "0.9", []) == {}
 
 
 def test_direct_json_stream_parser_record_inline_components_surface_id(

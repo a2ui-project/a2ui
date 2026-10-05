@@ -22,6 +22,7 @@ from collections.abc import Mapping, Sequence
 import json
 import re
 from typing import Any, TYPE_CHECKING
+from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.prompt import PromptGenerator
 from a2ui.core.schema.v0_9 import V09Capabilities
 
@@ -522,11 +523,9 @@ class ExpressPromptGenerator(PromptGenerator):
         Returns:
             The complete system prompt string explaining A2UI Express and its catalog.
         """
-        from a2ui.schema.catalog import prune_catalog_components
-
         catalog = self._format.catalog if self._format else None
-        if catalog and allowed_components:
-            catalog = prune_catalog_components(catalog, allowed_components)
+        if catalog and allowed_components is not None:
+            catalog = ComponentPruningTransformer(allowed_components).transform(catalog)
 
         if self._format:
             self.helper = CatalogSchemaHelper(catalog) if catalog else None

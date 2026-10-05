@@ -22,6 +22,7 @@ from collections.abc import Mapping, Sequence
 import json
 import re
 from typing import Any, TYPE_CHECKING
+from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import Catalog, CatalogApi
 from a2ui.inference_formats.experimental.express.schema_helper import (
     CatalogSchemaHelper,
@@ -472,11 +473,11 @@ class ElementalPromptGenerator(PromptGenerator):
         Returns:
             The complete system prompt string explaining A2UI Elemental and its catalog.
         """
-        from a2ui.schema.catalog import load_examples, prune_catalog_components
+        from a2ui.schema.catalog import load_examples
 
         catalog = self.catalog
-        if allowed_components:
-            catalog = prune_catalog_components(catalog, allowed_components)
+        if allowed_components is not None:
+            catalog = ComponentPruningTransformer(allowed_components).transform(catalog)
             self.catalog = catalog
             self.helper = CatalogSchemaHelper(catalog)
             self.catalog_id = catalog.catalog_id
