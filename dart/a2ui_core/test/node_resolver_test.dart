@@ -243,7 +243,8 @@ ProcessorSetup setupProcessor([
   );
   processor.processMessages(
     AgentToRendererMessagePayload.of(
-      CreateSurfaceMessage(surfaceId: 'surf-1', catalogId: effectiveCatalog.id),
+      CreateSurfaceMessage(
+          version: 'v0.9', surfaceId: 'surf-1', catalogId: effectiveCatalog.id),
     ),
   );
   final SurfaceModel<ComponentApi> surface = processor.groupModel.getSurface(
