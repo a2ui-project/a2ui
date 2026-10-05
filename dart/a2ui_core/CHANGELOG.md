@@ -41,6 +41,7 @@
   pointers against the embedded `common_types.json` document so catalogs loaded
   via `Catalog.fromJson` classify `Checkable`, `DynamicValue`, `Action`, and
   `ChildList` properties identically to code-constructed catalogs.
+- Add `DataContext.isDataBinding`, `DataContext.isFunctionCall`, `DataContext.bindingFor`, and `DataContext.adaptExpressionPart` for protocol-version-aware binding and function-call detection; adapt `FormatStringFunction` parser AST nodes (`@path`/`@call`) in v1.0 mode, pre-build function argument signals outside `computed` in `DataContext.resolveListenable`, skip binding/call validation inside `updateDataModel.value` in `checkPathsAndRecursion`, and report unrecognized or invalid action payloads on `SurfaceModel.onError` with code `INVALID_ACTION`.
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
 - `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.

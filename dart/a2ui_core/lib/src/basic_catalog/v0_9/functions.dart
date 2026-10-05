@@ -26,7 +26,7 @@ List<FunctionImplementation> basicFunctionsV0_9({
 }) {
   final String intlLocale = resolveIntlLocale(locale);
   return buildBasicFunctions(
-    schemas: const BasicArgumentSchemas(v10: false),
+    schemas: const BasicArgumentSchemas(directives: false),
     validatorReturnType: A2uiReturnType.boolean,
     validator: (result) => result.valid,
     formatNumber: (value, args) => formatNumber(

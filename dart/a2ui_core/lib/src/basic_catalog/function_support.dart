@@ -241,8 +241,8 @@ bool evaluateOr(Object? values) => _logicOperands('or', values).any(isTruthy);
 /// recomputes when the data it reads changes. Interpolated values are
 /// rendered with [coerceToString].
 ///
-/// On a v1.0 context the parser's `{path}` and `{call, args}` parts are
-/// rewritten to the `@path` and `@call` forms that v1.0 resolution expects.
+/// The parser's `{path}` and `{call, args}` parts are rewritten with
+/// [DataContext.adaptExpressionPart] into the shape the context resolves.
 Object? formatTemplate(Object? template, DataContext context) {
   final List<Object?> parts = ExpressionParser().parse(
     coerceToString(template),
@@ -253,9 +253,7 @@ Object? formatTemplate(Object? template, DataContext context) {
   final List<Object?> sources = [
     for (final Object? part in parts)
       if (part is Map)
-        context.resolveListenable(
-          context.isV10 ? adaptExpressionPartForV10(part) : part,
-        )
+        context.resolveListenable(context.adaptExpressionPart(part))
       else
         part,
   ];
@@ -268,34 +266,6 @@ Object? formatTemplate(Object? template, DataContext context) {
         )
         .join(),
   );
-}
-
-/// Rewrites a parsed expression part for v1.0 resolution: `{path}` becomes
-/// `{'@path'}` and `{call, args, returnType}` becomes `{'@call', ...}`, with
-/// call arguments rewritten recursively. Other values pass through.
-Object? adaptExpressionPartForV10(Object? part) {
-  if (part is List) {
-    return [for (final item in part) adaptExpressionPartForV10(item)];
-  }
-  if (part is! Map) return part;
-  if (part['path'] is String &&
-      !part.containsKey('componentId') &&
-      !part.containsKey('@path')) {
-    return <String, Object?>{'@path': part['path']};
-  }
-  if (part['call'] is String && !part.containsKey('@call')) {
-    final Object? rawArgs = part['args'];
-    return <String, Object?>{
-      '@call': part['call'],
-      'args': <String, Object?>{
-        if (rawArgs is Map)
-          for (final MapEntry<Object?, Object?> entry in rawArgs.entries)
-            entry.key.toString(): adaptExpressionPartForV10(entry.value),
-      },
-      'returnType': part['returnType'] ?? 'any',
-    };
-  }
-  return part;
 }
 
 // ---------------------------------------------------------------------------
@@ -346,15 +316,16 @@ Future<void>? openUrl(Object? url, OpenUrlCallback? onOpen) {
 /// Builds argument schemas in the shape of one protocol version's catalog,
 /// where dynamic values are a literal, a data binding or a function call.
 class BasicArgumentSchemas {
-  /// Creates schemas whose bindings and calls use the v1.0 `@path`/`@call`
-  /// keys when [v10] is true, and `path`/`call` otherwise.
-  const BasicArgumentSchemas({required this.v10});
+  /// Creates schemas whose bindings and calls are written as the reserved
+  /// protocol directives `@path`/`@call` when [directives] is true, as from
+  /// v1.0, and as the bare `path`/`call` keys otherwise.
+  const BasicArgumentSchemas({required this.directives});
 
-  /// Whether bindings and calls use the v1.0 keys.
-  final bool v10;
+  /// Whether bindings and calls are written as `@` directives.
+  final bool directives;
 
-  String get _pathKey => v10 ? '@path' : 'path';
-  String get _callKey => v10 ? '@call' : 'call';
+  String get _pathKey => directives ? '@path' : 'path';
+  String get _callKey => directives ? '@call' : 'call';
 
   Map<String, Object?> get _binding => {
         'type': 'object',
@@ -403,7 +374,7 @@ class BasicArgumentSchemas {
       );
 
   /// The URL argument of `openUrl`.
-  Map<String, Object?> get url => v10
+  Map<String, Object?> get url => directives
       ? {
           'description': 'The URL to open.',
           'oneOf': [
