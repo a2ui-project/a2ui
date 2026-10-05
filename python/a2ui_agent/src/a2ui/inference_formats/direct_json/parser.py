@@ -18,14 +18,9 @@ from typing import Any
 
 from a2ui.core import A2uiParseError, CatalogApi
 from a2ui.inference_formats.direct_json.decompiler import _DirectJsonDecompiler
-from a2ui.parser.parser import Parser
-from a2ui.parser.payload_fixer import parse_and_fix
-from a2ui.parser.response_part import ResponsePart
-from a2ui.schema.constants import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    DEFAULT_PROGRESSIVE_KEYS,
-)
+from a2ui.parser import Parser, ResponsePart, parse_and_fix
+from a2ui.schema import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS
 from a2ui.utils import validate_payload
 
 

@@ -101,7 +101,7 @@ Until the full `TransformerPipeline` and `CatalogConfig` abstractions land in th
 from pydantic import TypeAdapter
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.transformers.macros import MacroExpander, macro
-from a2ui.inference_formats.express.format import ExpressFormat
+from a2ui.inference_formats.experimental.express import ExpressFormat
 
 # 1. Initialize the expander with your macros
 expander = MacroExpander([product_card])

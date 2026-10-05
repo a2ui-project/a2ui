@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import json
+import os
 from pathlib import Path
-from typing import Any
+
 import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.schema import (
-    A2uiCatalogProvider,
     CatalogConfig,
     VERSION_0_9,
     remove_strict_validation,

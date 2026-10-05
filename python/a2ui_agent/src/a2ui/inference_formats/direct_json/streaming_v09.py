@@ -18,16 +18,18 @@ import json
 import re
 from typing import Any
 
-from a2ui.core import CatalogApi
-from a2ui.core.validation import RELAXED_VALIDATION
+from a2ui.core import CatalogApi, RELAXED_VALIDATION
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
-from a2ui.parser.constants import *
-from a2ui.parser.response_part import ResponsePart
-from a2ui.schema.constants import (
-    CATALOG_COMPONENTS_KEY,
-    DEFAULT_PROGRESSIVE_KEYS,
-    SURFACE_ID_KEY,
+from a2ui.parser import ResponsePart
+from a2ui.parser.constants import (
+    DEFAULT_ROOT_ID,
+    MSG_TYPE_CREATE_SURFACE,
+    MSG_TYPE_DELETE_SURFACE,
+    MSG_TYPE_UPDATE_COMPONENTS,
+    MSG_TYPE_UPDATE_DATA_MODEL,
 )
+from a2ui.schema import CATALOG_COMPONENTS_KEY
+from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS, SURFACE_ID_KEY
 
 
 class DirectJsonStreamParserV09(DirectJsonStreamParser):

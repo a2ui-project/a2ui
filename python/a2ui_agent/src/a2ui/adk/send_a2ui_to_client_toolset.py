@@ -85,10 +85,7 @@ from typing import (
     Any,
     Awaitable,
     Callable,
-    Optional,
-    TYPE_CHECKING,
     TypeAlias,
-    Union,
 )
 
 from google.adk.agents import readonly_context

@@ -29,11 +29,15 @@ from a2ui.a2a import (
     parse_response_to_parts,
 )
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.core.parser.parser import parse_response
-from a2ui.core.schema.common_modifiers import remove_strict_validation
-from a2ui.core.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig
+from a2ui.parser import parse_response
+from a2ui.schema import (
+    A2UI_CLOSE_TAG,
+    A2UI_OPEN_TAG,
+    CatalogConfig,
+    VERSION_0_8,
+    remove_strict_validation,
+)
 from a2ui.utils import validate_payload
 import dotenv
 from google.adk.agents import run_config

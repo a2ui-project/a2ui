@@ -23,7 +23,7 @@ from pydantic import TypeAdapter
 from a2ui.core import CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.inference_formats.experimental.express.format import ExpressFormat
+from a2ui.inference_formats.experimental.express import ExpressFormat
 from a2ui.transformers.macros import MacroExpander
 
 

@@ -16,7 +16,9 @@
 
 from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
-from a2ui.parser.parser import Parser
+from a2ui.parser import Parser
+from .parser import AtomParser
+from .prompt_generator import AtomPromptGenerator
 
 try:
     from google.adk.utils.feature_decorator import experimental
@@ -24,10 +26,6 @@ except ImportError:
 
     def experimental(cls):
         return cls
-
-
-from .prompt_generator import AtomPromptGenerator
-from .parser import AtomParser
 
 
 @experimental

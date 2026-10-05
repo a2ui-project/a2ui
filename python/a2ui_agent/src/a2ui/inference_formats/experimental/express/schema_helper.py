@@ -29,7 +29,6 @@ class CatalogSchemaHelper:
     to support positional parameter mapping for compact generative notations.
 
     Attributes:
-        catalog_path: The absolute filesystem path to the catalog JSON file (if loaded from file).
         catalog: The parsed catalog JSON dictionary.
         components: A dictionary mapping component names to their catalog schemas.
         functions: A dictionary mapping function names to their catalog schemas.

@@ -14,7 +14,7 @@
 
 """SkillGenerator for compiling InferenceFormat and Catalog into Skill and SkillSet packages."""
 
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat

@@ -637,14 +637,13 @@ class TestAtomFormat(unittest.TestCase):
 
     def test_atom_compiler_extended_coverage(self):
         """Test think tags, a2ui-json, direct JSON, createSurface forms, weight conversions, and functions with real catalog."""
-        from a2ui.inference_formats.experimental.atom import AtomCompiler, AtomDecompiler, AtomFormat, AtomParser
-        from a2ui.schema.catalog import CatalogConfig
+        from a2ui.inference_formats.experimental.atom import AtomCompiler, AtomFormat
+        from a2ui.schema import CatalogConfig
 
         cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
         cat = cat_cfg.to_catalog(protocol_version="1.0")
         compiler = AtomCompiler(catalog=cat)
-        decompiler = AtomDecompiler(catalog=cat)
 
         # 1. Think tags and clean up
         think_text = '<think>reasoning process...</think>\n(Card (Text "Hello"))'
@@ -785,8 +784,6 @@ class TestAtomFormat(unittest.TestCase):
         self.assertEqual(cp.get("variant"), "multipleSelection")
 
         # 12. Prompt generator with function signatures and enum details
-        from a2ui.inference_formats.experimental.atom import AtomFormat
-
         fmt = AtomFormat(catalog=cat)
         prompt_gen = fmt.prompt_generator
         func_sigs = prompt_gen._generate_function_signatures()

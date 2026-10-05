@@ -414,7 +414,7 @@ When an orchestrator receives an A2A request from a client, it captures the clie
 
 ```python
 from a2a.types import Message as A2AMessage
-from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.schema import A2UI_CLIENT_CAPABILITIES_KEY
 from google.adk.a2a.agent.config import A2aRemoteAgentConfig, ParametersConfig, RequestInterceptor
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
@@ -453,7 +453,7 @@ When acting as a proxy connecting a non-A2A frontend (such as Orcas UI) to a rem
 
 ```python
 from a2a.types import Message as A2AMessage
-from a2ui.schema.constants import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.schema import A2UI_CLIENT_CAPABILITIES_KEY
 from google.adk.a2a.agent.config import A2aRemoteAgentConfig, ParametersConfig, RequestInterceptor
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
@@ -468,10 +468,11 @@ async def set_proxy_capabilities_interceptor(
 
   # Explicitly define what the proxy or UI client supports
   message.metadata[A2UI_CLIENT_CAPABILITIES_KEY] = {
-      "supportedCatalogIds": [
-          "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-      ],
-      "inlineCatalogs": True,
+      "v0.9": {
+          "supportedCatalogIds": [
+              "https://a2ui.org/specification/v0_9/basic_catalog.json"
+          ],
+      },
   }
   return message, params
 

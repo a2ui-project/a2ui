@@ -25,7 +25,7 @@ if __name__ == "__main__":
     version = VERSION_0_9
     rizzcharts_catalog = CatalogConfig.from_path(
         name="rizzcharts",
-        catalog_path="rizzcharts_catalog_definition.json",
+        catalog_path=f"../catalog_schemas/{version}/rizzcharts_catalog_definition.json",
     ).to_catalog(protocol_version=version, schema_modifiers=[remove_strict_validation])
     basic_catalog = CatalogConfig.from_catalog(
         "basic", BasicCatalog(version)

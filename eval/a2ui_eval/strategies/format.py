@@ -16,18 +16,23 @@ import asyncio
 import json
 import re
 from typing import Any
-from inspect_ai.solver import Solver, solver, TaskState, Generate
+
 from inspect_ai.model import (
-    ChatMessageSystem,
-    ModelOutput,
     ChatCompletionChoice,
     ChatMessageAssistant,
+    ChatMessageSystem,
+    ModelOutput,
 )
-from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
-from a2ui.core.validation import STRICT_VALIDATION
-from a2ui.schema.catalog import CatalogConfig
-from a2ui.inference_formats.direct_json import DirectJsonFormat
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+from a2ui.core import (
+    MessageProcessor,
+    MessageProcessorOptions,
+    STRICT_VALIDATION,
+)
 from a2ui.inference_format import InferenceFormat
+from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.schema import CatalogConfig
 from ..shared.utils import GIT_ROOT, measured_generate
 
 
@@ -54,17 +59,17 @@ def _get_strategy(
 
     formatted_version = f"v{version}" if not version.startswith("v") else version
     if format_name == "express":
-        from a2ui.inference_formats.experimental.express.format import ExpressFormat
+        from a2ui.inference_formats.experimental.express import ExpressFormat
 
         return ExpressFormat(
             catalog=catalog, surface_id=surface_id, version=formatted_version
         )
     elif format_name == "elemental":
-        from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
+        from a2ui.inference_formats.experimental.elemental import ElementalFormat
 
         return ElementalFormat(catalog=catalog, surface_id=surface_id)
     elif format_name == "atom":
-        from a2ui.inference_formats.experimental.atom.format import AtomFormat
+        from a2ui.inference_formats.experimental.atom import AtomFormat
 
         return AtomFormat(catalog=catalog, surface_id=surface_id)
     else:

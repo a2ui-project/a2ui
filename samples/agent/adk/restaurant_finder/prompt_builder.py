@@ -57,7 +57,7 @@ def get_text_prompt() -> str:
 
 
 if __name__ == "__main__":
-    # Example of how to use the A2UI Schema Manager to generate a system prompt
+    # Example of how to use the Direct JSON format to generate a system prompt
     # In your actual application, you would call this from your main agent logic.
 
     # You can now easily construct a prompt with the relevant examples.
