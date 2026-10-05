@@ -114,7 +114,7 @@ class SurfaceModel<T extends ComponentApi> {
       name: name,
       surfaceId: id,
       sourceComponentId: sourceComponentId,
-      timestamp: DateTime.now(),
+      timestamp: DateTime.now().toUtc(),
       context: context,
       userMessage: event['userMessage'] is String
           ? event['userMessage'] as String

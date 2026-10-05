@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:math' as math;
+
 import '../primitives/errors.dart';
 
 /// An optional sign, a mantissa, and an optional exponent (`e` or `E`, an
@@ -119,13 +121,27 @@ class ExpressionParser {
         braceBalance--;
       } else if (char == "'" || char == '"') {
         final quote = char;
+        var closed = false;
         while (!scanner.isAtEnd) {
           final String c = scanner.advance();
           if (c == '\\') {
+            if (scanner.isAtEnd) {
+              throw A2uiExpressionError(
+                'Unclosed string literal in unclosed interpolation: '
+                'trailing backslash before end of input',
+              );
+            }
             scanner.advance();
           } else if (c == quote) {
+            closed = true;
             break;
           }
+        }
+        if (!closed) {
+          throw A2uiExpressionError(
+            'Unclosed string literal in unclosed interpolation: '
+            'missing $quote',
+          );
         }
       }
     }
@@ -184,8 +200,17 @@ class ExpressionParser {
     scanner.skipWhitespace();
 
     if (scanner.peek() == '(') {
+      if (token.contains('~')) {
+        throw A2uiExpressionError(
+          "Invalid function name '$token': '~' is not allowed in function "
+          'names',
+        );
+      }
       return _parseFunctionCall(token, scanner, depth);
     } else {
+      if (token.startsWith('@')) {
+        throw A2uiExpressionError("Expected '(' after function name '$token'");
+      }
       if (token.isEmpty) return '';
       return {'path': token};
     }
@@ -193,10 +218,38 @@ class ExpressionParser {
 
   String _scanPathOrIdentifier(_Scanner scanner) {
     final int start = scanner.pos;
+    if (scanner.peek() == '@') {
+      final String next = scanner.peek(1);
+      if (!_isAlpha(next) && next != '_') {
+        throw A2uiExpressionError(
+          "Invalid identifier starting with '@' in expression",
+        );
+      }
+      scanner.advance();
+      while (!scanner.isAtEnd) {
+        final String c = scanner.peek();
+        if (_isAlnum(c) || c == '_') {
+          scanner.advance();
+        } else {
+          break;
+        }
+      }
+      return scanner.input.substring(start, scanner.pos);
+    }
+
     while (!scanner.isAtEnd) {
       final String c = scanner.peek();
       if (_isAlnum(c) || c == '/' || c == '.' || c == '_' || c == '-') {
         scanner.advance();
+      } else if (c == '~') {
+        final String next = scanner.peek(1);
+        if (next != '0' && next != '1') {
+          throw A2uiExpressionError(
+            "Invalid escape sequence '~${next.isEmpty ? '' : next}' in path: "
+            "expected '~0' or '~1'",
+          );
+        }
+        scanner.advance(2);
       } else {
         break;
       }
@@ -253,6 +306,11 @@ class ExpressionParser {
     while (!scanner.isAtEnd) {
       final String c = scanner.advance();
       if (c == '\\') {
+        if (scanner.isAtEnd) {
+          throw A2uiExpressionError(
+            'Unclosed string literal: trailing backslash before end of input',
+          );
+        }
         final String next = scanner.advance();
         if (next == 'n') {
           result.write('\n');
@@ -264,12 +322,12 @@ class ExpressionParser {
           result.write(next);
         }
       } else if (c == quote) {
-        break;
+        return result.toString();
       } else {
         result.write(c);
       }
     }
-    return result.toString();
+    throw A2uiExpressionError('Unclosed string literal: missing $quote');
   }
 
   /// Whether the scanner is at the start of a number literal: a digit, a `.`
@@ -327,6 +385,13 @@ class ExpressionParser {
     }
   }
 
+  bool _isAlpha(String c) {
+    if (c.isEmpty) return false;
+    final int u = c.codeUnitAt(0);
+    return (u >= 0x41 && u <= 0x5A) || // A-Z
+        (u >= 0x61 && u <= 0x7A); // a-z
+  }
+
   bool _isAlnum(String c) {
     if (c.isEmpty) return false;
     final int u = c.codeUnitAt(0);
@@ -356,9 +421,10 @@ class _Scanner {
   }
 
   String advance([int count = 1]) {
-    final String result = input.substring(pos, pos + count);
-    pos += count;
-    return result;
+    final int start = math.min(pos, input.length);
+    final int end = math.min(pos + count, input.length);
+    pos = end;
+    return input.substring(start, end);
   }
 
   bool match(String expected) {

@@ -18,7 +18,6 @@ import copy
 from typing import (
     Any,
     Final,
-    Generic,
     Type,
 )
 
@@ -27,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 import referencing.exceptions
 
 from ..catalog import system_functions_for
-from ..catalog.catalog import Catalog, TComponent, TFunction
+from ..catalog.catalog import CatalogApi
 from ..common.semver import is_at_least_version
 from ..common.uax31 import is_valid_uax31_identifier
 from ..exceptions import A2uiCatalogError, A2uiErrorDetail, A2uiValidationError
@@ -97,15 +96,15 @@ def _is_unknown_property_error(err: jsonschema.exceptions.ValidationError) -> bo
     return not (isinstance(err.schema, dict) and "patternProperties" in err.schema)
 
 
-class PayloadValidator(Generic[TComponent, TFunction]):
+class PayloadValidator:
     """Validates A2UI payloads against catalog JSON schema definitions."""
 
     def __init__(
         self,
-        catalog: Catalog[TComponent, TFunction],
+        catalog: CatalogApi,
         config: ValidationConfig | None = None,
     ) -> None:
-        self.catalog: Catalog[TComponent, TFunction] = catalog
+        self.catalog: CatalogApi = catalog
         self.config = config
 
     def validate_component(
