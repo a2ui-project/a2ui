@@ -41,8 +41,19 @@ public final class LengthFunction: FunctionImplementation, Sendable {
   public init() {}
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
-    guard let valueStr = arguments["value"]?.stringValue else { return .boolean(false) }
-    let count = valueStr.count
+    let count: Int
+    if let value = arguments["value"] {
+      switch value {
+      case .string(let str):
+        count = str.count
+      case .array(let arr):
+        count = arr.count
+      default:
+        return .boolean(false)
+      }
+    } else {
+      return .boolean(false)
+    }
 
     if let minVal = arguments["min"]?.intValue, count < minVal {
       return .boolean(false)

@@ -19,10 +19,10 @@ import {provide} from '@lit/context';
 import {customElement, state} from 'lit/decorators.js';
 import {MessageProcessor} from '@a2ui/web_core/v1_0';
 import type {A2uiClientAction} from '@a2ui/web_core/v0_9';
-import {basicCatalog as basicCatalogV09} from '@a2ui/lit/v0_9';
 import {Context} from '@a2ui/lit';
 import {basicCatalog as basicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
 import {renderMarkdown} from '@a2ui/markdown-it';
+import {demoCatalog} from './demo-catalog.js';
 import {getDemoItems, DemoItem, ExplorerMessage, SpecVersion} from './examples';
 import {appStyles} from './local-gallery.css';
 
@@ -45,7 +45,7 @@ export class LocalGallery extends LitElement {
   private markdownRenderer = renderMarkdown;
 
   private processor = new MessageProcessor(
-    [basicCatalogV09, basicCatalogV10],
+    [demoCatalog, basicCatalogV10],
     (action: A2uiClientAction) => {
       this.log(`Action dispatched: ${action.surfaceId}`, action);
       this.actionLog.push(action);

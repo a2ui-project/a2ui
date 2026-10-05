@@ -124,6 +124,37 @@ def to_semver(v: ProtocolVersion | str | SemVer | None) -> Optional[SemVer]:
 _to_semver = to_semver
 
 
+def to_protocol_version(version: ProtocolVersion | str | SemVer) -> ProtocolVersion:
+    """Returns the ProtocolVersion member that a version designates.
+
+    The major, minor and patch numbers must match a member; pre-release and
+    build metadata are ignored, so '1.0.0-beta' designates v1.0.
+
+    Args:
+        version: For example 'v0.9', '0.9.1', '1.0.0' or ProtocolVersion.V1_0.
+
+    Raises:
+        ValueError: If the version cannot be parsed or is not a protocol
+            version that this SDK defines.
+    """
+    # Imported here because the schema package depends on this module.
+    from ..schema import ProtocolVersion
+
+    if isinstance(version, ProtocolVersion):
+        return version
+    parsed = _to_semver(version)
+    if parsed is not None:
+        for member in ProtocolVersion:
+            known = _to_semver(member.value)
+            if known is not None and (known.major, known.minor, known.patch) == (
+                parsed.major,
+                parsed.minor,
+                parsed.patch,
+            ):
+                return member
+    raise ValueError(f"Unknown protocol version: '{version}'")
+
+
 def to_canonical_version(
     version: ProtocolVersion | str | SemVer | None,
 ) -> str | None:

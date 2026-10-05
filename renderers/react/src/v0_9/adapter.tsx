@@ -22,7 +22,7 @@ import {
   type InferredComponentApiSchemaType,
   type ResolveA2uiProps,
 } from '@a2ui/web_core/v0_9';
-import {LoadingPlaceholder, useNodeView} from './node-view';
+import {useNodeView} from './node-view';
 import type {
   NodeViewProps,
   ReactA2uiComponentProps,
@@ -91,9 +91,6 @@ export function createComponentImplementation<Api extends ComponentApi>(
 
   const NodeView: React.FC<NodeViewProps> = ({node, buildChild}) => {
     const {viewProps, context, viewBuildChild} = useNodeView(node, buildChild);
-    if (!context) {
-      return <LoadingPlaceholder componentId={node.componentId} />;
-    }
     return (
       <MemoizedRender props={viewProps as Props} buildChild={viewBuildChild} context={context} />
     );
@@ -120,9 +117,6 @@ export function createBinderlessComponentImplementation(
     // component binds its own values from the context, so its child ids are
     // raw component ids, not view tokens.
     const {context, rawBuildChild} = useNodeView(node, buildChild);
-    if (!context) {
-      return <LoadingPlaceholder componentId={node.componentId} />;
-    }
     return <RenderComponent context={context} buildChild={rawBuildChild} />;
   };
   NodeView.displayName = `${api.name}.view`;

@@ -41,10 +41,6 @@ a2ui-core = { workspace = true }
 requires = [
   "hatchling",
   "hatch-vcs",
-  "jsonschema",
-  "pyink>=24.10.0",
-  "antlr4-tools>=0.2.1",
-  "antlr4-python3-runtime>=4.13.0,<4.14.0"
 ]
 build-backend = "hatchling.build"
 
@@ -71,15 +67,10 @@ git_describe_command = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/a2ui"]
-artifacts = ["src/a2ui/assets/**"]
 core-metadata-version = "2.4"
 
 [tool.hatch.build.targets.sdist]
-artifacts = ["src/a2ui/assets/**"]
 core-metadata-version = "2.4"
-
-[tool.hatch.build.hooks.custom]
-path = "pack_specs_hook.py"
 
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
@@ -87,7 +78,6 @@ default = true
 [dependency-groups]
 dev = [
     "antlr4-tools>=0.2.1",
-    "hatchling>=1.30.1",
     "types-jsonschema",
     "types-pyyaml",
 ]

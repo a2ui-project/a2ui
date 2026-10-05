@@ -22,7 +22,7 @@ from ...schema.common_types import StrictBaseModel
 class Theme(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
     primary_color: str | None = Field(
-        None,
+        default=None,
         alias="primaryColor",
         description=(
             "The primary brand color used for highlights (e.g., primary buttons, active"
@@ -32,15 +32,16 @@ class Theme(BaseModel):
         pattern=r"^#[0-9a-fA-F]{6}$",
     )
     icon_url: str | None = Field(
-        None,
+        default=None,
         alias="iconUrl",
         description=(
             "A URL for an image that identifies the agent or tool associated with the"
             " surface."
         ),
+        json_schema_extra={"format": "uri"},
     )
     agent_display_name: str | None = Field(
-        None,
+        default=None,
         alias="agentDisplayName",
         description=(
             "Text to be displayed next to the surface to identify the agent or tool"

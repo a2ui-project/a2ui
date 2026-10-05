@@ -103,7 +103,7 @@ def _coerce_action(value: dict[str, Any]) -> Action:
     """
     inner = value.get("event")
     if isinstance(inner, str):
-        return Action(event=ActionEvent(name=inner, context=None))
+        return Action(event=ActionEvent(name=inner))
     if not {"event", "functionCall", "function_call"} & value.keys():
         return Action(event=ActionEvent.model_validate(value))
     return Action.model_validate(value)
@@ -175,9 +175,7 @@ class _MacroProcessor:
                 # checker. Inference output is not type-checked, though, so the
                 # shorthands an LLM naturally emits are mapped here instead.
                 elif isinstance(p_val, str) and _is_action_type(t):
-                    coerced_args[p_name] = Action(
-                        event=ActionEvent(name=p_val, context=None)
-                    )
+                    coerced_args[p_name] = Action(event=ActionEvent(name=p_val))
                 elif (
                     isinstance(p_val, dict)
                     and _is_action_type(t)

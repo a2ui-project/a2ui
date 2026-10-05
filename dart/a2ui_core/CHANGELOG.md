@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Breaking:** `UpdateDataModelMessage` adds `hasValue` (defaulting to `true`) so `toJson()` emits `'value': null` for explicit null deletions while `fromJson()` distinguishes an omitted `value` from an explicit `null`.
+- **Breaking:** `SurfaceModel.dispatchAction` records action timestamps in UTC (`DateTime.now().toUtc()`) and `A2uiClientAction.toJson()` serializes timestamps in UTC (`timestamp.toUtc().toIso8601String()`) so serialized timestamps always end with `Z` per RFC 3339.
+- **Breaking:** `A2uiClientError` validates in its constructor (not only in debug assertions) that a `VALIDATION_FAILED` error provides a non-empty `path`, throwing `A2uiValidationError`.
+- `ComponentModel.toJson` writes `id` and `component` after the component's properties, so a property named `id` or `component` no longer replaces the model's own.
+- Harden `ExpressionParser` to clamp scanner bounds at EOF, reject unclosed
+  string literals and trailing backslashes with `A2uiExpressionError`, accept
+  `@`-prefixed function names (such as `${@index()}` and
+  `${@index(offset: 1)}`), and accept `~0` and `~1` JSON Pointer escapes inside
+  `${}` paths while rejecting malformed `~` escapes and non-leading `@` tokens.
+- Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
+- Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
+- `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.
 - **Deprecated:** `SchemaCatalog` is renamed `CatalogApi`, matching
   `ComponentApi` and `FunctionApi`. `SchemaCatalog` stays as a deprecated alias
   and will be removed in a later release.

@@ -14,10 +14,13 @@
 
 """Module for providing A2UI catalog schemas and resources."""
 
-import json
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
+import copy
+import json
 from json.decoder import JSONDecodeError
 from typing import Any, cast
+
 from .constants import ENCODING
 
 
@@ -46,3 +49,13 @@ class FileSystemCatalogProvider(A2uiCatalogProvider):
                 return cast(dict[str, Any], json.load(f))
         except (FileNotFoundError, JSONDecodeError) as e:
             raise IOError(f"Could not load schema from {self.path}: {e}") from e
+
+
+class InMemoryCatalogProvider(A2uiCatalogProvider):
+    """Loads catalog definition from an in-memory dictionary schema."""
+
+    def __init__(self, catalog: Mapping[str, Any]):
+        self.catalog = catalog
+
+    def load(self) -> dict[str, Any]:
+        return copy.deepcopy(dict(self.catalog))

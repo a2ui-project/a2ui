@@ -41,7 +41,9 @@ def invoke(name: str, args: dict, context: Any = None) -> Any:
 def test_logical_and():
     assert invoke("and", {"values": [True, True]}) is True
     assert invoke("and", {"values": [True, False]}) is False
-    assert invoke("and", {"values": [True]}) is True
+    # The specification requires at least two values.
+    with pytest.raises(ValidationError):
+        invoke("and", {"values": [True]})
 
 
 def test_logical_or():

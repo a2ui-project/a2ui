@@ -31,13 +31,20 @@ const port = 4200;
 const mimeTypes = {
   '.html': 'text/html',
   '.js': 'application/javascript',
+  '.mjs': 'application/javascript',
   '.css': 'text/css',
   '.json': 'application/json',
+  '.map': 'application/json',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
   '.gif': 'image/gif',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.webp': 'image/webp',
 };
 
 /**
@@ -59,10 +66,26 @@ const server = http.createServer((req, res) => {
   let filePath = path.join(distDir, pathname === '/' ? 'index.html' : pathname);
   const relative = path.relative(distDir, filePath);
   const isSafe = !relative.startsWith('..') && !path.isAbsolute(relative);
-  if (!isSafe || !fs.existsSync(filePath)) {
-    filePath = path.join(distDir, 'index.html'); // SPA routing fallback
+  if (!isSafe) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
   }
-  const ext = path.extname(filePath);
+  if (!fs.existsSync(filePath)) {
+    const reqExt = path.extname(pathname).toLowerCase();
+    const isStaticAsset =
+      reqExt &&
+      reqExt !== '.html' &&
+      (reqExt in mimeTypes || reqExt === '.map' || reqExt === '.mjs');
+    if (!isStaticAsset) {
+      filePath = path.join(distDir, 'index.html'); // SPA routing fallback
+    } else {
+      res.writeHead(404, {'Content-Type': 'text/plain'});
+      res.end(`Not Found: ${pathname}`);
+      return;
+    }
+  }
+  const ext = path.extname(filePath).toLowerCase();
   const contentType = mimeTypes[ext] || 'application/octet-stream';
 
   fs.readFile(filePath, (err, content) => {

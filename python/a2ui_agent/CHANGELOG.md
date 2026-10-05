@@ -1,7 +1,30 @@
 ## Unreleased
 
+- **BREAKING**: The SDK no longer bundles specification JSON files.
+  `load_from_bundled_resource` and `A2UI_ASSET_PACKAGE` are removed; get the
+  agent-to-renderer schema from `get_agent_to_renderer_schema_map` in
+  `a2ui.core` instead. `PROTOCOL_VERSION_MAP`, its alias `SPEC_VERSION_MAP`,
+  `SERVER_TO_CLIENT_SCHEMA_KEY` and `COMMON_TYPES_SCHEMA_KEY`, which described
+  the specification files, are removed too. The `VERSION_*` constants still
+  name the supported versions (#2964).
+- Building or installing the SDK from source no longer regenerates the Express
+  parser, so it no longer needs Java. The generated parser stays committed; after
+  changing `Express.g4`, run `scripts/generate_express_parser.py` (#2964).
 - Catalogs that inference formats and `A2uiCatalog.core_catalog` take or return are typed `CatalogApi` from `a2ui.core` instead of `Catalog[Any, Any]`.
 - Add A2UI Macros API under `a2ui.transformers.macros` (`@macro` decorator and `MacroExpander`), enabling authoring of reusable, high-level composite components using fluent Python builder classes that lower into primitive A2UI component subtrees (`transform_to_transport`) and synthesize inference catalog schemas (`transform_to_inference_catalog`, `to_catalog`) (#2519).
+- **BREAKING**: The common types schema is no longer bundled as an asset.
+  `A2uiCatalog.from_config` and `DirectJsonFormat` take it from a2ui-core's
+  generated schema (`a2ui.schema.utils.load_common_types_schema`), the same
+  definitions that payload validation uses.
+- Streaming validation errors quote the schema's own pattern (for example
+  `\p{XID_Start}`) instead of its expansion for Python's `re` module.
+- **BREAKING**: `a2ui.basic_catalog` (`BasicCatalog`, `BundledCatalogProvider`,
+  and `BASIC_CATALOG_NAME`) is removed, and the basic catalog JSON files are no
+  longer bundled. Use `BasicCatalog` from `a2ui.core.basic_catalog` instead:
+  `BasicCatalog.get_config(version)` becomes
+  `CatalogConfig.from_catalog("basic", BasicCatalog(version))`.
+- Add `CatalogConfig.from_catalog` and `InMemoryCatalogProvider` (exported from
+  `a2ui.schema`) to configure a catalog from an `a2ui.core` catalog instance.
 
 ## 0.7.0 (2026-09-28)
 

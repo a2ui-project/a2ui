@@ -32,7 +32,7 @@ class A2uiRendererAction(StrictBaseModel):
         ),
     )
     user_message: str | None = Field(
-        None,
+        default=None,
         alias="userMessage",
         description=(
             "An optional human-readable string describing the action performed by the"
@@ -64,7 +64,7 @@ class A2uiRendererAction(StrictBaseModel):
         ),
     )
     metadata: Extensions | None = Field(
-        None,
+        default=None,
         description=(
             "Optional renderer-side metadata to send back to the agent with the action."
         ),
@@ -145,7 +145,7 @@ class A2uiGenericError(BaseModel):
         ),
     )
     surface_id: str | None = Field(
-        None,
+        default=None,
         alias="surfaceId",
         description=(
             "The id of the surface where the error occurred. It must be globally unique"
@@ -153,7 +153,7 @@ class A2uiGenericError(BaseModel):
         ),
     )
     function_call_id: str | None = Field(
-        None,
+        default=None,
         alias="functionCallId",
         description=(
             "The unique ID of the function invocation, which must be identical to the"

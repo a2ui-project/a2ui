@@ -47,9 +47,10 @@ String? _skipReason(Map<String, Object?> testCase) {
   if (version != null && version != '0.9' && version != '0.9.1') {
     return 'Targets protocol v$version; this SDK implements v0.9 only.';
   }
-  if (testCase['useBasicCatalog'] == true) {
-    return 'useBasicCatalog tests the Python BasicCatalog '
-        'Pydantic class generator.';
+  if (testCase.containsKey('expectCatalog') ||
+      testCase['useBasicCatalog'] == true) {
+    return 'expectCatalog checks the SDK implementation of the basic '
+        'catalog against the specification.';
   }
   return null;
 }
@@ -69,7 +70,10 @@ void _runCase(Map<String, Object?> testCase) {
 void _runFromJsonCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final Map<String, Object?> rawCatalog = _document(
-    testCase['catalogSchema'] ?? testCase['catalog'] ?? testCase['schema'],
+    testCase['catalogSchema'] ??
+        testCase['catalog'] ??
+        testCase['schema'] ??
+        testCase['catalogPath'],
   );
   final overrideId = testCase['catalogId'] as String?;
   final input = <String, Object?>{
@@ -126,7 +130,10 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
 
 void _runCatalogSchemaCase(Map<String, Object?> testCase) {
   final Map<String, Object?> source = _document(
-    testCase['catalogSchema'] ?? testCase['catalog'] ?? testCase['schema'],
+    testCase['catalogSchema'] ??
+        testCase['catalog'] ??
+        testCase['schema'] ??
+        testCase['catalogPath'],
   );
   final CatalogApi catalog = Catalog.fromJson(source);
 

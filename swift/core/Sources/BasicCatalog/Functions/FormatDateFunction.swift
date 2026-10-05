@@ -56,7 +56,11 @@ public final class FormatDateFunction: FunctionImplementation, Sendable {
         } else {
           date = Date(timeIntervalSince1970: parsedNumber)
         }
-      } else if let parsedDate = ISO8601DateFormatter().date(from: valueString) {
+      } else if let parsedDate = {
+        let isoFractional = ISO8601DateFormatter()
+        isoFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return isoFractional.date(from: valueString) ?? ISO8601DateFormatter().date(from: valueString)
+      }() {
         date = parsedDate
       } else {
         // Simple fallback for standard yyyy-MM-dd if not full ISO8601
@@ -74,9 +78,17 @@ public final class FormatDateFunction: FunctionImplementation, Sendable {
       return .string("")
     }
 
+    if format == "ISO" {
+      let formatter = DateFormatter()
+      formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+      formatter.timeZone = TimeZone(secondsFromGMT: 0)
+      formatter.locale = Locale(identifier: "en_US_POSIX")
+      return .string(formatter.string(from: date))
+    }
+
     let formatter = DateFormatter()
     formatter.dateFormat = format
-    formatter.locale = Locale.current
+    formatter.locale = Locale(identifier: "en_US_POSIX")
 
     return .string(formatter.string(from: date))
   }
