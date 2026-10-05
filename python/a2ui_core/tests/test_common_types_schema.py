@@ -221,6 +221,18 @@ def test_dynamic_type_index_matches_specification(version: str) -> None:
         "properties": {"default": {"type": "string"}},
     }
 
+    # The `additionalProperties` keyword keeps its `anyOf`, while a property
+    # named `additionalProperties` is cleaned like any other property.
+    string_or_number = [{"type": "string"}, {"type": "number"}]
+    schema_with_additional = {
+        "additionalProperties": {"anyOf": string_or_number},
+        "properties": {"additionalProperties": {"anyOf": string_or_number}},
+    }
+    assert clean_schema_node(schema_with_additional, dynamic_index=index) == {
+        "additionalProperties": {"anyOf": string_or_number},
+        "properties": {"additionalProperties": {"oneOf": string_or_number}},
+    }
+
 
 def _inline_refs(node: Any, defs: dict[str, Any]) -> Any:
     """Replaces local refs to `defs` with their content; siblings take precedence."""

@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 import pytest
 
-from a2ui.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import (
     A2uiCatalogProvider,
@@ -41,8 +41,9 @@ SAMPLE_CONFIGS = [
                 catalog_path="inline_catalog_0.9.json",
                 examples_path=f"examples/{VERSION_0_9}",
             ),
-            BasicCatalog.get_config(
-                version=VERSION_0_9,
+            CatalogConfig.from_catalog(
+                "basic",
+                BasicCatalog(VERSION_0_9),
             ),
         ],
         "schema_modifiers": [remove_strict_validation],
@@ -52,8 +53,9 @@ SAMPLE_CONFIGS = [
         "name": "restaurant_finder",
         "path": SAMPLES_DIR / "restaurant_finder",
         "catalogs": [
-            BasicCatalog.get_config(
-                version=VERSION_0_9,
+            CatalogConfig.from_catalog(
+                "basic",
+                BasicCatalog(VERSION_0_9),
                 examples_path="examples/0.9",
             )
         ],

@@ -28,11 +28,12 @@ from a2ui.a2a import (
     get_a2ui_agent_extension,
     parse_response_to_parts,
 )
-from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.parser.parser import parse_response
 from a2ui.core.schema.common_modifiers import remove_strict_validation
 from a2ui.core.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8
 from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.schema import CatalogConfig
 import dotenv
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
@@ -80,8 +81,9 @@ class ContactAgent:
         return DirectJsonFormat(
             version=version,
             catalogs=[
-                BasicCatalog.get_config(
-                    version=version,
+                CatalogConfig.from_catalog(
+                    "basic",
+                    BasicCatalog(version),
                     examples_path=os.path.join(
                         os.path.dirname(__file__), f"examples/{version}"
                     ),

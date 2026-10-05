@@ -15,6 +15,9 @@ site/
 .venv/
 coverage/
 
+# Older a2ui-agent-sdk builds copied specification JSON into these directories.
+# Nothing writes there anymore, but older checkouts can still have the files;
+# these rules keep them out of commits and locally built wheels.
 ## old agent SDK path
 a2a_agents/python/a2ui_agent/src/a2ui/assets/**/*.json
 agent_sdks/python/src/a2ui/assets/**/*.json
