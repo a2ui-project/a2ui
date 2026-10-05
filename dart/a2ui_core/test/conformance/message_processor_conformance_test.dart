@@ -22,37 +22,36 @@ import 'package:test/test.dart';
 import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
-/// Cases in `core/message_processor_v1_0.yaml` expected to fail, each naming
-/// the change that clears it.
+/// Cases in `core/message_processor_v1_0.yaml` expected to fail, with the
+/// reason each is currently failing.
 const Map<String, String> _v10ExpectedFailures = {
   'test_batch_duplicate_component_ids_in_same_message_error':
-      'B2: the v1.0 common types are not embedded yet.',
+      'The v1.0 common types are not embedded yet.',
   'test_batch_multi_stage_lifecycle_pipeline':
-      'B2: the v1.0 common types are not embedded yet.',
+      'The v1.0 common types are not embedded yet.',
   'test_composition_constraints_preserved_on_partial_parent_update':
-      'B2: the v1.0 common types are not embedded yet.',
+      'The v1.0 common types are not embedded yet.',
   'test_permissive_mode_allows_dangling_references':
-      'B2: the v1.0 common types are not embedded yet.',
+      'The v1.0 common types are not embedded yet.',
   'test_permissive_mode_allows_orphan_components':
-      'B2: the v1.0 common types are not embedded yet.',
+      'The v1.0 common types are not embedded yet.',
   'test_v10_component_catalog_override':
-      'B2: the v1.0 common types are not embedded yet.',
+      'The v1.0 common types are not embedded yet.',
   'test_v10_create_surface_inline_initialization':
-      'B2: the v1.0 common types are not embedded yet.',
+      'The v1.0 common types are not embedded yet.',
   'test_v10_update_components_mismatched_catalog_protocol_version_error':
-      'B2: the v1.0 common types are not embedded yet.',
+      'The v1.0 common types are not embedded yet.',
   'test_v10_get_renderer_capabilities':
-      'B3b-caps: getRendererCapabilities does not emit v1.0 capabilities yet.',
+      'getRendererCapabilities does not emit v1.0 capabilities yet.',
   'test_v10_create_surface_metadata_extension_key_must_be_identifier':
-      'B2: metadata extension keys are not checked against the v1.0 schema '
-          'yet.',
+      'Metadata extension keys are not checked against the v1.0 schema yet.',
 };
 
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to
-/// fail, each naming the change that clears it.
+/// fail, with the reason each is currently failing.
 const Map<String, String> _reservedKeysExpectedFailures = {
   'test_escaped_doubled_at_unescaping':
-      'B2: the v1.0 common types are not embedded yet, so the inline '
+      'The v1.0 common types are not embedded yet, so the inline '
           'component cannot be validated.',
 };
 
