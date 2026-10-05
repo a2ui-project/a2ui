@@ -155,20 +155,19 @@ Use this approach if you wait for the LLM to finish its entire response before p
 
 **1. Parse, Validate, and Fix**
 
-Validate the LLM's JSON output before returning it. The SDK's `PayloadValidator` validates the payload and the parser attempts to fix simple errors (e.g., trailing commas).
+Validate the LLM's JSON output before returning it. The parser attempts to fix simple errors (e.g., trailing commas), and `validate_payload` raises `A2uiValidationError` if a renderer holding the catalog would reject the payload.
 
 ```python
-from a2ui.core import PayloadValidator
-from a2ui.parser.parser import parse_response
+from a2ui.parser import parse_response
+from a2ui.utils import validate_payload
 
 # Parse the full response into parts
 response_parts = parse_response(full_text)
-validator = PayloadValidator(selected_catalog)
 
 for part in response_parts:
   if part.a2ui_json:
     # Validate against schema
-    validator.validate(part.a2ui_json)
+    validate_payload([selected_catalog], part.a2ui_json)
 ```
 
 **2. Stream the A2UI Payload**
@@ -192,7 +191,7 @@ yield {
 
 ##### Option B: Incremental Streaming Parsing (Advanced)
 
-Use this approach for sub-second UI updates. The `DirectJsonStreamParser` **automatically parses, validates, and fixes (heals)** the JSON payload chunks _incrementally_ as they arrive from the LLM stream. It yields valid UI messages _before_ the entire JSON block is complete by automatically closing open quotes and braces.
+Use this approach for sub-second UI updates. The `DirectJsonStreamParser` **automatically parses, validates, and fixes (heals)** the JSON payload chunks _incrementally_ as they arrive from the LLM stream. It yields valid UI messages _before_ the entire JSON block is complete by automatically closing open quotes and braces. Create it with the format's `create_stream_parser`, so that it validates with the format's schema modifiers and heals the format's progressive keys.
 
 > [!IMPORTANT]
 > **Prerequisite**: To use incremental streaming, your agent executor must support streaming mode. In ADK, enable this using `RunConfig`:
@@ -204,10 +203,9 @@ Use this approach for sub-second UI updates. The `DirectJsonStreamParser` **auto
 > ```
 
 ```python
-from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.a2a.parts import create_a2ui_part
 
-parser = DirectJsonStreamParser(catalog=selected_catalog)
+parser = schema_manager.create_stream_parser(selected_catalog)
 
 # Inside your LLM stream loop:
 for chunk in llm_response_stream:
@@ -333,7 +331,7 @@ When the LLM calls the UI tool, the toolset uses the dynamic catalog to:
 2. **Parse and Fix Payloads**: Parse and fix the LLM's generated JSON using the
    parser and payload-fixer.
 3. **Validate Payloads**: Validate the LLM's generated JSON against the specific
-   `Catalog` object via `PayloadValidator`.
+   `Catalog` object with `a2ui.utils.validate_payload`.
 
 ### 3. Multiple Version Support
 

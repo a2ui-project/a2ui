@@ -1,5 +1,74 @@
 ## Unreleased
 
+- **BREAKING**: `A2uiCatalog` is removed. Inference formats, prompt
+  generators, parsers, skills, macros and the ADK toolset take and return the
+  `a2ui.core` catalog itself, typed `CatalogApi`. The protocol schemas that
+  `A2uiCatalog` carried come from the inference format or from `a2ui.core`
+  (#2966). To migrate:
+  - `A2uiCatalog.from_config(config, version)` becomes
+    `config.to_catalog(protocol_version=version)`, and
+    `A2uiCatalog.from_json_file(path)` becomes
+    `CatalogConfig.from_path(name, path).to_catalog()`.
+  - `core_catalog` is the catalog itself, `version` becomes
+    `protocol_version`, and `name` stays on `CatalogConfig`.
+  - `catalog_schema` is the schema that the core catalog generates. Unlike
+    the file, it refers to common types locally, has the catalog's own
+    definitions inlined, and has no `$id`, `title` or `description`.
+  - `s2c_schema` and `common_types_schema` are no longer on the catalog. The
+    inference format holds them, with its schema modifiers applied, and
+    `get_agent_to_renderer_schema_map` and `get_common_types_schema_map` in
+    `a2ui.core` return the published ones.
+  - `with_pruning(allowed_components, allowed_messages)` becomes
+    `ComponentPruningTransformer(allowed_components)`, applied with
+    `transform` or passed to `CatalogConfig` as `transformers`, and
+    `render_schema_block(catalog, allowed_messages=...)`.
+  - `render_as_llm_instructions()` becomes `render_schema_block(catalog)` from
+    `a2ui.inference_formats.direct_json`.
+  - `load_examples(path, validate)` becomes
+    `load_examples([catalog], path, validate)` from `a2ui.schema`.
+  - `validate_components(payload)`, which returned a list of errors, becomes
+    `validate_payload([catalog], payload)` from `a2ui.utils`, which raises
+    `A2uiValidationError`.
+  - `validator` becomes `PayloadValidator(catalog)` from `a2ui.core`.
+- Add `a2ui.catalog_transformers` with `CatalogTransformer`,
+  `ComponentPruningTransformer` and `FunctionPruningTransformer`.
+  `CatalogConfig` takes `transformers`, which `to_catalog` applies after the
+  schema modifiers (#2966).
+- Add `a2ui.utils`. `resolve_catalogs` returns the catalogs that are active
+  for the capabilities a renderer sent. `prune_messages_schema` and
+  `prune_common_types_schema` reduce the protocol schemas. `validate_payload`
+  checks a payload the way a renderer holding the catalogs would, including
+  the `version` that each message states, and raises `A2uiValidationError`
+  (#2966).
+- Add `render_schema_block` to `a2ui.inference_formats.direct_json`, and
+  `DirectJsonFormat.create_stream_parser`, which builds a stream parser with
+  the format's protocol schemas, after its schema modifiers, and its
+  progressive keys (#2966).
+- **BREAKING**: `CatalogConfig.custom_cuttable_keys` is removed. The string
+  keys that the Direct JSON stream parser heals are now a format option,
+  `DirectJsonFormat(progressive_keys=...)`, which replaces the defaults. The
+  defaults are exported as `DEFAULT_PROGRESSIVE_KEYS` from
+  `a2ui.inference_formats.direct_json`, and an empty set turns healing off
+  (#2966).
+- **BREAKING**: Allowlists are read literally. An empty `allowed_components`
+  now keeps no components and an empty `allowed_messages` keeps no messages;
+  before, an empty list kept everything. `None` still keeps everything
+  (#2966).
+- **BREAKING**: `DirectJsonFormat.get_selected_catalog` raises
+  `A2uiCatalogError` for an empty `supportedCatalogIds` without inline
+  catalogs instead of falling back to the first catalog. It also accepts
+  capabilities keyed by protocol version, such as `{"v0.9": {...}}` (#2966).
+- `DirectJsonFormat.get_selected_catalog` still accepts `allowed_messages`
+  but doesn't apply it, since a core catalog doesn't hold the
+  server-to-client schema. The prompt generator applies it when it renders
+  the schemas, and the stream parser no longer enforces it (#2966).
+- `SendA2uiToClientToolset` now returns a tool error, with the validation
+  message, for a payload that fails validation. Before, it ignored the errors
+  that `validate_components` returned (#2966).
+- The schema helpers of the Express, Elemental and Atom formats follow a
+  catalog's own `$defs` references, so a catalog built from models, such as
+  `BasicCatalog("0.9")`, keeps properties that it defines there, such as
+  `weight` (#2966).
 - **BREAKING**: The SDK no longer bundles specification JSON files.
   `load_from_bundled_resource` and `A2UI_ASSET_PACKAGE` are removed; get the
   agent-to-renderer schema from `get_agent_to_renderer_schema_map` in
@@ -10,12 +79,12 @@
 - Building or installing the SDK from source no longer regenerates the Express
   parser, so it no longer needs Java. The generated parser stays committed; after
   changing `Express.g4`, run `scripts/generate_express_parser.py` (#2964).
-- Catalogs that inference formats and `A2uiCatalog.core_catalog` take or return are typed `CatalogApi` from `a2ui.core` instead of `Catalog[Any, Any]`.
+- Catalogs that inference formats take or return are typed `CatalogApi` from `a2ui.core` instead of `Catalog[Any, Any]`.
 - Add A2UI Macros API under `a2ui.transformers.macros` (`@macro` decorator and `MacroExpander`), enabling authoring of reusable, high-level composite components using fluent Python builder classes that lower into primitive A2UI component subtrees (`transform_to_transport`) and synthesize inference catalog schemas (`transform_to_inference_catalog`, `to_catalog`) (#2519).
 - **BREAKING**: The common types schema is no longer bundled as an asset.
-  `A2uiCatalog.from_config` and `DirectJsonFormat` take it from a2ui-core's
-  generated schema (`a2ui.schema.utils.load_common_types_schema`), the same
-  definitions that payload validation uses.
+  `DirectJsonFormat` takes it from a2ui-core's generated schema
+  (`a2ui.schema.utils.load_common_types_schema`), the same definitions that
+  payload validation uses.
 - Streaming validation errors quote the schema's own pattern (for example
   `\p{XID_Start}`) instead of its expansion for Python's `re` module.
 - **BREAKING**: `a2ui.basic_catalog` (`BasicCatalog`, `BundledCatalogProvider`,
