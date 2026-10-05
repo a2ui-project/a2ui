@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `ComponentModel.toJson` writes `id` and `component` after the component's properties, so a property named `id` or `component` no longer replaces the model's own.
 - `DataPath` preserves whether a parsed or constructed path is relative or
   absolute (`isAbsolute`), omits the leading `/` from `toString()` when
   relative, validates RFC 6901 `~0`/`~1` escape sequences in `DataPath.parse`,

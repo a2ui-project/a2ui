@@ -162,6 +162,103 @@ class StreamingParserTest {
   }
 
   @Test
+  fun v09ParserWithoutCatalogHoldsTreeBackInsteadOfEmittingPlaceholders() {
+    val parser = StreamingParserV09(null)
+    val chunks =
+      listOf(
+        "${A2uiConstants.A2UI_OPEN_TAG}[{\"version\": \"v0.9\", \"createSurface\": {\"surfaceId\": \"s1\", \"catalogId\": \"c1\"}},",
+        "{\"version\": \"v0.9\", \"updateComponents\": {\"surfaceId\": \"s1\", \"components\": [{\"id\": \"root\", \"component\": \"Stack\", \"children\": [\"c1\", \"c2\"]}",
+        ", {\"id\": \"c1\", \"component\": \"Text\", \"text\": \"child 1\"}",
+        ", {\"id\": \"c2\", \"component\": \"Text\", \"text\": \"child 2\"}]}}]${A2uiConstants.A2UI_CLOSE_TAG}",
+      )
+
+    val yielded = chunks.map { componentsYielded(parser.processChunk(it), "updateComponents") }
+
+    assertEquals(
+      listOf(emptyList(), emptyList(), emptyList(), listOf("c1=Text", "c2=Text", "root=Stack")),
+      yielded,
+    )
+  }
+
+  @Test
+  fun v08ParserWithoutCatalogHoldsTreeBackInsteadOfEmittingPlaceholders() {
+    val parser = StreamingParserV08(null)
+    val chunks =
+      listOf(
+        "${A2uiConstants.A2UI_OPEN_TAG}[{\"beginRendering\": {\"surfaceId\": \"s1\", \"root\": \"root\"}},",
+        "{\"surfaceUpdate\": {\"surfaceId\": \"s1\", \"components\": [{\"id\": \"root\", \"component\": {\"Stack\": {\"children\": {\"explicitList\": [\"c1\", \"c2\"]}}}}",
+        ", {\"id\": \"c1\", \"component\": {\"Text\": {\"text\": {\"literalString\": \"child 1\"}}}}",
+        ", {\"id\": \"c2\", \"component\": {\"Text\": {\"text\": {\"literalString\": \"child 2\"}}}}]}}]${A2uiConstants.A2UI_CLOSE_TAG}",
+      )
+
+    val yielded = chunks.map { componentsYielded(parser.processChunk(it), "surfaceUpdate") }
+
+    assertEquals(
+      listOf(emptyList(), emptyList(), emptyList(), listOf("c1=Text", "c2=Text", "root=Stack")),
+      yielded,
+    )
+  }
+
+  @Test
+  fun v09ParserWithoutCatalogLeavesNestedChildReferenceInsteadOfPlaceholder() {
+    val parser = StreamingParserV09(null)
+    parser.processChunk(
+      "${A2uiConstants.A2UI_OPEN_TAG}[{\"version\": \"v0.9\", \"createSurface\": {\"surfaceId\": \"s1\", \"catalogId\": \"c1\"}},"
+    )
+
+    val parts =
+      parser.processChunk(
+        "{\"version\": \"v0.9\", \"updateComponents\": {\"surfaceId\": \"s1\", \"components\": [{\"id\": \"root\", \"component\": \"Panel\", \"header\": {\"child\": \"title\"}}"
+      )
+
+    assertEquals(listOf("root=Panel"), componentsYielded(parts, "updateComponents"))
+    val root = yieldedComponent(parts, "updateComponents", "root")
+    assertEquals("title", (root["header"] as JsonObject)["child"]?.jsonPrimitive?.content)
+  }
+
+  @Test
+  fun v09ParserWithoutCatalogLeavesNestedChildListInsteadOfPlaceholders() {
+    val parser = StreamingParserV09(null)
+    parser.processChunk(
+      "${A2uiConstants.A2UI_OPEN_TAG}[{\"version\": \"v0.9\", \"createSurface\": {\"surfaceId\": \"s1\", \"catalogId\": \"c1\"}},"
+    )
+
+    val parts =
+      parser.processChunk(
+        "{\"version\": \"v0.9\", \"updateComponents\": {\"surfaceId\": \"s1\", \"components\": [{\"id\": \"root\", \"component\": \"Panel\", \"body\": {\"children\": [\"item\"]}}"
+      )
+
+    assertEquals(listOf("root=Panel"), componentsYielded(parts, "updateComponents"))
+    val root = yieldedComponent(parts, "updateComponents", "root")
+    val children = (root["body"] as JsonObject)["children"] as JsonArray
+    assertEquals(listOf("item"), children.map { it.jsonPrimitive.content })
+  }
+
+  private fun yieldedComponent(parts: List<ResponsePart>, msgType: String, id: String): JsonObject =
+    parts
+      .flatMap { it.a2uiJson ?: emptyList() }
+      .mapNotNull { (it as? JsonObject)?.get(msgType) as? JsonObject }
+      .flatMap { it["components"] as? JsonArray ?: JsonArray(emptyList()) }
+      .map { it as JsonObject }
+      .last { it["id"]?.jsonPrimitive?.content == id }
+
+  /** Lists the components in [msgType] messages among [parts] as `id=type`. */
+  private fun componentsYielded(parts: List<ResponsePart>, msgType: String): List<String> =
+    parts
+      .flatMap { it.a2uiJson ?: emptyList() }
+      .mapNotNull { (it as? JsonObject)?.get(msgType) as? JsonObject }
+      .flatMap { it["components"] as? JsonArray ?: JsonArray(emptyList()) }
+      .map { comp ->
+        val obj = comp as JsonObject
+        val type =
+          when (val c = obj["component"]) {
+            is JsonObject -> c.keys.first()
+            else -> c?.jsonPrimitive?.content
+          }
+        "${obj["id"]?.jsonPrimitive?.content}=$type"
+      }
+
+  @Test
   fun throwsExceptionWhenJsonBufferExceedsMaxSizeLimit() {
     val parser = StreamingParser.create(null)
     parser.processChunk(A2uiConstants.A2UI_OPEN_TAG)
