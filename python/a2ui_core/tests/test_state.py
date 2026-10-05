@@ -42,7 +42,7 @@ def test_component_model_lifecycle():
     comp.on_updated.subscribe(lambda c: events.append(c))
 
     assert comp.properties == {"label": "Click"}
-    assert comp.component_tree == {"id": "c1", "type": "Button", "label": "Click"}
+    assert comp.component_tree == {"id": "c1", "component": "Button", "label": "Click"}
 
     comp.properties = {"label": "Submit", "disabled": True}
     assert len(events) == 1
@@ -263,8 +263,20 @@ def test_component_model():
     comp.properties = {"text": "World"}
     assert updated == ["World"]
 
-    expected_tree = {"id": "comp_1", "type": "Text", "text": "World"}
+    expected_tree = {"id": "comp_1", "component": "Text", "text": "World"}
     assert comp.component_tree == expected_tree
+
+
+def test_component_tree_keeps_type_property_apart_from_component_type():
+    chart = ComponentModel(
+        "chart1", "Chart", dummy_catalog, {"type": "pie", "title": "Sales"}
+    )
+    assert chart.component_tree == {
+        "id": "chart1",
+        "component": "Chart",
+        "type": "pie",
+        "title": "Sales",
+    }
 
 
 def test_component_model_validate():
@@ -275,6 +287,13 @@ def test_component_model_validate():
     with pytest.raises(A2uiValidationError) as exc_info:
         invalid_comp.validate()
     assert exc_info.value.details
+
+
+def test_component_model_validate_keeps_component_type_over_component_property():
+    comp = ComponentModel(
+        "c1", "Text", dummy_catalog, {"text": "Hello", "component": "Bogus"}
+    )
+    assert comp.validate() is None
 
 
 def test_validate_components_update_atomic():
