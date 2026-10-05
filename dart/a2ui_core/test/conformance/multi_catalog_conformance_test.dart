@@ -18,10 +18,10 @@ import 'package:test/test.dart';
 
 import 'conformance_harness.dart';
 
-/// Cases that cannot run yet, keyed by name, with the change they wait on.
+/// Cases that cannot run yet, keyed by name, with the reason they are skipped.
 const Map<String, String> _skipped = {
   'test_multi_catalog_function_call_catalog_id_override':
-      'Needs v1.0 common types from B2 (dart_core_b2_validator_v1_0)',
+      'Requires embedded v1.0 common types.',
 };
 
 /// Runs the shared `conformance/core/multi_catalog.yaml` suite against
