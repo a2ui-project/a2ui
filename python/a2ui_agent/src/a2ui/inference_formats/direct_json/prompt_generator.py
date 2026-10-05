@@ -177,7 +177,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
         """
         return catalog_to_prompt(
             catalog,
-            s2c_schema=self._format._server_to_client_schema if self._format else None,
+            a2r_schema=self._format._server_to_client_schema if self._format else None,
             common_types_schema=(
                 self._format._common_types_schema if self._format else None
             ),

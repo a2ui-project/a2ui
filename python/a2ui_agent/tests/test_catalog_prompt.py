@@ -25,7 +25,7 @@ from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import catalog_to_prompt
 from a2ui.schema import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0, constants
 
-_S2C = "Server To Client Schema"
+_A2R = "Server To Client Schema"
 _COMMON_TYPES = "Common Types Schema"
 _CATALOG = "Catalog Schema"
 
@@ -48,8 +48,8 @@ def _sections(block: str) -> dict[str, Any]:
     return sections
 
 
-def _message_refs(s2c_schema: dict[str, Any]) -> list[str]:
-    return [item["$ref"].removeprefix("#/$defs/") for item in s2c_schema["oneOf"]]
+def _message_refs(a2r_schema: dict[str, Any]) -> list[str]:
+    return [item["$ref"].removeprefix("#/$defs/") for item in a2r_schema["oneOf"]]
 
 
 def _label_catalog() -> CatalogApi:
@@ -77,7 +77,7 @@ def test_catalog_to_prompt_puts_the_sections_between_the_markers_in_order():
 
     assert block.startswith(constants.A2UI_SCHEMA_BLOCK_START + "\n\n")
     assert block.endswith("\n\n" + constants.A2UI_SCHEMA_BLOCK_END)
-    assert list(_sections(block)) == [_S2C, _COMMON_TYPES, _CATALOG]
+    assert list(_sections(block)) == [_A2R, _COMMON_TYPES, _CATALOG]
 
 
 def test_catalog_to_prompt_includes_the_catalog_schema():
@@ -92,22 +92,22 @@ def test_catalog_to_prompt_includes_the_catalog_schema():
 def test_catalog_to_prompt_loads_the_v0_9_schemas_by_default(version):
     sections = _sections(catalog_to_prompt(BasicCatalog(version)))
 
-    assert _message_refs(sections[_S2C]) == _V09_MESSAGES
+    assert _message_refs(sections[_A2R]) == _V09_MESSAGES
     assert sections[_COMMON_TYPES]["$defs"]
 
 
 def test_catalog_to_prompt_loads_the_v1_0_schemas_by_default():
     sections = _sections(catalog_to_prompt(BasicCatalog(VERSION_1_0)))
 
-    assert "CallRendererFunctionMessage" in _message_refs(sections[_S2C])
+    assert "CallRendererFunctionMessage" in _message_refs(sections[_A2R])
     assert sections[_COMMON_TYPES]["$defs"]
 
 
 def test_catalog_to_prompt_has_no_common_types_section_for_v0_8():
     sections = _sections(catalog_to_prompt(BasicCatalog(VERSION_0_8)))
 
-    assert list(sections) == [_S2C, _CATALOG]
-    assert set(sections[_S2C]["properties"]) == _V08_MESSAGES
+    assert list(sections) == [_A2R, _CATALOG]
+    assert set(sections[_A2R]["properties"]) == _V08_MESSAGES
 
 
 def test_catalog_to_prompt_keeps_every_message_without_an_allowlist():
@@ -115,7 +115,7 @@ def test_catalog_to_prompt_keeps_every_message_without_an_allowlist():
         catalog_to_prompt(BasicCatalog(VERSION_0_9), allowed_messages=None)
     )
 
-    assert _message_refs(sections[_S2C]) == _V09_MESSAGES
+    assert _message_refs(sections[_A2R]) == _V09_MESSAGES
 
 
 def test_catalog_to_prompt_keeps_only_the_allowed_messages():
@@ -126,9 +126,9 @@ def test_catalog_to_prompt_keeps_only_the_allowed_messages():
         )
     )
 
-    s2c = sections[_S2C]
-    assert _message_refs(s2c) == ["CreateSurfaceMessage", "UpdateComponentsMessage"]
-    assert set(s2c["$defs"]) == {"CreateSurfaceMessage", "UpdateComponentsMessage"}
+    a2r = sections[_A2R]
+    assert _message_refs(a2r) == ["CreateSurfaceMessage", "UpdateComponentsMessage"]
+    assert set(a2r["$defs"]) == {"CreateSurfaceMessage", "UpdateComponentsMessage"}
 
 
 def test_catalog_to_prompt_keeps_no_message_with_an_empty_allowlist():
@@ -136,8 +136,8 @@ def test_catalog_to_prompt_keeps_no_message_with_an_empty_allowlist():
         catalog_to_prompt(BasicCatalog(VERSION_0_9), allowed_messages=[])
     )
 
-    assert sections[_S2C]["oneOf"] == []
-    assert sections[_S2C]["$defs"] == {}
+    assert sections[_A2R]["oneOf"] == []
+    assert sections[_A2R]["$defs"] == {}
 
 
 def test_catalog_to_prompt_keeps_only_the_allowed_v0_8_messages():
@@ -148,11 +148,11 @@ def test_catalog_to_prompt_keeps_only_the_allowed_v0_8_messages():
         )
     )
 
-    assert set(sections[_S2C]["properties"]) == {"beginRendering", "surfaceUpdate"}
+    assert set(sections[_A2R]["properties"]) == {"beginRendering", "surfaceUpdate"}
 
 
 def test_catalog_to_prompt_uses_the_given_schemas():
-    s2c_schema = {
+    a2r_schema = {
         "type": "object",
         "properties": {"surfaceId": {"$ref": "common_types.json#/$defs/SurfaceName"}},
     }
@@ -166,20 +166,20 @@ def test_catalog_to_prompt_uses_the_given_schemas():
             "UnusedType": {"type": "number"},
         }
     }
-    s2c_before = copy.deepcopy(s2c_schema)
+    a2r_before = copy.deepcopy(a2r_schema)
     common_types_before = copy.deepcopy(common_types_schema)
 
     sections = _sections(
         catalog_to_prompt(
             _label_catalog(),
-            s2c_schema=s2c_schema,
+            a2r_schema=a2r_schema,
             common_types_schema=common_types_schema,
         )
     )
 
-    assert sections[_S2C] == s2c_schema
+    assert sections[_A2R] == a2r_schema
     # The catalog refers to DynamicString, which refers to StringPath, and the
-    # server-to-client schema refers to SurfaceName. Nothing refers to
+    # agent-to-renderer schema refers to SurfaceName. Nothing refers to
     # UnusedType.
     assert sections[_COMMON_TYPES] == {
         "$defs": {
@@ -188,7 +188,7 @@ def test_catalog_to_prompt_uses_the_given_schemas():
             "SurfaceName": {"type": "string"},
         }
     }
-    assert s2c_schema == s2c_before
+    assert a2r_schema == a2r_before
     assert common_types_schema == common_types_before
 
 
@@ -196,10 +196,10 @@ def test_catalog_to_prompt_omits_common_types_that_nothing_uses():
     sections = _sections(
         catalog_to_prompt(
             _label_catalog(),
-            s2c_schema={},
+            a2r_schema={},
             common_types_schema={"$defs": {"UnusedType": {"type": "number"}}},
         )
     )
 
-    assert list(sections) == [_S2C, _CATALOG]
-    assert sections[_S2C] == {}
+    assert list(sections) == [_A2R, _CATALOG]
+    assert sections[_A2R] == {}
