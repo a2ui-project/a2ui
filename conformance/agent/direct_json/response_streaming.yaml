@@ -278,7 +278,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["value"]
   steps:
-    - input: '<a2ui-json>[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": {"call": "formatString", "args": {"value": "Hel'
+    - input: '<a2ui-json>[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": {"@call": "formatString", "args": {"value": "Hel'
       expect:
         - a2ui:
             - version: "v1.0"
@@ -288,7 +288,7 @@
                   - id: "root"
                     component: "Text"
                     text:
-                      call: "formatString"
+                      "@call": "formatString"
                       args:
                         value: "Hel"
     - input: 'lo"}}}]}}]</a2ui-json>'
@@ -301,7 +301,7 @@
                   - id: "root"
                     component: "Text"
                     text:
-                      call: "formatString"
+                      "@call": "formatString"
                       args:
                         value: "Hello"
 
@@ -450,7 +450,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["text"]
   steps:
-    - input: '<a2ui-json>[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": {"path": "/user'
+    - input: '<a2ui-json>[{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": {"@path": "/user'
       expect: []
     - input: '/name"}}]}}]</a2ui-json>'
       expect:
@@ -462,7 +462,7 @@
                   - id: "root"
                     component: "Text"
                     text:
-                      path: "/user/name"
+                      "@path": "/user/name"
   expect_matches_single_shot: true
 
 - name: test_chunk_partial_component_name_withholds
