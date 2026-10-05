@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""The block of schemas that the Direct JSON format shows the model."""
+"""The catalog prompt text that the Direct JSON format shows the model."""
 
 from collections.abc import Mapping, Sequence
 import json
@@ -24,18 +24,21 @@ from a2ui.schema.utils import load_agent_to_renderer_schema, load_common_types_s
 from a2ui.utils import prune_common_types_schema, prune_messages_schema
 
 
-def render_schema_block(
+def catalog_to_prompt(
     catalog: CatalogApi,
     *,
     s2c_schema: Mapping[str, Any] | None = None,
     common_types_schema: Mapping[str, Any] | None = None,
     allowed_messages: Sequence[str] | None = None,
 ) -> str:
-    """Renders a catalog and the protocol schemas as one prompt block.
+    """Returns the prompt text that describes a catalog to the model.
 
-    The block sits between `---BEGIN A2UI JSON SCHEMA---` and
-    `---END A2UI JSON SCHEMA---` lines and holds the server-to-client schema,
-    the common types schema and the catalog schema, in that order.
+    The text holds more than the catalog. It also includes the protocol
+    schemas the model needs to write messages for it: the server-to-client
+    schema and the common types that the catalog or that schema reference.
+    The three sit between `---BEGIN A2UI JSON SCHEMA---` and
+    `---END A2UI JSON SCHEMA---` lines, in the order server-to-client schema,
+    common types schema, catalog schema.
 
     Args:
       catalog: The catalog to describe.
@@ -43,13 +46,13 @@ def render_schema_block(
         catalog's protocol version.
       common_types_schema: The common types schema. Defaults to the schema for
         the catalog's protocol version. Only the types that the catalog or the
-        server-to-client schema reference are rendered.
+        server-to-client schema reference are included.
       allowed_messages: The messages to keep in the server-to-client schema,
         as `prune_messages_schema` reads them. `None` keeps every message, and
         an empty list keeps none.
 
     Returns:
-      The schema block.
+      The prompt text.
 
     Raises:
       A2uiCatalogError: If a default schema is needed and the catalog's

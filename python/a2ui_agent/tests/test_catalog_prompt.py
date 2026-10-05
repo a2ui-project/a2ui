@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for `a2ui.inference_formats.direct_json.render_schema_block`."""
+"""Unit tests for `a2ui.inference_formats.direct_json.catalog_to_prompt`."""
 
 import copy
 import json
@@ -22,7 +22,7 @@ import pytest
 
 from a2ui.core import Catalog, CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import render_schema_block
+from a2ui.inference_formats.direct_json import catalog_to_prompt
 from a2ui.schema import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0, constants
 
 _S2C = "Server To Client Schema"
@@ -72,55 +72,55 @@ def _label_catalog() -> CatalogApi:
     )
 
 
-def test_render_schema_block_puts_the_sections_between_the_markers_in_order():
-    block = render_schema_block(BasicCatalog(VERSION_0_9))
+def test_catalog_to_prompt_puts_the_sections_between_the_markers_in_order():
+    block = catalog_to_prompt(BasicCatalog(VERSION_0_9))
 
     assert block.startswith(constants.A2UI_SCHEMA_BLOCK_START + "\n\n")
     assert block.endswith("\n\n" + constants.A2UI_SCHEMA_BLOCK_END)
     assert list(_sections(block)) == [_S2C, _COMMON_TYPES, _CATALOG]
 
 
-def test_render_schema_block_renders_the_catalog_schema():
+def test_catalog_to_prompt_includes_the_catalog_schema():
     catalog = BasicCatalog(VERSION_0_9)
 
-    sections = _sections(render_schema_block(catalog))
+    sections = _sections(catalog_to_prompt(catalog))
 
     assert sections[_CATALOG] == catalog.catalog_schema
 
 
 @pytest.mark.parametrize("version", [VERSION_0_9, VERSION_0_9_1])
-def test_render_schema_block_loads_the_v0_9_schemas_by_default(version):
-    sections = _sections(render_schema_block(BasicCatalog(version)))
+def test_catalog_to_prompt_loads_the_v0_9_schemas_by_default(version):
+    sections = _sections(catalog_to_prompt(BasicCatalog(version)))
 
     assert _message_refs(sections[_S2C]) == _V09_MESSAGES
     assert sections[_COMMON_TYPES]["$defs"]
 
 
-def test_render_schema_block_loads_the_v1_0_schemas_by_default():
-    sections = _sections(render_schema_block(BasicCatalog(VERSION_1_0)))
+def test_catalog_to_prompt_loads_the_v1_0_schemas_by_default():
+    sections = _sections(catalog_to_prompt(BasicCatalog(VERSION_1_0)))
 
     assert "CallRendererFunctionMessage" in _message_refs(sections[_S2C])
     assert sections[_COMMON_TYPES]["$defs"]
 
 
-def test_render_schema_block_has_no_common_types_section_for_v0_8():
-    sections = _sections(render_schema_block(BasicCatalog(VERSION_0_8)))
+def test_catalog_to_prompt_has_no_common_types_section_for_v0_8():
+    sections = _sections(catalog_to_prompt(BasicCatalog(VERSION_0_8)))
 
     assert list(sections) == [_S2C, _CATALOG]
     assert set(sections[_S2C]["properties"]) == _V08_MESSAGES
 
 
-def test_render_schema_block_keeps_every_message_without_an_allowlist():
+def test_catalog_to_prompt_keeps_every_message_without_an_allowlist():
     sections = _sections(
-        render_schema_block(BasicCatalog(VERSION_0_9), allowed_messages=None)
+        catalog_to_prompt(BasicCatalog(VERSION_0_9), allowed_messages=None)
     )
 
     assert _message_refs(sections[_S2C]) == _V09_MESSAGES
 
 
-def test_render_schema_block_keeps_only_the_allowed_messages():
+def test_catalog_to_prompt_keeps_only_the_allowed_messages():
     sections = _sections(
-        render_schema_block(
+        catalog_to_prompt(
             BasicCatalog(VERSION_0_9),
             allowed_messages=["CreateSurfaceMessage", "UpdateComponentsMessage"],
         )
@@ -131,18 +131,18 @@ def test_render_schema_block_keeps_only_the_allowed_messages():
     assert set(s2c["$defs"]) == {"CreateSurfaceMessage", "UpdateComponentsMessage"}
 
 
-def test_render_schema_block_keeps_no_message_with_an_empty_allowlist():
+def test_catalog_to_prompt_keeps_no_message_with_an_empty_allowlist():
     sections = _sections(
-        render_schema_block(BasicCatalog(VERSION_0_9), allowed_messages=[])
+        catalog_to_prompt(BasicCatalog(VERSION_0_9), allowed_messages=[])
     )
 
     assert sections[_S2C]["oneOf"] == []
     assert sections[_S2C]["$defs"] == {}
 
 
-def test_render_schema_block_keeps_only_the_allowed_v0_8_messages():
+def test_catalog_to_prompt_keeps_only_the_allowed_v0_8_messages():
     sections = _sections(
-        render_schema_block(
+        catalog_to_prompt(
             BasicCatalog(VERSION_0_8),
             allowed_messages=["beginRendering", "surfaceUpdate"],
         )
@@ -151,7 +151,7 @@ def test_render_schema_block_keeps_only_the_allowed_v0_8_messages():
     assert set(sections[_S2C]["properties"]) == {"beginRendering", "surfaceUpdate"}
 
 
-def test_render_schema_block_uses_the_given_schemas():
+def test_catalog_to_prompt_uses_the_given_schemas():
     s2c_schema = {
         "type": "object",
         "properties": {"surfaceId": {"$ref": "common_types.json#/$defs/SurfaceName"}},
@@ -170,7 +170,7 @@ def test_render_schema_block_uses_the_given_schemas():
     common_types_before = copy.deepcopy(common_types_schema)
 
     sections = _sections(
-        render_schema_block(
+        catalog_to_prompt(
             _label_catalog(),
             s2c_schema=s2c_schema,
             common_types_schema=common_types_schema,
@@ -192,9 +192,9 @@ def test_render_schema_block_uses_the_given_schemas():
     assert common_types_schema == common_types_before
 
 
-def test_render_schema_block_omits_common_types_that_nothing_uses():
+def test_catalog_to_prompt_omits_common_types_that_nothing_uses():
     sections = _sections(
-        render_schema_block(
+        catalog_to_prompt(
             _label_catalog(),
             s2c_schema={},
             common_types_schema={"$defs": {"UnusedType": {"type": "number"}}},

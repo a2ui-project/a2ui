@@ -21,8 +21,8 @@
   - `with_pruning(allowed_components, allowed_messages)` becomes
     `ComponentPruningTransformer(allowed_components)`, applied with
     `transform` or passed to `CatalogConfig` as `transformers`, and
-    `render_schema_block(catalog, allowed_messages=...)`.
-  - `render_as_llm_instructions()` becomes `render_schema_block(catalog)` from
+    `catalog_to_prompt(catalog, allowed_messages=...)`.
+  - `render_as_llm_instructions()` becomes `catalog_to_prompt(catalog)` from
     `a2ui.inference_formats.direct_json`.
   - `load_examples(path, validate)` becomes
     `load_examples([catalog], path, validate)` from `a2ui.schema`.
@@ -40,7 +40,9 @@
   checks a payload the way a renderer holding the catalogs would, including
   the `version` that each message states, and raises `A2uiValidationError`
   (#2966).
-- Add `render_schema_block` to `a2ui.inference_formats.direct_json`, and
+- Add `catalog_to_prompt` to `a2ui.inference_formats.direct_json`, which
+  returns the prompt text for a catalog together with the server-to-client
+  schema and the common types it references, and
   `DirectJsonFormat.create_stream_parser`, which builds a stream parser with
   the format's protocol schemas, after its schema modifiers, and its
   progressive keys (#2966).

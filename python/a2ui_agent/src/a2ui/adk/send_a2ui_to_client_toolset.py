@@ -98,7 +98,7 @@ from google.genai import types as genai_types
 
 from a2ui.adk.a2a import A2uiPartConverter
 from a2ui.core import A2uiValidationError, Catalog, CatalogApi
-from a2ui.inference_formats.direct_json import render_schema_block
+from a2ui.inference_formats.direct_json import catalog_to_prompt
 from a2ui.parser import parse_and_fix
 from a2ui.schema import constants
 from a2ui.schema.constants import (
@@ -286,7 +286,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
             a2ui_catalog = await self._resolve_a2ui_catalog(tool_context)
 
-            instruction = render_schema_block(a2ui_catalog)
+            instruction = catalog_to_prompt(a2ui_catalog)
             examples = await self._resolve_a2ui_examples(tool_context)
 
             llm_request.append_instructions([instruction, examples])
