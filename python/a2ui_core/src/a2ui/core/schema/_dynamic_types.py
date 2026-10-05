@@ -229,6 +229,8 @@ def clean_schema_node(
     is_properties_dict: bool = False,
     is_union_container: bool = False,
     dynamic_index: DynamicTypeIndex = EMPTY_DYNAMIC_INDEX,
+    is_defs_dict: bool = False,
+    is_additional_properties: bool = False,
 ) -> Any:
     """Recursively cleans auto-generated Pydantic schema attributes.
 
@@ -254,8 +256,15 @@ def clean_schema_node(
                 v,
                 referenced_dynamics=referenced_dynamics,
                 is_properties_dict=(k == "properties"),
-                is_union_container=(k in ("anyComponent", "anyFunction")),
+                is_union_container=(
+                    k in ("anyComponent", "anyFunction")
+                    or (is_defs_dict and k in dynamic_index.names)
+                ),
                 dynamic_index=dynamic_index,
+                is_defs_dict=(k == "$defs" and not is_properties_dict),
+                is_additional_properties=(
+                    k == "additionalProperties" and not is_properties_dict
+                ),
             )
 
         return _clean_node_keywords(
@@ -264,6 +273,7 @@ def clean_schema_node(
             is_properties_dict,
             is_union_container,
             dynamic_index,
+            is_additional_properties=is_additional_properties,
         )
     elif isinstance(node, list):
         return [
@@ -284,6 +294,7 @@ def _clean_node_keywords(
     is_properties_dict: bool,
     is_union_container: bool,
     dynamic_index: DynamicTypeIndex,
+    is_additional_properties: bool = False,
 ) -> Any:
     """Applies `clean_schema_node`'s node-level rules to a node whose children are clean."""
     if (
@@ -328,11 +339,16 @@ def _clean_node_keywords(
                     is_properties_dict=False,
                     is_union_container=False,
                     dynamic_index=dynamic_index,
+                    is_additional_properties=is_additional_properties,
                 )
             else:
                 return single_item
         else:
-            target_def = resolve_dynamic_def(items, dynamic_index)
+            target_def = (
+                None
+                if is_union_container
+                else resolve_dynamic_def(items, dynamic_index)
+            )
             if target_def:
                 referenced_dynamics.add(target_def)
                 parent_attrs = {k: v for k, v in cleaned.items() if k != union_key}
@@ -341,6 +357,15 @@ def _clean_node_keywords(
                 return res
 
             if union_key == "anyOf":
+                # Keep anyOf in additionalProperties or if branches are constraint schemas
+                if is_additional_properties or any(
+                    isinstance(it, dict)
+                    and "required" in it
+                    and "type" not in it
+                    and "$ref" not in it
+                    for it in items
+                ):
+                    return cleaned
                 del cleaned["anyOf"]
             cleaned["oneOf"] = items
 

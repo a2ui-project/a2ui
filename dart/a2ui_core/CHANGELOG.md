@@ -2,8 +2,49 @@
 
 ## Unreleased
 
+- **Breaking:** `UpdateDataModelMessage` adds `hasValue` (defaulting to `true`) so `toJson()` emits `'value': null` for explicit null deletions while `fromJson()` distinguishes an omitted `value` from an explicit `null`.
+- **Breaking:** `SurfaceModel.dispatchAction` records action timestamps in UTC (`DateTime.now().toUtc()`) and `A2uiClientAction.toJson()` serializes timestamps in UTC (`timestamp.toUtc().toIso8601String()`) so serialized timestamps always end with `Z` per RFC 3339.
+- **Breaking:** `A2uiClientError` validates in its constructor (not only in debug assertions) that a `VALIDATION_FAILED` error provides a non-empty `path`, throwing `A2uiValidationError`.
 - `ComponentModel.toJson` writes `id` and `component` after the component's properties, so a property named `id` or `component` no longer replaces the model's own.
 - Add `isValidUax31Identifier`, `assertValidUax31Identifier`, and `assertUax31Identifier` for UAX #31 identifier validation, `A2uiErrorDetail`, `cause` chaining on `A2uiError` subclasses, and `code`/`path`/`errors` on `A2uiValidationError` (with `A2uiSchemaError`, `A2uiUnsupportedVersionError`, and `A2uiOperationError`). `A2uiError` now takes `code` as a named parameter, and `A2uiValidationError` aligns its default code to `'VALIDATION_FAILED'`.
+- **Breaking:** Message constructors no longer default `version` to
+  `'v0.9'`; every `AgentToRendererMessage` and `RendererToAgentMessage`
+  subclass takes a required `version`. `A2uiClientAction.fromJson` and
+  `A2uiClientError.fromJson` take a required `protocolVersion`.
+- `A2uiProtocolVersion` adds `v0_9_1` and `v1_0`. `'v0.9.1'` now parses to
+  `v0_9_1` instead of `v0_9`. The enum adds `parse`, `major`, `minor`,
+  `compareTo` and `isAtLeast`. Payload parsers and `PayloadValidator` accept
+  v0.9.1 envelopes where v0.9 is configured, and the reverse.
+  `A2uiRendererCapabilities.forVersion` falls back to a compatible declared
+  version in the same way.
+- Added `isCatalogVersionCompatible` and `compareVersions`, matching the
+  TypeScript and Python SDKs.
+- Added the v1.0 messages `CallRendererFunctionMessage`,
+  `AgentFunctionResponseMessage`, `CallAgentFunctionMessage` and
+  `RendererFunctionResponseMessage`, with `A2uiFunctionResponse` and
+  `A2uiFunctionResponseError` for function results. They are rejected in
+  v0.9 and v0.9.1 envelopes.
+- `CreateSurfaceMessage.catalogId` is optional, as v1.0 allows. The class adds
+  the v1.0 `components`, `dataModel` and `metadata` fields. v1.0 rejects
+  `theme`, and v0.9 rejects the v1.0 fields.
+- `A2uiClientAction` adds `catalogId` and `metadata`.
+- `A2uiClientError` follows the v1.0 rules. `UNALLOWED_PARENT` and
+  `UNALLOWED_CHILD` are path errors like `VALIDATION_FAILED`, and path errors
+  reject extra fields. A generic error names exactly one of `surfaceId` and
+  the new `functionCallId`, and keeps its other fields in
+  `additionalProperties`. `surfaceId` is now nullable.
+- Envelope parsing checks each version's allowed and required keys. It
+  rejects unknown envelope and body keys, an empty `components` list, and a
+  v1.0 `updateDataModel` without `value`. A new oracle test checks the parsers
+  against the specification's envelope schemas.
+- `PayloadValidator.commonTypesFor` throws for v1.0, whose common types this
+  package does not embed yet.
+- Harden `ExpressionParser` to clamp scanner bounds at EOF, reject unclosed
+  string literals and trailing backslashes with `A2uiExpressionError`, accept
+  `@`-prefixed function names (such as `${@index()}` and
+  `${@index(offset: 1)}`), and accept `~0` and `~1` JSON Pointer escapes inside
+  `${}` paths while rejecting malformed `~` escapes and non-leading `@` tokens.
+- Add `DataContext.isDataBinding`, `DataContext.isFunctionCall`, and `DataContext.bindingFor` for protocol-version-aware binding and function-call detection; adapt `FormatStringFunction` parser AST nodes (`@path`/`@call`) in v1.0 mode, pre-build function argument signals outside `computed` in `DataContext.resolveListenable`, skip binding/call validation inside `updateDataModel.value` in `checkPathsAndRecursion`, and report unrecognized or invalid action payloads on `SurfaceModel.onError` with code `INVALID_ACTION`.
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
 - `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.

@@ -287,8 +287,8 @@ def _defs_refs(node: Any) -> set[str]:
     return refs
 
 
-TComponent = TypeVar("TComponent", bound=ComponentApi, default=Any)
-TFunction = TypeVar("TFunction", bound=FunctionApi, default=Any)
+TComponent = TypeVar("TComponent", bound=ComponentApi, default=Any, covariant=True)
+TFunction = TypeVar("TFunction", bound=FunctionApi, default=Any, covariant=True)
 
 
 class Catalog(Generic[TComponent, TFunction]):

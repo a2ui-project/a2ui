@@ -14,7 +14,11 @@
 
 from . import constants as constants
 from .catalog import A2uiCatalog, CatalogConfig
-from .catalog_provider import A2uiCatalogProvider, FileSystemCatalogProvider
+from .catalog_provider import (
+    A2uiCatalogProvider,
+    FileSystemCatalogProvider,
+    InMemoryCatalogProvider,
+)
 from .common_modifiers import remove_strict_validation
 from .constants import (
     A2UI_CLOSE_TAG,
@@ -24,8 +28,6 @@ from .constants import (
     CATALOG_COMPONENTS_KEY,
     CATALOG_ID_KEY,
     CATALOG_SCHEMA_KEY,
-    PROTOCOL_VERSION_MAP,
-    SPEC_VERSION_MAP,
     VERSION_0_8,
     VERSION_0_9,
     VERSION_0_9_1,
@@ -44,8 +46,7 @@ __all__ = [
     "CATALOG_SCHEMA_KEY",
     "CatalogConfig",
     "FileSystemCatalogProvider",
-    "PROTOCOL_VERSION_MAP",
-    "SPEC_VERSION_MAP",
+    "InMemoryCatalogProvider",
     "VERSION_0_8",
     "VERSION_0_9",
     "VERSION_0_9_1",
