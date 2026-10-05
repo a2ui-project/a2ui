@@ -47,14 +47,10 @@ String? _skipReason(Map<String, Object?> testCase) {
   if (version != null && version != '0.9' && version != '0.9.1') {
     return 'Targets protocol v$version; this SDK implements v0.9 only.';
   }
-<<<<<<< HEAD
-=======
-  if (testCase.containsKey('expectCatalog') ||
-      testCase['useBasicCatalog'] == true) {
+  if (testCase.containsKey('expectCatalog')) {
     return 'expectCatalog checks the SDK implementation of the basic '
         'catalog against the specification.';
   }
->>>>>>> upstream/main
   return null;
 }
 
