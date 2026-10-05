@@ -24,99 +24,98 @@ import 'conformance_harness.dart';
 /// Conformance cases in `core/validator_v0_9.yaml` that are expected to fail.
 const Map<String, String> _v09ExpectedFailures = {};
 
-/// Cases in `core/validator_v1_0.yaml` expected to fail, each naming the
-/// change that clears it.
+/// Cases in `core/validator_v1_0.yaml` expected to fail.
 const Map<String, String> _v10ExpectedFailures = {
   'test_custom_catalog_1_0':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_component_nesting_depth_limit_exceeded_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_component_nesting_depth_within_limit':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_data_model_nesting_depth_limit_exceeded_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_incremental_update_circular_reference_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_incremental_update_duplicate_component_id_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_incremental_update_same_component_id_across_messages':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_incremental_update_self_reference_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_incremental_update_without_root':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_multi_surface_independent_roots':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_multi_surface_missing_root_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_topology_circular_reference_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_topology_dangling_child_reference_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_topology_missing_root_component_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_topology_orphaned_component_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_topology_plain_string_property_not_treated_as_child_ref':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_topology_self_reference_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_topology_structured_array_item_dangling_child_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_topology_template_child_reachable':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_topology_template_dangling_reference_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_uax31_invalid_identifier_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_validator_1_0':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
 };
 
 /// The `validate` cases in `core/reserved_keys.yaml` expected to fail.
 const Map<String, String> _reservedKeysExpectedFailures = {
   'test_escaped_doubled_at_unescaping':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_plain_object_escaped_doubled_at_key':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_plain_object_with_literal_path_and_call':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_reserved_at_call_index':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_reserved_at_call_valid':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_reserved_at_path_valid':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
 };
 
 /// Cases in `core/composition_constraints.yaml` expected to fail.
 const Map<String, String> _compositionExpectedFailures = {
   'test_composition_surface_implicit_parent_container':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_composition_unallowed_child_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_composition_unallowed_parent_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
 };
 
 /// Cases in `core/validation_result.yaml` expected to fail.
 const Map<String, String> _validationResultExpectedFailures = {
   'test_validation_result_boolean_fallback':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_validation_result_dynamic_object_return':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
 };
 
 /// Cases in `core/index_function.yaml` expected to fail.
 const Map<String, String> _indexFunctionExpectedFailures = {
   'test_index_function_in_collection_loop':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_index_function_nested_path':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_index_function_outside_loop_error':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
   'test_index_function_with_offset':
-      'B2: the v1.0 common types and validator rules are not embedded yet.',
+      'The v1.0 common types and validator rules are not embedded yet.',
 };
 
 /// Runs the shared validator suites against [MessageProcessor.processMessages],

@@ -67,8 +67,8 @@ void main() {
       (
         'v1.0',
         BasicCatalog.v1_0(),
-        'B2 (#2994): child references are found through `ComponentId` and '
-            '`ChildList`, not the v1.0 `Child` type.',
+        'Child references are found through `ComponentId` and '
+            '`ChildList`, not the v1.0 `Child` type yet.',
       ),
     ]) {
       test('$label declares the child references of its layout components',
@@ -109,7 +109,7 @@ void main() {
     '../catalogs/basic/v1/examples',
     BasicCatalog.v1_0,
     A2uiProtocolVersion.v1_0,
-    skip: 'B2 (#2994): the v1.0 common types the v1.0 component schemas '
+    skip: 'The v1.0 common types the v1.0 component schemas '
         'reference are not embedded yet.',
   );
 }

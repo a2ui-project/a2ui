@@ -40,24 +40,24 @@ void main() {
   });
 }
 
-/// Cases expected to fail, each naming the change that clears it.
+/// Cases expected to fail.
 const Map<String, String> _expectedFailures = {
   'test_v10_catalog_from_json_invalid_uax31_identifier_error':
-      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+      'v1.0 identifiers are not checked against UAX #31 yet.',
   'test_v10_uax31_invalid_argument_name':
-      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+      'v1.0 identifiers are not checked against UAX #31 yet.',
   'test_v10_uax31_invalid_armenian_hyphen_function_name':
-      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+      'v1.0 identifiers are not checked against UAX #31 yet.',
   'test_v10_uax31_invalid_component_name':
-      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+      'v1.0 identifiers are not checked against UAX #31 yet.',
   'test_v10_uax31_invalid_em_dash_property_name':
-      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+      'v1.0 identifiers are not checked against UAX #31 yet.',
   'test_v10_uax31_invalid_en_dash_component_name':
-      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+      'v1.0 identifiers are not checked against UAX #31 yet.',
   'test_v10_uax31_invalid_function_name':
-      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+      'v1.0 identifiers are not checked against UAX #31 yet.',
   'test_v10_uax31_invalid_property_name':
-      'B2: v1.0 identifiers are not checked against UAX #31 yet.',
+      'v1.0 identifiers are not checked against UAX #31 yet.',
 };
 
 /// Why a case cannot run, or null when it can.
@@ -250,8 +250,8 @@ void _runExpectCatalogCase(
 ///   and dropped, because [Catalog.fromJson] inlines them and
 ///   [Catalog.catalogSchema] emits only those three.
 /// - `$id`, `title`, `description`, `protocolVersion` and `instructions` are
-///   dropped. The reference harness drops the first four; `instructions` has
-///   no [Catalog] field until B4 (#2995).
+///   dropped. The reference harness drops the first four; [Catalog] does not
+///   carry an `instructions` field yet.
 /// - A function's own `description` and `requiresUserActivation` (the v1.0
 ///   `openUrl` declares it) are dropped, because [FunctionApi] carries
 ///   neither for [Catalog.catalogSchema] to emit.
