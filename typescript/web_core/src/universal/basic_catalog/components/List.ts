@@ -28,8 +28,6 @@ function getChildKey(child: any): string {
 
 export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApis> {
   /** @nocollapse */
-  static readonly tagName = 'a2ui-list';
-  /** @nocollapse */
   static override styles = css`
     .a2ui-list {
       display: flex;

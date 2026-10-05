@@ -20,8 +20,6 @@ import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {CheckBoxSupportedApis} from './supported_apis.js';
 
 export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-checkbox';
   /**
    * The styles of the checkbox can be customized by redefining the following
    * CSS variables:
@@ -37,8 +35,7 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupp
    * @nocollapse
    */
   static override styles = css`
-    :host,
-    a2ui-checkbox {
+    :host {
       display: block;
     }
     .container {

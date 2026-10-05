@@ -45,9 +45,6 @@ function getChildKey(child: any): string {
 }
 
 export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<RowSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-basic-row';
-
   /**
    * The styles of the row can be customized by redefining the following
    * CSS variables:
@@ -57,8 +54,7 @@ export class A2uiBasicRowElement extends BasicCatalogA2uiLitElement<RowSupported
    * @nocollapse
    */
   static override styles = css`
-    :host,
-    a2ui-basic-row {
+    :host {
       display: flex;
       flex-direction: row;
       gap: var(--a2ui-row-gap, var(--a2ui-spacing-m));

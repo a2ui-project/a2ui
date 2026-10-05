@@ -165,7 +165,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     ]);
 
     const surface = processor.model.getSurface('s-a11y')!;
-    const el = document.createElement('a2ui-basic-text') as A2uiWebComponentElement;
+    const el = document.createElement('a2ui-basic-text-v1') as A2uiWebComponentElement;
     cleanupElements.push(el);
     document.body.appendChild(el);
 
@@ -234,7 +234,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
 
     const surface = processor.model.getSurface('s-props')!;
 
-    const tfEl = document.createElement('a2ui-basic-textfield') as A2uiWebComponentElement;
+    const tfEl = document.createElement('a2ui-basic-textfield-v1') as A2uiWebComponentElement;
     cleanupElements.push(tfEl);
     document.body.appendChild(tfEl);
     await asyncUpdate(tfEl, e => {
@@ -243,7 +243,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const tfInput = tfEl.querySelector('input') as HTMLInputElement;
     assert.strictEqual(tfInput.getAttribute('placeholder'), 'user@example.com');
 
-    const vidEl = document.createElement('a2ui-video') as A2uiWebComponentElement;
+    const vidEl = document.createElement('a2ui-video-v1') as A2uiWebComponentElement;
     cleanupElements.push(vidEl);
     document.body.appendChild(vidEl);
     await asyncUpdate(vidEl, e => {
@@ -252,7 +252,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const videoTag = vidEl.querySelector('video') as HTMLVideoElement;
     assert.strictEqual(videoTag.getAttribute('poster'), 'https://example.com/poster.jpg');
 
-    const sliderEl = document.createElement('a2ui-slider') as A2uiWebComponentElement;
+    const sliderEl = document.createElement('a2ui-slider-v1') as A2uiWebComponentElement;
     cleanupElements.push(sliderEl);
     document.body.appendChild(sliderEl);
     await asyncUpdate(sliderEl, e => {
@@ -360,7 +360,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     cpBinder.dispose();
 
     // Verify Slider, ChoicePicker, DateTimeInput render validationErrors
-    const sliderEl = document.createElement('a2ui-slider') as A2uiWebComponentElement;
+    const sliderEl = document.createElement('a2ui-slider-v1') as A2uiWebComponentElement;
     cleanupElements.push(sliderEl);
     document.body.appendChild(sliderEl);
     await asyncUpdate(sliderEl, e => {
@@ -371,7 +371,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       'Minimum value is 10.',
     );
 
-    const cpEl = document.createElement('a2ui-choicepicker') as A2uiWebComponentElement;
+    const cpEl = document.createElement('a2ui-choicepicker-v1') as A2uiWebComponentElement;
     cleanupElements.push(cpEl);
     document.body.appendChild(cpEl);
     await asyncUpdate(cpEl, e => {
@@ -382,7 +382,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       'This field is required.',
     );
 
-    const dtEl = document.createElement('a2ui-datetimeinput') as A2uiWebComponentElement;
+    const dtEl = document.createElement('a2ui-datetimeinput-v1') as A2uiWebComponentElement;
     cleanupElements.push(dtEl);
     document.body.appendChild(dtEl);
     await asyncUpdate(dtEl, e => {
@@ -646,7 +646,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     ]);
 
     const surface = processor.model.getSurface('s-multi')!;
-    const colEl = document.createElement('a2ui-basic-column') as A2uiWebComponentElement;
+    const colEl = document.createElement('a2ui-basic-column-v1') as A2uiWebComponentElement;
     cleanupElements.push(colEl);
     document.body.appendChild(colEl);
 
@@ -696,7 +696,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     ]);
 
     const surface = processor.model.getSurface('sSliderBounds')!;
-    const sliderEl = document.createElement('a2ui-slider') as A2uiWebComponentElement;
+    const sliderEl = document.createElement('a2ui-slider-v1') as A2uiWebComponentElement;
     cleanupElements.push(sliderEl);
     document.body.appendChild(sliderEl);
 

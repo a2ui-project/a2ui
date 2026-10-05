@@ -19,8 +19,6 @@ import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {VideoSupportedApis} from './supported_apis.js';
 
 export class A2uiVideoElement extends BasicCatalogA2uiLitElement<VideoSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-video';
   /**
    * The styles of the video can be customized by redefining the following
    * CSS variables:

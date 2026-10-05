@@ -23,8 +23,6 @@ import type {ButtonSupportedApis} from './supported_apis.js';
  * A button component that can be used to trigger an action.
  */
 export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<ButtonSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-basic-button';
   /**
    * The styles of the button can be customized by redefining the following
    * CSS variables:

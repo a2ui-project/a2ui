@@ -45,9 +45,6 @@ function getChildKey(child: any): string {
 }
 
 export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<ColumnSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-basic-column';
-
   /**
    * The styles of the column can be customized by redefining the following
    * CSS variables:
@@ -58,8 +55,7 @@ export class A2uiBasicColumnElement extends BasicCatalogA2uiLitElement<ColumnSup
    * @nocollapse
    */
   static override styles = css`
-    :host,
-    a2ui-basic-column {
+    :host {
       display: flex;
       flex-direction: column;
       width: var(--a2ui-column-width, 100%);

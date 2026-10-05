@@ -20,8 +20,6 @@ import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ModalSupportedApis} from './supported_apis.js';
 
 export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-modal';
   /**
    * The styles of the modal can be customized by redefining the following
    * CSS variables:
@@ -35,8 +33,7 @@ export class A2uiLitModal extends BasicCatalogA2uiLitElement<ModalSupportedApis>
    * @nocollapse
    */
   static override styles = css`
-    :host,
-    a2ui-modal {
+    :host {
       display: inline-block;
     }
     .a2ui-modal-wrapper {

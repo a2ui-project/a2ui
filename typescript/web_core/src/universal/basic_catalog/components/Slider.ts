@@ -19,8 +19,6 @@ import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {SliderSupportedApis} from './supported_apis.js';
 
 export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-slider';
   /**
    * The slider can be customized with the following CSS variables:
    *

@@ -20,8 +20,6 @@ import type {AudioPlayerSupportedApis} from './supported_apis.js';
 
 export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<AudioPlayerSupportedApis> {
   /** @nocollapse */
-  static readonly tagName = 'a2ui-audioplayer';
-  /** @nocollapse */
   static override styles = css`
     .a2ui-audio-player {
       display: flex;

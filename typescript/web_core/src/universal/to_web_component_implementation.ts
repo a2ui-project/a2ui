@@ -15,36 +15,42 @@
  */
 
 import type {ComponentApi} from '../catalog/types.js';
+import type {A2uiLitElement} from './a2ui-lit-element.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 
-/**
- * A Custom Element class that declares its own tag name.
- */
-export type TaggedCustomElementConstructor = CustomElementConstructor & {
-  /** The HTML tag name to register this element under. */
-  readonly tagName: string;
-};
+/** A concrete `A2uiLitElement` class the helper can derive from. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type A2uiLitElementConstructor = new (...args: any[]) => A2uiLitElement<any, any>;
 
 /**
- * Pairs a Custom Element with the API of one protocol version.
+ * Binds an `A2uiLitElement` class to the API of one protocol version.
  *
  * A single element class can serve several protocol versions. Each versioned
- * catalog calls this once per component with its own `api`, so the same
- * element and tag name are shared while the schema follows the catalog.
+ * catalog calls this once per component with its own `api` and `tagName`; the
+ * helper derives a subclass whose `api` is fixed to that version, so the same
+ * rendering code is registered once per protocol version.
  *
  * ```ts
- * export const A2uiButton = toWebComponentImplementation(A2uiBasicButtonElement, ButtonApi);
+ * export const A2uiButton = toWebComponentImplementation(
+ *   A2uiBasicButtonElement,
+ *   ButtonApi,
+ *   'a2ui-basic-button-v1',
+ * );
  * ```
  *
- * @param element The element class. Its static `tagName` becomes the
- *     implementation's tag name.
- * @param api The component API whose name and schema the implementation uses.
- * @returns A `WebComponentImplementation` combining `api`, `element`, and
- *     `element.tagName`.
+ * @param base The element class to derive from.
+ * @param api The component API the derived element binds to.
+ * @param tagName The tag the derived element is registered under.
+ * @returns A `WebComponentImplementation` combining `api`, `tagName`, and the
+ *     derived element.
  */
 export function toWebComponentImplementation<Api extends ComponentApi>(
-  element: TaggedCustomElementConstructor,
+  base: A2uiLitElementConstructor,
   api: Api,
+  tagName: string,
 ): WebComponentImplementation<Api['schema']> {
-  return {...api, tagName: element.tagName, element};
+  const element = class extends base {
+    protected override readonly api = api;
+  };
+  return {...api, tagName, element};
 }
