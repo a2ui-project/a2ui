@@ -517,7 +517,7 @@ void main() {
     });
 
     test(
-      'resolveListenable pre-builds argument signals outside computed (#82)',
+      'resolveListenable pre-builds argument signals outside computed',
       () {
         final countingModel = _WatchCountingDataModel();
         addTearDown(countingModel.dispose);

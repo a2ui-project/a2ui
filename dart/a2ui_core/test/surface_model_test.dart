@@ -58,7 +58,7 @@ void main() {
     });
 
     test(
-      'reports functionCall and call actions to onError (#65)',
+      'reports functionCall and call actions to onError',
       () async {
         final surface =
             SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
@@ -118,7 +118,7 @@ void main() {
       expect(dispatched!.userMessage, isNull);
     });
 
-    test('reports an event whose name is missing, empty, or not a string (#65)',
+    test('reports an event whose name is missing, empty, or not a string',
         () async {
       final surface = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
       A2uiClientAction? dispatched;
