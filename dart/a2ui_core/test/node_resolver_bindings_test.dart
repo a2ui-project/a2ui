@@ -17,7 +17,8 @@
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/core/contexts.dart' show ComponentContext;
 import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
-import 'package:json_schema_builder/json_schema_builder.dart';
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
 import 'package:test/test.dart';
 
 Schema _groupSchema() => Schema.object(
@@ -322,6 +323,100 @@ void main() {
         fixture.model.properties = {};
         expect(binder.resolvedProps.value.keys, ['title']);
         _expectReadOnlyNull(binder.resolvedProps.value['title']);
+      },
+    );
+
+    test(
+      'detects checkable behavior from schema marker rather than property name',
+      () {
+        final unmarkedSchema = Schema.object(
+          properties: {
+            'checks': Schema.string(),
+            'checkList': Schema.list(items: Schema.string()),
+          },
+        );
+        final markedSchema = Schema.combined(
+          allOf: [
+            CommonSchemas.checkable,
+            Schema.object(
+              properties: {
+                'label': Schema.string(),
+              },
+            ),
+          ],
+        );
+        final catalog = Catalog<ComponentApi, FunctionImplementation>(
+          id: 'checkable-marker-catalog',
+          components: [
+            ComponentApi(name: 'Unmarked', schema: unmarkedSchema),
+            ComponentApi(name: 'Marked', schema: markedSchema),
+          ],
+          functions: [],
+        );
+        final surface = SurfaceModel<ComponentApi>(
+          'surf-chk',
+          defaultCatalog: catalog,
+        );
+        addTearDown(surface.dispose);
+
+        final unmarkedModel = ComponentModel('u1', 'Unmarked', {
+          'checks': 'preflight-passed',
+          'checkList': ['a', 'b'],
+        });
+        surface.componentsModel.addComponent(unmarkedModel);
+        final unmarkedBinder = GenericBinder(
+          ComponentContext(surface, unmarkedModel),
+          unmarkedSchema,
+        );
+        addTearDown(unmarkedBinder.dispose);
+
+        // An unmarked property named 'checks' is preserved as a static value
+        // and does not synthesize isValid / validationErrors / validationResults.
+        expect(
+          unmarkedBinder.resolvedProps.value['checks'],
+          'preflight-passed',
+        );
+        expect(unmarkedBinder.resolvedProps.value['checkList'], ['a', 'b']);
+        expect(
+          unmarkedBinder.resolvedProps.value.containsKey('isValid'),
+          isFalse,
+        );
+        expect(
+          unmarkedBinder.resolvedProps.value.containsKey('validationErrors'),
+          isFalse,
+        );
+        expect(
+          unmarkedBinder.resolvedProps.value.containsKey('validationResults'),
+          isFalse,
+        );
+
+        final markedModel = ComponentModel('m1', 'Marked', {
+          'label': 'Email',
+          'checks': [
+            {
+              'condition': false,
+              'message': 'Required field',
+            },
+          ],
+        });
+        surface.componentsModel.addComponent(markedModel);
+        final markedBinder = GenericBinder(
+          ComponentContext(surface, markedModel),
+          markedSchema,
+        );
+        addTearDown(markedBinder.dispose);
+
+        expect(markedBinder.resolvedProps.value['isValid'], isFalse);
+        expect(markedBinder.resolvedProps.value['validationErrors'], [
+          'Required field',
+        ]);
+        expect(markedBinder.resolvedProps.value['validationResults'], [
+          const ValidationResult(
+            valid: false,
+            message: 'Required field',
+            severity: 'error',
+          ),
+        ]);
       },
     );
   });
