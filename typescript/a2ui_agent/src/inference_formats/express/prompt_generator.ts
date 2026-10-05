@@ -205,15 +205,19 @@ export class ExpressPromptGenerator extends PromptGenerator {
       );
     }
 
-    // Filter rule 15 if neither createSurface nor updateComponents is allowed
-    if (
-      !allowedMessages.includes('createSurface') &&
-      !allowedMessages.includes('updateComponents')
-    ) {
-      rules = rules.replace(
-        /\n\n15\. Surface targeting: Output `surface\(surfaceId\)` to specify or target a user interface surface:\n {4}surface\("dashboard-surface-1"\)\n {4}root = ComponentA\(\.\.\.\)/,
-        '',
-      );
+    // Rule 15 teaches `surface(...)`, which component and data statements both need to
+    // target a surface. Its `root = ...` line applies only to components, and the rule
+    // goes when neither kind of statement is allowed.
+    const writesComponents =
+      allowedMessages.includes('createSurface') || allowedMessages.includes('updateComponents');
+    if (!writesComponents) {
+      rules = rules.replace(/\n {4}root = ComponentA\(\.\.\.\)$/, '');
+      if (!allowedMessages.includes('updateDataModel')) {
+        rules = rules.replace(
+          /\n\n15\. Surface targeting: Output `surface\(surfaceId\)` to specify or target a user interface surface:\n {4}surface\("dashboard-surface-1"\)$/,
+          '',
+        );
+      }
     }
 
     return rules;
