@@ -30,7 +30,7 @@ Build agents that generate forms, dashboards, and interactive workflows.
 - Portable: one agent response works across all A2UI clients.
 - Streamable: progressive rendering as you generate.
 
-**Get started:** [Agent Development](../guides/agent-development.md)
+**Get started:** [Building A2UI Agents with Genkit](../guides/genkit.md) | [Building A2UI Agents with ADK](../guides/adk.md) | [Building A2UI Agents with CopilotKit](../guides/copilotkit.md)
 
 ### 3. Platform Builders (SDK Creators)
 

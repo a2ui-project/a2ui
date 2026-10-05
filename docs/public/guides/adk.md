@@ -1,6 +1,6 @@
-# Agent Development Guide
+# Building A2UI Agents with ADK
 
-Build AI agents that generate A2UI interfaces. This guide covers generating and streaming UI messages from LLMs.
+Build AI agents that generate A2UI interfaces with Google's Agent Development Kit (ADK). This guide covers generating and streaming UI messages from LLMs.
 
 ## Quick Overview
 
