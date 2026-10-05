@@ -14,7 +14,6 @@
 
 """Parser and compiler implementation for standard A2UI JSON schema responses."""
 
-from collections.abc import Mapping
 from typing import Any
 
 from a2ui.core import A2uiParseError, CatalogApi
@@ -83,8 +82,6 @@ class DirectJsonParser(Parser):
         validator: Any = None,
         *,
         progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
-        a2r_schema: Mapping[str, Any] | None = None,
-        common_types_schema: Mapping[str, Any] | None = None,
     ):
         """Initializes the DirectJsonParser.
 
@@ -95,16 +92,10 @@ class DirectJsonParser(Parser):
                 `A2uiValidationError`, or raise on its own.
             progressive_keys: Keys whose string values the stream parser may
                 auto-close when cut. An empty set turns healing off.
-            a2r_schema: The agent-to-renderer schema that streamed messages are
-                validated against. Defaults to the published schema.
-            common_types_schema: The common types schema that `a2r_schema` refers
-                to. Defaults to the published schema.
         """
         self._catalog = catalog
         self._validator = validator
         self._progressive_keys = progressive_keys
-        self._a2r_schema = a2r_schema
-        self._common_types_schema = common_types_schema
         self._stream_parser: Any | None = None
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
@@ -168,8 +159,6 @@ class DirectJsonParser(Parser):
             self._stream_parser = DirectJsonStreamParser(
                 self._catalog,
                 progressive_keys=self._progressive_keys,
-                a2r_schema=self._a2r_schema,
-                common_types_schema=self._common_types_schema,
             )
         return self._stream_parser.process_chunk(chunk)
 

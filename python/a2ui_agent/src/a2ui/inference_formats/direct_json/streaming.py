@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import copy
 import json
 import logging
@@ -34,10 +33,10 @@ from a2ui.schema.constants import (
 from a2ui.core.validation import analyze_topology
 from a2ui.parser.response_part import ResponsePart
 from a2ui.schema.schema_helper import CatalogSchemaHelper
+from a2ui.utils import validate_payload
 from a2ui.core.validation import (
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
-    SchemaValidator,
     ValidationConfig,
 )
 from a2ui.core import (
@@ -63,8 +62,6 @@ class DirectJsonStreamParser:
         catalog: CatalogApi,
         *,
         progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
-        a2r_schema: Mapping[str, Any] | None = None,
-        common_types_schema: Mapping[str, Any] | None = None,
     ) -> DirectJsonStreamParser:
         if cls is DirectJsonStreamParser:
             version = str(catalog.protocol_version).removeprefix("v")
@@ -76,8 +73,6 @@ class DirectJsonStreamParser:
                 return DirectJsonStreamParserV08(
                     catalog=catalog,
                     progressive_keys=progressive_keys,
-                    a2r_schema=a2r_schema,
-                    common_types_schema=common_types_schema,
                 )
             else:
                 from .streaming_v09 import DirectJsonStreamParserV09
@@ -85,8 +80,6 @@ class DirectJsonStreamParser:
                 return DirectJsonStreamParserV09(
                     catalog=catalog,
                     progressive_keys=progressive_keys,
-                    a2r_schema=a2r_schema,
-                    common_types_schema=common_types_schema,
                 )
         return super().__new__(cls)
 
@@ -95,8 +88,6 @@ class DirectJsonStreamParser:
         catalog: CatalogApi,
         *,
         progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
-        a2r_schema: Mapping[str, Any] | None = None,
-        common_types_schema: Mapping[str, Any] | None = None,
     ):
         """Initializes the streaming parser.
 
@@ -104,12 +95,6 @@ class DirectJsonStreamParser:
             catalog: The catalog that components are parsed and validated against.
             progressive_keys: Keys whose string values can be safely auto-closed
                 (healed) when cut in the stream. An empty set turns healing off.
-            a2r_schema: The agent-to-renderer schema that messages are validated
-                against. Defaults to the published schema of the catalog's
-                protocol version.
-            common_types_schema: The common types schema that `a2r_schema` refers
-                to. Defaults to the published schema of the catalog's protocol
-                version.
         """
         self._catalog = catalog
         self._validator: PayloadValidator | None = PayloadValidator(
@@ -117,8 +102,6 @@ class DirectJsonStreamParser:
         )
         self._version = str(catalog.protocol_version).removeprefix("v")
         self._progressive_keys = frozenset(progressive_keys)
-        self._a2r_schema = a2r_schema
-        self._common_types_schema = common_types_schema
         self._schema_helper = CatalogSchemaHelper(catalog)
 
         self._found_delimiter = False
@@ -288,91 +271,21 @@ class DirectJsonStreamParser:
         """Returns True if message should be yielded, False if skipped."""
         return True
 
-    def _get_a2r_validator(self) -> Any:
-        if not hasattr(self, "_a2r_validator_cached"):
-            from a2ui.schema.utils import (
-                load_agent_to_renderer_schema,
-                load_common_types_schema,
-            )
+    def _validate_message(self, message: dict[str, Any]) -> None:
+        """Checks a message the way a renderer holding the catalog would.
 
-            a2r_schema = (
-                self._a2r_schema
-                if self._a2r_schema is not None
-                else load_agent_to_renderer_schema(self._version)
-            )
-            if not a2r_schema:
-                self._a2r_validator_cached = None
-            else:
-                from referencing import Registry, Resource
-                import referencing.jsonschema
+        The check runs the message through a `MessageProcessor` that holds the
+        catalog, using `validate_payload`.
 
-                registry = Registry()
-                ver = f"v{self._version.removeprefix('v')}"
-                common_types_schema = (
-                    self._common_types_schema
-                    if self._common_types_schema is not None
-                    else load_common_types_schema(self._version)
-                )
-                if common_types_schema:
-                    res_ct = Resource.from_contents(
-                        common_types_schema,
-                        default_specification=referencing.jsonschema.DRAFT202012,
-                    )
-                    registry = (
-                        registry.with_resource("common_types.json", res_ct)
-                        .with_resource(
-                            f"https://a2ui.org/specification/{ver}/common_types.json",
-                            res_ct,
-                        )
-                        .with_resource(
-                            "https://a2ui.org/specification/v0_9/common_types.json",
-                            res_ct,
-                        )
-                        .with_resource(
-                            "https://a2ui.org/specification/v0_8/common_types.json",
-                            res_ct,
-                        )
-                    )
-                if self._catalog.catalog_schema:
-                    cat_schema_to_register = copy.deepcopy(
-                        dict(self._catalog.catalog_schema)
-                    )
-                    defs = cat_schema_to_register.setdefault("$defs", {})
-                    defs.setdefault(
-                        "theme", {"type": "object", "additionalProperties": True}
-                    )
-                    if "components" in cat_schema_to_register:
-                        if "anyComponent" not in defs:
-                            defs["anyComponent"] = {
-                                "oneOf": [
-                                    {"$ref": f"#/components/{comp_name}"}
-                                    for comp_name in cat_schema_to_register[
-                                        "components"
-                                    ]
-                                ]
-                            }
-                    res_cat = Resource.from_contents(
-                        cat_schema_to_register,
-                        default_specification=referencing.jsonschema.DRAFT202012,
-                    )
-                    registry = (
-                        registry.with_resource("catalog.json", res_cat)
-                        .with_resource(
-                            f"https://a2ui.org/specification/{ver}/catalog.json",
-                            res_cat,
-                        )
-                        .with_resource(
-                            "https://a2ui.org/specification/v0_9/catalog.json", res_cat
-                        )
-                        .with_resource(
-                            "https://a2ui.org/specification/v0_8/catalog.json", res_cat
-                        )
-                    )
-                self._a2r_validator_cached = SchemaValidator(
-                    a2r_schema,
-                    registry=registry,
-                )
-        return self._a2r_validator_cached
+        Raises:
+            A2uiValidationError: If a renderer would reject the message.
+        """
+        try:
+            validate_payload([self._catalog], message)
+        except A2uiValidationError as e:
+            raise A2uiValidationError(
+                f"Validation failed: {e}", details=e.details
+            ) from e
 
     def _yield_messages(
         self,
@@ -391,16 +304,7 @@ class DirectJsonStreamParser:
                         f"Validation failed: Invalid message payload {m}"
                     )
                 if config == STRICT_VALIDATION:
-                    v = self._get_a2r_validator()
-                    if v:
-                        from jsonschema.exceptions import best_match
-
-                        errors = list(v.iter_errors(m))
-                        if errors:
-                            err = best_match(errors) or errors[0]
-                            raise A2uiValidationError(
-                                f"Validation failed: {err.message}"
-                            )
+                    self._validate_message(m)
 
             # Consolidated appending logic
             if messages and messages[-1].a2ui_json is None:

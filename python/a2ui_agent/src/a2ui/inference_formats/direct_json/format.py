@@ -113,8 +113,6 @@ class DirectJsonFormat(InferenceFormat):
             self._parser = DirectJsonParser(
                 self._supported_catalogs[0],
                 progressive_keys=self._progressive_keys,
-                a2r_schema=self._agent_to_renderer_schema,
-                common_types_schema=self._common_types_schema,
             )
         return self._parser
 
@@ -329,8 +327,10 @@ class DirectJsonFormat(InferenceFormat):
     ) -> DirectJsonStreamParser:
         """Creates a streaming parser configured by this format.
 
-        The parser validates messages against this format's protocol schemas,
-        after its schema modifiers, and heals this format's progressive keys.
+        The parser heals this format's progressive keys and checks each
+        message the way a renderer holding the catalog would. The schema
+        modifiers reach the check through the catalog; their changes to the
+        protocol schemas shape only the prompt.
 
         Args:
             catalog: The catalog to parse against, for example the one that
@@ -352,8 +352,6 @@ class DirectJsonFormat(InferenceFormat):
         return DirectJsonStreamParser(
             catalog,
             progressive_keys=self._progressive_keys,
-            a2r_schema=self._agent_to_renderer_schema,
-            common_types_schema=self._common_types_schema,
         )
 
     def load_examples(self, catalog: CatalogApi, validate: bool = False) -> str:

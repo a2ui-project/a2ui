@@ -44,8 +44,12 @@
   returns the prompt text for a catalog together with the agent-to-renderer
   schema and the common types it references, and
   `DirectJsonFormat.create_stream_parser`, which builds a stream parser with
-  the format's protocol schemas, after its schema modifiers, and its
-  progressive keys (#2966).
+  the format's progressive keys (#2966).
+- The Direct JSON stream parser checks each message with `validate_payload`,
+  which runs it through a `MessageProcessor` holding the catalog, instead of
+  against the JSON agent-to-renderer schema. It no longer takes or loads the
+  protocol schemas, so schema modifiers reach it only through the catalog,
+  and its errors are the core's, prefixed with `Validation failed:` (#2966).
 - **BREAKING**: `CatalogConfig.custom_cuttable_keys` is removed. The string
   keys that the Direct JSON stream parser heals are now a format option,
   `DirectJsonFormat(progressive_keys=...)`, which replaces the defaults. The
@@ -63,7 +67,7 @@
 - `DirectJsonFormat.get_selected_catalog` still accepts `allowed_messages`
   but doesn't apply it, since a core catalog doesn't hold the
   agent-to-renderer schema. The prompt generator applies it when it builds
-  the prompt, and the stream parser no longer enforces it (#2966).
+  the prompt, and the stream parser doesn't enforce it (#2966).
 - `SendA2uiToClientToolset` now returns a tool error, with the validation
   message, for a payload that fails validation. Before, it ignored the errors
   that `validate_components` returned (#2966).

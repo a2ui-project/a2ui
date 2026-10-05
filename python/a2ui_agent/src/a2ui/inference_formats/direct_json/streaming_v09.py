@@ -14,7 +14,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import json
 import re
 from typing import Any
@@ -28,7 +27,7 @@ from a2ui.schema.constants import (
     SURFACE_ID_KEY,
 )
 from a2ui.core.validation import RELAXED_VALIDATION
-from a2ui.core import A2uiValidationError, CatalogApi
+from a2ui.core import CatalogApi
 
 
 class DirectJsonStreamParserV09(DirectJsonStreamParser):
@@ -39,14 +38,10 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         catalog: CatalogApi,
         *,
         progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
-        a2r_schema: Mapping[str, Any] | None = None,
-        common_types_schema: Mapping[str, Any] | None = None,
     ):
         super().__init__(
             catalog=catalog,
             progressive_keys=progressive_keys,
-            a2r_schema=a2r_schema,
-            common_types_schema=common_types_schema,
         )
         # v0.9 default root is "root"
         self._default_root_id = DEFAULT_ROOT_ID
@@ -113,14 +108,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
             return False
 
         if self._validator:
-            v = self._get_a2r_validator()
-            if v:
-                from jsonschema.exceptions import best_match
-
-                errors = list(v.iter_errors(obj))
-                if errors:
-                    err = best_match(errors) or errors[0]
-                    raise A2uiValidationError(f'Validation failed: {err.message}')
+            self._validate_message(obj)
 
         # Update state based on the message content
         surface_id = obj.get(SURFACE_ID_KEY, self.surface_id)

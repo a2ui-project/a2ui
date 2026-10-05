@@ -66,6 +66,7 @@ def test_streaming_rejects_non_identifier_extension_keys(
     with pytest.raises(A2uiValidationError) as exc_info:
         _stream_create_surface(basic_catalog, {key: 1})
     message = str(exc_info.value)
-    # The message quotes the schema's pattern, not its multi-kilobyte expansion.
-    assert r"\\p{XID_Start}" in message
+    # The message names the rule and the key, and stays short.
+    assert "Extensions keys must be Unicode identifiers" in message
+    assert repr(key) in message
     assert len(message) < 300
