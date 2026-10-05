@@ -19,9 +19,9 @@ CATALOG_STYLES_KEY = "styles"
 SURFACE_ID_KEY = "surfaceId"
 
 # Keys whose string values can be safely auto-closed (healed) if fragmented in the stream.
-# Structural or atomic keys (e.g., id, surfaceId, path) are NOT cuttable to prevent
+# Structural or atomic keys (e.g., id, surfaceId, path) are NOT progressive to prevent
 # incorrect parsing or data binding.
-DEFAULT_CUTTABLE_KEYS = frozenset({
+DEFAULT_PROGRESSIVE_KEYS = frozenset({
     "literalString",
     "valueString",
     "label",

@@ -22,7 +22,11 @@ from a2ui.inference_formats.direct_json.decompiler import _DirectJsonDecompiler
 from a2ui.parser.parser import Parser
 from a2ui.parser.payload_fixer import parse_and_fix
 from a2ui.parser.response_part import ResponsePart
-from a2ui.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.schema.constants import (
+    A2UI_CLOSE_TAG,
+    A2UI_OPEN_TAG,
+    DEFAULT_PROGRESSIVE_KEYS,
+)
 
 
 def unwrap_response(content: str) -> list[ResponsePart]:
@@ -78,7 +82,7 @@ class DirectJsonParser(Parser):
         catalog: CatalogApi,
         validator: Any = None,
         *,
-        custom_cuttable_keys: frozenset[str] | None = None,
+        progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
         s2c_schema: Mapping[str, Any] | None = None,
         common_types_schema: Mapping[str, Any] | None = None,
     ):
@@ -89,8 +93,8 @@ class DirectJsonParser(Parser):
             validator: Optional callable invoked with the parsed payload. It may
                 return a list of `A2uiErrorDetail`, which `compile` raises as an
                 `A2uiValidationError`, or raise on its own.
-            custom_cuttable_keys: Keys whose string values the stream parser may
-                auto-close when cut. Replaces the default set when provided.
+            progressive_keys: Keys whose string values the stream parser may
+                auto-close when cut. An empty set turns healing off.
             s2c_schema: The server-to-client schema that streamed messages are
                 validated against. Defaults to the published schema.
             common_types_schema: The common types schema that `s2c_schema` refers
@@ -98,7 +102,7 @@ class DirectJsonParser(Parser):
         """
         self._catalog = catalog
         self._validator = validator
-        self._custom_cuttable_keys = custom_cuttable_keys
+        self._progressive_keys = progressive_keys
         self._s2c_schema = s2c_schema
         self._common_types_schema = common_types_schema
         self._stream_parser: Any | None = None
@@ -163,7 +167,7 @@ class DirectJsonParser(Parser):
         if not self._stream_parser:
             self._stream_parser = DirectJsonStreamParser(
                 self._catalog,
-                custom_cuttable_keys=self._custom_cuttable_keys,
+                progressive_keys=self._progressive_keys,
                 s2c_schema=self._s2c_schema,
                 common_types_schema=self._common_types_schema,
             )

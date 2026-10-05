@@ -178,6 +178,20 @@ def get_conformance_cases(filename):
     return filtered
 
 
+def make_stream_parser(catalog_config):
+    """Builds the stream parser that a case's catalog config describes.
+
+    The shared suites name the progressive keys `customCuttableKeys`.
+    """
+    catalog = setup_catalog(catalog_config)
+    progressive_keys = catalog_config.get("customCuttableKeys")
+    if progressive_keys is None:
+        return DirectJsonStreamParser(catalog=catalog)
+    return DirectJsonStreamParser(
+        catalog=catalog, progressive_keys=frozenset(progressive_keys)
+    )
+
+
 # --- Streaming Parser Conformance ---
 cases_parser = get_conformance_cases("agent/legacy/streaming_parser.yaml")
 
@@ -186,15 +200,7 @@ cases_parser = get_conformance_cases("agent/legacy/streaming_parser.yaml")
     "name, test_case", cases_parser, ids=[c[0] for c in cases_parser]
 )
 def test_parser_conformance(name, test_case):
-    catalog_config = test_case["catalog"]
-    catalog = setup_catalog(catalog_config)
-    custom_cuttable_keys = catalog_config.get("customCuttableKeys")
-    parser = DirectJsonStreamParser(
-        catalog=catalog,
-        custom_cuttable_keys=frozenset(custom_cuttable_keys)
-        if custom_cuttable_keys is not None
-        else None,
-    )
+    parser = make_stream_parser(test_case["catalog"])
     if test_case.get("disableValidation"):
         parser._validator = None
 
@@ -438,15 +444,7 @@ def test_schema_manager_conformance(name, test_case):
                 assert actual.a2ui_json == exp.get("a2ui")
 
     elif action == "process_chunk":
-        catalog_config = test_case.get("catalog", {})
-        catalog = setup_catalog(catalog_config)
-        custom_cuttable_keys = catalog_config.get("customCuttableKeys")
-        parser = DirectJsonStreamParser(
-            catalog=catalog,
-            custom_cuttable_keys=frozenset(custom_cuttable_keys)
-            if custom_cuttable_keys is not None
-            else None,
-        )
+        parser = make_stream_parser(test_case.get("catalog", {}))
         if test_case.get("disableValidation"):
             parser._validator = None
 

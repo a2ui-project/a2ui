@@ -22,7 +22,11 @@ from typing import Any
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser.response_part import ResponsePart
 from a2ui.parser.constants import *
-from a2ui.schema.constants import SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
+from a2ui.schema.constants import (
+    CATALOG_COMPONENTS_KEY,
+    DEFAULT_PROGRESSIVE_KEYS,
+    SURFACE_ID_KEY,
+)
 from a2ui.core.validation import RELAXED_VALIDATION
 from a2ui.core import A2uiValidationError, CatalogApi
 
@@ -33,14 +37,14 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
     def __init__(
         self,
         catalog: CatalogApi,
-        custom_cuttable_keys: frozenset[str] | None = None,
         *,
+        progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
         s2c_schema: Mapping[str, Any] | None = None,
         common_types_schema: Mapping[str, Any] | None = None,
     ):
         super().__init__(
             catalog=catalog,
-            custom_cuttable_keys=custom_cuttable_keys,
+            progressive_keys=progressive_keys,
             s2c_schema=s2c_schema,
             common_types_schema=common_types_schema,
         )

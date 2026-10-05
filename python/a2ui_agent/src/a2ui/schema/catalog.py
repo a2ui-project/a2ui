@@ -94,7 +94,6 @@ class CatalogConfig:
       name: The name of the catalog.
       provider: The provider to use to load the catalog schema.
       examples_path: The path or glob pattern to the examples.
-      custom_cuttable_keys: The optional custom set of cuttable keys.
       catalog: Optional `a2ui.core.Catalog` instance.
       transformers: The transformers that `to_catalog` applies, in order.
     """
@@ -102,7 +101,6 @@ class CatalogConfig:
     name: str
     provider: A2uiCatalogProvider
     examples_path: str | None = None
-    custom_cuttable_keys: frozenset[str] | None = None
     catalog: CatalogApi | None = None
     transformers: tuple[CatalogTransformer, ...] = ()
 
@@ -111,7 +109,6 @@ class CatalogConfig:
         name: str = "basic",
         provider: A2uiCatalogProvider | None = None,
         examples_path: str | None = None,
-        custom_cuttable_keys: frozenset[str] | None = None,
         *,
         catalog: CatalogApi | None = None,
         transformers: Sequence[CatalogTransformer] = (),
@@ -123,8 +120,6 @@ class CatalogConfig:
           provider: The provider to load the catalog schema from. Defaults to an
             in-memory provider of `catalog`'s schema.
           examples_path: The path or glob pattern to the examples.
-          custom_cuttable_keys: Keys whose string values the streaming parser may
-            auto-close when cut. Replaces the default set when provided.
           catalog: The catalog instance to use as is.
           transformers: The transformers to apply to the catalog, in order. For
             example, `ComponentPruningTransformer` limits the components that
@@ -140,7 +135,6 @@ class CatalogConfig:
         self.name = name
         self.provider = provider
         self.examples_path = resolve_examples_path(examples_path)
-        self.custom_cuttable_keys = custom_cuttable_keys
         self.catalog = catalog
         self.transformers = tuple(transformers)
 
@@ -150,7 +144,6 @@ class CatalogConfig:
         name: str,
         catalog: CatalogApi,
         examples_path: str | None = None,
-        custom_cuttable_keys: frozenset[str] | None = None,
         *,
         transformers: Sequence[CatalogTransformer] = (),
     ) -> CatalogConfig:
@@ -158,7 +151,6 @@ class CatalogConfig:
         return cls(
             name=name,
             examples_path=examples_path,
-            custom_cuttable_keys=custom_cuttable_keys,
             catalog=catalog,
             transformers=transformers,
         )
@@ -169,7 +161,6 @@ class CatalogConfig:
         name: str,
         catalog_path: str,
         examples_path: str | None = None,
-        custom_cuttable_keys: frozenset[str] | None = None,
         *,
         transformers: Sequence[CatalogTransformer] = (),
     ) -> CatalogConfig:
@@ -186,7 +177,6 @@ class CatalogConfig:
             name=name,
             provider=catalog_provider,
             examples_path=resolve_examples_path(examples_path),
-            custom_cuttable_keys=custom_cuttable_keys,
             transformers=transformers,
         )
 

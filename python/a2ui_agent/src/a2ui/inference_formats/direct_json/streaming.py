@@ -29,7 +29,7 @@ from a2ui.schema.constants import (
     A2UI_CLOSE_TAG,
     SURFACE_ID_KEY,
     CATALOG_COMPONENTS_KEY,
-    DEFAULT_CUTTABLE_KEYS,
+    DEFAULT_PROGRESSIVE_KEYS,
 )
 from a2ui.core.validation import analyze_topology
 from a2ui.parser.response_part import ResponsePart
@@ -61,8 +61,8 @@ class DirectJsonStreamParser:
     def __new__(
         cls,
         catalog: CatalogApi,
-        custom_cuttable_keys: frozenset[str] | None = None,
         *,
+        progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
         s2c_schema: Mapping[str, Any] | None = None,
         common_types_schema: Mapping[str, Any] | None = None,
     ) -> DirectJsonStreamParser:
@@ -75,7 +75,7 @@ class DirectJsonStreamParser:
 
                 return DirectJsonStreamParserV08(
                     catalog=catalog,
-                    custom_cuttable_keys=custom_cuttable_keys,
+                    progressive_keys=progressive_keys,
                     s2c_schema=s2c_schema,
                     common_types_schema=common_types_schema,
                 )
@@ -84,7 +84,7 @@ class DirectJsonStreamParser:
 
                 return DirectJsonStreamParserV09(
                     catalog=catalog,
-                    custom_cuttable_keys=custom_cuttable_keys,
+                    progressive_keys=progressive_keys,
                     s2c_schema=s2c_schema,
                     common_types_schema=common_types_schema,
                 )
@@ -93,8 +93,8 @@ class DirectJsonStreamParser:
     def __init__(
         self,
         catalog: CatalogApi,
-        custom_cuttable_keys: frozenset[str] | None = None,
         *,
+        progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
         s2c_schema: Mapping[str, Any] | None = None,
         common_types_schema: Mapping[str, Any] | None = None,
     ):
@@ -102,9 +102,8 @@ class DirectJsonStreamParser:
 
         Args:
             catalog: The catalog that components are parsed and validated against.
-            custom_cuttable_keys: Keys whose string values can be safely auto-closed
-                (healed) when cut in the stream. Replaces the default set when
-                provided.
+            progressive_keys: Keys whose string values can be safely auto-closed
+                (healed) when cut in the stream. An empty set turns healing off.
             s2c_schema: The server-to-client schema that messages are validated
                 against. Defaults to the published schema of the catalog's
                 protocol version.
@@ -117,11 +116,7 @@ class DirectJsonStreamParser:
             catalog, config=STRICT_VALIDATION
         )
         self._version = str(catalog.protocol_version).removeprefix("v")
-        self._cuttable_keys: frozenset[str] = (
-            frozenset(custom_cuttable_keys)
-            if custom_cuttable_keys is not None
-            else DEFAULT_CUTTABLE_KEYS
-        )
+        self._progressive_keys = frozenset(progressive_keys)
         self._s2c_schema = s2c_schema
         self._common_types_schema = common_types_schema
         self._schema_helper = CatalogSchemaHelper(catalog)
@@ -580,13 +575,13 @@ class DirectJsonStreamParser:
 
         # 1. Close open strings (healing)
         if in_string:
-            # We only auto-close strings for safe keys (CUTTABLE_KEYS)
+            # We only auto-close strings for safe keys (progressive keys)
             prefix = fixed[:last_quote_idx].rstrip()
             if prefix.endswith(":"):
                 key_match = re.findall(r'"([^"]+)"\s*:\s*$', prefix)
                 if key_match:
                     key = key_match[0]
-                    if key not in self._cuttable_keys:
+                    if key not in self._progressive_keys:
                         return ""
 
                     # Special case: don't cut URL bindings, as partial URLs break images/links

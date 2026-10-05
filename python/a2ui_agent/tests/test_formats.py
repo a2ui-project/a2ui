@@ -15,7 +15,12 @@
 import pytest
 from a2ui.core import A2uiCatalogError, Catalog
 from a2ui.schema import VERSION_0_9, CatalogConfig
-from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.inference_formats.direct_json import (
+    DEFAULT_PROGRESSIVE_KEYS,
+    DirectJsonFormat,
+    DirectJsonParser,
+)
 from a2ui.adk import A2uiPartConverter
 from google.genai import types as genai_types
 from a2ui.inference_formats.experimental.express import ExpressFormat, ExpressParser
@@ -330,3 +335,37 @@ def test_get_selected_catalog_with_empty_catalog_ids_is_an_error():
 
     with pytest.raises(A2uiCatalogError, match="No client-supported catalog found"):
         direct_json_format.get_selected_catalog({"supportedCatalogIds": []})
+
+
+_CUT_TEXT_CHUNK = (
+    '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "s1",'
+    ' "catalogId": "%s"}}, {"version": "v0.9", "updateComponents": {"surfaceId":'
+    ' "s1", "components": [{"id": "root", "component": "Text", "text": "Hel'
+)
+
+
+@pytest.mark.parametrize("parser_name", ["create_stream_parser", "parser"])
+@pytest.mark.parametrize(
+    ("progressive_keys", "healed"),
+    [(DEFAULT_PROGRESSIVE_KEYS, True), (frozenset(), False)],
+    ids=["default", "healing_off"],
+)
+def test_direct_json_format_progressive_keys_reach_its_parsers(
+    progressive_keys, healed, parser_name
+):
+    catalog = BasicCatalog("0.9")
+    direct_json_format = DirectJsonFormat(
+        version=VERSION_0_9,
+        catalogs=[CatalogConfig.from_catalog("basic", catalog)],
+        progressive_keys=progressive_keys,
+    )
+    parser = (
+        direct_json_format.create_stream_parser()
+        if parser_name == "create_stream_parser"
+        else direct_json_format.parser
+    )
+
+    parts = parser.process_chunk(_CUT_TEXT_CHUNK % catalog.catalog_id)
+
+    messages = [message for part in parts for message in part.a2ui_json or []]
+    assert any("updateComponents" in message for message in messages) == healed

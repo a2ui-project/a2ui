@@ -30,6 +30,7 @@ from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.schema import CatalogConfig, load_examples
 from a2ui.schema.constants import (
     CATALOG_COMPONENTS_KEY,
+    DEFAULT_PROGRESSIVE_KEYS,
     INLINE_CATALOGS_KEY,
     VERSION_0_8,
     VERSION_0_9,
@@ -64,6 +65,8 @@ class DirectJsonFormat(InferenceFormat):
             Sequence[Callable[[dict[str, Any]], dict[str, Any]]] | None
         ) = None,
         experiments: set[str] | frozenset[str] | None = None,
+        *,
+        progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
     ):
         """Initializes the DirectJsonFormat with schemas and catalogs.
 
@@ -74,17 +77,19 @@ class DirectJsonFormat(InferenceFormat):
             schema_modifiers: Optional schema modifier functions to post-process
               schemas.
             experiments: Optional set of enabled experimental feature flags.
+            progressive_keys: Keys whose string values the stream parsers heal
+              when a chunk cuts them. An empty set turns healing off.
         """
         self._version = version
         self._accepts_inline_catalogs = accepts_inline_catalogs
         self.experiments = frozenset(experiments) if experiments else frozenset()
+        self._progressive_keys = frozenset(progressive_keys)
 
         self._server_to_client_schema: dict[str, Any] = {}
         self._common_types_schema: dict[str, Any] = {}
         self._supported_catalogs: list[CatalogApi] = []
         self._catalog_configs: list[CatalogConfig] = []
         self._catalog_example_paths: dict[str, str] = {}
-        self._catalog_cuttable_keys: dict[str, frozenset[str]] = {}
         self._schema_modifiers = list(schema_modifiers) if schema_modifiers else []
         self._parser: DirectJsonParser | None = None
         self._prompt_generator: DirectJsonPromptGenerator | None = None
@@ -105,12 +110,9 @@ class DirectJsonFormat(InferenceFormat):
                 raise A2uiCatalogError(
                     "No supported catalogs configured for the Direct JSON format."
                 )
-            default_catalog = self._supported_catalogs[0]
             self._parser = DirectJsonParser(
-                default_catalog,
-                custom_cuttable_keys=self._catalog_cuttable_keys.get(
-                    default_catalog.catalog_id
-                ),
+                self._supported_catalogs[0],
+                progressive_keys=self._progressive_keys,
                 s2c_schema=self._server_to_client_schema,
                 common_types_schema=self._common_types_schema,
             )
@@ -167,10 +169,6 @@ class DirectJsonFormat(InferenceFormat):
             )
             if config.examples_path:
                 self._catalog_example_paths[catalog.catalog_id] = config.examples_path
-            if config.custom_cuttable_keys is not None:
-                self._catalog_cuttable_keys[catalog.catalog_id] = (
-                    config.custom_cuttable_keys
-                )
 
     def _read_client_capabilities(
         self, client_ui_capabilities: Mapping[str, Any] | V09Capabilities
@@ -332,8 +330,7 @@ class DirectJsonFormat(InferenceFormat):
         """Creates a streaming parser configured by this format.
 
         The parser validates messages against this format's protocol schemas,
-        after its schema modifiers, and heals the cuttable keys configured for
-        the catalog.
+        after its schema modifiers, and heals this format's progressive keys.
 
         Args:
             catalog: The catalog to parse against, for example the one that
@@ -354,7 +351,7 @@ class DirectJsonFormat(InferenceFormat):
             catalog = self._supported_catalogs[0]
         return DirectJsonStreamParser(
             catalog,
-            custom_cuttable_keys=self._catalog_cuttable_keys.get(catalog.catalog_id),
+            progressive_keys=self._progressive_keys,
             s2c_schema=self._server_to_client_schema,
             common_types_schema=self._common_types_schema,
         )

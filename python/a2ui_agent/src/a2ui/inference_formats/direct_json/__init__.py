@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS
+
 from .format import DirectJsonFormat
 from .parser import DirectJsonParser
 from .prompt_generator import DirectJsonPromptGenerator
 from .streaming import DirectJsonStreamParser
 
 __all__ = [
+    "DEFAULT_PROGRESSIVE_KEYS",
     "DirectJsonFormat",
     "DirectJsonParser",
     "DirectJsonPromptGenerator",
