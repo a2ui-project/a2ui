@@ -19,8 +19,7 @@ signatures, and requirements directly from standard catalog JSON schemas.
 """
 
 from typing import Any
-from a2ui.core import Catalog, CatalogApi
-from a2ui.schema.schema_helper import inline_catalog_defs
+from a2ui.core import Catalog, CatalogApi, inline_local_refs
 
 
 class CatalogSchemaHelper:
@@ -50,7 +49,10 @@ class CatalogSchemaHelper:
         else:
             raise TypeError(f"Unsupported catalog type: {type(catalog)}")
 
-        self.catalog = inline_catalog_defs(self.catalog_model)
+        # Inline the catalog's own definitions, as `Catalog.from_json` does,
+        # so model-backed and JSON catalogs read the same.
+        catalog_schema = dict(catalog.catalog_schema or {})
+        self.catalog = inline_local_refs(catalog_schema, catalog_schema)
         self.components = dict(self.catalog.get("components", {}))
         self.functions = dict(self.catalog.get("functions", {}))
         self._load_mappings()

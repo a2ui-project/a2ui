@@ -557,7 +557,7 @@ def test_query_json_pointer():
 
 
 def test_inline_local_refs():
-    from a2ui.core.catalog.catalog import inline_local_refs
+    from a2ui.core import inline_local_refs
 
     root_catalog = {
         "$defs": {

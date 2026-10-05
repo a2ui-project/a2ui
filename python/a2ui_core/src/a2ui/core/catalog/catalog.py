@@ -208,7 +208,23 @@ def _normalize_external_schema_refs(node: Any) -> Any:
 def inline_local_refs(
     node: Any, root_catalog: Mapping[str, Any], visited: set[str] | None = None
 ) -> Any:
-    """Recursively inlines local JSON references (pointers starting with '#/') into schema objects."""
+    """Returns a schema node with its local references written inline.
+
+    Each `$ref` that starts with `#/` is replaced by what it points to in
+    `root_catalog`, with the keys beside the `$ref` merged over it. References
+    to common types named in `PRESERVED_TYPE_REFS` stay, and so does a
+    reference that a definition makes to itself.
+
+    Args:
+        node: The schema node to inline.
+        root_catalog: The document that the references point into, usually the
+            catalog schema that holds `node`.
+        visited: The references being inlined, which callers leave out.
+
+    Returns:
+        A new node, whose leaf values are shared with `node` and
+        `root_catalog`.
+    """
     if visited is None:
         visited = set()
 

@@ -68,3 +68,16 @@ def test_express_compiler_accepts_weight_with_the_v0_9_basic_catalog():
 
     components = messages[1]["updateComponents"]["components"]
     assert {"id": "t", "component": "Text", "text": "hi", "weight": 2} in components
+
+
+@pytest.mark.parametrize("version", ["0.9", "1.0"])
+def test_schema_helpers_keep_checkable_for_model_and_json_catalogs(version):
+    catalog = BasicCatalog(version)
+    for candidate in (catalog, _from_json(catalog)):
+        helpers = (
+            AtomFormat(candidate).prompt_generator.schema_helper,
+            ExpressFormat(candidate, version=version).prompt_generator.helper,
+        )
+        for helper in helpers:
+            assert helper.component_is_checkable["TextField"]
+            assert not helper.component_is_checkable["Text"]

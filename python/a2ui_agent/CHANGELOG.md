@@ -96,10 +96,11 @@
 - `SendA2uiToClientToolset` now returns a tool error, with the validation
   message, for a payload that fails validation. Before, it ignored the errors
   that `validate_components` returned (#2966).
-- The schema helpers of the Express, Elemental and Atom formats follow a
-  catalog's own `$defs` references, so a catalog built from models, such as
-  `BasicCatalog("0.9")`, keeps properties that it defines there, such as
-  `weight` (#2966).
+- The schema helpers of the Express, Elemental and Atom formats inline a
+  catalog's local references with `inline_local_refs` from `a2ui.core`, as
+  `Catalog.from_json` does, so a catalog built from models, such as
+  `BasicCatalog("0.9")`, keeps properties that it defines in its own `$defs`,
+  such as `weight` (#2966).
 - **BREAKING**: The SDK no longer bundles specification JSON files.
   `load_from_bundled_resource` and `A2UI_ASSET_PACKAGE` are removed; get the
   agent-to-renderer schema from `get_agent_to_renderer_schema_map` in
