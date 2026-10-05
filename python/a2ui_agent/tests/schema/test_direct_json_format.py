@@ -17,7 +17,13 @@ import pytest
 from a2ui.core import A2uiCatalogError
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
-from a2ui.schema import CatalogConfig, VERSION_0_8
+from a2ui.schema import (
+    CatalogConfig,
+    VERSION_0_8,
+    VERSION_0_9,
+    VERSION_0_9_1,
+    VERSION_1_0,
+)
 
 
 def test_schema_manager_init_valid_version():
@@ -35,6 +41,15 @@ def test_schema_manager_init_valid_version():
 def test_schema_manager_init_invalid_version():
     with pytest.raises(A2uiCatalogError, match="Unknown A2UI specification version"):
         DirectJsonFormat("invalid_version")
+
+
+@pytest.mark.parametrize(
+    "version", [VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0]
+)
+def test_schema_manager_init_supported_versions(version):
+    direct_json_format = DirectJsonFormat(version)
+
+    assert direct_json_format._server_to_client_schema["type"] == "object"
 
 
 def test_direct_json_parser_methods():

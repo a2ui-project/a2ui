@@ -3,10 +3,10 @@
 - **BREAKING**: The SDK no longer bundles specification JSON files.
   `load_from_bundled_resource` and `A2UI_ASSET_PACKAGE` are removed; get the
   agent-to-renderer schema from `get_agent_to_renderer_schema_map` in
-  `a2ui.core` instead. `PROTOCOL_VERSION_MAP` and its alias `SPEC_VERSION_MAP`
-  now map each supported version to a2ui-core's `ProtocolVersion` instead of to
-  specification file paths, and the `SERVER_TO_CLIENT_SCHEMA_KEY` and
-  `COMMON_TYPES_SCHEMA_KEY` constants are removed (#2964).
+  `a2ui.core` instead. `PROTOCOL_VERSION_MAP`, its alias `SPEC_VERSION_MAP`,
+  `SERVER_TO_CLIENT_SCHEMA_KEY` and `COMMON_TYPES_SCHEMA_KEY`, which described
+  the specification files, are removed too. The `VERSION_*` constants still
+  name the supported versions (#2964).
 - Building or installing the SDK from source no longer regenerates the Express
   parser, so it no longer needs Java. The generated parser stays committed; after
   changing `Express.g4`, run `scripts/generate_express_parser.py` (#2964).
