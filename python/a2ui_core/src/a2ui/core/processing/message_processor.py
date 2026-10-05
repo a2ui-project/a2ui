@@ -33,8 +33,7 @@ from ..validation import (
     ValidationConfig,
     STRICT_VALIDATION,
 )
-from ..catalog import Catalog
-from ..catalog.catalog import TComponent, TFunction
+from ..catalog import CatalogApi
 from ..exceptions import (
     A2uiCatalogError,
     A2uiError,
@@ -114,7 +113,7 @@ class MessageProcessor:
 
     def __init__(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]] | None = None,
+        catalogs: Sequence[CatalogApi] | None = None,
         action_handler: Callable[[dict[str, Any]], None] | None = None,
         options: MessageProcessorOptions | None = None,
     ) -> None:

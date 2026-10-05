@@ -19,10 +19,9 @@ import logging
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar, Union, cast
+from typing import Any, TypeVar, Union, cast
 
-from ..catalog import Catalog
-from ..catalog.catalog import TComponent, TFunction
+from ..catalog import CatalogApi
 from ..exceptions import A2uiRpcError, RpcErrorCode
 from ..processing.adapters import is_catalog_version_compatible
 from ..resolution.data_context import DataContext
@@ -72,11 +71,11 @@ class _NormalizedAgentCall:
 
 
 @dataclass
-class _ResolvedFunctionImplementation(Generic[TComponent, TFunction]):
+class _ResolvedFunctionImplementation:
     """Result of resolving a function implementation from a catalog."""
 
     fn: Any | None = None
-    catalog: Catalog[TComponent, TFunction] | None = None
+    catalog: CatalogApi | None = None
     error: str | None = None
 
 
@@ -102,12 +101,12 @@ class _PreparedRendererCall:
     early_error_response: dict[str, Any] | None = None
 
 
-class RpcHandler(Generic[TComponent, TFunction]):
+class RpcHandler:
     """Manages bidirectional RPC function execution between renderer and server agent."""
 
     def __init__(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]] | None = None,
+        catalogs: Sequence[CatalogApi] | None = None,
         outbound_listener: OutboundListener | None = None,
         default_timeout_ms: float = 30000.0,
     ) -> None:
@@ -140,9 +139,7 @@ class RpcHandler(Generic[TComponent, TFunction]):
             )
         self._pending_agent_calls.clear()
 
-    def resolve_catalog(
-        self, catalog_id: str | None = None
-    ) -> Catalog[TComponent, TFunction] | None:
+    def resolve_catalog(self, catalog_id: str | None = None) -> CatalogApi | None:
         """Looks up a catalog by catalog_id, applying no default.
 
         Args:
@@ -244,7 +241,7 @@ class RpcHandler(Generic[TComponent, TFunction]):
         call_name: str,
         context: DataContext | None = None,
         expected_version: str | None = None,
-    ) -> _ResolvedFunctionImplementation[TComponent, TFunction]:
+    ) -> _ResolvedFunctionImplementation:
         """Resolves function implementation from catalog with optional version check.
 
         Returns:

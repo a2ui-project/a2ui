@@ -20,6 +20,7 @@ on:
     paths:
       - "python/**"
       - "specification/**/json/**"
+      - "specification/inference_formats/**"
       - "catalogs/**"
       - "conformance/**"
       - "samples/agent/adk/**"
@@ -32,6 +33,7 @@ on:
     paths:
       - "python/**"
       - "specification/**/json/**"
+      - "specification/inference_formats/**"
       - "catalogs/**"
       - "conformance/**"
       - "samples/agent/adk/**"
@@ -80,6 +82,13 @@ jobs:
           done
       - name: Install Dependencies
         run: uv sync --all-packages
+      - name: Set Up Java
+        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
+        with:
+          java-version: "21"
+          distribution: "temurin"
+      - name: Check Generated Express Parser
+        run: uv run python python/a2ui_agent/scripts/generate_express_parser.py --check
       - name: Check Formatting
         run: |
           uv run pyink --check .

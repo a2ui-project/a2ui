@@ -104,18 +104,18 @@ void main() {
         'v0.9': {
           'supportedCatalogIds': ['basic'],
         },
-        'v1.0': {
+        'v2.0': {
           'supportedCatalogIds': ['basic'],
         },
       });
 
-      expect(caps.unsupportedVersions, ['v1.0']);
+      expect(caps.unsupportedVersions, ['v2.0']);
     });
 
-    test('rejects capabilities carrying no v0.9 entry', () {
+    test('rejects capabilities carrying no supported version entry', () {
       expect(
         () => A2uiRendererCapabilities.fromJson({
-          'v1.0': {
+          'v2.0': {
             'supportedCatalogIds': ['basic'],
           },
         }),
@@ -159,12 +159,12 @@ void main() {
         'v0.9': {
           'supportedCatalogIds': ['basic'],
         },
-        'v1.0': {
+        'v2.0': {
           'supportedCatalogIds': ['basic'],
         },
       });
 
-      expect(caps.unsupportedVersions, ['v1.0']);
+      expect(caps.unsupportedVersions, ['v2.0']);
       expect(caps.toJson().keys, ['v0.9']);
     });
 
@@ -175,6 +175,19 @@ void main() {
         },
       };
       expect(A2uiRendererCapabilities.fromJson(json).toJson(), json);
+    });
+
+    test('resolves a compatible version when the exact one is undeclared', () {
+      final caps = A2uiRendererCapabilities.fromJson({
+        'v0.9.1': {
+          'supportedCatalogIds': ['basic'],
+        },
+      });
+      expect(
+        caps.forVersion(A2uiProtocolVersion.v0_9)!.supportedCatalogIds,
+        ['basic'],
+      );
+      expect(caps.forVersion(A2uiProtocolVersion.v1_0), isNull);
     });
   });
 }
