@@ -96,11 +96,6 @@ class DirectJsonFormat(InferenceFormat):
         """The directory or glob pattern of few-shot example files, if any."""
         return self._examples_path
 
-    @property
-    def supported_catalog_ids(self) -> list[str]:
-        """A list of catalog IDs supported by this format."""
-        return [c.catalog_id for c in self._catalogs]
-
     def create_stream_parser(
         self, catalog: CatalogApi | None = None
     ) -> DirectJsonStreamParser:

@@ -148,7 +148,7 @@ class ContactAgent:
         Returns:
             The active catalogs, the client's preferred one first.
         """
-        catalog_ids = self._inference_formats[version].supported_catalog_ids
+        catalog_ids = [c.catalog_id for c in self._inference_formats[version].catalogs]
         catalogs = resolve_catalogs(
             self._catalog_configs[version],
             _renderer_capabilities(version, client_ui_capabilities, catalog_ids),
@@ -182,7 +182,7 @@ class ContactAgent:
                 ext = get_a2ui_agent_extension(
                     version,
                     self._accepts_inline_catalogs,
-                    sm.supported_catalog_ids,
+                    [c.catalog_id for c in sm.catalogs],
                 )
                 extensions.append(ext)
 

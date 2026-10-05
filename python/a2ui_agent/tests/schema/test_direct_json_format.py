@@ -30,7 +30,6 @@ def test_direct_json_format_holds_its_catalogs():
     direct_json_format = DirectJsonFormat([catalog])
 
     assert direct_json_format.catalogs == (catalog,)
-    assert direct_json_format.supported_catalog_ids == [catalog.catalog_id]
     assert "Text" in direct_json_format.catalogs[0].catalog_schema["components"]
 
 
@@ -51,7 +50,7 @@ def test_direct_json_format_supports_each_version(version):
     catalog = BasicCatalog(version)
     direct_json_format = DirectJsonFormat([catalog])
 
-    assert direct_json_format.supported_catalog_ids == [catalog.catalog_id]
+    assert [c.catalog_id for c in direct_json_format.catalogs] == [catalog.catalog_id]
     assert direct_json_format.parser is direct_json_format.parser
 
 

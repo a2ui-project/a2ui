@@ -379,7 +379,7 @@ def test_schema_manager_conformance(name, test_case):
         expected = test_case["expect"]
         if isinstance(expected, dict) and "supportedCatalogIds" in expected:
             exp_ids = expected["supportedCatalogIds"]
-            assert direct_json_format.supported_catalog_ids == exp_ids
+            assert [c.catalog_id for c in direct_json_format.catalogs] == exp_ids
         elif isinstance(expected, dict):
             actual = {
                 "catalogId": selected.catalog_id,

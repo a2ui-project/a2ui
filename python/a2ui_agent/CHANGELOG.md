@@ -72,15 +72,15 @@
     still restrict the prompt.
   - `examples_path` replaces `CatalogConfig.examples_path` for the prompt's
     examples, which are validated against every catalog of the format.
-  - `_supported_catalogs` becomes the `catalogs` property, and the
-    `load_examples` method becomes `load_examples(catalogs, path, validate)`
-    from `a2ui.schema`.
+  - `_supported_catalogs` and `supported_catalog_ids` become the `catalogs`
+    property, and the `load_examples` method becomes
+    `load_examples(catalogs, path, validate)` from `a2ui.schema`.
 - **BREAKING**: The deprecated `a2ui.schema.manager.A2uiSchemaManager` is
   removed. Use `DirectJsonFormat` (#2966).
 - **BREAKING**: `DirectJsonParser.compile`, and so `parse_response`, checks a
-  final payload with `validate_payload` unless the parser has a custom
-  `validator`, and raises `A2uiValidationError` for one that fails. Before,
-  it checked nothing by default. `A2uiPartConverter` uses this parser, so it
+  final payload with `validate_payload` against the parser's catalog, and
+  raises `A2uiValidationError` for one that fails. Before, it checked nothing
+  by default. `DirectJsonParser` no longer takes a `validator`. `A2uiPartConverter` uses this parser, so it
   now falls back for invalid A2UI (#2966).
 - **BREAKING**: `CatalogConfig.custom_cuttable_keys` is removed. The string
   keys that the Direct JSON stream parser heals are now a format option,

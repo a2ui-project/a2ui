@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 
 import pytest
 from a2ui.core import A2uiValidationError, Catalog
@@ -102,17 +101,6 @@ def test_schema_parser_rejects_an_invalid_payload(test_catalog):
             ' "updateComponents": {"surfaceId": "main", "components": [{"id":'
             ' "root", "component": "Unknown"}]}}]</a2ui-json>'
         )
-
-
-def test_schema_parser_runs_a_custom_validator_instead(test_catalog):
-    seen = []
-    parser = DirectJsonParser(test_catalog, validator=seen.append)
-    payload = [{"not": "a message"}]
-
-    parsed = parser.parse_response(f"<a2ui-json>{json.dumps(payload)}</a2ui-json>")
-
-    assert seen == [payload]
-    assert parsed[0].a2ui_json == payload
 
 
 def test_schema_parser_with_nested_close_tag(test_catalog):

@@ -109,7 +109,9 @@ class A2uiDemoAgent:
     def _build_agent_card(self) -> AgentCard:
         ext = get_a2ui_agent_extension(
             A2UI_VERSION,
-            supported_catalog_ids=self._inference_format.supported_catalog_ids,
+            supported_catalog_ids=[
+                c.catalog_id for c in self._inference_format.catalogs
+            ],
         )
 
         capabilities = AgentCapabilities(

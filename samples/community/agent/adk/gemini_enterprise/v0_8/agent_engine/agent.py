@@ -96,7 +96,7 @@ class ContactAgent:
             for version, sm in self._inference_formats.items():
                 ext = get_a2ui_agent_extension(
                     version,
-                    supported_catalog_ids=sm.supported_catalog_ids,
+                    supported_catalog_ids=[c.catalog_id for c in sm.catalogs],
                 )
                 extensions.append(ext)
 

@@ -169,7 +169,7 @@ class McpAppProxyAgent:
             _renderer_capabilities(
                 version,
                 client_ui_capabilities,
-                self._inference_formats[version].supported_catalog_ids,
+                [c.catalog_id for c in self._inference_formats[version].catalogs],
             ),
             accepts_inline_catalogs=self._accepts_inline_catalogs,
         )
@@ -194,7 +194,7 @@ class McpAppProxyAgent:
                 ext = get_a2ui_agent_extension(
                     version,
                     self._accepts_inline_catalogs,
-                    sm.supported_catalog_ids,
+                    [c.catalog_id for c in sm.catalogs],
                 )
                 extensions.append(ext)
 
