@@ -436,7 +436,8 @@ export class ExpressDecompiler {
     }
 
     if (funcOp) {
-      const fnName = typeof funcOp.call === 'string' ? funcOp.call : '';
+      const fnCall = funcOp[helper.keys.call];
+      const fnName = typeof fnCall === 'string' ? fnCall : '';
       const fnArgs = (funcOp.args ?? {}) as unknown;
       const argsList: string[] = [];
       if (helper.functions.has(fnName)) {
@@ -585,7 +586,8 @@ export class ExpressDecompiler {
             const message = typeof rc.message === 'string' ? rc.message : '';
 
             // If condition.call is absent, Python reproduces '?None'
-            const checkName = typeof condition.call === 'string' ? condition.call : 'None';
+            const conditionCall = condition[helper.keys.call];
+            const checkName = typeof conditionCall === 'string' ? conditionCall : 'None';
             const checkArgs = optionalObjectField(condition.args, `Check '${checkName}'`, 'args');
 
             const checkProps = checkName !== 'None' ? helper.getFunctionProperties(checkName) : [];
@@ -715,13 +717,26 @@ export class ExpressDecompiler {
     if (typeof val === 'object') {
       const obj = val as Record<string, unknown>;
 
-      if ('path' in obj && typeof obj.path === 'string') {
-        if ('componentId' in obj && typeof obj.componentId === 'string') {
-          const pathRepr = this.decompileValue({path: obj.path}, compIds, false, helper);
-          const compIdRepr = obj.componentId;
-          return `_template(${pathRepr}, ${compIdRepr})`;
-        }
-        const pathStr = obj.path;
+      // A template keeps the plain `path` key in every version; a data binding uses the
+      // version's reserved key.
+      if (
+        typeof obj.path === 'string' &&
+        'componentId' in obj &&
+        typeof obj.componentId === 'string'
+      ) {
+        const pathRepr = this.decompileValue(
+          {[helper.keys.path]: obj.path},
+          compIds,
+          false,
+          helper,
+        );
+        const compIdRepr = obj.componentId;
+        return `_template(${pathRepr}, ${compIdRepr})`;
+      }
+
+      const boundPath = obj[helper.keys.path];
+      if (typeof boundPath === 'string') {
+        const pathStr = boundPath;
         if (pathStr.startsWith('/')) {
           return `$/${pathStr.slice(1)}`;
         }
@@ -745,7 +760,8 @@ export class ExpressDecompiler {
 
       if ('functionCall' in obj && obj.functionCall && typeof obj.functionCall === 'object') {
         const fn = obj.functionCall as Record<string, unknown>;
-        const name = typeof fn.call === 'string' ? fn.call : '';
+        const fnCall = fn[helper.keys.call];
+        const name = typeof fnCall === 'string' ? fnCall : '';
         const args = optionalObjectField(fn.args, `Function call '${name}'`, 'args');
 
         const fnProps = helper.getFunctionProperties(name);
@@ -763,8 +779,9 @@ export class ExpressDecompiler {
         return `${name}(${argsReprs.join(', ')})`;
       }
 
-      if ('call' in obj && typeof obj.call === 'string') {
-        const name = obj.call;
+      const callName = obj[helper.keys.call];
+      if (typeof callName === 'string') {
+        const name = callName;
         const args = (obj.args ?? {}) as unknown;
         const argsReprs: string[] = [];
         if (helper.functions.has(name)) {

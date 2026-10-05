@@ -43,7 +43,12 @@ import {
   type ExpressStatement,
   type ExpressValue,
 } from './visitor.js';
-import {CatalogSchemaHelper, expectsOptionObjects, isActionSlot} from './schema_helper.js';
+import {
+  CatalogSchemaHelper,
+  expectsOptionObjects,
+  isActionSlot,
+  type ReservedKeys,
+} from './schema_helper.js';
 import {
   ExpressDuplicateParamError,
   ExpressDuplicatePropertyError,
@@ -110,37 +115,43 @@ export function setNestedPath(d: Record<string, unknown>, pathStr: string, val: 
 }
 
 /**
- * Recursively checks if a value structure contains a dynamic DataBinding ($path) ref (compiler.py:104-122).
+ * Recursively checks if a compiled value contains a dynamic DataBinding ($path) ref (compiler.py:104-122).
+ *
+ * @param v The compiled value.
+ * @param keys The wire keys of the protocol version the value was compiled for.
  */
-export function hasDatabinding(v: unknown): boolean {
+export function hasDatabinding(v: unknown, keys: ReservedKeys): boolean {
   if (v && typeof v === 'object') {
     if (Array.isArray(v)) {
-      return v.some(hasDatabinding);
+      return v.some(item => hasDatabinding(item, keys));
     }
     const obj = v as Record<string, unknown>;
-    if ('call' in obj || 'event' in obj || 'functionCall' in obj) {
+    if (keys.call in obj || 'event' in obj || 'functionCall' in obj) {
       return false;
     }
-    if ('path' in obj && !('componentId' in obj)) {
+    if (keys.path in obj && !('componentId' in obj)) {
       return true;
     }
-    return Object.values(obj).some(hasDatabinding);
+    return Object.values(obj).some(item => hasDatabinding(item, keys));
   }
   return false;
 }
 
 /**
- * Checks if a value node is a direct dynamic DataBinding ($path) ref.
+ * Checks if a compiled value is a direct dynamic DataBinding ($path) ref.
+ *
+ * @param v The compiled value.
+ * @param keys The wire keys of the protocol version the value was compiled for.
  */
-function isDirectBinding(v: unknown): boolean {
+function isDirectBinding(v: unknown, keys: ReservedKeys): boolean {
   if (!v || typeof v !== 'object' || Array.isArray(v)) {
     return false;
   }
   const obj = v as Record<string, unknown>;
-  if ('call' in obj || 'event' in obj || 'functionCall' in obj) {
+  if (keys.call in obj || 'event' in obj || 'functionCall' in obj) {
     return false;
   }
-  return 'path' in obj && !('componentId' in obj);
+  return keys.path in obj && !('componentId' in obj);
 }
 
 /**
@@ -225,7 +236,8 @@ class CompileContext {
   extraComponents: Record<string, unknown>[] = [];
   generatedIds: Set<string> = new Set();
   inlineCounter = 0;
-  activeBoundPaths: Map<string, ExpressPathValue> = new Map();
+  /** Compiled data bindings of the component being compiled, by property name. */
+  activeBoundPaths: Map<string, Record<string, unknown>> = new Map();
   helper!: CatalogSchemaHelper;
 }
 
@@ -485,7 +497,7 @@ export class ExpressCompiler {
             functionCallId: `call_${ctx.inlineCounter}`,
             callFunction: {
               catalogId: callCatId,
-              call: compiledVal.call as string,
+              [helper.keys.call]: compiledVal[helper.keys.call] as string,
               args: (compiledVal.args as Record<string, unknown>) ?? {},
             },
           },
@@ -689,7 +701,7 @@ export class ExpressCompiler {
     }
 
     const seenProperties = new Set<string>();
-    const boundPaths = new Map<string, ExpressPathValue>();
+    const boundPaths = new Map<string, Record<string, unknown>>();
 
     for (const [propName, arg] of propArgPairs) {
       if (!properties.includes(propName)) {
@@ -753,10 +765,10 @@ export class ExpressCompiler {
       if (
         mappedVal &&
         typeof mappedVal === 'object' &&
-        'path' in mappedVal &&
+        ctx.helper.keys.path in mappedVal &&
         !('componentId' in mappedVal)
       ) {
-        boundPaths.set(propName, mappedVal as ExpressPathValue);
+        boundPaths.set(propName, mappedVal as Record<string, unknown>);
       }
     }
 
@@ -857,7 +869,7 @@ export class ExpressCompiler {
           }
 
           compiledChecks.push({
-            condition: {call: checkName, args: compiledArgs},
+            condition: {[ctx.helper.keys.call]: checkName, args: compiledArgs},
             message: messageVal,
           });
         }
@@ -897,7 +909,7 @@ export class ExpressCompiler {
   ): unknown {
     if (val && typeof val === 'object') {
       if ('path' in val) {
-        return val;
+        return {[ctx.helper.keys.path]: (val as ExpressPathValue).path};
       }
 
       if ('variable' in val) {
@@ -981,7 +993,7 @@ export class ExpressCompiler {
           }
         }
 
-        return {call: checkName, args: compiledArgs};
+        return {[ctx.helper.keys.call]: checkName, args: compiledArgs};
       }
 
       if ('call' in val) {
@@ -1018,13 +1030,18 @@ export class ExpressCompiler {
             );
           }
           const pathVal = this._compileValue(fnArgs[0], rawSymbols, ctx, isAction);
-          if (!pathVal || typeof pathVal !== 'object' || !('path' in pathVal)) {
+          if (!pathVal || typeof pathVal !== 'object' || !(ctx.helper.keys.path in pathVal)) {
             throw new ExpressParseError(
               `The first argument to _template must be a dynamic data binding path (prefixed by $), got: ${formatValue(fnArgs[0])}`,
             );
           }
           const compIdVal = this._compileValue(fnArgs[1], rawSymbols, ctx, isAction);
-          return {path: (pathVal as ExpressPathValue).path, componentId: compIdVal};
+          // A template's path is a plain property of ChildList, not a data binding, so it
+          // keeps the unprefixed name in every version.
+          return {
+            path: (pathVal as Record<string, unknown>)[ctx.helper.keys.path],
+            componentId: compIdVal,
+          };
         }
 
         // 3. Is it a reserved Event signature?
@@ -1107,12 +1124,12 @@ export class ExpressCompiler {
           // Wrap in functionCall only if inside an action field
           if (isAction) {
             return {
-              functionCall: {call: fnName, args: compiledArgs},
+              functionCall: {[ctx.helper.keys.call]: fnName, args: compiledArgs},
             };
           }
 
           // Otherwise, compile direct dynamic function call expression
-          return {call: fnName, args: compiledArgs};
+          return {[ctx.helper.keys.call]: fnName, args: compiledArgs};
         }
 
         // Fallback for unknown functions
@@ -1157,7 +1174,7 @@ export class ExpressCompiler {
     helper: CatalogSchemaHelper,
   ): void {
     const walk = (v: unknown, s: unknown): void => {
-      if (isDirectBinding(v)) {
+      if (isDirectBinding(v, helper.keys)) {
         if (s && !helper.admitsPath(s)) {
           throw new ExpressForbiddenDatabindingError(compName, topLevelPropName);
         }
@@ -1172,7 +1189,7 @@ export class ExpressCompiler {
       }
       if (v && typeof v === 'object') {
         const obj = v as Record<string, unknown>;
-        if ('call' in obj || 'event' in obj || 'functionCall' in obj) {
+        if (helper.keys.call in obj || 'event' in obj || 'functionCall' in obj) {
           return;
         }
         for (const [k, subVal] of Object.entries(obj)) {

@@ -48,7 +48,7 @@ describe('ExpressDecompiler', () => {
             catalogId: 'conformance/simplified',
             components: [
               {id: 'root', component: 'Card', child: 'body'},
-              {id: 'body', component: 'Text', text: {path: '/user/name'}},
+              {id: 'body', component: 'Text', text: {'@path': '/user/name'}},
             ],
             dataModel: {user: {name: 'Alice', age: 30}},
           },
@@ -71,7 +71,7 @@ describe('ExpressDecompiler', () => {
               {
                 id: 'root',
                 component: 'Text',
-                text: {call: 'formatString', args: {value: 'Welcome, ${/user/name}!'}},
+                text: {'@call': 'formatString', args: {value: 'Welcome, ${/user/name}!'}},
               },
             ],
           },
@@ -159,7 +159,7 @@ describe('ExpressDecompiler', () => {
                 component: 'Column',
                 children: {path: '/items', componentId: 'itemTmpl'},
               },
-              {id: 'itemTmpl', component: 'Text', text: {path: 'label'}},
+              {id: 'itemTmpl', component: 'Text', text: {'@path': 'label'}},
             ],
           },
         },
@@ -179,7 +179,7 @@ describe('ExpressDecompiler', () => {
             catalogId: 'conformance/simplified',
             components: [
               {id: 'root', component: 'Column', children: {path: 'items', componentId: 'itemTmpl'}},
-              {id: 'itemTmpl', component: 'Text', text: {path: ''}},
+              {id: 'itemTmpl', component: 'Text', text: {'@path': ''}},
             ],
           },
         },
@@ -280,7 +280,7 @@ describe('ExpressDecompiler', () => {
                 label: 'Name',
                 checks: [
                   {
-                    condition: {call: 'required', args: {value: {path: '/name'}}},
+                    condition: {'@call': 'required', args: {value: {'@path': '/name'}}},
                     message: 'Required check failed',
                   },
                 ],
@@ -310,8 +310,8 @@ describe('ExpressDecompiler', () => {
                 checks: [
                   {
                     condition: {
-                      call: 'regex',
-                      args: {value: {path: '/zip'}, pattern: '^[0-9]{5}$'},
+                      '@call': 'regex',
+                      args: {value: {'@path': '/zip'}, pattern: '^[0-9]{5}$'},
                     },
                     message: 'Regex check failed',
                   },
@@ -342,8 +342,8 @@ describe('ExpressDecompiler', () => {
                 checks: [
                   {
                     condition: {
-                      call: 'regex',
-                      args: {value: {path: '/zip'}, pattern: '^[0-9]{5}$'},
+                      '@call': 'regex',
+                      args: {value: {'@path': '/zip'}, pattern: '^[0-9]{5}$'},
                     },
                     message: 'Must be 5 digits',
                   },
@@ -372,11 +372,11 @@ describe('ExpressDecompiler', () => {
                 component: 'TextField',
                 label: 'Zip',
                 checks: [
-                  {condition: {call: 'required', args: {value: {path: '/zip'}}}},
+                  {condition: {'@call': 'required', args: {value: {'@path': '/zip'}}}},
                   {
                     condition: {
-                      call: 'regex',
-                      args: {value: {path: '/zip'}, pattern: '^[0-9]{5}$'},
+                      '@call': 'regex',
+                      args: {value: {'@path': '/zip'}, pattern: '^[0-9]{5}$'},
                     },
                     message: 'Must be 5 digits',
                   },
@@ -396,7 +396,10 @@ describe('ExpressDecompiler', () => {
     it('writes a callFunction message as a standalone call', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const messages = [
-        {version: 'v1.0', callFunction: {call: 'openUrl', args: {url: 'https://example.com/help'}}},
+        {
+          version: 'v1.0',
+          callFunction: {'@call': 'openUrl', args: {url: 'https://example.com/help'}},
+        },
       ] as unknown as AgentToRendererMessage[];
       expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
         'openUrl("https://example.com/help")',
@@ -406,7 +409,10 @@ describe('ExpressDecompiler', () => {
     it('writes a standalone call with two arguments', () => {
       const {catalog, version} = getCatalogInfo('forms');
       const messages = [
-        {version: 'v1.0', callFunction: {call: 'regex', args: {value: '123', pattern: '^[0-9]+$'}}},
+        {
+          version: 'v1.0',
+          callFunction: {'@call': 'regex', args: {value: '123', pattern: '^[0-9]+$'}},
+        },
       ] as unknown as AgentToRendererMessage[];
       expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
         'regex("123", "^[0-9]+$")',
@@ -652,7 +658,7 @@ describe('ExpressDecompiler', () => {
 
     it('throws when function call args are a string', () => {
       expect(() =>
-        decompileButton({functionCall: {call: 'openUrl', args: 'https://example.com'}}),
+        decompileButton({functionCall: {'@call': 'openUrl', args: 'https://example.com'}}),
       ).toThrow(/Function call 'openUrl' has a non-object 'args'/);
     });
 

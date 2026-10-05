@@ -160,9 +160,33 @@ function standardDefsFor(protocolVersion: string): Record<string, unknown> {
   }
 }
 
+/**
+ * The keys that mark a data binding (`path`) and a function call (`call`) on the wire.
+ * v1.0 prefixes both with `@`; v0.9 and v0.9.1 use the plain names.
+ */
+export interface ReservedKeys {
+  readonly path: string;
+  readonly call: string;
+}
+
+/**
+ * Returns the wire keys for data bindings and function calls in a protocol version.
+ */
+function reservedKeysFor(protocolVersion: string): ReservedKeys {
+  switch (toWireProtocolVersion(protocolVersion)) {
+    case 'v0.9':
+    case 'v0.9.1':
+      return {path: 'path', call: 'call'};
+    default:
+      return {path: '@path', call: '@call'};
+  }
+}
+
 export class CatalogSchemaHelper {
   readonly catalog: Record<string, unknown>;
   readonly commonTypes: Record<string, unknown>;
+  /** The wire keys for data bindings and function calls in this catalog's version. */
+  readonly keys: ReservedKeys;
   readonly components: ReadonlyMap<string, Record<string, unknown>>;
   readonly functions: ReadonlyMap<string, Record<string, unknown>>;
 
@@ -178,6 +202,7 @@ export class CatalogSchemaHelper {
   constructor(catalog: CatalogApi, protocolVersion: string) {
     this.catalog = getCatalogDocument(catalog);
     this.commonTypes = {$defs: standardDefsFor(protocolVersion)};
+    this.keys = reservedKeysFor(protocolVersion);
 
     const rawComponents = (this.catalog.components ?? {}) as Record<string, unknown>;
     const componentsMap = new Map<string, Record<string, unknown>>();
@@ -682,7 +707,7 @@ export class CatalogSchemaHelper {
    * Checks whether a schema admits a data binding path.
    *
    * True when the schema is, or combines via `$ref`/oneOf/anyOf/allOf, an object schema
-   * whose `properties` contains `path`.
+   * whose `properties` contains `path` (v0.9) or `@path` (v1.0).
    *
    * Follows `$ref`s in `commonTypes` or the catalog document.
    * Never descends into `items` or property values.
@@ -702,7 +727,8 @@ export class CatalogSchemaHelper {
       const obj = s as Record<string, unknown>;
 
       if (obj.properties && typeof obj.properties === 'object') {
-        if ('path' in (obj.properties as Record<string, unknown>)) {
+        const props = obj.properties as Record<string, unknown>;
+        if ('path' in props || '@path' in props) {
           return true;
         }
       }

@@ -255,7 +255,7 @@ describe('ExpressCompiler', () => {
                 id: 'root',
                 component: 'TextField',
                 label: 'Name',
-                value: {path: '/form/name'},
+                value: {'@path': '/form/name'},
                 placeholder: 'Enter name',
               },
             ],
@@ -323,7 +323,7 @@ c = Text("Content")
       const components = createSurface.components as Array<Record<string, unknown>>;
       const tabsComp = components.find(c => c.component === 'Tabs');
       expect(tabsComp).toBeDefined();
-      expect(tabsComp?.tabs).toEqual([{title: {path: '/tab_title'}, child: 'c'}]);
+      expect(tabsComp?.tabs).toEqual([{title: {'@path': '/tab_title'}, child: 'c'}]);
     });
 
     it('rejects databinding when nested item schema does NOT admit path (departure 5)', () => {
