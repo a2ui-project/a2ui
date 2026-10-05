@@ -21,8 +21,8 @@ export type {
   NodeBuildChild,
   NodeViewProps,
   ReactA2uiComponentProps,
+  ReactCatalogComponent,
   ReactComponentImplementation,
 } from './react_component_implementation';
 
-// Export basic catalog components directly for 3P developers
-export * from './catalog/basic';
+export {MarkdownContext, useMarkdownRenderer} from './markdown-context';

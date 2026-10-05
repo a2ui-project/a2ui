@@ -27,15 +27,16 @@ The first step in any A2UI-enabled agent is initializing the
 `A2uiSchemaManager`.
 
 ```python
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.constants import VERSION_0_9
 from a2ui.strategies.schema import A2uiSchemaManager
-from a2ui.schema.catalog import CatalogConfig
-from a2ui.basic_catalog.provider import BasicCatalog
 
 # Define your catalogs (basic or bring your own) with optional examples
-basic_catalog_config = BasicCatalog.get_config(
-    version=VERSION_0_9,
-    examples_path="examples"
+basic_catalog_config = CatalogConfig.from_catalog(
+    "basic",
+    BasicCatalog(VERSION_0_9),
+    examples_path="examples",
 )
 my_catalog_config = CatalogConfig.from_path(
     name="my_custom_catalog",
