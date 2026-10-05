@@ -57,22 +57,32 @@ void main() {
       expect(actionCount, 1);
     });
 
-    test('ignores functionCall and call actions without emitting onAction', () {
-      final surface = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
-      var actionCount = 0;
-      surface.onAction.addListener((_) => actionCount++);
+    test(
+      'reports functionCall and call actions to onError (#65)',
+      () async {
+        final surface =
+            SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
+        var actionCount = 0;
+        final errors = <A2uiClientError>[];
+        surface.onAction.addListener((_) => actionCount++);
+        surface.onError.addListener(errors.add);
 
-      surface.dispatchAction({
-        'functionCall': {'call': 'doTask', 'args': <String, dynamic>{}},
-      }, 'c1');
-      expect(actionCount, 0);
+        await surface.dispatchAction({
+          'functionCall': {'call': 'doTask', 'args': <String, dynamic>{}},
+        }, 'c1');
+        expect(actionCount, 0);
+        expect(errors, hasLength(1));
+        expect(errors.last.code, 'INVALID_ACTION');
 
-      surface.dispatchAction({
-        'call': 'doTask',
-        'args': <String, dynamic>{},
-      }, 'c1');
-      expect(actionCount, 0);
-    });
+        await surface.dispatchAction({
+          'call': 'doTask',
+          'args': <String, dynamic>{},
+        }, 'c1');
+        expect(actionCount, 0);
+        expect(errors, hasLength(2));
+        expect(errors.last.code, 'INVALID_ACTION');
+      },
+    );
 
     test('dispatches direct name action with userMessage', () {
       final surface = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
@@ -108,17 +118,26 @@ void main() {
       expect(dispatched!.userMessage, isNull);
     });
 
-    test('ignores an event whose name is not a string', () async {
+    test('reports an event whose name is missing, empty, or not a string (#65)',
+        () async {
       final surface = SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
       A2uiClientAction? dispatched;
+      final errors = <A2uiClientError>[];
       surface.onAction.addListener((action) => dispatched = action);
+      surface.onError.addListener(errors.add);
 
       await surface.dispatchAction({
         'event': {'name': 42},
       }, 'c1');
       await surface.dispatchAction({'name': 42}, 'c1');
+      await surface.dispatchAction({
+        'event': {'name': ''},
+      }, 'c1');
+      await surface.dispatchAction({'foo': 'bar'}, 'c1');
 
       expect(dispatched, isNull);
+      expect(errors, hasLength(4));
+      expect(errors.every((e) => e.code == 'INVALID_ACTION'), isTrue);
     });
 
     test('throws A2uiStateError when a surface id is added twice', () {

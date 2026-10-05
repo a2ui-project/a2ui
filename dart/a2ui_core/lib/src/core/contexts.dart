@@ -158,6 +158,36 @@ class DataContext {
     return (int.tryParse(core.split('.').first) ?? 0) >= 1;
   }
 
+  /// Returns a data-binding map for [path] using the key required by the
+  /// active protocol version (`{'@path': path}` in v1.0+, `{'path': path}` in
+  /// pre-v1.0).
+  Map<String, Object?> bindingFor(String path) => isV10
+      ? <String, Object?>{'@path': path}
+      : <String, Object?>{'path': path};
+
+  /// Whether [value] is a data-binding object under this context's protocol
+  /// version.
+  ///
+  /// From v1.0, a data binding is `{'@path': '<pointer>'}`. Before v1.0 it is
+  /// `{'path': '<pointer>'}` without a `componentId` sibling, which would make
+  /// it a `ChildListTemplate` instead.
+  bool isDataBinding(Object? value) {
+    if (value is! Map) return false;
+    return isV10
+        ? value['@path'] is String
+        : value['path'] is String && !value.containsKey('componentId');
+  }
+
+  /// Whether [value] is a function-call object under this context's protocol
+  /// version.
+  ///
+  /// From v1.0, a function call is `{'@call': '<name>', ...}`. Before v1.0 it
+  /// is `{'call': '<name>', ...}`.
+  bool isFunctionCall(Object? value) {
+    if (value is! Map) return false;
+    return isV10 ? value['@call'] is String : value['call'] is String;
+  }
+
   static const Set<String> _reservedDirectives = {'@path', '@call'};
 
   static bool _isSingleAtKey(String key) =>
@@ -203,16 +233,14 @@ class DataContext {
       return null;
     }
     if (isV10) {
-      if (value is Map &&
-          value.containsKey('@path') &&
-          value['@path'] is String) {
-        final pathVal = value['@path'] as String;
+      if (isDataBinding(value)) {
+        final pathVal = (value as Map)['@path'] as String;
         return _readBinding(resolvePath(pathVal));
       }
-      if (value is Map &&
-          value.containsKey('@call') &&
-          value['@call'] is String) {
-        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+      if (isFunctionCall(value)) {
+        final call = FunctionCall.fromJson(
+          Map<String, dynamic>.from(value as Map),
+        );
         final args = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
           args[entry.key] = _resolveSync(entry.value, depth + 1);
@@ -225,6 +253,7 @@ class DataContext {
       }
       if (value is Map) {
         _validateReservedDirectives(value.keys);
+        if (!_containsDynamicValue(value, depth)) return value;
         final result = <String, dynamic>{};
         for (final MapEntry<Object?, Object?> entry in value.entries) {
           final keyStr = entry.key as String;
@@ -235,17 +264,14 @@ class DataContext {
         return result;
       }
     } else {
-      if (value is Map &&
-          value.containsKey('path') &&
-          value['path'] is String &&
-          !value.containsKey('componentId')) {
-        final pathVal = value['path'] as String;
+      if (isDataBinding(value)) {
+        final pathVal = (value as Map)['path'] as String;
         return _readBinding(resolvePath(pathVal));
       }
-      if (value is Map &&
-          value.containsKey('call') &&
-          value['call'] is String) {
-        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+      if (isFunctionCall(value)) {
+        final call = FunctionCall.fromJson(
+          Map<String, dynamic>.from(value as Map),
+        );
         final args = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
           args[entry.key] = _resolveSync(entry.value, depth + 1);
@@ -275,22 +301,22 @@ class DataContext {
     return value;
   }
 
-  /// Whether a value (typically an array element) contains any dynamic
-  /// parts (path bindings or function calls) that require resolution.
+  /// Whether a value (typically an array element or map) contains any dynamic
+  /// parts (path bindings, function calls, or v1.0 `@` directives/escapes)
+  /// that require resolution or unescaping in the current protocol mode.
   ///
   /// Past [maxDynamicValueDepth] it reports true, so resolution reaches the
   /// depth guard instead of returning the payload unchecked.
-  static bool _containsDynamicValue(Object? value, int depth) {
+  bool _containsDynamicValue(Object? value, int depth) {
     if (depth > maxDynamicValueDepth) return true;
     if (value is List) {
       return value.any((item) => _containsDynamicValue(item, depth + 1));
     }
     if (value is Map) {
-      if (value.containsKey('path') ||
-          value.containsKey('call') ||
-          value.containsKey('@path') ||
-          value.containsKey('@call') ||
-          value.keys.any((k) => k is String && k.startsWith('@@'))) {
+      if (isDataBinding(value) || isFunctionCall(value)) {
+        return true;
+      }
+      if (isV10 && value.keys.any((k) => k is String && k.startsWith('@'))) {
         return true;
       }
       return value.values.any((item) => _containsDynamicValue(item, depth + 1));
@@ -310,25 +336,24 @@ class DataContext {
       return signal(null);
     }
     if (isV10) {
-      if (value is Map &&
-          value.containsKey('@path') &&
-          value['@path'] is String) {
-        final pathVal = value['@path'] as String;
+      if (isDataBinding(value)) {
+        final pathVal = (value as Map)['@path'] as String;
         return _watchBinding(resolvePath(pathVal));
       }
-      if (value is Map &&
-          value.containsKey('@call') &&
-          value['@call'] is String) {
-        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+      if (isFunctionCall(value)) {
+        final call = FunctionCall.fromJson(
+          Map<String, dynamic>.from(value as Map),
+        );
+        final Map<String, ReadonlySignal<Object?>> argSignals = {
+          for (final MapEntry<String, dynamic> entry in call.args.entries)
+            entry.key: _resolveListenable(entry.value, depth + 1),
+        };
         return computed(() {
-          final args = <String, dynamic>{};
-          for (final MapEntry<String, dynamic> entry in call.args.entries) {
-            final ReadonlySignal<Object?> resolved = _resolveListenable(
-              entry.value,
-              depth + 1,
-            );
-            args[entry.key] = resolved.value;
-          }
+          final args = <String, dynamic>{
+            for (final MapEntry<String, ReadonlySignal<Object?>> entry
+                in argSignals.entries)
+              entry.key: entry.value.value,
+          };
           final Object? result = _evaluateFunction(call, args);
           if (result is ReadonlySignal) {
             return result.value;
@@ -338,6 +363,9 @@ class DataContext {
       }
       if (value is Map) {
         _validateReservedDirectives(value.keys);
+        if (!_containsDynamicValue(value, depth)) {
+          return signal(value);
+        }
         final entries = <String, ReadonlySignal<Object?>>{
           for (final MapEntry<Object?, Object?> e in value.entries)
             (e.key.toString().startsWith('@@')
@@ -349,26 +377,24 @@ class DataContext {
             });
       }
     } else {
-      if (value is Map &&
-          value.containsKey('path') &&
-          value['path'] is String &&
-          !value.containsKey('componentId')) {
-        final pathVal = value['path'] as String;
+      if (isDataBinding(value)) {
+        final pathVal = (value as Map)['path'] as String;
         return _watchBinding(resolvePath(pathVal));
       }
-      if (value is Map &&
-          value.containsKey('call') &&
-          value['call'] is String) {
-        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+      if (isFunctionCall(value)) {
+        final call = FunctionCall.fromJson(
+          Map<String, dynamic>.from(value as Map),
+        );
+        final Map<String, ReadonlySignal<Object?>> argSignals = {
+          for (final MapEntry<String, dynamic> entry in call.args.entries)
+            entry.key: _resolveListenable(entry.value, depth + 1),
+        };
         return computed(() {
-          final args = <String, dynamic>{};
-          for (final MapEntry<String, dynamic> entry in call.args.entries) {
-            final ReadonlySignal<Object?> resolved = _resolveListenable(
-              entry.value,
-              depth + 1,
-            );
-            args[entry.key] = resolved.value;
-          }
+          final args = <String, dynamic>{
+            for (final MapEntry<String, ReadonlySignal<Object?>> entry
+                in argSignals.entries)
+              entry.key: entry.value.value,
+          };
           final Object? result = _evaluateFunction(call, args);
           if (result is ReadonlySignal) {
             return result.value;
@@ -534,6 +560,7 @@ class DataContext {
   Map<String, dynamic>? resolveAction(Object? action) {
     if (action == null) return null;
     if (action is String) {
+      if (action.isEmpty) return null;
       return {
         'event': {'name': action, 'context': <String, Object?>{}}
       };
@@ -542,12 +569,16 @@ class DataContext {
     final map = Map<String, dynamic>.from(action);
     final Object? eventObj = map['event'];
     if (eventObj is Map) {
+      final Object? name = eventObj['name'];
+      if (name is! String || name.isEmpty) return null;
       final Map<String, dynamic> ev = _resolveActionFields(
         Map<String, dynamic>.from(eventObj),
       );
       return {...map, 'event': ev};
     }
     if (map.containsKey('name')) {
+      final Object? name = map['name'];
+      if (name is! String || name.isEmpty) return null;
       return _resolveActionFields(map);
     }
     return null;
