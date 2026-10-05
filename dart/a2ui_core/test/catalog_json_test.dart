@@ -72,6 +72,7 @@ void main() {
     test('parses and round-trips validationResult function returnType', () {
       final CatalogApi catalog = Catalog.fromJson({
         'catalogId': 'https://example.com/v1_validation_catalog',
+        'protocolVersion': '1.0',
         'functions': {
           'checkEmail': {
             'type': 'object',
@@ -120,6 +121,94 @@ void main() {
         A2uiReturnType.validationResult,
       );
     });
+
+    test(
+      'rejects validationResult function returnType when effective '
+      'protocolVersion is below 1.0',
+      () {
+        Map<String, Object?> docWithVersion(String? protocolVersion) => {
+              'catalogId': 'https://example.com/pre_v1_validation_catalog',
+              if (protocolVersion != null) 'protocolVersion': protocolVersion,
+              'functions': {
+                'checkEmail': {
+                  'returnType': 'validationResult',
+                  'parameters': {
+                    'type': 'object',
+                    'properties': {
+                      'value': {'type': 'string'},
+                    },
+                  },
+                },
+              },
+            };
+
+        for (final String? badVersion in [null, '0.9', 'v0.9', '0.9.1']) {
+          expect(
+            () => Catalog.fromJson(docWithVersion(badVersion)),
+            throwsA(
+              isA<A2uiCatalogError>().having(
+                (e) => e.message,
+                'message',
+                allOf(
+                  contains('checkEmail'),
+                  contains('validationResult'),
+                ),
+              ),
+            ),
+            reason: 'Catalog.fromJson with protocolVersion=$badVersion',
+          );
+          expect(
+            () => Catalog<ComponentApi, FunctionApi>(
+              id: 'https://example.com/pre_v1_validation_catalog',
+              protocolVersion: badVersion,
+              components: const [],
+              functions: [
+                FunctionApi(
+                  name: 'checkEmail',
+                  argumentSchema: S.object(),
+                  returnType: A2uiReturnType.validationResult,
+                ),
+              ],
+            ),
+            throwsA(
+              isA<A2uiCatalogError>().having(
+                (e) => e.message,
+                'message',
+                allOf(
+                  contains('checkEmail'),
+                  contains('validationResult'),
+                ),
+              ),
+            ),
+            reason: 'Catalog(...) constructor with protocolVersion=$badVersion',
+          );
+        }
+
+        for (final goodVersion in ['1.0', 'v1.0']) {
+          expect(
+            Catalog.fromJson(docWithVersion(goodVersion))
+                .functions['checkEmail']!
+                .returnType,
+            A2uiReturnType.validationResult,
+          );
+          expect(
+            Catalog<ComponentApi, FunctionApi>(
+              id: 'https://example.com/v1_validation_catalog',
+              protocolVersion: goodVersion,
+              components: const [],
+              functions: [
+                FunctionApi(
+                  name: 'checkEmail',
+                  argumentSchema: S.object(),
+                  returnType: A2uiReturnType.validationResult,
+                ),
+              ],
+            ).functions['checkEmail']!.returnType,
+            A2uiReturnType.validationResult,
+          );
+        }
+      },
+    );
 
     test(
       'GenericBinder evaluates checks on a JSON-loaded catalog referencing '

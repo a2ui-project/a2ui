@@ -24,8 +24,11 @@
 - **Behavior change:** `SurfaceGroupModel.addSurface` throws `A2uiStateError`
   for a surface id it already holds, instead of ignoring the new surface.
 - **Behavior change:** `Catalog` throws `A2uiCatalogError` for two components
-  or two functions with one name, for a component named `Surface`, and for a
-  function name starting with `@`.
+  or two functions with one name, for a component named `Surface`, for a
+  function name starting with `@`, and for a function declaring
+  `returnType: 'validationResult'` when the catalog's effective
+  `protocolVersion` is below `1.0` (an omitted `protocolVersion` defaults to
+  `'0.9'`).
 - **Behavior change:** `Catalog.invoke` checks arguments against the
   function's argument schema and throws `A2uiExpressionError` on a mismatch
   before the function runs. Null arguments, such as bindings to missing data,

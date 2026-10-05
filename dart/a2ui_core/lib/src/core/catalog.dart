@@ -158,9 +158,11 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   static const String reservedComponentName = 'Surface';
 
   /// Throws [A2uiCatalogError] when two components or two functions share a
-  /// name, when a component is named [reservedComponentName], or when a
+  /// name, when a component is named [reservedComponentName], when a
   /// function name starts with `@`, which the protocol reserves for its own
-  /// functions.
+  /// functions, or when a function declares [A2uiReturnType.validationResult]
+  /// on a catalog whose effective protocol version is below `1.0` (an omitted
+  /// [protocolVersion] defaults to `'0.9'`).
   Catalog({
     required this.id,
     required List<C> components,
@@ -172,7 +174,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     this.protocolVersion,
     this.instructions,
   })  : components = _indexComponents(id, components),
-        functions = _indexFunctions(id, functions);
+        functions = _indexFunctions(id, functions, protocolVersion);
 
   static Map<String, T> _indexComponents<T extends ComponentApi>(
     String catalogId,
@@ -195,13 +197,26 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   static Map<String, T> _indexFunctions<T extends FunctionApi>(
     String catalogId,
     List<T> items,
+    String? protocolVersion,
   ) {
+    final String effectiveVersion = protocolVersion ?? '0.9';
+    final bool allowsValidationResult =
+        compareVersions(effectiveVersion, '1.0') >= 0;
     final byName = <String, T>{};
     for (final item in items) {
       if (item.name.startsWith('@')) {
         throw A2uiCatalogError(
           "Catalog '$catalogId' declares a function named '${item.name}'; "
           "names starting with '@' are reserved.",
+          catalogId: catalogId,
+        );
+      }
+      if (!allowsValidationResult &&
+          item.returnType == A2uiReturnType.validationResult) {
+        throw A2uiCatalogError(
+          "Function '${item.name}' declares returnType 'validationResult', "
+          'which protocol $effectiveVersion does not define; declare '
+          'protocolVersion 1.0 or later.',
           catalogId: catalogId,
         );
       }
@@ -233,8 +248,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// catalogs in renderer capabilities.
   ///
   /// A `protocolVersion` the document declares is kept in [protocolVersion]
-  /// rather than checked against this SDK; a surface checks it against its
-  /// own version.
+  /// and checked against version-specific function capabilities (for example,
+  /// `returnType: 'validationResult'` requires `1.0` or later; an omitted
+  /// `protocolVersion` defaults to `'0.9'`). A surface also checks
+  /// [protocolVersion] against its own version.
   ///
   /// Throws [A2uiCatalogError] if the document is malformed or conflicts with
   /// [expectedCatalogId].
