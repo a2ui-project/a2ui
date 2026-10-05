@@ -24,8 +24,71 @@ from typing import Any, TYPE_CHECKING
 
 from a2ui.core import Catalog
 
+from .utils import load_common_types_schema
+
 if TYPE_CHECKING:
     from a2ui.core import CatalogApi
+
+_DEFS_REF_PREFIX = "#/$defs/"
+
+
+def inline_catalog_defs(catalog: CatalogApi) -> dict[str, Any]:
+    """Returns a catalog's schema with its own definitions written into `allOf`.
+
+    `Catalog.from_json` writes a catalog's own `$defs` inline, but a catalog
+    built from models refers to them. For example, the components of the v0.9
+    basic catalog refer to `CatalogComponentCommon`, which holds `weight`.
+    Inlining these definitions in the `allOf` lists of components and functions
+    lets the crawlers read both kinds of catalog the same way. References to
+    common types stay, because the crawlers read some of them by name, such as
+    `Checkable`.
+
+    Args:
+        catalog: The catalog.
+
+    Returns:
+        A copy of the catalog schema. Its `components` and `functions` are new
+        dictionaries, and its other entries are shared with the catalog.
+    """
+    schema = dict(catalog.catalog_schema or {})
+    common_types = load_common_types_schema(catalog.protocol_version).get("$defs", {})
+    local_defs = {
+        name: definition
+        for name, definition in schema.get("$defs", {}).items()
+        if name not in common_types
+    }
+
+    def inline(node: Any, seen: frozenset[str]) -> Any:
+        if isinstance(node, dict):
+            ref = node.get("$ref")
+            if isinstance(ref, str) and ref.startswith(_DEFS_REF_PREFIX):
+                name = ref.removeprefix(_DEFS_REF_PREFIX)
+                # `seen` holds the definitions being inlined, so a definition
+                # that refers to itself stays a reference.
+                if name in local_defs and name not in seen:
+                    resolved = inline(local_defs[name], seen | {name})
+                    siblings = {k: v for k, v in node.items() if k != "$ref"}
+                    if isinstance(resolved, dict):
+                        return {**resolved, **inline(siblings, seen)}
+                    return resolved
+            return {key: inline(value, seen) for key, value in node.items()}
+        if isinstance(node, list):
+            return [inline(item, seen) for item in node]
+        return node
+
+    for key in ("components", "functions"):
+        entries = schema.get(key)
+        if not isinstance(entries, dict):
+            continue
+        schema[key] = {
+            name: (
+                {**entry, "allOf": inline(entry["allOf"], frozenset())}
+                if isinstance(entry, dict) and isinstance(entry.get("allOf"), list)
+                else entry
+            )
+            for name, entry in entries.items()
+        }
+    return schema
 
 
 class CatalogSchemaHelper:
@@ -53,7 +116,7 @@ class CatalogSchemaHelper:
             raise TypeError(f"Unsupported catalog type: {type(catalog)}")
         self.catalog_model = catalog
 
-        self.catalog = self.catalog_model.catalog_schema or {}
+        self.catalog = inline_catalog_defs(self.catalog_model)
         self.components = dict(self.catalog.get("components", {}))
         self.functions = dict(self.catalog.get("functions", {}))
         self.component_properties: dict[str, list[str]] = {}

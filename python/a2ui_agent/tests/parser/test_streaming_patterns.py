@@ -46,7 +46,7 @@ def _stream_create_surface(catalog: Catalog, extensions: dict[str, int]) -> None
     parser.process_chunk(f"{A2UI_OPEN_TAG}[{json.dumps(message)}]{A2UI_CLOSE_TAG}")
 
 
-def test_catalog_common_types_come_from_core() -> None:
+def test_load_common_types_schema_comes_from_core() -> None:
     assert load_common_types_schema("1.0") == get_common_types_schema_map(
         ProtocolVersion.V1_0
     )

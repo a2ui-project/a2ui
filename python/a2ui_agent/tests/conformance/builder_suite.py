@@ -44,7 +44,7 @@ from a2ui.core.schema.v0_9 import (
     UpdateDataModel,
     UpdateDataModelMessage,
 )
-from a2ui.core import CatalogApi, ValidationConfig
+from a2ui.core import Catalog, CatalogApi, ValidationConfig
 from a2ui.schema.constants import VERSION_0_9_1
 from a2ui.schema.utils import find_repo_root
 
@@ -252,8 +252,14 @@ def basic_catalog_schema() -> CatalogApi:
     """Loads the basic catalog, memoized because schema loading is slow."""
     global _catalog
     if _catalog is None:
-        _catalog = BasicCatalog(PROTOCOL_VERSION)
-        _catalog.protocol_version = PROTOCOL_VERSION
+        # BasicCatalog serves v0.9.1 with the v0.9 catalog, which reports v0.9,
+        # so the catalog is parsed again for the version under test.
+        basic = BasicCatalog(PROTOCOL_VERSION)
+        _catalog = Catalog.from_json(
+            catalog_schema=basic.catalog_schema,
+            protocol_version=PROTOCOL_VERSION,
+            catalog_id=basic.catalog_id,
+        )
     return _catalog
 
 

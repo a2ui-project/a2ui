@@ -119,8 +119,12 @@ class ElementalPromptGenerator(PromptGenerator):
 
         Args:
             format_inst: An ElementalFormat instance.
+
+        Raises:
+            ValueError: If the format instance has no catalog.
         """
-        assert format_inst.catalog is not None
+        if format_inst.catalog is None:
+            raise ValueError("Catalog is required to generate elemental prompts.")
         self._format = format_inst
         self.catalog: CatalogApi = format_inst.catalog
         self.helper: CatalogSchemaHelper = CatalogSchemaHelper(format_inst.catalog)

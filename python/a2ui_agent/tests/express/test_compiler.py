@@ -157,35 +157,32 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
 
         expected_components_count = 3
 
-        for cat_input in [core_catalog]:
-            # Compiler
-            compiler = ExpressCompiler(cat_input)
-            envelope = compiler.compile(dsl, surface_id="test_surf")[0]
-            self.assertEqual(
-                len(envelope["createSurface"]["components"]), expected_components_count
-            )
+        # Compiler
+        compiler = ExpressCompiler(core_catalog)
+        envelope = compiler.compile(dsl, surface_id="test_surf")[0]
+        self.assertEqual(
+            len(envelope["createSurface"]["components"]), expected_components_count
+        )
 
-            # Decompiler
-            decompiler = ExpressParser(cat_input)
-            decompiled_dsl = decompiler.decompile(envelope)
-            self.assertIn("repField = TextField(", decompiled_dsl)
+        # Decompiler
+        decompiler = ExpressParser(core_catalog)
+        decompiled_dsl = decompiler.decompile(envelope)
+        self.assertIn("repField = TextField(", decompiled_dsl)
 
-            # Prompt Generator
-            from a2ui.inference_formats.experimental.express.format import ExpressFormat
+        # Prompt Generator
+        from a2ui.inference_formats.experimental.express import ExpressFormat
 
-            fmt = ExpressFormat(catalog=cat_input)
-            prompt = fmt.prompt_generator.generate(
-                role_description="", include_schema=True
-            )
-            self.assertIn("TextField(", prompt)
+        fmt = ExpressFormat(catalog=core_catalog)
+        prompt = fmt.prompt_generator.generate(role_description="", include_schema=True)
+        self.assertIn("TextField(", prompt)
 
-            # Parser
-            response = f"<a2ui>\n{dsl}\n</a2ui>"
-            parts = ExpressParser(cat_input, surface_id="test_surf").parse_response(
-                response
-            )
-            self.assertEqual(len(parts), 1)
-            self.assertIsNotNone(parts[0].a2ui_json)
+        # Parser
+        response = f"<a2ui>\n{dsl}\n</a2ui>"
+        parts = ExpressParser(core_catalog, surface_id="test_surf").parse_response(
+            response
+        )
+        self.assertEqual(len(parts), 1)
+        self.assertIsNotNone(parts[0].a2ui_json)
 
     def test_catalog_schema_helper_initialization_errors(self):
         """Verifies that CatalogSchemaHelper raises correct errors for invalid initialization inputs."""

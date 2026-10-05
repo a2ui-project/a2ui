@@ -18,6 +18,7 @@ from typing import Any, Optional, Union
 
 from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
+from a2ui.schema import CatalogConfig
 from a2ui.skill.skill import Skill, SkillSet, _clean_catalog_name, _resolve_catalogs_list
 
 
@@ -31,7 +32,7 @@ class SkillGenerator:
         self,
         name: str = "a2ui",
         description: Optional[str] = None,
-        catalogs: Optional[list[Union[str, CatalogApi]]] = None,
+        catalogs: Optional[list[Union[str, CatalogConfig, CatalogApi]]] = None,
     ) -> Skill:
         """Compiles an InferenceFormat into a single unified (monolithic) Skill.
 
@@ -141,7 +142,7 @@ class SkillGenerator:
 
     def generate_skillset(
         self,
-        catalogs: Optional[list[Union[str, CatalogApi]]] = None,
+        catalogs: Optional[list[Union[str, CatalogConfig, CatalogApi]]] = None,
         core_name: str = "a2ui-core",
     ) -> SkillSet:
         """Generates standard modular skills (a2ui-core + 1 skill per catalog) for an inference format.

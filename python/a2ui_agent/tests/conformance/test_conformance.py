@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import dataclasses
+import contextlib
+import json
 import os
-import yaml
+import re
+
 import pytest
-from .conformance_helpers import (
-    get_conformance_path,
-    load_conformance_json as load_json_file,
-    load_conformance_yaml as load_tests,
-)
+import yaml
 
 from a2ui.core import (
     A2uiCatalogError,
@@ -38,19 +36,20 @@ from a2ui.inference_formats.direct_json import (
     DirectJsonParser,
     DirectJsonStreamParser,
 )
+from a2ui.parser.errors import A2uiCompilationError
 from a2ui.schema import (
     CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
 )
-from a2ui.parser.errors import A2uiCompilationError
 from a2ui.utils import validate_payload
 
-import json
-import re
-
-import contextlib
+from .conformance_helpers import (
+    get_conformance_path,
+    load_conformance_json as load_json_file,
+    load_conformance_yaml as load_tests,
+)
 
 CATEGORY_TO_EXCEPTION = {
     "ParseError": A2uiParseError,
@@ -477,19 +476,13 @@ _get_conformance_path = get_conformance_path
 # names the call it exercises (`compile`, `decompile`) and carries its catalog
 # as a path into `conformance/test_data/`.
 #
-# Two things the suites leave to the harness:
-#
-# - The surface a block compiles into. The suites fix `default_surface` as the
-#   surface id a block that names no surface compiles against, which is what
-#   `ExpressCompiler.compile` defaults to; `ExpressParser` takes it as a
-#   constructor argument and defaults to `main` instead, so the harness passes
-#   it explicitly rather than testing a constructor default other languages may
-#   not have.
-# - Turning on v1.0 validation, which this SDK gates behind an experiment. The
-#   suites are all v1.0, so without it every catalog fails to build a validator.
+# One thing the suites leave to the harness is the surface a block compiles
+# into. The suites fix `default_surface` as the surface id a block that names no
+# surface compiles against, which is what `ExpressCompiler.compile` defaults to;
+# `ExpressParser` takes it as a constructor argument and defaults to `main`
+# instead, so the harness passes it explicitly rather than testing a constructor
+# default other languages may not have.
 
-
-V1_0_EXPERIMENTS = frozenset({"version_1_0"})
 
 CONFORMANCE_SURFACE_ID = "default_surface"
 

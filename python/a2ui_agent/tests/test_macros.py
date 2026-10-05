@@ -14,6 +14,7 @@
 
 """Exhaustive unit tests for A2UI Macros."""
 
+import copy
 from enum import Enum
 from typing import Any, Literal, Optional, Sequence, Union
 
@@ -631,7 +632,7 @@ def test_macro_expander_passthrough_components():
     assert "Text" not in inf_only_macros.catalog_schema["components"]
 
 
-def test_macro_expander_emits_common_ref_prefix():
+def test_macro_inference_catalog_localizes_common_type_refs():
     @macro
     def DynCard(label: DynamicString) -> Card:
         return Card(child=Text(text="hi"))
@@ -644,6 +645,7 @@ def test_macro_expander_emits_common_ref_prefix():
             "properties": {"text": {"$ref": f"{v09_prefix}DynamicString"}},
         }
     })
+    base_schema = copy.deepcopy(cat_v09.catalog_schema)
     exp = MacroExpander([DynCard])
     inf = exp.transform_to_inference_catalog(cat_v09)
     # Catalog.from_json normalizes external common_types refs to local #/$defs/ pointers
@@ -655,6 +657,8 @@ def test_macro_expander_emits_common_ref_prefix():
         inf.catalog_schema["components"]["Text"]["properties"]["text"]["$ref"]
         == "#/$defs/DynamicString"
     )
+    # The base catalog remains untouched
+    assert cat_v09.catalog_schema == base_schema
 
 
 def test_macro_expander_to_catalog():

@@ -472,12 +472,12 @@ class ContactAgent:
                                 full_content_list.append(p.text)
                                 yield p.text
 
-            if selected_catalog:
+            if inference_format and selected_catalog:
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = DirectJsonStreamParser(
-                        catalog=selected_catalog
+                    self._parsers[session_id] = inference_format.create_stream_parser(
+                        selected_catalog
                     )
                     if len(self._parsers) > self._max_parsers:
                         self._parsers.popitem(last=False)

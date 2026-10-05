@@ -16,26 +16,22 @@ import pytest
 
 from a2ui.core import A2uiCatalogError
 from a2ui.core.basic_catalog import BasicCatalog, v0_8, v0_9, v1_0
-from a2ui.schema.catalog import A2uiCatalogProvider, CatalogConfig
-from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
+from a2ui.schema import (
+    VERSION_0_8,
+    VERSION_0_9,
+    CatalogConfig,
+    InMemoryCatalogProvider,
+    remove_strict_validation,
+)
 
 BASIC_CATALOG_NAME = "basic"
-
-
-class _DictCatalogProvider(A2uiCatalogProvider):
-
-    def __init__(self, schema: dict):
-        self._schema = schema
-
-    def load(self) -> dict:
-        return self._schema
 
 
 def test_catalog_id_property():
     catalog_id = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
     config = CatalogConfig(
         name=BASIC_CATALOG_NAME,
-        provider=_DictCatalogProvider({"catalogId": catalog_id}),
+        provider=InMemoryCatalogProvider({"catalogId": catalog_id}),
     )
     catalog = config.to_catalog(protocol_version=VERSION_0_8)
     assert catalog.catalog_id == catalog_id
@@ -44,10 +40,47 @@ def test_catalog_id_property():
 def test_catalog_id_missing_raises_error():
     config = CatalogConfig(
         name=BASIC_CATALOG_NAME,
-        provider=_DictCatalogProvider({}),  # No catalogId
+        provider=InMemoryCatalogProvider({}),  # No catalogId
     )
     with pytest.raises(A2uiCatalogError, match="missing 'catalogId'"):
         config.to_catalog(protocol_version=VERSION_0_8)
+
+
+def test_catalog_config_requires_provider_or_catalog():
+    with pytest.raises(TypeError, match="requires either 'provider' or 'catalog'"):
+        CatalogConfig(name=BASIC_CATALOG_NAME)
+
+
+def test_to_catalog_returns_configured_catalog_for_matching_version():
+    catalog = BasicCatalog(VERSION_0_9)
+    config = CatalogConfig.from_catalog(BASIC_CATALOG_NAME, catalog)
+
+    assert config.to_catalog() is catalog
+    # "0.9" and "v0.9" name the same version as the catalog's "v0.9".
+    assert config.to_catalog(protocol_version="0.9") is catalog
+    assert config.to_catalog(protocol_version="v0.9") is catalog
+
+
+def test_to_catalog_reparses_for_another_version():
+    catalog = BasicCatalog(VERSION_0_9)
+    config = CatalogConfig.from_catalog(BASIC_CATALOG_NAME, catalog)
+
+    reparsed = config.to_catalog(protocol_version=VERSION_0_8)
+
+    assert reparsed is not catalog
+    assert reparsed.protocol_version == VERSION_0_8
+    assert reparsed.catalog_id == catalog.catalog_id
+    assert set(reparsed.components) == set(catalog.components)
+
+
+def test_to_catalog_with_modifiers_keeps_configured_catalog_version():
+    catalog = BasicCatalog(VERSION_0_9)
+    config = CatalogConfig.from_catalog(BASIC_CATALOG_NAME, catalog)
+
+    modified = config.to_catalog(schema_modifiers=[remove_strict_validation])
+
+    assert modified is not catalog
+    assert modified.protocol_version == catalog.protocol_version
 
 
 def test_resolve_examples_path_handling():

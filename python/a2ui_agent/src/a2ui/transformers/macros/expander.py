@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import replace
 import logging
 from typing import Any, Callable, Optional, Sequence, Union
 
@@ -134,10 +133,7 @@ class MacroExpander:
         Returns:
             A Catalog instance ready to be used by inference formats and prompt generators.
         """
-        from a2ui.schema.constants import (
-            CATALOG_COMPONENTS_KEY,
-            VERSION_0_9_1,
-        )
+        from a2ui.schema.constants import VERSION_0_9_1
 
         version = VERSION_0_9_1
         catalog_id = "https://a2ui.org/catalogs/macros"
