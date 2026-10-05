@@ -657,7 +657,7 @@ void main() {
     });
 
     test(
-      'v1.0 @path produces WritableBinding while plain path is read-only (#81)',
+      'v1.0 @path produces WritableBinding while plain path is read-only',
       () {
         final v1Surface = SurfaceModel<ComponentApi>(
           's-v1',
@@ -702,7 +702,7 @@ void main() {
     );
 
     test(
-      'v1.0 local function actions execute @call and reject plain call (#81)',
+      'v1.0 local function actions execute @call and reject plain call',
       () async {
         final calls = <Map<String, dynamic>>[];
         final actions = <A2uiClientAction>[];
@@ -793,7 +793,7 @@ void main() {
       },
     );
 
-    test('v1.0 ChildListTemplate expands items using bindingFor (#81)', () {
+    test('v1.0 ChildListTemplate expands items using bindingFor', () {
       final v1Surface = SurfaceModel<ComponentApi>(
         's-v1-tpl',
         catalog: catalog,
@@ -831,7 +831,7 @@ void main() {
     });
 
     test(
-      'reports unrecognized action payloads via onError (#65)',
+      'reports unrecognized action payloads via onError',
       () async {
         final actions = <A2uiClientAction>[];
         final errors = <A2uiClientError>[];
