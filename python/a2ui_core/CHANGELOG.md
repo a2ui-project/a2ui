@@ -26,6 +26,16 @@
 - **BREAKING**: Optional JSON Schema `default` annotations in generated v0.9
   and v1.0 Pydantic models are kept in field descriptions instead of becoming
   field values. `const` values remain fixed.
+- **BREAKING**: `BasicCatalog` from `a2ui.core.basic_catalog` is a factory that
+  returns the basic catalog of a protocol version, for example
+  `BasicCatalog("0.9")`. The package no longer re-exports the v0.9 basic
+  catalog's symbols; import them from `a2ui.core.basic_catalog.v0_9`.
+- The v0.8 basic catalog's `catalog_id` is the v0.8 standard catalog ID,
+  `https://a2ui.org/specification/v0_8/standard_catalog_definition.json`.
+- **BREAKING**: `PayloadValidator`, `SurfaceModel`, `SurfaceGroupModel`,
+  `DataContext`, and `RpcHandler` are no longer generic. They take `CatalogApi`
+  catalogs, so remove type arguments such as
+  `SurfaceModel[MyComponent, MyFunction]`.
 
 ## 0.2.0 (2026-09-28)
 

@@ -17,7 +17,7 @@ pytestmark = pytest.mark.skip(
 )
 from unittest.mock import patch, MagicMock
 from a2ui.core import A2uiCatalogError
-from a2ui.core.basic_catalog.v0_8 import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.constants import (

@@ -16,8 +16,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from a2ui.core.catalog import CatalogApi
 from a2ui.core.common import to_protocol_version
 from a2ui.core.exceptions import A2uiError

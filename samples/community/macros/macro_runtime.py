@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Sequence, Tuple, Type
 
 from pydantic import TypeAdapter
 
-from a2ui.core import Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats.experimental.express.format import ExpressFormat

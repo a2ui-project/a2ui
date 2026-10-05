@@ -9,6 +9,13 @@
   raises `A2uiCatalogError` for the `common_types` key instead of returning `{}`.
 - Streaming validation errors quote the schema's own pattern (for example
   `\p{XID_Start}`) instead of its expansion for Python's `re` module.
+- **BREAKING**: `a2ui.basic_catalog` (`BasicCatalog`, `BundledCatalogProvider`,
+  and `BASIC_CATALOG_NAME`) is removed, and the basic catalog JSON files are no
+  longer bundled. Use `BasicCatalog` from `a2ui.core.basic_catalog` instead:
+  `BasicCatalog.get_config(version)` becomes
+  `CatalogConfig.from_catalog("basic", BasicCatalog(version))`.
+- Add `CatalogConfig.from_catalog` and `InMemoryCatalogProvider` (exported from
+  `a2ui.schema`) to configure a catalog from an `a2ui.core` catalog instance.
 
 ## 0.7.0 (2026-09-28)
 

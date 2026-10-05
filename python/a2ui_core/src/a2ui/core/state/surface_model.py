@@ -14,19 +14,18 @@
 
 import copy
 import warnings
-from typing import Any, Generic, cast
+from typing import Any, cast
 from ..common.events import EventSource
 from .data_model import DataModel
 from .surface_components_model import SurfaceComponentsModel
 from ..catalog import CatalogApi
-from ..catalog.catalog import TComponent, TFunction
 
 
 from collections.abc import Sequence
 from ..exceptions import A2uiCatalogError
 
 
-class SurfaceModel(Generic[TComponent, TFunction]):
+class SurfaceModel:
     """Represents a single active UI Surface state tree."""
 
     def __init__(

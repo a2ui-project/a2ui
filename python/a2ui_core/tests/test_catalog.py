@@ -29,7 +29,6 @@ from a2ui.core.catalog import (
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import ProtocolVersion
 from a2ui.core.exceptions import A2uiCatalogError, A2uiValidationError
-from a2ui.core.catalog.catalog import TComponent, TFunction
 from a2ui.core.validation import PayloadValidator
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV1_0

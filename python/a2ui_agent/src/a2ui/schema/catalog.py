@@ -275,7 +275,7 @@ class A2uiCatalog:
         )
 
     @property
-    def validator(self) -> PayloadValidator[Any, Any]:
+    def validator(self) -> PayloadValidator:
         return PayloadValidator(self.core_catalog, config=STRICT_VALIDATION)
 
     def validate_components(self, payload: Any) -> list[A2uiErrorDetail]:

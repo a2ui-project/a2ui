@@ -17,8 +17,8 @@ from __future__ import annotations
 import copy
 import inspect
 import warnings
-from typing import Any, Callable, Final, Generic
-from ..catalog.catalog import CatalogApi, TComponent, TFunction
+from typing import Any, Callable, Final
+from ..catalog.catalog import CatalogApi
 from ..state.data_model import DataModel
 from ..state.surface_model import SurfaceModel
 from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS, PayloadValidator
@@ -74,15 +74,15 @@ def validate_reserved_directives(keys: Any, protocol_version: str | None) -> Non
             )
 
 
-class DataContext(Generic[TComponent, TFunction]):
+class DataContext:
     """Headless evaluation scope for resolving A2UI dynamic bindings and expressions."""
 
     def __init__(
         self,
-        surface: SurfaceModel[TComponent, TFunction],
+        surface: SurfaceModel,
         path: str = "/",
         index: int | None = None,
-        parent: DataContext[TComponent, TFunction] | None = None,
+        parent: DataContext | None = None,
     ):
         self.surface = surface
         self.path = path if path.endswith("/") else f"{path}/"
@@ -150,9 +150,7 @@ class DataContext(Generic[TComponent, TFunction]):
             ctx = ctx.parent
         return None
 
-    def nested(
-        self, relative_path: str, index: int | None = None
-    ) -> DataContext[TComponent, TFunction]:
+    def nested(self, relative_path: str, index: int | None = None) -> DataContext:
         """Creates a nested child context scope (e.g. for template item bindings)."""
         norm_rel = relative_path[1:] if relative_path.startswith("/") else relative_path
         return DataContext(

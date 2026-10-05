@@ -19,10 +19,9 @@ import logging
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar, Union, cast
+from typing import Any, TypeVar, Union, cast
 
 from ..catalog import CatalogApi
-from ..catalog.catalog import TComponent, TFunction
 from ..exceptions import A2uiRpcError, RpcErrorCode
 from ..processing.adapters import is_catalog_version_compatible
 from ..resolution.data_context import DataContext
@@ -72,7 +71,7 @@ class _NormalizedAgentCall:
 
 
 @dataclass
-class _ResolvedFunctionImplementation(Generic[TComponent, TFunction]):
+class _ResolvedFunctionImplementation:
     """Result of resolving a function implementation from a catalog."""
 
     fn: Any | None = None
@@ -102,7 +101,7 @@ class _PreparedRendererCall:
     early_error_response: dict[str, Any] | None = None
 
 
-class RpcHandler(Generic[TComponent, TFunction]):
+class RpcHandler:
     """Manages bidirectional RPC function execution between renderer and server agent."""
 
     def __init__(
@@ -242,7 +241,7 @@ class RpcHandler(Generic[TComponent, TFunction]):
         call_name: str,
         context: DataContext | None = None,
         expected_version: str | None = None,
-    ) -> _ResolvedFunctionImplementation[TComponent, TFunction]:
+    ) -> _ResolvedFunctionImplementation:
         """Resolves function implementation from catalog with optional version check.
 
         Returns:

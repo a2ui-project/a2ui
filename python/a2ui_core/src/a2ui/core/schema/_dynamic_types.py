@@ -262,7 +262,9 @@ def clean_schema_node(
                 ),
                 dynamic_index=dynamic_index,
                 is_defs_dict=(k == "$defs" and not is_properties_dict),
-                is_additional_properties=(k == "additionalProperties"),
+                is_additional_properties=(
+                    k == "additionalProperties" and not is_properties_dict
+                ),
             )
 
         return _clean_node_keywords(
@@ -337,6 +339,7 @@ def _clean_node_keywords(
                     is_properties_dict=False,
                     is_union_container=False,
                     dynamic_index=dynamic_index,
+                    is_additional_properties=is_additional_properties,
                 )
             else:
                 return single_item

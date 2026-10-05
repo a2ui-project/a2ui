@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from collections.abc import ItemsView, KeysView, Mapping, ValuesView
-from typing import Any
 from ..catalog import Catalog, CatalogApi
 from ..common.events import EventSource
 from ..exceptions import (
