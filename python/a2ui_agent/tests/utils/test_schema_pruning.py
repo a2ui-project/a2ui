@@ -21,7 +21,7 @@ import pytest
 from a2ui.schema.utils import load_agent_to_renderer_schema
 from a2ui.utils import prune_common_types_schema, prune_messages_schema
 
-V09_S2C = {
+V09_A2R = {
     "oneOf": [
         {"$ref": "#/$defs/CreateSurfaceMessage"},
         {"$ref": "#/$defs/UpdateComponentsMessage"},
@@ -38,14 +38,14 @@ V09_S2C = {
 
 
 def test_prune_messages_v09_keeps_allowlisted_messages_and_their_defs():
-    pruned = prune_messages_schema(V09_S2C, "0.9", ["CreateSurfaceMessage"])
+    pruned = prune_messages_schema(V09_A2R, "0.9", ["CreateSurfaceMessage"])
 
     assert pruned["oneOf"] == [{"$ref": "#/$defs/CreateSurfaceMessage"}]
     assert set(pruned["$defs"]) == {"CreateSurfaceMessage", "Theme"}
 
 
 def test_prune_messages_empty_allowlist_keeps_no_message():
-    pruned = prune_messages_schema(V09_S2C, "v1.0", [])
+    pruned = prune_messages_schema(V09_A2R, "v1.0", [])
 
     assert pruned["oneOf"] == []
     assert pruned["$defs"] == {}
@@ -53,7 +53,7 @@ def test_prune_messages_empty_allowlist_keeps_no_message():
 
 def test_prune_messages_ignores_unknown_names():
     pruned = prune_messages_schema(
-        V09_S2C, "0.9.1", ["UpdateComponentsMessage", "Unknown"]
+        V09_A2R, "0.9.1", ["UpdateComponentsMessage", "Unknown"]
     )
 
     assert pruned["oneOf"] == [{"$ref": "#/$defs/UpdateComponentsMessage"}]
@@ -61,25 +61,25 @@ def test_prune_messages_ignores_unknown_names():
 
 
 def test_prune_messages_leaves_the_input_unchanged():
-    original = copy.deepcopy(V09_S2C)
+    original = copy.deepcopy(V09_A2R)
 
-    prune_messages_schema(V09_S2C, "0.9", ["CreateSurfaceMessage"])
+    prune_messages_schema(V09_A2R, "0.9", ["CreateSurfaceMessage"])
 
-    assert V09_S2C == original
+    assert V09_A2R == original
 
 
 def test_prune_messages_v08_prunes_properties():
-    s2c = load_agent_to_renderer_schema("0.8")
+    a2r = load_agent_to_renderer_schema("0.8")
 
-    pruned = prune_messages_schema(s2c, "0.8", ["beginRendering", "surfaceUpdate"])
+    pruned = prune_messages_schema(a2r, "0.8", ["beginRendering", "surfaceUpdate"])
 
     assert set(pruned["properties"]) == {"beginRendering", "surfaceUpdate"}
 
 
 def test_prune_messages_published_v10_schema():
-    s2c = load_agent_to_renderer_schema("1.0")
+    a2r = load_agent_to_renderer_schema("1.0")
 
-    pruned = prune_messages_schema(s2c, "1.0", ["UpdateComponentsMessage"])
+    pruned = prune_messages_schema(a2r, "1.0", ["UpdateComponentsMessage"])
 
     assert pruned["oneOf"] == [{"$ref": "#/$defs/UpdateComponentsMessage"}]
     assert "UpdateComponentsMessage" in pruned["$defs"]
@@ -88,7 +88,7 @@ def test_prune_messages_published_v10_schema():
 
 def test_prune_messages_rejects_a_single_string():
     with pytest.raises(TypeError, match="not a string"):
-        prune_messages_schema(V09_S2C, "0.9", "CreateSurfaceMessage")
+        prune_messages_schema(V09_A2R, "0.9", "CreateSurfaceMessage")
 
 
 COMMON_TYPES = {

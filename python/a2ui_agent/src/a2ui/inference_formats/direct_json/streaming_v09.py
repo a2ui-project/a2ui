@@ -39,13 +39,13 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         catalog: CatalogApi,
         *,
         progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
-        s2c_schema: Mapping[str, Any] | None = None,
+        a2r_schema: Mapping[str, Any] | None = None,
         common_types_schema: Mapping[str, Any] | None = None,
     ):
         super().__init__(
             catalog=catalog,
             progressive_keys=progressive_keys,
-            s2c_schema=s2c_schema,
+            a2r_schema=a2r_schema,
             common_types_schema=common_types_schema,
         )
         # v0.9 default root is "root"
@@ -113,7 +113,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
             return False
 
         if self._validator:
-            v = self._get_s2c_validator()
+            v = self._get_a2r_validator()
             if v:
                 from jsonschema.exceptions import best_match
 

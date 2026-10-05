@@ -32,7 +32,7 @@ def test_schema_manager_init_valid_version():
         catalogs=[CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_8))],
     )
 
-    assert "properties" in direct_json_format._server_to_client_schema
+    assert "properties" in direct_json_format._agent_to_renderer_schema
     assert len(direct_json_format._supported_catalogs) >= 1
     catalog = direct_json_format._supported_catalogs[0]
     assert "Text" in catalog.catalog_schema["components"]
@@ -49,7 +49,7 @@ def test_schema_manager_init_invalid_version():
 def test_schema_manager_init_supported_versions(version):
     direct_json_format = DirectJsonFormat(version)
 
-    assert direct_json_format._server_to_client_schema["type"] == "object"
+    assert direct_json_format._agent_to_renderer_schema["type"] == "object"
 
 
 def test_direct_json_parser_methods():

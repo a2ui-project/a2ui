@@ -166,7 +166,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
     def _catalog_to_prompt(self, catalog: CatalogApi) -> str:
         """Returns the prompt text for a catalog.
 
-        The text uses the format's server-to-client and common types schemas,
+        The text uses the format's agent-to-renderer and common types schemas,
         and keeps only the messages that the last `generate` call allowed.
 
         Args:
@@ -177,7 +177,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
         """
         return catalog_to_prompt(
             catalog,
-            a2r_schema=self._format._server_to_client_schema if self._format else None,
+            a2r_schema=self._format._agent_to_renderer_schema if self._format else None,
             common_types_schema=(
                 self._format._common_types_schema if self._format else None
             ),

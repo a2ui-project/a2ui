@@ -39,13 +39,13 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
         catalog: CatalogApi,
         *,
         progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
-        s2c_schema: Mapping[str, Any] | None = None,
+        a2r_schema: Mapping[str, Any] | None = None,
         common_types_schema: Mapping[str, Any] | None = None,
     ):
         super().__init__(
             catalog=catalog,
             progressive_keys=progressive_keys,
-            s2c_schema=s2c_schema,
+            a2r_schema=a2r_schema,
             common_types_schema=common_types_schema,
         )
         self._yielded_begin_rendering_surfaces: set[str] = set()

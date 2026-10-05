@@ -15,7 +15,7 @@
 """Pruning for the protocol schemas that a prompt shows the model.
 
 Catalogs are pruned with the transformers in `a2ui.catalog_transformers`. The
-server-to-client and common types schemas belong to the protocol rather than to
+agent-to-renderer and common types schemas belong to the protocol rather than to
 a catalog, so they are pruned with the functions here.
 """
 
@@ -74,18 +74,18 @@ def _reachable_defs(
 
 
 def prune_messages_schema(
-    s2c_schema: Mapping[str, Any],
+    a2r_schema: Mapping[str, Any],
     protocol_version: str,
     allowed_messages: Sequence[str],
 ) -> dict[str, Any]:
-    """Returns a copy of a server-to-client schema that admits only some messages.
+    """Returns a copy of an agent-to-renderer schema that admits only some messages.
 
     The allowlist is read literally. An empty allowlist admits no message, and a
     name the schema doesn't define is ignored. To keep every message, don't
     prune.
 
     Args:
-        s2c_schema: The server-to-client schema. It is not modified.
+        a2r_schema: The agent-to-renderer schema. It is not modified.
         protocol_version: The protocol version of the schema, for example
             `"0.9"` or `"v1.0"`.
         allowed_messages: The messages to keep. For v0.8 these are keys of the
@@ -104,7 +104,7 @@ def prune_messages_schema(
     if isinstance(allowed_messages, str):
         raise TypeError("allowed_messages must be a sequence of names, not a string.")
     allowed = frozenset(allowed_messages)
-    pruned = copy.deepcopy(dict(s2c_schema))
+    pruned = copy.deepcopy(dict(a2r_schema))
 
     if to_protocol_version(protocol_version) is ProtocolVersion.V0_8:
         properties = pruned.get("properties")
@@ -143,7 +143,7 @@ def prune_common_types_schema(
     Args:
         common_types_schema: The common types schema. It is not modified.
         *referencing_schemas: The schemas whose refs decide what is kept, for
-            example the catalog schemas and the server-to-client schema that a
+            example the catalog schemas and the agent-to-renderer schema that a
             prompt shows.
 
     Returns:

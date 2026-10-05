@@ -45,7 +45,7 @@ class TestSchemaUtils(unittest.TestCase):
         self.assertIsNone(res)
 
     def test_load_agent_to_renderer_schema_matches_core(self):
-        """Verifies the agent's s2c schema matches get_agent_to_renderer_schema_json."""
+        """Verifies the agent's a2r schema matches get_agent_to_renderer_schema_json."""
         import json
         from a2ui.core import get_agent_to_renderer_schema_json
         from a2ui.core.schema import ProtocolVersion

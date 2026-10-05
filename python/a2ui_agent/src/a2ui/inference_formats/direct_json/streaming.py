@@ -63,7 +63,7 @@ class DirectJsonStreamParser:
         catalog: CatalogApi,
         *,
         progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
-        s2c_schema: Mapping[str, Any] | None = None,
+        a2r_schema: Mapping[str, Any] | None = None,
         common_types_schema: Mapping[str, Any] | None = None,
     ) -> DirectJsonStreamParser:
         if cls is DirectJsonStreamParser:
@@ -76,7 +76,7 @@ class DirectJsonStreamParser:
                 return DirectJsonStreamParserV08(
                     catalog=catalog,
                     progressive_keys=progressive_keys,
-                    s2c_schema=s2c_schema,
+                    a2r_schema=a2r_schema,
                     common_types_schema=common_types_schema,
                 )
             else:
@@ -85,7 +85,7 @@ class DirectJsonStreamParser:
                 return DirectJsonStreamParserV09(
                     catalog=catalog,
                     progressive_keys=progressive_keys,
-                    s2c_schema=s2c_schema,
+                    a2r_schema=a2r_schema,
                     common_types_schema=common_types_schema,
                 )
         return super().__new__(cls)
@@ -95,7 +95,7 @@ class DirectJsonStreamParser:
         catalog: CatalogApi,
         *,
         progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
-        s2c_schema: Mapping[str, Any] | None = None,
+        a2r_schema: Mapping[str, Any] | None = None,
         common_types_schema: Mapping[str, Any] | None = None,
     ):
         """Initializes the streaming parser.
@@ -104,10 +104,10 @@ class DirectJsonStreamParser:
             catalog: The catalog that components are parsed and validated against.
             progressive_keys: Keys whose string values can be safely auto-closed
                 (healed) when cut in the stream. An empty set turns healing off.
-            s2c_schema: The server-to-client schema that messages are validated
+            a2r_schema: The agent-to-renderer schema that messages are validated
                 against. Defaults to the published schema of the catalog's
                 protocol version.
-            common_types_schema: The common types schema that `s2c_schema` refers
+            common_types_schema: The common types schema that `a2r_schema` refers
                 to. Defaults to the published schema of the catalog's protocol
                 version.
         """
@@ -117,7 +117,7 @@ class DirectJsonStreamParser:
         )
         self._version = str(catalog.protocol_version).removeprefix("v")
         self._progressive_keys = frozenset(progressive_keys)
-        self._s2c_schema = s2c_schema
+        self._a2r_schema = a2r_schema
         self._common_types_schema = common_types_schema
         self._schema_helper = CatalogSchemaHelper(catalog)
 
@@ -288,20 +288,20 @@ class DirectJsonStreamParser:
         """Returns True if message should be yielded, False if skipped."""
         return True
 
-    def _get_s2c_validator(self) -> Any:
-        if not hasattr(self, "_s2c_validator_cached"):
+    def _get_a2r_validator(self) -> Any:
+        if not hasattr(self, "_a2r_validator_cached"):
             from a2ui.schema.utils import (
                 load_agent_to_renderer_schema,
                 load_common_types_schema,
             )
 
-            s2c_schema = (
-                self._s2c_schema
-                if self._s2c_schema is not None
+            a2r_schema = (
+                self._a2r_schema
+                if self._a2r_schema is not None
                 else load_agent_to_renderer_schema(self._version)
             )
-            if not s2c_schema:
-                self._s2c_validator_cached = None
+            if not a2r_schema:
+                self._a2r_validator_cached = None
             else:
                 from referencing import Registry, Resource
                 import referencing.jsonschema
@@ -368,11 +368,11 @@ class DirectJsonStreamParser:
                             "https://a2ui.org/specification/v0_8/catalog.json", res_cat
                         )
                     )
-                self._s2c_validator_cached = SchemaValidator(
-                    s2c_schema,
+                self._a2r_validator_cached = SchemaValidator(
+                    a2r_schema,
                     registry=registry,
                 )
-        return self._s2c_validator_cached
+        return self._a2r_validator_cached
 
     def _yield_messages(
         self,
@@ -391,7 +391,7 @@ class DirectJsonStreamParser:
                         f"Validation failed: Invalid message payload {m}"
                     )
                 if config == STRICT_VALIDATION:
-                    v = self._get_s2c_validator()
+                    v = self._get_a2r_validator()
                     if v:
                         from jsonschema.exceptions import best_match
 

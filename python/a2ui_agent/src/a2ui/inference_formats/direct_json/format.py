@@ -85,7 +85,7 @@ class DirectJsonFormat(InferenceFormat):
         self.experiments = frozenset(experiments) if experiments else frozenset()
         self._progressive_keys = frozenset(progressive_keys)
 
-        self._server_to_client_schema: dict[str, Any] = {}
+        self._agent_to_renderer_schema: dict[str, Any] = {}
         self._common_types_schema: dict[str, Any] = {}
         self._supported_catalogs: list[CatalogApi] = []
         self._catalog_configs: list[CatalogConfig] = []
@@ -113,7 +113,7 @@ class DirectJsonFormat(InferenceFormat):
             self._parser = DirectJsonParser(
                 self._supported_catalogs[0],
                 progressive_keys=self._progressive_keys,
-                s2c_schema=self._server_to_client_schema,
+                a2r_schema=self._agent_to_renderer_schema,
                 common_types_schema=self._common_types_schema,
             )
         return self._parser
@@ -148,8 +148,8 @@ class DirectJsonFormat(InferenceFormat):
                 f" {list(supported_versions)}"
             )
 
-        # Load server-to-client and common types schemas
-        self._server_to_client_schema = self._apply_modifiers(
+        # Load agent-to-renderer and common types schemas
+        self._agent_to_renderer_schema = self._apply_modifiers(
             load_agent_to_renderer_schema(version)
         )
         self._common_types_schema = self._apply_modifiers(
@@ -280,7 +280,7 @@ class DirectJsonFormat(InferenceFormat):
             allowed_components: Optional names of the components to keep. `None`
                 keeps every component, and an empty list keeps none.
             allowed_messages: Accepted for compatibility. A catalog does not hold
-                the server-to-client schema, so the prompt generator applies this
+                the agent-to-renderer schema, so the prompt generator applies this
                 restriction when it renders the schemas instead.
 
         Returns:
@@ -352,7 +352,7 @@ class DirectJsonFormat(InferenceFormat):
         return DirectJsonStreamParser(
             catalog,
             progressive_keys=self._progressive_keys,
-            s2c_schema=self._server_to_client_schema,
+            a2r_schema=self._agent_to_renderer_schema,
             common_types_schema=self._common_types_schema,
         )
 
