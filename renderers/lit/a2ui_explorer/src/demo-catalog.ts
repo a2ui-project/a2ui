@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import {createComponentImplementation} from '../../../adapter';
-import {VideoApi} from '@a2ui/web_core/v0_9/basic_catalog';
-import {getBaseLeafStyle, useBasicCatalogStyles} from '../utils';
+import {Catalog} from '@a2ui/web_core/v0_9';
+import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
+import {basicCatalog} from '@a2ui/lit/v0_9';
+import {customSliderComponent} from './custom-slider.js';
+import {customGridComponent} from './custom-grid.js';
 
-export const Video = createComponentImplementation(VideoApi, ({props}) => {
-  useBasicCatalogStyles();
-  const style: React.CSSProperties = {
-    ...getBaseLeafStyle(),
-    width: '100%',
-    height: 'auto',
-    borderRadius: 'var(--a2ui-video-border-radius, 0)',
-  };
-
-  return <video src={props.url} controls style={style} />;
-});
+/**
+ * A catalog specific to the demo, extending the basic catalog with custom components.
+ */
+export const demoCatalog = new Catalog(
+  basicCatalog.id,
+  '0.9',
+  [...basicCatalog.components.values(), customSliderComponent, customGridComponent],
+  BASIC_FUNCTIONS,
+);

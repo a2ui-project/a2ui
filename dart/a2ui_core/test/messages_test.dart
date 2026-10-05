@@ -115,17 +115,77 @@ void main() {
       expect(ud.surfaceId, 's1');
       expect(ud.path, '/user/name');
       expect(ud.value, 'Alice');
+      expect(ud.hasValue, isTrue);
     });
 
-    test('parses updateDataModel without path or value', () {
-      final msg = AgentToRendererMessage.fromJson({
+    test('distinguishes omitted value from explicit null in updateDataModel',
+        () {
+      final omitted = AgentToRendererMessage.fromJson({
+        'version': 'v0.9',
+        'updateDataModel': {'surfaceId': 's1'},
+      }) as UpdateDataModelMessage;
+
+      expect(omitted.path, isNull);
+      expect(omitted.value, isNull);
+      expect(omitted.hasValue, isFalse);
+      expect(omitted.toJson(), {
         'version': 'v0.9',
         'updateDataModel': {'surfaceId': 's1'},
       });
 
-      final ud = msg as UpdateDataModelMessage;
-      expect(ud.path, isNull);
-      expect(ud.value, isNull);
+      final explicitNull = AgentToRendererMessage.fromJson({
+        'version': 'v0.9',
+        'updateDataModel': {
+          'surfaceId': 's1',
+          'path': '/user/name',
+          'value': null,
+        },
+      }) as UpdateDataModelMessage;
+
+      expect(explicitNull.path, '/user/name');
+      expect(explicitNull.value, isNull);
+      expect(explicitNull.hasValue, isTrue);
+      expect(explicitNull.toJson(), {
+        'version': 'v0.9',
+        'updateDataModel': {
+          'surfaceId': 's1',
+          'path': '/user/name',
+          'value': null,
+        },
+      });
+    });
+
+    test('serializes UpdateDataModelMessage with null value as explicit null',
+        () {
+      final msg = UpdateDataModelMessage(
+        version: 'v0.9',
+        surfaceId: 's1',
+        path: '/user/name',
+        value: null,
+      );
+
+      expect(msg.hasValue, isTrue);
+      expect(msg.toJson(), {
+        'version': 'v0.9',
+        'updateDataModel': {
+          'surfaceId': 's1',
+          'path': '/user/name',
+          'value': null,
+        },
+      });
+    });
+
+    test('rejects non-null value on UpdateDataModelMessage when hasValue=false',
+        () {
+      expect(
+        () => UpdateDataModelMessage(
+          version: 'v0.9',
+          surfaceId: 's1',
+          value: 'Alice',
+          hasValue: false,
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
     });
 
     test('parses deleteSurface', () {
@@ -370,6 +430,21 @@ void main() {
       );
     });
 
+    test('serializes A2uiClientAction timestamp in UTC with trailing Z', () {
+      final localTime = DateTime(2026, 9, 16, 10, 30);
+      final action = A2uiClientAction(
+        name: 'submit',
+        surfaceId: 's1',
+        sourceComponentId: 'button',
+        timestamp: localTime,
+        context: const {},
+      );
+
+      final serialized = action.toJson()['timestamp'] as String;
+      expect(serialized, endsWith('Z'));
+      expect(DateTime.parse(serialized), localTime.toUtc());
+    });
+
     test('parses an error', () {
       final msg = RendererToAgentMessage.fromJson({
         'version': 'v0.9',
@@ -390,10 +465,11 @@ void main() {
       expect(error.details, isNull);
     });
 
-    test('rejects a validation failure that names no path', () {
-      // The VALIDATION_FAILED variant requires 'path', and no other field says
-      // what failed, so a body without it is rejected rather than parsed into
-      // an error an agent cannot act on.
+    test('rejects a validation failure that names no path or an empty path',
+        () {
+      // The VALIDATION_FAILED variant requires a non-empty 'path', and no other
+      // field says what failed, so a body without it is rejected rather than
+      // parsed into an error an agent cannot act on.
       expect(
         () => RendererToAgentMessage.fromJson({
           'version': 'v0.9',
@@ -403,6 +479,39 @@ void main() {
             'message': 'no such component',
           },
         }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => RendererToAgentMessage.fromJson({
+          'version': 'v0.9',
+          'error': {
+            'code': 'VALIDATION_FAILED',
+            'surfaceId': 's1',
+            'message': 'no such component',
+            'path': '',
+          },
+        }),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('A2uiClientError rejects VALIDATION_FAILED without non-empty path',
+        () {
+      expect(
+        () => A2uiClientError(
+          code: 'VALIDATION_FAILED',
+          surfaceId: 's1',
+          message: 'no such component',
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => A2uiClientError(
+          code: 'VALIDATION_FAILED',
+          surfaceId: 's1',
+          message: 'no such component',
+          path: '',
+        ),
         throwsA(isA<A2uiValidationError>()),
       );
     });

@@ -92,21 +92,13 @@ This repository contains:
 
     [:octicons-arrow-right-24: Use with any agent](guides/a2ui-with-any-agent-framework.md)
 
-- :material-palette-outline:{ .lg .middle } **[A2UI Composer](https://a2ui-composer.ag-ui.com/)**
+- :material-palette-outline:{ .lg .middle } **[A2UI Composer](https://a2ui-project.github.io/composer/)**
 
     ***
 
     Generate A2UI JSON from a visual editor — no install required. Paste the output into any agent prompt.
 
-    [:octicons-arrow-right-24: Open the composer](https://a2ui-composer.ag-ui.com/)
-
-- :material-play-circle-outline:{ .lg .middle } **[A2UI Theater](https://a2ui-composer.ag-ui.com/theater)**
-
-    ***
-
-    Step through pre-built A2UI streaming scenarios across Lit, React, and Angular renderers. See the protocol in motion before writing code.
-
-    [:octicons-arrow-right-24: Open the playground](https://a2ui-composer.ag-ui.com/theater)
+    [:octicons-arrow-right-24: Open the composer](https://a2ui-project.github.io/composer/)
 
 - :material-book-open-variant:{ .lg .middle } **[Core Concepts](concepts/overview.md)**
 

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Breaking:** `UpdateDataModelMessage` adds `hasValue` (defaulting to `true`) so `toJson()` emits `'value': null` for explicit null deletions while `fromJson()` distinguishes an omitted `value` from an explicit `null`.
+- **Breaking:** `SurfaceModel.dispatchAction` records action timestamps in UTC (`DateTime.now().toUtc()`) and `A2uiClientAction.toJson()` serializes timestamps in UTC (`timestamp.toUtc().toIso8601String()`) so serialized timestamps always end with `Z` per RFC 3339.
+- **Breaking:** `A2uiClientError` validates in its constructor (not only in debug assertions) that a `VALIDATION_FAILED` error provides a non-empty `path`, throwing `A2uiValidationError`.
+- Harden `ExpressionParser` to clamp scanner bounds at EOF, reject unclosed
+  string literals and trailing backslashes with `A2uiExpressionError`, accept
+  `@`-prefixed function names (such as `${@index()}` and
+  `${@index(offset: 1)}`), and accept `~0` and `~1` JSON Pointer escapes inside
+  `${}` paths while rejecting malformed `~` escapes and non-leading `@` tokens.
 - `DataContext` adds `parent`, `index`, `childContext(path, {index})`, and
   `subscribeDynamicValue`, which returns a `DataSubscription`. `nested` now
   returns a child context linked to its parent. In v1.0 contexts, the
