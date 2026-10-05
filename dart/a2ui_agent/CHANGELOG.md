@@ -1,5 +1,13 @@
 # [a2ui_agent](https://pub.dev/packages/a2ui_agent) Changelog
 
+## Unreleased
+
+- The Direct JSON message reader and the Express decompiler continue to
+  reject a `createSurface` message without a `catalogId` with
+  `A2uiValidationError`. The check moved into the agent SDK now that
+  `a2ui_core` makes the field optional for v1.0; previously `a2ui_core`
+  rejected the message during parsing.
+
 ## 0.0.1-wip005
 
 - Catalogs are typed `CatalogApi`, the new name of `a2ui_core`'s

@@ -14,6 +14,7 @@
 
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
+import '../primitives/semver.dart';
 import 'catalog.dart';
 
 /// The catalogs a renderer can render for one protocol version, mirroring
@@ -163,9 +164,21 @@ class A2uiRendererCapabilities {
     );
   }
 
-  /// The capabilities declared for [version], or null if it declares none.
-  A2uiVersionCapabilities? forVersion(A2uiProtocolVersion version) =>
-      versions[version];
+  /// The capabilities declared for [version], or for a version compatible
+  /// with it (see [isCatalogVersionCompatible]) when [version] itself is not
+  /// declared, so a renderer declaring v0.9.1 serves a v0.9 agent and the
+  /// reverse. Null if no compatible version is declared.
+  A2uiVersionCapabilities? forVersion(A2uiProtocolVersion version) {
+    final A2uiVersionCapabilities? declared = versions[version];
+    if (declared != null) return declared;
+    for (final MapEntry<A2uiProtocolVersion, A2uiVersionCapabilities> entry
+        in versions.entries) {
+      if (isCatalogVersionCompatible(entry.key.jsonValue, version.jsonValue)) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
 
   Map<String, Object?> toJson() => {
         for (final MapEntry<A2uiProtocolVersion, A2uiVersionCapabilities> entry

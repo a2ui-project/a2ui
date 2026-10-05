@@ -21,7 +21,7 @@ from typing import Any
 import pytest
 import yaml
 
-from a2ui.core.catalog import Catalog
+from a2ui.core.catalog import Catalog, CatalogApi
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
 from a2ui.core.schema import ProtocolVersion
 from a2ui.core.state import DataModel, SurfaceModel
@@ -1088,7 +1088,7 @@ def normalize_set_keywords(node: Any) -> Any:
     return normalized
 
 
-def sdk_catalog(catalog_id: Any) -> Catalog[Any, Any] | None:
+def sdk_catalog(catalog_id: Any) -> CatalogApi | None:
     """Returns the SDK's own implementation of a published catalog, if any.
 
     The SDK implements the basic catalog of each protocol version with
@@ -1580,7 +1580,7 @@ def validate_select_catalog_case(case: dict[str, Any]) -> None:
     s_id = surface_args.get("id", "main_surface")
     default_cat_id = surface_args.get("defaultCatalogId", "basic")
 
-    catalogs_dict: dict[str, Catalog[Any, Any]] = {}
+    catalogs_dict: dict[str, CatalogApi] = {}
     if "catalogs" in args and isinstance(args["catalogs"], dict):
         for cat_id, cat_def in args["catalogs"].items():
             p_ver = cat_def.get("protocolVersion", "v1.0")
