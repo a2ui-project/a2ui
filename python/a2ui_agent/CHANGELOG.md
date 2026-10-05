@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **BREAKING**: The SDK no longer bundles specification JSON files.
+  `load_from_bundled_resource` and `A2UI_ASSET_PACKAGE` are removed; get the
+  agent-to-renderer schema from `get_agent_to_renderer_schema_map` in
+  `a2ui.core` instead. `PROTOCOL_VERSION_MAP` and its alias `SPEC_VERSION_MAP`
+  now map each supported version to a2ui-core's `ProtocolVersion` instead of to
+  specification file paths, and the `SERVER_TO_CLIENT_SCHEMA_KEY` and
+  `COMMON_TYPES_SCHEMA_KEY` constants are removed (#2964).
 - Building or installing the SDK from source no longer regenerates the Express
   parser, so it no longer needs Java. The generated parser stays committed; after
   changing `Express.g4`, run `scripts/generate_express_parser.py` (#2964).
@@ -8,8 +15,7 @@
 - **BREAKING**: The common types schema is no longer bundled as an asset.
   `A2uiCatalog.from_config` and `DirectJsonFormat` take it from a2ui-core's
   generated schema (`a2ui.schema.utils.load_common_types_schema`), the same
-  definitions that payload validation uses. `load_from_bundled_resource` now
-  raises `A2uiCatalogError` for the `common_types` key instead of returning `{}`.
+  definitions that payload validation uses.
 - Streaming validation errors quote the schema's own pattern (for example
   `\p{XID_Start}`) instead of its expansion for Python's `re` module.
 - **BREAKING**: `a2ui.basic_catalog` (`BasicCatalog`, `BundledCatalogProvider`,

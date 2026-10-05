@@ -64,6 +64,31 @@ class TestSchemaUtils(unittest.TestCase):
         with self.assertRaises(A2uiCatalogError):
             load_agent_to_renderer_schema("not-a-version")
 
+    def test_load_agent_to_renderer_schema_returns_independent_copies(self):
+        """Verifies that mutating a returned schema doesn't change later results."""
+        import copy
+
+        schema = load_agent_to_renderer_schema("0.9")
+        expected = copy.deepcopy(schema)
+        for value in schema.values():
+            if isinstance(value, dict):
+                value.clear()
+        schema.clear()
+
+        self.assertEqual(load_agent_to_renderer_schema("0.9"), expected)
+
+    def test_protocol_version_map_selects_core_schemas(self):
+        """Verifies each supported version maps to the ProtocolVersion of its schema."""
+        from a2ui.core import get_agent_to_renderer_schema_map
+        from a2ui.schema import PROTOCOL_VERSION_MAP
+
+        for version, protocol_version in PROTOCOL_VERSION_MAP.items():
+            with self.subTest(version=version):
+                self.assertEqual(
+                    get_agent_to_renderer_schema_map(protocol_version),
+                    load_agent_to_renderer_schema(version),
+                )
+
     def test_load_common_types_schema_matches_core(self):
         """Verifies the agent's common types schema is the one a2ui-core generates."""
         from a2ui.core import get_common_types_schema_map

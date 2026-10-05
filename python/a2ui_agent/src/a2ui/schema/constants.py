@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-SERVER_TO_CLIENT_SCHEMA_KEY = "server_to_client"
-COMMON_TYPES_SCHEMA_KEY = "common_types"
+from a2ui.core.schema import ProtocolVersion
+
 CATALOG_SCHEMA_KEY = "catalog"
 CATALOG_COMPONENTS_KEY = "components"
 CATALOG_ID_KEY = "catalogId"
@@ -63,19 +63,13 @@ VERSION_0_9 = "0.9"
 VERSION_0_9_1 = "0.9.1"
 VERSION_1_0 = "1.0"
 
-PROTOCOL_VERSION_MAP = {
-    VERSION_0_8: {
-        SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v0_8/json/server_to_client.json",
-    },
-    VERSION_0_9: {
-        SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v0_9/json/server_to_client.json",
-    },
-    VERSION_0_9_1: {
-        SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v0_9_1/json/server_to_client.json",
-    },
-    VERSION_1_0: {
-        SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v1_0/json/agent_to_renderer.json",
-    },
+# Protocol versions this SDK supports, each mapped to the matching a2ui-core
+# ProtocolVersion, which is what a2ui-core's schema functions take.
+PROTOCOL_VERSION_MAP: dict[str, ProtocolVersion] = {
+    VERSION_0_8: ProtocolVersion.V0_8,
+    VERSION_0_9: ProtocolVersion.V0_9,
+    VERSION_0_9_1: ProtocolVersion.V0_9_1,
+    VERSION_1_0: ProtocolVersion.V1_0,
 }
 
 SPEC_VERSION_MAP = PROTOCOL_VERSION_MAP

@@ -9,18 +9,15 @@
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import pytest
 
-pytestmark = pytest.mark.skip(
-    reason="TODO: validation package was removed from a2ui_agent library"
-)
 from a2ui.core import A2uiCatalogError
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
-from a2ui.schema.catalog import CatalogConfig
-from a2ui.schema.constants import (
-    VERSION_0_8,
-)
+from a2ui.schema import CatalogConfig, VERSION_0_8
 
 
 def test_schema_manager_init_valid_version():
@@ -36,7 +33,7 @@ def test_schema_manager_init_valid_version():
 
 
 def test_schema_manager_init_invalid_version():
-    with pytest.raises(ValueError, match="Unknown A2UI specification version"):
+    with pytest.raises(A2uiCatalogError, match="Unknown A2UI specification version"):
         DirectJsonFormat("invalid_version")
 
 

@@ -35,8 +35,7 @@ from a2ui.core import (
 )
 
 if TYPE_CHECKING:
-    # The packaging hook imports this module against the published a2ui-core,
-    # which may predate CatalogApi, so it is needed for type checking only.
+    # Only used in annotations, which aren't evaluated at runtime.
     from a2ui.core import CatalogApi
 
 from .catalog_provider import (

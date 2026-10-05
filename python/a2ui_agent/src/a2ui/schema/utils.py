@@ -18,9 +18,8 @@ Provides helper functions for locating specification directories, loading
 in-memory or repository schema assets, and performing schema transformations.
 """
 
-import json
 import os
-from typing import Any, cast
+from typing import Any
 
 from .constants import (
     SPECIFICATION_DIR,
@@ -175,17 +174,14 @@ def load_agent_to_renderer_schema(version: str) -> dict[str, Any]:
     Raises:
         A2uiCatalogError: If the version is not a known protocol version.
     """
-    from a2ui.core import A2uiCatalogError, get_agent_to_renderer_schema_json
+    from a2ui.core import A2uiCatalogError, get_agent_to_renderer_schema_map
     from a2ui.core.common import to_protocol_version
 
     try:
         protocol_version = to_protocol_version(version)
     except ValueError as e:
         raise A2uiCatalogError(str(e)) from e
-    return cast(
-        dict[str, Any],
-        json.loads(get_agent_to_renderer_schema_json(protocol_version)),
-    )
+    return get_agent_to_renderer_schema_map(protocol_version)
 
 
 def load_common_types_schema(version: str) -> dict[str, Any]:
