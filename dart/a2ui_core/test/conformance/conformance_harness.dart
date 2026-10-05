@@ -177,8 +177,8 @@ String? extractErrorCode(A2uiError error) {
 /// Reads the error `path` from [error] if its runtime type exposes a `path`
 /// property, returning `(supported, value)`.
 ///
-/// `A2uiDataError` exposes `path` directly; `A2uiValidationError` gains `path`
-/// in B2a.
+/// `A2uiDataError` exposes `path` directly; other error types are checked
+/// dynamically.
 (bool, String?) extractErrorPath(A2uiError error) {
   if (error is A2uiDataError) {
     return (true, error.path);

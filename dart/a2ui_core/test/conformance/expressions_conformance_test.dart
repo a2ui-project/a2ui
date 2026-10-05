@@ -21,20 +21,20 @@ import 'conformance_harness.dart';
 const Map<String, Type> _categoryToError = {'ParseError': A2uiExpressionError};
 
 /// Conformance cases in `core/expressions.yaml` that are expected to fail
-/// until v1.0 validation and `formatString` AST adaptation land (B2/B3b).
+/// until v1.0 validation and `formatString` AST adaptation land.
 const Map<String, String> _expectedFailures = {
   'test_expression_parser_string_interpolation_multiple_bindings':
-      'Requires v1.0 validate action and formatString resolution (B2/B3b).',
+      'Requires v1.0 validate action and formatString resolution.',
   'test_expression_parser_escaped_interpolation_sequence':
-      'Requires v1.0 validate action and formatString resolution (B2/B3b).',
+      'Requires v1.0 validate action and formatString resolution.',
   'test_expression_parser_nested_function_call':
-      'Requires v1.0 validate action and formatCurrency/formatString resolution (B2/B3b/B7).',
+      'Requires v1.0 validate action and formatCurrency/formatString resolution.',
   'test_expression_parser_data_type_coercion_matrix':
-      'Requires v1.0 validate action and formatString resolution (B2/B3b).',
+      'Requires v1.0 validate action and formatString resolution.',
   'test_expression_parser_syntax_error_unclosed_brace':
-      'Requires v1.0 validate action and expression validation (B2/B3b).',
+      'Requires v1.0 validate action and expression validation.',
   'test_expression_parser_max_depth_exceeded_error':
-      'Requires v1.0 validate action and expression validation (B2/B3b).',
+      'Requires v1.0 validate action and expression validation.',
 };
 
 /// Joins adjacent literal parts and drops empty ones.
