@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `ComponentModel.toJson` writes `id` and `component` after the component's properties, so a property named `id` or `component` no longer replaces the model's own.
 - Harden `ExpressionParser` to clamp scanner bounds at EOF, reject unclosed
   string literals and trailing backslashes with `A2uiExpressionError`, accept
   `@`-prefixed function names (such as `${@index()}` and

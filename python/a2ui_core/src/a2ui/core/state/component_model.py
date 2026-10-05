@@ -154,9 +154,7 @@ class ComponentModel:
     @property
     def component_tree(self) -> dict[str, Any]:
         """Returns a dictionary representation of the component tree."""
-        tree = {"id": self.id, "type": self.type}
-        tree.update(self._properties)
-        return tree
+        return {**self._properties, "id": self.id, "component": self.type}
 
     def validate(self, config: Any | None = None) -> None:
         """Validates this component instance against its bound catalog using PayloadValidator.
@@ -166,7 +164,7 @@ class ComponentModel:
         """
         from ..validation.payload_validator import PayloadValidator
 
-        comp_dict = {"id": self.id, "component": self.type, **self.properties}
+        comp_dict = self.component_tree
         if not isinstance(self.catalog, Catalog):
             return
         validator = PayloadValidator(self.catalog, config=config)
