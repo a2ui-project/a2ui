@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `ComponentModel.toJson` writes `id` and `component` after the component's properties, so a property named `id` or `component` no longer replaces the model's own.
 - Added `BasicCatalog.v0_9()` and `BasicCatalog.v1_0()`, which carry the
   basic catalog's 14 functions (`required`, `regex`, `length`, `numeric`,
   `email`, `formatString`, `formatNumber`, `formatCurrency`, `formatDate`,
