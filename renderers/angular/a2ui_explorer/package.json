@@ -30,7 +30,7 @@
       ]
     },
     "build:closure-compiler": {
-      "command": "ng build a2ui_explorer --configuration development && node scripts/closure-compiler/apply-closure-compiler.mjs",
+      "command": "rm -rf dist && ng build a2ui_explorer --configuration development && node scripts/closure-compiler/apply-closure-compiler.mjs",
       "dependencies": [
         "build:deps"
       ]

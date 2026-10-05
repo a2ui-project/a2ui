@@ -35,6 +35,16 @@ void main() {
       expect(updateCount, 3, reason: 'third update should also notify');
     });
 
+    test('toJson keeps its id and type over same-named properties', () {
+      final comp = ComponentModel('c1', 'Text', {
+        'text': 'hi',
+        'id': 'other',
+        'component': 'Bogus',
+      });
+
+      expect(comp.toJson(), {'text': 'hi', 'id': 'c1', 'component': 'Text'});
+    });
+
     test('toJson emits catalogId and metadata only when set', () {
       expect(ComponentModel('c1', 'Text', {'text': 'a'}).toJson(), {
         'id': 'c1',

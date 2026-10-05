@@ -20,7 +20,7 @@ from typing import Any
 
 import pytest
 
-from a2ui.core import A2uiValidationError, Catalog
+from a2ui.core import A2uiValidationError, Catalog, CatalogApi
 from a2ui.core.validation import (
     PayloadValidator,
     RELAXED_VALIDATION,
@@ -76,7 +76,7 @@ def test_negated_class() -> None:
     assert not _matches(pattern, "a")
 
 
-def _v1_catalog() -> Catalog[Any, Any]:
+def _v1_catalog() -> CatalogApi:
     return Catalog.from_json({
         "catalogId": "https://example.com/catalogs/test.json",
         "protocolVersion": "1.0",

@@ -307,5 +307,20 @@ void main() {
         'extensions': {'x': 1},
       });
     });
+
+    test('dispatches action with UTC timestamp that serializes with trailing Z',
+        () {
+      final surface = SurfaceModel<ComponentApi>('s1');
+      A2uiClientAction? dispatched;
+      surface.onAction.addListener((action) => dispatched = action);
+
+      surface.dispatchAction({
+        'event': {'name': 'submit'},
+      }, 'c1');
+
+      expect(dispatched, isNotNull);
+      expect(dispatched!.timestamp.isUtc, isTrue);
+      expect(dispatched!.toJson()['timestamp'], endsWith('Z'));
+    });
   });
 }

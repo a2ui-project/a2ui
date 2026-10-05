@@ -33,9 +33,10 @@ from a2a.types import AgentCard, AgentSkill, AgentCapabilities
 from starlette.middleware.cors import CORSMiddleware
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.adk.a2a import A2uiPartConverter
-from a2ui.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import (
+    CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
@@ -43,7 +44,7 @@ from a2ui.schema import (
 
 inference_format = DirectJsonFormat(
     version=VERSION_0_9,
-    catalogs=[BasicCatalog.get_config(version=VERSION_0_9)],
+    catalogs=[CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_9))],
     schema_modifiers=[remove_strict_validation],
 )
 my_catalog = inference_format.get_selected_catalog()

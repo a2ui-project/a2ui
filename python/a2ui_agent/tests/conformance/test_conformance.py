@@ -22,7 +22,6 @@ from .conformance_helpers import (
     load_conformance_yaml as load_tests,
 )
 
-from a2ui.basic_catalog import BasicCatalog
 from a2ui.core import (
     A2uiCatalogError,
     A2uiError,
@@ -32,6 +31,7 @@ from a2ui.core import (
     A2uiValidationError,
     MessageProcessor,
 )
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
 from a2ui.schema import (
     A2uiCatalog,
@@ -346,13 +346,11 @@ def test_schema_manager_conformance(name, test_case):
         if examples_path:
             examples_path = get_conformance_path(examples_path)
 
-        config = BasicCatalog.get_config(version)
-        if examples_path:
-            config = CatalogConfig(
-                name=config.name,
-                provider=config.provider,
-                examples_path=examples_path,
-            )
+        config = CatalogConfig.from_catalog(
+            "basic",
+            BasicCatalog(version),
+            examples_path=examples_path,
+        )
 
         accepts_inline = args.get("acceptsInlineCatalogs", False)
         direct_json_format = DirectJsonFormat(

@@ -73,11 +73,11 @@ class ComponentModel {
   /// Returns the component as the message that would create it.
   Map<String, dynamic> toJson() {
     return {
+      ..._properties,
       'id': id,
       'component': type,
       if (catalog != null) 'catalogId': catalog,
       if (metadata != null) 'metadata': metadata,
-      ..._properties,
     };
   }
 }

@@ -70,8 +70,34 @@ describe('ComponentModel', () => {
     const tree = component.componentTree;
     assert.deepStrictEqual(tree, {
       id: 'c1',
-      type: 'Button',
+      component: 'Button',
       label: 'Click Me',
+    });
+  });
+
+  it('keeps a property named type apart from the component type in the tree', () => {
+    const chart = new ComponentModel('chart1', 'Chart', {type: 'pie', title: 'Sales'});
+    assert.deepStrictEqual(chart.componentTree, {
+      id: 'chart1',
+      component: 'Chart',
+      type: 'pie',
+      title: 'Sales',
+    });
+  });
+
+  it('keeps the component metadata over a property named metadata in the tree', () => {
+    const chart = new ComponentModel(
+      'chart1',
+      'Chart',
+      {metadata: 'prop', title: 'Sales'},
+      undefined,
+      {owner: 'agent'},
+    );
+    assert.deepStrictEqual(chart.componentTree, {
+      id: 'chart1',
+      component: 'Chart',
+      metadata: {owner: 'agent'},
+      title: 'Sales',
     });
   });
 

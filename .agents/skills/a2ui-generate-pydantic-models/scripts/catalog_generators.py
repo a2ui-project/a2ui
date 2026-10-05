@@ -574,6 +574,8 @@ def generate_basic_catalog_index(
         "",
         "",
         "def _basic_catalog_id(protocol_version: str) -> str:",
+        "    if protocol_version == 'v0.8':",
+        '        return f"{PROTOCOL_BASE_URL}/v0_8/standard_catalog_definition.json"',
         "    return (",
         (
             "        f\"{PROTOCOL_BASE_URL}/{protocol_version.replace('.',"
