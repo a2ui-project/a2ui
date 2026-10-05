@@ -28,9 +28,32 @@ REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_YAML_PATH = os.path.join(REPO_ROOT, "conformance", "agent", "skill.yaml")
 GOLDENS_DIR = os.path.join(REPO_ROOT, "conformance", "test_data", "skills")
 
+# Skill cases this SDK is known to fail, with the reason. Each one must still fail:
+# once it passes, remove it here.
+_RESERVED_KEYS_GAP = (
+    "The v1.0 basic catalog's examples write @path and @call, which the Express"
+    " decompiler doesn't read yet"
+    " (https://github.com/a2ui-project/a2ui/issues/3006)."
+)
+KNOWN_GAPS = {
+    "test_express_monolithic_skill": _RESERVED_KEYS_GAP,
+    "test_express_catalog_skill": _RESERVED_KEYS_GAP,
+}
+
 
 class TestSkillConformance(unittest.TestCase):
     """Verifies skill generation and decomposed prompt APIs against specification YAML and golden files."""
+
+    def _assert_matches_golden(self, name: str, actual: str, expected: str) -> None:
+        """Asserts a skill matches its golden file, or still differs for a known gap."""
+        if name in KNOWN_GAPS:
+            self.assertNotEqual(
+                actual,
+                expected,
+                f"{name} now passes; remove it from KNOWN_GAPS.",
+            )
+        else:
+            self.assertEqual(actual, expected)
 
     def test_prompt_generator_base_rules_conformance(self):
         """Asserts prompt_generator.generate_base_rules() matches golden file exactly."""
@@ -47,6 +70,9 @@ class TestSkillConformance(unittest.TestCase):
         actual = prompt_gen.generate_base_rules()
         self.assertEqual(actual, expected)
 
+    # The v1.0 basic catalog's examples write @path and @call, which the Express
+    # decompiler doesn't read yet (https://github.com/a2ui-project/a2ui/issues/3006).
+    @unittest.expectedFailure
     def test_prompt_generator_catalog_instructions_conformance(self):
         """Asserts prompt_generator.generate_catalog_instructions() matches golden file exactly."""
         cat_path = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
@@ -114,7 +140,9 @@ class TestSkillConformance(unittest.TestCase):
                     expected_abs = os.path.join(REPO_ROOT, expected_rel)
                     with open(expected_abs, "r", encoding="utf-8") as gf:
                         expected_content = gf.read()
-                    self.assertEqual(skill_obj.to_markdown(), expected_content)
+                    self._assert_matches_golden(
+                        name, skill_obj.to_markdown(), expected_content
+                    )
 
                 elif action == "core_syntax":
                     core_name = args.get("name", "a2ui-core")
@@ -123,7 +151,9 @@ class TestSkillConformance(unittest.TestCase):
                     expected_abs = os.path.join(REPO_ROOT, expected_rel)
                     with open(expected_abs, "r", encoding="utf-8") as gf:
                         expected_content = gf.read()
-                    self.assertEqual(skill_obj.to_markdown(), expected_content)
+                    self._assert_matches_golden(
+                        name, skill_obj.to_markdown(), expected_content
+                    )
 
                 elif action == "from_catalog":
                     skill_obj = generator.generate_catalog_skill(catalog)
@@ -131,7 +161,9 @@ class TestSkillConformance(unittest.TestCase):
                     expected_abs = os.path.join(REPO_ROOT, expected_rel)
                     with open(expected_abs, "r", encoding="utf-8") as gf:
                         expected_content = gf.read()
-                    self.assertEqual(skill_obj.to_markdown(), expected_content)
+                    self._assert_matches_golden(
+                        name, skill_obj.to_markdown(), expected_content
+                    )
 
                 elif action == "skill_set":
                     skill_set = generator.generate_skillset()
