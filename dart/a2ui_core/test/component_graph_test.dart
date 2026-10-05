@@ -17,7 +17,7 @@ import 'package:a2ui_core/src/validation/component_graph.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('checkPathsAndRecursion (#92)', () {
+  group('checkPathsAndRecursion', () {
     test(
       'skips binding path and call-depth checks inside updateDataModel.value',
       () {

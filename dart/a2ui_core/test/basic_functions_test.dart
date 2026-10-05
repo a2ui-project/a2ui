@@ -16,7 +16,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('FormatStringFunction (#69)', () {
+  group('FormatStringFunction', () {
     late DataModel dataModel;
     late FormatStringFunction formatString;
 
