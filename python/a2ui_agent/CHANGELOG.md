@@ -41,7 +41,7 @@
   the `version` that each message states, and raises `A2uiValidationError`
   (#2966).
 - Add `catalog_to_prompt` to `a2ui.inference_formats.direct_json`, which
-  returns the prompt text for a catalog together with the server-to-client
+  returns the prompt text for a catalog together with the agent-to-renderer
   schema and the common types it references, and
   `DirectJsonFormat.create_stream_parser`, which builds a stream parser with
   the format's protocol schemas, after its schema modifiers, and its
@@ -62,8 +62,8 @@
   capabilities keyed by protocol version, such as `{"v0.9": {...}}` (#2966).
 - `DirectJsonFormat.get_selected_catalog` still accepts `allowed_messages`
   but doesn't apply it, since a core catalog doesn't hold the
-  server-to-client schema. The prompt generator applies it when it renders
-  the schemas, and the stream parser no longer enforces it (#2966).
+  agent-to-renderer schema. The prompt generator applies it when it builds
+  the prompt, and the stream parser no longer enforces it (#2966).
 - `SendA2uiToClientToolset` now returns a tool error, with the validation
   message, for a payload that fails validation. Before, it ignored the errors
   that `validate_components` returned (#2966).
