@@ -78,7 +78,6 @@ default = true
 [dependency-groups]
 dev = [
     "antlr4-tools>=0.2.1",
-    "hatchling>=1.30.1",
     "types-jsonschema",
     "types-pyyaml",
 ]

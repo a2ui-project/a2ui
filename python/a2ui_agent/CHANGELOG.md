@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Building or installing the SDK from source no longer regenerates the Express
+  parser, so it no longer needs Java. The generated parser stays committed; after
+  changing `Express.g4`, run `scripts/generate_express_parser.py` (#2964).
 - Catalogs that inference formats and `A2uiCatalog.core_catalog` take or return are typed `CatalogApi` from `a2ui.core` instead of `Catalog[Any, Any]`.
 - Add A2UI Macros API under `a2ui.transformers.macros` (`@macro` decorator and `MacroExpander`), enabling authoring of reusable, high-level composite components using fluent Python builder classes that lower into primitive A2UI component subtrees (`transform_to_transport`) and synthesize inference catalog schemas (`transform_to_inference_catalog`, `to_catalog`) (#2519).
 - **BREAKING**: The common types schema is no longer bundled as an asset.

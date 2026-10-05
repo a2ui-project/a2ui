@@ -53,16 +53,31 @@ protocol.
 
 ## Building the SDK
 
-Building from source regenerates the Express parser from
-`specification/inference_formats/express/Express.g4`. That step runs ANTLR, which
-requires a Java runtime (JRE 11 or newer) on the `PATH`.
-
 To build the SDK, run the following command from the `python/a2ui_agent`
 directory:
 
 ```bash
 uv build
 ```
+
+The build doesn't need Java. The Express lexer, parser, and visitor in
+`src/a2ui/inference_formats/experimental/express/generated/` are generated from
+`specification/inference_formats/express/Express.g4` and committed to the
+repository.
+
+## Regenerating the Express parser
+
+After changing `Express.g4`, regenerate the parser from the `python/a2ui_agent`
+directory and commit the result:
+
+```bash
+uv run python scripts/generate_express_parser.py
+```
+
+The script runs ANTLR 4.13.2 through `antlr4-tools` from the dev dependency
+group. ANTLR needs a Java runtime (JRE 11 or newer) on the `PATH`, and
+`antlr4-tools` downloads the ANTLR jar on first use. Add `--check` to compare
+the committed files with the grammar without changing them. CI runs this check.
 
 ## Formatting code
 
