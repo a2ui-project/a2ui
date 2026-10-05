@@ -28,8 +28,7 @@ const Map<String, Type> _categoryToError = {
 /// The reason `validate` cases are skipped: they render basic-catalog
 /// components (`Text`, `Column`) on a v1.0 surface and assert resolved
 /// component properties, none of which this SDK provides yet.
-const String _validateSkipReason =
-    'Blocked on B7-components/B3b: needs basic-catalog components, v1.0 '
+const String _validateSkipReason = 'Requires basic-catalog components, v1.0 '
     'message processing and resolved component assertions.';
 
 /// The basic catalog a case runs against, chosen by its protocol version.
