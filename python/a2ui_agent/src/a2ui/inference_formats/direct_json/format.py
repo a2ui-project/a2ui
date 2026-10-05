@@ -23,6 +23,7 @@ from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.inference_format import InferenceFormat
 from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 from a2ui.inference_formats.direct_json.prompt_generator import DirectJsonPromptGenerator
+from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.schema.catalog import (
     CatalogConfig,
     load_examples,
@@ -97,6 +98,11 @@ class DirectJsonFormat(InferenceFormat):
             default_catalog = self._supported_catalogs[0]
             self._parser = DirectJsonParser(
                 default_catalog,
+                custom_cuttable_keys=self._catalog_cuttable_keys.get(
+                    default_catalog.catalog_id
+                ),
+                s2c_schema=self._server_to_client_schema,
+                common_types_schema=self._common_types_schema,
             )
         return self._parser
 
@@ -141,7 +147,7 @@ class DirectJsonFormat(InferenceFormat):
         # Process catalogs
         for config in catalogs:
             catalog = config.to_catalog(
-                version=version, schema_modifiers=self._schema_modifiers
+                protocol_version=version, schema_modifiers=self._schema_modifiers
             )
             self._supported_catalogs.append(catalog)
             if config.examples_path:
@@ -155,14 +161,37 @@ class DirectJsonFormat(InferenceFormat):
         self,
         client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
     ) -> CatalogApi:
-        """Selects the component catalog for the prompt based on client capabilities."""
+        """Selects the component catalog for the prompt based on client capabilities.
+
+        Selection priority:
+        1. If inline catalogs are provided (and accepted by the agent), their
+           components are merged on top of a base catalog. The base is determined
+           by supportedCatalogIds (if also provided) or the agent's default catalog.
+        2. If only supportedCatalogIds is provided, pick the first mutually
+           supported catalog.
+        3. Fallback to the first agent-supported catalog (usually the bundled catalog).
+
+        Args:
+           client_ui_capabilities: A dictionary of client UI capabilities, containing
+             inline catalogs and client-supported catalog IDs.
+
+        Returns:
+           The resolved catalog.
+
+        Raises:
+           A2uiCatalogError: If inline catalogs are sent but not accepted, or if no
+             mutually supported catalog is found.
+        """
         if not self._supported_catalogs:
-            raise A2uiCatalogError("No supported catalogs found.")
+            raise A2uiCatalogError(
+                "No supported catalogs found."
+            )  # This should not happen.
 
         if not client_ui_capabilities:
             return self._supported_catalogs[0]
 
         if isinstance(client_ui_capabilities, Mapping):
+            # Inject default supportedCatalogIds if missing to pass validation
             data = dict(client_ui_capabilities)
             if (
                 "supportedCatalogIds" not in data
@@ -190,6 +219,8 @@ class DirectJsonFormat(InferenceFormat):
             )
 
         if inline_catalogs:
+            # Determine the base catalog: use supportedCatalogIds if provided,
+            # otherwise fall back to the agent's default catalog.
             base_catalog = self._supported_catalogs[0]
             if client_supported_catalog_ids:
                 agent_supported_catalogs = {
@@ -239,13 +270,65 @@ class DirectJsonFormat(InferenceFormat):
         allowed_components: Sequence[str] | None = None,
         allowed_messages: Sequence[str] | None = None,
     ) -> CatalogApi:
-        """Selects and prunes the catalog according to client capabilities and restrictions."""
+        """Selects and prunes the catalog according to client capabilities and restrictions.
+
+        Args:
+            client_ui_capabilities: Optional client UI capability details.
+            allowed_components: Optional list of component tags allowed.
+            allowed_messages: Accepted for compatibility. A catalog does not hold
+                the server-to-client schema, so the prompt generator applies this
+                restriction when it renders the schemas instead.
+
+        Returns:
+            The selected catalog, pruned to the allowed components.
+        """
         del allowed_messages
         catalog = self._select_catalog(client_ui_capabilities)
         return prune_catalog_components(catalog, allowed_components)
 
+    def create_stream_parser(
+        self, catalog: CatalogApi | None = None
+    ) -> DirectJsonStreamParser:
+        """Creates a streaming parser configured by this format.
+
+        The parser validates messages against this format's protocol schemas,
+        after its schema modifiers, and heals the cuttable keys configured for
+        the catalog.
+
+        Args:
+            catalog: The catalog to parse against, for example the one that
+                `get_selected_catalog` returns. Defaults to the first supported
+                catalog.
+
+        Returns:
+            A new streaming parser.
+
+        Raises:
+            A2uiCatalogError: If no catalog is given and none is configured.
+        """
+        if catalog is None:
+            if not self._supported_catalogs:
+                raise A2uiCatalogError(
+                    "No supported catalogs configured for the Direct JSON format."
+                )
+            catalog = self._supported_catalogs[0]
+        return DirectJsonStreamParser(
+            catalog,
+            custom_cuttable_keys=self._catalog_cuttable_keys.get(catalog.catalog_id),
+            s2c_schema=self._server_to_client_schema,
+            common_types_schema=self._common_types_schema,
+        )
+
     def load_examples(self, catalog: CatalogApi, validate: bool = False) -> str:
-        """Loads and optionally validates few-shot examples for the specified catalog."""
+        """Loads and optionally validates few-shot examples for the specified catalog.
+
+        Args:
+            catalog: The catalog to load examples for.
+            validate: Whether to validate the examples on load.
+
+        Returns:
+            The examples text block, or an empty string.
+        """
         if catalog.catalog_id in self._catalog_example_paths:
             return load_examples(
                 catalog,

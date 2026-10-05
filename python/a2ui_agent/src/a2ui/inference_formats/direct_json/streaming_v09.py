@@ -14,9 +14,10 @@
 
 from __future__ import annotations
 
-import re
+from collections.abc import Mapping
 import json
-from typing import Any, TYPE_CHECKING
+import re
+from typing import Any
 
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser.response_part import ResponsePart
@@ -33,8 +34,16 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         self,
         catalog: CatalogApi,
         custom_cuttable_keys: frozenset[str] | None = None,
+        *,
+        s2c_schema: Mapping[str, Any] | None = None,
+        common_types_schema: Mapping[str, Any] | None = None,
     ):
-        super().__init__(catalog=catalog, custom_cuttable_keys=custom_cuttable_keys)
+        super().__init__(
+            catalog=catalog,
+            custom_cuttable_keys=custom_cuttable_keys,
+            s2c_schema=s2c_schema,
+            common_types_schema=common_types_schema,
+        )
         # v0.9 default root is "root"
         self._default_root_id = DEFAULT_ROOT_ID
 

@@ -14,11 +14,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import copy
 import json
 import logging
 import re
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
 from a2ui.parser.constants import *
 from a2ui.schema.constants import (
@@ -43,7 +44,6 @@ from a2ui.core import (
     A2uiIntegrityError,
     A2uiParseError,
     A2uiValidationError,
-    Catalog,
     CatalogApi,
     PayloadValidator,
 )
@@ -62,6 +62,9 @@ class DirectJsonStreamParser:
         cls,
         catalog: CatalogApi,
         custom_cuttable_keys: frozenset[str] | None = None,
+        *,
+        s2c_schema: Mapping[str, Any] | None = None,
+        common_types_schema: Mapping[str, Any] | None = None,
     ) -> DirectJsonStreamParser:
         if cls is DirectJsonStreamParser:
             version = str(catalog.protocol_version).removeprefix("v")
@@ -71,13 +74,19 @@ class DirectJsonStreamParser:
                 from .streaming_v08 import DirectJsonStreamParserV08
 
                 return DirectJsonStreamParserV08(
-                    catalog=catalog, custom_cuttable_keys=custom_cuttable_keys
+                    catalog=catalog,
+                    custom_cuttable_keys=custom_cuttable_keys,
+                    s2c_schema=s2c_schema,
+                    common_types_schema=common_types_schema,
                 )
             else:
                 from .streaming_v09 import DirectJsonStreamParserV09
 
                 return DirectJsonStreamParserV09(
-                    catalog=catalog, custom_cuttable_keys=custom_cuttable_keys
+                    catalog=catalog,
+                    custom_cuttable_keys=custom_cuttable_keys,
+                    s2c_schema=s2c_schema,
+                    common_types_schema=common_types_schema,
                 )
         return super().__new__(cls)
 
@@ -85,24 +94,36 @@ class DirectJsonStreamParser:
         self,
         catalog: CatalogApi,
         custom_cuttable_keys: frozenset[str] | None = None,
+        *,
+        s2c_schema: Mapping[str, Any] | None = None,
+        common_types_schema: Mapping[str, Any] | None = None,
     ):
+        """Initializes the streaming parser.
+
+        Args:
+            catalog: The catalog that components are parsed and validated against.
+            custom_cuttable_keys: Keys whose string values can be safely auto-closed
+                (healed) when cut in the stream. Replaces the default set when
+                provided.
+            s2c_schema: The server-to-client schema that messages are validated
+                against. Defaults to the published schema of the catalog's
+                protocol version.
+            common_types_schema: The common types schema that `s2c_schema` refers
+                to. Defaults to the published schema of the catalog's protocol
+                version.
+        """
         self._catalog = catalog
         self._validator: PayloadValidator | None = PayloadValidator(
             catalog, config=STRICT_VALIDATION
         )
         self._version = str(catalog.protocol_version).removeprefix("v")
-        if catalog is None:
-            base_cuttable_keys: frozenset[str] = frozenset()
-        else:
-            keys = getattr(catalog, "cuttable_keys", None)
-            if keys is not None and not callable(keys):
-                base_cuttable_keys = frozenset(keys)
-            else:
-                base_cuttable_keys = frozenset(DEFAULT_CUTTABLE_KEYS)
-        if custom_cuttable_keys is not None:
-            self._cuttable_keys = base_cuttable_keys | frozenset(custom_cuttable_keys)
-        else:
-            self._cuttable_keys = base_cuttable_keys
+        self._cuttable_keys: frozenset[str] = (
+            frozenset(custom_cuttable_keys)
+            if custom_cuttable_keys is not None
+            else DEFAULT_CUTTABLE_KEYS
+        )
+        self._s2c_schema = s2c_schema
+        self._common_types_schema = common_types_schema
         self._schema_helper = CatalogSchemaHelper(catalog)
 
         self._found_delimiter = False
@@ -279,7 +300,11 @@ class DirectJsonStreamParser:
                 load_common_types_schema,
             )
 
-            s2c_schema = load_agent_to_renderer_schema(self._version)
+            s2c_schema = (
+                self._s2c_schema
+                if self._s2c_schema is not None
+                else load_agent_to_renderer_schema(self._version)
+            )
             if not s2c_schema:
                 self._s2c_validator_cached = None
             else:
@@ -288,7 +313,11 @@ class DirectJsonStreamParser:
 
                 registry = Registry()
                 ver = f"v{self._version.removeprefix('v')}"
-                common_types_schema = load_common_types_schema(self._version)
+                common_types_schema = (
+                    self._common_types_schema
+                    if self._common_types_schema is not None
+                    else load_common_types_schema(self._version)
+                )
                 if common_types_schema:
                     res_ct = Resource.from_contents(
                         common_types_schema,

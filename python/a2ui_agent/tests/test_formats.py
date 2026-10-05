@@ -229,7 +229,7 @@ def test_decompiler_delegation(test_catalog):
             return {"catalogId": 12345}
 
     with pytest.raises(A2uiCatalogError) as ctx:
-        _ = CatalogConfig(name="bad", provider=_BadProvider()).to_catalog(version="1.0")
+        _ = CatalogConfig(name="bad", provider=_BadProvider()).to_catalog(protocol_version="1.0")
     assert "catalogId is not a string" in str(ctx.value)
 
     # Verify empty pruned components and messages fallback

@@ -14,8 +14,10 @@
 
 """Parser and compiler implementation for standard A2UI JSON schema responses."""
 
+from collections.abc import Mapping
 from typing import Any
-from a2ui.core import A2uiParseError, Catalog, CatalogApi
+
+from a2ui.core import A2uiParseError, CatalogApi
 from a2ui.inference_formats.direct_json.decompiler import _DirectJsonDecompiler
 from a2ui.parser.parser import Parser
 from a2ui.parser.payload_fixer import parse_and_fix
@@ -71,7 +73,15 @@ def unwrap_response(content: str) -> list[ResponsePart]:
 class DirectJsonParser(Parser):
     """Concrete parser implementation for standard A2UI JSON schema responses (Direct JSON Format)."""
 
-    def __init__(self, catalog: CatalogApi, validator: Any = None):
+    def __init__(
+        self,
+        catalog: CatalogApi,
+        validator: Any = None,
+        *,
+        custom_cuttable_keys: frozenset[str] | None = None,
+        s2c_schema: Mapping[str, Any] | None = None,
+        common_types_schema: Mapping[str, Any] | None = None,
+    ):
         """Initializes the DirectJsonParser.
 
         Args:
@@ -79,9 +89,18 @@ class DirectJsonParser(Parser):
             validator: Optional callable invoked with the parsed payload. It may
                 return a list of `A2uiErrorDetail`, which `compile` raises as an
                 `A2uiValidationError`, or raise on its own.
+            custom_cuttable_keys: Keys whose string values the stream parser may
+                auto-close when cut. Replaces the default set when provided.
+            s2c_schema: The server-to-client schema that streamed messages are
+                validated against. Defaults to the published schema.
+            common_types_schema: The common types schema that `s2c_schema` refers
+                to. Defaults to the published schema.
         """
         self._catalog = catalog
         self._validator = validator
+        self._custom_cuttable_keys = custom_cuttable_keys
+        self._s2c_schema = s2c_schema
+        self._common_types_schema = common_types_schema
         self._stream_parser: Any | None = None
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
@@ -142,7 +161,12 @@ class DirectJsonParser(Parser):
         from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 
         if not self._stream_parser:
-            self._stream_parser = DirectJsonStreamParser(self._catalog)
+            self._stream_parser = DirectJsonStreamParser(
+                self._catalog,
+                custom_cuttable_keys=self._custom_cuttable_keys,
+                s2c_schema=self._s2c_schema,
+                common_types_schema=self._common_types_schema,
+            )
         return self._stream_parser.process_chunk(chunk)
 
     def decompile(self, val: dict[str, Any]) -> str:

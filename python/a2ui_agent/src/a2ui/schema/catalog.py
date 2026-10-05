@@ -22,7 +22,7 @@ import glob
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from a2ui.core import (
@@ -86,7 +86,7 @@ def _iter_payload_components(payload: Any) -> Iterator[dict[str, Any]]:
 class CatalogConfig:
     """Configuration for a catalog of components.
 
-    A catalog consists of a provider or an `a2ui_core.Catalog` instance,
+    A catalog consists of a provider or an `a2ui.core.Catalog` instance,
     and optionally a path or glob pattern to examples.
 
     Attributes:
@@ -94,7 +94,7 @@ class CatalogConfig:
       provider: The provider to use to load the catalog schema.
       examples_path: The path or glob pattern to the examples.
       custom_cuttable_keys: The optional custom set of cuttable keys.
-      catalog: Optional a2ui_core Catalog instance.
+      catalog: Optional `a2ui.core.Catalog` instance.
     """
 
     name: str
@@ -105,16 +105,27 @@ class CatalogConfig:
 
     def __init__(
         self,
-        name: str | CatalogApi = "basic",
+        name: str = "basic",
         provider: A2uiCatalogProvider | None = None,
         examples_path: str | None = None,
         custom_cuttable_keys: frozenset[str] | None = None,
         *,
         catalog: CatalogApi | None = None,
     ) -> None:
-        if isinstance(name, Catalog):
-            catalog = name
-            name = "basic"
+        """Initializes the configuration.
+
+        Args:
+          name: The name of the catalog.
+          provider: The provider to load the catalog schema from. Defaults to an
+            in-memory provider of `catalog`'s schema.
+          examples_path: The path or glob pattern to the examples.
+          custom_cuttable_keys: Keys whose string values the streaming parser may
+            auto-close when cut. Replaces the default set when provided.
+          catalog: The catalog instance to use as is.
+
+        Raises:
+          TypeError: If neither `provider` nor `catalog` is given.
+        """
         if catalog is not None and provider is None:
             provider = InMemoryCatalogProvider(catalog.catalog_schema)
         if provider is None:
@@ -128,28 +139,17 @@ class CatalogConfig:
     @classmethod
     def from_catalog(
         cls,
-        name_or_catalog: str | CatalogApi = "basic",
-        catalog: CatalogApi | None = None,
-        *,
-        name: str | None = None,
+        name: str,
+        catalog: CatalogApi,
         examples_path: str | None = None,
         custom_cuttable_keys: frozenset[str] | None = None,
     ) -> CatalogConfig:
-        """Returns a CatalogConfig backed by an a2ui_core Catalog instance."""
-        if isinstance(name_or_catalog, Catalog):
-            actual_catalog: CatalogApi = name_or_catalog
-            actual_name = name or (catalog if isinstance(catalog, str) else "basic")
-        else:
-            actual_name = name_or_catalog
-            if catalog is None:
-                raise TypeError("from_catalog requires a catalog instance")
-            actual_catalog = catalog
+        """Returns a CatalogConfig backed by an `a2ui.core.Catalog` instance."""
         return cls(
-            name=actual_name,
-            provider=InMemoryCatalogProvider(actual_catalog.catalog_schema),
-            examples_path=resolve_examples_path(examples_path),
+            name=name,
+            examples_path=examples_path,
             custom_cuttable_keys=custom_cuttable_keys,
-            catalog=actual_catalog,
+            catalog=catalog,
         )
 
     @classmethod
@@ -178,22 +178,37 @@ class CatalogConfig:
 
     def to_catalog(
         self,
-        version: str | None = None,
+        protocol_version: str | None = None,
         schema_modifiers: (
             Sequence[Callable[[dict[str, Any]], dict[str, Any]]] | None
         ) = None,
-        *,
-        protocol_version: str | None = None,
     ) -> CatalogApi:
-        """Loads and returns a core Catalog instance from this configuration."""
-        ver = version or protocol_version
+        """Loads and returns a core Catalog instance from this configuration.
+
+        A configured `catalog` is returned as is unless schema modifiers are
+        given or it targets a different protocol version. Otherwise the provider's
+        schema is modified and parsed with `Catalog.from_json`.
+
+        Args:
+          protocol_version: The protocol version of the returned catalog. Defaults
+            to the configured catalog's version, then to the schema's
+            `protocolVersion`, then to 1.0.
+          schema_modifiers: Functions applied in order to the catalog schema
+            before it is parsed.
+
+        Returns:
+          The catalog.
+
+        Raises:
+          A2uiCatalogError: If the schema lacks a string `catalogId`.
+        """
         if (
             self.catalog is not None
             and not schema_modifiers
             and (
-                ver is None
+                protocol_version is None
                 or to_protocol_version(self.catalog.protocol_version)
-                == to_protocol_version(ver)
+                == to_protocol_version(protocol_version)
             )
         ):
             return self.catalog
@@ -214,10 +229,15 @@ class CatalogConfig:
         if not isinstance(catalog_id, str):
             raise A2uiCatalogError(f"Catalog '{self.name}' catalogId is not a string")
 
-        effective_version = ver or str(catalog_schema.get("protocolVersion", "1.0"))
+        if protocol_version is None:
+            protocol_version = (
+                str(self.catalog.protocol_version)
+                if self.catalog is not None
+                else str(catalog_schema.get("protocolVersion", "1.0"))
+            )
         return Catalog.from_json(
             catalog_schema=catalog_schema,
-            protocol_version=effective_version,
+            protocol_version=protocol_version,
             catalog_id=catalog_id,
         )
 

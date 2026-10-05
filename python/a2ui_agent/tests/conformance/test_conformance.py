@@ -640,7 +640,7 @@ def setup_catalog_from_document(relative_path):
         name=os.path.basename(relative_path).replace(".json", ""),
         catalog_path=_get_conformance_path(relative_path),
     )
-    return config.to_catalog(version=version)
+    return config.to_catalog(protocol_version=version)
 
 
 def make_parser(args):

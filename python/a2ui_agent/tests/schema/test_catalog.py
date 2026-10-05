@@ -37,7 +37,7 @@ def test_catalog_id_property():
         name=BASIC_CATALOG_NAME,
         provider=_DictCatalogProvider({"catalogId": catalog_id}),
     )
-    catalog = config.to_catalog(version=VERSION_0_8)
+    catalog = config.to_catalog(protocol_version=VERSION_0_8)
     assert catalog.catalog_id == catalog_id
 
 
@@ -47,7 +47,7 @@ def test_catalog_id_missing_raises_error():
         provider=_DictCatalogProvider({}),  # No catalogId
     )
     with pytest.raises(A2uiCatalogError, match="missing 'catalogId'"):
-        config.to_catalog(version=VERSION_0_8)
+        config.to_catalog(protocol_version=VERSION_0_8)
 
 
 def test_resolve_examples_path_handling():

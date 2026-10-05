@@ -14,8 +14,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import re
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser.response_part import ResponsePart
@@ -23,7 +24,7 @@ from a2ui.parser.constants import *
 from a2ui.schema.constants import SURFACE_ID_KEY, CATALOG_COMPONENTS_KEY
 from a2ui.core.validation import RELAXED_VALIDATION
 
-from a2ui.core import Catalog, CatalogApi
+from a2ui.core import CatalogApi
 
 
 class DirectJsonStreamParserV08(DirectJsonStreamParser):
@@ -33,8 +34,16 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
         self,
         catalog: CatalogApi,
         custom_cuttable_keys: frozenset[str] | None = None,
+        *,
+        s2c_schema: Mapping[str, Any] | None = None,
+        common_types_schema: Mapping[str, Any] | None = None,
     ):
-        super().__init__(catalog=catalog, custom_cuttable_keys=custom_cuttable_keys)
+        super().__init__(
+            catalog=catalog,
+            custom_cuttable_keys=custom_cuttable_keys,
+            s2c_schema=s2c_schema,
+            common_types_schema=common_types_schema,
+        )
         self._yielded_begin_rendering_surfaces: set[str] = set()
 
     @property
