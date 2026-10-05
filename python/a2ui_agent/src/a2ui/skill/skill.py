@@ -19,7 +19,7 @@ import shutil
 from typing import Any, Iterator, Optional, Union
 import yaml
 
-from a2ui.core import Catalog, CatalogApi
+from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
 from a2ui.schema import CatalogConfig
 
@@ -41,19 +41,17 @@ def _clean_catalog_name(catalog: Any) -> str:
 
 
 def _resolve_catalogs_list(
-    catalogs: Optional[list[Union[str, Any]]],
+    catalogs: Optional[list[Union[str, CatalogApi]]],
     fmt: InferenceFormat,
 ) -> list[CatalogApi]:
-    """Resolves catalog instances from list of strings, configs, or format defaults."""
+    """Resolves catalogs from catalog paths, catalogs, or the format's defaults."""
     if catalogs is not None:
         resolved: list[CatalogApi] = []
         for c in catalogs:
             if isinstance(c, str):
                 cat_name = os.path.splitext(os.path.basename(c))[0] or "custom"
                 resolved.append(CatalogConfig.from_path(cat_name, c).to_catalog())
-            elif isinstance(c, CatalogConfig):
-                resolved.append(c.to_catalog())
-            elif isinstance(c, Catalog):
+            else:
                 resolved.append(c)
         return resolved
 
