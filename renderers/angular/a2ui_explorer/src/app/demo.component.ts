@@ -82,12 +82,7 @@ function getUseUniversalComponents(): boolean {
             <div class="version-selector">
               <label for="version">Ver:</label>
               <select id="version" (change)="onVersionChange($event)">
-                <option
-                  [value]="Version.V1_0"
-                  [selected]="version === Version.V1_0 || version === Version.VERSION_1_0"
-                >
-                  1.0
-                </option>
+                <option [value]="Version.V1_0" [selected]="version === Version.V1_0">1.0</option>
                 <option [value]="Version.V0_9" [selected]="version === Version.V0_9">0.9</option>
                 <option [value]="Version.V0_8" [selected]="version === Version.V0_8">0.8</option>
               </select>
@@ -184,11 +179,7 @@ function getUseUniversalComponents(): boolean {
             [class.protocol-version-08]="version === Version.V0_8"
           >
             <a2ui-v09-surface
-              *ngIf="
-                version === Version.V0_9 ||
-                version === Version.V1_0 ||
-                version === Version.VERSION_1_0
-              "
+              *ngIf="version === Version.V0_9 || version === Version.V1_0"
               [surfaceId]="surfaceId()"
             ></a2ui-v09-surface>
             <a2ui-surface *ngIf="version === Version.V0_8" [surfaceId]="surfaceId()"></a2ui-surface>

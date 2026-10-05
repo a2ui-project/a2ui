@@ -26,7 +26,7 @@ export const A2UI_EXAMPLES = new InjectionToken<Array<A2uiExample>>('A2UI_EXAMPL
   providedIn: 'root',
   factory: () => {
     const version = inject(A2UI_VERSION);
-    if (version === Version.V1_0 || version === Version.VERSION_1_0) {
+    if (version === Version.V1_0) {
       return EXAMPLES_V10;
     }
     return version === Version.V0_9 ? EXAMPLES_V09 : EXAMPLES_V08;

@@ -15,19 +15,42 @@
  */
 
 // Core Services and Components
-export * from './core/a2ui-renderer.service';
-export * from './core/component-host.component';
-export * from './core/surface.component';
-export * from './core/catalog_component';
-export * from './core/component-binder.service';
-export * from './core/types';
-export * from './core/utils';
-export * from './core/markdown';
+export {
+  A2UI_RENDERER_CONFIG,
+  A2uiRendererService,
+  provideA2Ui,
+  type RendererConfiguration,
+} from './core/a2ui-renderer.service';
+export {ComponentHostComponent} from './core/component-host.component';
+export {SurfaceComponent} from './core/surface.component';
+export {CatalogComponent} from './core/catalog_component';
+export {ComponentBinder, type Child} from './core/component-binder.service';
+export {
+  type BoundProperty,
+  type ComponentApiToProps,
+  type ComponentTemplate,
+  type ExtendedProps,
+} from './core/types';
+export {getNormalizedPath} from './core/utils';
+export {DefaultMarkdownRenderer, MarkdownRenderer, provideMarkdownRenderer} from './core/markdown';
 
 // Catalog Types and Web Component utilities
-export * from './catalog/types';
-export * from './catalog/to_web_component';
-export * from './catalog/universal_only.component';
+export {
+  AngularCatalog,
+  type AngularComponentImplementation,
+  type AnyDuringSchemaAlignment,
+  createComponentImplementation,
+} from './catalog/types';
+export {toWebComponent} from './catalog/to_web_component';
+export {UniversalOnlyComponent} from './catalog/universal_only.component';
 
 // Providers and v1.0 BasicCatalog
-export * from './basic-catalog';
+export {
+  BASIC_CATALOG_OPTIONS,
+  BASIC_COMPONENTS,
+  BASIC_FUNCTIONS,
+  BasicCatalog,
+  BasicCatalogBase,
+  type BasicCatalogOptions,
+  provideA2UI,
+} from './basic-catalog';

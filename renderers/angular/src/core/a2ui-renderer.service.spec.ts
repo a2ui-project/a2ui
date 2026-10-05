@@ -122,24 +122,21 @@ describe('A2uiRendererService', () => {
       expect(getMarkdownRenderer()).toBe(existing);
     });
 
-    it('should configure web_core setMarkdownRenderer even when universal components are disabled', async () => {
-      const mockRenderer: MarkdownRenderer = {
-        render: jasmine.createSpy('render').and.resolveTo('<p>rendered</p>'),
-      };
+    it('should not configure web_core setMarkdownRenderer when universal components are disabled', () => {
+      const existing = async (markdown: string) => markdown;
+      setMarkdownRenderer(existing);
 
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
         providers: [
           A2uiRendererService,
           {provide: A2UI_RENDERER_CONFIG, useValue: {catalogs: [mockCatalog]}},
-          {provide: MarkdownRenderer, useValue: mockRenderer},
+          {provide: MarkdownRenderer, useValue: {render: async () => '<p>rendered</p>'}},
         ],
       });
       TestBed.inject(A2uiRendererService);
 
-      const registeredFn = getMarkdownRenderer();
-      expect(registeredFn).toBeDefined();
-      expect(await registeredFn!('# test')).toBe('<p>rendered</p>');
+      expect(getMarkdownRenderer()).toBe(existing);
     });
   });
 

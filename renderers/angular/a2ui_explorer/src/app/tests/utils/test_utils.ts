@@ -58,7 +58,7 @@ export async function loadExample(options: LoadExampleOptions) {
   fixture.detectChanges();
 
   const examples =
-    version === Version.V1_0 || version === Version.VERSION_1_0
+    version === Version.V1_0
       ? EXAMPLES_V10
       : version === Version.V0_9
         ? EXAMPLES_V09

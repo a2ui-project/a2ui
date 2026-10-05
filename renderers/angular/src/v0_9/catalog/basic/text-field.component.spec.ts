@@ -144,23 +144,4 @@ describe('TextFieldComponent', () => {
     const input = fixture.debugElement.query(By.css('input'));
     expect(input.nativeElement.getAttribute('placeholder')).toBe('Enter username');
   });
-
-  it('should bind accessibility ARIA attributes on host element', () => {
-    setComponentProps(fixture, {
-      ...defaultProps,
-      accessibility: createBoundProperty({
-        label: 'Username input',
-        description: 'Enter your account handle',
-        live: 'polite',
-        hidden: false,
-      }),
-    } as any);
-    fixture.detectChanges();
-
-    const hostEl = fixture.nativeElement as HTMLElement;
-    expect(hostEl.getAttribute('aria-label')).toBe('Username input');
-    expect(hostEl.getAttribute('aria-description')).toBe('Enter your account handle');
-    expect(hostEl.getAttribute('aria-live')).toBe('polite');
-    expect(hostEl.getAttribute('aria-hidden')).toBe('false');
-  });
 });

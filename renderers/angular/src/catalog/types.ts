@@ -25,8 +25,6 @@ import {CatalogComponentInstance} from '../core/catalog_component_instance';
 import {toWebComponent} from './to_web_component';
 import {UniversalOnlyComponent} from './universal_only.component';
 
-export {toWebComponent, UniversalOnlyComponent};
-
 /**
  * Temporary type used during basic catalog schema alignment to bypass strict type checking.
  *

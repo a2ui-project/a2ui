@@ -27,8 +27,8 @@ import {
   AngularCatalog,
   type AngularComponentImplementation,
   createComponentImplementation,
-  UniversalOnlyComponent,
 } from './catalog/types';
+import {UniversalOnlyComponent} from './catalog/universal_only.component';
 import {
   BASIC_FUNCTIONS,
   createBasicCatalogFunctions,

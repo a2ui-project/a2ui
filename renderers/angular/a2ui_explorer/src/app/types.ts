@@ -24,7 +24,6 @@ export enum Version {
   V0_8 = 'v0.8',
   V0_9 = 'v0.9',
   V1_0 = 'v1.0',
-  VERSION_1_0 = '1.0',
 }
 
 export {A2UI_VERSION} from './version_injector';

@@ -25,14 +25,10 @@ export const A2UI_VERSION = new InjectionToken<Version>('A2UI_VERSION', {
   factory: () => {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
-      const version = urlParams.get('version');
-      if (
-        version === Version.V0_8 ||
-        version === Version.V0_9 ||
-        version === Version.V1_0 ||
-        version === Version.VERSION_1_0
-      ) {
-        return version === Version.VERSION_1_0 ? Version.V1_0 : (version as Version);
+      // Accept both `?version=v1.0` and the bare `?version=1.0`.
+      const version = urlParams.get('version')?.replace(/^(\d)/, 'v$1');
+      if (version === Version.V0_8 || version === Version.V0_9 || version === Version.V1_0) {
+        return version;
       }
     }
     return Version.V0_9;

@@ -38,17 +38,21 @@ ExampleExterns.prototype.description;
 ExampleExterns.prototype.name;
 
 /**
- * Externs for protocol version strings (`types.ts`).
+ * Externs for protocol version enum members (`types.ts` and `@a2ui/web_core`).
+ * Required because esbuild compiles TypeScript string enums using bracket assignments
+ * (`Version["V0_8"] = "v0.8"`) while call sites read them via dot notation (`Version.V0_8`).
  * @record
  * @struct
  */
 function VersionEnumExterns() {}
 /** @type {?|undefined} */
+VersionEnumExterns.prototype.V0_8;
+/** @type {?|undefined} */
 VersionEnumExterns.prototype.V0_9;
 /** @type {?|undefined} */
-VersionEnumExterns.prototype.V1_0;
+VersionEnumExterns.prototype.V0_9_1;
 /** @type {?|undefined} */
-VersionEnumExterns.prototype.VERSION_1_0;
+VersionEnumExterns.prototype.V1_0;
 
 /**
  * Externs for demo gallery data model property keys in `examples-bundle.ts` (e.g. Weather Current).
