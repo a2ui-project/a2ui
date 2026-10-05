@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: `ComponentModel.componentTree` names the component under `component`, as an `updateComponents` message does, instead of `type`, and writes `id`, `component` and `metadata` after the component's properties. A property named `type` no longer replaces the component's type in the tree, and is kept. Read the component's type from `tree.component`. `SurfaceComponentsModel.getChildReferences` reads that same tree, so a property named `component` or `id` no longer replaces the model's own when child references are found ([#2930](https://github.com/a2ui-project/a2ui/pull/2930)).
+
 - Fix `renderA2uiNode` so that re-rendering a parent keeps its existing child elements instead of recreating them; stateful children such as maps no longer reload when a sibling is added. `renderA2uiNode` now returns a Lit directive result instead of a static-html template result. [#2959](https://github.com/a2ui-project/a2ui/pull/2959)
 - Fix a memory leak in universal elements where `A2uiController.dispose()` left its `componentsModel.onCreated` and binder subscriptions attached, and avoid recreating `A2uiController` in `A2uiLitElement.willUpdate` when an incoming `ComponentContext` binds the same component and data path ([#2972](https://github.com/a2ui-project/a2ui/pull/2972)).
 - Add `CatalogApi`, the name for a schema-only `Catalog<ComponentApi, FunctionApi>`, which `Catalog.fromSchema` now returns. [#2900](https://github.com/a2ui-project/a2ui/issues/2900)
