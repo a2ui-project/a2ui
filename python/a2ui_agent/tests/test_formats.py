@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
 import pytest
-from a2ui.core import A2uiCatalogError, Catalog
+from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog
 from a2ui.schema import VERSION_0_9, CatalogConfig
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import (
@@ -82,11 +84,33 @@ def test_schema_strategy_prompt_generation(test_catalog):
 def test_schema_parser(test_catalog):
     parser = DirectJsonParser(test_catalog)
     parsed = parser.parse_response(
-        '<a2ui-json>[{"createSurface": {"surfaceId": "main", "layout": {"component":'
-        ' "Text"}}}]</a2ui-json>'
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
+        ' "catalogId": "https://a2ui.org/test_catalog"}}]</a2ui-json>'
     )
     assert len(parsed) == 1
     assert parsed[0].a2ui_json is not None
+
+
+def test_schema_parser_rejects_an_invalid_payload(test_catalog):
+    parser = DirectJsonParser(test_catalog)
+    with pytest.raises(A2uiValidationError):
+        parser.parse_response(
+            '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
+            ' "catalogId": "https://a2ui.org/test_catalog"}}, {"version": "v0.9",'
+            ' "updateComponents": {"surfaceId": "main", "components": [{"id":'
+            ' "root", "component": "Unknown"}]}}]</a2ui-json>'
+        )
+
+
+def test_schema_parser_runs_a_custom_validator_instead(test_catalog):
+    seen = []
+    parser = DirectJsonParser(test_catalog, validator=seen.append)
+    payload = [{"not": "a message"}]
+
+    parsed = parser.parse_response(f"<a2ui-json>{json.dumps(payload)}</a2ui-json>")
+
+    assert seen == [payload]
+    assert parsed[0].a2ui_json == payload
 
 
 def test_schema_parser_with_nested_close_tag(test_catalog):
@@ -94,19 +118,21 @@ def test_schema_parser_with_nested_close_tag(test_catalog):
     # The JSON string literal itself contains '</a2ui-json>'
     response = (
         "<a2ui-json>[{\n"
-        '  "createSurface": {\n'
+        '  "version": "v0.9",\n'
+        '  "updateComponents": {\n'
         '    "surfaceId": "main",\n'
-        '    "layout": {\n'
+        '    "components": [{\n'
+        '      "id": "root",\n'
         '      "component": "Text",\n'
         '      "text": "This is a literal close tag: </a2ui-json> inside a string."\n'
-        "    }\n"
+        "    }]\n"
         "  }\n"
         "}]</a2ui-json>"
     )
     parsed = parser.parse_response(response)
     assert len(parsed) == 1
     assert parsed[0].a2ui_json is not None
-    assert parsed[0].a2ui_json[0]["createSurface"]["layout"]["text"] == (
+    assert parsed[0].a2ui_json[0]["updateComponents"]["components"][0]["text"] == (
         "This is a literal close tag: </a2ui-json> inside a string."
     )
 

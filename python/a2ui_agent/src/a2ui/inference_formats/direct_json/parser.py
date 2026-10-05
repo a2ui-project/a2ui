@@ -16,7 +16,7 @@
 
 from typing import Any
 
-from a2ui.core import A2uiParseError, CatalogApi
+from a2ui.core import A2uiParseError, A2uiValidationError, CatalogApi
 from a2ui.inference_formats.direct_json.decompiler import _DirectJsonDecompiler
 from a2ui.parser.parser import Parser
 from a2ui.parser.payload_fixer import parse_and_fix
@@ -26,6 +26,7 @@ from a2ui.schema.constants import (
     A2UI_OPEN_TAG,
     DEFAULT_PROGRESSIVE_KEYS,
 )
+from a2ui.utils import validate_payload
 
 
 def unwrap_response(content: str) -> list[ResponsePart]:
@@ -87,9 +88,11 @@ class DirectJsonParser(Parser):
 
         Args:
             catalog: The Catalog mapping schema identifiers.
-            validator: Optional callable invoked with the parsed payload. It may
-                return a list of `A2uiErrorDetail`, which `compile` raises as an
-                `A2uiValidationError`, or raise on its own.
+            validator: Optional callable invoked with the parsed payload in
+                place of the default check, `validate_payload` with the
+                catalog. It may return a list of `A2uiErrorDetail`, which
+                `compile` raises as an `A2uiValidationError`, or raise on its
+                own.
             progressive_keys: Keys whose string values the stream parser may
                 auto-close when cut. An empty set turns healing off.
         """
@@ -121,23 +124,32 @@ class DirectJsonParser(Parser):
     ) -> list[dict[str, Any]]:
         """Validates and compiles raw A2UI JSON schema content.
 
+        Without a custom validator, a final payload is checked with
+        `validate_payload`, which runs it through a `MessageProcessor` holding
+        the catalog, as the stream parser checks its messages. A partial
+        payload isn't checked, since it may be cut mid-message.
+
         Args:
             format_content: The raw A2UI JSON string.
+            is_final: Whether the content is the complete payload.
 
         Returns:
             A list of compiled A2UI message dictionaries.
+
+        Raises:
+            A2uiValidationError: If the payload fails validation.
         """
         json_data = parse_and_fix(format_content)
-        # TODO: Leverage MessageProcessor to validate the json data.
-        if self._validator:
-            from a2ui.core import A2uiValidationError
-
-            errs = self._validator(json_data)
-            if isinstance(errs, list) and errs:
-                raise A2uiValidationError(
-                    f"Validation failed with {len(errs)} error(s)",
-                    details=errs,
-                )
+        if self._validator is None:
+            if is_final:
+                validate_payload([self._catalog], json_data)
+            return json_data
+        errs = self._validator(json_data)
+        if isinstance(errs, list) and errs:
+            raise A2uiValidationError(
+                f"Validation failed with {len(errs)} error(s)",
+                details=errs,
+            )
         return json_data
 
     @property

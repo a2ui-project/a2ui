@@ -43,7 +43,6 @@ from a2ui.schema import (
     VERSION_0_9,
     remove_strict_validation,
 )
-from a2ui.utils import validate_payload
 
 from .conformance_helpers import (
     get_conformance_path,
@@ -646,10 +645,7 @@ def make_parser(args):
         ).parser
 
     if format_name == "direct_json":
-        return DirectJsonParser(
-            catalog=catalog,
-            validator=lambda payload: validate_payload([catalog], payload),
-        )
+        return DirectJsonParser(catalog=catalog)
 
     raise ValueError(f"Unknown inference format: {format_name}")
 

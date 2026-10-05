@@ -22,6 +22,7 @@ from a2ui.a2a.parts import create_a2ui_part
 from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
 from a2ui.core import Catalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8, VERSION_0_9_1
 from google.genai import types as genai_types
 
@@ -115,9 +116,16 @@ def test_converter_class_convert_function_call_ignores():
 
 
 def test_converter_class_convert_text_with_a2ui():
-    catalog_mock = MagicMock(spec=Catalog)
-    converter = A2uiPartConverter(catalog_mock)
-    valid_a2ui = [{"type": "Text", "text": "Hello"}]
+    converter = A2uiPartConverter(BasicCatalog(VERSION_0_8))
+    valid_a2ui = [{
+        "surfaceUpdate": {
+            "surfaceId": "main",
+            "components": [{
+                "id": "t",
+                "component": {"Text": {"text": {"literalString": "Hello"}}},
+            }],
+        }
+    }]
     text = (
         f"Here is the UI:\n{A2UI_OPEN_TAG}\n{json.dumps(valid_a2ui)}\n{A2UI_CLOSE_TAG}"
     )
@@ -131,9 +139,14 @@ def test_converter_class_convert_text_with_a2ui():
 
 
 def test_converter_class_convert_text_with_a2ui_v0_9_1():
-    catalog_mock = MagicMock(spec=Catalog)
-    converter = A2uiPartConverter(catalog_mock, version=VERSION_0_9_1)
-    valid_a2ui = [{"type": "Text", "text": "Hello"}]
+    converter = A2uiPartConverter(BasicCatalog(VERSION_0_9_1), version=VERSION_0_9_1)
+    valid_a2ui = [{
+        "version": "v0.9.1",
+        "updateComponents": {
+            "surfaceId": "main",
+            "components": [{"id": "root", "component": "Text", "text": "Hello"}],
+        },
+    }]
     text = (
         f"Here is the UI:\n{A2UI_OPEN_TAG}\n{json.dumps(valid_a2ui)}\n{A2UI_CLOSE_TAG}"
     )
@@ -147,9 +160,16 @@ def test_converter_class_convert_text_with_a2ui_v0_9_1():
 
 
 def test_converter_class_convert_text_empty_leading():
-    catalog_mock = MagicMock(spec=Catalog)
-    converter = A2uiPartConverter(catalog_mock)
-    ui = [{"type": "Text", "text": "Top"}]
+    converter = A2uiPartConverter(BasicCatalog(VERSION_0_8))
+    ui = [{
+        "surfaceUpdate": {
+            "surfaceId": "main",
+            "components": [{
+                "id": "t",
+                "component": {"Text": {"text": {"literalString": "Top"}}},
+            }],
+        }
+    }]
     text = f"\n{A2UI_OPEN_TAG}\n{json.dumps(ui)}\n{A2UI_CLOSE_TAG}"
     part = genai_types.Part(text=text)
     a2a_parts = converter.convert(part)
@@ -159,9 +179,16 @@ def test_converter_class_convert_text_empty_leading():
 
 
 def test_converter_class_convert_text_markdown_wrapped():
-    catalog_mock = MagicMock(spec=Catalog)
-    converter = A2uiPartConverter(catalog_mock)
-    ui = [{"type": "Text", "text": "Inside Markdown"}]
+    converter = A2uiPartConverter(BasicCatalog(VERSION_0_8))
+    ui = [{
+        "surfaceUpdate": {
+            "surfaceId": "main",
+            "components": [{
+                "id": "t",
+                "component": {"Text": {"text": {"literalString": "Inside Markdown"}}},
+            }],
+        }
+    }]
     text = f"Behold:\n{A2UI_OPEN_TAG}\n```json\n{json.dumps(ui)}\n```\n{A2UI_CLOSE_TAG}"
     part = genai_types.Part(text=text)
     a2a_parts = converter.convert(part)
@@ -180,6 +207,25 @@ def test_converter_class_convert_text_with_invalid_a2ui():
 
     a2a_parts = converter.convert(part)
     assert len(a2a_parts) == 0
+
+
+def test_converter_class_convert_text_with_a2ui_that_fails_validation():
+    custom_fallback = "Could not build interface."
+    converter = A2uiPartConverter(
+        BasicCatalog(VERSION_0_8), fallback_text=custom_fallback
+    )
+    ui = [{
+        "surfaceUpdate": {
+            "surfaceId": "main",
+            "components": [{"id": "t", "component": {"Unknown": {}}}],
+        }
+    }]
+    text = f"Here is the UI:\n{A2UI_OPEN_TAG}\n{json.dumps(ui)}\n{A2UI_CLOSE_TAG}"
+
+    a2a_parts = converter.convert(genai_types.Part(text=text))
+
+    assert len(a2a_parts) == 1
+    assert a2a_parts[0].root.text == custom_fallback
 
 
 def test_converter_class_convert_other_part():
@@ -203,9 +249,16 @@ def test_converter_class_convert_other_part():
 
 
 def test_converter_class_convert_tool_response_with_result_containing_a2ui():
-    catalog_mock = MagicMock(spec=Catalog)
-    converter = A2uiPartConverter(catalog_mock)
-    valid_a2ui = [{"type": "Text", "text": "Result UI"}]
+    converter = A2uiPartConverter(BasicCatalog(VERSION_0_8))
+    valid_a2ui = [{
+        "surfaceUpdate": {
+            "surfaceId": "main",
+            "components": [{
+                "id": "t",
+                "component": {"Text": {"text": {"literalString": "Result UI"}}},
+            }],
+        }
+    }]
     result_text = (
         "Here is the"
         f" result:\n{A2UI_OPEN_TAG}\n{json.dumps(valid_a2ui)}\n{A2UI_CLOSE_TAG}"

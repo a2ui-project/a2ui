@@ -50,6 +50,11 @@
   against the JSON agent-to-renderer schema. It no longer takes or loads the
   protocol schemas, so schema modifiers reach it only through the catalog,
   and its errors are the core's, prefixed with `Validation failed:` (#2966).
+- **BREAKING**: `DirectJsonParser.compile`, and so `parse_response`, checks a
+  final payload with `validate_payload` unless the parser has a custom
+  `validator`, and raises `A2uiValidationError` for one that fails. Before,
+  it checked nothing by default. `A2uiPartConverter` uses this parser, so it
+  now falls back for invalid A2UI (#2966).
 - **BREAKING**: `CatalogConfig.custom_cuttable_keys` is removed. The string
   keys that the Direct JSON stream parser heals are now a format option,
   `DirectJsonFormat(progressive_keys=...)`, which replaces the defaults. The
