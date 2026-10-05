@@ -20,7 +20,9 @@
 /// on which catalogs can serve a message.
 library;
 
-/// The catalog versions each message version can use, beyond an exact match.
+/// For each protocol version a message may declare (key), the protocol
+/// versions a catalog may declare in its `protocolVersion` and still serve
+/// that message (value), beyond an exact match.
 ///
 /// Keyed and valued by canonical version (see [_canonical]). v0.9 and v0.9.1
 /// share their message shapes, so each serves the other.
