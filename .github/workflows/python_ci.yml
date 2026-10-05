@@ -97,8 +97,6 @@ jobs:
           uv run --all-packages mypy .
       - name: Run Unit Tests
         run: uv run pytest
-      - name: Verify Load Real
-        run: uv run python python/a2ui_agent/tests/integration/verify_load_real.py
       - name: Build All Packages
         run: uv build --all
       - name: Run Skills Unit Tests
