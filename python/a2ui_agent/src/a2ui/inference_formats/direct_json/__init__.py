@@ -14,10 +14,10 @@
 
 from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS
 
-from .schema_prompt import schema_to_prompt
 from .format import DirectJsonFormat
 from .parser import DirectJsonParser
 from .prompt_generator import DirectJsonPromptGenerator
+from .schema_prompt import schema_to_prompt
 from .streaming import DirectJsonStreamParser
 
 __all__ = [
