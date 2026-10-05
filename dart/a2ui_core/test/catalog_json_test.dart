@@ -17,6 +17,8 @@ import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/core/contexts.dart' show ComponentContext;
+import 'package:a2ui_core/src/primitives/reference_schema.dart'
+    show ReferenceSchemaReader;
 import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
 import 'package:test/test.dart';
 
@@ -33,7 +35,77 @@ Map<String, Object?> loadBasicCatalogJson() => jsonDecode(
       File(resolveConformancePath(basicCatalogPath)).readAsStringSync(),
     ) as Map<String, Object?>;
 
+/// The published v1.0 basic catalog, which declares `protocolVersion: "1.0"`.
+const String basicCatalogV1Path = '../catalogs/basic/v1/catalog.json';
+
+Map<String, Object?> loadBasicCatalogV1Json() => jsonDecode(
+      File(resolveConformancePath(basicCatalogV1Path)).readAsStringSync(),
+    ) as Map<String, Object?>;
+
 void main() {
+  group('Catalog.commonTypesSchema', () {
+    Map<String, Object?> defsOf(CatalogApi catalog) =>
+        (catalog.commonTypesSchema[r'$defs']! as Map).cast<String, Object?>();
+
+    /// The `CheckRule` schema that `common_types.json#/$defs/Checkable`
+    /// leads to when read against [catalog]'s documents, the way
+    /// `Catalog.refMap` and `GenericBinder` read it.
+    Map<String, Object?> checkRuleOf(CatalogApi catalog) {
+      final reader = ReferenceSchemaReader(
+        <String, Object?>{},
+        document: catalog.catalogSchema,
+        commonTypes: catalog.commonTypesSchema,
+      );
+      final List<Map<String, Object?>> checkable = reader.schemas(
+        <String, Object?>{r'$ref': r'common_types.json#/$defs/Checkable'},
+      );
+      final List<Map<String, Object?>> checks = reader.schemas(
+        reader.properties(checkable)['checks'],
+      );
+      expect(reader.isCheckable(checks), isTrue);
+      return reader.schemas(reader.items(checks)).firstWhere(
+            (Map<String, Object?> schema) => schema.containsKey('required'),
+          );
+    }
+
+    test('is the v0.9 document for a catalog declaring no version', () {
+      final CatalogApi catalog = Catalog.fromJson(loadBasicCatalogJson());
+
+      expect(catalog.protocolVersion, isNull);
+      expect(
+        catalog.commonTypesSchema[r'$id'],
+        'https://a2ui.org/specification/v0_9/common_types.json',
+      );
+      expect(defsOf(catalog), isNot(contains('Child')));
+      expect(checkRuleOf(catalog)['required'], ['condition', 'message']);
+    });
+
+    test('is the v1.0 document for the published v1.0 basic catalog', () {
+      final CatalogApi catalog = Catalog.fromJson(loadBasicCatalogV1Json());
+
+      expect(catalog.protocolVersion, '1.0');
+      expect(
+        catalog.commonTypesSchema[r'$id'],
+        'https://a2ui.org/specification/v1_0/common_types.json',
+      );
+      expect(defsOf(catalog), contains('Child'));
+      final Map<String, Object?> rule = checkRuleOf(catalog);
+      expect(rule['required'], ['condition']);
+      expect(
+        ((rule['properties']! as Map)['condition'] as Map)['oneOf'],
+        hasLength(2),
+      );
+    });
+
+    test('is decoded once per catalog', () {
+      final CatalogApi catalog = Catalog.fromJson(loadBasicCatalogV1Json());
+      expect(
+        identical(catalog.commonTypesSchema, catalog.commonTypesSchema),
+        isTrue,
+      );
+    });
+  });
+
   group('Catalog.fromJson', () {
     test('parses the published basic catalog document', () {
       final CatalogApi catalog = Catalog.fromJson(loadBasicCatalogJson());

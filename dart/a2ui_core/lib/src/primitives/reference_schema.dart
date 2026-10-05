@@ -73,15 +73,22 @@ final class ComponentRefMap {
   /// Classifies every schema in [componentSchemas], keyed by component type.
   ///
   /// Local pointers that a component schema does not define resolve against
-  /// [document].
+  /// [document], and then against [commonTypes], the `common_types.json`
+  /// document that also resolves external `common_types.json#/$defs/...`
+  /// pointers (the embedded v0.9 document when null; see
+  /// [ReferenceSchemaReader.commonTypes]).
   ComponentRefMap(
     Map<String, Map<String, Object?>> componentSchemas, {
     Map<String, Object?> document = const {},
+    Map<String, Object?>? commonTypes,
   }) : _byType = Map.unmodifiable({
           for (final MapEntry<String, Map<String, Object?>> entry
               in componentSchemas.entries)
-            entry.key:
-                ReferenceSchemaReader(entry.value, document: document).fields(),
+            entry.key: ReferenceSchemaReader(
+              entry.value,
+              document: document,
+              commonTypes: commonTypes,
+            ).fields(),
         });
 
   /// The reference properties of each component type, by type name.

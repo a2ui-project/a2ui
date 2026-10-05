@@ -79,6 +79,18 @@ void main() {
       expect(document[r'$defs'], contains('DynamicString'));
     });
 
+    test('parses to the v1.0 document for v1.0', () {
+      final Map<String, Object?> document = PayloadValidator.commonTypesFor(
+        A2uiProtocolVersion.v1_0,
+      );
+
+      expect(
+        document[r'$id'],
+        'https://a2ui.org/specification/v1_0/common_types.json',
+      );
+      expect(document[r'$defs'], contains('Child'));
+    });
+
     test('hands out a fresh document each call', () {
       final Map<String, Object?> first = PayloadValidator.commonTypesFor(
         A2uiProtocolVersion.v0_9,

@@ -515,6 +515,42 @@ void main() {
         );
         expect(schemas.last['required'], ['condition', 'local']);
       });
+
+      test('ComponentRefMap classifies against the injected document', () {
+        // `Slot` exists only in this document; through it the property is a
+        // structural child-list template, without it the pointer dangles.
+        final slotDocument = <String, Object?>{
+          r'$defs': <String, Object?>{
+            'Slot': <String, Object?>{
+              'type': 'object',
+              'properties': <String, Object?>{
+                'componentId': <String, Object?>{'type': 'string'},
+                'path': <String, Object?>{'type': 'string'},
+              },
+            },
+          },
+        };
+        final componentSchemas = <String, Map<String, Object?>>{
+          'Panel': <String, Object?>{
+            'type': 'object',
+            'properties': <String, Object?>{
+              'body': <String, Object?>{
+                r'$ref': r'common_types.json#/$defs/Slot',
+              },
+            },
+          },
+        };
+
+        expect(
+          ComponentRefMap(componentSchemas, commonTypes: slotDocument)
+              .fieldsFor('Panel'),
+          {
+            'body': isA<ListRef>()
+                .having((ref) => ref.inferred, 'inferred', isTrue),
+          },
+        );
+        expect(ComponentRefMap(componentSchemas).fieldsFor('Panel'), isEmpty);
+      });
     });
   });
 

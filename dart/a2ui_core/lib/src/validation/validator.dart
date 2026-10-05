@@ -12,17 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'dart:convert';
-
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:meta/meta.dart';
 
 import '../core/catalog.dart';
+import '../primitives/common_types_documents.dart' as documents;
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/semver.dart';
 import '../primitives/uax31.dart';
-import 'common_types.g.dart';
 import 'component_graph.dart' show maxFunctionCallArgs;
 import 'component_refs.dart';
 import 'schema_resolution.dart';
@@ -173,32 +171,19 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// installed from pub.dev can resolve the shared types without reading the
   /// specification repository. Each call returns a fresh document, so a caller
   /// may edit the result. v0.9.1 shares the v0.9 document.
-  ///
-  /// Throws [A2uiValidationError] for v1.0, whose document this package does
-  /// not embed yet; pass it explicitly as `commonTypesSchema` instead.
   static Map<String, Object?> commonTypesFor(A2uiProtocolVersion version) =>
-      switch (version) {
-        A2uiProtocolVersion.v0_9 ||
-        A2uiProtocolVersion.v0_9_1 =>
-          jsonDecode(commonTypesV0_9Json) as Map<String, Object?>,
-        A2uiProtocolVersion.v1_0 => throw A2uiValidationError(
-            'This package does not embed the common types for protocol '
-            "version '${version.jsonValue}'; pass them as "
-            '`commonTypesSchema`.',
-          ),
-      };
+      commonTypesForProtocolVersion(version.jsonValue);
 
   /// The `common_types.json` document this package publishes for a catalog
   /// declaring [version], such as `v1.0` or `1.0`.
   ///
   /// Returns the v1.0 document for v1.0 and later, and the v0.9 document for
-  /// anything else, including null. Each call returns a fresh document.
+  /// anything else, including null. Each call returns a fresh document. The
+  /// same selection backs [Catalog.commonTypesSchema], which the catalog's
+  /// reference map and the renderer's binders read, so the validator and the
+  /// readers resolve shared types against the same document.
   static Map<String, Object?> commonTypesForProtocolVersion(String? version) =>
-      jsonDecode(
-        isVersionAtLeast(version, 'v1.0')
-            ? commonTypesV1_0Json
-            : commonTypesV0_9Json,
-      ) as Map<String, Object?>;
+      documents.commonTypesForProtocolVersion(version);
 
   /// Creates a validator for [version].
   ///

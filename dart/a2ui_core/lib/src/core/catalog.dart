@@ -14,6 +14,7 @@
 
 import 'package:json_schema_builder/json_schema_builder.dart';
 import '../primitives/cancellation.dart';
+import '../primitives/common_types_documents.dart';
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
@@ -170,18 +171,30 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   final Map<String, F> functions;
   final Schema? themeSchema;
 
+  /// The `common_types.json` document this catalog's shared-type pointers
+  /// resolve against: the embedded v1.0 document when [protocolVersion] is
+  /// 1.0 or later, and the v0.9 document otherwise, including when no
+  /// version is declared.
+  ///
+  /// Decoded once per catalog and shared by [refMap] and the renderer's
+  /// binders, so treat it as read-only.
+  late final Map<String, Object?> commonTypesSchema =
+      commonTypesForProtocolVersion(protocolVersion);
+
   /// Which properties of each component type reference other components.
   ///
   /// Graph validation and node resolution both read this map, so a child
   /// reference the validator checks is one the resolver mounts. It is built
-  /// from [components] and [catalogSchema] on first access and then cached;
-  /// a catalog is not expected to change its components after that.
+  /// from [components], [catalogSchema] and [commonTypesSchema] on first
+  /// access and then cached; a catalog is not expected to change its
+  /// components after that.
   late final ComponentRefMap refMap = ComponentRefMap(
     {
       for (final MapEntry<String, C> entry in components.entries)
         entry.key: entry.value.schema.value,
     },
     document: catalogSchema,
+    commonTypes: commonTypesSchema,
   );
 
   Catalog({

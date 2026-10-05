@@ -64,6 +64,13 @@
 - Recognize v1.0 `common_types.json#/$defs/Child` (and `#/$defs/Child`) as a
   single child reference, for dangling-reference and orphan checks and for
   resolution.
+- Add `Catalog.commonTypesSchema`, the embedded `common_types.json` document
+  selected by the catalog's `protocolVersion` (v1.0 for 1.0 and later, v0.9
+  otherwise, including when undeclared), decoded once per catalog.
+  `Catalog.refMap` and `GenericBinder` resolve `common_types.json#/$defs/...`
+  pointers against it, and `ComponentRefMap` takes the same optional
+  `commonTypes` document, so a v1.0 catalog's shared types (such as the
+  v1.0 `CheckRule`) read the v1.0 definitions rather than the v0.9 default.
 - **Behavior change:** `NodeResolver` now mounts an unmarked string `child`
   and string-array `children`, which graph validation already checked.
   Previously such a catalog validated but rendered its children as plain ids.
@@ -105,8 +112,8 @@
   rejects unknown envelope and body keys, an empty `components` list, and a
   v1.0 `updateDataModel` without `value`. A new oracle test checks the parsers
   against the specification's envelope schemas.
-- `PayloadValidator.commonTypesFor` throws for v1.0, whose common types this
-  package does not embed yet.
+- `PayloadValidator.commonTypesFor` returns the embedded v1.0 document for
+  v1.0, now that the package embeds it.
 - Added `ValidationResult` and `A2uiReturnType.validationResult` for structured
   client-side validation outcomes (`valid`, `message`, `code`, `severity`), and
   exposed `validationResults` alongside `isValid` and `validationErrors` on
