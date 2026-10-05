@@ -31,9 +31,13 @@
 # * Every catalog the renderer names and the agent holds becomes active, not
 #   only the first match. This is a change from the older single catalog
 #   selection.
-# * An id the renderer names and the agent does not hold is ignored.
+# * An id the renderer names and the agent does not hold is ignored. An id
+#   named twice activates its catalog once.
 # * A request that carries no capabilities object activates every registered
-#   catalog, since the renderer stated no preference.
+#   catalog, since the renderer stated no preference. With nothing registered
+#   that is an empty result, not an error.
+# * A capabilities object with no entry for the catalogs' protocol version is a
+#   `ValidationError`. It is malformed, not a statement of no preference.
 # * A capabilities object whose `supportedCatalogIds` is present and empty, with
 #   no inline catalogs, is a `CatalogError`, as is a renderer that names only
 #   catalogs the agent does not hold. Both leave the session with nothing to
@@ -123,6 +127,18 @@
   expect_error:
     category: CatalogError
 
+- name: test_repeated_catalog_id_activates_it_once
+  description: A renderer that names the same catalog twice gets that catalog once.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified", "conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+
 # --- Capabilities that state no preference ---
 
 - name: test_absent_capabilities_activate_every_catalog
@@ -134,6 +150,14 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   expect:
     active_catalog_ids: ["conformance/custom", "conformance/simplified"]
+
+- name: test_absent_capabilities_without_catalogs_activate_nothing
+  description: With no capabilities object and nothing registered, resolution returns no catalog rather than failing.
+  action: resolve_catalogs
+  args:
+    catalogs: []
+  expect:
+    active_catalog_ids: []
 
 - name: test_empty_supported_catalog_ids_is_an_error
   description: A renderer that supports no catalog and declares none inline has nothing to render with.
@@ -224,6 +248,28 @@
     catalogs:
       - catalog_id: "renderer/inline"
         components: ["Marquee"]
+
+- name: test_rejected_inline_catalog_alone_is_an_error
+  description: When the renderer names no registered id and the agent drops its inline catalog, nothing is left to render with.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: []
+        inlineCatalogs:
+          - catalogId: "renderer/inline"
+            protocolVersion: "1.0"
+            components:
+              Marquee:
+                type: object
+                properties:
+                  component: {const: "Marquee"}
+                  text: {type: string}
+                required: ["component", "text"]
+  expect_error:
+    category: CatalogError
 
 - name: test_several_inline_catalogs
   description: Several inline catalogs each become active.
@@ -320,3 +366,31 @@
         components: ["Text"]
       - catalog_id: "renderer/inline"
         components: ["Marquee", "Ticker"]
+
+- name: test_absent_capabilities_activate_the_transformed_catalogs
+  description: A request with no capabilities object still gets each registration's transformed catalog.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Text", "Column"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+    catalogs:
+      - catalog_id: "conformance/simplified"
+        components: ["Text", "Column"]
+
+# --- Malformed capabilities ---
+
+- name: test_capabilities_without_the_catalogs_version_are_invalid
+  description: A capabilities object with no entry for the catalogs' protocol version is malformed rather than a statement of no preference.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "v0.8":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect_error:
+    category: ValidationError
