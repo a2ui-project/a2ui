@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `ComponentModel.toJson` writes `id` and `component` after the component's properties, so a property named `id` or `component` no longer replaces the model's own.
 - **Behavior change:** `MessageProcessor` checks the component graph on every
   `updateComponents` message. It used to check completeness once per payload,
   and only for the surfaces that payload created. Each batch is applied to a copy of the
@@ -29,7 +30,6 @@
 - `SurfaceComponentsModel` adds `getAll()`, `has()`, `size`, `entries`, `keys`,
   `values`, `getChildIds()`, `validateTopology()`, `detectCycles()`,
   `validateReferences()` and `validateComponentsUpdate()`.
-
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
 - `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.
