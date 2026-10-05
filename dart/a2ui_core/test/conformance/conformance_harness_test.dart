@@ -36,7 +36,7 @@ void main() {
         const {'name': 'failing_case'},
         () => fail('not implemented yet'),
         expectedFailures: const {
-          'failing_case': 'pending v1.0 validator support (B2)',
+          'failing_case': 'pending v1.0 validator support',
         },
         onSkip: skippedMessages.add,
       );
@@ -45,7 +45,7 @@ void main() {
       expect(
         skippedMessages.single,
         allOf(
-          contains('expected failure: pending v1.0 validator support (B2)'),
+          contains('expected failure: pending v1.0 validator support'),
           contains('not implemented yet'),
         ),
       );
@@ -61,7 +61,7 @@ void main() {
           throw StateError('async failure');
         },
         expectedFailures: const {
-          'async_failing_case': 'pending async RPC support (B5)',
+          'async_failing_case': 'pending async RPC support',
         },
         onSkip: skippedMessages.add,
       );
@@ -70,7 +70,7 @@ void main() {
       expect(
         skippedMessages.single,
         allOf(
-          contains('expected failure: pending async RPC support (B5)'),
+          contains('expected failure: pending async RPC support'),
           contains('async failure'),
         ),
       );
@@ -184,7 +184,7 @@ void main() {
         }
       },
       expectedFailures: const {
-        'suite_expected_failure_case': 'tracked in Wave B',
+        'suite_expected_failure_case': 'pending feature implementation',
       },
       skipReason: (testCase) =>
           caseVersion(testCase) == '0.8' ? 'v0.8 not supported' : null,
@@ -199,7 +199,7 @@ void main() {
       expect(skippedMessages, hasLength(1));
       expect(
         skippedMessages.single,
-        contains('expected failure: tracked in Wave B'),
+        contains('expected failure: pending feature implementation'),
       );
     });
   });
