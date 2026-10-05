@@ -171,7 +171,7 @@ async def test_send_tool_process_llm_request():
     llm_request_mock.append_instructions = MagicMock()
 
     with patch(
-        "a2ui.adk.send_a2ui_to_client_toolset.catalog_to_prompt",
+        "a2ui.adk.send_a2ui_to_client_toolset.schema_to_prompt",
         return_value="rendered_catalog",
     ) as mock_render:
         await tool.process_llm_request(

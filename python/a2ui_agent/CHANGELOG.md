@@ -14,15 +14,15 @@
   - `catalog_schema` is the schema that the core catalog generates. Unlike
     the file, it refers to common types locally, has the catalog's own
     definitions inlined, and has no `$id`, `title` or `description`.
-  - `s2c_schema` and `common_types_schema` are no longer on the catalog. The
-    inference format holds them, with its schema modifiers applied, and
-    `get_agent_to_renderer_schema_map` and `get_common_types_schema_map` in
-    `a2ui.core` return the published ones.
+  - `s2c_schema` and `common_types_schema` are no longer on the catalog or
+    the format. The SDK uses the published schemas for the catalog's
+    protocol version, which `get_agent_to_renderer_schema_map` and
+    `get_common_types_schema_map` in `a2ui.core` return.
   - `with_pruning(allowed_components, allowed_messages)` becomes
     `ComponentPruningTransformer(allowed_components)`, applied with
     `transform` or passed to `CatalogConfig` as `transformers`, and
-    `catalog_to_prompt(catalog, allowed_messages=...)`.
-  - `render_as_llm_instructions()` becomes `catalog_to_prompt(catalog)` from
+    `schema_to_prompt(catalog, allowed_messages=...)`.
+  - `render_as_llm_instructions()` becomes `schema_to_prompt(catalog)` from
     `a2ui.inference_formats.direct_json`.
   - `load_examples(path, validate)` becomes
     `load_examples([catalog], path, validate)` from `a2ui.schema`.
@@ -40,7 +40,7 @@
   checks a payload the way a renderer holding the catalogs would, including
   the `version` that each message states, and raises `A2uiValidationError`
   (#2966).
-- Add `catalog_to_prompt` to `a2ui.inference_formats.direct_json`, which
+- Add `schema_to_prompt` to `a2ui.inference_formats.direct_json`, which
   returns the prompt text for a catalog together with the agent-to-renderer
   schema and the common types it references, and
   `DirectJsonFormat.create_stream_parser`, which builds a stream parser with
@@ -48,8 +48,12 @@
 - The Direct JSON stream parser checks each message with `validate_payload`,
   which runs it through a `MessageProcessor` holding the catalog, instead of
   against the JSON agent-to-renderer schema. It no longer takes or loads the
-  protocol schemas, so schema modifiers reach it only through the catalog,
-  and its errors are the core's, prefixed with `Validation failed:` (#2966).
+  protocol schemas, and its errors are the core's, prefixed with
+  `Validation failed:` (#2966).
+- **BREAKING**: `DirectJsonFormat`'s `schema_modifiers` apply to catalog
+  schemas, including inline catalogs, but no longer to the agent-to-renderer
+  and common types schemas, which the prompt and the parsers use as
+  published (#2966).
 - **BREAKING**: `DirectJsonParser.compile`, and so `parse_response`, checks a
   final payload with `validate_payload` unless the parser has a custom
   `validator`, and raises `A2uiValidationError` for one that fails. Before,

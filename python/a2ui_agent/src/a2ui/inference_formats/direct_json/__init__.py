@@ -14,7 +14,7 @@
 
 from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS
 
-from .catalog_prompt import catalog_to_prompt
+from .schema_prompt import schema_to_prompt
 from .format import DirectJsonFormat
 from .parser import DirectJsonParser
 from .prompt_generator import DirectJsonPromptGenerator
@@ -26,5 +26,5 @@ __all__ = [
     "DirectJsonParser",
     "DirectJsonPromptGenerator",
     "DirectJsonStreamParser",
-    "catalog_to_prompt",
+    "schema_to_prompt",
 ]

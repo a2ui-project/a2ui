@@ -37,10 +37,6 @@ from a2ui.schema.constants import (
     VERSION_0_9_1,
     VERSION_1_0,
 )
-from a2ui.schema.utils import (
-    load_agent_to_renderer_schema,
-    load_common_types_schema,
-)
 from a2ui.utils import resolve_catalogs
 
 # The key that clients send each protocol version's capabilities under, when
@@ -75,7 +71,8 @@ class DirectJsonFormat(InferenceFormat):
             catalogs: Optional list of catalog configurations.
             accepts_inline_catalogs: Whether inline catalog definitions are allowed.
             schema_modifiers: Optional schema modifier functions to post-process
-              schemas.
+              the catalog schemas, including inline catalogs. The protocol
+              schemas are used as published.
             experiments: Optional set of enabled experimental feature flags.
             progressive_keys: Keys whose string values the stream parsers heal
               when a chunk cuts them. An empty set turns healing off.
@@ -85,8 +82,6 @@ class DirectJsonFormat(InferenceFormat):
         self.experiments = frozenset(experiments) if experiments else frozenset()
         self._progressive_keys = frozenset(progressive_keys)
 
-        self._agent_to_renderer_schema: dict[str, Any] = {}
-        self._common_types_schema: dict[str, Any] = {}
         self._supported_catalogs: list[CatalogApi] = []
         self._catalog_configs: list[CatalogConfig] = []
         self._catalog_example_paths: dict[str, str] = {}
@@ -137,7 +132,7 @@ class DirectJsonFormat(InferenceFormat):
         version: str,
         catalogs: Sequence[CatalogConfig] | None = None,
     ) -> None:
-        """Loads separate schema components and processes catalogs."""
+        """Checks the protocol version and processes catalogs."""
         catalogs = catalogs or []
         supported_versions = (VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0)
         if version not in supported_versions:
@@ -145,14 +140,6 @@ class DirectJsonFormat(InferenceFormat):
                 f"Unknown A2UI specification version: {version}. Supported:"
                 f" {list(supported_versions)}"
             )
-
-        # Load agent-to-renderer and common types schemas
-        self._agent_to_renderer_schema = self._apply_modifiers(
-            load_agent_to_renderer_schema(version)
-        )
-        self._common_types_schema = self._apply_modifiers(
-            load_common_types_schema(version)
-        )
 
         # Process catalogs
         for config in catalogs:
@@ -329,8 +316,7 @@ class DirectJsonFormat(InferenceFormat):
 
         The parser heals this format's progressive keys and checks each
         message the way a renderer holding the catalog would. The schema
-        modifiers reach the check through the catalog; their changes to the
-        protocol schemas shape only the prompt.
+        modifiers reach the check through the catalog.
 
         Args:
             catalog: The catalog to parse against, for example the one that

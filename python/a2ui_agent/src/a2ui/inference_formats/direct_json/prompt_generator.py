@@ -19,7 +19,7 @@ from typing import Any, TYPE_CHECKING
 
 from a2ui.core import CatalogApi
 from a2ui.core.schema.v0_9 import V09Capabilities
-from a2ui.inference_formats.direct_json.catalog_prompt import catalog_to_prompt
+from a2ui.inference_formats.direct_json.schema_prompt import schema_to_prompt
 from a2ui.prompt import PromptGenerator
 
 if TYPE_CHECKING:
@@ -54,12 +54,12 @@ class DirectJsonPromptGenerator(PromptGenerator):
         if not include_schema:
             return ""
         if catalog:
-            return self._catalog_to_prompt(catalog)
+            return self._schema_to_prompt(catalog)
         if self.selected_catalog:
-            return self._catalog_to_prompt(self.selected_catalog)
+            return self._schema_to_prompt(self.selected_catalog)
         if self._format and self._format._supported_catalogs:
             return "\n\n".join(
-                self._catalog_to_prompt(c) for c in self._format._supported_catalogs
+                self._schema_to_prompt(c) for c in self._format._supported_catalogs
             )
         return ""
 
@@ -161,13 +161,12 @@ class DirectJsonPromptGenerator(PromptGenerator):
             )
         if not catalog:
             return ""
-        return self._catalog_to_prompt(catalog)
+        return self._schema_to_prompt(catalog)
 
-    def _catalog_to_prompt(self, catalog: CatalogApi) -> str:
+    def _schema_to_prompt(self, catalog: CatalogApi) -> str:
         """Returns the prompt text for a catalog.
 
-        The text uses the format's agent-to-renderer and common types schemas,
-        and keeps only the messages that the last `generate` call allowed.
+        The text keeps only the messages that the last `generate` call allowed.
 
         Args:
             catalog: The catalog to describe.
@@ -175,11 +174,4 @@ class DirectJsonPromptGenerator(PromptGenerator):
         Returns:
             The prompt text.
         """
-        return catalog_to_prompt(
-            catalog,
-            a2r_schema=self._format._agent_to_renderer_schema if self._format else None,
-            common_types_schema=(
-                self._format._common_types_schema if self._format else None
-            ),
-            allowed_messages=self._allowed_messages,
-        )
+        return schema_to_prompt(catalog, allowed_messages=self._allowed_messages)
