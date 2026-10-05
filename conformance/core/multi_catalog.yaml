@@ -156,7 +156,7 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatDate"
+                  "@call": "formatDate"
                   catalogId: "basic"
                   args:
                     value: "2026-09-04T12:00:00Z"

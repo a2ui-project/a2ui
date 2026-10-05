@@ -88,7 +88,7 @@ Map<String, Object?> testCatalogDocument() => {
       },
     };
 
-SchemaCatalog testCatalog() => Catalog.fromJson(testCatalogDocument());
+CatalogApi testCatalog() => Catalog.fromJson(testCatalogDocument());
 
 /// The parts of `common_types.json` this catalog references.
 Map<String, Object?> commonTypes() => {

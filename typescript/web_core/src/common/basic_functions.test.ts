@@ -84,13 +84,15 @@ describe('Common Basic Functions', () => {
     it('executeAnd', () => {
       assert.strictEqual(executeAnd([true, true]), true);
       assert.strictEqual(executeAnd([true, false]), false);
-      assert.strictEqual(executeAnd([]), true);
+      assert.throws(() => executeAnd([]), {name: 'A2uiExpressionError'});
+      assert.throws(() => executeAnd([true]), {name: 'A2uiExpressionError'});
     });
 
     it('executeOr', () => {
       assert.strictEqual(executeOr([false, true]), true);
       assert.strictEqual(executeOr([false, false]), false);
-      assert.strictEqual(executeOr([]), false);
+      assert.throws(() => executeOr([]), {name: 'A2uiExpressionError'});
+      assert.throws(() => executeOr([false]), {name: 'A2uiExpressionError'});
     });
 
     it('executeNot', () => {

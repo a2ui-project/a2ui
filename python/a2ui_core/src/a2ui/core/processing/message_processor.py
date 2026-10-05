@@ -33,8 +33,7 @@ from ..validation import (
     ValidationConfig,
     STRICT_VALIDATION,
 )
-from ..catalog import Catalog
-from ..catalog.catalog import TComponent, TFunction
+from ..catalog import CatalogApi
 from ..exceptions import (
     A2uiCatalogError,
     A2uiError,
@@ -114,7 +113,7 @@ class MessageProcessor:
 
     def __init__(
         self,
-        catalogs: Sequence[Catalog[TComponent, TFunction]] | None = None,
+        catalogs: Sequence[CatalogApi] | None = None,
         action_handler: Callable[[dict[str, Any]], None] | None = None,
         options: MessageProcessorOptions | None = None,
     ) -> None:
@@ -189,10 +188,12 @@ class MessageProcessor:
                 version=cast(Any, op.version),
                 call_renderer_function=CallRendererFunction(  # type: ignore[call-arg]
                     functionCallId=op.function_call_id,
-                    callFunction=FunctionCall(
+                    # An unset catalogId stays absent: FunctionCall rejects
+                    # explicit nulls.
+                    callFunction=FunctionCall(  # type: ignore[call-arg]
                         call=op.call,
-                        catalogId=op.catalog_id,
                         args=op.args,
+                        **({"catalogId": op.catalog_id} if op.catalog_id else {}),
                     ),
                 ),
             )
@@ -450,7 +451,7 @@ class MessageProcessor:
             version=cast(Any, op.version),
             call_renderer_function=CallRendererFunction(  # type: ignore[call-arg]
                 functionCallId=op.function_call_id,
-                callFunction=FunctionCall(
+                callFunction=FunctionCall(  # type: ignore[call-arg]
                     call=op.call,
                     catalogId=op.catalog_id,
                     args=op.args,

@@ -146,7 +146,7 @@ class _Runner {
   final List<void Function()> subscriptions = [];
 
   _Runner(_Json fixture) {
-    final SchemaCatalog parsed = Catalog.fromJson(
+    final CatalogApi parsed = Catalog.fromJson(
       jsonDecode(
         File(
           resolveConformancePath(fixture['catalog']! as String),

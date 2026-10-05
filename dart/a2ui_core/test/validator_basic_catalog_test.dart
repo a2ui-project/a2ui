@@ -38,7 +38,7 @@ Map<String, Object?> basicCatalogDocument() =>
 void main() {
   group('the basic catalog', () {
     test('declares the child references of its layout components', () {
-      final SchemaCatalog catalog = Catalog.fromJson(basicCatalogDocument());
+      final CatalogApi catalog = Catalog.fromJson(basicCatalogDocument());
       final Map<String, ComponentRefFields> refs = extractComponentRefFields(
         catalog,
       );

@@ -27,7 +27,7 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatDate"
+                  "@call": "formatDate"
                   args:
                     value: "2026-09-04T12:00:00Z"
                     format: "yyyy-MM-dd"
@@ -54,7 +54,7 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatCurrency"
+                  "@call": "formatCurrency"
                   args:
                     value: 1234.5
                     currency: "USD"
@@ -85,7 +85,7 @@
               - id: "t1"
                 component: "Text"
                 text:
-                  call: "pluralize"
+                  "@call": "pluralize"
                   args:
                     value: 1
                     one: "1 item"
@@ -93,7 +93,7 @@
               - id: "t2"
                 component: "Text"
                 text:
-                  call: "pluralize"
+                  "@call": "pluralize"
                   args:
                     value: 5
                     one: "1 item"
@@ -127,19 +127,19 @@
               - id: "t_and"
                 component: "Text"
                 text:
-                  call: "and"
+                  "@call": "and"
                   args:
                     values: [true, false]
               - id: "t_or"
                 component: "Text"
                 text:
-                  call: "or"
+                  "@call": "or"
                   args:
                     values: [true, false]
               - id: "t_not"
                 component: "Text"
                 text:
-                  call: "not"
+                  "@call": "not"
                   args:
                     value: false
   expect:
@@ -171,8 +171,460 @@
               - id: "root"
                 component: "Text"
                 text:
-                  call: "formatNumber"
+                  "@call": "formatNumber"
                   args:
                     value: "not_a_number"
       expectError:
         category: "ValidationError"
+
+# ==============================================================================
+# Direct Function Evaluation Conformance Tests (evaluate_function)
+# ==============================================================================
+
+# --- RequiredFunction (D20) ---
+- name: test_evaluate_function_required_string_valid
+  description: Verifies required returns true for non-empty string.
+  action: evaluate_function
+  function: required
+  args:
+    value: "hello"
+  expect: true
+
+- name: test_evaluate_function_required_string_empty
+  description: Verifies required returns false for empty string.
+  action: evaluate_function
+  function: required
+  args:
+    value: ""
+  expect: false
+
+- name: test_evaluate_function_required_null
+  description: Verifies required returns false for null.
+  action: evaluate_function
+  function: required
+  args:
+    value: null
+  expect: false
+
+- name: test_evaluate_function_required_array_valid
+  description: Verifies required returns true for non-empty array.
+  action: evaluate_function
+  function: required
+  args:
+    value: [1, 2]
+  expect: true
+
+- name: test_evaluate_function_required_array_empty
+  description: Verifies required returns false for empty array.
+  action: evaluate_function
+  function: required
+  args:
+    value: []
+  expect: false
+
+- name: test_evaluate_function_required_object_empty
+  description: Verifies required returns true for empty object (D20).
+  action: evaluate_function
+  function: required
+  args:
+    value: {}
+  expect: true
+
+# --- RegexFunction (D21) ---
+- name: test_evaluate_function_regex_match
+  description: Verifies regex returns true on matching string.
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^[0-9]+$"
+    value: "12345"
+  expect: true
+
+- name: test_evaluate_function_regex_mismatch
+  description: Verifies regex returns false on non-matching string.
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "^[0-9]+$"
+    value: "abc"
+  expect: false
+
+- name: test_evaluate_function_regex_invalid_pattern
+  description: Verifies regex raises ExpressionError on invalid regex pattern (D21).
+  action: evaluate_function
+  function: regex
+  args:
+    pattern: "[invalid("
+    value: "abc"
+  expectError:
+    category: ExpressionError
+
+# --- EmailFunction (D22) ---
+- name: test_evaluate_function_email_valid
+  description: Verifies email returns true on standard email address.
+  action: evaluate_function
+  function: email
+  args:
+    value: "user@example.com"
+  expect: true
+
+- name: test_evaluate_function_email_invalid_no_domain
+  description: Verifies email returns false on missing domain.
+  action: evaluate_function
+  function: email
+  args:
+    value: "invalid-email"
+  expect: false
+
+- name: test_evaluate_function_email_invalid_single_char_tld
+  description: Verifies email returns false on single-character TLD (D22).
+  action: evaluate_function
+  function: email
+  args:
+    value: "test@test.c"
+  expect: false
+
+# --- LengthFunction (D24) ---
+- name: test_evaluate_function_length_string_valid
+  description: Verifies length returns true when string is within bounds.
+  action: evaluate_function
+  function: length
+  args:
+    value: "hello"
+    min: 3
+    max: 10
+  expect: true
+
+- name: test_evaluate_function_length_string_too_short
+  description: Verifies length returns false when string is shorter than min.
+  action: evaluate_function
+  function: length
+  args:
+    value: "hi"
+    min: 3
+  expect: false
+
+- name: test_evaluate_function_length_string_too_long
+  description: Verifies length returns false when string is longer than max.
+  action: evaluate_function
+  function: length
+  args:
+    value: "hello world"
+    max: 5
+  expect: false
+
+- name: test_evaluate_function_length_array_count_valid
+  description: Verifies length counts array elements, not character length (D24).
+  action: evaluate_function
+  function: length
+  args:
+    value: ["a", "b", "c"]
+    min: 2
+    max: 4
+  expect: true
+
+- name: test_evaluate_function_length_array_count_too_short
+  description: Verifies length returns false when array has fewer elements than min (D24).
+  action: evaluate_function
+  function: length
+  args:
+    value: ["a"]
+    min: 2
+  expect: false
+
+# --- NumericFunction (D23) ---
+- name: test_evaluate_function_numeric_valid_float
+  description: Verifies numeric returns true for float within bounds.
+  action: evaluate_function
+  function: numeric
+  args:
+    value: 42.5
+    min: 0
+    max: 100
+  expect: true
+
+- name: test_evaluate_function_numeric_valid_string
+  description: Verifies numeric returns true for valid numeric string.
+  action: evaluate_function
+  function: numeric
+  args:
+    value: "42.5"
+    min: 0
+    max: 100
+  expect: true
+
+- name: test_evaluate_function_numeric_too_small
+  description: Verifies numeric returns false when value is below min.
+  action: evaluate_function
+  function: numeric
+  args:
+    value: -5
+    min: 0
+  expect: false
+
+- name: test_evaluate_function_numeric_too_large
+  description: Verifies numeric returns false when value is above max.
+  action: evaluate_function
+  function: numeric
+  args:
+    value: 150
+    max: 100
+  expect: false
+
+- name: test_evaluate_function_numeric_unparseable_string
+  description: Verifies numeric returns false for unparseable string without raising (D23).
+  action: evaluate_function
+  function: numeric
+  args:
+    value: "not_a_number"
+  expect: false
+
+# --- AndFunction (D25, D26) ---
+- name: test_evaluate_function_and_all_true
+  description: Verifies and returns true when all values are true.
+  action: evaluate_function
+  function: and
+  args:
+    values: [true, true]
+  expect: true
+
+- name: test_evaluate_function_and_one_false
+  description: Verifies and returns false when any value is false.
+  action: evaluate_function
+  function: and
+  args:
+    values: [true, false]
+  expect: false
+
+- name: test_evaluate_function_and_truthiness_coercion_true
+  description: Verifies and truthiness coercion on non-boolean values (D26).
+  action: evaluate_function
+  function: and
+  args:
+    values: [1, "non-empty"]
+  expect: true
+
+- name: test_evaluate_function_and_truthiness_coercion_false
+  description: Verifies and truthiness coercion with a falsy value (D26).
+  action: evaluate_function
+  function: and
+  args:
+    values: [1, ""]
+  expect: false
+
+- name: test_evaluate_function_and_fewer_than_two_values_error
+  description: Verifies and requires at least 2 values per schema (D25).
+  action: evaluate_function
+  function: and
+  args:
+    values: [true]
+  expectError:
+    category: ExpressionError
+
+# --- OrFunction (D25, D26) ---
+- name: test_evaluate_function_or_all_false
+  description: Verifies or returns false when all values are false.
+  action: evaluate_function
+  function: or
+  args:
+    values: [false, false]
+  expect: false
+
+- name: test_evaluate_function_or_one_true
+  description: Verifies or returns true when at least one value is true.
+  action: evaluate_function
+  function: or
+  args:
+    values: [false, true]
+  expect: true
+
+- name: test_evaluate_function_or_truthiness_coercion_true
+  description: Verifies or truthiness coercion on non-boolean values (D26).
+  action: evaluate_function
+  function: or
+  args:
+    values: [0, "yes"]
+  expect: true
+
+- name: test_evaluate_function_or_fewer_than_two_values_error
+  description: Verifies or requires at least 2 values per schema (D25).
+  action: evaluate_function
+  function: or
+  args:
+    values: [false]
+  expectError:
+    category: ExpressionError
+
+# --- NotFunction (D26) ---
+- name: test_evaluate_function_not_true
+  description: Verifies not returns false for true.
+  action: evaluate_function
+  function: not
+  args:
+    value: true
+  expect: false
+
+- name: test_evaluate_function_not_false
+  description: Verifies not returns true for false.
+  action: evaluate_function
+  function: not
+  args:
+    value: false
+  expect: true
+
+- name: test_evaluate_function_not_truthiness_falsy
+  description: Verifies not truthiness coercion for falsy value (D26).
+  action: evaluate_function
+  function: not
+  args:
+    value: ""
+  expect: true
+
+- name: test_evaluate_function_not_truthiness_truthy
+  description: Verifies not truthiness coercion for truthy value (D26).
+  action: evaluate_function
+  function: not
+  args:
+    value: "hello"
+  expect: false
+
+# --- PluralizeFunction (D27) ---
+- name: test_evaluate_function_pluralize_explicit_zero
+  description: Verifies pluralize selects explicit zero category over CLDR (D27).
+  action: evaluate_function
+  function: pluralize
+  args:
+    value: 0
+    zero: "No items"
+    one: "1 item"
+    other: "{n} items"
+  expect: "No items"
+
+- name: test_evaluate_function_pluralize_explicit_one
+  description: Verifies pluralize selects explicit one category.
+  action: evaluate_function
+  function: pluralize
+  args:
+    value: 1
+    zero: "No items"
+    one: "1 item"
+    other: "{n} items"
+  expect: "1 item"
+
+- name: test_evaluate_function_pluralize_explicit_two
+  description: Verifies pluralize selects explicit two category (D27).
+  action: evaluate_function
+  function: pluralize
+  args:
+    value: 2
+    zero: "No items"
+    one: "1 item"
+    two: "A couple items"
+    other: "{n} items"
+  expect: "A couple items"
+
+- name: test_evaluate_function_pluralize_explicit_empty_string
+  description: Verifies pluralize preserves explicit empty string without falling back to other (D27).
+  action: evaluate_function
+  function: pluralize
+  args:
+    value: 0
+    zero: ""
+    other: "default"
+  expect: ""
+
+- name: test_evaluate_function_pluralize_cldr_other
+  description: Verifies pluralize falls back to other for unlisted category.
+  action: evaluate_function
+  function: pluralize
+  args:
+    value: 5
+    one: "1 item"
+    other: "Many items"
+  expect: "Many items"
+
+# --- FormatNumberFunction ---
+- name: test_evaluate_function_format_number_decimals
+  description: Verifies formatNumber formats with decimals and grouping.
+  action: evaluate_function
+  function: formatNumber
+  args:
+    value: 1234.567
+    decimals: 2
+    grouping: true
+  expect: "1,234.57"
+
+- name: test_evaluate_function_format_number_zero_decimals
+  description: Verifies formatNumber formats with zero decimals and no grouping.
+  action: evaluate_function
+  function: formatNumber
+  args:
+    value: 1234.567
+    decimals: 0
+    grouping: false
+  expect: "1235"
+
+# --- FormatCurrencyFunction ---
+- name: test_evaluate_function_format_currency_usd
+  description: Verifies formatCurrency formats USD currency.
+  action: evaluate_function
+  function: formatCurrency
+  args:
+    value: 99.99
+    currency: "USD"
+    decimals: 2
+  expect: "$99.99"
+
+# --- FormatDateFunction (D29) ---
+- name: test_evaluate_function_format_date_custom_pattern
+  description: Verifies formatDate formats date with custom pattern.
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2026-08-26T12:00:00Z"
+    format: "yyyy-MM-dd"
+  expect: "2026-08-26"
+
+- name: test_evaluate_function_format_date_iso_normalized
+  description: Verifies formatDate normalizes ISO output to UTC YYYY-MM-DDTHH:mm:ss.sssZ (D29).
+  action: evaluate_function
+  function: formatDate
+  args:
+    value: "2026-08-26T12:00:00.000Z"
+    format: "ISO"
+  expect: "2026-08-26T12:00:00.000Z"
+
+# --- FormatStringFunction (D18, D28) ---
+- name: test_evaluate_function_format_string_basic
+  description: Verifies formatString evaluates static template string.
+  action: evaluate_function
+  function: formatString
+  args:
+    value: "Hello World"
+  expect: "Hello World"
+
+- name: test_evaluate_function_format_string_null_coercion
+  description: Verifies formatString coerces null expression to empty string (D18).
+  action: evaluate_function
+  function: formatString
+  args:
+    value: "Greeting: ${null}"
+  expect: "Greeting: "
+
+# --- OpenUrlFunction (D30) ---
+- name: test_evaluate_function_open_url_valid_https
+  description: Verifies openUrl accepts valid https scheme.
+  action: evaluate_function
+  function: openUrl
+  args:
+    url: "https://example.com"
+  expect: null
+
+- name: test_evaluate_function_open_url_disallowed_scheme
+  description: Verifies openUrl rejects disallowed URL scheme (D30).
+  action: evaluate_function
+  function: openUrl
+  args:
+    url: "javascript:alert(1)"
+  expectError:
+    category: ExpressionError

@@ -35,7 +35,7 @@ currently played by `web_core`.
 
 | Subpath                             | What we use                                                                                                                              |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `@a2ui/web_core/catalog`            | `Catalog`, `CatalogInterface`, `ComponentApi`, `FunctionApi`, `loadCatalogFromSchema`                                                    |
+| `@a2ui/web_core/catalog`            | `Catalog`, `CatalogApi`, `CatalogInterface`, `ComponentApi`, `FunctionApi`, `loadCatalogFromSchema`                                      |
 | `@a2ui/web_core/v1_0`               | `AgentToRendererMessage`, `AgentToRendererMessageSchema`, `RendererToAgentMessage`, `V10RendererCapabilities`                            |
 | `@a2ui/web_core/v1_0/basic_catalog` | `BASIC_COMPONENTS`, `BASIC_FUNCTION_APIS`                                                                                                |
 | `@a2ui/web_core/validating`         | `validateRecursionAndPaths`, `STRICT_VALIDATION`, `getComponentReferences`, `buildComponentRefMap`, `V10_CHILD_REF_OPTIONS`              |
@@ -96,8 +96,8 @@ Two consequences worth calling out.
 **Catalogs in an agent are schema-only.** `Catalog<T, F>` defaults `F` to
 `FunctionImplementation`, the renderer-side shape that carries executable code. An agent
 never invokes catalog functions; it only needs their signatures. So the SDK
-parameterizes as `Catalog<ComponentApi, FunctionApi>` and exports a `SchemaCatalog`
-alias for it. This also makes `loadCatalogFromSchema` a drop-in, since it already
+parameterizes as `Catalog<ComponentApi, FunctionApi>`, which `web_core` exports as
+`CatalogApi`. This also makes `loadCatalogFromSchema` a drop-in, since it already
 returns exactly that type.
 
 **Prompt generation gets the catalog schema for free.** `Catalog` exposes a
@@ -257,10 +257,10 @@ export abstract class PromptGenerator {
   abstract generateBaseRules(): string;
 
   /** Signatures for one catalog, or for all bound catalogs. */
-  abstract generateCatalogInstructions(includeSchema?: boolean, catalog?: SchemaCatalog): string;
+  abstract generateCatalogInstructions(includeSchema?: boolean, catalog?: CatalogApi): string;
 
   /** Few-shot examples for one catalog, or for all bound catalogs. */
-  abstract generateExamples(catalog?: SchemaCatalog, validate?: boolean): string;
+  abstract generateExamples(catalog?: CatalogApi, validate?: boolean): string;
 
   /** Template method assembling the three above. Formats override the pieces, not this. */
   generate(options?: PromptOptions): string;
@@ -290,7 +290,7 @@ export interface CatalogProvider {
    * Returns a promise, unlike the blueprint's synchronous `load()`, because the
    * filesystem provider uses `fs.promises`. The name is kept for cross-language parity.
    */
-  load(): Promise<SchemaCatalog>;
+  load(): Promise<CatalogApi>;
 }
 
 /** Loads a catalog from a JSON file on disk. */
@@ -302,7 +302,7 @@ export class FileSystemCatalogProvider implements CatalogProvider {
     /** Expected catalog ID. Throws on mismatch with the loaded catalog. */
     catalogId?: string,
   );
-  load(): Promise<SchemaCatalog>;
+  load(): Promise<CatalogApi>;
 }
 
 /** Builds a catalog from an in-memory schema object. */
@@ -312,7 +312,7 @@ export class InMemoryCatalogProvider implements CatalogProvider {
     protocolVersion?: ProtocolVersion,
     catalogId?: string,
   );
-  load(): Promise<SchemaCatalog>;
+  load(): Promise<CatalogApi>;
 }
 ```
 
@@ -328,12 +328,12 @@ which needs no provider indirection. See section 1 for the v0.9 and v1.0 asymmet
 /** Associates a catalog with the transformations to apply to it. */
 export class CatalogConfig {
   constructor(
-    readonly catalog: SchemaCatalog,
+    readonly catalog: CatalogApi,
     readonly transformers?: CatalogTransformer[],
   );
 
   /** The catalog with all configured transformers applied in order. */
-  get transformedCatalog(): SchemaCatalog;
+  get transformedCatalog(): CatalogApi;
 
   /** Loads a catalog from disk into a CatalogConfig. */
   static fromPath(
@@ -354,7 +354,7 @@ export function resolveCatalogs(
   catalogs: CatalogConfig[],
   rendererCapabilities: V10RendererCapabilities,
   acceptsInlineCatalogs?: boolean,
-): SchemaCatalog[];
+): CatalogApi[];
 ```
 
 ### `A2uiGenerator` and `A2uiRequestProcessor`
@@ -388,13 +388,13 @@ export class A2uiGenerator {
 /** Request-scoped facade over the negotiated catalogs, prompt, parser, and validation. */
 export class A2uiRequestProcessor {
   constructor(
-    catalogs: SchemaCatalog[],
+    catalogs: CatalogApi[],
     examples?: Record<string, AgentToRendererMessage[]>,
     formatFactory?: InferenceFormatFactory,
   );
 
   /** The negotiated catalogs active for this request. */
-  get activeCatalogs(): SchemaCatalog[];
+  get activeCatalogs(): CatalogApi[];
   get examples(): Record<string, AgentToRendererMessage[]> | undefined;
   /**
    * Format-specific system prompt snippet to feed the model.

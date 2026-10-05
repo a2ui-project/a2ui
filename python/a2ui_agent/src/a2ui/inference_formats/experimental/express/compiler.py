@@ -22,7 +22,7 @@ The grammar for A2UI Express is defined in Express.g4.
 
 from typing import Any
 from antlr4 import InputStream, CommonTokenStream
-from a2ui.core import Catalog
+from a2ui.core import CatalogApi
 from a2ui.core.common.semver import is_at_least_version
 from a2ui.core.schema import ProtocolVersion
 from a2ui.schema import A2uiCatalog
@@ -200,7 +200,7 @@ class ExpressCompiler:
 
     def __init__(
         self,
-        catalog: Catalog[Any, Any] | A2uiCatalog,
+        catalog: CatalogApi | A2uiCatalog,
         version: str = "v1.0",
     ):
         """Initializes the compiler with the specified catalog.

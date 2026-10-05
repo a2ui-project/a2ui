@@ -21,7 +21,7 @@ import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {SpecVersion} from '../spec_versions.js';
-import {loadCatalogFromSchema} from './schema_loader.js';
+import {parseCatalogSchema} from './schema_loader.js';
 import {generateCatalogSchema} from './schema_generator.js';
 import {
   buildComponentRefMap,
@@ -345,13 +345,27 @@ export class Catalog<
    * @returns A new Catalog populated with component and function schemas.
    * @throws {Error} If the catalog ID is missing or not a string.
    */
-  static fromSchema(
-    catalogSchema: Record<string, any>,
-    protocolVersion?: string,
-  ): Catalog<ComponentApi, FunctionApi> {
-    return loadCatalogFromSchema(catalogSchema, protocolVersion);
+  static fromSchema(catalogSchema: Record<string, any>, protocolVersion?: string): CatalogApi {
+    const {
+      id,
+      protocolVersion: resolvedVersion,
+      components,
+      functions,
+      themeSchema,
+      instructions,
+    } = parseCatalogSchema(catalogSchema, protocolVersion);
+    return new Catalog(id, resolvedVersion, components, functions, themeSchema, instructions);
   }
 }
+
+/**
+ * A catalog whose components and functions carry schemas only.
+ *
+ * What `Catalog.fromSchema` produces, and what agents work with: they prompt
+ * and validate against signatures but never execute a function. A renderer
+ * that executes functions needs a catalog of `FunctionImplementation`s instead.
+ */
+export type CatalogApi = Catalog<ComponentApi, FunctionApi>;
 
 function createCatalogInvoker<F extends FunctionApi>(
   catalogId: string,

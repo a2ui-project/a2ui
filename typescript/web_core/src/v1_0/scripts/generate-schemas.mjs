@@ -75,12 +75,52 @@ function generateCommonTypes() {
       code = `export const ChildListSchema = markChildRef(\n  ${schemaExp},\n  'child-list',\n);\nexport type ${typePart}`;
     } else if (name === 'Child') {
       code = `export const ChildSchema = ComponentIdSchema;\nexport type Child = z.infer<typeof ChildSchema>;`;
+    } else if (name === 'DataBinding') {
+      code = `export const DataBindingSchema = z
+  .object({
+    '@path': z.string().describe('A JSON Pointer path to a value in the data model.').optional(),
+    'path': z.string().describe('A JSON Pointer path to a value in the data model.').optional(),
+  })
+  .refine(data => data['@path'] !== undefined || data.path !== undefined, {
+    message: "Either '@path' or 'path' must be provided.",
+  })
+  .describe('REF:#/$defs/DataBinding');
+export type DataBinding = z.infer<typeof DataBindingSchema>;`;
+    } else if (name === 'FunctionCommon') {
+      code = `export const FunctionCommonSchema = z
+  .object({
+    '@call': z.string().describe('The name of the function to call.').optional(),
+    'call': z.string().describe('The name of the function to call.').optional(),
+    'catalogId': z
+      .string()
+      .describe('The catalog ID for this function, overriding any surface-level default catalogId.')
+      .optional(),
+  })
+  .refine(data => data['@call'] !== undefined || data.call !== undefined, {
+    message: "Either '@call' or 'call' must be provided.",
+  })
+  .describe(
+    "REF:#/$defs/FunctionCommon|Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog.",
+  );
+export type FunctionCommon = z.infer<typeof FunctionCommonSchema>;`;
+    } else if (name === 'IndexSystemFunction') {
+      code = `export const IndexSystemFunctionSchema = z
+  .object({
+    '@call': z.literal('@index').optional(),
+    'call': z.literal('@index').optional(),
+    'args': z.object({'offset': DynamicNumberSchema.optional()}).optional(),
+  })
+  .refine(data => data['@call'] !== undefined || data.call !== undefined, {
+    message: "Either '@call' or 'call' must be '@index'.",
+  })
+  .describe('REF:#/$defs/IndexSystemFunction');
+export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;`;
     }
 
     if (recursiveSchemas.has(name)) {
       if (name === 'FunctionCall') {
         code =
-          `export interface FunctionCall {\n  call: string;\n  args?: Record<string, unknown>;\n  returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';\n}\n` +
+          `export interface FunctionCall {\n  call?: string;\n  '@call'?: string;\n  args?: Record<string, unknown>;\n  returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';\n}\n` +
           code;
         code = code.replace(
           'export const FunctionCallSchema =',
@@ -108,7 +148,7 @@ function generateCommonTypes() {
     if (name === 'DynamicValue') {
       code = code.replace(
         'z.record(z.string(), z.any())',
-        "z.record(z.string(), z.unknown()).refine((obj) => !obj || (!('path' in obj) && !('call' in obj)))",
+        "z.record(z.string(), z.unknown()).refine((obj) => !obj || (!('@path' in obj) && !('path' in obj) && !('@call' in obj) && !('call' in obj)))",
       );
     }
 
@@ -165,26 +205,26 @@ export type FunctionResponse = z.infer<typeof FunctionResponseSchema>;`;
 
   const commonEntries = defKeys.map(k => `  ${k}: ${k}Schema,`).join('\n');
   commonTs += `export const CommonSchemas = {\n${commonEntries}\n};\n\n`;
-  commonTs += `export * from './helpers.js';\n`;
 
   writeFileSync(join(destDir, 'common-types.ts'), commonTs);
 
-  const allExportNames = new Set(Object.keys(commonJson.$defs));
+  const pureCommonNames = new Set(Object.keys(commonJson.$defs));
+  const helperNames = new Set();
   const helpersPath = join(destDir, 'helpers.ts');
   if (existsSync(helpersPath)) {
     const helpersContent = readFileSync(helpersPath, 'utf8');
     const matches = helpersContent.matchAll(/export\s+const\s+([A-Za-z0-9_]+Schema)/g);
     for (const m of matches) {
-      allExportNames.add(m[1].replace(/Schema$/, ''));
+      helperNames.add(m[1].replace(/Schema$/, ''));
     }
   }
-  return allExportNames;
+  return {pureCommonNames, helperNames};
 }
 
 /**
  * Generates v1.0 catalog-definition.ts.
  */
-function generateCatalogDefinition(commonDefNames) {
+function generateCatalogDefinition({pureCommonNames, helperNames}) {
   const catalogDefJson = JSON.parse(readFileSync(join(specDir, 'catalog_definition.json'), 'utf8'));
   let bodyCode = '';
 
@@ -211,18 +251,23 @@ function generateCatalogDefinition(commonDefNames) {
     bodyCode += code + '\n\n';
   }
 
-  const neededImports = Array.from(commonDefNames)
+  const commonImports = Array.from(pureCommonNames)
     .map(name => `${name}Schema`)
-    .filter(schemaName => bodyCode.includes(schemaName))
+    .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
+    .sort();
+  const helperImports = Array.from(helperNames)
+    .map(name => `${name}Schema`)
+    .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
     .sort();
 
   let catalogDefTs = getHeader(VERSION_TAG, SCRIPT_SOURCE) + "import {z} from 'zod';\n";
-  if (neededImports.length > 0) {
-    catalogDefTs += `import {${neededImports.join(', ')}} from './common-types.js';\n\n`;
-  } else {
-    catalogDefTs += '\n';
+  if (commonImports.length > 0) {
+    catalogDefTs += `import {${commonImports.join(', ')}} from './common-types.js';\n`;
   }
-  catalogDefTs += bodyCode;
+  if (helperImports.length > 0) {
+    catalogDefTs += `import {${helperImports.join(', ')}} from './helpers.js';\n`;
+  }
+  catalogDefTs += '\n' + bodyCode;
 
   writeFileSync(join(destDir, 'catalog-definition.ts'), catalogDefTs);
 }
@@ -230,7 +275,7 @@ function generateCatalogDefinition(commonDefNames) {
 /**
  * Generates v1.0 agent-to-renderer.ts.
  */
-function generateIncomingMessageSchemas(commonDefNames) {
+function generateIncomingMessageSchemas({pureCommonNames, helperNames}) {
   const a2rJson = JSON.parse(readFileSync(join(specDir, 'agent_to_renderer.json'), 'utf8'));
   const a2rMsgNames = a2rJson.oneOf.map(ref => ref.$ref.replace('#/$defs/', ''));
 
@@ -245,18 +290,23 @@ function generateIncomingMessageSchemas(commonDefNames) {
   bodyCode += `export const AgentToRendererMessageSchema = z.union([\n  ${a2rMsgNames.map(m => `${m}Schema`).join(',\n  ')},\n]);\n`;
   bodyCode += `export type AgentToRendererMessage = z.infer<typeof AgentToRendererMessageSchema>;\n`;
 
-  const neededImports = Array.from(commonDefNames)
+  const commonImports = Array.from(pureCommonNames)
     .map(name => `${name}Schema`)
-    .filter(schemaName => bodyCode.includes(schemaName))
+    .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
+    .sort();
+  const helperImports = Array.from(helperNames)
+    .map(name => `${name}Schema`)
+    .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
     .sort();
 
   let a2rTs = getHeader(VERSION_TAG, SCRIPT_SOURCE) + "import {z} from 'zod';\n";
-  if (neededImports.length > 0) {
-    a2rTs += `import {${neededImports.join(', ')}} from './common-types.js';\n\n`;
-  } else {
-    a2rTs += '\n';
+  if (commonImports.length > 0) {
+    a2rTs += `import {${commonImports.join(', ')}} from './common-types.js';\n`;
   }
-  a2rTs += bodyCode;
+  if (helperImports.length > 0) {
+    a2rTs += `import {${helperImports.join(', ')}} from './helpers.js';\n`;
+  }
+  a2rTs += '\n' + bodyCode;
 
   writeFileSync(join(destDir, 'agent-to-renderer.ts'), a2rTs);
 }
@@ -264,7 +314,7 @@ function generateIncomingMessageSchemas(commonDefNames) {
 /**
  * Generates v1.0 renderer-to-agent.ts.
  */
-function generateOutgoingMessageSchemas(commonDefNames) {
+function generateOutgoingMessageSchemas({pureCommonNames, helperNames}) {
   const r2aJson = JSON.parse(readFileSync(join(specDir, 'renderer_to_agent.json'), 'utf8'));
   const r2aMessageProps = r2aJson.oneOf.map(item => item.required.find(k => k !== 'version'));
   const r2aMessageNames = [];
@@ -291,18 +341,23 @@ function generateOutgoingMessageSchemas(commonDefNames) {
   bodyCode += `export const RendererToAgentMessageSchema = z.union([\n  ${r2aMessageNames.map(m => `${m}Schema`).join(',\n  ')},\n]);\n`;
   bodyCode += `export type RendererToAgentMessage = z.infer<typeof RendererToAgentMessageSchema>;\n`;
 
-  const neededImports = Array.from(commonDefNames)
+  const commonImports = Array.from(pureCommonNames)
     .map(name => `${name}Schema`)
-    .filter(schemaName => bodyCode.includes(schemaName))
+    .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
+    .sort();
+  const helperImports = Array.from(helperNames)
+    .map(name => `${name}Schema`)
+    .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
     .sort();
 
   let r2aTs = getHeader(VERSION_TAG, SCRIPT_SOURCE) + "import {z} from 'zod';\n";
-  if (neededImports.length > 0) {
-    r2aTs += `import {${neededImports.join(', ')}} from './common-types.js';\n\n`;
-  } else {
-    r2aTs += '\n';
+  if (commonImports.length > 0) {
+    r2aTs += `import {${commonImports.join(', ')}} from './common-types.js';\n`;
   }
-  r2aTs += bodyCode;
+  if (helperImports.length > 0) {
+    r2aTs += `import {${helperImports.join(', ')}} from './helpers.js';\n`;
+  }
+  r2aTs += '\n' + bodyCode;
 
   writeFileSync(join(destDir, 'renderer-to-agent.ts'), r2aTs);
 }

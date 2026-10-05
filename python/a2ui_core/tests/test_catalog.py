@@ -12,26 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from typing import Any, Literal
 from pydantic import BaseModel, Field, ValidationError
 import pytest
 from a2ui.core.catalog import (
     Catalog,
+    CatalogApi,
     ComponentApi,
     FunctionApi,
-    ModelComponentApi,
     FunctionImplementation,
+    ModelComponentApi,
+    get_common_types_schema_json,
+    get_common_types_schema_map,
 )
+from a2ui.core.common import to_protocol_version
+from a2ui.core.schema import ProtocolVersion
 from a2ui.core.exceptions import A2uiCatalogError, A2uiValidationError
-from a2ui.core.catalog.catalog import TComponent, TFunction
 from a2ui.core.validation import PayloadValidator
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV1_0
 from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
 
 
 class _TestValidatorHelper:
 
-    def __init__(self, catalog: Catalog[Any, Any]):
+    def __init__(self, catalog: CatalogApi):
         self.validator = PayloadValidator(catalog=catalog)
 
     def validate_component(self, comp_or_list: Any) -> None:
@@ -58,7 +64,7 @@ class _TestValidatorHelper:
         self.validator.validate_theme(theme)
 
 
-def _val(catalog: Catalog[TComponent, TFunction]) -> _TestValidatorHelper:
+def _val(catalog: CatalogApi) -> _TestValidatorHelper:
     return _TestValidatorHelper(catalog)
 
 
@@ -436,9 +442,17 @@ def test_seamless_mixed_catalogs():
 
 
 def test_basic_catalog_initialization():
-    catalog = BasicCatalog()
+    catalog = BasicCatalog(ProtocolVersion.V0_9)
     assert catalog.protocol_version == PROTOCOL_VERSION
     assert "https://a2ui.org/specification" in catalog.catalog_id
+
+    # Test shared factory with different versions
+    assert BasicCatalog("0.8").protocol_version == "v0.8"
+    assert BasicCatalog("0.9").protocol_version == "v0.9"
+    assert BasicCatalog("1.0").protocol_version == "v1.0"
+
+    with pytest.raises(TypeError):
+        BasicCatalog()  # type: ignore[call-arg]
 
 
 def test_catalog_v1_0_additions():
@@ -758,3 +772,249 @@ def test_validate_function_non_string_arg_key_defensive():
 def test_catalog_missing_protocol_version_raises_catalog_error():
     with pytest.raises(A2uiCatalogError, match="protocol_version must be provided"):
         Catalog(catalog_id="test_cat", protocol_version="")
+
+
+# ==============================================================================
+# 11. Common Types Schema Resolution
+# ==============================================================================
+
+
+@pytest.mark.parametrize(
+    "version",
+    [ProtocolVersion.V0_9, ProtocolVersion.V0_9_1, ProtocolVersion.V1_0],
+)
+def test_get_common_types_schema_map_and_json_agree(version):
+    # Content is checked against the specification by core/common_types.yaml,
+    # which reads the JSON form only.
+    schema_json = get_common_types_schema_json(version)
+    assert json.loads(schema_json) == get_common_types_schema_map(version)
+
+
+def test_get_common_types_schema_supported_versions():
+    res_09 = get_common_types_schema_map(ProtocolVersion.V0_9)
+    assert res_09["$id"] == "https://a2ui.org/specification/v0_9/common_types.json"
+    # v0.9.1 publishes v0.9's common types unchanged.
+    assert get_common_types_schema_map(ProtocolVersion.V0_9_1) == res_09
+
+    res_10 = get_common_types_schema_map(ProtocolVersion.V1_0)
+    assert res_10["$id"] == "https://a2ui.org/specification/v1_0/common_types.json"
+
+
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    [
+        ("0.8", ProtocolVersion.V0_8),
+        ("v0.9", ProtocolVersion.V0_9),
+        ("0.9.1", ProtocolVersion.V0_9_1),
+        ("1.0", ProtocolVersion.V1_0),
+        ("1.0.0", ProtocolVersion.V1_0),
+        ("1.0.0-beta.1", ProtocolVersion.V1_0),
+        (ProtocolVersion.V1_0, ProtocolVersion.V1_0),
+    ],
+)
+def test_to_protocol_version(version, expected):
+    assert to_protocol_version(version) is expected
+
+
+@pytest.mark.parametrize("version", ["", "invalid_version", "1.1", "0.9.2"])
+def test_to_protocol_version_rejects_unknown_versions(version):
+    with pytest.raises(ValueError, match="Unknown protocol version"):
+        to_protocol_version(version)
+
+
+@pytest.mark.parametrize(
+    "getter", [get_common_types_schema_map, get_common_types_schema_json]
+)
+def test_get_common_types_schema_unsupported_versions(getter):
+    # v0.8 has no common_types.json
+    with pytest.raises(A2uiCatalogError, match="common_types schema is not available"):
+        getter(ProtocolVersion.V0_8)
+
+
+def test_get_common_types_schema_map_returns_deepcopy():
+    res1 = get_common_types_schema_map(ProtocolVersion.V1_0)
+    res1["$defs"]["MutatedKey"] = {"type": "string"}
+
+    res2 = get_common_types_schema_map(ProtocolVersion.V1_0)
+    assert "MutatedKey" not in res2["$defs"]
+    assert "MutatedKey" not in get_common_types_schema_json(ProtocolVersion.V1_0)
+
+
+def test_catalog_from_json_determines_common_types_automatically():
+    catalog_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "test_auto_common_types",
+        "protocolVersion": "1.0",
+        "components": {
+            "CustomCard": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "CustomCard"},
+                    "items": {"$ref": "common_types.json#/$defs/ChildList"},
+                },
+                "required": ["component"],
+            }
+        },
+    }
+
+    catalog = Catalog.from_json(catalog_schema)
+    assert catalog.protocol_version == "1.0"
+    reconstructed = catalog.catalog_schema
+    # The external reference should be rewritten to local #/$defs/...
+    card_props = reconstructed["components"]["CustomCard"]["properties"]
+    assert card_props["items"]["$ref"] == "#/$defs/ChildList"
+    # ChildList should be populated automatically into $defs from common_types_schema
+    assert "ChildList" in reconstructed["$defs"]
+
+
+_INLINE_METADATA = {
+    "type": "object",
+    "description": "Optional component-level metadata for vendor extensions.",
+    "properties": {"extensions": {"$ref": "#/$defs/Extensions"}},
+    "additionalProperties": False,
+}
+
+
+def test_v1_0_catalogs_inline_component_metadata():
+    """Nested objects stay inline, as in the specification, not as helper defs."""
+    json_catalog = Catalog.from_json({
+        "catalogId": "test_inline_metadata",
+        "protocolVersion": "1.0",
+        "components": {
+            "Card": {
+                "allOf": [{"$ref": "common_types.json#/$defs/ComponentCommon"}],
+                "properties": {"component": {"const": "Card"}},
+                "required": ["component"],
+            }
+        },
+    }).catalog_schema
+    basic_catalog = BasicCatalogV1_0().catalog_schema
+
+    assert (
+        json_catalog["$defs"]["ComponentCommon"]["properties"]["metadata"]
+        == _INLINE_METADATA
+    )
+    assert "ComponentCommonMetadata" not in json_catalog["$defs"]
+    assert "Extensions" in json_catalog["$defs"]
+    # As in the specification, v1.0 basic catalog components leave
+    # `ComponentCommon`, and so its metadata, to the message envelope.
+    assert "metadata" not in basic_catalog["components"]["Text"]["properties"]
+    assert "ComponentCommonMetadata" not in basic_catalog["$defs"]
+    # No internal schema-generation marker leaks into a published catalog.
+    for schema in (
+        json_catalog,
+        basic_catalog,
+        BasicCatalog(ProtocolVersion.V0_9).catalog_schema,
+    ):
+        assert '"x-a2ui-' not in json.dumps(schema)
+
+
+def test_v08_basic_catalog_schema_structure():
+    """v0.8 basic catalog schema produces a valid catalog document."""
+    from a2ui.core.basic_catalog import v0_8
+
+    cat = v0_8.BasicCatalog()
+    schema = cat.catalog_schema
+    assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+    assert "https://a2ui.org/specification/v0_8" in schema["catalogId"]
+    assert "Text" in schema["components"]
+    assert "Button" in schema["components"]
+
+
+def test_catalog_schema_caching():
+    """catalog_schema caches the generated schema and returns independent copies."""
+    from a2ui.core.basic_catalog import v0_9
+
+    cat = v0_9.BasicCatalog()
+    s1 = cat.catalog_schema
+    s2 = cat.catalog_schema
+    assert s1 == s2
+    assert s1 is not s2
+    s1["mutated"] = True
+    assert "mutated" not in cat.catalog_schema
+
+
+def test_custom_component_recursive_model_inlining():
+    """Recursive nested models do not crash schema generation and remain in $defs."""
+    from pydantic import BaseModel
+    from a2ui.core.catalog import ModelComponentApi
+    from a2ui.core.schema.v0_9.common_types import ComponentCommon
+
+    class TreeNode(BaseModel):
+        val: str
+        children: list["TreeNode"] | None = None
+
+    class TreeComponent(ComponentCommon):
+        component: str = "Tree"
+        root: TreeNode
+
+    TreeNode.model_rebuild()
+
+    comp = ModelComponentApi(TreeComponent, "Tree")
+    cat = Catalog(
+        catalog_id="https://example.com/tree",
+        protocol_version="v0.9",
+        components=[comp],
+    )
+    schema = cat.catalog_schema
+    assert "TreeNode" in schema.get("$defs", {})
+    assert "Tree" in schema["components"]
+
+
+def test_concrete_component_subclassing_discriminator():
+    """Subclassing a concrete component model sets the new discriminator."""
+    from a2ui.core.catalog import ModelComponentApi
+    from a2ui.core.basic_catalog.v0_9 import ButtonComponent
+
+    class SpecialButton(ButtonComponent):
+        badge: str
+
+    comp = ModelComponentApi(SpecialButton, "SpecialButton")
+    cat = Catalog(
+        catalog_id="https://example.com/special",
+        protocol_version="v0.9",
+        components=[comp],
+    )
+    schema = cat.catalog_schema
+    comp_schema = schema["components"]["SpecialButton"]
+    inner = [
+        s
+        for s in comp_schema["allOf"]
+        if "properties" in s and "component" in s["properties"]
+    ][0]
+    assert inner["properties"]["component"] == {"const": "SpecialButton"}
+    assert "Button" not in schema.get("$defs", {})
+
+
+def test_custom_model_collision_with_common_type_rejected():
+    """A custom nested model whose name collides with a common type raises A2uiCatalogError."""
+    from pydantic import BaseModel
+    from a2ui.core.catalog import ModelComponentApi
+    from a2ui.core.schema.v0_9.common_types import ComponentCommon
+
+    class Action(BaseModel):
+        custom_field: str
+
+    class CollidingComp(ComponentCommon):
+        component: str = "CollidingComp"
+        action: Action
+
+    comp = ModelComponentApi(CollidingComp, "CollidingComp")
+    cat = Catalog(
+        catalog_id="https://example.com/colliding",
+        protocol_version="v0.9",
+        components=[comp],
+    )
+    with pytest.raises(A2uiCatalogError, match="collides with built-in common type"):
+        _ = cat.catalog_schema
+
+
+def test_function_api_description_fallback():
+    """FunctionApi preserves class-level description when not explicitly provided."""
+    from a2ui.core.basic_catalog.v0_9 import RequiredApi
+
+    api = RequiredApi("required")
+    assert api.description == "Checks that the value is not null, undefined, or empty."
+
+    api_override = RequiredApi("required", description="Overridden description")
+    assert api_override.description == "Overridden description"

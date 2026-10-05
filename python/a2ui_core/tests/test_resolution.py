@@ -23,11 +23,11 @@ from a2ui.core.resolution import (
     MissingDataBindingWarning,
 )
 from a2ui.core.catalog import Catalog
-from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog, v0_9
 
 
 def test_component_context_from_surface():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat, theme={"primaryColor": "#123456"})
     c1 = ComponentModel("c1", "Button", cat, {"label": "Click"})
     surface.components_model.add_component(c1)
@@ -51,7 +51,7 @@ def test_component_context_from_surface():
 
 
 def test_data_context_resolve_action():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat)
     surface.data_model.set("/username", "Alice")
 
@@ -102,7 +102,7 @@ def test_data_context_resolve_action():
 
 
 def test_data_context_missing_binding_warning():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat)
     ctx = DataContext(surface)
     with pytest.warns(MissingDataBindingWarning, match="does not physically exist"):
@@ -111,7 +111,7 @@ def test_data_context_missing_binding_warning():
 
 
 def test_generic_binder_reactive_checks():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat)
     surface.data_model.set("/score", 50)
 
@@ -151,7 +151,7 @@ def test_generic_binder_reactive_checks():
 def test_data_context_relative_scoping():
     data_model = DataModel()
     data_model.set("/users/0/name", "Alice")
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat, data_model=data_model)
 
     root_ctx = DataContext(surface, path="/")
@@ -162,7 +162,7 @@ def test_data_context_relative_scoping():
 
 def test_resolve_dynamic_values():
     data_model = DataModel({"user": {"name": "Bob", "age": 25}})
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat, data_model=data_model)
     ctx = DataContext(surface, path="/")
 
@@ -188,7 +188,7 @@ def test_string_interpolation_format_string():
     from a2ui.core.basic_catalog import BasicCatalog
 
     data_model = DataModel({"user": {"name": "Charlie"}})
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat, data_model=data_model)
     ctx = DataContext(surface, path="/")
 
@@ -203,7 +203,7 @@ def test_string_interpolation_with_escapes():
     from a2ui.core.basic_catalog import BasicCatalog
 
     data_model = DataModel({"user": {"name": "Charlie"}})
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat, data_model=data_model)
     ctx = DataContext(surface, path="/")
 
@@ -218,7 +218,7 @@ def test_string_interpolation_with_escapes():
 
 
 def test_generic_binder_reactive_property_changes():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     data_model = DataModel({"item": {"title": "Original"}})
     comp = ComponentModel("text_1", "Text", cat, {"text": {"path": "item/title"}})
     surface = SurfaceModel("s1", cat, data_model=data_model)
@@ -236,7 +236,7 @@ def test_generic_binder_reactive_property_changes():
 
 
 def test_generic_binder_checks_validation():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     data_model = DataModel({"checkbox_state": False})
     comp = ComponentModel(
         "btn_1",
@@ -249,7 +249,7 @@ def test_generic_binder_checks_validation():
             }]
         },
     )
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat, data_model=data_model)
     ctx = DataContext(surface, path="/")
     context = ComponentContext(comp, ctx)
@@ -447,7 +447,7 @@ def test_subscribe_dynamic_value_streaming_function():
 def test_data_context_expression_error_dispatching():
     errors: list[dict[str, Any]] = []
 
-    class FailingCatalog(BasicCatalog):
+    class FailingCatalog(v0_9.BasicCatalog):
 
         def get_function(self, name: str) -> Any:
             if name == "buggy_fn":
@@ -470,7 +470,7 @@ def test_data_context_expression_error_dispatching():
 
 def test_data_context_catalog_and_missing_function_error_dispatch():
     errors: list[dict[str, Any]] = []
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat)
     surface.on_error.subscribe(lambda err: errors.append(err))
     ctx = DataContext(surface, path="/")
@@ -495,7 +495,7 @@ def test_data_context_catalog_and_missing_function_error_dispatch():
     assert "Catalog not found" in errors[1]["message"]
 
     # 3. Function missing in catalog implementation
-    class MissingFnCatalog(BasicCatalog):
+    class MissingFnCatalog(v0_9.BasicCatalog):
 
         def get_function(self, name: str) -> Any:
             return None
@@ -515,7 +515,7 @@ def test_data_context_catalog_and_missing_function_error_dispatch():
 
 
 def test_generic_binder_two_way_setters():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     data_model = DataModel({"form": {"firstName": "Alice"}})
     comp = ComponentModel(
         "input_1",
@@ -547,7 +547,7 @@ def test_generic_binder_two_way_setters():
 
 
 def test_generic_binder_action_closure():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     data_model = DataModel({"user": {"id": "u123", "role": "admin"}})
     comp = ComponentModel(
         "btn_submit",
@@ -590,7 +590,7 @@ def test_generic_binder_action_closure():
 
 
 def test_generic_binder_action_closure_returns_dispatch_result():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     comp = ComponentModel(
         "btn_submit",
         "Button",
@@ -631,7 +631,7 @@ def test_generic_binder_function_call_action_closure():
         schema={"type": "object", "properties": {"orderId": {"type": "string"}}},
         return_type="string",
     )
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     cat.functions["submitOrder"] = func_impl
     data_model = DataModel({"order": {"id": "ORD-123"}})
     comp = ComponentModel(
@@ -688,7 +688,7 @@ def test_generic_binder_unwrapped_call_action_closure():
         schema={"type": "object", "properties": {"orderId": {"type": "string"}}},
         return_type="string",
     )
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     cat.functions["submitDirect"] = func_impl
     data_model = DataModel({"order": {"id": "ORD-456"}})
     comp = ComponentModel(
@@ -727,7 +727,7 @@ def test_generic_binder_unwrapped_call_action_closure():
 
 
 def test_generic_binder_direct_name_action_with_user_message():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     data_model = DataModel({"msg": "Feedback submitted"})
     comp = ComponentModel(
         "btn_feedback",
@@ -764,7 +764,7 @@ def test_generic_binder_direct_name_action_with_user_message():
 
 
 def test_generic_binder_schema_driven_custom_checkable_property():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     data_model = DataModel({"username": ""})
     comp = ComponentModel(
         "username_input",
@@ -807,7 +807,7 @@ def test_generic_binder_schema_driven_custom_checkable_property():
 
 
 def test_generic_binder_empty_key_property_does_not_crash_setter_generation():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     data_model = DataModel()
     comp = ComponentModel(
         "comp_empty_key",
@@ -826,7 +826,7 @@ def test_generic_binder_empty_key_property_does_not_crash_setter_generation():
 
 
 def test_generic_binder_nested_checkable_does_not_pollute_root_props():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     data_model = DataModel({"form": {"field": "valid"}})
     comp = ComponentModel(
         "nested_form",
@@ -865,7 +865,7 @@ def test_generic_binder_nested_checkable_does_not_pollute_root_props():
 
 
 def test_generic_binder_nested_list_dynamic_update():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     data_model = DataModel({"items": ["initial"]})
     comp = ComponentModel(
         "list_comp",
@@ -887,7 +887,7 @@ def test_generic_binder_nested_list_dynamic_update():
 
 
 def test_data_context_resolve_action_resolves_user_message():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     data_model = DataModel({"inputMsg": "Hello Agent"})
     surface = SurfaceModel("s1", cat, data_model=data_model)
     ctx = DataContext(surface, path="/")
@@ -913,7 +913,7 @@ def test_data_context_resolve_action_resolves_user_message():
 
 
 def test_data_context_deduplicated_on_warning_and_warnings_warn():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat)
     surface_warnings: list[dict[str, Any]] = []
     surface.on_warning.subscribe(lambda w: surface_warnings.append(w))
@@ -944,7 +944,7 @@ def test_data_context_deduplicated_on_warning_and_warnings_warn():
 def test_data_context_max_function_call_args_limit():
     from a2ui.core.validation.payload_validator import MAX_FUNCTION_CALL_ARGS
 
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat)
     errors: list[dict[str, Any]] = []
     surface.on_error.subscribe(lambda e: errors.append(e))
@@ -961,7 +961,7 @@ def test_data_context_execute_function_exceeds_max_args():
     from a2ui.core.exceptions import A2uiExpressionError
     from a2ui.core.validation.payload_validator import MAX_FUNCTION_CALL_ARGS
 
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", cat)
     ctx = DataContext(surface, path="/")
 
@@ -983,3 +983,86 @@ def test_data_context_execute_function_exceeds_max_args():
         A2uiExpressionError, match="exceeds maximum allowed arguments count"
     ):
         ctx._execute_function("dummy_fn", oversized_args)
+
+
+def test_generic_binder_v10_literal_path_no_setter():
+    # In v1.0, {"path": "/x"} is literal data and must not get a setter writing to /x
+    from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV10
+
+    cat = BasicCatalogV10()
+    data_model = DataModel({"x": "initial"})
+    comp = ComponentModel(
+        "custom1",
+        "CustomCard",
+        cat,
+        {"details": {"path": "/x"}},
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    ctx = DataContext(surface, path="/")
+    context = ComponentContext(comp, ctx)
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "details": {"type": "object"},
+        },
+    }
+    binder = GenericBinder(context, schema=schema)
+    assert "setDetails" not in binder.current_props
+    binder.dispose()
+
+
+def test_adapt_ast_part_for_v10_preserves_arg_names():
+    from a2ui.core.basic_catalog.v1_0.function_impls import _adapt_ast_part_for_v10
+
+    part = {
+        "call": "myFunction",
+        "args": {
+            "path": "/x",
+            "nested": {"path": "/y"},
+        },
+    }
+    adapted = _adapt_ast_part_for_v10(part)
+    assert adapted == {
+        "@call": "myFunction",
+        "args": {
+            "path": "/x",
+            "nested": {"@path": "/y"},
+        },
+    }
+
+
+def test_generic_binder_binds_catalog_defined_dynamic_defs():
+    """A `$ref` to a catalog-defined dynamic def (e.g. `DynamicDate`) binds."""
+    cat = BasicCatalog("0.9")
+    data_model = DataModel({"form": {"date": {"year": 2024, "month": 5, "day": 1}}})
+    comp = ComponentModel(
+        "picker", "DatePicker", cat, {"value": {"path": "/form/date"}}
+    )
+    surface = SurfaceModel("s1", cat, data_model=data_model)
+    context = ComponentContext(comp, DataContext(surface, path="/"))
+
+    common_types = "https://a2ui.org/specification/v0_9/common_types.json"
+    date_schema = {
+        "type": "object",
+        "properties": {"value": {"$ref": "#/$defs/DynamicDate"}},
+        "$defs": {
+            "DynamicDate": {
+                "oneOf": [
+                    {"type": "object", "properties": {"year": {"type": "integer"}}},
+                    {"$ref": f"{common_types}#/$defs/DataBinding"},
+                    {
+                        "allOf": [
+                            {"$ref": f"{common_types}#/$defs/FunctionCall"},
+                            {"properties": {"returnType": {"const": "object"}}},
+                        ]
+                    },
+                ]
+            }
+        },
+    }
+    binder = GenericBinder(context, schema=date_schema)
+
+    assert binder.current_props["value"] == {"year": 2024, "month": 5, "day": 1}
+    assert callable(binder.current_props.get("setValue"))
+    binder.dispose()

@@ -19,10 +19,8 @@ import '../../parser/response_part.dart';
 import 'compiler.dart';
 import 'decompiler.dart';
 
-/// The tag that opens a direct JSON payload, which this parser does not read.
-const String _directJsonOpenTag = '<a2ui-json>';
-
-// The open tag may carry attributes, but `<a2ui-json>` is another format's.
+// The open tag may carry attributes. `<a2ui-json>` does not match, so a
+// block in another format is read as text.
 final RegExp _openTag = RegExp(r'<a2ui(?:\s[^>]*)?>', caseSensitive: false);
 final RegExp _closeTag = RegExp(r'</a2ui\s*>', caseSensitive: false);
 final RegExp _leadingFence = RegExp(r'^```[a-zA-Z-]*\s*');
@@ -33,7 +31,7 @@ final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
 class ExpressParser extends Parser {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ExpressParser(List<SchemaCatalog> catalogs)
+  ExpressParser(List<CatalogApi> catalogs)
     : _compiler = ExpressCompiler(catalogs),
       _decompiler = ExpressDecompiler(catalogs);
 
@@ -42,11 +40,8 @@ class ExpressParser extends Parser {
 
   /// Whether [content] carries an `<a2ui>` block, closed when [complete] is
   /// true.
-  ///
-  /// A direct JSON block (`<a2ui-json>`) is not Express content.
   @override
   bool hasFormatContent(String content, {bool complete = false}) {
-    if (content.contains(_directJsonOpenTag)) return false;
     final Match? open = _openTag.firstMatch(content);
     if (open == null) return false;
     return !complete || _blockEnd(content, open.end) != null;
@@ -69,18 +64,10 @@ class ExpressParser extends Parser {
   ///
   /// A close tag inside a string or a comment does not end a block. Text is
   /// trimmed and dropped when empty, and markdown fences a model wraps around
-  /// a block are removed. See `conformance/agent/express/response_parser.yaml`.
-  ///
-  /// Throws [A2uiParseError] if [content] carries a direct JSON payload.
+  /// a block are removed. Tags of another format are text. See
+  /// `conformance/agent/express/response_parser.yaml`.
   @override
   List<RawResponsePart> unwrap(String content) {
-    if (content.contains(_directJsonOpenTag)) {
-      throw A2uiParseError(
-        'The response carries a direct JSON payload ($_directJsonOpenTag); '
-        'this parser reads only the Express format.',
-        rawContent: content,
-      );
-    }
     final parts = <RawResponsePart>[];
     var i = 0;
     while (true) {

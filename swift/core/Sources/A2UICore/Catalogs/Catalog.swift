@@ -19,7 +19,7 @@ import JSONSchema
 /// `CatalogProtocol` exists primarily to support Swift existentials (e.g., `any CatalogProtocol`) in heterogeneous
 /// collections. Because ``Catalog`` is generic over its component type (`Catalog<Component>`), Swift does not
 /// allow heterogeneous arrays like `[Catalog<Component>]` when elements have different generic types
-/// (such as mixing ``Catalog<ComponentImplementation>`` with schema-only ``Catalog<AnyComponentAPI>``).
+/// (such as mixing ``Catalog<ComponentImplementation>`` with type-erased ``Catalog<AnyComponentAPI>``).
 ///
 /// By conforming ``Catalog`` to `CatalogProtocol`, framework APIs like `MessageProcessor` and `SurfaceViewModel`
 /// can accept `[any CatalogProtocol]` and erase them to ``AnyCatalog`` without requiring generic type parameters
@@ -34,7 +34,7 @@ public protocol CatalogProtocol: Sendable {
   /// Map of function name → ``FunctionImplementation``.
   var functions: [String: any FunctionImplementation] { get }
 
-  /// Converts this catalog to a schema-only representation.
+  /// Erases this catalog's components to their name and schema.
   func eraseToAnyCatalog() -> AnyCatalog
 }
 
@@ -80,7 +80,7 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
     self.themeSchema = themeSchema
   }
 
-  /// Converts this catalog to a schema-only representation.
+  /// Erases this catalog's components to their name and schema.
   public func eraseToAnyCatalog() -> Catalog<AnyComponentAPI> {
     Catalog<AnyComponentAPI>(
       id: id,
@@ -91,5 +91,9 @@ public struct Catalog<Component: ComponentAPI>: CatalogProtocol, Sendable {
   }
 }
 
-/// Convenience typealias for a schema-only catalog.
+/// A catalog whose components are erased to their name and schema.
+///
+/// Its functions keep their implementations, so this is not the schema-only `CatalogApi` of the
+/// core blueprint. Swift's ``Catalog`` is not generic over its function type, and nothing here
+/// builds a catalog without implementations, so the Swift SDK has no `CatalogApi`.
 public typealias AnyCatalog = Catalog<AnyComponentAPI>

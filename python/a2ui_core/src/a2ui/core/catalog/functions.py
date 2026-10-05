@@ -51,12 +51,30 @@ class FunctionApi:
         schema: Any = None,
         allowed_callers: AllowedCallers | None = "rendererOnly",
         requires_user_activation: bool | None = False,
+        description: str | None = None,
     ):
+        """Initializes the function API.
+
+        Args:
+            name: The function's name, which calls use as `call`.
+            return_type: The type of the function's result.
+            schema: The schema of the function's `args`, as a Pydantic model
+                class or a JSON schema.
+            allowed_callers: Who may call the function.
+            requires_user_activation: Whether a call needs a user gesture.
+            description: What the function does, published in the catalog
+                schema.
+        """
         self.name = name
         self.return_type = return_type or "any"
         self.schema = schema
         self.allowed_callers = allowed_callers or "rendererOnly"
         self.requires_user_activation = bool(requires_user_activation)
+        self.description = (
+            description
+            if description is not None
+            else getattr(self, "description", None)
+        )
 
 
 class FunctionImplementation(FunctionApi, Generic[TReturn]):
@@ -70,6 +88,7 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
         execute: Callable[[dict[str, Any], Any, Any | None], TReturn] | None = None,
         allowed_callers: AllowedCallers | None = "rendererOnly",
         requires_user_activation: bool | None = False,
+        description: str | None = None,
     ):
         super().__init__(
             name=name,
@@ -77,6 +96,7 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
             schema=schema,
             allowed_callers=allowed_callers,
             requires_user_activation=requires_user_activation,
+            description=description,
         )
         self.execute_func = execute
 
@@ -119,6 +139,7 @@ def create_function_implementation(
         execute=execute,
         allowed_callers=getattr(api, "allowed_callers", "rendererOnly"),
         requires_user_activation=getattr(api, "requires_user_activation", False),
+        description=getattr(api, "description", None),
     )
 
 

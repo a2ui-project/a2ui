@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .catalog import Catalog, is_valid_uax31_identifier
+from ..schema.agent_to_renderer_schema import (
+    get_agent_to_renderer_schema_json,
+    get_agent_to_renderer_schema_map,
+)
+from ..schema.common_types_schema import (
+    get_common_types_schema_json,
+    get_common_types_schema_map,
+)
+from .catalog import Catalog, CatalogApi, is_valid_uax31_identifier
 from .components import (
     ComponentApi,
     ComponentImplementation,
@@ -44,6 +52,7 @@ from .system_functions import (
 __all__ = [
     "AllowedCallers",
     "Catalog",
+    "CatalogApi",
     "ComponentApi",
     "ComponentImplementation",
     "ComponentRefSpec",
@@ -61,6 +70,10 @@ __all__ = [
     "build_component_ref_map",
     "create_function_implementation",
     "extract_child_refs_from_val",
+    "get_agent_to_renderer_schema_json",
+    "get_agent_to_renderer_schema_map",
+    "get_common_types_schema_json",
+    "get_common_types_schema_map",
     "is_valid_uax31_identifier",
     "system_functions_for",
 ]

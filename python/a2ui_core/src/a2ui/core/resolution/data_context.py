@@ -17,12 +17,14 @@ from __future__ import annotations
 import copy
 import inspect
 import warnings
-from typing import Any, Callable, Generic
-from ..catalog.catalog import Catalog, TComponent, TFunction
+from typing import Any, Callable, Final
+from ..catalog.catalog import CatalogApi
 from ..state.data_model import DataModel
 from ..state.surface_model import SurfaceModel
 from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS, PayloadValidator
 from ..common.events import Subscription, EventSource, Signal, AbortSignal
+from ..schema import ProtocolVersion
+from ..common.semver import is_at_least_version
 
 
 class MissingDataBindingWarning(UserWarning):
@@ -31,15 +33,56 @@ class MissingDataBindingWarning(UserWarning):
     pass
 
 
-class DataContext(Generic[TComponent, TFunction]):
+def is_single_at_key(key: str) -> bool:
+    """Checks whether a key starts with a single '@' (not doubled '@@')."""
+    return key.startswith("@") and not key.startswith("@@")
+
+
+def unescape_object_key(key: str) -> str:
+    """Unescapes a doubled '@' prefix ('@@path' -> '@path') in v1.0."""
+    return key[1:] if key.startswith("@@") else key
+
+
+RESERVED_DIRECTIVES: Final[set[str]] = {"@path", "@call"}
+
+
+def validate_reserved_directives(keys: Any, protocol_version: str | None) -> None:
+    """Validates that single-@ keys in a dynamic object are recognized directives."""
+    if not protocol_version or not is_at_least_version(
+        protocol_version, ProtocolVersion.V1_0
+    ):
+        return
+    for k in keys:
+        if is_single_at_key(k) and k not in RESERVED_DIRECTIVES:
+            from ..exceptions import A2uiErrorDetail, A2uiValidationError
+
+            msg = (
+                f"Unrecognized reserved protocol directive '{k}' in v1.0 dynamic"
+                " object. Reserved keys must be in"
+                f" {', '.join(sorted(RESERVED_DIRECTIVES))}, or escaped with prefix"
+                f" doubling (e.g. '@{k}')."
+            )
+            raise A2uiValidationError(
+                msg,
+                details=[
+                    A2uiErrorDetail(
+                        path="",
+                        code="INVALID_RESERVED_KEY",
+                        message=msg,
+                    )
+                ],
+            )
+
+
+class DataContext:
     """Headless evaluation scope for resolving A2UI dynamic bindings and expressions."""
 
     def __init__(
         self,
-        surface: SurfaceModel[TComponent, TFunction],
+        surface: SurfaceModel,
         path: str = "/",
         index: int | None = None,
-        parent: DataContext[TComponent, TFunction] | None = None,
+        parent: DataContext | None = None,
     ):
         self.surface = surface
         self.path = path if path.endswith("/") else f"{path}/"
@@ -56,6 +99,21 @@ class DataContext(Generic[TComponent, TFunction]):
             self._warned_paths = surface_warned
         else:
             self._warned_paths = set()
+        self._cached_is_v10: bool | None = None
+
+    @property
+    def is_v10(self) -> bool:
+        """Whether this context targets A2UI protocol v1.0 or newer."""
+        if self._cached_is_v10 is None:
+            proto_ver = getattr(
+                getattr(self.surface, "default_catalog", None),
+                "protocol_version",
+                None,
+            )
+            self._cached_is_v10 = bool(
+                proto_ver and is_at_least_version(proto_ver, ProtocolVersion.V1_0)
+            )
+        return self._cached_is_v10
 
     def _emit_missing_data_binding_warning(self, resolved_path: str) -> None:
         """Emits MissingDataBindingWarning and dispatches deduplicated surface warning."""
@@ -92,9 +150,7 @@ class DataContext(Generic[TComponent, TFunction]):
             ctx = ctx.parent
         return None
 
-    def nested(
-        self, relative_path: str, index: int | None = None
-    ) -> DataContext[TComponent, TFunction]:
+    def nested(self, relative_path: str, index: int | None = None) -> DataContext:
         """Creates a nested child context scope (e.g. for template item bindings)."""
         norm_rel = relative_path[1:] if relative_path.startswith("/") else relative_path
         return DataContext(
@@ -135,46 +191,67 @@ class DataContext(Generic[TComponent, TFunction]):
         if value is None:
             return None
 
-        # 1. Handle Data Path binding dictionaries: {"path": "/user/name"}
-        if (
-            isinstance(value, dict)
-            and "path" in value
-            and isinstance(value["path"], str)
-            and "componentId" not in value
-        ):
-            resolved_path = self.resolve_path(value["path"])
+        is_v10 = self.is_v10
+        proto_ver = getattr(
+            getattr(self.surface, "default_catalog", None),
+            "protocol_version",
+            None,
+        )
 
-            # Hybrid Preflight Warning Sniffer
-            if hasattr(self.data_model, "has_path") and not self.data_model.has_path(
-                resolved_path
-            ):
-                self._emit_missing_data_binding_warning(resolved_path)
-
-            return self.data_model.get(resolved_path)
-
-        # 2. Handle Function Call binding dictionaries: {"call": "formatString", "args": {...}, "catalogId": "..."}
-        if (
-            isinstance(value, dict)
-            and "call" in value
-            and isinstance(value["call"], str)
-        ):
-            from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS
-
-            func_name = value["call"]
-            raw_args = value.get("args", {})
-            cat_id = value.get("catalogId") or value.get("catalog_id")
-
-            # Check argument count limit before recursively resolving arguments
-            if isinstance(raw_args, dict) and len(raw_args) > MAX_FUNCTION_CALL_ARGS:
-                resolved_args = raw_args
-            else:
-                resolved_args = self.resolve_dynamic_value(
-                    raw_args, peek=True, abort_signal=abort_signal
-                )
-            res = self._execute_function(
-                func_name, resolved_args, catalog_id=cat_id, abort_signal=abort_signal
+        # 1. Handle Data Path binding dictionaries:
+        # In v1.0: {"@path": "/user/name"}
+        # In v0.9: {"path": "/user/name"}
+        if isinstance(value, dict) and "componentId" not in value:
+            has_path = (
+                ("@path" in value and isinstance(value["@path"], str))
+                if is_v10
+                else ("path" in value and isinstance(value["path"], str))
             )
-            return self._peek_value(res) if peek else res
+            if has_path:
+                binding_path = value["@path"] if is_v10 else value["path"]
+                resolved_path = self.resolve_path(binding_path)
+
+                # Hybrid Preflight Warning Sniffer
+                if hasattr(
+                    self.data_model, "has_path"
+                ) and not self.data_model.has_path(resolved_path):
+                    self._emit_missing_data_binding_warning(resolved_path)
+
+                return self.data_model.get(resolved_path)
+
+        # 2. Handle Function Call binding dictionaries:
+        # In v1.0: {"@call": "formatString", "args": {...}, "catalogId": "..."}
+        # In v0.9: {"call": "formatString", "args": {...}, "catalogId": "..."}
+        if isinstance(value, dict):
+            has_call = (
+                ("@call" in value and isinstance(value["@call"], str))
+                if is_v10
+                else ("call" in value and isinstance(value["call"], str))
+            )
+            if has_call:
+                from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS
+
+                func_name = value["@call"] if is_v10 else value["call"]
+                raw_args = value.get("args", {})
+                cat_id = value.get("catalogId") or value.get("catalog_id")
+
+                # Check argument count limit before recursively resolving arguments
+                if (
+                    isinstance(raw_args, dict)
+                    and len(raw_args) > MAX_FUNCTION_CALL_ARGS
+                ):
+                    resolved_args = raw_args
+                else:
+                    resolved_args = self.resolve_dynamic_value(
+                        raw_args, peek=True, abort_signal=abort_signal
+                    )
+                res = self._execute_function(
+                    func_name,
+                    resolved_args,
+                    catalog_id=cat_id,
+                    abort_signal=abort_signal,
+                )
+                return self._peek_value(res) if peek else res
 
         # 3. Recurse into lists/arrays
         if isinstance(value, list):
@@ -183,8 +260,16 @@ class DataContext(Generic[TComponent, TFunction]):
                 for item in value
             ]
 
-        # 4. Recurse into normal objects/dictionaries
+        # 4. Recurse into normal objects/dictionaries (with v1.0 escaping and validation)
         if isinstance(value, dict):
+            if is_v10:
+                validate_reserved_directives(value.keys(), proto_ver or "v1.0")
+                return {
+                    unescape_object_key(k): self.resolve_dynamic_value(
+                        v, peek=peek, abort_signal=abort_signal
+                    )
+                    for k, v in value.items()
+                }
             return {
                 k: self.resolve_dynamic_value(v, peek=peek, abort_signal=abort_signal)
                 for k, v in value.items()
@@ -223,7 +308,7 @@ class DataContext(Generic[TComponent, TFunction]):
 
         if "functionCall" in action:
             return self.resolve_dynamic_value(action["functionCall"])
-        if isinstance(action.get("call"), str):
+        if isinstance(action.get("@call"), str) or isinstance(action.get("call"), str):
             return self.resolve_dynamic_value(action)
 
         return action
@@ -235,14 +320,17 @@ class DataContext(Generic[TComponent, TFunction]):
         paths: set[str] = set()
 
         def _extract_paths(val: Any) -> None:
-            if (
-                isinstance(val, dict)
-                and "path" in val
-                and isinstance(val["path"], str)
-                and "componentId" not in val
-            ):
-                paths.add(self.resolve_path(val["path"]))
-            elif isinstance(val, dict):
+            if isinstance(val, dict) and "componentId" not in val:
+                has_path = (
+                    ("@path" in val and isinstance(val["@path"], str))
+                    if self.is_v10
+                    else ("path" in val and isinstance(val["path"], str))
+                )
+                if has_path:
+                    binding_path = val["@path"] if self.is_v10 else val["path"]
+                    paths.add(self.resolve_path(binding_path))
+                    return
+            if isinstance(val, dict):
                 for v in val.values():
                     _extract_paths(v)
             elif isinstance(val, list):
@@ -340,7 +428,7 @@ class DataContext(Generic[TComponent, TFunction]):
                     f" ({MAX_FUNCTION_CALL_ARGS})"
                 )
 
-            target_catalog: Catalog[TComponent, TFunction] | None = None
+            target_catalog: CatalogApi | None = None
             if catalog_id is not None:
                 target_catalog = self.surface.available_catalogs.get(catalog_id)
                 if not target_catalog:

@@ -24,7 +24,7 @@ class A2uiVersionCapabilities {
 
   /// Catalogs supplied inline, meaningful only when the agent advertises
   /// `acceptsInlineCatalogs`.
-  final List<SchemaCatalog> inlineCatalogs;
+  final List<CatalogApi> inlineCatalogs;
 
   A2uiVersionCapabilities({
     required this.supportedCatalogIds,
@@ -74,7 +74,7 @@ class A2uiVersionCapabilities {
         'supportedCatalogIds': supportedCatalogIds,
         if (inlineCatalogs.isNotEmpty)
           'inlineCatalogs': [
-            for (final SchemaCatalog catalog in inlineCatalogs)
+            for (final CatalogApi catalog in inlineCatalogs)
               catalog.catalogSchema,
           ],
       };
@@ -108,7 +108,7 @@ class A2uiRendererCapabilities {
   /// A renderer that supports catalogs by id only, for one protocol version.
   factory A2uiRendererCapabilities.forCatalogIds(
     List<String> supportedCatalogIds, {
-    List<SchemaCatalog> inlineCatalogs = const [],
+    List<CatalogApi> inlineCatalogs = const [],
     A2uiProtocolVersion version = A2uiProtocolVersion.v0_9,
   }) =>
       A2uiRendererCapabilities(

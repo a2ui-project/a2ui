@@ -32,6 +32,14 @@ public final class NodeResolver: Sendable {
   public let componentsModel: SurfaceComponentsModel
   public let dataModel: DataModel
   public weak var actionHandler: (any ActionHandling)?
+  public let protocolVersion: String?
+
+  public var isV10: Bool {
+    guard let version = protocolVersion else { return false }
+    let core = version.hasPrefix("v") ? String(version.dropFirst()) : version
+    guard let major = Int(core.split(separator: ".").first ?? "") else { return false }
+    return major >= 1
+  }
 
   /// The primary default catalog associated with this resolver.
   public var catalog: AnyCatalog {
@@ -49,7 +57,8 @@ public final class NodeResolver: Sendable {
     defaultCatalogID: String? = nil,
     componentsModel: SurfaceComponentsModel? = nil,
     dataModel: DataModel? = nil,
-    actionHandler: (any ActionHandling)? = nil
+    actionHandler: (any ActionHandling)? = nil,
+    protocolVersion: String? = nil
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
@@ -57,11 +66,13 @@ public final class NodeResolver: Sendable {
     self.componentsModel = componentsModel ?? SurfaceComponentsModel()
     self.dataModel = dataModel ?? DataModel()
     self.actionHandler = actionHandler
+    self.protocolVersion = protocolVersion
   }
 
   public convenience init(
     surface: SurfaceViewModel,
-    actionHandler: (any ActionHandling)? = nil
+    actionHandler: (any ActionHandling)? = nil,
+    protocolVersion: String? = nil
   ) {
     self.init(
       surfaceID: surface.surfaceID,
@@ -69,7 +80,8 @@ public final class NodeResolver: Sendable {
       defaultCatalogID: surface.defaultCatalogID,
       componentsModel: surface.componentsModel,
       dataModel: surface.dataModel,
-      actionHandler: actionHandler ?? surface.actionHandler
+      actionHandler: actionHandler ?? surface.actionHandler,
+      protocolVersion: protocolVersion ?? surface.protocolVersion
     )
   }
 
@@ -79,7 +91,8 @@ public final class NodeResolver: Sendable {
     defaultCatalogID: String? = nil,
     componentsModel: SurfaceComponentsModel? = nil,
     dataModel: DataModel? = nil,
-    actionHandler: (any ActionHandling)? = nil
+    actionHandler: (any ActionHandling)? = nil,
+    protocolVersion: String? = nil
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
     let dict = Dictionary(anyCatalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
@@ -89,7 +102,8 @@ public final class NodeResolver: Sendable {
       defaultCatalogID: defaultCatalogID ?? catalogs.first?.id,
       componentsModel: componentsModel,
       dataModel: dataModel,
-      actionHandler: actionHandler
+      actionHandler: actionHandler,
+      protocolVersion: protocolVersion
     )
   }
 
@@ -409,7 +423,10 @@ public final class NodeResolver: Sendable {
             let nestedPropSchema = objProps[k] ?? .boolean(true)
             let classified = classifySchema(nestedPropSchema)
             let nestedPropType: PropertyType
-            if classified == .standard, v.objectValue?["path"] != nil {
+            let bindingKey = isV10 ? "@path" : "path"
+            if classified == .standard,
+              v.objectValue?[bindingKey] != nil
+            {
               nestedPropType = .dynamicValue
             } else {
               nestedPropType = classified
@@ -453,7 +470,8 @@ public final class NodeResolver: Sendable {
     let context = DataContext(
       dataModel: dataModel,
       path: basePath ?? "",
-      functionHandler: self
+      functionHandler: self,
+      protocolVersion: protocolVersion
     )
     return context.resolveDynamicValue(value)
   }
@@ -490,7 +508,10 @@ public final class NodeResolver: Sendable {
     basePath: String?,
     data: JSONValue
   ) -> DataBinding<Bool> {
-    if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
+    let bindingKey = isV10 ? "@path" : "path"
+    if let dict = value.dictionaryValue,
+      let pathStr = dict[bindingKey]?.stringValue
+    {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
       let resolvedValue = data[absPath]?.boolValue
       return DataBinding<Bool>(
@@ -514,7 +535,10 @@ public final class NodeResolver: Sendable {
     basePath: String?,
     data: JSONValue
   ) -> DataBinding<String> {
-    if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
+    let bindingKey = isV10 ? "@path" : "path"
+    if let dict = value.dictionaryValue,
+      let pathStr = dict[bindingKey]?.stringValue
+    {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
       let resolvedValue = coerceToString(data[absPath])
       return DataBinding<String>(
@@ -539,7 +563,10 @@ public final class NodeResolver: Sendable {
     basePath: String?,
     data: JSONValue
   ) -> DataBinding<Double> {
-    if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
+    let bindingKey = isV10 ? "@path" : "path"
+    if let dict = value.dictionaryValue,
+      let pathStr = dict[bindingKey]?.stringValue
+    {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
       let resolvedValue = data[absPath]?.doubleValue
       return DataBinding<Double>(
@@ -563,7 +590,10 @@ public final class NodeResolver: Sendable {
     basePath: String?,
     data: JSONValue
   ) -> DataBinding<JSONValue> {
-    if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
+    let bindingKey = isV10 ? "@path" : "path"
+    if let dict = value.dictionaryValue,
+      let pathStr = dict[bindingKey]?.stringValue
+    {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
       let resolvedValue = data[absPath]
       return DataBinding<JSONValue>(
@@ -587,7 +617,10 @@ public final class NodeResolver: Sendable {
     basePath: String?,
     data: JSONValue
   ) -> DataBinding<[String]> {
-    if let dict = value.dictionaryValue, let pathStr = dict["path"]?.stringValue {
+    let bindingKey = isV10 ? "@path" : "path"
+    if let dict = value.dictionaryValue,
+      let pathStr = dict[bindingKey]?.stringValue
+    {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
       let resolvedValue = data[absPath]?.arrayValue?.compactMap { self.coerceToString($0) }
       return DataBinding<[String]>(

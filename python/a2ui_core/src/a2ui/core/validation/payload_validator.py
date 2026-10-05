@@ -12,26 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
+import copy
 from typing import (
     Any,
     Final,
-    Generic,
     Type,
-    cast,
 )
 
-import copy
-from pydantic import BaseModel, ConfigDict, ValidationError
-from jsonschema import Draft202012Validator
 import jsonschema.exceptions
+from pydantic import BaseModel, ConfigDict, ValidationError
 import referencing.exceptions
-from ..exceptions import A2uiValidationError, A2uiErrorDetail, A2uiCatalogError
+
 from ..catalog import system_functions_for
-from ..catalog.catalog import Catalog, TComponent, TFunction
-from ..processing.format_pydantic_error import format_validation_error
-from ..schema import ProtocolVersion
+from ..catalog.catalog import CatalogApi
 from ..common.semver import is_at_least_version
 from ..common.uax31 import is_valid_uax31_identifier
+from ..exceptions import A2uiCatalogError, A2uiErrorDetail, A2uiValidationError
+from ..processing.format_pydantic_error import format_validation_error
+from ..schema import ProtocolVersion
+from .schema_validator import SchemaValidator
 
 
 class ValidationConfig(BaseModel):
@@ -82,15 +83,28 @@ def _schema_has_property(schema: Any, prop_name: str) -> bool:
     return False
 
 
-class PayloadValidator(Generic[TComponent, TFunction]):
+def _is_unknown_property_error(err: jsonschema.exceptions.ValidationError) -> bool:
+    """Returns whether a schema error reports an unknown property.
+
+    Those are the errors that `allow_unknown_elements` tolerates. A key
+    rejected by `patternProperties` (e.g. an `Extensions` key that is not a
+    UAX #31 identifier) breaks a key format rather than naming an unknown
+    property, so it is not one of them.
+    """
+    if err.validator not in ("additionalProperties", "unevaluatedProperties"):
+        return False
+    return not (isinstance(err.schema, dict) and "patternProperties" in err.schema)
+
+
+class PayloadValidator:
     """Validates A2UI payloads against catalog JSON schema definitions."""
 
     def __init__(
         self,
-        catalog: Catalog[TComponent, TFunction],
+        catalog: CatalogApi,
         config: ValidationConfig | None = None,
     ) -> None:
-        self.catalog: Catalog[TComponent, TFunction] = catalog
+        self.catalog: CatalogApi = catalog
         self.config = config
 
     def validate_component(
@@ -259,7 +273,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             if "components" in base_schema and "components" not in full_schema:
                 full_schema["components"] = base_schema["components"]
         try:
-            validator = Draft202012Validator(full_schema)
+            validator = SchemaValidator(full_schema)
             props = dict(comp)
             req_fields = (
                 validator.schema.get("required", [])
@@ -279,7 +293,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             schema_errors = sorted(validator.iter_errors(props), key=lambda e: e.path)
             for err in schema_errors:
                 err_code = self._map_json_schema_error_code(err.validator)
-                if allow_unknown and err_code == "extra_field":
+                if allow_unknown and _is_unknown_property_error(err):
                     continue
                 path_str = ".".join(str(p) for p in err.path)
                 errors.append(
@@ -313,8 +327,27 @@ class PayloadValidator(Generic[TComponent, TFunction]):
         is scoped to a single catalog, and the call is checked at resolution time
         against the catalog that actually runs it.
         """
+        ver = getattr(self.catalog, "protocol_version", None)
+        is_v10 = bool(ver and is_at_least_version(ver, ProtocolVersion.V1_0))
         if isinstance(val, dict):
-            fn_name = val.get("call") or val.get("function")
+            if is_v10:
+                from ..resolution.data_context import validate_reserved_directives
+
+                try:
+                    validate_reserved_directives(val.keys(), ver)
+                except A2uiValidationError as e:
+                    errors.append(
+                        A2uiErrorDetail(
+                            path=f"components.{comp_id}.{path}"
+                            if path
+                            else f"components.{comp_id}",
+                            code=getattr(e, "code", "INVALID_RESERVED_KEY"),
+                            message=str(e),
+                        )
+                    )
+                fn_name = val.get("@call")
+            else:
+                fn_name = val.get("call") or val.get("function")
             cat_id = val.get("catalogId")
             targets_this_catalog = not cat_id or cat_id == getattr(
                 self.catalog, "catalog_id", None
@@ -629,14 +662,14 @@ class PayloadValidator(Generic[TComponent, TFunction]):
             return validated_args
 
         try:
-            fn_validator = Draft202012Validator(param_schema)
+            fn_validator = SchemaValidator(param_schema)
             schema_errors = sorted(
                 fn_validator.iter_errors(args or {}), key=lambda e: e.path
             )
             errors = []
             for err in schema_errors:
                 err_code = self._map_json_schema_error_code(err.validator)
-                if allow_unknown and err_code == "extra_field":
+                if allow_unknown and _is_unknown_property_error(err):
                     continue
                 path_str = ".".join(str(p) for p in err.path)
                 errors.append(
@@ -710,7 +743,7 @@ class PayloadValidator(Generic[TComponent, TFunction]):
                 ):
                     full_theme_schema["components"] = base_schema["components"]
             try:
-                theme_validator = Draft202012Validator(full_theme_schema)
+                theme_validator = SchemaValidator(full_theme_schema)
                 schema_errors = sorted(
                     theme_validator.iter_errors(theme), key=lambda e: e.path
                 )

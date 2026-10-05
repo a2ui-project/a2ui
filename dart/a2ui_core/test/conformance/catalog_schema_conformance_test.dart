@@ -47,6 +47,14 @@ String? _skipReason(Map<String, Object?> testCase) {
   if (version != null && version != '0.9' && version != '0.9.1') {
     return 'Targets protocol v$version; this SDK implements v0.9 only.';
   }
+<<<<<<< HEAD
+=======
+  if (testCase.containsKey('expectCatalog') ||
+      testCase['useBasicCatalog'] == true) {
+    return 'expectCatalog checks the SDK implementation of the basic '
+        'catalog against the specification.';
+  }
+>>>>>>> upstream/main
   return null;
 }
 
@@ -65,7 +73,10 @@ void _runCase(Map<String, Object?> testCase) {
 void _runFromJsonCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final Map<String, Object?> rawCatalog = _document(
-    testCase['catalogSchema'] ?? testCase['catalog'] ?? testCase['schema'],
+    testCase['catalogSchema'] ??
+        testCase['catalog'] ??
+        testCase['schema'] ??
+        testCase['catalogPath'],
   );
   final overrideId = testCase['catalogId'] as String?;
   final input = <String, Object?>{
@@ -83,7 +94,7 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
     return;
   }
 
-  final SchemaCatalog catalog = Catalog.fromJson(input);
+  final CatalogApi catalog = Catalog.fromJson(input);
   final Map<String, Object?> expected =
       (testCase['expect'] as Map<String, Object?>?) ?? const {};
 
@@ -121,7 +132,7 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
 }
 
 void _runCatalogSchemaCase(Map<String, Object?> testCase) {
-  final SchemaCatalog catalog;
+  final CatalogApi catalog;
   if (testCase['useBasicCatalog'] == true) {
     final String basicCatalogPath = resolveConformancePath(
       '../specification/v0_9_1/catalogs/basic/catalog.json',
@@ -132,7 +143,10 @@ void _runCatalogSchemaCase(Map<String, Object?> testCase) {
     );
   } else {
     final Map<String, Object?> source = _document(
-      testCase['catalogSchema'] ?? testCase['catalog'] ?? testCase['schema'],
+      testCase['catalogSchema'] ??
+          testCase['catalog'] ??
+          testCase['schema'] ??
+          testCase['catalogPath'],
     );
     catalog = Catalog.fromJson(source);
   }

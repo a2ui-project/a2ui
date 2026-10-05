@@ -20,20 +20,27 @@ import 'syntax.dart';
 /// The surface a block writes to when it names none with `surface(...)`.
 const String defaultSurfaceId = 'default_surface';
 
+/// The message a check written without one carries, such as `Required check
+/// failed.` for `?required`.
+String defaultCheckMessage(String check) =>
+    '${check.substring(0, 1).toUpperCase()}${check.substring(1)} check failed.';
+
 /// Compiles Express blocks into v0.9 A2UI messages.
 ///
 /// The rules follow `conformance/agent/express/compiler.yaml`, with the
 /// messages shaped for v0.9: a surface is created by `createSurface` followed
-/// by `updateComponents`, and its initial data by `updateDataModel`.
+/// by `updateComponents`, and its initial data by `updateDataModel`. A block
+/// that assigns components but no `root` updates a surface created by an
+/// earlier response, so it compiles to `updateComponents` alone.
 class ExpressCompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
   ExpressCompiler(this.catalogs);
 
-  final List<SchemaCatalog> catalogs;
+  final List<CatalogApi> catalogs;
 
   late final Map<String, CatalogSchemaHelper> _helpers = {
-    for (final SchemaCatalog catalog in catalogs)
+    for (final CatalogApi catalog in catalogs)
       catalog.id: CatalogSchemaHelper(catalog),
   };
 
@@ -234,11 +241,14 @@ class _SurfaceCompiler {
     final bool hasComponents = surface.symbols.values.any(
       (node) => node is CallNode && helper.isComponent(node.name),
     );
-    if (!surface.symbols.containsKey('root')) {
-      if (surface.data.isNotEmpty && !hasComponents) return [dataUpdate];
+    // Assigning `root` creates the surface. Components without it update a
+    // surface created by an earlier response.
+    final bool creates = surface.symbols.containsKey('root');
+    if (!creates && !hasComponents) {
+      if (surface.data.isNotEmpty) return [dataUpdate];
       throw A2uiValidationError(
-        "Surface '$surfaceId' has no 'root'. Assign the top component to "
-        "'root', such as 'root = Column([...])'.",
+        "Surface '$surfaceId' has no components and no data. Assign the top "
+        "component to 'root', such as 'root = Column([...])'.",
       );
     }
 
@@ -257,10 +267,11 @@ class _SurfaceCompiler {
     components.forEach(helper.validator.validateComponent);
 
     return [
-      _envelope('createSurface', {
-        'surfaceId': surfaceId,
-        'catalogId': _catalogId,
-      }),
+      if (creates)
+        _envelope('createSurface', {
+          'surfaceId': surfaceId,
+          'catalogId': _catalogId,
+        }),
       _envelope('updateComponents', {
         'surfaceId': surfaceId,
         'components': components,
@@ -380,13 +391,9 @@ class _SurfaceCompiler {
       check,
       context,
     );
-    final String name = check.name;
     return {
       'condition': condition,
-      'message':
-          message ??
-          '${name.substring(0, 1).toUpperCase()}${name.substring(1)} check '
-              'failed.',
+      'message': message ?? defaultCheckMessage(check.name),
     };
   }
 

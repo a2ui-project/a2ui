@@ -26,6 +26,7 @@ import {computed, isSignal, getValue, Signal} from '../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../catalog/types.js';
 import {A2uiExpressionError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
+import {isAtLeastVersion} from './semver.js';
 
 /**
  * Default BCP 47 locale used when a catalog is built without an explicit one.
@@ -329,17 +330,42 @@ export function getPluralRules(locale: string): Intl.PluralRules {
 
 /** Evaluates logical AND across an array of values. */
 export function executeAnd(values: unknown[]): boolean {
-  return Array.isArray(values) ? values.every(v => !!v) : false;
+  if (!Array.isArray(values) || values.length < 2) {
+    throw new A2uiExpressionError('and requires at least 2 values', 'and');
+  }
+  return values.every(v => !!v);
 }
 
 /** Evaluates logical OR across an array of values. */
 export function executeOr(values: unknown[]): boolean {
-  return Array.isArray(values) ? values.some(v => !!v) : false;
+  if (!Array.isArray(values) || values.length < 2) {
+    throw new A2uiExpressionError('or requires at least 2 values', 'or');
+  }
+  return values.some(v => !!v);
 }
 
 /** Evaluates logical NOT on a single value. */
 export function executeNot(value: unknown): boolean {
   return !value;
+}
+
+function adaptAstPartForV10(part: any): any {
+  if (typeof part !== 'object' || part === null || Array.isArray(part)) {
+    return part;
+  }
+  if ('path' in part && typeof part.path === 'string' && !('@path' in part)) {
+    return {'@path': part.path};
+  }
+  if ('call' in part && typeof part.call === 'string' && !('@call' in part)) {
+    const args: Record<string, unknown> = {};
+    if (part.args && typeof part.args === 'object') {
+      for (const [k, v] of Object.entries(part.args)) {
+        args[k] = adaptAstPartForV10(v);
+      }
+    }
+    return {'@call': part.call, args, returnType: part.returnType};
+  }
+  return part;
 }
 
 /** Formats a template string by resolving embedded expressions. */
@@ -352,11 +378,13 @@ export function executeFormatString(
 
   if (parts.length === 0) return '';
 
+  const isV10 = isAtLeastVersion(context.surface?.defaultCatalog?.protocolVersion, '1.0');
   const dynamicParts = parts.map(part => {
     if (typeof part !== 'object' || part === null || Array.isArray(part)) {
       return part;
     }
-    return context.resolveSignal(part);
+    const adapted = isV10 ? adaptAstPartForV10(part) : part;
+    return context.resolveSignal(adapted);
   });
 
   return computed(() => {
@@ -482,10 +510,10 @@ export function executePluralize(
 /** Opens a specified URL in a new browser tab. */
 export function executeOpenUrl(urlInput: unknown): void {
   const target = typeof urlInput === 'string' ? urlInput : undefined;
-  if (!target || typeof window === 'undefined' || !window.open) return;
+  if (!target || typeof window === 'undefined' || typeof window['open'] !== 'function') return;
 
   const baseHref =
-    typeof window.location !== 'undefined' && window.location.href
+    typeof window !== 'undefined' && typeof window.location !== 'undefined' && window.location.href
       ? window.location.href
       : undefined;
 
@@ -496,7 +524,12 @@ export function executeOpenUrl(urlInput: unknown): void {
     throw new A2uiExpressionError(`Invalid URL specified: ${target}`, 'openUrl', e);
   }
 
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+  if (
+    url.protocol !== 'https:' &&
+    url.protocol !== 'http:' &&
+    url.protocol !== 'mailto:' &&
+    url.protocol !== 'tel:'
+  ) {
     throw new A2uiExpressionError(`Unsupported URL scheme: ${url.protocol}`, 'openUrl');
   }
 
