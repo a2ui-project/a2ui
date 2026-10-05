@@ -34,28 +34,28 @@
           "id": "confirm_title",
           "component": "Text",
           "text": {
-            "path": "/title"
+            "@path": "/title"
           }
         },
         {
           "id": "confirm_image",
           "component": "Image",
           "url": {
-            "path": "/imageUrl"
+            "@path": "/imageUrl"
           }
         },
         {
           "id": "confirm_details",
           "component": "Text",
           "text": {
-            "path": "/bookingDetails"
+            "@path": "/bookingDetails"
           }
         },
         {
           "id": "confirm_dietary",
           "component": "Text",
           "text": {
-            "path": "/dietaryRequirements"
+            "@path": "/dietaryRequirements"
           }
         },
         {

@@ -17,7 +17,8 @@
 import fs from 'fs';
 import path from 'path';
 
-import {type AgentToRendererMessage, ExpressDecompiler, type SchemaCatalog} from '@a2ui/agent';
+import {type AgentToRendererMessage, ExpressDecompiler} from '@a2ui/agent';
+import {type CatalogApi} from '@a2ui/web_core/catalog';
 
 import type {A2uiFormat} from './config.js';
 import {getPackageRootDir} from './tools.js';
@@ -38,7 +39,7 @@ export function readMessages(filePath: string): AgentToRendererMessage[] {
 /** Writes A2UI messages as a model would in the given format, wrapped in its tags. */
 export function toResponseText(
   profile: VersionProfile,
-  catalog: SchemaCatalog,
+  catalog: CatalogApi,
   format: A2uiFormat,
   messages: AgentToRendererMessage[],
 ): string {
@@ -55,7 +56,7 @@ export function toResponseText(
  */
 export function loadExamples(
   profile: VersionProfile,
-  catalog: SchemaCatalog,
+  catalog: CatalogApi,
   format: A2uiFormat,
   packageRoot: string = getPackageRootDir(),
 ): LoadedExamples {

@@ -20,7 +20,7 @@
           "id": "title_heading",
           "component": "Text",
           "text": {
-            "path": "/title"
+            "@path": "/title"
           }
         },
         {
@@ -47,7 +47,7 @@
           "component": "Image",
           "variant": "mediumFeature",
           "url": {
-            "path": "imageUrl"
+            "@path": "imageUrl"
           }
         },
         {
@@ -65,28 +65,28 @@
           "id": "template_name",
           "component": "Text",
           "text": {
-            "path": "name"
+            "@path": "name"
           }
         },
         {
           "id": "template_rating",
           "component": "Text",
           "text": {
-            "path": "rating"
+            "@path": "rating"
           }
         },
         {
           "id": "template_detail",
           "component": "Text",
           "text": {
-            "path": "detail"
+            "@path": "detail"
           }
         },
         {
           "id": "template_link",
           "component": "Text",
           "text": {
-            "path": "infoLink"
+            "@path": "infoLink"
           }
         },
         {
@@ -99,13 +99,13 @@
               "name": "book_restaurant",
               "context": {
                 "restaurantName": {
-                  "path": "name"
+                  "@path": "name"
                 },
                 "imageUrl": {
-                  "path": "imageUrl"
+                  "@path": "imageUrl"
                 },
                 "address": {
-                  "path": "address"
+                  "@path": "address"
                 }
               }
             }

@@ -28,21 +28,21 @@
           "id": "booking_title",
           "component": "Text",
           "text": {
-            "path": "/title"
+            "@path": "/title"
           }
         },
         {
           "id": "restaurant_image",
           "component": "Image",
           "url": {
-            "path": "/imageUrl"
+            "@path": "/imageUrl"
           }
         },
         {
           "id": "restaurant_address",
           "component": "Text",
           "text": {
-            "path": "/address"
+            "@path": "/address"
           }
         },
         {
@@ -50,7 +50,7 @@
           "component": "TextField",
           "label": "Party Size",
           "value": {
-            "path": "/partySize"
+            "@path": "/partySize"
           },
           "variant": "number"
         },
@@ -59,7 +59,7 @@
           "component": "DateTimeInput",
           "label": "Date & Time",
           "value": {
-            "path": "/reservationTime"
+            "@path": "/reservationTime"
           },
           "enableDate": true,
           "enableTime": true
@@ -69,7 +69,7 @@
           "component": "TextField",
           "label": "Dietary Requirements",
           "value": {
-            "path": "/dietary"
+            "@path": "/dietary"
           }
         },
         {
@@ -81,19 +81,19 @@
               "name": "submit_booking",
               "context": {
                 "restaurantName": {
-                  "path": "/restaurantName"
+                  "@path": "/restaurantName"
                 },
                 "partySize": {
-                  "path": "/partySize"
+                  "@path": "/partySize"
                 },
                 "reservationTime": {
-                  "path": "/reservationTime"
+                  "@path": "/reservationTime"
                 },
                 "dietary": {
-                  "path": "/dietary"
+                  "@path": "/dietary"
                 },
                 "imageUrl": {
-                  "path": "/imageUrl"
+                  "@path": "/imageUrl"
                 }
               }
             }

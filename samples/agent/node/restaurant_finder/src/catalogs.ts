@@ -16,13 +16,14 @@
 
 import path from 'path';
 
-import {FileSystemCatalogProvider, type SchemaCatalog} from '@a2ui/agent';
+import {FileSystemCatalogProvider} from '@a2ui/agent';
+import {type CatalogApi} from '@a2ui/web_core/catalog';
 
 import {getRepoRootDir} from './tools.js';
 import {VERSIONS, type VersionProfile} from './versions.js';
 
 /** The basic catalog of each served version, keyed by version. */
-export type BasicCatalogs = ReadonlyMap<VersionProfile['version'], SchemaCatalog>;
+export type BasicCatalogs = ReadonlyMap<VersionProfile['version'], CatalogApi>;
 
 /**
  * Loads the basic catalog of every served version from the repository.
@@ -34,7 +35,7 @@ export type BasicCatalogs = ReadonlyMap<VersionProfile['version'], SchemaCatalog
 export async function loadBasicCatalogs(
   repoRoot: string = getRepoRootDir(),
 ): Promise<BasicCatalogs> {
-  const catalogs = new Map<VersionProfile['version'], SchemaCatalog>();
+  const catalogs = new Map<VersionProfile['version'], CatalogApi>();
   for (const profile of VERSIONS) {
     const provider = new FileSystemCatalogProvider(
       path.join(repoRoot, profile.basicCatalogPath),

@@ -20,7 +20,7 @@
           "id": "title_heading",
           "component": "Text",
           "text": {
-            "path": "/title"
+            "@path": "/title"
           }
         },
         {
@@ -52,7 +52,7 @@
           "component": "Image",
           "variant": "mediumFeature",
           "url": {
-            "path": "0/imageUrl"
+            "@path": "0/imageUrl"
           }
         },
         {
@@ -69,21 +69,21 @@
           "id": "template_name_left",
           "component": "Text",
           "text": {
-            "path": "0/name"
+            "@path": "0/name"
           }
         },
         {
           "id": "template_rating_left",
           "component": "Text",
           "text": {
-            "path": "0/rating"
+            "@path": "0/rating"
           }
         },
         {
           "id": "template_detail_left",
           "component": "Text",
           "text": {
-            "path": "0/detail"
+            "@path": "0/detail"
           }
         },
         {
@@ -95,13 +95,13 @@
               "name": "book_restaurant",
               "context": {
                 "restaurantName": {
-                  "path": "0/name"
+                  "@path": "0/name"
                 },
                 "imageUrl": {
-                  "path": "0/imageUrl"
+                  "@path": "0/imageUrl"
                 },
                 "address": {
-                  "path": "0/address"
+                  "@path": "0/address"
                 }
               }
             }
@@ -127,7 +127,7 @@
           "component": "Image",
           "variant": "mediumFeature",
           "url": {
-            "path": "1/imageUrl"
+            "@path": "1/imageUrl"
           }
         },
         {
@@ -144,21 +144,21 @@
           "id": "template_name_right",
           "component": "Text",
           "text": {
-            "path": "1/name"
+            "@path": "1/name"
           }
         },
         {
           "id": "template_rating_right",
           "component": "Text",
           "text": {
-            "path": "1/rating"
+            "@path": "1/rating"
           }
         },
         {
           "id": "template_detail_right",
           "component": "Text",
           "text": {
-            "path": "1/detail"
+            "@path": "1/detail"
           }
         },
         {
@@ -170,13 +170,13 @@
               "name": "book_restaurant",
               "context": {
                 "restaurantName": {
-                  "path": "1/name"
+                  "@path": "1/name"
                 },
                 "imageUrl": {
-                  "path": "1/imageUrl"
+                  "@path": "1/imageUrl"
                 },
                 "address": {
-                  "path": "1/address"
+                  "@path": "1/address"
                 }
               }
             }
