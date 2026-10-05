@@ -211,7 +211,7 @@ class GenericBinder {
           if (value is Map) {
             final Object? fc =
                 value['functionCall'] is Map ? value['functionCall'] : value;
-            if (isFunctionCallObject(fc, v1: context.dataContext.isV10)) {
+            if (context.dataContext.isFunctionCall(fc)) {
               await _runLocalFunction(Map<String, dynamic>.from(fc as Map));
               return;
             }
@@ -552,7 +552,7 @@ class GenericBinder {
   Object? _resolveEventAction(DataContext dataContext, Object? value) {
     final Map<String, dynamic>? direct = dataContext.resolveAction(value);
     if (direct != null) return direct;
-    if (isDataBindingObject(value, v1: dataContext.isV10)) {
+    if (dataContext.isDataBinding(value)) {
       return dataContext.resolveAction(dataContext.resolveSync(value));
     }
     return null;

@@ -446,27 +446,33 @@ void main() {
       expect(v10Ctx.bindingFor('/user/name'), {'@path': '/user/name'});
     });
 
-    test('isDataBindingObject and isFunctionCallObject respect v1 flag', () {
-      expect(isDataBindingObject({'path': '/x'}, v1: false), isTrue);
-      expect(
-        isDataBindingObject({'path': '/x', 'componentId': 'row'}, v1: false),
-        isFalse,
+    test('isDataBinding and isFunctionCall follow the protocol version', () {
+      final v09Ctx = DataContext(dataModel, mockInvoker, '/');
+      final v10Ctx = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v1.0',
       );
-      expect(isDataBindingObject({'@path': '/x'}, v1: false), isFalse);
-      expect(isDataBindingObject({'path': 123}, v1: false), isFalse);
-      expect(isDataBindingObject('not a map', v1: false), isFalse);
 
-      expect(isDataBindingObject({'@path': '/x'}, v1: true), isTrue);
-      expect(isDataBindingObject({'path': '/x'}, v1: true), isFalse);
-      expect(isDataBindingObject({'@path': 123}, v1: true), isFalse);
+      expect(v09Ctx.isDataBinding({'path': '/x'}), isTrue);
+      expect(
+          v09Ctx.isDataBinding({'path': '/x', 'componentId': 'row'}), isFalse);
+      expect(v09Ctx.isDataBinding({'@path': '/x'}), isFalse);
+      expect(v09Ctx.isDataBinding({'path': 123}), isFalse);
+      expect(v09Ctx.isDataBinding('not a map'), isFalse);
 
-      expect(isFunctionCallObject({'call': 'fn'}, v1: false), isTrue);
-      expect(isFunctionCallObject({'@call': 'fn'}, v1: false), isFalse);
-      expect(isFunctionCallObject({'call': 123}, v1: false), isFalse);
+      expect(v10Ctx.isDataBinding({'@path': '/x'}), isTrue);
+      expect(v10Ctx.isDataBinding({'path': '/x'}), isFalse);
+      expect(v10Ctx.isDataBinding({'@path': 123}), isFalse);
 
-      expect(isFunctionCallObject({'@call': 'fn'}, v1: true), isTrue);
-      expect(isFunctionCallObject({'call': 'fn'}, v1: true), isFalse);
-      expect(isFunctionCallObject({'@call': 123}, v1: true), isFalse);
+      expect(v09Ctx.isFunctionCall({'call': 'fn'}), isTrue);
+      expect(v09Ctx.isFunctionCall({'@call': 'fn'}), isFalse);
+      expect(v09Ctx.isFunctionCall({'call': 123}), isFalse);
+
+      expect(v10Ctx.isFunctionCall({'@call': 'fn'}), isTrue);
+      expect(v10Ctx.isFunctionCall({'call': 'fn'}), isFalse);
+      expect(v10Ctx.isFunctionCall({'@call': 123}), isFalse);
     });
 
     test('preserves identity of static maps in both v0.9 and v1.0', () {

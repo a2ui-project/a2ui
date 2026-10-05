@@ -14,7 +14,6 @@
 
 import 'package:meta/meta.dart';
 
-import '../core/contexts.dart';
 import '../core/messages.dart';
 import '../primitives/errors.dart';
 import 'component_refs.dart';
@@ -171,6 +170,20 @@ void checkComponentTopology(
   }
 }
 
+/// Whether [value] is a data-binding object in the v1.0 (`@path`) or legacy
+/// (`path` without a `componentId` sibling) shape.
+///
+/// Mirrors `DataContext.isDataBinding`, which needs a context; this check
+/// runs on a raw message before any surface or context exists.
+bool _isDataBinding(Map<Object?, Object?> value, {required bool v1}) => v1
+    ? value['@path'] is String
+    : value['path'] is String && !value.containsKey('componentId');
+
+/// Whether [value] is a function-call object in the v1.0 (`@call`) or legacy
+/// (`call`) shape. See [_isDataBinding].
+bool _isFunctionCall(Map<Object?, Object?> value, {required bool v1}) =>
+    v1 ? value['@call'] is String : value['call'] is String;
+
 /// Checks data-model paths and nesting depth anywhere inside a message body.
 ///
 /// Throws [A2uiValidationError] for a malformed path and [A2uiRecursionError]
@@ -228,7 +241,7 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
       return;
     }
 
-    final Object? path = isDataBindingObject(object, v1: isV1)
+    final Object? path = _isDataBinding(object, v1: isV1)
         ? object[isV1 ? '@path' : 'path']
         : (object['path'] is String && object['componentId'] is String
             ? object['path']
@@ -240,7 +253,7 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
       );
     }
 
-    if (isFunctionCallObject(object, v1: isV1)) {
+    if (_isFunctionCall(object, v1: isV1)) {
       if (callDepth >= maxFunctionCallDepth) {
         throw A2uiRecursionError(
           'Recursion limit exceeded: functionCall depth > '

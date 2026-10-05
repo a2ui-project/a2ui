@@ -31,27 +31,6 @@ typedef FunctionInvoker = Object? Function(
 /// Reports a failed function evaluation without depending on a surface.
 typedef ExpressionErrorReporter = void Function(A2uiExpressionError error);
 
-/// Whether [value] is a data-binding object for the active protocol mode.
-///
-/// In v1.0 (`[v1] == true`), data bindings use `{'@path': '<pointer>'}`.
-/// In pre-v1.0 (`[v1] == false`), data bindings use `{'path': '<pointer>'}`
-/// without a `'componentId'` sibling (which identifies a `ChildListTemplate`).
-bool isDataBindingObject(Object? value, {required bool v1}) {
-  if (value is! Map) return false;
-  return v1
-      ? value['@path'] is String
-      : value['path'] is String && !value.containsKey('componentId');
-}
-
-/// Whether [value] is a function-call object for the active protocol mode.
-///
-/// In v1.0 (`[v1] == true`), function calls use `{'@call': '<name>', ...}`.
-/// In pre-v1.0 (`[v1] == false`), function calls use `{'call': '<name>', ...}`.
-bool isFunctionCallObject(Object? value, {required bool v1}) {
-  if (value is! Map) return false;
-  return v1 ? value['@call'] is String : value['call'] is String;
-}
-
 /// Provides data access relative to a specific path in the DataModel.
 ///
 /// Similar to a working directory: a DataContext scoped to `/users/0`
@@ -88,6 +67,29 @@ class DataContext {
   Map<String, Object?> bindingFor(String path) => isV10
       ? <String, Object?>{'@path': path}
       : <String, Object?>{'path': path};
+
+  /// Whether [value] is a data-binding object under this context's protocol
+  /// version.
+  ///
+  /// From v1.0, a data binding is `{'@path': '<pointer>'}`. Before v1.0 it is
+  /// `{'path': '<pointer>'}` without a `componentId` sibling, which would make
+  /// it a `ChildListTemplate` instead.
+  bool isDataBinding(Object? value) {
+    if (value is! Map) return false;
+    return isV10
+        ? value['@path'] is String
+        : value['path'] is String && !value.containsKey('componentId');
+  }
+
+  /// Whether [value] is a function-call object under this context's protocol
+  /// version.
+  ///
+  /// From v1.0, a function call is `{'@call': '<name>', ...}`. Before v1.0 it
+  /// is `{'call': '<name>', ...}`.
+  bool isFunctionCall(Object? value) {
+    if (value is! Map) return false;
+    return isV10 ? value['@call'] is String : value['call'] is String;
+  }
 
   static const Set<String> _reservedDirectives = {'@path', '@call'};
 
@@ -128,11 +130,11 @@ class DataContext {
   /// bindings or calls is returned as-is rather than copied.
   Object? resolveSync(Object? value) {
     if (isV10) {
-      if (isDataBindingObject(value, v1: true)) {
+      if (isDataBinding(value)) {
         final pathVal = (value as Map)['@path'] as String;
         return dataModel.get(resolvePath(pathVal));
       }
-      if (isFunctionCallObject(value, v1: true)) {
+      if (isFunctionCall(value)) {
         final call = FunctionCall.fromJson(
           Map<String, dynamic>.from(value as Map),
         );
@@ -159,11 +161,11 @@ class DataContext {
         return result;
       }
     } else {
-      if (isDataBindingObject(value, v1: false)) {
+      if (isDataBinding(value)) {
         final pathVal = (value as Map)['path'] as String;
         return dataModel.get(resolvePath(pathVal));
       }
-      if (isFunctionCallObject(value, v1: false)) {
+      if (isFunctionCall(value)) {
         final call = FunctionCall.fromJson(
           Map<String, dynamic>.from(value as Map),
         );
@@ -204,8 +206,7 @@ class DataContext {
       return value.any(_containsDynamicValue);
     }
     if (value is Map) {
-      if (isDataBindingObject(value, v1: isV10) ||
-          isFunctionCallObject(value, v1: isV10)) {
+      if (isDataBinding(value) || isFunctionCall(value)) {
         return true;
       }
       if (isV10 && value.keys.any((k) => k is String && k.startsWith('@'))) {
@@ -221,11 +222,11 @@ class DataContext {
   /// payloads resolve per entry, mirroring [resolveSync].
   ReadonlySignal<Object?> resolveListenable(Object? value) {
     if (isV10) {
-      if (isDataBindingObject(value, v1: true)) {
+      if (isDataBinding(value)) {
         final pathVal = (value as Map)['@path'] as String;
         return dataModel.watch(resolvePath(pathVal));
       }
-      if (isFunctionCallObject(value, v1: true)) {
+      if (isFunctionCall(value)) {
         final call = FunctionCall.fromJson(
           Map<String, dynamic>.from(value as Map),
         );
@@ -262,11 +263,11 @@ class DataContext {
             });
       }
     } else {
-      if (isDataBindingObject(value, v1: false)) {
+      if (isDataBinding(value)) {
         final pathVal = (value as Map)['path'] as String;
         return dataModel.watch(resolvePath(pathVal));
       }
-      if (isFunctionCallObject(value, v1: false)) {
+      if (isFunctionCall(value)) {
         final call = FunctionCall.fromJson(
           Map<String, dynamic>.from(value as Map),
         );
