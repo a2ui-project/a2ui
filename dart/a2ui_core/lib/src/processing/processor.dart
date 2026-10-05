@@ -283,7 +283,13 @@ class MessageProcessor<T extends ComponentApi> {
   void _processMessage(AgentToRendererMessage message) {
     // Data-model paths and nested function calls, which need no surface state
     // and so are checked for every message before it is applied.
-    checkPathsAndRecursion(message.toJson());
+    final String rawVersion = message.version.isNotEmpty
+        ? message.version
+        : protocolVersion.jsonValue;
+    final String core =
+        rawVersion.startsWith('v') ? rawVersion.substring(1) : rawVersion;
+    final bool isV1 = (int.tryParse(core.split('.').first) ?? 0) >= 1;
+    checkPathsAndRecursion(message, v1: isV1);
 
     if (message is CreateSurfaceMessage) {
       _processCreateSurface(message);

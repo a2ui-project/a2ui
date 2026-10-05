@@ -15,6 +15,7 @@
 import 'package:meta/meta.dart';
 
 import '../core/catalog.dart';
+import '../core/messages.dart';
 import '../primitives/errors.dart';
 import 'component_refs.dart';
 
@@ -295,12 +296,33 @@ void checkComponentTopology(
   }
 }
 
+/// Whether [value] is a data-binding object in the v1.0 (`@path`) or legacy
+/// (`path` without a `componentId` sibling) shape.
+///
+/// Mirrors `DataContext.isDataBinding`, which needs a context; this check
+/// runs on a raw message before any surface or context exists.
+bool _isDataBinding(Map<Object?, Object?> value, {required bool v1}) => v1
+    ? value['@path'] is String
+    : value['path'] is String && !value.containsKey('componentId');
+
+/// Whether [value] is a function-call object in the v1.0 (`@call`) or legacy
+/// (`call`) shape. See [_isDataBinding].
+bool _isFunctionCall(Map<Object?, Object?> value, {required bool v1}) =>
+    v1 ? value['@call'] is String : value['call'] is String;
+
 /// Checks data-model paths and nesting depth anywhere inside a message body.
 ///
 /// Throws [A2uiValidationError] for a malformed path and [A2uiRecursionError]
 /// when nesting or chained function calls run past their caps.
-void checkPathsAndRecursion(Object? data) {
-  void traverse(Object? node, int depth, int callDepth) {
+void checkPathsAndRecursion(Object? data, {bool? v1}) {
+  final bool isV1 = v1 ?? _inferV1(data);
+
+  void traverse(
+    Object? node,
+    int depth,
+    int callDepth, {
+    required bool inDataValue,
+  }) {
     if (depth > maxComponentDepth) {
       throw A2uiRecursionError(
         'Global recursion limit exceeded: Depth > $maxComponentDepth',
@@ -309,15 +331,47 @@ void checkPathsAndRecursion(Object? data) {
 
     if (node is List) {
       for (final Object? item in node) {
-        traverse(item, depth + 1, callDepth);
+        traverse(item, depth + 1, callDepth, inDataValue: inDataValue);
       }
       return;
     }
 
     if (node is! Map) return;
-    final Map<String, Object?> object = node.cast<String, Object?>();
 
-    final Object? path = object['path'];
+    if (inDataValue) {
+      for (final Object? value in node.values) {
+        traverse(value, depth + 1, callDepth, inDataValue: true);
+      }
+      return;
+    }
+
+    final Map<Object?, Object?> object = node;
+
+    final Object? udm = object['updateDataModel'];
+    if (udm is Map && (object.length == 1 || object.containsKey('version'))) {
+      final Object? udmPath = udm['path'];
+      if (udmPath is String && !_pathPattern.hasMatch(udmPath)) {
+        throw A2uiValidationError(
+          "Invalid path syntax: '$udmPath'",
+          details: udm,
+        );
+      }
+      for (final MapEntry<Object?, Object?> entry in udm.entries) {
+        traverse(
+          entry.value,
+          depth + 2,
+          callDepth,
+          inDataValue: entry.key == 'value',
+        );
+      }
+      return;
+    }
+
+    final Object? path = _isDataBinding(object, v1: isV1)
+        ? object[isV1 ? '@path' : 'path']
+        : (object['path'] is String && object['componentId'] is String
+            ? object['path']
+            : null);
     if (path is String && !_pathPattern.hasMatch(path)) {
       throw A2uiValidationError(
         "Invalid path syntax: '$path'",
@@ -325,30 +379,59 @@ void checkPathsAndRecursion(Object? data) {
       );
     }
 
-    final bool isCall = object.containsKey('call');
-    if (isCall) {
+    if (_isFunctionCall(object, v1: isV1)) {
       if (callDepth >= maxFunctionCallDepth) {
         throw A2uiRecursionError(
           'Recursion limit exceeded: functionCall depth > '
           '$maxFunctionCallDepth',
         );
       }
-      for (final MapEntry<String, Object?> entry in object.entries) {
+      for (final MapEntry<Object?, Object?> entry in object.entries) {
         traverse(
           entry.value,
           depth + 1,
           entry.key == 'args' ? callDepth + 1 : callDepth,
+          inDataValue: false,
         );
       }
       return;
     }
 
     for (final Object? value in object.values) {
-      traverse(value, depth + 1, callDepth);
+      traverse(value, depth + 1, callDepth, inDataValue: false);
     }
   }
 
-  traverse(data, 0, 0);
+  if (data is UpdateDataModelMessage) {
+    final String? udmPath = data.path;
+    if (udmPath != null && !_pathPattern.hasMatch(udmPath)) {
+      throw A2uiValidationError(
+        "Invalid path syntax: '$udmPath'",
+        details: data.toJson()['updateDataModel'],
+      );
+    }
+    traverse(data.value, 2, 0, inDataValue: true);
+    return;
+  }
+
+  if (data is AgentToRendererMessage) {
+    traverse(data.toJson(), 0, 0, inDataValue: false);
+    return;
+  }
+
+  traverse(data, 0, 0, inDataValue: false);
+}
+
+bool _inferV1(Object? data) {
+  final Object? rawVersion = switch (data) {
+    AgentToRendererMessage(:final version) => version,
+    Map() => data['version'],
+    _ => null,
+  };
+  if (rawVersion is! String) return false;
+  final String core =
+      rawVersion.startsWith('v') ? rawVersion.substring(1) : rawVersion;
+  return (int.tryParse(core.split('.').first) ?? 0) >= 1;
 }
 
 Iterable<ComponentReference> _referencesOf(

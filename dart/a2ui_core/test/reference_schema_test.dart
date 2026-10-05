@@ -422,6 +422,100 @@ void main() {
         ]);
       },
     );
+
+    group('common-types document selection', () {
+      // A minimal stand-in for the v1.0 common_types.json: `CheckRule` lists
+      // only `condition` as required and types it as a `oneOf`, unlike v0.9.
+      final v1CommonTypes = <String, Object?>{
+        r'$defs': <String, Object?>{
+          'DataBinding': <String, Object?>{'type': 'object'},
+          'FunctionCall': <String, Object?>{'type': 'object'},
+          'Checkable': <String, Object?>{
+            'type': 'object',
+            'properties': <String, Object?>{
+              'checks': <String, Object?>{
+                'type': 'array',
+                'items': <String, Object?>{r'$ref': r'#/$defs/CheckRule'},
+              },
+            },
+          },
+          'CheckRule': <String, Object?>{
+            'type': 'object',
+            'properties': <String, Object?>{
+              'condition': <String, Object?>{
+                'oneOf': <Object?>[
+                  <String, Object?>{r'$ref': r'#/$defs/DataBinding'},
+                  <String, Object?>{r'$ref': r'#/$defs/FunctionCall'},
+                ],
+              },
+              'message': <String, Object?>{'type': 'string'},
+            },
+            'required': <Object?>['condition'],
+          },
+        },
+      };
+
+      /// Resolves `common_types.json#/$defs/Checkable` through [reader] and
+      /// returns the `CheckRule` item schema it leads to.
+      Map<String, Object?> checkRuleVia(ReferenceSchemaReader reader) {
+        final List<Map<String, Object?>> checkable = reader.schemas(
+          <String, Object?>{r'$ref': r'common_types.json#/$defs/Checkable'},
+        );
+        final List<Map<String, Object?>> checks = reader.schemas(
+          reader.properties(checkable)['checks'],
+        );
+        expect(reader.isCheckable(checks), isTrue);
+        return reader
+            .schemas(reader.items(checks))
+            .firstWhere((schema) => schema.containsKey('required'));
+      }
+
+      test('defaults to the embedded v0.9 document', () {
+        final Map<String, Object?> rule =
+            checkRuleVia(ReferenceSchemaReader(<String, Object?>{}));
+        expect(rule['required'], ['condition', 'message']);
+        expect(
+          (rule['properties']! as Map)['condition'],
+          <String, Object?>{r'$ref': r'#/$defs/DynamicBoolean'},
+        );
+      });
+
+      test(
+          'resolves external and fallback pointers against an injected '
+          'document', () {
+        final reader = ReferenceSchemaReader(
+          <String, Object?>{},
+          commonTypes: v1CommonTypes,
+        );
+        final Map<String, Object?> rule = checkRuleVia(reader);
+        expect(rule['required'], ['condition']);
+        expect(
+          ((rule['properties']! as Map)['condition'] as Map)['oneOf'],
+          hasLength(2),
+        );
+      });
+
+      test(
+          'a local definition in the catalog document wins over the '
+          'injected document', () {
+        final reader = ReferenceSchemaReader(
+          <String, Object?>{},
+          document: <String, Object?>{
+            r'$defs': <String, Object?>{
+              'CheckRule': <String, Object?>{
+                'type': 'object',
+                'required': <Object?>['condition', 'local'],
+              },
+            },
+          },
+          commonTypes: v1CommonTypes,
+        );
+        final List<Map<String, Object?>> schemas = reader.schemas(
+          <String, Object?>{r'$ref': r'#/$defs/CheckRule'},
+        );
+        expect(schemas.last['required'], ['condition', 'local']);
+      });
+    });
   });
 
   group('one reference map for validation and resolution', () {

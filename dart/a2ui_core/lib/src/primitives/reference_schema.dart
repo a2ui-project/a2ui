@@ -13,6 +13,9 @@
 // limitations under the License.
 
 import 'dart:collection';
+import 'dart:convert';
+
+import '../validation/common_types.g.dart';
 
 /// How a component property names its child components.
 sealed class RefKind {
@@ -92,25 +95,41 @@ final class ComponentRefMap {
 /// Reads common-type references and schema structure without a renderer.
 ///
 /// Local pointers resolve against the component root first, then the catalog
-/// document. Wire pointers and Dart `REF:` descriptions identify the same
-/// common types. Local pointer and combinator cycles are bounded by schema-map
-/// identity; reading never fetches external documents.
+/// document, and finally the `common_types.json` document supplied by the
+/// caller (the embedded v0.9 document by default). Wire pointers and Dart
+/// `REF:` descriptions identify the same common types. Local pointer and
+/// combinator cycles are bounded by schema-map identity; reading never fetches
+/// external documents over I/O.
 class ReferenceSchemaReader {
+  static final Map<String, Object?> _defaultCommonTypes =
+      jsonDecode(commonTypesV0_9Json) as Map<String, Object?>;
+
   final Map<String, Object?> root;
   final Map<String, Object?> document;
+
+  /// The `common_types.json` document that resolves external
+  /// `common_types.json#/$defs/...` pointers and local pointers that neither
+  /// [root] nor [document] defines.
+  ///
+  /// Defaults to the embedded v0.9 document. A caller that knows the catalog's
+  /// protocol version passes the matching document, since `CheckRule` and
+  /// other shared shapes differ between versions.
+  final Map<String, Object?> commonTypes;
 
   /// Whether an unmarked object schema carrying `componentId` and `path`
   /// counts as a child list.
   final bool structuralChildLists;
 
-  const ReferenceSchemaReader(
+  ReferenceSchemaReader(
     this.root, {
     this.document = const {},
     this.structuralChildLists = true,
-  });
+    Map<String, Object?>? commonTypes,
+  }) : commonTypes = commonTypes ?? _defaultCommonTypes;
 
-  /// Flattens local indirection and schema combinators, retaining `$ref`
-  /// siblings. The component root remains in scope below nested properties.
+  /// Flattens local indirection, `common_types.json` references, and schema
+  /// combinators, retaining `$ref` siblings. The component root remains in
+  /// scope below nested properties.
   List<Map<String, Object?>> schemas(Object? schema) {
     final result = <Map<String, Object?>>[];
     final visited = HashSet<Object>.identity();
@@ -120,8 +139,16 @@ class ReferenceSchemaReader {
           value is Map<String, Object?> ? value : value.cast<String, Object?>();
       result.add(node);
       final Object? ref = node[r'$ref'];
-      if (ref is String && (ref == '#' || ref.startsWith('#/'))) {
-        collect(_follow(root, ref) ?? _follow(document, ref));
+      if (ref is String) {
+        if (ref == '#' || ref.startsWith('#/')) {
+          collect(
+            _follow(root, ref) ??
+                _follow(document, ref) ??
+                _follow(commonTypes, ref),
+          );
+        } else if (_commonTypesFragment(ref) case final String fragment) {
+          collect(_follow(commonTypes, fragment));
+        }
       }
       for (final keyword in const ['allOf', 'anyOf', 'oneOf']) {
         final Object? branches = node[keyword];
@@ -172,6 +199,20 @@ class ReferenceSchemaReader {
   /// Whether a schema references the named shared type, directly or by marker.
   bool referencesType(List<Map<String, Object?>> schemas, String name) =>
       _marks(schemas, '/\$defs/$name');
+
+  /// Whether [schemas] describes a checkable validation-rule list property.
+  bool isCheckable(List<Map<String, Object?>> schemas) {
+    if (referencesType(schemas, 'CheckRule')) return true;
+    if (referencesType(schemas, 'Checkable') &&
+        !properties(schemas).containsKey('checks')) {
+      return true;
+    }
+    final Object? itemSchema = items(schemas);
+    if (itemSchema == null) return false;
+    final List<Map<String, Object?>> itemSchemas = this.schemas(itemSchema);
+    return referencesType(itemSchemas, 'CheckRule') ||
+        itemSchemas.any(_isCheckRuleShape);
+  }
 
   /// Identifies a single id or a complete child list, not arbitrary arrays.
   ///
@@ -278,6 +319,26 @@ bool _marks(List<Map<String, Object?>> schemas, String pointer) {
     }
   }
   return false;
+}
+
+/// Extracts the `#/...` fragment when [ref] points into `common_types.json`.
+String? _commonTypesFragment(String ref) {
+  final int hash = ref.indexOf('#');
+  if (hash <= 0) return null;
+  final String doc = ref.substring(0, hash);
+  final String fragment = ref.substring(hash);
+  if (!doc.endsWith('common_types.json')) return null;
+  if (fragment != '#' && !fragment.startsWith('#/')) return null;
+  return fragment;
+}
+
+/// Recognizes a `CheckRule` item schema by its `condition` and `message`
+/// properties when defined inline (such as in `CommonSchemas.checkable`).
+bool _isCheckRuleShape(Map<String, Object?> schema) {
+  final Object? properties = schema['properties'];
+  return properties is Map &&
+      properties['condition'] != null &&
+      properties['message'] != null;
 }
 
 /// Recognizes a child-list template by its shape, for catalogs that declare

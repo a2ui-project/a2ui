@@ -28,8 +28,16 @@ export '../primitives/reference_schema.dart'
 /// point is for a schema outside a catalog, so nothing is cached: local
 /// aliases can resolve differently when the same schema is used in different
 /// catalog documents.
+///
+/// [commonTypes] is the `common_types.json` document used for external and
+/// fallback pointers; it defaults to the embedded v0.9 document.
 RefFields extractRefFields(
   Schema schema, {
   Map<String, Object?> document = const {},
+  Map<String, Object?>? commonTypes,
 }) =>
-    ReferenceSchemaReader(schema.value, document: document).fields();
+    ReferenceSchemaReader(
+      schema.value,
+      document: document,
+      commonTypes: commonTypes,
+    ).fields();

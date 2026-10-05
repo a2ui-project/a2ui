@@ -188,4 +188,42 @@ void main() {
       expect(schema.validateSync('text'), isEmpty);
     });
   });
+
+  group('CommonSchemas.functionCall', () {
+    test('returnType enum matches the v0.9 specification document', () {
+      final Map<String, Object?> document = PayloadValidator.commonTypesFor(
+        A2uiProtocolVersion.v0_9,
+      );
+      final specEnum = (((document[r'$defs']! as Map)['FunctionCall']
+          as Map)['properties'] as Map)['returnType'] as Map;
+      final dartEnum = (CommonSchemas.functionCall.value['properties']!
+          as Map)['returnType'] as Map;
+
+      expect(
+        dartEnum['enum'],
+        specEnum['enum'],
+        reason: 'CommonSchemas is the v0.9 wire shape; its returnType enum '
+            'must stay identical to the v0.9 common_types.json document.',
+      );
+    });
+
+    test('A2uiReturnType.validationResult round-trips at the API level', () {
+      expect(
+        A2uiReturnType.fromJson('validationResult'),
+        A2uiReturnType.validationResult,
+      );
+      expect(
+        A2uiReturnType.validationResult.jsonValue,
+        'validationResult',
+      );
+    });
+
+    test('the v1.0 wire FunctionCall carries no returnType', () {
+      final Map<String, Object?> properties =
+          (CommonSchemasV1.functionCall.value['properties']! as Map)
+              .cast<String, Object?>();
+      expect(properties, isNot(contains('returnType')));
+      expect(properties.keys, containsAll(['@call', 'args']));
+    });
+  });
 }

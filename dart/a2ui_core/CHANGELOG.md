@@ -107,11 +107,34 @@
   against the specification's envelope schemas.
 - `PayloadValidator.commonTypesFor` throws for v1.0, whose common types this
   package does not embed yet.
+- Added `ValidationResult` and `A2uiReturnType.validationResult` for structured
+  client-side validation outcomes (`valid`, `message`, `code`, `severity`), and
+  exposed `validationResults` alongside `isValid` and `validationErrors` on
+  resolved component properties. `A2uiReturnType.validationResult` is an
+  API-level value; the v0.9 `CommonSchemas.functionCall` wire schema still
+  accepts only the seven v0.9 return types. `ValidationResult.validityOf`
+  exposes the rule the binder uses to read a check result's validity.
+- Fixed `checks` evaluation in `GenericBinder`:
+  - Rules evaluate once during initial binding without a duplicate object-branch
+    pass.
+  - `_subscribe` skips invoking its reactive callback during the initial
+    synchronous pass so rebuilds do not write into stale property maps.
+  - Non-map rule entries emit a `VALIDATION_FAILED` client error on the surface
+    instead of throwing a `TypeError`.
+  - Checkable properties are classified from schema markers or `CheckRule` item
+    structure rather than matching the property name `'checks'`.
+- `ReferenceSchemaReader` resolves external `common_types.json#/$defs/...`
+  pointers against the `common_types.json` document the caller supplies (the
+  embedded v0.9 document by default) so catalogs loaded via `Catalog.fromJson`
+  classify `Checkable`, `DynamicValue`, `Action`, and `ChildList` properties
+  identically to code-constructed catalogs. `extractRefFields` forwards the
+  same optional `commonTypes` document.
 - Harden `ExpressionParser` to clamp scanner bounds at EOF, reject unclosed
   string literals and trailing backslashes with `A2uiExpressionError`, accept
   `@`-prefixed function names (such as `${@index()}` and
   `${@index(offset: 1)}`), and accept `~0` and `~1` JSON Pointer escapes inside
   `${}` paths while rejecting malformed `~` escapes and non-leading `@` tokens.
+- Add `DataContext.isDataBinding`, `DataContext.isFunctionCall`, and `DataContext.bindingFor` for protocol-version-aware binding and function-call detection; adapt `FormatStringFunction` parser AST nodes (`@path`/`@call`) in v1.0 mode, pre-build function argument signals outside `computed` in `DataContext.resolveListenable`, skip binding/call validation inside `updateDataModel.value` in `checkPathsAndRecursion`, and report unrecognized or invalid action payloads on `SurfaceModel.onError` with code `INVALID_ACTION`.
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
 - `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.
