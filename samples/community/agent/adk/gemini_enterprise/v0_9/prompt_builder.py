@@ -14,8 +14,8 @@
 
 import os
 
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import CatalogConfig, VERSION_0_9, remove_strict_validation
-from a2ui.schema.manager import A2uiSchemaManager
 
 COMPOSITE_CATALOG_PATH = os.path.join(
     os.path.dirname(__file__), "gemini_enterprise_composite_catalog.json"
@@ -130,18 +130,14 @@ def get_text_prompt() -> str:
 
 
 if __name__ == "__main__":
-    # Example of how to use the A2UI Schema Manager to generate a system prompt.
+    # Example of how to use the Direct JSON format to generate a system prompt.
     version = VERSION_0_9
-    demo_prompt = A2uiSchemaManager(
-        version,
-        catalogs=[
-            CatalogConfig.from_path(
-                name="composite",
-                catalog_path=COMPOSITE_CATALOG_PATH,
-                examples_path=f"examples/{version}",
-            )
-        ],
-        schema_modifiers=[remove_strict_validation],
+    catalog = CatalogConfig.from_path(
+        name="composite",
+        catalog_path=COMPOSITE_CATALOG_PATH,
+    ).to_catalog(protocol_version=version, schema_modifiers=[remove_strict_validation])
+    demo_prompt = DirectJsonFormat(
+        [catalog], examples_path=f"examples/{version}"
     ).generate_system_prompt(
         role_description=ROLE_DESCRIPTION,
         ui_description=UI_DESCRIPTION,

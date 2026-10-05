@@ -14,6 +14,7 @@
 
 import json
 import logging
+from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
@@ -24,8 +25,10 @@ from a2ui.adk import (
     A2uiExamplesProvider,
     SendA2uiToClientToolset,
 )
+from a2ui.core import CatalogApi
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import CatalogConfig, VERSION_0_8, VERSION_0_9
+from a2ui.utils import resolve_catalogs
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
@@ -68,6 +71,34 @@ Use `McpApp` component to render the external app content.
 """
 
 
+def _renderer_capabilities(
+    version: str,
+    client_ui_capabilities: Mapping[str, Any] | None,
+    catalog_ids: Sequence[str],
+) -> dict[str, Any] | None:
+    """Returns the client's capabilities keyed by protocol version.
+
+    Clients may send the bare capabilities entry, and may leave out
+    `supportedCatalogIds`, which then names every catalog of the agent.
+
+    Args:
+        version: The negotiated A2UI protocol version.
+        client_ui_capabilities: The capabilities that the client sent.
+        catalog_ids: The ids of the agent's catalogs.
+
+    Returns:
+        The capabilities for `a2ui.utils.resolve_catalogs`, or `None` if the
+        client sent none.
+    """
+    if not client_ui_capabilities:
+        return None
+    key = f"v{version}"
+    entry = dict(client_ui_capabilities.get(key, client_ui_capabilities))
+    if "supportedCatalogIds" not in entry and "supported_catalog_ids" not in entry:
+        entry["supportedCatalogIds"] = list(catalog_ids)
+    return {key: entry}
+
+
 class McpAppProxyAgent:
     """An agent that proxies MCP Apps."""
 
@@ -94,6 +125,8 @@ class McpAppProxyAgent:
 
         self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
+        self._accepts_inline_catalogs = True
+        self._catalog_configs: dict[str, list[CatalogConfig]] = {}
         self._inference_formats: dict[str, DirectJsonFormat] = {}
         self._ui_runners: dict[str, Runner] = {}
 
@@ -119,17 +152,40 @@ class McpAppProxyAgent:
             return None
         return self._inference_formats[version]
 
-    def _build_inference_format(self, version: str) -> DirectJsonFormat:
-        return DirectJsonFormat(
-            version=version,
-            catalogs=[
-                CatalogConfig.from_path(
-                    name="mcp_app_proxy",
-                    catalog_path=f"catalogs/{version}/mcp_app_catalog.json",
-                ),
-            ],
-            accepts_inline_catalogs=True,
+    def resolve_catalogs(
+        self, version: str, client_ui_capabilities: Mapping[str, Any] | None
+    ) -> list[CatalogApi]:
+        """Returns the catalogs active for the client's capabilities.
+
+        Args:
+            version: The negotiated A2UI protocol version.
+            client_ui_capabilities: The capabilities that the client sent.
+
+        Returns:
+            The active catalogs, the client's preferred one first.
+        """
+        return resolve_catalogs(
+            self._catalog_configs[version],
+            _renderer_capabilities(
+                version,
+                client_ui_capabilities,
+                self._inference_formats[version].supported_catalog_ids,
+            ),
+            accepts_inline_catalogs=self._accepts_inline_catalogs,
         )
+
+    def _build_inference_format(self, version: str) -> DirectJsonFormat:
+        config = CatalogConfig.from_path(
+            name="mcp_app_proxy",
+            catalog_path=f"catalogs/{version}/mcp_app_catalog.json",
+        )
+        catalog = config.to_catalog(protocol_version=version)
+        # Build the catalog once with the version fixed, so that per-request
+        # resolution reuses it as it is.
+        self._catalog_configs[version] = [
+            CatalogConfig.from_catalog(config.name, catalog)
+        ]
+        return DirectJsonFormat([catalog])
 
     def _build_agent_card(self) -> AgentCard:
         extensions = []
@@ -137,7 +193,7 @@ class McpAppProxyAgent:
             for version, sm in self._inference_formats.items():
                 ext = get_a2ui_agent_extension(
                     version,
-                    sm.accepts_inline_catalogs,
+                    self._accepts_inline_catalogs,
                     sm.supported_catalog_ids,
                 )
                 extensions.append(ext)

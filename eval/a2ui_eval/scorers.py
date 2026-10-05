@@ -27,7 +27,6 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import TaskState
 from inspect_ai.model._model import sample_model_usage
-from a2ui.inference_formats.direct_json.format import DirectJsonFormat
 from a2ui.schema.catalog import CatalogConfig
 from a2ui.parser.parser import parse_response
 from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
@@ -59,12 +58,7 @@ def a2ui_scorer(version: str) -> Scorer:
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        direct_json_format = DirectJsonFormat(
-            version=version,
-            catalogs=[catalog_config],
-            experiments={"version_1_0"} if version == "1.0" else None,
-        )
-        catalog = direct_json_format.get_selected_catalog()
+        catalog = catalog_config.to_catalog(protocol_version=version)
 
         answer_text = state.output.completion or ""
 

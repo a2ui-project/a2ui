@@ -221,14 +221,18 @@ The execution layer (e.g., `RizzchartsAgentExecutor`) intercepts the incoming me
 
 ```python
 # In agent_executor.py
+from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.utils import resolve_catalogs
 
 use_ui = try_activate_a2ui_extension(context)
 if use_ui:
-    # Resolve catalog based on client capabilities
-    a2ui_catalog = self.schema_manager.get_selected_catalog(
-        client_ui_capabilities=capabilities
+    # Resolve the catalogs based on client capabilities
+    catalogs = resolve_catalogs(
+        self.catalog_configs, capabilities, accepts_inline_catalogs=True
     )
-    examples = self.schema_manager.load_examples(a2ui_catalog, validate=True)
+    inference_format = DirectJsonFormat(catalogs, examples_path=self.examples_path)
+    a2ui_catalog = catalogs[0]
+    examples = inference_format.prompt_generator.generate_examples(validate=True)
 
     # Save to session (Event contains state_delta)
     await runner.session_service.append_event(
@@ -251,10 +255,9 @@ The Agent uses [SendA2uiToClientToolset](../../../python/a2ui_agent/src/a2ui/adk
 
 ```python
 from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
+from a2ui.utils import resolve_catalogs
 
-a2ui_catalog = self.schema_manager.get_selected_catalog(
-    client_ui_capabilities=capabilities
-)
+a2ui_catalog = resolve_catalogs(self.catalog_configs, capabilities)[0]
 agent.tools = [
     SendA2uiToClientToolset(
         a2ui_catalog=a2ui_catalog,

@@ -64,16 +64,11 @@ if __name__ == "__main__":
     # For a different agent (e.g., a flight booker), you would pass in
     # different examples but use the same `get_ui_prompt` function.
     version = VERSION_0_9
+    catalog = CatalogConfig.from_catalog("basic", BasicCatalog(version)).to_catalog(
+        protocol_version=version, schema_modifiers=[remove_strict_validation]
+    )
     restaurant_prompt = DirectJsonFormat(
-        version,
-        catalogs=[
-            CatalogConfig.from_catalog(
-                "basic",
-                BasicCatalog(version),
-                examples_path=f"examples/{version}",
-            )
-        ],
-        schema_modifiers=[remove_strict_validation],
+        [catalog], examples_path=f"examples/{version}"
     ).generate_system_prompt(
         role_description=ROLE_DESCRIPTION,
         ui_description=UI_DESCRIPTION,

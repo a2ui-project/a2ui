@@ -9,8 +9,6 @@ The following directories contain the base protocol logic, parsing, and schema o
 
 ### Schema Management (`src/a2ui/schema`)
 
-- **`manager.py`**: The `A2uiSchemaManager` handles loading specification
-  schemas, managing catalogs, and generating system prompts for LLMs.
 - **`catalog.py`**: Defines `CatalogConfig`, which loads a component catalog
   as an `a2ui.core.Catalog`, and `load_examples`, which reads few-shot
   examples and can validate them against the catalogs.

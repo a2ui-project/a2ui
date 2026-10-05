@@ -48,15 +48,10 @@ def _get_strategy(
     Returns:
         The instantiated InferenceFormat strategy object.
     """
-    direct_json_format = DirectJsonFormat(
-        version=version,
-        catalogs=[catalog_config],
-        experiments={"version_1_0"} if version == "1.0" else None,
-    )
+    catalog = catalog_config.to_catalog(protocol_version=version)
     if format_name == "direct_json":
-        return direct_json_format
+        return DirectJsonFormat([catalog])
 
-    catalog = direct_json_format.get_selected_catalog()
     formatted_version = f"v{version}" if not version.startswith("v") else version
     if format_name == "express":
         from a2ui.inference_formats.experimental.express.format import ExpressFormat
@@ -133,7 +128,7 @@ def _parse_and_validate_in_process(
         surface_id=surface_id,
     )
     catalog = (
-        strategy.get_selected_catalog()
+        strategy.catalogs[0]
         if isinstance(strategy, DirectJsonFormat)
         else getattr(strategy, "catalog")
     )

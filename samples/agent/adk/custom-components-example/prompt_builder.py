@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
@@ -77,17 +75,14 @@ if __name__ == "__main__":
     my_base_url = "http://localhost:8000"
     my_version = VERSION_0_9
     inline_catalog_path = f"inline_catalog_{my_version}.json"
+    inline_catalog = CatalogConfig.from_path(
+        name="custom-components-example_inline_catalog",
+        catalog_path=inline_catalog_path,
+    ).to_catalog(
+        protocol_version=my_version, schema_modifiers=[remove_strict_validation]
+    )
     direct_json_format = DirectJsonFormat(
-        my_version,
-        catalogs=[
-            CatalogConfig.from_path(
-                name="custom-components-example_inline_catalog",
-                catalog_path=inline_catalog_path,
-                examples_path=f"examples/{my_version}",
-            ),
-        ],
-        accepts_inline_catalogs=True,
-        schema_modifiers=[remove_strict_validation],
+        [inline_catalog], examples_path=f"examples/{my_version}"
     )
     contact_prompt = direct_json_format.generate_system_prompt(
         role_description=ROLE_DESCRIPTION,
@@ -102,13 +97,6 @@ if __name__ == "__main__":
         f.write(contact_prompt)
     print("\nGenerated prompt saved to generated_prompt.txt")
 
-    with open(inline_catalog_path, "r", encoding="utf-8") as f:
-        inline_catalog = json.load(f)
-
-    client_ui_capabilities = {"inlineCatalogs": [inline_catalog]}
-    inline_catalog = direct_json_format.get_selected_catalog(
-        client_ui_capabilities=client_ui_capabilities,
-    )
     request_prompt = direct_json_format.prompt_generator.generate_catalog_instructions(
         catalog=inline_catalog
     )
@@ -117,13 +105,7 @@ if __name__ == "__main__":
         f.write(request_prompt)
     print("\nGenerated request prompt saved to request_prompt.txt")
 
-    basic_catalog = direct_json_format.get_selected_catalog(
-        client_ui_capabilities=client_ui_capabilities
-    )
-    examples = direct_json_format.load_examples(
-        basic_catalog,
-        validate=True,
-    )
+    examples = direct_json_format.prompt_generator.generate_examples(validate=True)
     print(examples)
     with open("examples.txt", "w") as f:
         f.write(examples)

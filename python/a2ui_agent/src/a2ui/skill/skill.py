@@ -58,8 +58,9 @@ def _resolve_catalogs_list(
         return resolved
 
     defaults: list[CatalogApi] = []
-    if hasattr(fmt, "_supported_catalogs") and fmt._supported_catalogs:
-        defaults.extend(fmt._supported_catalogs)
+    format_catalogs = getattr(fmt, "catalogs", None)
+    if format_catalogs:
+        defaults.extend(format_catalogs)
     if hasattr(fmt, "catalog") and fmt.catalog:
         if fmt.catalog not in defaults:
             defaults.append(fmt.catalog)

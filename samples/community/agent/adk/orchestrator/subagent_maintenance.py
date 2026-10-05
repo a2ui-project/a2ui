@@ -34,7 +34,6 @@ from starlette.middleware.cors import CORSMiddleware
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.adk.a2a import A2uiPartConverter
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import (
     CatalogConfig,
     VERSION_0_8,
@@ -42,12 +41,9 @@ from a2ui.schema import (
     remove_strict_validation,
 )
 
-inference_format = DirectJsonFormat(
-    version=VERSION_0_9,
-    catalogs=[CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_9))],
-    schema_modifiers=[remove_strict_validation],
+my_catalog = CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_9)).to_catalog(
+    protocol_version=VERSION_0_9, schema_modifiers=[remove_strict_validation]
 )
-my_catalog = inference_format.get_selected_catalog()
 a2ui_converter = A2uiPartConverter(a2ui_catalog=my_catalog, version=VERSION_0_9)
 
 load_dotenv()

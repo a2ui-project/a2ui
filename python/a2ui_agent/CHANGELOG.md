@@ -50,10 +50,33 @@
   against the JSON agent-to-renderer schema. It no longer takes or loads the
   protocol schemas, and its errors are the core's, prefixed with
   `Validation failed:` (#2966).
-- **BREAKING**: `DirectJsonFormat`'s `schema_modifiers` apply to catalog
-  schemas, including inline catalogs, but no longer to the agent-to-renderer
-  and common types schemas, which the prompt and the parsers use as
-  published (#2966).
+- **BREAKING**: `DirectJsonFormat(catalogs, *, examples_path, progressive_keys)`
+  takes the catalogs that are already resolved for a renderer and no longer
+  selects or changes them (#2966). To migrate:
+  - The protocol version comes from the catalogs, which must share one. Pass
+    the version and any schema modifiers to `CatalogConfig.to_catalog`
+    instead of `version` and `schema_modifiers`. Schema modifiers now apply
+    only to catalog schemas; the agent-to-renderer and common types schemas
+    are used as published.
+  - `get_selected_catalog(client_ui_capabilities)` is removed. Call
+    `resolve_catalogs(configs, capabilities, accepts_inline_catalogs)` from
+    `a2ui.utils` and build the format from the result, once per renderer.
+    Inline catalogs become catalogs of their own instead of being merged into
+    the selected one, and ones the agent doesn't accept are dropped instead
+    of raising.
+  - `accepts_inline_catalogs` and `experiments` are removed from the format.
+    The agent card still takes `accepts_inline_catalogs`.
+  - The prompt describes every catalog of the format, and
+    `prompt_generator.generate` raises `A2uiCatalogError` if given
+    `client_ui_capabilities`. `allowed_components` and `allowed_messages`
+    still restrict the prompt.
+  - `examples_path` replaces `CatalogConfig.examples_path` for the prompt's
+    examples, which are validated against every catalog of the format.
+  - `_supported_catalogs` becomes the `catalogs` property, and the
+    `load_examples` method becomes `load_examples(catalogs, path, validate)`
+    from `a2ui.schema`.
+- **BREAKING**: The deprecated `a2ui.schema.manager.A2uiSchemaManager` is
+  removed. Use `DirectJsonFormat` (#2966).
 - **BREAKING**: `DirectJsonParser.compile`, and so `parse_response`, checks a
   final payload with `validate_payload` unless the parser has a custom
   `validator`, and raises `A2uiValidationError` for one that fails. Before,
@@ -69,14 +92,6 @@
   now keeps no components and an empty `allowed_messages` keeps no messages;
   before, an empty list kept everything. `None` still keeps everything
   (#2966).
-- **BREAKING**: `DirectJsonFormat.get_selected_catalog` raises
-  `A2uiCatalogError` for an empty `supportedCatalogIds` without inline
-  catalogs instead of falling back to the first catalog. It also accepts
-  capabilities keyed by protocol version, such as `{"v0.9": {...}}` (#2966).
-- `DirectJsonFormat.get_selected_catalog` still accepts `allowed_messages`
-  but doesn't apply it, since a core catalog doesn't hold the
-  agent-to-renderer schema. The prompt generator applies it when it builds
-  the prompt, and the stream parser doesn't enforce it (#2966).
 - `SendA2uiToClientToolset` now returns a tool error, with the validation
   message, for a payload that fails validation. Before, it ignored the errors
   that `validate_components` returned (#2966).

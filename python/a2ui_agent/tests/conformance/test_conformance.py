@@ -43,6 +43,7 @@ from a2ui.schema import (
     VERSION_0_9,
     remove_strict_validation,
 )
+from a2ui.utils import resolve_catalogs
 
 from .conformance_helpers import (
     get_conformance_path,
@@ -271,6 +272,42 @@ def test_parser_non_streaming_conformance(name, test_case):
 # --- Schema Manager Conformance ---
 cases_schema_manager = get_conformance_cases("agent/legacy/inference_format.yaml")
 
+# These cases describe the legacy schema manager, which merged inline catalogs
+# into the selected catalog and rejected them when it didn't accept them.
+# `resolve_catalogs` activates each inline catalog as a catalog of its own and
+# drops inline catalogs that the agent doesn't accept.
+_INLINE_MERGE_CASES = {
+    "test_select_catalog_inline",
+    "test_select_catalog_inline_not_accepted",
+    "test_select_catalog_multiple_inline",
+    "test_select_catalog_no_match_with_inline",
+}
+
+# The key that each protocol version's capabilities are sent under.
+_CAPABILITIES_KEYS = {"0.8": "v0.8", "0.9": "v0.9", "0.9.1": "v0.9", "1.0": "v1.0"}
+
+
+def _resolve(configs, version, client_capabilities, accepts_inline_catalogs):
+    """Resolves the legacy cases' unkeyed client capabilities.
+
+    The legacy cases leave out fields that the capabilities models require and
+    the schema manager didn't: `supportedCatalogIds` and, for v0.8 inline
+    catalogs, `styles`. They're filled in empty.
+    """
+    renderer_capabilities = None
+    if client_capabilities:
+        entry = {"supportedCatalogIds": [], **client_capabilities}
+        if version == VERSION_0_8:
+            entry["inlineCatalogs"] = [
+                {"styles": {}, **c} for c in entry.get("inlineCatalogs", [])
+            ]
+        renderer_capabilities = {_CAPABILITIES_KEYS[version]: entry}
+    return resolve_catalogs(
+        configs,
+        renderer_capabilities,
+        accepts_inline_catalogs=accepts_inline_catalogs,
+    )
+
 
 @pytest.mark.parametrize(
     "name, test_case",
@@ -282,31 +319,33 @@ def test_schema_manager_conformance(name, test_case):
     args = test_case.get("args", {})
 
     if action == "select_catalog":
+        if name in _INLINE_MERGE_CASES:
+            pytest.skip("Inline catalogs are resolved as separate catalogs.")
         supported_catalogs = args.get("supportedCatalogs", [])
         client_capabilities = args.get("clientCapabilities", {})
         accepts_inline_catalogs = args.get("acceptsInlineCatalogs", False)
 
-        configs = []
-        for cat_def in supported_catalogs:
-            configs.append(
+        configs = [
+            CatalogConfig.from_catalog(
+                cat_def["catalogId"],
                 CatalogConfig(
                     name=cat_def["catalogId"],
                     provider=MemoryCatalogProvider(cat_def),
-                )
+                ).to_catalog(protocol_version=VERSION_0_9),
             )
-
-        direct_json_format = DirectJsonFormat(
-            version=VERSION_0_9,
-            catalogs=configs,
-            accepts_inline_catalogs=accepts_inline_catalogs,
-        )
+            for cat_def in supported_catalogs
+        ]
 
         expect_error = test_case.get("expectError")
         if expect_error:
             with assert_raises(expect_error):
-                direct_json_format.get_selected_catalog(client_capabilities)
+                _resolve(
+                    configs, VERSION_0_9, client_capabilities, accepts_inline_catalogs
+                )
         else:
-            selected = direct_json_format.get_selected_catalog(client_capabilities)
+            selected = _resolve(
+                configs, VERSION_0_9, client_capabilities, accepts_inline_catalogs
+            )[0]
             if "expect" in test_case:
                 expected = test_case["expect"]
                 if isinstance(expected, dict):
@@ -327,22 +366,20 @@ def test_schema_manager_conformance(name, test_case):
         schema_modifiers = []
         if "remove_strict_validation" in modifiers:
             schema_modifiers.append(remove_strict_validation)
-        configs = []
-        for cfg in catalog_configs:
-            full_path = get_conformance_path(cfg["path"])
-            configs.append(
-                CatalogConfig.from_path(name=cfg["name"], catalog_path=full_path)
+        catalogs = [
+            CatalogConfig.from_path(
+                name=cfg["name"], catalog_path=get_conformance_path(cfg["path"])
+            ).to_catalog(
+                protocol_version=VERSION_0_8, schema_modifiers=schema_modifiers
             )
-        direct_json_format = DirectJsonFormat(
-            version=VERSION_0_8, catalogs=configs, schema_modifiers=schema_modifiers
-        )
-        selected = direct_json_format.get_selected_catalog()
+            for cfg in catalog_configs
+        ]
+        direct_json_format = DirectJsonFormat(catalogs)
+        selected = direct_json_format.catalogs[0]
         expected = test_case["expect"]
         if isinstance(expected, dict) and "supportedCatalogIds" in expected:
             exp_ids = expected["supportedCatalogIds"]
-            assert [
-                c.catalog_id for c in direct_json_format._supported_catalogs
-            ] == exp_ids
+            assert direct_json_format.supported_catalog_ids == exp_ids
         elif isinstance(expected, dict):
             actual = {
                 "catalogId": selected.catalog_id,
@@ -360,26 +397,20 @@ def test_schema_manager_conformance(name, test_case):
         if examples_path:
             examples_path = get_conformance_path(examples_path)
 
-        config = CatalogConfig.from_catalog(
-            "basic",
-            BasicCatalog(version),
-            examples_path=examples_path,
+        catalogs = _resolve(
+            [CatalogConfig.from_catalog("basic", BasicCatalog(version))],
+            version,
+            args.get("clientUiCapabilities"),
+            args.get("acceptsInlineCatalogs", False),
         )
+        direct_json_format = DirectJsonFormat(catalogs, examples_path=examples_path)
 
-        accepts_inline = args.get("acceptsInlineCatalogs", False)
-        direct_json_format = DirectJsonFormat(
-            version=version,
-            catalogs=[config],
-            accepts_inline_catalogs=accepts_inline,
-        )
-
-        output = direct_json_format.generate_system_prompt(
+        output = direct_json_format.prompt_generator.generate(
             role_description=role,
             workflow_description=workflow,
             ui_description=ui_desc,
             include_schema=args.get("includeSchema", False),
             include_examples=args.get("includeExamples", False),
-            client_ui_capabilities=args.get("clientUiCapabilities"),
             allowed_components=args.get("allowedComponents"),
             allowed_messages=args.get("allowedMessages"),
         )

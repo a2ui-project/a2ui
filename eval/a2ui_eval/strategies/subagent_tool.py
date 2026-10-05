@@ -56,9 +56,7 @@ def a2ui_specialist() -> Tool:
 
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
         direct_json_format = DirectJsonFormat(
-            version=version,
-            catalogs=[catalog_config],
-            experiments={"version_1_0"} if version == "1.0" else None,
+            [catalog_config.to_catalog(protocol_version=version)]
         )
 
         role_description = store().get("role_description")

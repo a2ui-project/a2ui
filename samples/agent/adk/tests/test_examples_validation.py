@@ -19,7 +19,6 @@ from typing import Any
 import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import (
     A2uiCatalogProvider,
     CatalogConfig,
@@ -75,25 +74,24 @@ def test_sample_examples_validation(config):
         sample_path
     )  # Change to sample dir to resolve relative catalog paths if any
 
-    direct_json_format = DirectJsonFormat(
-        VERSION_0_9,
-        catalogs=config["catalogs"],
-        accepts_inline_catalogs=True,
-        schema_modifiers=config["schema_modifiers"],
-    )
+    sample_catalogs = [
+        catalog_config.to_catalog(
+            protocol_version=VERSION_0_9,
+            schema_modifiers=config["schema_modifiers"],
+        )
+        for catalog_config in config["catalogs"]
+    ]
 
     # Iterate through each catalog and validate its examples
-    for catalog in direct_json_format._supported_catalogs:
-        examples_path = direct_json_format._catalog_example_paths.get(
-            catalog.catalog_id
-        )
+    for catalog_config, catalog in zip(config["catalogs"], sample_catalogs):
+        examples_path = catalog_config.examples_path
         if not examples_path:
             continue
 
         # An example may create surfaces on any of the sample's catalogs.
         catalogs = [
             catalog,
-            *(c for c in direct_json_format._supported_catalogs if c is not catalog),
+            *(c for c in sample_catalogs if c is not catalog),
         ]
 
         path = Path(examples_path)

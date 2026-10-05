@@ -35,7 +35,6 @@ if SDK_CORE_SRC not in sys.path:
     sys.path.insert(0, SDK_CORE_SRC)
 
 from a2ui.schema.catalog import CatalogConfig
-from a2ui.inference_formats.direct_json import DirectJsonFormat
 
 
 def _load_basic_catalog() -> Any:
@@ -46,10 +45,7 @@ def _load_basic_catalog() -> Any:
     """
     cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
     cat_cfg = CatalogConfig.from_path("basic", cat_path)
-    direct_json_format = DirectJsonFormat(
-        version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
-    )
-    return direct_json_format.get_selected_catalog()
+    return cat_cfg.to_catalog(protocol_version="1.0")
 
 
 def test_compile_snippet(format_name: str, snippet: str) -> str:

@@ -34,6 +34,7 @@ from a2a.utils import (
 from a2a.utils.errors import ServerError
 from agent import ContactAgent
 from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.inference_formats.direct_json import DirectJsonFormat
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,7 @@ class ContactAgentExecutor(AgentExecutor):
                     # Extract client UI capabilities from any DataPart that has them
                     if (
                         inference_format
-                        and inference_format.accepts_inline_catalogs
+                        and self._agent.accepts_inline_catalogs
                         and "metadata" in part.root.data
                         and "a2uiClientCapabilities" in part.root.data["metadata"]
                     ):
@@ -162,14 +163,12 @@ class ContactAgentExecutor(AgentExecutor):
             and query
             and inference_format
         ):
-            catalog = inference_format.get_selected_catalog(
-                client_ui_capabilities=client_ui_capabilities
+            catalogs = self._agent.resolve_catalogs(
+                active_ui_version, client_ui_capabilities
             )
-            catalog_schema_str = (
-                inference_format.prompt_generator.generate_catalog_instructions(
-                    catalog=catalog
-                )
-            )
+            catalog_schema_str = DirectJsonFormat(
+                catalogs
+            ).prompt_generator.generate_catalog_instructions()
             query += (
                 "\n\n[SYSTEM: The client supports the following custom components:"
                 f" {catalog_schema_str}]"

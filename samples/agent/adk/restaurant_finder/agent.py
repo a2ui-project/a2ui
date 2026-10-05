@@ -92,17 +92,10 @@ class RestaurantAgent:
         return self._agent_card
 
     def _build_inference_format(self, version: str) -> DirectJsonFormat:
-        return DirectJsonFormat(
-            version=version,
-            catalogs=[
-                CatalogConfig.from_catalog(
-                    "basic",
-                    BasicCatalog(version),
-                    examples_path=f"examples/{version}",
-                )
-            ],
-            schema_modifiers=[remove_strict_validation],
+        catalog = CatalogConfig.from_catalog("basic", BasicCatalog(version)).to_catalog(
+            protocol_version=version, schema_modifiers=[remove_strict_validation]
         )
+        return DirectJsonFormat([catalog], examples_path=f"examples/{version}")
 
     def _build_agent_card(self) -> AgentCard:
         extensions = []
@@ -110,8 +103,7 @@ class RestaurantAgent:
             for version, sm in self._inference_formats.items():
                 ext = get_a2ui_agent_extension(
                     version,
-                    sm.accepts_inline_catalogs,
-                    sm.supported_catalog_ids,
+                    supported_catalog_ids=sm.supported_catalog_ids,
                 )
                 extensions.append(ext)
 
@@ -201,7 +193,7 @@ class RestaurantAgent:
             runner = self._ui_runners[ui_version]
             inference_format = self._inference_formats[ui_version]
             selected_catalog = (
-                inference_format.get_selected_catalog() if inference_format else None
+                inference_format.catalogs[0] if inference_format else None
             )
         else:
             runner = self._text_runner

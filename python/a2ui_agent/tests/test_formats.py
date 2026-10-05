@@ -15,8 +15,8 @@
 import json
 
 import pytest
-from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog
-from a2ui.schema import VERSION_0_9, CatalogConfig
+from a2ui.core import A2uiValidationError, Catalog
+from a2ui.schema import VERSION_0_9
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import (
     DEFAULT_PROGRESSIVE_KEYS,
@@ -24,6 +24,7 @@ from a2ui.inference_formats.direct_json import (
     DirectJsonParser,
 )
 from a2ui.adk import A2uiPartConverter
+from a2ui.utils import resolve_catalogs
 from google.genai import types as genai_types
 from a2ui.inference_formats.experimental.express import ExpressFormat, ExpressParser
 from a2ui.inference_formats.experimental.elemental import (
@@ -66,15 +67,16 @@ def test_schema_strategy_prompt_generation(test_catalog):
     config = CatalogConfig(
         name="test_catalog", provider=MemoryCatalogProvider(test_catalog.catalog_schema)
     )
+    catalogs = resolve_catalogs(
+        [CatalogConfig.from_catalog("test_catalog", config.to_catalog(VERSION_0_9))],
+        {"v0.9": {"supportedCatalogIds": ["https://a2ui.org/test_catalog"]}},
+    )
 
-    direct_json_format = DirectJsonFormat(version=VERSION_0_9, catalogs=[config])
-    prompt = direct_json_format.generate_system_prompt(
+    direct_json_format = DirectJsonFormat(catalogs)
+    prompt = direct_json_format.prompt_generator.generate(
         role_description="You are a helpful assistant.",
         workflow_description="Please adhere to constraints.",
         include_schema=True,
-        client_ui_capabilities={
-            "supportedCatalogIds": ["https://a2ui.org/test_catalog"]
-        },
     )
     assert "You are a helpful assistant." in prompt
     assert "Please adhere to constraints." in prompt
@@ -169,7 +171,7 @@ def test_supports_streaming_property(test_catalog):
     )
 
     # 1. DirectJsonFormat parser supports streaming
-    direct_json_fmt = DirectJsonFormat(version=VERSION_0_9, catalogs=[config])
+    direct_json_fmt = DirectJsonFormat([config.to_catalog(VERSION_0_9)])
     assert direct_json_fmt.supports_streaming is True
     assert direct_json_fmt.parser.supports_streaming is True
 
@@ -207,7 +209,7 @@ def test_decompiler_delegation(test_catalog):
 
     config = CatalogConfig(name="test_catalog", provider=DummyProvider())
     # Verify Direct JSON Parser Decompile
-    direct_json_fmt = DirectJsonFormat(version=VERSION_0_9, catalogs=[config])
+    direct_json_fmt = DirectJsonFormat([config.to_catalog(VERSION_0_9)])
     payload = {"createSurface": {"surfaceId": "main"}}
     direct_decompile = direct_json_fmt.parser.decompile(payload)
     assert "createSurface" in direct_decompile
@@ -315,52 +317,19 @@ def test_direct_json_stream_parser_leaf_child_fields(test_catalog):
     assert "label" not in unmapped_fields
 
 
-def _direct_json_format(*catalog_ids: str) -> DirectJsonFormat:
-    configs = [
-        CatalogConfig.from_catalog(
-            catalog_id,
-            Catalog.from_json(
-                {"catalogId": catalog_id, "components": {}}, protocol_version="0.9"
-            ),
+def test_direct_json_prompt_describes_every_catalog():
+    catalogs = [
+        Catalog.from_json(
+            {"catalogId": catalog_id, "components": {}}, protocol_version="0.9"
         )
-        for catalog_id in catalog_ids
+        for catalog_id in ("a", "b")
     ]
-    return DirectJsonFormat(version=VERSION_0_9, catalogs=configs)
+    direct_json_format = DirectJsonFormat(catalogs)
 
+    prompt = direct_json_format.prompt_generator.generate("Role", include_schema=True)
 
-@pytest.mark.parametrize(
-    "capabilities",
-    [
-        {"supportedCatalogIds": ["b", "a"]},
-        {"v0.9": {"supportedCatalogIds": ["b", "a"]}},
-        {"supported_catalog_ids": ["b", "a"]},
-    ],
-    ids=["flat", "version_keyed", "field_names"],
-)
-def test_get_selected_catalog_selects_the_first_named_catalog(capabilities):
-    direct_json_format = _direct_json_format("a", "b")
-
-    assert direct_json_format.get_selected_catalog(capabilities).catalog_id == "b"
-
-
-@pytest.mark.parametrize(
-    "capabilities",
-    [None, {}, {"inlineCatalogs": []}, {"v0.9": {}}],
-    ids=["none", "empty", "no_ids", "version_keyed_no_ids"],
-)
-def test_get_selected_catalog_without_catalog_ids_selects_the_first_catalog(
-    capabilities,
-):
-    direct_json_format = _direct_json_format("a", "b")
-
-    assert direct_json_format.get_selected_catalog(capabilities).catalog_id == "a"
-
-
-def test_get_selected_catalog_with_empty_catalog_ids_is_an_error():
-    direct_json_format = _direct_json_format("a")
-
-    with pytest.raises(A2uiCatalogError, match="No client-supported catalog found"):
-        direct_json_format.get_selected_catalog({"supportedCatalogIds": []})
+    assert '"catalogId":"a"' in prompt
+    assert '"catalogId":"b"' in prompt
 
 
 _CUT_TEXT_CHUNK = (
@@ -380,11 +349,7 @@ def test_direct_json_format_progressive_keys_reach_its_parsers(
     progressive_keys, healed, parser_name
 ):
     catalog = BasicCatalog("0.9")
-    direct_json_format = DirectJsonFormat(
-        version=VERSION_0_9,
-        catalogs=[CatalogConfig.from_catalog("basic", catalog)],
-        progressive_keys=progressive_keys,
-    )
+    direct_json_format = DirectJsonFormat([catalog], progressive_keys=progressive_keys)
     parser = (
         direct_json_format.create_stream_parser()
         if parser_name == "create_stream_parser"
