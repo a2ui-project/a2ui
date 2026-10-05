@@ -15,10 +15,15 @@
 import sys
 
 from a2ui.core.basic_catalog import v0_8, v0_9
-from a2ui.inference_formats.direct_json.format import DirectJsonFormat
-from a2ui.schema.catalog import CatalogConfig, validate_components
-from a2ui.schema.common_modifiers import remove_strict_validation
-from a2ui.schema.constants import CATALOG_COMPONENTS_KEY, VERSION_0_8, VERSION_0_9
+from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.schema import (
+    CATALOG_COMPONENTS_KEY,
+    VERSION_0_8,
+    VERSION_0_9,
+    CatalogConfig,
+    remove_strict_validation,
+)
+from a2ui.utils import validate_payload
 
 
 def verify():
@@ -399,20 +404,15 @@ def verify():
                         },
                         {
                             'key': 'contacts',
-                            'valueMap': [{
-                                'key': 'contact1',
-                                'valueMap': [
-                                    {'key': 'name', 'valueString': 'Casey Smith'}
-                                ],
-                            }],
+                            'valueMap': [
+                                {'key': 'contact1', 'valueString': 'Casey Smith'}
+                            ],
                         },
                     ],
                 }
             },
         ]
-        errors = validate_components(catalog, a2ui_message)
-        if errors:
-            raise ValueError(f'Validation errors: {errors}')
+        validate_payload([catalog], a2ui_message)
         print('Validation successful')
     except Exception as e:
         print(f'Failed to load {VERSION_0_8}: {e}')
@@ -436,9 +436,7 @@ def verify():
                 'version': 'v0.9',
                 'createSurface': {
                     'surfaceId': 'contact_form_1',
-                    'catalogId': (
-                        'https://a2ui.dev/specification/v0_9/catalogs/basic/catalog.json'
-                    ),
+                    'catalogId': catalog.catalog_id,
                 },
             },
             {
@@ -658,9 +656,7 @@ def verify():
             },
             {'version': 'v0.9', 'deleteSurface': {'surfaceId': 'contact_form_1'}},
         ]
-        errors = validate_components(catalog, a2ui_message)
-        if errors:
-            raise ValueError(f'Validation errors: {errors}')
+        validate_payload([catalog], a2ui_message)
         print('Validation successful')
     except Exception as e:
         print(f'Failed to load {VERSION_0_9}: {e}')

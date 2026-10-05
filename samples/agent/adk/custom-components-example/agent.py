@@ -16,7 +16,7 @@ import json
 import logging
 import os
 from collections import OrderedDict
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -43,6 +43,7 @@ from google.genai import types
 from prompt_builder import get_text_prompt, ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
 from tools import get_contact_info
 
+from a2ui.core import Catalog, CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
 from a2ui.parser import ResponsePart, parse_response
@@ -53,7 +54,6 @@ from a2ui.schema import (
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
-    validate_components,
 )
 from a2ui.a2a import (
     create_a2ui_part,
@@ -61,8 +61,37 @@ from a2ui.a2a import (
     parse_response_to_parts,
     stream_response_to_parts,
 )
+from a2ui.utils import validate_payload
 
 logger = logging.getLogger(__name__)
+
+
+def _validation_catalogs(
+    selected_catalog: CatalogApi,
+    client_ui_capabilities: Mapping[str, Any] | None,
+    ui_version: str,
+) -> list[CatalogApi]:
+    """Returns the catalogs that a response's surfaces can name.
+
+    `get_selected_catalog` merges the client's inline components into the
+    selected catalog for the prompt, but a surface can also name an inline
+    catalog by its id, so each inline catalog is held under its own id too.
+    """
+    catalogs = [selected_catalog]
+    if not client_ui_capabilities:
+        return catalogs
+    entry = client_ui_capabilities.get(f"v{ui_version}", client_ui_capabilities)
+    for document in entry.get("inlineCatalogs") or []:
+        if any(catalog.catalog_id == document["catalogId"] for catalog in catalogs):
+            continue
+        catalogs.append(
+            Catalog.from_json(
+                remove_strict_validation(document),
+                protocol_version=ui_version,
+                catalog_id=document["catalogId"],
+            )
+        )
+    return catalogs
 
 
 class ContactAgent:
@@ -404,6 +433,10 @@ class ContactAgent:
             }
             return
 
+        validation_catalogs = _validation_catalogs(
+            selected_catalog, client_ui_capabilities, ui_version
+        )
+
         while attempt <= max_retries:
             attempt += 1
             logger.info(
@@ -515,7 +548,7 @@ class ContactAgent:
                                 "--- ContactAgent.stream: Validating against"
                                 " A2UI_SCHEMA... ---"
                             )
-                            validate_components(selected_catalog, parsed_json_data)
+                            validate_payload(validation_catalogs, parsed_json_data)
 
                             logger.info(
                                 "--- ContactAgent.stream: UI JSON successfully parsed"

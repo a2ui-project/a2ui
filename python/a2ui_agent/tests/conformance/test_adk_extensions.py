@@ -54,7 +54,7 @@ def test_adk_extensions_conformance(name, test_case):
         tool_context_mock.state = {}
         tool_context_mock.actions = MagicMock(skip_summarization=False)
 
-        with patch("a2ui.adk.send_a2ui_to_client_toolset.validate_components"):
+        with patch("a2ui.adk.send_a2ui_to_client_toolset.validate_payload"):
             # run_async is async in Python
             result = asyncio.run(
                 tool.run_async(args=tool_args, tool_context=tool_context_mock)

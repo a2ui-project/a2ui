@@ -96,17 +96,16 @@ from google.adk.tools import tool_context
 from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
 
-from a2ui.adk.a2a.part_converter import A2uiPartConverter
-from a2ui.parser.payload_fixer import parse_and_fix
-from a2ui.schema.catalog import render_as_llm_instructions, validate_components
+from a2ui.adk.a2a import A2uiPartConverter
 from a2ui.core import A2uiValidationError, Catalog, CatalogApi
-
-from a2ui.schema import constants
+from a2ui.parser import parse_and_fix
+from a2ui.schema import constants, render_as_llm_instructions
 from a2ui.schema.constants import (
     A2UI_TOOL_ERROR_KEY,
     A2UI_TOOL_NAME,
     A2UI_VALIDATED_JSON_KEY,
 )
+from a2ui.utils import validate_payload
 
 logger = logging.getLogger(__name__)
 
@@ -306,12 +305,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
                 a2ui_catalog = await self._resolve_a2ui_catalog(tool_context)
                 a2ui_json_payload = parse_and_fix(a2ui_json)
-                errors = validate_components(a2ui_catalog, a2ui_json_payload)
-                if isinstance(errors, list) and errors:
-                    raise A2uiValidationError(
-                        f"Validation failed with {len(errors)} error(s)",
-                        details=errors,
-                    )
+                validate_payload([a2ui_catalog], a2ui_json_payload)
 
                 logger.info(
                     f"Validated call to tool {self.TOOL_NAME} with"

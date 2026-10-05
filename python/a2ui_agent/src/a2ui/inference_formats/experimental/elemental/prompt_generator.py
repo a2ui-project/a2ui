@@ -22,13 +22,16 @@ from collections.abc import Mapping, Sequence
 import json
 import re
 from typing import Any, TYPE_CHECKING
+
 from a2ui.catalog_transformers import ComponentPruningTransformer
-from a2ui.core import Catalog, CatalogApi
+from a2ui.core import CatalogApi
+from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.inference_formats.experimental.express.schema_helper import (
     CatalogSchemaHelper,
 )
 from a2ui.prompt import PromptGenerator
-from a2ui.core.schema.v0_9 import V09Capabilities
+from a2ui.schema import load_examples
+
 from .parser import ElementalParser
 
 if TYPE_CHECKING:
@@ -144,13 +147,11 @@ class ElementalPromptGenerator(PromptGenerator):
         validate: bool = False,
     ) -> str:
         """Loads and formats few-shot Elemental examples."""
-        from a2ui.schema.catalog import load_examples
-
         target_catalog = catalog or self.catalog
         if not target_catalog or not self._format or not self._format.examples_path:
             return ""
         raw_examples = load_examples(
-            target_catalog, self._format.examples_path, validate=validate
+            [target_catalog], self._format.examples_path, validate=validate
         )
         if not raw_examples:
             return ""
@@ -473,8 +474,6 @@ class ElementalPromptGenerator(PromptGenerator):
         Returns:
             The complete system prompt string explaining A2UI Elemental and its catalog.
         """
-        from a2ui.schema.catalog import load_examples
-
         catalog = self.catalog
         if allowed_components is not None:
             catalog = ComponentPruningTransformer(allowed_components).transform(catalog)
@@ -500,7 +499,7 @@ class ElementalPromptGenerator(PromptGenerator):
 
         if include_examples and self._format.examples_path and catalog:
             raw_examples = load_examples(
-                catalog, self._format.examples_path, validate=validate_examples
+                [catalog], self._format.examples_path, validate=validate_examples
             )
             if raw_examples:
                 formatted_examples = self.transform_examples(raw_examples)

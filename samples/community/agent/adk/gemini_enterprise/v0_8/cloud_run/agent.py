@@ -34,7 +34,8 @@ from a2ui.core.parser.parser import parse_response
 from a2ui.core.schema.common_modifiers import remove_strict_validation
 from a2ui.core.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig, validate_components
+from a2ui.schema import CatalogConfig
+from a2ui.utils import validate_payload
 import dotenv
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
@@ -319,13 +320,13 @@ class ContactAgent:
                             is_valid = True
                         else:
                             # --- Validation Steps ---
-                            # Check if it validates against the A2UI_SCHEMA
-                            # This will raise jsonschema.exceptions.ValidationError if it fails
+                            # Check the payload against the selected catalog. This
+                            # raises A2uiValidationError, a ValueError, if it fails.
                             logger.info(
                                 "--- ContactAgent.fetch_response: Validating against"
                                 " A2UI_SCHEMA... ---"
                             )
-                            validate_components(selected_catalog, parsed_json_data)
+                            validate_payload([selected_catalog], parsed_json_data)
                             # --- End Validation Steps ---
 
                             logger.info(

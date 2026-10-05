@@ -15,12 +15,13 @@
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
-from a2ui.core import Catalog
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.tools.tool_context import ToolContext
+import pytest
+
+from a2ui.adk import SendA2uiToClientToolset
+from a2ui.core import A2uiValidationError, Catalog
+from a2ui.core.basic_catalog import BasicCatalog
 
 # region SendA2uiToClientToolset Tests
 """Tests for the SendA2uiToClientToolset class."""
@@ -201,10 +202,10 @@ async def test_send_tool_run_async_valid():
     }
 
     with patch(
-        "a2ui.adk.send_a2ui_to_client_toolset.validate_components"
+        "a2ui.adk.send_a2ui_to_client_toolset.validate_payload"
     ) as mock_validate:
         result = await tool.run_async(args=args, tool_context=tool_context_mock)
-        mock_validate.assert_called_once_with(catalog_mock, valid_a2ui)
+        mock_validate.assert_called_once_with([catalog_mock], valid_a2ui)
 
     assert result == {
         SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY: (
@@ -230,10 +231,10 @@ async def test_send_tool_run_async_valid_list():
     }
 
     with patch(
-        "a2ui.adk.send_a2ui_to_client_toolset.validate_components"
+        "a2ui.adk.send_a2ui_to_client_toolset.validate_payload"
     ) as mock_validate:
         result = await tool.run_async(args=args, tool_context=tool_context_mock)
-        mock_validate.assert_called_once_with(catalog_mock, valid_a2ui)
+        mock_validate.assert_called_once_with([catalog_mock], valid_a2ui)
 
     assert result == {
         SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY: (
@@ -280,10 +281,62 @@ async def test_send_tool_run_async_schema_validation_fail():
         )
     }
     with patch(
-        "a2ui.adk.send_a2ui_to_client_toolset.validate_components",
-        side_effect=Exception("'text' is a required property"),
+        "a2ui.adk.send_a2ui_to_client_toolset.validate_payload",
+        side_effect=A2uiValidationError("'text' is a required property"),
     ):
         result = await tool.run_async(args=args, tool_context=MagicMock())
+    assert "error" in result
+    assert "Failed to call A2UI tool" in result["error"]
+    assert "'text' is a required property" in result["error"]
+
+
+def _update_text_payload(text_props: dict) -> list[dict]:
+    return [{
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "s1",
+            "components": [{"id": "root", "component": "Text", **text_props}],
+        },
+    }]
+
+
+@pytest.mark.asyncio
+async def test_send_tool_run_async_accepts_valid_payload_for_real_catalog():
+    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
+        BasicCatalog("0.9"), "examples"
+    )
+    tool_context_mock = MagicMock(spec=ToolContext)
+    tool_context_mock.state = {}
+    tool_context_mock.actions = MagicMock(skip_summarization=False)
+    payload = _update_text_payload({"text": "Hello"})
+    args = {
+        SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: (
+            json.dumps(payload)
+        )
+    }
+
+    result = await tool.run_async(args=args, tool_context=tool_context_mock)
+
+    assert result == {
+        SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY: (
+            payload
+        )
+    }
+
+
+@pytest.mark.asyncio
+async def test_send_tool_run_async_rejects_invalid_payload_for_real_catalog():
+    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
+        BasicCatalog("0.9"), "examples"
+    )
+    args = {
+        SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: (
+            json.dumps(_update_text_payload({}))
+        )
+    }
+
+    result = await tool.run_async(args=args, tool_context=MagicMock())
+
     assert "error" in result
     assert "Failed to call A2UI tool" in result["error"]
     assert "'text' is a required property" in result["error"]

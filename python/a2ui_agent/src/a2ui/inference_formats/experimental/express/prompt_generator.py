@@ -22,9 +22,11 @@ from collections.abc import Mapping, Sequence
 import json
 import re
 from typing import Any, TYPE_CHECKING
+
 from a2ui.catalog_transformers import ComponentPruningTransformer
-from a2ui.prompt import PromptGenerator
 from a2ui.core.schema.v0_9 import V09Capabilities
+from a2ui.prompt import PromptGenerator
+from a2ui.schema import load_examples
 
 from .parser import ExpressParser
 from .schema_helper import CatalogSchemaHelper
@@ -167,13 +169,11 @@ class ExpressPromptGenerator(PromptGenerator):
         validate: bool = False,
     ) -> str:
         """Loads and formats few-shot Express DSL examples."""
-        from a2ui.schema.catalog import load_examples
-
         target_catalog = catalog or self.catalog
         if not target_catalog or not self._format or not self._format.examples_path:
             return ""
         raw_examples = load_examples(
-            target_catalog, self._format.examples_path, validate=validate
+            [target_catalog], self._format.examples_path, validate=validate
         )
         if not raw_examples:
             return ""

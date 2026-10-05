@@ -16,9 +16,11 @@
 
 from .catalog_resolver import resolve_catalogs
 from .schema_pruning import prune_common_types_schema, prune_messages_schema
+from .validation import validate_payload
 
 __all__ = [
     "prune_common_types_schema",
     "prune_messages_schema",
     "resolve_catalogs",
+    "validate_payload",
 ]

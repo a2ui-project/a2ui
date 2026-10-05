@@ -361,14 +361,24 @@ class DirectJsonFormat(InferenceFormat):
 
         Args:
             catalog: The catalog to load examples for.
-            validate: Whether to validate the examples on load.
+            validate: Whether to validate the examples on load. An example may
+                create surfaces on any supported catalog, so the examples are
+                validated against all of them, with `catalog` first.
 
         Returns:
             The examples text block, or an empty string.
         """
         if catalog.catalog_id in self._catalog_example_paths:
-            return load_examples(
+            catalogs = [
                 catalog,
+                *(
+                    other
+                    for other in self._supported_catalogs
+                    if other.catalog_id != catalog.catalog_id
+                ),
+            ]
+            return load_examples(
+                catalogs,
                 self._catalog_example_paths[catalog.catalog_id],
                 validate=validate,
             )

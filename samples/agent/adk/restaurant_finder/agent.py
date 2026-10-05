@@ -52,13 +52,13 @@ from a2ui.schema import (
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
-    validate_components,
 )
 from a2ui.a2a import (
     get_a2ui_agent_extension,
     parse_response_to_parts,
     stream_response_to_parts,
 )
+from a2ui.utils import validate_payload
 
 logger = logging.getLogger(__name__)
 
@@ -331,13 +331,13 @@ class RestaurantAgent:
                         parsed_json_data = part.a2ui_json
 
                         # --- Validation Steps ---
-                        # Check if it validates against the A2UI_SCHEMA
-                        # This will raise jsonschema.exceptions.ValidationError if it fails
+                        # Check the payload against the selected catalog. This
+                        # raises A2uiValidationError, a ValueError, if it fails.
                         logger.info(
                             "--- RestaurantAgent.stream: Validating against"
                             " A2UI_SCHEMA... ---"
                         )
-                        validate_components(selected_catalog, parsed_json_data)
+                        validate_payload([selected_catalog], parsed_json_data)
                         # --- End Validation Steps ---
 
                         logger.info(

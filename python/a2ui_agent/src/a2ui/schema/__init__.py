@@ -17,8 +17,6 @@ from .catalog import (
     CatalogConfig,
     load_examples,
     render_as_llm_instructions,
-    validate_components,
-    validate_payload,
 )
 from .catalog_provider import (
     A2uiCatalogProvider,
@@ -60,6 +58,4 @@ __all__ = [
     "load_examples",
     "remove_strict_validation",
     "render_as_llm_instructions",
-    "validate_components",
-    "validate_payload",
 ]

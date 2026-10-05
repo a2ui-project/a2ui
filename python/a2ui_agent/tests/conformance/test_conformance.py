@@ -33,15 +33,19 @@ from a2ui.core import (
     MessageProcessor,
 )
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
+from a2ui.inference_formats.direct_json import (
+    DirectJsonFormat,
+    DirectJsonParser,
+    DirectJsonStreamParser,
+)
 from a2ui.schema import (
     CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
-    validate_components,
 )
 from a2ui.parser.errors import A2uiCompilationError
+from a2ui.utils import validate_payload
 
 import json
 import re
@@ -581,16 +585,6 @@ KNOWN_GAPS = {
         "parse_response takes no `wrapped` argument, so a response the case"
         " declares unwrapped cannot be handed to the compiler whole"
     ),
-    # Compiler. The direct JSON parser validates components against the catalog
-    # but not the message envelope, so the envelope's `version` goes unchecked.
-    "test_compile_json_other_protocol_version_is_a_validation_error": (
-        "the envelope is not validated, so a message stating another version"
-        " compiles unchanged"
-    ),
-    "test_compile_json_missing_version_is_a_validation_error": (
-        "the envelope is not validated, so a message stating no version"
-        " compiles unchanged"
-    ),
     # Express reserved keys (#3006). v1.0 writes a data binding as `@path` and
     # a function call as `@call`, and the compiler still writes `path` and
     # `call`. The decompiler reads both, so the decompile cases fail only on
@@ -659,11 +653,9 @@ def make_parser(args):
         ).parser
 
     if format_name == "direct_json":
-        from a2ui.inference_formats.direct_json.parser import DirectJsonParser
-
         return DirectJsonParser(
             catalog=catalog,
-            validator=lambda payload: validate_components(catalog, payload),
+            validator=lambda payload: validate_payload([catalog], payload),
         )
 
     raise ValueError(f"Unknown inference format: {format_name}")

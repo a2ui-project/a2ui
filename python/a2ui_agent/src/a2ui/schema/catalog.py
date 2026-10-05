@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 import copy
 from dataclasses import dataclass
 import glob
@@ -24,18 +24,13 @@ import os
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
-from a2ui.core import (
-    A2uiCatalogError,
-    A2uiErrorDetail,
-    A2uiValidationError,
-    Catalog,
-    MessageProcessor,
-    MessageProcessorOptions,
-    PayloadValidator,
-    STRICT_VALIDATION,
-)
+from a2ui.core import A2uiCatalogError, A2uiError, Catalog
 from a2ui.core.common import to_protocol_version
-from a2ui.utils import prune_common_types_schema, prune_messages_schema
+from a2ui.utils import (
+    prune_common_types_schema,
+    prune_messages_schema,
+    validate_payload,
+)
 
 if TYPE_CHECKING:
     # Only used in annotations, which aren't evaluated at runtime.
@@ -53,33 +48,6 @@ from .constants import (
     CATALOG_ID_KEY,
     ENCODING,
 )
-
-
-def _iter_payload_components(payload: Any) -> Iterator[dict[str, Any]]:
-    """Yields every component dictionary reachable in an A2UI payload.
-
-    Understands a bare component, an `updateComponents` envelope, a bare
-    `components` list holder, and a list of any of those.
-
-    Args:
-      payload: A component dict, a message envelope, or a list of either.
-
-    Yields:
-      Each component dictionary found, in payload order.
-    """
-    items = payload if isinstance(payload, list) else [payload]
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        update = item.get("updateComponents")
-        if isinstance(update, dict):
-            comps = update.get("components", [])
-            if isinstance(comps, list):
-                yield from (c for c in comps if isinstance(c, dict))
-        elif isinstance(item.get("components"), list):
-            yield from (c for c in item["components"] if isinstance(c, dict))
-        elif "component" in item or "type" in item:
-            yield item
 
 
 @dataclass(init=False)
@@ -263,27 +231,6 @@ def resolve_examples_path(path: str | None) -> str | None:
     return None
 
 
-def validate_components(catalog: CatalogApi, payload: Any) -> list[A2uiErrorDetail]:
-    """Validates every component reachable in an A2UI payload against a catalog."""
-    validator = PayloadValidator(catalog, config=STRICT_VALIDATION)
-    errors: list[A2uiErrorDetail] = []
-    for comp in _iter_payload_components(payload):
-        try:
-            validator.validate_component(comp)
-        except A2uiValidationError as e:
-            errors.extend(e.details)
-    return errors
-
-
-def validate_payload(catalog: CatalogApi, messages: Any) -> None:
-    """Validates payload messages using MessageProcessor."""
-    msg_list = messages if isinstance(messages, list) else [messages]
-    MessageProcessor(
-        [catalog],
-        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
-    ).process_messages(msg_list)
-
-
 def render_as_llm_instructions(
     catalog: CatalogApi,
     *,
@@ -339,16 +286,37 @@ def render_as_llm_instructions(
     return "\n\n".join(all_schemas)
 
 
-def load_examples(catalog: CatalogApi, path: str | None, validate: bool = False) -> str:
-    """Loads and optionally validates examples from a directory or a glob pattern."""
+def load_examples(
+    catalogs: Sequence[CatalogApi], path: str | None, validate: bool = False
+) -> str:
+    """Loads few-shot examples from a directory or a glob pattern.
+
+    Args:
+      catalogs: The catalogs that the examples are validated against. Each
+        surface is checked against the catalog its `catalogId` names, so pass
+        every catalog that the examples use.
+      path: A directory of `.json` files, or a glob pattern.
+      validate: Whether to check each example with
+        `a2ui.utils.validate_payload`.
+
+    Returns:
+      The examples, each between `---BEGIN <name>---` and `---END <name>---`
+      lines, or an empty string if there are none.
+
+    Raises:
+      A2uiCatalogError: If `validate` is set and an example isn't valid JSON or
+        fails validation.
+    """
     if not path:
         return ""
 
+    # If it's a directory, support backward compatibility by appending /*.json
     if os.path.isdir(path):
         pattern = os.path.join(path, "*.json")
     else:
         pattern = path
 
+    # Use glob to find files
     matched_files = glob.glob(pattern, recursive=True)
 
     if not matched_files:
@@ -358,6 +326,7 @@ def load_examples(catalog: CatalogApi, path: str | None, validate: bool = False)
             )
         return ""
 
+    # Sort for determinism
     matched_files.sort()
 
     merged_examples = []
@@ -371,8 +340,8 @@ def load_examples(catalog: CatalogApi, path: str | None, validate: bool = False)
         if validate:
             try:
                 json_data = json.loads(content)
-                validate_payload(catalog, json_data)
-            except Exception as e:
+                validate_payload(catalogs, json_data)
+            except (json.JSONDecodeError, A2uiError) as e:
                 raise A2uiCatalogError(
                     f"Failed to validate example {full_path}: {e}"
                 ) from e

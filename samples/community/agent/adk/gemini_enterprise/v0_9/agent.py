@@ -35,9 +35,9 @@ from a2ui.schema import (
     CatalogConfig,
     VERSION_0_9,
     remove_strict_validation,
-    validate_components,
 )
 from a2ui.schema.manager import A2uiSchemaManager
+from a2ui.utils import validate_payload
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
@@ -369,13 +369,13 @@ class A2uiDemoAgent:
                         parsed_json_data = part.a2ui_json
 
                         # --- Validation Steps ---
-                        # Check if it validates against the A2UI_SCHEMA
-                        # This will raise jsonschema.exceptions.ValidationError if it fails
+                        # Check the payload against the selected catalog. This
+                        # raises A2uiValidationError, a ValueError, if it fails.
                         logger.info(
                             "--- A2uiDemoAgent.stream: Validating against"
                             " A2UI_SCHEMA... ---"
                         )
-                        validate_components(selected_catalog, parsed_json_data)
+                        validate_payload([selected_catalog], parsed_json_data)
                         # --- End Validation Steps ---
 
                         logger.info(

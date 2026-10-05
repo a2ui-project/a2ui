@@ -25,8 +25,8 @@ from a2ui.schema import (
     CatalogConfig,
     VERSION_0_9,
     remove_strict_validation,
-    validate_components,
 )
+from a2ui.utils import validate_payload
 
 
 ROOT_DIR = Path(__file__).parent.parent.parent.parent.parent  # a2ui root
@@ -90,9 +90,11 @@ def test_sample_examples_validation(config):
         if not examples_path:
             continue
 
-        # manager.load_examples(catalog, validate=True) returns a combined string.
-        # It internally calls _validate_example which logs warnings on failure.
-        # To strictly fail the test, we want to capture those failures or re-implement.
+        # An example may create surfaces on any of the sample's catalogs.
+        catalogs = [
+            catalog,
+            *(c for c in direct_json_format._supported_catalogs if c is not catalog),
+        ]
 
         path = Path(examples_path)
         if not path.is_absolute():
@@ -109,7 +111,7 @@ def test_sample_examples_validation(config):
                     content = json.load(f)
                     try:
                         if do_validate:
-                            validate_components(catalog, content)
+                            validate_payload(catalogs, content)
                     except Exception as e:
                         pytest.fail(
                             f"Validation failed for {full_path} in sample"
