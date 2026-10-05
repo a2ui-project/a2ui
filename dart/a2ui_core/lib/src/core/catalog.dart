@@ -17,8 +17,8 @@ import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
+import '../primitives/semver.dart';
 import '../primitives/uax31.dart';
-import '../primitives/version_rules.dart';
 import '../validation/schema_resolution.dart';
 import 'contexts.dart';
 
@@ -225,7 +225,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       );
     }
     final protocolVersion = rawVersion as String?;
-    if (isProtocolV1OrLater(protocolVersion)) {
+    if (isVersionAtLeast(protocolVersion, 'v1.0')) {
       _checkIdentifiers(json, rawId);
     }
 
@@ -524,7 +524,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// when the parsed document declared them, so a document round trips through
   /// [Catalog.fromJson] with its identity intact.
   Map<String, Object?> get catalogSchema {
-    final bool v1 = isProtocolV1OrLater(protocolVersion);
+    final bool v1 = isVersionAtLeast(protocolVersion, 'v1.0');
     // From v1.0 a call names its function under `@call`.
     final callKey = v1 ? '@call' : 'call';
     return {

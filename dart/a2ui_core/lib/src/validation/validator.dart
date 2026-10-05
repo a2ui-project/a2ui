@@ -20,8 +20,8 @@ import 'package:meta/meta.dart';
 import '../core/catalog.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
+import '../primitives/semver.dart';
 import '../primitives/uax31.dart';
-import '../primitives/version_rules.dart';
 import 'common_types.g.dart';
 import 'component_graph.dart' show maxFunctionCallArgs;
 import 'component_refs.dart';
@@ -155,10 +155,12 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     Map<String, Object?>? commonTypesSchema,
     this.config = ValidationConfig.strict,
   })  : protocolVersion = protocolVersion ?? A2uiProtocolVersion.v0_9,
-        _v1 = isProtocolV1OrLater(catalog.protocolVersion),
+        _v1 = isVersionAtLeast(catalog.protocolVersion, 'v1.0'),
         _fallbackCommonTypes = commonTypesSchema == null
             ? commonTypesForProtocolVersion(
-                isProtocolV1OrLater(catalog.protocolVersion) ? 'v0.9' : 'v1.0',
+                isVersionAtLeast(catalog.protocolVersion, 'v1.0')
+                    ? 'v0.9'
+                    : 'v1.0',
               )
             : null,
         commonTypesSchema = commonTypesSchema ??
@@ -170,11 +172,20 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// build time by `tool/generate_common_types.dart` so that a package
   /// installed from pub.dev can resolve the shared types without reading the
   /// specification repository. Each call returns a fresh document, so a caller
-  /// may edit the result.
+  /// may edit the result. v0.9.1 shares the v0.9 document.
+  ///
+  /// Throws [A2uiValidationError] for v1.0, whose document this package does
+  /// not embed yet; pass it explicitly as `commonTypesSchema` instead.
   static Map<String, Object?> commonTypesFor(A2uiProtocolVersion version) =>
       switch (version) {
-        A2uiProtocolVersion.v0_9 =>
+        A2uiProtocolVersion.v0_9 ||
+        A2uiProtocolVersion.v0_9_1 =>
           jsonDecode(commonTypesV0_9Json) as Map<String, Object?>,
+        A2uiProtocolVersion.v1_0 => throw A2uiValidationError(
+            'This package does not embed the common types for protocol '
+            "version '${version.jsonValue}'; pass them as "
+            '`commonTypesSchema`.',
+          ),
       };
 
   /// The `common_types.json` document this package publishes for a catalog
@@ -184,7 +195,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// anything else, including null. Each call returns a fresh document.
   static Map<String, Object?> commonTypesForProtocolVersion(String? version) =>
       jsonDecode(
-        isProtocolV1OrLater(version)
+        isVersionAtLeast(version, 'v1.0')
             ? commonTypesV1_0Json
             : commonTypesV0_9Json,
       ) as Map<String, Object?>;
@@ -206,21 +217,29 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
 
   /// Checks the `version` field of one payload envelope.
   ///
-  /// Throws [A2uiValidationError] if it is missing or is not the version this
-  /// validator accepts.
+  /// A version compatible with [protocolVersion] (see
+  /// [isCatalogVersionCompatible]) is accepted, so a v0.9 validator accepts
+  /// v0.9.1 envelopes. Returns [protocolVersion], the version whose rules
+  /// this validator applies.
+  ///
+  /// Throws [A2uiValidationError] if the version is missing or is not
+  /// compatible with the version this validator accepts.
   A2uiProtocolVersion checkVersion(Map<String, Object?> envelope) {
     final A2uiProtocolVersion version = A2uiProtocolVersion.fromJson(
       envelope['version'],
       details: envelope,
     );
-    if (version != protocolVersion) {
+    if (!isCatalogVersionCompatible(
+      version.jsonValue,
+      protocolVersion.jsonValue,
+    )) {
       throw A2uiValidationError(
         "Payload declares version '${version.jsonValue}' but this validator "
-        "accepts only '${protocolVersion.jsonValue}'.",
+        "accepts only versions compatible with '${protocolVersion.jsonValue}'.",
         details: envelope,
       );
     }
-    return version;
+    return protocolVersion;
   }
 
   /// Checks one component against [catalog]'s schema for its type.

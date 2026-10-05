@@ -255,7 +255,7 @@ void main() {
 
     test('cannot be constructed for an unsupported version', () {
       expect(
-        () => PayloadValidator.forVersion('v1.0', catalog: testCatalog()),
+        () => PayloadValidator.forVersion('v0.8', catalog: testCatalog()),
         throwsA(isA<A2uiValidationError>()),
       );
       expect(

@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v0_9) Every catalog component now renders inside a custom element (`<a2ui-react-<name>>`, `display: contents`). [#2849](https://github.com/a2ui-project/a2ui/pull/2849)
+- (v0_9) A catalog can mix React implementations and universal Web Components (`WebComponentImplementation`), nested in either order. [#2849](https://github.com/a2ui-project/a2ui/pull/2849)
+
 ## 0.12.0
 
 - Align with `@a2ui/web_core` multi-catalog and protocol versioning updates.

@@ -298,7 +298,11 @@ class MessageProcessor<T extends ComponentApi> {
 
   void _processCreateSurface(CreateSurfaceMessage message) {
     final Catalog<T, FunctionImplementation> catalog = catalogFor(
-      message.catalogId,
+      message.catalogId ??
+          (throw A2uiValidationError(
+            "Message 'createSurface' for surface '${message.surfaceId}' names "
+            'no catalogId.',
+          )),
     );
 
     if (groupModel.getSurface(message.surfaceId) != null) {
