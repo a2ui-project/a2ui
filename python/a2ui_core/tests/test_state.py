@@ -32,7 +32,7 @@ from a2ui.core.exceptions import (
 )
 from a2ui.core.basic_catalog import BasicCatalog
 
-dummy_catalog = BasicCatalog()
+dummy_catalog = BasicCatalog("0.9")
 
 
 def test_component_model_lifecycle():
@@ -517,7 +517,7 @@ def test_resolved_binding_equality():
 
 
 def test_surface_model_initialization_and_catalogs():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", default_catalog=cat, root_id="custom_root")
 
     assert surface.root_id == "custom_root"
@@ -527,7 +527,7 @@ def test_surface_model_initialization_and_catalogs():
 
 
 def test_surface_model_dispatch_warning_and_error():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", default_catalog=cat)
 
     warnings_received: list[dict[str, Any]] = []
@@ -555,7 +555,7 @@ def test_surface_model_dispatch_warning_and_error():
 
 
 def test_surface_model_dispatch_action_payload_handling():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", default_catalog=cat)
 
     actions_received: list[dict[str, Any]] = []
@@ -578,7 +578,7 @@ def test_surface_model_dispatch_action_payload_handling():
 
 
 def test_surface_model_disposal():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     surface = SurfaceModel("s1", default_catalog=cat)
 
     def on_act(_: Any) -> None:
@@ -589,7 +589,7 @@ def test_surface_model_disposal():
 
 
 def test_surface_components_model_membership_and_storage():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     scm = SurfaceComponentsModel(default_catalog=cat)
     assert scm.default_catalog is cat
 
@@ -606,7 +606,7 @@ def test_surface_components_model_membership_and_storage():
 
 
 def test_surface_components_model_duplicate_rejection():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     scm = SurfaceComponentsModel(default_catalog=cat)
     scm.add_component(ComponentModel("c1", "Text", cat, {}))
 
@@ -615,7 +615,7 @@ def test_surface_components_model_duplicate_rejection():
 
 
 def test_surface_components_model_child_references():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     scm = SurfaceComponentsModel(default_catalog=cat)
     c1 = ComponentModel("c1", "Text", cat, {"text": "hello"})
     scm.add_component(c1)
@@ -625,7 +625,7 @@ def test_surface_components_model_child_references():
 
 
 def test_surface_components_model_cycle_detection_ignores_orphans():
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     scm = SurfaceComponentsModel(default_catalog=cat)
     # root connected to c1
     scm.add_component(ComponentModel("root", "Box", cat, {"child": "c1"}))
@@ -642,7 +642,7 @@ def test_surface_components_model_cycle_detection_ignores_orphans():
 def test_surface_components_model_max_depth_enforcement():
     from a2ui.core.validation import ValidationConfig
 
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     chain_scm = SurfaceComponentsModel(default_catalog=cat)
     chain_scm.add_component(ComponentModel("root", "Box", cat, {"child": "node1"}))
     chain_scm.add_component(ComponentModel("node1", "Box", cat, {"child": "node2"}))
@@ -660,7 +660,7 @@ def test_surface_components_model_collection_helpers_and_topology():
     from a2ui.core.validation import ValidationConfig
     from a2ui.core.exceptions import A2uiIntegrityError
 
-    cat = BasicCatalog()
+    cat = BasicCatalog("0.9")
     scm = SurfaceComponentsModel(default_catalog=cat)
 
     # Empty topology validation is a no-op

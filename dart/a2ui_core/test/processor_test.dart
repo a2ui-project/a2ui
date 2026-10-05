@@ -59,8 +59,10 @@ void main() {
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
-          CreateSurfaceMessage(surfaceId: 's1', catalogId: 'cat1'),
-          CreateSurfaceMessage(surfaceId: 's2', catalogId: 'cat2'),
+          CreateSurfaceMessage(
+              version: 'v0.9', surfaceId: 's1', catalogId: 'cat1'),
+          CreateSurfaceMessage(
+              version: 'v0.9', surfaceId: 's2', catalogId: 'cat2'),
         ]),
       );
     });
@@ -69,6 +71,7 @@ void main() {
         processor.processMessages(
           AgentToRendererMessagePayload([
             UpdateComponentsMessage(
+              version: 'v0.9',
               surfaceId: surfaceId,
               components: [
                 {'id': 'root', 'component': component, 'a': 'x'},
@@ -162,6 +165,7 @@ void main() {
           () => processor.processMessages(
             AgentToRendererMessagePayload([
               UpdateComponentsMessage(
+                version: 'v0.9',
                 surfaceId: 's1',
                 components: [
                   {
@@ -199,6 +203,7 @@ void main() {
           () => processor.processMessages(
             AgentToRendererMessagePayload([
               UpdateComponentsMessage(
+                version: 'v0.9',
                 surfaceId: 's1',
                 components: [
                   {
@@ -231,6 +236,7 @@ void main() {
           () => processor.processMessages(
             AgentToRendererMessagePayload([
               UpdateComponentsMessage(
+                version: 'v0.9',
                 surfaceId: 's1',
                 components: [
                   {'id': 'b', 'component': 'Text', 'text': 'new'},
@@ -278,7 +284,8 @@ void main() {
     test('processMessages applies a lone message', () {
       processor.processMessages(
         AgentToRendererMessagePayload.of(
-          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+          CreateSurfaceMessage(
+              version: 'v0.9', surfaceId: 's1', catalogId: catalog.id),
         ),
       );
 
@@ -328,8 +335,10 @@ void main() {
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
-          CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id),
+          CreateSurfaceMessage(
+              version: 'v0.9', surfaceId: 's1', catalogId: catalog.id),
           UpdateComponentsMessage(
+            version: 'v0.9',
             surfaceId: 's1',
             components: [
               {'id': 'root', 'component': 'Text', 'text': 'first'},
@@ -363,11 +372,18 @@ void main() {
     void send(MessageProcessor processor, List<AgentToRendererMessage> m) =>
         processor.processMessages(AgentToRendererMessagePayload(m));
 
-    CreateSurfaceMessage create() =>
-        CreateSurfaceMessage(surfaceId: 's1', catalogId: catalog.id);
+    CreateSurfaceMessage create() => CreateSurfaceMessage(
+          version: 'v0.9',
+          surfaceId: 's1',
+          catalogId: catalog.id,
+        );
 
     UpdateComponentsMessage update(List<Map<String, Object?>> components) =>
-        UpdateComponentsMessage(surfaceId: 's1', components: components);
+        UpdateComponentsMessage(
+          version: 'v0.9',
+          surfaceId: 's1',
+          components: components,
+        );
 
     SurfaceComponentsModel componentsOf(MessageProcessor processor) =>
         processor.groupModel.getSurface('s1')!.componentsModel;
@@ -452,7 +468,9 @@ void main() {
 
     test('deleteSurface for an unknown surface is a no-op', () {
       final MessageProcessor<ComponentApi> processor = processorWith();
-      send(processor, [DeleteSurfaceMessage(surfaceId: 'nope')]);
+      send(processor, [
+        DeleteSurfaceMessage(version: 'v0.9', surfaceId: 'nope'),
+      ]);
       expect(processor.groupModel.getSurface('nope'), isNull);
     });
 
@@ -461,7 +479,12 @@ void main() {
       // what is reported.
       expect(
         () => send(processorWith(), [
-          UpdateDataModelMessage(surfaceId: 's1', path: '/a~2', value: 'x'),
+          UpdateDataModelMessage(
+            version: 'v0.9',
+            surfaceId: 's1',
+            path: '/a~2',
+            value: 'x',
+          ),
         ]),
         throwsA(
           isA<A2uiValidationError>().having(
@@ -481,6 +504,7 @@ void main() {
       expect(
         () => send(processorWith(), [
           UpdateDataModelMessage(
+            version: 'v0.9',
             surfaceId: 's1',
             path: 'invalid path [0]',
             value: 'data',
@@ -569,7 +593,12 @@ void main() {
         send(processor, [create()]);
         expect(
           () => send(processor, [
-            UpdateDataModelMessage(surfaceId: 's1', path: '/a', value: 1),
+            UpdateDataModelMessage(
+              version: 'v0.9',
+              surfaceId: 's1',
+              path: '/a',
+              value: 1,
+            ),
           ]),
           throwsA(isA<A2uiValidationError>()),
         );
@@ -648,14 +677,22 @@ void main() {
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
-          CreateSurfaceMessage(surfaceId: 's1', catalogId: 'cat1'),
+          CreateSurfaceMessage(
+            version: 'v0.9',
+            surfaceId: 's1',
+            catalogId: 'cat1',
+          ),
         ]),
       );
     });
 
     void update(Map<String, Object?> component) => processor.processMessages(
           AgentToRendererMessagePayload([
-            UpdateComponentsMessage(surfaceId: 's1', components: [component]),
+            UpdateComponentsMessage(
+              version: 'v0.9',
+              surfaceId: 's1',
+              components: [component],
+            ),
           ]),
         );
 

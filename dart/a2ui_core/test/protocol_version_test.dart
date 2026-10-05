@@ -17,20 +17,86 @@ import 'package:test/test.dart';
 
 void main() {
   group('A2uiProtocolVersion', () {
-    test('exposes v0.9 as its wire value', () {
+    test('exposes each version as its wire value', () {
       expect(A2uiProtocolVersion.v0_9.jsonValue, 'v0.9');
+      expect(A2uiProtocolVersion.v0_9_1.jsonValue, 'v0.9.1');
+      expect(A2uiProtocolVersion.v1_0.jsonValue, 'v1.0');
     });
 
-    test('implements exactly one version', () {
-      expect(A2uiProtocolVersion.values, [A2uiProtocolVersion.v0_9]);
-      expect(A2uiProtocolVersion.supportedVersions, "'v0.9'");
+    test('implements v0.9, v0.9.1 and v1.0', () {
+      expect(A2uiProtocolVersion.values, [
+        A2uiProtocolVersion.v0_9,
+        A2uiProtocolVersion.v0_9_1,
+        A2uiProtocolVersion.v1_0,
+      ]);
+      expect(
+        A2uiProtocolVersion.supportedVersions,
+        "'v0.9', 'v0.9.1', 'v1.0'",
+      );
     });
 
-    test('parses the supported version and v0.9.1 alias', () {
-      expect(A2uiProtocolVersion.fromJson('v0.9'), A2uiProtocolVersion.v0_9);
-      expect(A2uiProtocolVersion.fromJson('v0.9.1'), A2uiProtocolVersion.v0_9);
+    test('parses and round-trips every version', () {
+      for (final A2uiProtocolVersion version in A2uiProtocolVersion.values) {
+        expect(A2uiProtocolVersion.fromJson(version.jsonValue), version);
+        expect(A2uiProtocolVersion.parse(version.jsonValue), version);
+        expect(A2uiProtocolVersion.tryParse(version.jsonValue), version);
+      }
     });
 
+    test('parses v0.9.1 as its own version, distinct from v0.9', () {
+      final A2uiProtocolVersion version = A2uiProtocolVersion.parse('v0.9.1');
+      expect(version, A2uiProtocolVersion.v0_9_1);
+      expect(version, isNot(A2uiProtocolVersion.v0_9));
+      expect(version.jsonValue, 'v0.9.1');
+    });
+
+    test('reports major and minor numbers', () {
+      expect(A2uiProtocolVersion.v0_9.major, 0);
+      expect(A2uiProtocolVersion.v0_9.minor, 9);
+      expect(A2uiProtocolVersion.v0_9_1.major, 0);
+      expect(A2uiProtocolVersion.v0_9_1.minor, 9);
+      expect(A2uiProtocolVersion.v1_0.major, 1);
+      expect(A2uiProtocolVersion.v1_0.minor, 0);
+    });
+
+    test('orders versions by release', () {
+      const A2uiProtocolVersion v09 = A2uiProtocolVersion.v0_9;
+      const A2uiProtocolVersion v091 = A2uiProtocolVersion.v0_9_1;
+      const A2uiProtocolVersion v10 = A2uiProtocolVersion.v1_0;
+      expect(v09.compareTo(v091), isNegative);
+      expect(v091.compareTo(v10), isNegative);
+      expect(v10.compareTo(v09), isPositive);
+      expect(v091.compareTo(v091), 0);
+      expect([v10, v09, v091]..sort(), [v09, v091, v10]);
+    });
+
+    test('isAtLeast compares against a minimum version', () {
+      expect(
+          A2uiProtocolVersion.v1_0.isAtLeast(A2uiProtocolVersion.v0_9), isTrue);
+      expect(
+          A2uiProtocolVersion.v1_0.isAtLeast(A2uiProtocolVersion.v1_0), isTrue);
+      expect(
+        A2uiProtocolVersion.v0_9_1.isAtLeast(A2uiProtocolVersion.v0_9),
+        isTrue,
+      );
+      expect(
+        A2uiProtocolVersion.v0_9.isAtLeast(A2uiProtocolVersion.v0_9_1),
+        isFalse,
+      );
+      expect(A2uiProtocolVersion.v0_9.isAtLeast(A2uiProtocolVersion.v1_0),
+          isFalse);
+    });
+
+    test('parse rejects an unknown version; tryParse returns null', () {
+      for (final version in ['v0.8', 'v1.1', '0.9', '1.0', 'v0_9', '']) {
+        expect(A2uiProtocolVersion.tryParse(version), isNull, reason: version);
+        expect(
+          () => A2uiProtocolVersion.parse(version),
+          throwsA(isA<A2uiValidationError>()),
+          reason: version,
+        );
+      }
+    });
     test('rejects an unspecified version', () {
       expect(
         () => A2uiProtocolVersion.fromJson(null),
@@ -52,7 +118,7 @@ void main() {
     });
 
     test('rejects earlier and later protocol versions', () {
-      for (final version in ['v0.8', 'v1.0', '0.9', '']) {
+      for (final version in ['v0.8', 'v1.1', '0.9', '']) {
         expect(
           () => A2uiProtocolVersion.fromJson(version),
           throwsA(
@@ -68,9 +134,9 @@ void main() {
     });
 
     test('carries the offending payload as error details', () {
-      final payload = {'version': 'v1.0'};
+      final payload = {'version': 'v2.0'};
       expect(
-        () => A2uiProtocolVersion.fromJson('v1.0', details: payload),
+        () => A2uiProtocolVersion.fromJson('v2.0', details: payload),
         throwsA(
           isA<A2uiValidationError>().having(
             (e) => e.details,

@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from a2ui.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import VERSION_0_9, remove_strict_validation
+from a2ui.schema import (
+    CatalogConfig,
+    VERSION_0_9,
+    remove_strict_validation,
+)
 
 ROLE_DESCRIPTION = (
     "You are a helpful restaurant finding assistant. Your final output MUST be an A2UI"
@@ -63,8 +67,9 @@ if __name__ == "__main__":
     restaurant_prompt = DirectJsonFormat(
         version,
         catalogs=[
-            BasicCatalog.get_config(
-                version=version,
+            CatalogConfig.from_catalog(
+                "basic",
+                BasicCatalog(version),
                 examples_path=f"examples/{version}",
             )
         ],

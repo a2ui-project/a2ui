@@ -23,7 +23,7 @@ from typing import Any, Optional
 
 import yaml
 
-from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
     Action,
@@ -46,11 +46,11 @@ from a2ui.core.schema.v0_9 import (
 )
 from a2ui.core import ValidationConfig
 from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
+from a2ui.schema.constants import VERSION_0_9_1
 from a2ui.schema.utils import (
     find_repo_root,
+    load_agent_to_renderer_schema,
     load_common_types_schema,
-    load_from_bundled_resource,
 )
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
@@ -58,7 +58,7 @@ CONFORMANCE_DIR = os.path.join(REPO_ROOT, "conformance", "agent", "builder")
 GOLDEN_DIR = os.path.join(CONFORMANCE_DIR, "golden")
 SUITE_PATH = os.path.join(CONFORMANCE_DIR, "builder.yaml")
 
-CATALOG_VERSION = "0.9.1"
+PROTOCOL_VERSION = VERSION_0_9_1
 
 
 # =============================================================================
@@ -255,18 +255,15 @@ _catalog: Optional[A2uiCatalog] = None
 
 
 def basic_catalog_schema() -> A2uiCatalog:
-    """Loads the bundled basic catalog, memoized because schema loading is slow."""
+    """Loads the basic catalog, memoized because schema loading is slow."""
     global _catalog
     if _catalog is None:
-        config = BasicCatalog.get_config(CATALOG_VERSION)
         _catalog = A2uiCatalog(
-            version=CATALOG_VERSION,
+            version=PROTOCOL_VERSION,
             name="basic",
-            catalog_schema=config.provider.load(),
-            s2c_schema=load_from_bundled_resource(
-                CATALOG_VERSION, SERVER_TO_CLIENT_SCHEMA_KEY, SPEC_VERSION_MAP
-            ),
-            common_types_schema=load_common_types_schema(CATALOG_VERSION),
+            catalog_schema=BasicCatalog(PROTOCOL_VERSION).catalog_schema,
+            s2c_schema=load_agent_to_renderer_schema(PROTOCOL_VERSION),
+            common_types_schema=load_common_types_schema(PROTOCOL_VERSION),
         )
     return _catalog
 
