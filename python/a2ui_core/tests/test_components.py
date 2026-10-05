@@ -15,7 +15,7 @@
 import pytest
 from pydantic import ValidationError, TypeAdapter
 
-from a2ui.core.basic_catalog import (
+from a2ui.core.basic_catalog.v0_9 import (
     ImageComponent,
     TextComponent,
     ButtonComponent,

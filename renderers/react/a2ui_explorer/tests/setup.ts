@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
+import {renderMarkdown} from '@a2ui/markdown-it';
+
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
@@ -21,3 +24,5 @@ declare global {
 // Configures the React 18 testing environment to expect and support act() blocks.
 // Without this flag, React warns in the console during state transitions and mounting.
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+setMarkdownRenderer(renderMarkdown);
