@@ -13,11 +13,7 @@
 # limitations under the License.
 
 from . import constants as constants
-from .catalog import (
-    CatalogConfig,
-    load_examples,
-    render_as_llm_instructions,
-)
+from .catalog import CatalogConfig, load_examples
 from .catalog_provider import (
     A2uiCatalogProvider,
     FileSystemCatalogProvider,
@@ -57,5 +53,4 @@ __all__ = [
     "constants",
     "load_examples",
     "remove_strict_validation",
-    "render_as_llm_instructions",
 ]

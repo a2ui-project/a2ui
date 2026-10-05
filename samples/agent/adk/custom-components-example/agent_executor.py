@@ -34,7 +34,6 @@ from a2a.utils import (
 from a2a.utils.errors import ServerError
 from agent import ContactAgent
 from a2ui.a2a import try_activate_a2ui_extension
-from a2ui.schema import render_as_llm_instructions
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +165,11 @@ class ContactAgentExecutor(AgentExecutor):
             catalog = inference_format.get_selected_catalog(
                 client_ui_capabilities=client_ui_capabilities
             )
-            catalog_schema_str = render_as_llm_instructions(catalog)
+            catalog_schema_str = (
+                inference_format.prompt_generator.generate_catalog_instructions(
+                    catalog=catalog
+                )
+            )
             query += (
                 "\n\n[SYSTEM: The client supports the following custom components:"
                 f" {catalog_schema_str}]"

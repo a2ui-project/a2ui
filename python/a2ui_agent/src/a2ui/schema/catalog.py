@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 import copy
 from dataclasses import dataclass
 import glob
@@ -26,11 +26,7 @@ from urllib.parse import urlparse
 
 from a2ui.core import A2uiCatalogError, A2uiError, Catalog
 from a2ui.core.common import to_protocol_version
-from a2ui.utils import (
-    prune_common_types_schema,
-    prune_messages_schema,
-    validate_payload,
-)
+from a2ui.utils import validate_payload
 
 if TYPE_CHECKING:
     # Only used in annotations, which aren't evaluated at runtime.
@@ -42,12 +38,7 @@ from .catalog_provider import (
     FileSystemCatalogProvider,
     InMemoryCatalogProvider,
 )
-from .constants import (
-    A2UI_SCHEMA_BLOCK_END,
-    A2UI_SCHEMA_BLOCK_START,
-    CATALOG_ID_KEY,
-    ENCODING,
-)
+from .constants import CATALOG_ID_KEY, ENCODING
 
 
 @dataclass(init=False)
@@ -229,61 +220,6 @@ def resolve_examples_path(path: str | None) -> str | None:
         else:
             raise A2uiCatalogError(f"Unsupported examples URL scheme: {path}")
     return None
-
-
-def render_as_llm_instructions(
-    catalog: CatalogApi,
-    *,
-    s2c_schema: Mapping[str, Any] | None = None,
-    common_types_schema: Mapping[str, Any] | None = None,
-    allowed_messages: Sequence[str] | None = None,
-) -> str:
-    """Renders a Catalog and its protocol schemas as LLM instructions."""
-    from a2ui.schema.utils import (
-        load_agent_to_renderer_schema,
-        load_common_types_schema,
-    )
-
-    version = str(catalog.protocol_version).removeprefix("v")
-    effective_s2c = (
-        dict(s2c_schema)
-        if s2c_schema is not None
-        else (load_agent_to_renderer_schema(version) or {})
-    )
-    if allowed_messages:
-        effective_s2c = prune_messages_schema(effective_s2c, version, allowed_messages)
-
-    effective_common_types = (
-        dict(common_types_schema)
-        if common_types_schema is not None
-        else (load_common_types_schema(version) or {})
-    )
-    catalog_schema = catalog.catalog_schema
-    effective_common_types = prune_common_types_schema(
-        effective_common_types, catalog_schema, effective_s2c
-    )
-
-    all_schemas = [A2UI_SCHEMA_BLOCK_START]
-
-    server_client_str = (
-        json.dumps(effective_s2c, separators=(",", ":")) if effective_s2c else "{}"
-    )
-    all_schemas.append(f"### Server To Client Schema:\n{server_client_str}")
-
-    if (
-        effective_common_types
-        and "$defs" in effective_common_types
-        and effective_common_types["$defs"]
-    ):
-        common_str = json.dumps(effective_common_types, separators=(",", ":"))
-        all_schemas.append(f"### Common Types Schema:\n{common_str}")
-
-    catalog_str = json.dumps(catalog_schema, separators=(",", ":"))
-    all_schemas.append(f"### Catalog Schema:\n{catalog_str}")
-
-    all_schemas.append(A2UI_SCHEMA_BLOCK_END)
-
-    return "\n\n".join(all_schemas)
 
 
 def load_examples(

@@ -17,6 +17,7 @@ from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS
 from .format import DirectJsonFormat
 from .parser import DirectJsonParser
 from .prompt_generator import DirectJsonPromptGenerator
+from .schema_block import render_schema_block
 from .streaming import DirectJsonStreamParser
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "DirectJsonParser",
     "DirectJsonPromptGenerator",
     "DirectJsonStreamParser",
+    "render_schema_block",
 ]

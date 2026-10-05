@@ -24,7 +24,6 @@ from a2ui.schema import (
     VERSION_0_8,
     VERSION_0_9,
     remove_strict_validation,
-    render_as_llm_instructions,
 )
 from typing import Any
 
@@ -90,7 +89,7 @@ if __name__ == "__main__":
         accepts_inline_catalogs=True,
         schema_modifiers=[remove_strict_validation],
     )
-    contact_prompt = transport_format.generate_system_prompt(
+    contact_prompt = direct_json_format.generate_system_prompt(
         role_description=ROLE_DESCRIPTION,
         workflow_description=WORKFLOW_DESCRIPTION,
         ui_description=UI_DESCRIPTION,
@@ -107,19 +106,21 @@ if __name__ == "__main__":
         inline_catalog = json.load(f)
 
     client_ui_capabilities = {"inlineCatalogs": [inline_catalog]}
-    inline_catalog = transport_format.get_selected_catalog(
+    inline_catalog = direct_json_format.get_selected_catalog(
         client_ui_capabilities=client_ui_capabilities,
     )
-    request_prompt = render_as_llm_instructions(inline_catalog)
+    request_prompt = direct_json_format.prompt_generator.generate_catalog_instructions(
+        catalog=inline_catalog
+    )
     print(request_prompt)
     with open("request_prompt.txt", "w") as f:
         f.write(request_prompt)
     print("\nGenerated request prompt saved to request_prompt.txt")
 
-    basic_catalog = inference_format.get_selected_catalog(
+    basic_catalog = direct_json_format.get_selected_catalog(
         client_ui_capabilities=client_ui_capabilities
     )
-    examples = inference_format.load_examples(
+    examples = direct_json_format.load_examples(
         basic_catalog,
         validate=True,
     )
