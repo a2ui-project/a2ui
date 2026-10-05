@@ -1908,6 +1908,65 @@
     - input: ', {"id": "c1", "component": "Text", "text": "child 1"}]}} </a2ui-json>'
       expect: []
 
+- name: test_no_placeholders_without_placeholder_component_v09
+  description: Tests that a catalog without the placeholder's component type gets no placeholders, even with validation disabled, and that the tree is held back until it is complete.
+  catalog:
+    protocolVersion: "v0.9"
+    commonTypesSchema: "test_data/simplified_common_types_v09.json"
+    s2cSchema: "test_data/simplified_s2c_v09.json"
+    catalogSchema:
+      catalogId: "test_catalog"
+      components:
+        Text:
+          type: object
+          properties:
+            component: {const: "Text"}
+            text: {type: string}
+          required: ["component"]
+        Stack:
+          type: object
+          properties:
+            component: {const: "Stack"}
+            children:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
+          required: ["component"]
+      $defs:
+        anyComponent:
+          oneOf:
+            - {$ref: "#/components/Text"}
+            - {$ref: "#/components/Stack"}
+          discriminator: {propertyName: "component"}
+  disableValidation: true
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "s1"}},'
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "test_catalog"
+    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Stack", "children": ["c1", "c2"]}'
+      expect: []
+    - input: ', {"id": "c1", "component": "Text", "text": "child 1"}'
+      expect: []
+    - input: ', {"id": "c2", "component": "Text", "text": "child 2"}]}}'
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              updateComponents:
+                surfaceId: "s1"
+                components:
+                  - id: "c1"
+                    component: "Text"
+                    text: "child 1"
+                  - id: "c2"
+                    component: "Text"
+                    text: "child 2"
+                  - id: "root"
+                    component: "Stack"
+                    children: ["c1", "c2"]
+
 - name: test_data_model_before_components_v09
   description: Tests that data model before components works.
   catalog:
