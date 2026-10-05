@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `ComponentModel.toJson` writes `id` and `component` after the component's properties, so a property named `id` or `component` no longer replaces the model's own.
 - Add `Catalog.refMap`, a cached `ComponentRefMap` of each component type's
   child-reference properties. `MessageProcessor` graph validation and
   `NodeResolver` both read it, so a property the validator checks is one the
@@ -16,7 +17,6 @@
 - **Behavior change:** a dangling id inside a child list is reported with its
   index (`children[2]` rather than `children`), and only an object with both a
   string `componentId` and a string `path` is read as a `ChildList` template.
-
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
 - `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.
