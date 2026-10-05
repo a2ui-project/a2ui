@@ -14,9 +14,11 @@
 
 """Helpers shared by the inference formats and agent integrations."""
 
+from .catalog_resolver import resolve_catalogs
 from .schema_pruning import prune_common_types_schema, prune_messages_schema
 
 __all__ = [
     "prune_common_types_schema",
     "prune_messages_schema",
+    "resolve_catalogs",
 ]

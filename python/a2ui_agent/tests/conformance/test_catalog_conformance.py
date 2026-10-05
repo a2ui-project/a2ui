@@ -15,7 +15,8 @@
 """Runs the shared catalog suites in `conformance/agent/`.
 
 The suites are written against the blueprint APIs, so a case runs against
-`CatalogConfig` and the transformers in `a2ui.catalog_transformers` directly.
+`CatalogConfig`, the transformers in `a2ui.catalog_transformers` and
+`a2ui.utils.resolve_catalogs` directly.
 """
 
 from collections.abc import Mapping
@@ -28,9 +29,10 @@ from a2ui.catalog_transformers import (
     ComponentPruningTransformer,
     FunctionPruningTransformer,
 )
-from a2ui.core import Catalog, CatalogApi
+from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog, CatalogApi
 from a2ui.core.common import to_protocol_version
 from a2ui.schema import CatalogConfig
+from a2ui.utils import resolve_catalogs
 
 from .conformance_helpers import load_conformance_json, load_conformance_yaml
 
@@ -95,3 +97,43 @@ def test_catalog_transformer_conformance(case):
     assert case["action"] == "transform_catalog"
     catalog = _catalog_config(case["args"]).to_catalog()
     _expect_catalog(catalog, case["expect"])
+
+
+_ERROR_CATEGORIES: dict[str, type[Exception]] = {
+    "CatalogError": A2uiCatalogError,
+    "ValidationError": A2uiValidationError,
+}
+
+resolution_cases = load_conformance_yaml("agent/catalog_resolution.yaml")
+
+
+def test_catalog_resolution_suite_is_not_empty():
+    assert resolution_cases
+
+
+@pytest.mark.parametrize(
+    "case", resolution_cases, ids=[case["name"] for case in resolution_cases]
+)
+def test_catalog_resolution_conformance(case):
+    assert case["action"] == "resolve_catalogs"
+    args = case["args"]
+
+    def resolve() -> list[CatalogApi]:
+        return resolve_catalogs(
+            [_catalog_config(entry) for entry in args["catalogs"]],
+            args.get("renderer_capabilities"),
+            accepts_inline_catalogs=args.get("accepts_inline_catalogs", False),
+        )
+
+    if "expect_error" in case:
+        with pytest.raises(_ERROR_CATEGORIES[case["expect_error"]["category"]]):
+            resolve()
+        return
+
+    catalogs = resolve()
+    expect = case["expect"]
+    catalog_ids = [catalog.catalog_id for catalog in catalogs]
+    assert sorted(catalog_ids) == sorted(expect["active_catalog_ids"])
+    by_id = {catalog.catalog_id: catalog for catalog in catalogs}
+    for expected in expect.get("catalogs", []):
+        _expect_catalog(by_id[expected["catalog_id"]], expected)

@@ -18,6 +18,8 @@ from collections.abc import Mapping, Sequence
 import copy
 from typing import Any, Callable
 
+from pydantic import ValidationError
+
 from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
 from a2ui.core.schema.v0_9 import V09Capabilities
@@ -25,7 +27,7 @@ from a2ui.inference_format import InferenceFormat
 from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 from a2ui.inference_formats.direct_json.prompt_generator import DirectJsonPromptGenerator
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
-from a2ui.schema.catalog import CatalogConfig, load_examples
+from a2ui.schema import CatalogConfig, load_examples
 from a2ui.schema.constants import (
     CATALOG_COMPONENTS_KEY,
     INLINE_CATALOGS_KEY,
@@ -38,6 +40,16 @@ from a2ui.schema.utils import (
     load_agent_to_renderer_schema,
     load_common_types_schema,
 )
+from a2ui.utils import resolve_catalogs
+
+# The key that clients send each protocol version's capabilities under, when
+# they key them by version. v0.9.1 clients use the v0.9 key.
+_CAPABILITIES_KEYS = {
+    VERSION_0_8: "v0.8",
+    VERSION_0_9: "v0.9",
+    VERSION_0_9_1: "v0.9",
+    VERSION_1_0: "v1.0",
+}
 
 
 class DirectJsonFormat(InferenceFormat):
@@ -70,6 +82,7 @@ class DirectJsonFormat(InferenceFormat):
         self._server_to_client_schema: dict[str, Any] = {}
         self._common_types_schema: dict[str, Any] = {}
         self._supported_catalogs: list[CatalogApi] = []
+        self._catalog_configs: list[CatalogConfig] = []
         self._catalog_example_paths: dict[str, str] = {}
         self._catalog_cuttable_keys: dict[str, frozenset[str]] = {}
         self._schema_modifiers = list(schema_modifiers) if schema_modifiers else []
@@ -147,6 +160,11 @@ class DirectJsonFormat(InferenceFormat):
                 protocol_version=version, schema_modifiers=self._schema_modifiers
             )
             self._supported_catalogs.append(catalog)
+            # The catalog is already modified and transformed, so resolution
+            # reuses it as is.
+            self._catalog_configs.append(
+                CatalogConfig.from_catalog(config.name, catalog)
+            )
             if config.examples_path:
                 self._catalog_example_paths[catalog.catalog_id] = config.examples_path
             if config.custom_cuttable_keys is not None:
@@ -154,111 +172,90 @@ class DirectJsonFormat(InferenceFormat):
                     config.custom_cuttable_keys
                 )
 
-    def _select_catalog(
-        self,
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-    ) -> CatalogApi:
-        """Selects the component catalog for the prompt based on client capabilities.
-
-        Selection priority:
-        1. If inline catalogs are provided (and accepted by the agent), their
-           components are merged on top of a base catalog. The base is determined
-           by supportedCatalogIds (if also provided) or the agent's default catalog.
-        2. If only supportedCatalogIds is provided, pick the first mutually
-           supported catalog.
-        3. Fallback to the first agent-supported catalog (usually the bundled catalog).
+    def _read_client_capabilities(
+        self, client_ui_capabilities: Mapping[str, Any] | V09Capabilities
+    ) -> tuple[list[str] | None, list[dict[str, Any]]]:
+        """Returns the catalog ids and inline catalogs that a client sent.
 
         Args:
-           client_ui_capabilities: A dictionary of client UI capabilities, containing
-             inline catalogs and client-supported catalog IDs.
+           client_ui_capabilities: The capabilities object, or a mapping that keys
+             it by this format's protocol version.
 
         Returns:
-           The resolved catalog.
+           The client-supported catalog ids, or `None` if the client didn't
+           state any, and the inline catalog documents.
 
         Raises:
-           A2uiCatalogError: If inline catalogs are sent but not accepted, or if no
-             mutually supported catalog is found.
+           A2uiCatalogError: If the capabilities are malformed.
         """
-        if not self._supported_catalogs:
-            raise A2uiCatalogError(
-                "No supported catalogs found."
-            )  # This should not happen.
-
-        if not client_ui_capabilities:
-            return self._supported_catalogs[0]
-
-        if isinstance(client_ui_capabilities, Mapping):
+        if isinstance(client_ui_capabilities, V09Capabilities):
+            capabilities = client_ui_capabilities
+            states_catalog_ids = True
+        else:
+            entry = client_ui_capabilities.get(
+                _CAPABILITIES_KEYS[self._version], client_ui_capabilities
+            )
+            if not isinstance(entry, Mapping):
+                raise A2uiCatalogError(f"Invalid client capabilities format: {entry!r}")
+            states_catalog_ids = (
+                "supportedCatalogIds" in entry or "supported_catalog_ids" in entry
+            )
             # Inject default supportedCatalogIds if missing to pass validation
-            data = dict(client_ui_capabilities)
-            if (
-                "supportedCatalogIds" not in data
-                and "supported_catalog_ids" not in data
-            ):
+            data = dict(entry)
+            if not states_catalog_ids:
                 data["supportedCatalogIds"] = []
             try:
                 capabilities = V09Capabilities.model_validate(data)
-            except Exception as e:
+            except ValidationError as e:
                 raise A2uiCatalogError(
                     f"Invalid client capabilities format: {e}"
                 ) from e
-        else:
-            capabilities = client_ui_capabilities
 
         inline_catalogs = [
-            c.model_dump(by_alias=True) for c in capabilities.inline_catalogs or []
+            c.model_dump(by_alias=True, exclude_none=True)
+            for c in capabilities.inline_catalogs or []
         ]
-        client_supported_catalog_ids = capabilities.supported_catalog_ids or []
+        catalog_ids = capabilities.supported_catalog_ids if states_catalog_ids else None
+        return catalog_ids, inline_catalogs
 
-        if not self._accepts_inline_catalogs and inline_catalogs:
-            raise A2uiCatalogError(
-                f"Inline catalog '{INLINE_CATALOGS_KEY}' is provided in client UI"
-                " capabilities. However, the agent does not accept inline catalogs."
+    def _merge_inline_catalogs(
+        self,
+        catalog_ids: Sequence[str],
+        inline_catalogs: Sequence[dict[str, Any]],
+    ) -> CatalogApi:
+        """Returns the client's preferred catalog with the inline components added.
+
+        Args:
+           catalog_ids: The client-supported catalog ids. The first supported
+             catalog among them is the base, and the first supported catalog is
+             the base if there is none.
+           inline_catalogs: The inline catalog documents to merge.
+
+        Returns:
+           The merged catalog, which keeps the base catalog's id.
+        """
+        supported_catalogs = {c.catalog_id: c for c in self._supported_catalogs}
+        base_catalog = next(
+            (supported_catalogs[i] for i in catalog_ids if i in supported_catalogs),
+            self._supported_catalogs[0],
+        )
+
+        merged_schema = copy.deepcopy(base_catalog.catalog_schema)
+
+        for inline_catalog_schema in inline_catalogs:
+            inline_catalog_schema = self._apply_modifiers(inline_catalog_schema)
+            inline_components = inline_catalog_schema.get(CATALOG_COMPONENTS_KEY) or {}
+            merged_schema.setdefault(CATALOG_COMPONENTS_KEY, {}).update(
+                inline_components
             )
 
-        if inline_catalogs:
-            # Determine the base catalog: use supportedCatalogIds if provided,
-            # otherwise fall back to the agent's default catalog.
-            base_catalog = self._supported_catalogs[0]
-            if client_supported_catalog_ids:
-                agent_supported_catalogs = {
-                    c.catalog_id: c for c in self._supported_catalogs
-                }
-                for cscid in client_supported_catalog_ids:
-                    if cscid in agent_supported_catalogs:
-                        base_catalog = agent_supported_catalogs[cscid]
-                        break
+        if "$defs" in merged_schema and "anyComponent" in merged_schema["$defs"]:
+            del merged_schema["$defs"]["anyComponent"]
 
-            merged_schema = copy.deepcopy(base_catalog.catalog_schema)
-
-            for inline_catalog_schema in inline_catalogs:
-                inline_catalog_schema = self._apply_modifiers(inline_catalog_schema)
-                inline_components = inline_catalog_schema.get(
-                    CATALOG_COMPONENTS_KEY, {}
-                )
-                merged_schema.setdefault(CATALOG_COMPONENTS_KEY, {}).update(
-                    inline_components
-                )
-
-            if "$defs" in merged_schema and "anyComponent" in merged_schema["$defs"]:
-                del merged_schema["$defs"]["anyComponent"]
-
-            return Catalog.from_json(
-                catalog_schema=merged_schema,
-                protocol_version=self._version,
-                catalog_id=base_catalog.catalog_id,
-            )
-
-        if not client_supported_catalog_ids:
-            return self._supported_catalogs[0]
-
-        agent_supported_catalogs = {c.catalog_id: c for c in self._supported_catalogs}
-        for cscid in client_supported_catalog_ids:
-            if cscid in agent_supported_catalogs:
-                return agent_supported_catalogs[cscid]
-
-        raise A2uiCatalogError(
-            "No client-supported catalog found on the agent side. Agent-supported"
-            f" catalogs are: {[c.catalog_id for c in self._supported_catalogs]}"
+        return Catalog.from_json(
+            catalog_schema=merged_schema,
+            protocol_version=self._version,
+            catalog_id=base_catalog.catalog_id,
         )
 
     def get_selected_catalog(
@@ -269,8 +266,19 @@ class DirectJsonFormat(InferenceFormat):
     ) -> CatalogApi:
         """Selects and prunes the catalog according to client capabilities and restrictions.
 
+        The selected catalog is the first one that `a2ui.utils.resolve_catalogs`
+        activates for the client's `supportedCatalogIds`. Inline catalogs, when
+        the format accepts them, are merged into that catalog rather than
+        activated on their own, so the prompt still describes one catalog. If
+        the client names no supported catalog, they're merged into the first
+        supported catalog.
+
         Args:
-            client_ui_capabilities: Optional client UI capability details.
+            client_ui_capabilities: Optional client UI capability details, either
+                the capabilities object or a mapping that keys it by protocol
+                version, for example `{"v0.9": {...}}`. Without capabilities, or
+                without `supportedCatalogIds`, the first supported catalog is
+                selected.
             allowed_components: Optional names of the components to keep. `None`
                 keeps every component, and an empty list keeps none.
             allowed_messages: Accepted for compatibility. A catalog does not hold
@@ -279,9 +287,41 @@ class DirectJsonFormat(InferenceFormat):
 
         Returns:
             The selected catalog, pruned to the allowed components.
+
+        Raises:
+            A2uiCatalogError: If the capabilities are malformed, carry inline
+                catalogs that the format doesn't accept, or name none of the
+                supported catalogs. An empty `supportedCatalogIds` without inline
+                catalogs names none.
         """
         del allowed_messages
-        catalog = self._select_catalog(client_ui_capabilities)
+        if not self._supported_catalogs:
+            raise A2uiCatalogError(
+                "No supported catalogs found."
+            )  # This should not happen.
+
+        catalog_ids, inline_catalogs = (
+            self._read_client_capabilities(client_ui_capabilities)
+            if client_ui_capabilities
+            else (None, [])
+        )
+
+        if not self._accepts_inline_catalogs and inline_catalogs:
+            raise A2uiCatalogError(
+                f"Inline catalog '{INLINE_CATALOGS_KEY}' is provided in client UI"
+                " capabilities. However, the agent does not accept inline catalogs."
+            )
+
+        if inline_catalogs:
+            catalog = self._merge_inline_catalogs(catalog_ids or [], inline_catalogs)
+        elif catalog_ids is None:
+            catalog = self._supported_catalogs[0]
+        else:
+            renderer_capabilities = {
+                _CAPABILITIES_KEYS[self._version]: {"supportedCatalogIds": catalog_ids}
+            }
+            catalog = resolve_catalogs(self._catalog_configs, renderer_capabilities)[0]
+
         if allowed_components is not None:
             catalog = ComponentPruningTransformer(allowed_components).transform(catalog)
         return catalog

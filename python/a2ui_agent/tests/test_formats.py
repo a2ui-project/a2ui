@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import pytest
-from a2ui.core import Catalog
-from a2ui.schema import VERSION_0_9
+from a2ui.core import A2uiCatalogError, Catalog
+from a2ui.schema import VERSION_0_9, CatalogConfig
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
 from a2ui.adk import A2uiPartConverter
 from google.genai import types as genai_types
@@ -282,3 +282,51 @@ def test_direct_json_stream_parser_leaf_child_fields(test_catalog):
     assert "child" in unmapped_fields
     assert "children" in unmapped_fields
     assert "label" not in unmapped_fields
+
+
+def _direct_json_format(*catalog_ids: str) -> DirectJsonFormat:
+    configs = [
+        CatalogConfig.from_catalog(
+            catalog_id,
+            Catalog.from_json(
+                {"catalogId": catalog_id, "components": {}}, protocol_version="0.9"
+            ),
+        )
+        for catalog_id in catalog_ids
+    ]
+    return DirectJsonFormat(version=VERSION_0_9, catalogs=configs)
+
+
+@pytest.mark.parametrize(
+    "capabilities",
+    [
+        {"supportedCatalogIds": ["b", "a"]},
+        {"v0.9": {"supportedCatalogIds": ["b", "a"]}},
+        {"supported_catalog_ids": ["b", "a"]},
+    ],
+    ids=["flat", "version_keyed", "field_names"],
+)
+def test_get_selected_catalog_selects_the_first_named_catalog(capabilities):
+    direct_json_format = _direct_json_format("a", "b")
+
+    assert direct_json_format.get_selected_catalog(capabilities).catalog_id == "b"
+
+
+@pytest.mark.parametrize(
+    "capabilities",
+    [None, {}, {"inlineCatalogs": []}, {"v0.9": {}}],
+    ids=["none", "empty", "no_ids", "version_keyed_no_ids"],
+)
+def test_get_selected_catalog_without_catalog_ids_selects_the_first_catalog(
+    capabilities,
+):
+    direct_json_format = _direct_json_format("a", "b")
+
+    assert direct_json_format.get_selected_catalog(capabilities).catalog_id == "a"
+
+
+def test_get_selected_catalog_with_empty_catalog_ids_is_an_error():
+    direct_json_format = _direct_json_format("a")
+
+    with pytest.raises(A2uiCatalogError, match="No client-supported catalog found"):
+        direct_json_format.get_selected_catalog({"supportedCatalogIds": []})
