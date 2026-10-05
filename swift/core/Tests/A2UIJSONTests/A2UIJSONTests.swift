@@ -50,7 +50,7 @@ struct A2UIJSONTests {
       rawSchema: rawSchema,
       context: context
     )
-    let value: JSONValue = ["path": "/test"]
+    let value: JSONValue = ["@path": "/test"]
     let result = schema.validate(value)
     #expect(result.isValid)
 

@@ -191,7 +191,8 @@ struct MessageProcessorConformanceTests {
     return []
   }
 
-  private func decodeMessages(from rawMessages: [[String: Any]]) throws -> [AgentToRendererMessage] {
+  private func decodeMessages(from rawMessages: [[String: Any]]) throws -> [AgentToRendererMessage]
+  {
     let parser = MessageParser()
     return try rawMessages.map { dict in
       let jsonVal = ConformanceTestHelper.toJSONValue(dict)
@@ -227,7 +228,8 @@ struct MessageProcessorConformanceTests {
 
     let messages = try decodeMessages(from: rawMessages)
     processor.process(messages: messages)
-    #expect(handler.capturedErrors.isEmpty, "[\(name)] Unexpected errors: \(handler.capturedErrors)")
+    #expect(
+      handler.capturedErrors.isEmpty, "[\(name)] Unexpected errors: \(handler.capturedErrors)")
 
     let expectedDict = (testCase["expect"] as? [String: Any]) ?? [:]
     let expectedSurfaces =
@@ -315,7 +317,9 @@ struct MessageProcessorConformanceTests {
         "[\(name)] Expected renderer data model \(expectedSurfaces), got \(String(describing: actual))"
       )
     } else {
-      #expect(actual == nil, "[\(name)] Expected nil renderer data model, got \(String(describing: actual))")
+      #expect(
+        actual == nil,
+        "[\(name)] Expected nil renderer data model, got \(String(describing: actual))")
     }
   }
 

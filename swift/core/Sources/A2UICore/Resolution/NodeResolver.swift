@@ -81,7 +81,7 @@ public final class NodeResolver: Sendable {
       componentsModel: surface.componentsModel,
       dataModel: surface.dataModel,
       actionHandler: actionHandler ?? surface.actionHandler,
-      protocolVersion: protocolVersion ?? surface.protocolVersion.rawValue
+      protocolVersion: protocolVersion ?? surface.nodeResolver.protocolVersion
     )
   }
 

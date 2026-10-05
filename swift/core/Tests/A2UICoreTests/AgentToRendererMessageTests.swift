@@ -443,19 +443,21 @@ struct AgentToRendererMessageTests {
     }
   }
 
+  @MainActor
   @Test func validatorRejectsUnrecognizedAction() throws {
-    let validator = A2UIValidator()
+    let processor = MessageProcessor(catalogs: [])
     let payload = JSONValue.object([
       "version": .string("v1.0"),
       "unknownAction": .object([:]),
     ])
     #expect(throws: A2UIValidationError.self) {
-      try validator.validate(payload: payload)
+      try processor.processMessages(payload)
     }
   }
 
+  @MainActor
   @Test func validatorValidatesCallRendererFunction() throws {
-    let validator = A2UIValidator()
+    let processor = MessageProcessor(catalogs: [])
 
     // Valid v1.0 callRendererFunction
     let validPayload = JSONValue.object([
@@ -468,7 +470,7 @@ struct AgentToRendererMessageTests {
         ]),
       ]),
     ])
-    try validator.validate(payload: validPayload)
+    try processor.processMessages(validPayload)
 
     // Invalid in v0.9.1
     let v09Payload = JSONValue.object([
@@ -482,12 +484,13 @@ struct AgentToRendererMessageTests {
       ]),
     ])
     #expect(throws: A2UIValidationError.self) {
-      try validator.validate(payload: v09Payload)
+      try processor.processMessages(v09Payload)
     }
   }
 
+  @MainActor
   @Test func validatorValidatesAgentFunctionResponse() throws {
-    let validator = A2UIValidator()
+    let processor = MessageProcessor(catalogs: [])
 
     // Valid with value
     let validVal = JSONValue.object([
@@ -497,7 +500,7 @@ struct AgentToRendererMessageTests {
         "value": .string("res"),
       ]),
     ])
-    try validator.validate(payload: validVal)
+    try processor.processMessages(validVal)
 
     // Valid with error
     let validErr = JSONValue.object([
@@ -510,7 +513,7 @@ struct AgentToRendererMessageTests {
         ]),
       ]),
     ])
-    try validator.validate(payload: validErr)
+    try processor.processMessages(validErr)
 
     // Invalid: both value and error
     let both = JSONValue.object([
@@ -525,7 +528,7 @@ struct AgentToRendererMessageTests {
       ]),
     ])
     #expect(throws: A2UIValidationError.self) {
-      try validator.validate(payload: both)
+      try processor.processMessages(both)
     }
   }
 

@@ -311,12 +311,12 @@ enum A2UISchemaGenerator {
                 "type": "object",
                 "not": {
                   "properties": {
-                    "call": { "const": "@index" }
+                    "@call": { "const": "@index" }
                   },
-                  "required": ["call"]
+                  "required": ["@call"]
                 },
                 "properties": {
-                  "call": { "type": "string" },
+                  "@call": { "type": "string" },
                   "catalogId": { "type": "string" },
                   "args": {
                     "type": "object",
@@ -325,7 +325,7 @@ enum A2UISchemaGenerator {
                     }
                   }
                 },
-                "required": ["call"]
+                "required": ["@call"]
               },
               "anyComponent": {
                 "type": "object"

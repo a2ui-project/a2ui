@@ -88,7 +88,14 @@ public final class VersionAdapterFactory: @unchecked Sendable {
         .joined(separator: ", ")
       throw A2UIValidationError(
         "[VersionAdapterFactory] Unsupported protocol version '\(version)'. "
-          + "Supported versions: \(supported)."
+          + "Supported versions: \(supported).",
+        details: [
+          A2UIErrorDetail(
+            path: "messages.0.version",
+            code: "invalid_value",
+            message: "Unsupported protocol version '\(version)'"
+          )
+        ]
       )
     }
     return adapter
@@ -97,29 +104,71 @@ public final class VersionAdapterFactory: @unchecked Sendable {
   /// Inspects a raw JSON payload's `version` field and resolves the corresponding adapter.
   public func resolveFromPayload(_ payload: JSONValue) throws -> any VersionAdapter {
     let firstItem: JSONValue
-    if case .array(let arr) = payload, let first = arr.first {
+    switch payload {
+    case .null:
+      return getAdapter(for: .v10)
+    case .array(let arr):
+      guard let first = arr.first else {
+        return getAdapter(for: .v10)
+      }
       firstItem = first
-    } else {
+    case .object:
       firstItem = payload
+    default:
+      throw A2UIValidationError(
+        "Payload must be a JSON object or array of objects",
+        details: [
+          A2UIErrorDetail(
+            path: "messages",
+            code: "type_mismatch",
+            message: "Expected object or array"
+          )
+        ]
+      )
     }
 
-    if let dict = firstItem.objectValue {
-      if let messages = dict["messages"]?.arrayValue {
-        return try resolveFromPayload(.array(messages))
-      }
-      if let rawVersion = dict["version"] {
-        guard let versionString = rawVersion.stringValue else {
-          throw A2UIValidationError(
-            "[VersionAdapterFactory] Message payload is missing a valid 'version' string: "
-              + "'version' property must be a string."
+    guard let dict = firstItem.objectValue else {
+      throw A2UIValidationError(
+        "[VersionAdapterFactory] Message item at index 0 is not an object.",
+        details: [
+          A2UIErrorDetail(
+            path: "messages.0",
+            code: "type_mismatch",
+            message: "Message must be an object"
           )
-        }
-        return try getAdapter(for: versionString)
+        ]
+      )
+    }
+
+    if let messages = dict["messages"]?.arrayValue {
+      return try resolveFromPayload(.array(messages))
+    }
+    if let rawVersion = dict["version"] {
+      guard let versionString = rawVersion.stringValue else {
+        throw A2UIValidationError(
+          "[VersionAdapterFactory] Message payload is missing a valid 'version' string: "
+            + "'version' property must be a string.",
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.version",
+              code: "type_mismatch",
+              message: "Version must be a string"
+            )
+          ]
+        )
       }
+      return try getAdapter(for: versionString)
     }
 
     throw A2UIValidationError(
-      "[VersionAdapterFactory] Message payload is missing a valid 'version' string."
+      "[VersionAdapterFactory] Message payload is missing a valid 'version' string.",
+      details: [
+        A2UIErrorDetail(
+          path: "messages.0.version",
+          code: "missing_field",
+          message: "'version' is a required property"
+        )
+      ]
     )
   }
 

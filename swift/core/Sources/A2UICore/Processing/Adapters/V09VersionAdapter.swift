@@ -110,9 +110,47 @@ public final class V09VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     switch action {
     case "createSurface":
       let surfaceID = try requireSurfaceID(in: actionObject, action: action)
-      let catalogID = actionObject["catalogId"]?.stringValue
-      let theme: [String: JSONValue]? = actionObject["theme"]?.objectValue.map {
-        Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
+      guard let rawCatalogID = actionObject["catalogId"] else {
+        throw A2UIValidationError(
+          "Invalid \(version.rawValue) message: createSurface.catalogId is required",
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.createSurface.catalogId",
+              code: "missing_field",
+              message: "Field 'catalogId' is required"
+            )
+          ]
+        )
+      }
+      guard let catalogID = rawCatalogID.stringValue, !catalogID.isEmpty else {
+        throw A2UIValidationError(
+          "Invalid \(version.rawValue) message: createSurface.catalogId must be a non-empty string",
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.createSurface.catalogId",
+              code: rawCatalogID.stringValue == nil ? "type_mismatch" : "invalid_value",
+              message: "Field 'catalogId' must be a string"
+            )
+          ]
+        )
+      }
+      let theme: [String: JSONValue]?
+      if let rawTheme = actionObject["theme"], rawTheme != .null {
+        guard let themeObj = rawTheme.objectValue else {
+          throw A2UIValidationError(
+            "Invalid \(version.rawValue) message: createSurface.theme must be an object",
+            details: [
+              A2UIErrorDetail(
+                path: "messages.0.createSurface.theme",
+                code: "type_mismatch",
+                message: "Field 'theme' must be an object"
+              )
+            ]
+          )
+        }
+        theme = Dictionary(uniqueKeysWithValues: themeObj.map { ($0.key, $0.value) })
+      } else {
+        theme = nil
       }
       let sendDataModel = actionObject["sendDataModel"]?.boolValue ?? false
       let components = try parseComponentsArray(actionObject["components"], action: action)
@@ -135,7 +173,19 @@ public final class V09VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
 
     case "updateComponents":
       let surfaceID = try requireSurfaceID(in: actionObject, action: action)
-      let components = try parseComponentsArray(actionObject["components"], action: action) ?? []
+      guard let componentsValue = actionObject["components"] else {
+        throw A2UIValidationError(
+          "Invalid \(version.rawValue) message: updateComponents.components is required",
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.updateComponents.components",
+              code: "missing_field",
+              message: "Missing required property 'components'"
+            )
+          ]
+        )
+      }
+      let components = try parseComponentsArray(componentsValue, action: action) ?? []
       return [
         .updateComponents(
           InternalUpdateComponentsOp(
@@ -147,7 +197,36 @@ public final class V09VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
 
     case "updateDataModel":
       let surfaceID = try requireSurfaceID(in: actionObject, action: action)
-      let path = actionObject["path"]?.stringValue ?? "/"
+      let path: String
+      if let rawPath = actionObject["path"], rawPath != .null {
+        guard let pathStr = rawPath.stringValue else {
+          throw A2UIValidationError(
+            "Invalid \(version.rawValue) message: updateDataModel.path must be a string",
+            details: [
+              A2UIErrorDetail(
+                path: "messages.0.updateDataModel.path",
+                code: "type_mismatch",
+                message: "Field 'path' must be a string"
+              )
+            ]
+          )
+        }
+        if !pathStr.isEmpty && !pathStr.hasPrefix("/") {
+          throw A2UIValidationError(
+            "Invalid \(version.rawValue) message: updateDataModel.path must start with '/'",
+            details: [
+              A2UIErrorDetail(
+                path: "messages.0.updateDataModel.path",
+                code: "invalid_value",
+                message: "Field 'path' must be a valid JSON Pointer starting with '/'"
+              )
+            ]
+          )
+        }
+        path = pathStr.isEmpty ? "/" : pathStr
+      } else {
+        path = "/"
+      }
       let value = actionObject["value"]
       return [
         .updateDataModel(

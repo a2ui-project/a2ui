@@ -485,7 +485,7 @@ struct A2UICommonSchemaTests {
       remoteSchemas: A2UICommonSchema.allSchemas
     )
     let value: JSONValue = [
-      "call": "formatString",
+      "@call": "formatString",
       "catalogId": "https://a2ui.org/specification/v1_0/basic_catalog.json",
       "args": ["value": "Hello"],
     ]
@@ -500,13 +500,13 @@ struct A2UICommonSchemaTests {
       remoteSchemas: A2UICommonSchema.allSchemas
     )
     let validValue: JSONValue = [
-      "call": "@index",
+      "@call": "@index",
       "args": ["offset": 1],
     ]
     #expect(schema.validate(validValue).isValid)
 
     let invalidArgsValue: JSONValue = [
-      "call": "@index",
+      "@call": "@index",
       "args": ["unknownArg": 0],
     ]
     #expect(!schema.validate(invalidArgsValue).isValid)
@@ -520,7 +520,7 @@ struct A2UICommonSchemaTests {
       remoteSchemas: A2UICommonSchema.allSchemas
     )
     let value: JSONValue = [
-      "call": "formatString",
+      "@call": "formatString",
       "args": ["value": "Hello"],
       "returnType": "string",
     ]

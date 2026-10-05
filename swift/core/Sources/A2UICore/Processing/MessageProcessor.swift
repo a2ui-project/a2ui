@@ -25,16 +25,15 @@ public final class MessageProcessor: ObservableObject {
   /// The surface group model owning all active surfaces.
   public let surfaceGroupModel: SurfaceGroupModel
 
-  /// The RPC handler managing function invocations.
-  let rpcHandler: RPCHandler
-
   /// Listener for outbound messages destined to the agent.
   public var outboundListener: (@Sendable (RendererToAgentMessage) -> Void)?
 
+  /// The validation configuration controlling strictness.
+  public let validationConfig: ValidationConfig
+
+  let rpcHandler: RPCHandler
   private let registeredCatalogs: [AnyCatalog]
   private let catalogs: [String: AnyCatalog]
-  private let validator: A2UIValidator
-  private let validationConfig: ValidationConfig
   private weak var actionHandler: (any ActionHandling)?
   private let actionForwarder = ProcessorActionForwarder()
   private let errorMapper = MessageErrorMapper()
@@ -76,7 +75,6 @@ public final class MessageProcessor: ObservableObject {
     }
     self.registeredCatalogs = uniqueCatalogs
     self.catalogs = catalogMap
-    self.validator = A2UIValidator(catalogs: anyCatalogs, config: validationConfig)
     self.validationConfig = validationConfig
     self.actionHandler = actionHandler
     self.surfaceGroupModel = SurfaceGroupModel()
@@ -423,19 +421,27 @@ public final class MessageProcessor: ObservableObject {
   }
 
   /// Resolves a version adapter from a raw JSON payload, normalizes it into
-  /// ``InternalOperation`` values, and executes them.
+  /// ``InternalOperation`` values, and executes them, forwarding any errors to
+  /// `ActionHandling` and `outboundListener`.
   public func process(payload: JSONValue) {
     do {
-      let adapter = try adapterFactory.resolveFromPayload(payload)
-      let operations = try adapter.extractOperations(from: payload)
-      for operation in operations {
-        try processOperation(operation)
-      }
+      try processMessages(payload)
     } catch {
       let surfaceID = extractSurfaceID(from: error, fallback: "")
       let version = resolveVersion(for: payload, surfaceID: surfaceID)
       let clientError = errorMapper.map(error, surfaceID: surfaceID, version: version)
       forwardError(clientError, from: surfaceID)
+    }
+  }
+
+  /// Resolves a version adapter from a raw JSON payload, normalizes it into
+  /// ``InternalOperation`` values, and executes them, throwing any validation,
+  /// integrity, recursion, or catalog errors directly.
+  public func processMessages(_ payload: JSONValue) throws {
+    let adapter = try adapterFactory.resolveFromPayload(payload)
+    let operations = try adapter.extractOperations(from: payload)
+    for operation in operations {
+      try processOperation(operation)
     }
   }
 
@@ -493,13 +499,6 @@ public final class MessageProcessor: ObservableObject {
       return genericError.surfaceID ?? fallback
     }
     return fallback
-  }
-
-  private func mostSpecificError(from error: ValidationError) -> ValidationError {
-    if let nestedErrors = error.errors, let firstNested = nestedErrors.first {
-      return mostSpecificError(from: firstNested)
-    }
-    return error
   }
 
   // MARK: - Version-Neutral Operation Execution
@@ -689,37 +688,8 @@ public final class MessageProcessor: ObservableObject {
     _ theme: [String: JSONValue]?,
     against catalog: AnyCatalog
   ) throws {
-    guard let theme,
-      let themeSchema = catalog.themeSchema
-    else { return }
-
-    let themeInstance: JSONValue = .object(
-      OrderedDictionary(uniqueKeysWithValues: theme)
-    )
-    let result = themeSchema.validate(themeInstance)
-    guard !result.isValid else { return }
-
-    let specificError = result.errors?.first.map(mostSpecificError(from:))
-    let errorMessage = specificError?.message ?? "Theme validation failed"
-    let subpath = specificError?.instanceLocation.jsonPointerString ?? ""
-    let errorPath: String
-    if subpath.isEmpty || subpath == "/" {
-      errorPath = "/theme"
-    } else if subpath.hasPrefix("/") {
-      errorPath = "/theme\(subpath)"
-    } else {
-      errorPath = "/theme/\(subpath)"
-    }
-    throw A2UIValidationError(
-      errorMessage,
-      details: [
-        A2UIErrorDetail(
-          path: errorPath,
-          code: "THEME_VALIDATION_FAILED",
-          message: errorMessage
-        )
-      ]
-    )
+    let payloadValidator = PayloadValidator(catalog: catalog, config: validationConfig)
+    try payloadValidator.validateTheme(theme)
   }
 
   private func processUpdateComponentsOp(_ op: InternalUpdateComponentsOp) throws {
@@ -767,14 +737,20 @@ public final class MessageProcessor: ObservableObject {
     _ components: [[String: JSONValue]],
     on surface: SurfaceViewModel
   ) throws {
+    let basicCatalog = findCatalog("basic", preferredVersion: surface.protocolVersion)
+    var effectiveConfig = validationConfig
+    if surface.protocolVersion.isAtLeastV10 && !effectiveConfig.protocolVersion.isAtLeastV10 {
+      effectiveConfig.targetVersion = surface.protocolVersion.rawValue
+    }
+
     for componentDict in components {
-      guard let type = componentDict["component"]?.stringValue else {
+      guard let type = componentDict["component"]?.stringValue, !type.isEmpty else {
         throw A2UIValidationError(
           "Missing required key 'component'",
           details: [
             A2UIErrorDetail(
-              path: "/component",
-              code: "MISSING_PROPERTY",
+              path: "component",
+              code: componentDict["component"] == nil ? "missing_field" : "type_mismatch",
               message: "Missing required key 'component'"
             )
           ]
@@ -786,8 +762,8 @@ public final class MessageProcessor: ObservableObject {
           "Missing required key 'id'",
           details: [
             A2UIErrorDetail(
-              path: "/id",
-              code: "MISSING_PROPERTY",
+              path: "id",
+              code: componentDict["id"] == nil ? "missing_field" : "type_mismatch",
               message: "Missing required key 'id'"
             )
           ]
@@ -826,38 +802,12 @@ public final class MessageProcessor: ObservableObject {
         )
       }
 
-      guard let schema = targetCatalog.components[type]?.schema else {
-        throw A2UICatalogError(
-          "Unknown component type '\(type)' not registered in catalog",
-          details: [
-            A2UIErrorDetail(
-              path: "/component",
-              code: "UNKNOWN_COMPONENT",
-              message: "Unknown component type '\(type)' not registered in catalog"
-            )
-          ]
-        )
-      }
-
-      let instance: JSONValue = .object(
-        OrderedDictionary(uniqueKeysWithValues: componentDict.map { ($0.key, $0.value) })
+      let payloadValidator = PayloadValidator(
+        catalog: targetCatalog,
+        config: effectiveConfig,
+        fallbackCatalog: basicCatalog
       )
-      let result = schema.validate(instance)
-      guard result.isValid else {
-        let specificError = result.errors?.first.map(mostSpecificError(from:))
-        let errorMessage = specificError?.message ?? "Validation failed"
-        let errorPath = specificError?.instanceLocation.jsonPointerString ?? "/"
-        throw A2UIValidationError(
-          errorMessage,
-          details: [
-            A2UIErrorDetail(
-              path: errorPath.isEmpty ? "/" : errorPath,
-              code: "SCHEMA_VALIDATION_FAILED",
-              message: errorMessage
-            )
-          ]
-        )
-      }
+      try payloadValidator.validateComponent(componentDict)
     }
 
     if !components.isEmpty {
@@ -889,7 +839,7 @@ public final class MessageProcessor: ObservableObject {
       try GraphTopologyValidator.validate(
         components: allComponents,
         rootID: "root",
-        config: validator.config,
+        config: effectiveConfig,
         catalogs: surface.catalogs,
         defaultCatalogID: surface.defaultCatalogID
       )

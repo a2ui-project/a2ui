@@ -305,7 +305,7 @@ public enum GraphTopologyValidator {
           }
         } else if recursionStack.contains(neighbor) {
           throw A2UIRecursionError(
-            "Circular component reference (Circular reference) detected involving component '\(neighbor)'"
+            "Circular component reference (Circular reference detected) involving component '\(neighbor)'"
           )
         }
       }

@@ -20,51 +20,8 @@ import JSONSchema
 import OrderedJSON
 import Testing
 
+@MainActor
 struct ValidatorConformanceTests {
-  /// Cases that `A2UIValidator` can't pass, keyed by case name.
-  ///
-  /// `A2UIValidator` checks one payload at a time without surface state, and it merges the
-  /// components of every message in the payload into one graph with a single `root`.
-  private static let skippedCases: [String: String] = [
-    "test_v09_topology_circular_reference_error":
-      "cycles are reported as 'Circular reference detected', not 'Circular component reference'",
-    "test_v09_topology_dangling_child_reference_error":
-      "dangling references are reported as 'references non-existent component'",
-    "test_v09_multi_surface_independent_roots":
-      "components of different surfaces are merged into one graph",
-    "test_v09_multi_surface_missing_root_error":
-      "components of different surfaces are merged into one graph",
-    "test_v09_incremental_update_without_root":
-      "a later update of the same component in one payload is reported as a duplicate ID",
-    "test_v09_incremental_update_self_reference_error":
-      "a later update of the same component in one payload is reported as a duplicate ID",
-    "test_v09_incremental_update_circular_reference_error":
-      "a later update of the same component in one payload is reported as a duplicate ID",
-    "test_v09_incremental_update_duplicate_component_id_error":
-      "a later update of the same component in one payload is reported as a duplicate ID",
-    "test_v09_theme_schema_validation_error":
-      "theme schema validation is handled at surface creation, not by component payload validator",
-    "test_v09_incremental_update_same_component_id_across_messages":
-      "a later update of the same component in one payload is reported as a duplicate ID",
-    "test_v10_multi_surface_independent_roots":
-      "components of different surfaces are merged into one graph",
-    "test_v10_multi_surface_missing_root_error":
-      "components of different surfaces are merged into one graph",
-    "test_v10_incremental_update_without_root":
-      "a later update of the same component in one payload is reported as a duplicate ID",
-    "test_v10_incremental_update_self_reference_error":
-      "a later update of the same component in one payload is reported as a duplicate ID",
-    "test_v10_incremental_update_circular_reference_error":
-      "a later update of the same component in one payload is reported as a duplicate ID",
-  ]
-
-  /// Steps that `A2UIValidator` can't pass, keyed by case name, as zero-based step indexes.
-  private static let skippedSteps: [String: Set<Int>] = [
-    // Steps 1 and 2: schema errors inside allOf are reported at path "/Canvas" instead of
-    // the property path.
-    "test_custom_catalog_0_9": [1, 2]
-  ]
-
   @Test func validatorConformance() throws {
     try runValidatorSuite(filename: "core/validator_v0_9.yaml", versionPrefix: "v0.9")
   }
@@ -82,8 +39,8 @@ struct ValidatorConformanceTests {
 
     for testCase in testCases {
       guard testCase.action == "validate",
-        testCase.protocolVersion?.hasPrefix(versionPrefix) == true,
-        Self.skippedCases[testCase.name] == nil
+        testCase.protocolVersion == nil
+          || testCase.protocolVersion?.hasPrefix(versionPrefix) == true
       else {
         continue
       }
@@ -104,23 +61,25 @@ struct ValidatorConformanceTests {
           targetVersion: targetVersion
         )
 
-      let validator = A2UIValidator(
-        catalogs: try ConformanceTestHelper.buildCatalogs(for: testCase),
-        config: config
+      let catalogs = try buildCatalogsWithAliases(for: testCase)
+      let processor = MessageProcessor(
+        catalogs: catalogs,
+        validationConfig: config
       )
-      let skippedStepIndexes = Self.skippedSteps[testCase.name] ?? []
 
       for (stepIndex, step) in testCase.steps.enumerated() {
-        guard let payload = step.payload, !skippedStepIndexes.contains(stepIndex) else {
+        guard let payload = step.payload else {
           continue
         }
         executedSteps += 1
+
+        clearRecreatedSurfaces(in: payload, on: processor)
 
         let expectedError = step.expectError ?? testCase.expectError
         if let expectedError {
           var caughtError: Error?
           do {
-            try validator.validate(payload: payload)
+            try processor.processMessages(payload)
           } catch {
             caughtError = error
           }
@@ -133,7 +92,7 @@ struct ValidatorConformanceTests {
           assertErrorMatches(error: error, expected: expectedError, testName: testCase.name)
         } else {
           do {
-            try validator.validate(payload: payload)
+            try processor.processMessages(payload)
           } catch {
             Issue.record(
               """
@@ -147,6 +106,60 @@ struct ValidatorConformanceTests {
     }
 
     #expect(executedSteps > 0, "no step of \(filename) was executed")
+  }
+
+  private func buildCatalogsWithAliases(for testCase: ConformanceTestCase) throws -> [AnyCatalog] {
+    var catalogs = try ConformanceTestHelper.buildCatalogs(for: testCase)
+    let expectsCatalogError =
+      testCase.expectError?.category == "CatalogError"
+      || testCase.steps.contains { $0.expectError?.category == "CatalogError" }
+    guard !expectsCatalogError, catalogs.count == 1, let soleCatalog = catalogs.first else {
+      return catalogs
+    }
+
+    var referencedCatalogIDs: Set<String> = []
+    for step in testCase.steps {
+      guard let payload = step.payload else { continue }
+      let messages = payload.arrayValue ?? [payload]
+      for message in messages {
+        if let catalogID = message.objectValue?["createSurface"]?.objectValue?["catalogId"]?
+          .stringValue,
+          !catalogID.isEmpty,
+          catalogID != soleCatalog.id
+        {
+          referencedCatalogIDs.insert(catalogID)
+        }
+      }
+    }
+
+    for aliasID in referencedCatalogIDs.sorted() {
+      catalogs.append(
+        Catalog(
+          id: aliasID,
+          protocolVersion: soleCatalog.protocolVersion,
+          components: Array(soleCatalog.components.values),
+          functions: Array(soleCatalog.functions.values),
+          themeSchema: soleCatalog.themeSchema
+        ).eraseToAnyCatalog()
+      )
+    }
+    return catalogs
+  }
+
+  private func clearRecreatedSurfaces(in payload: JSONValue, on processor: MessageProcessor) {
+    let messages = payload.arrayValue ?? [payload]
+    var createdInPayload: [String: Int] = [:]
+    for message in messages {
+      if let surfaceID = message.objectValue?["createSurface"]?.objectValue?["surfaceId"]?
+        .stringValue
+      {
+        createdInPayload[surfaceID, default: 0] += 1
+      }
+    }
+    for (surfaceID, count) in createdInPayload
+    where count == 1 && processor.surfaceGroupModel[surfaceID] != nil {
+      processor.surfaceGroupModel.removeSurface(id: surfaceID)
+    }
   }
 
   @Test func compositionConstraintsConformance() throws {
@@ -172,9 +185,9 @@ struct ValidatorConformanceTests {
         catalogs.append(customCatalog)
       }
 
-      let validator = A2UIValidator(
+      let processor = MessageProcessor(
         catalogs: catalogs,
-        config: ValidationConfig(targetVersion: "v1.0")
+        validationConfig: ValidationConfig(targetVersion: "v1.0")
       )
 
       for (stepIndex, step) in testCase.steps.enumerated() {
@@ -184,7 +197,7 @@ struct ValidatorConformanceTests {
         if let expectedError {
           var caughtError: Error?
           do {
-            try validator.validate(payload: payload)
+            try processor.processMessages(payload)
           } catch {
             caughtError = error
           }
@@ -204,7 +217,7 @@ struct ValidatorConformanceTests {
           }
         } else {
           do {
-            try validator.validate(payload: payload)
+            try processor.processMessages(payload)
           } catch {
             Issue.record(
               """

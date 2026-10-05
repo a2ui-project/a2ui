@@ -241,7 +241,8 @@ public final class PayloadValidator: Sendable {
   /// - Throws: `A2UIValidationError` if the function call fails validation.
   public func validateFunction(_ functionCall: [String: JSONValue]) throws {
     guard
-      let name = (functionCall["call"] ?? functionCall["function"])?.stringValue,
+      let name = (functionCall["@call"] ?? functionCall["call"] ?? functionCall["function"])?
+        .stringValue,
       !name.isEmpty
     else {
       throw A2UIValidationError(
@@ -431,7 +432,9 @@ public final class PayloadValidator: Sendable {
       }
 
     case .object(let dict):
-      if let rawName = (dict["call"] ?? dict["function"])?.stringValue, !rawName.isEmpty {
+      if let rawName = (dict["@call"] ?? dict["call"] ?? dict["function"])?.stringValue,
+        !rawName.isEmpty
+      {
         let rawArgs = dict["args"]?.dictionaryValue
         let callCatalogID = dict["catalogId"]?.stringValue
         let targetsThisCatalog =
@@ -469,7 +472,12 @@ public final class PayloadValidator: Sendable {
   private func isDynamicExpression(_ value: JSONValue) -> Bool {
     switch value {
     case .object(let dict):
-      if dict["path"] != nil || dict["call"] != nil || dict["function"] != nil {
+      if dict["path"] != nil
+        || dict["@path"] != nil
+        || dict["call"] != nil
+        || dict["@call"] != nil
+        || dict["function"] != nil
+      {
         return true
       }
       return dict.values.contains(where: { isDynamicExpression($0) })

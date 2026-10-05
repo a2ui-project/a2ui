@@ -66,7 +66,7 @@ struct OpenURLFunctionTests {
     let validSlider: OrderedJSON.JSONValue = [
       "id": "s1",
       "component": "Slider",
-      "value": ["path": "/val"],
+      "value": ["@path": "/val"],
       "min": 0,
       "max": 100,
       "steps": 10,
@@ -77,7 +77,7 @@ struct OpenURLFunctionTests {
     let invalidSliderSteps: OrderedJSON.JSONValue = [
       "id": "s1",
       "component": "Slider",
-      "value": ["path": "/val"],
+      "value": ["@path": "/val"],
       "min": 0,
       "max": 100,
       "steps": 0,
@@ -111,7 +111,7 @@ struct OpenURLFunctionTests {
     let dynamicSvgIcon: OrderedJSON.JSONValue = [
       "id": "ic1",
       "component": "Icon",
-      "name": ["svgPath": ["path": "/icons/home"]],
+      "name": ["svgPath": ["@path": "/icons/home"]],
     ]
     #expect(!v09Icon.schema.validate(dynamicSvgIcon).isValid)
     #expect(v10Icon.schema.validate(dynamicSvgIcon).isValid)

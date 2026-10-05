@@ -115,12 +115,15 @@ public final class DataContext {
         return value
       } else {
         let allowAtPrefix = (protocolVersion == nil)
-        if let pathStr = (dict["path"]?.stringValue ?? (allowAtPrefix ? dict["@path"]?.stringValue : nil)),
+        if let pathStr =
+          (dict["path"]?.stringValue ?? (allowAtPrefix ? dict["@path"]?.stringValue : nil)),
           dict["componentId"] == nil
         {
           let absPath = JSONValue.absolutePath(for: pathStr, in: self.path)
           return dataModel.get(absPath) ?? .null
-        } else if let callName = (dict["call"]?.stringValue ?? (allowAtPrefix ? dict["@call"]?.stringValue : nil)) {
+        } else if let callName =
+          (dict["call"]?.stringValue ?? (allowAtPrefix ? dict["@call"]?.stringValue : nil))
+        {
           return evaluateFunctionCall(name: callName, dict: dict)
         }
 
@@ -223,4 +226,3 @@ public final class DataContext {
     }
   }
 }
-

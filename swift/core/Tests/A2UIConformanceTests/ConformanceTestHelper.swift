@@ -268,17 +268,19 @@ public enum ConformanceTestHelper {
       protocolVersion
       ?? catalogSchema["protocolVersion"]?.stringValue
       ?? catalogSchema["protocol_version"]?.stringValue
-    var functions: [any FunctionImplementation]
-    if resolvedProtocolVersion == "v1.0" || resolvedProtocolVersion == "1.0" {
-      functions = BasicFunctions.v10Functions
-    } else {
-      functions = BasicFunctions.v09Functions
+    var functions: [any FunctionImplementation] = []
+    if catalogSchema["$schema"] != nil {
+      if resolvedProtocolVersion == "v1.0" || resolvedProtocolVersion == "1.0" {
+        functions = BasicFunctions.v10Functions
+      } else {
+        functions = BasicFunctions.v09Functions
+      }
     }
     if let funcObj = catalogSchema["functions"]?.objectValue {
       for (funcName, funcVal) in funcObj {
+        guard let paramObj = funcVal["parameters"]?.objectValue else { continue }
         let returnTypeStr = funcVal["returnType"]?.stringValue ?? "any"
         let retType = FunctionReturnType(rawValue: returnTypeStr) ?? .any
-        let paramObj = funcVal["parameters"]?.objectValue ?? [:]
         if let schema = try? Schema(rawSchema: .object(paramObj), context: context) {
           let api = FunctionAPI(name: funcName, returnType: retType, schema: schema)
           functions.append(ConformanceFunctionImplementation(api: api))
@@ -297,10 +299,10 @@ public enum ConformanceTestHelper {
       }
     }
 
-    var themeSchema: Schema?
-    if let rawTheme = catalogSchema["theme"] {
-      themeSchema = try? Schema(rawSchema: rawTheme, context: context)
-    }
+    let themeSchema: Schema? = (catalogSchema["theme"] ?? catalogSchema["$defs"]?["theme"])
+      .flatMap {
+        try? Schema(rawSchema: $0, context: context)
+      }
 
     let catalogID = catalogSchema["catalogId"]?.stringValue ?? "test_catalog"
     return Catalog(

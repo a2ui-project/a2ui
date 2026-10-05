@@ -115,7 +115,22 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     switch action {
     case "createSurface":
       let surfaceID = try requireSurfaceID(in: actionObject, action: action)
-      let catalogID = actionObject["catalogId"]?.stringValue
+      var catalogID: String?
+      if let rawCatalogID = actionObject["catalogId"], rawCatalogID != .null {
+        guard let str = rawCatalogID.stringValue, !str.isEmpty else {
+          throw A2UIValidationError(
+            "Invalid v1.0 message: createSurface.catalogId must be a non-empty string",
+            details: [
+              A2UIErrorDetail(
+                path: "messages.0.createSurface.catalogId",
+                code: rawCatalogID.stringValue == nil ? "type_mismatch" : "invalid_value",
+                message: "Field 'catalogId' must be a string"
+              )
+            ]
+          )
+        }
+        catalogID = str
+      }
       let sendDataModel = actionObject["sendDataModel"]?.boolValue ?? false
       let components = try parseComponentsArray(actionObject["components"], action: action)
       let dataModel: [String: JSONValue]? = actionObject["dataModel"]?.objectValue.map {
@@ -142,7 +157,19 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
 
     case "updateComponents":
       let surfaceID = try requireSurfaceID(in: actionObject, action: action)
-      let components = try parseComponentsArray(actionObject["components"], action: action) ?? []
+      guard let componentsValue = actionObject["components"] else {
+        throw A2UIValidationError(
+          "Invalid v1.0 message: updateComponents.components is required",
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.updateComponents.components",
+              code: "missing_field",
+              message: "Missing required property 'components'"
+            )
+          ]
+        )
+      }
+      let components = try parseComponentsArray(componentsValue, action: action) ?? []
       return [
         .updateComponents(
           InternalUpdateComponentsOp(
@@ -154,8 +181,48 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
 
     case "updateDataModel":
       let surfaceID = try requireSurfaceID(in: actionObject, action: action)
-      let path = actionObject["path"]?.stringValue ?? "/"
-      let value = actionObject["value"]
+      let path: String
+      if let rawPath = actionObject["path"], rawPath != .null {
+        guard let pathStr = rawPath.stringValue else {
+          throw A2UIValidationError(
+            "Invalid v1.0 message: updateDataModel.path must be a string",
+            details: [
+              A2UIErrorDetail(
+                path: "messages.0.updateDataModel.path",
+                code: "type_mismatch",
+                message: "Field 'path' must be a string"
+              )
+            ]
+          )
+        }
+        if !pathStr.isEmpty && !pathStr.hasPrefix("/") {
+          throw A2UIValidationError(
+            "Invalid v1.0 message: updateDataModel.path must start with '/'",
+            details: [
+              A2UIErrorDetail(
+                path: "messages.0.updateDataModel.path",
+                code: "invalid_value",
+                message: "Field 'path' must be a valid JSON Pointer starting with '/'"
+              )
+            ]
+          )
+        }
+        path = pathStr.isEmpty ? "/" : pathStr
+      } else {
+        path = "/"
+      }
+      guard let value = actionObject["value"] else {
+        throw A2UIValidationError(
+          "Invalid v1.0 message: updateDataModel.value is required",
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.updateDataModel.value",
+              code: "missing_field",
+              message: "Missing required property 'value'"
+            )
+          ]
+        )
+      }
       return [
         .updateDataModel(
           InternalUpdateDataModelOp(
@@ -179,18 +246,43 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         !functionCallID.isEmpty
       else {
         throw A2UIValidationError(
-          "Invalid v1.0 message: callRendererFunction.functionCallId is required"
+          "Invalid v1.0 message: callRendererFunction.functionCallId is required",
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.callRendererFunction.functionCallId",
+              code: actionObject["functionCallId"] == nil ? "missing_field" : "type_mismatch",
+              message: "Field 'functionCallId' is required"
+            )
+          ]
         )
       }
       guard let callFunctionObj = actionObject["callFunction"]?.objectValue,
-        let call = callFunctionObj["call"]?.stringValue,
+        let call = (callFunctionObj["@call"] ?? callFunctionObj["call"])?.stringValue,
         !call.isEmpty
       else {
         throw A2UIValidationError(
-          "Invalid v1.0 message: callRendererFunction.callFunction.call is required"
+          "Invalid v1.0 message: callRendererFunction.callFunction.call is required",
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.callRendererFunction.callFunction.call",
+              code: "missing_field",
+              message: "Field 'call' is required"
+            )
+          ]
         )
       }
-      let catalogID = callFunctionObj["catalogId"]?.stringValue
+      guard let catalogID = callFunctionObj["catalogId"]?.stringValue, !catalogID.isEmpty else {
+        throw A2UIValidationError(
+          "Invalid v1.0 message: callRendererFunction.callFunction.catalogId is required",
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.callRendererFunction.callFunction.catalogId",
+              code: callFunctionObj["catalogId"] == nil ? "missing_field" : "type_mismatch",
+              message: "Field 'catalogId' is required"
+            )
+          ]
+        )
+      }
       let args: [String: JSONValue]? = callFunctionObj["args"]?.objectValue.map {
         Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
       }
@@ -213,15 +305,60 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         !functionCallID.isEmpty
       else {
         throw A2UIValidationError(
-          "Invalid v1.0 message: agentFunctionResponse.functionCallId is required"
+          "Invalid v1.0 message: agentFunctionResponse.functionCallId is required",
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.agentFunctionResponse.functionCallId",
+              code: actionObject["functionCallId"] == nil ? "missing_field" : "type_mismatch",
+              message: "Field 'functionCallId' is required"
+            )
+          ]
+        )
+      }
+      let hasValue = actionObject["value"] != nil
+      let hasError = actionObject["error"] != nil
+      if !hasValue && !hasError {
+        throw A2UIValidationError(
+          "Invalid v1.0 message: agentFunctionResponse must contain either 'value' or 'error'",
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.agentFunctionResponse",
+              code: "missing_field",
+              message: "FunctionResponse must contain either 'value' or 'error'"
+            )
+          ]
+        )
+      }
+      if hasValue && hasError {
+        throw A2UIValidationError(
+          "Invalid v1.0 message: agentFunctionResponse cannot contain both 'value' and 'error'",
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.agentFunctionResponse",
+              code: "invalid_value",
+              message: "FunctionResponse cannot contain both 'value' and 'error'"
+            )
+          ]
         )
       }
       let value = actionObject["value"]
       var errorPayload: FunctionErrorPayload?
-      if let errObj = actionObject["error"]?.objectValue,
-        let code = errObj["code"]?.stringValue,
-        let errMessage = errObj["message"]?.stringValue
-      {
+      if let rawError = actionObject["error"] {
+        guard let errObj = rawError.objectValue,
+          let code = errObj["code"]?.stringValue,
+          let errMessage = errObj["message"]?.stringValue
+        else {
+          throw A2UIValidationError(
+            "Invalid v1.0 message: agentFunctionResponse.error must be an object with 'code' and 'message'",
+            details: [
+              A2UIErrorDetail(
+                path: "messages.0.agentFunctionResponse.error",
+                code: rawError.objectValue == nil ? "type_mismatch" : "missing_field",
+                message: "Field 'error' must be an object with 'code' and 'message'"
+              )
+            ]
+          )
+        }
         errorPayload = FunctionErrorPayload(code: code, message: errMessage)
       }
       return [

@@ -22,6 +22,7 @@ public struct CallFunctionPayload: Codable, Sendable, Equatable {
   public let returnType: String?
 
   private enum CodingKeys: String, CodingKey {
+    case atCall = "@call"
     case call
     case catalogID = "catalogId"
     case args
@@ -38,5 +39,25 @@ public struct CallFunctionPayload: Codable, Sendable, Equatable {
     self.catalogID = catalogID
     self.args = args
     self.returnType = returnType
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    if let atCall = try container.decodeIfPresent(String.self, forKey: .atCall) {
+      call = atCall
+    } else {
+      call = try container.decode(String.self, forKey: .call)
+    }
+    catalogID = try container.decodeIfPresent(String.self, forKey: .catalogID)
+    args = try container.decodeIfPresent([String: JSONValue].self, forKey: .args)
+    returnType = try container.decodeIfPresent(String.self, forKey: .returnType)
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(call, forKey: .call)
+    try container.encodeIfPresent(catalogID, forKey: .catalogID)
+    try container.encodeIfPresent(args, forKey: .args)
+    try container.encodeIfPresent(returnType, forKey: .returnType)
   }
 }

@@ -611,8 +611,8 @@ struct SurfaceViewModelTests {
           "component": "button",
           "onClick": [
             "functionCall": [
-              "call": "submit",
-              "args": ["formId": "contact"],
+              "call": "concat",
+              "args": ["a": "hello ", "b": "world"],
             ]
           ],
         ]
@@ -621,7 +621,7 @@ struct SurfaceViewModelTests {
     let root = surface.componentsModel.get("root")
     let actionJSON = try #require(root?.properties["onClick"]?.dictionaryValue)
     let funcCallJSON = try #require(actionJSON["functionCall"]?.dictionaryValue)
-    #expect(funcCallJSON["call"]?.stringValue == "submit")
+    #expect(funcCallJSON["call"]?.stringValue == "concat")
   }
 
   @Test func actionTriggersLocalFunctionCall() async throws {

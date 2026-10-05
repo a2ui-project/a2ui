@@ -90,20 +90,20 @@ public final class SurfaceViewModel: ObservableObject {
     self.theme = theme
     self.sendDataModel = sendDataModel
     self.actionHandler = actionHandler
-    let resolvedVersion: A2UIProtocolVersion
+    let explicitVersion: A2UIProtocolVersion?
     if let protocolVersion {
-      resolvedVersion = protocolVersion
+      explicitVersion = protocolVersion
     } else if let resolvedDefaultCatalogID,
       let defaultCat = catalogs[resolvedDefaultCatalogID],
       let catVer = defaultCat.a2uiProtocolVersion
     {
-      resolvedVersion = catVer
+      explicitVersion = catVer
     } else if let firstCatVer = catalogs.values.first?.a2uiProtocolVersion {
-      resolvedVersion = firstCatVer
+      explicitVersion = firstCatVer
     } else {
-      resolvedVersion = .v10
+      explicitVersion = nil
     }
-    self.protocolVersion = resolvedVersion
+    self.protocolVersion = explicitVersion ?? .v10
     self.dataModel = DataModel()
     self.componentsModel = SurfaceComponentsModel()
     self.nodeResolver = NodeResolver(
@@ -113,7 +113,7 @@ public final class SurfaceViewModel: ObservableObject {
       componentsModel: self.componentsModel,
       dataModel: self.dataModel,
       actionHandler: actionHandler,
-      protocolVersion: resolvedVersion.rawValue
+      protocolVersion: explicitVersion?.rawValue
     )
 
     setUpSubscriptions()
