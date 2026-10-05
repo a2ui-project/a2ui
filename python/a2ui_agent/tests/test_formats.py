@@ -82,6 +82,20 @@ def test_schema_strategy_prompt_generation(test_catalog):
     assert "### Catalog Schema:" in prompt
 
 
+def test_schema_strategy_prompt_shows_the_protocol_schemas_once(test_catalog):
+    direct_json_format = DirectJsonFormat([test_catalog, BasicCatalog(VERSION_0_9)])
+
+    prompt = direct_json_format.prompt_generator.generate(
+        role_description="You are a helpful assistant.", include_schema=True
+    )
+    instructions = direct_json_format.prompt_generator.generate_catalog_instructions()
+
+    for text in (prompt, instructions):
+        assert text.count("### Server To Client Schema:") == 1
+        assert text.count("### Common Types Schema:") <= 1
+        assert text.count("### Catalog Schema:") == 2
+
+
 def test_schema_parser(test_catalog):
     parser = DirectJsonParser(test_catalog)
     parsed = parser.parse_response(

@@ -177,7 +177,7 @@ async def test_send_tool_process_llm_request():
         await tool.process_llm_request(
             tool_context=tool_context_mock, llm_request=llm_request_mock
         )
-        mock_render.assert_called_once_with(catalog_mock)
+        mock_render.assert_called_once_with([catalog_mock])
 
     llm_request_mock.append_instructions.assert_called_once()
     args, _ = llm_request_mock.append_instructions.call_args

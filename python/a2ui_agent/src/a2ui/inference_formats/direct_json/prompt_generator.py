@@ -52,8 +52,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
         """Returns LLM instructions for a catalog or all of the format's catalogs."""
         if not include_schema:
             return ""
-        catalogs = [catalog] if catalog else self._format.catalogs
-        return "\n\n".join(schema_to_prompt(c) for c in catalogs)
+        return schema_to_prompt([catalog] if catalog else self._format.catalogs)
 
     def generate_examples(
         self,
@@ -133,12 +132,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
             parts.append(f"## UI Description:\n{ui_description}")
 
         if include_schema:
-            parts.append(
-                "\n\n".join(
-                    schema_to_prompt(c, allowed_messages=allowed_messages)
-                    for c in catalogs
-                )
-            )
+            parts.append(schema_to_prompt(catalogs, allowed_messages=allowed_messages))
 
         if include_examples:
             examples_str = load_examples(
