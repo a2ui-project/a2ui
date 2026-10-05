@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {ValidationConfig} from '../../internal/web_core.js';
+import {CatalogApi, ValidationConfig} from '../../internal/web_core.js';
 import {ResponsePart} from '../../parser/response_part.js';
-import {SchemaCatalog} from '../../types.js';
 
 /**
  * Options for configuring the Direct JSON stream processor.
@@ -66,7 +65,7 @@ export interface DirectJsonStreamProcessorFactory {
    * Creates a new stream processor for the given catalogs.
    */
   createStreamProcessor(
-    catalogs: SchemaCatalog[],
+    catalogs: CatalogApi[],
     options?: DirectJsonStreamProcessorOptions,
   ): DirectJsonStreamProcessor;
 }

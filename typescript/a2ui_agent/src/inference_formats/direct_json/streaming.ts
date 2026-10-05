@@ -15,7 +15,6 @@
  */
 
 import {ResponsePart} from '../../parser/response_part.js';
-import {SchemaCatalog} from '../../types.js';
 import {DirectJsonStreamProcessor, DirectJsonStreamProcessorOptions} from './streaming_types.js';
 import {
   A2UI_OPEN_TAG,
@@ -27,12 +26,13 @@ import {
   DEFAULT_ROOT_ID,
 } from '../../parser/constants.js';
 import {
-  buildComponentRefMap,
-  ComponentRefMap,
-  V10_CHILD_REF_OPTIONS,
-  getComponentReferences,
   A2uiRecursionError,
   A2uiValidationError,
+  buildComponentRefMap,
+  CatalogApi,
+  ComponentRefMap,
+  getComponentReferences,
+  V10_CHILD_REF_OPTIONS,
 } from '../../internal/web_core.js';
 import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 import {A2uiCatalogError, A2uiIntegrityError, ParseError} from '../../errors.js';
@@ -74,7 +74,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
   private refMaps = new Map<string, ComponentRefMap>();
   private requiredPropsCache = new Map<string, Map<string, string[]>>();
   // The catalog each surface named in its createSurface message.
-  private surfaceCatalogs: Record<string, SchemaCatalog> = {};
+  private surfaceCatalogs: Record<string, CatalogApi> = {};
 
   /**
    * @param catalogs The catalogs active for this session. Each surface uses the catalog
@@ -84,7 +84,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
    * @throws {A2uiCatalogError} If `catalogs` is empty.
    */
   constructor(
-    private readonly catalogs: SchemaCatalog[],
+    private readonly catalogs: CatalogApi[],
     private readonly options?: DirectJsonStreamProcessorOptions,
   ) {
     if (catalogs.length === 0) {
@@ -99,7 +99,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
   }
 
   /** The catalog of the surface being processed. */
-  private get catalog(): SchemaCatalog {
+  private get catalog(): CatalogApi {
     const surfaceCatalog = this.surfaceId ? this.surfaceCatalogs[this.surfaceId] : undefined;
     return surfaceCatalog ?? this.catalogs[0];
   }
@@ -126,7 +126,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
    * no formal references. `src/utils/inferred-child-refs.ts` explains when this applies
    * and what has to change before it can go.
    */
-  private inferMissingChildRefs(catalog: SchemaCatalog, refMap: ComponentRefMap) {
+  private inferMissingChildRefs(catalog: CatalogApi, refMap: ComponentRefMap) {
     if (!catalog.components || typeof catalog.components.values !== 'function') {
       return;
     }

@@ -17,10 +17,10 @@
 import {describe, test, expect, vi} from 'vitest';
 import {DirectJsonStreamProcessorImpl} from '../../../../src/inference_formats/direct_json/streaming.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
-import {SchemaCatalog} from '../../../../src/types.js';
 import {
   A2uiValidationError,
   Catalog,
+  CatalogApi,
   ComponentApi,
   ComponentRefMap,
   STRICT_VALIDATION,
@@ -30,7 +30,7 @@ import {z} from 'zod';
 /** Replaces the child reference map the processor built for a catalog. */
 function overrideRefMap(
   processor: DirectJsonStreamProcessorImpl,
-  catalog: SchemaCatalog,
+  catalog: CatalogApi,
   refMap: ComponentRefMap,
 ): void {
   (processor as unknown as {refMaps: Map<string, ComponentRefMap>}).refMaps.set(catalog.id, refMap);
@@ -38,7 +38,7 @@ function overrideRefMap(
 
 describe('Direct JSON Streaming protocol version and placeholder', () => {
   test('synthesised partial messages carry protocolVersion from catalog instead of hardcoded v1.0', () => {
-    const catalog: SchemaCatalog = new Catalog(
+    const catalog: CatalogApi = new Catalog(
       'https://test.com/catalog.json',
       'v0.9',
       [{name: 'Row', schema: {}} as ComponentApi, {name: 'Text', schema: {}} as ComponentApi],
@@ -77,7 +77,7 @@ describe('Direct JSON Streaming protocol version and placeholder', () => {
   });
 
   test('placeholder component uses empty array for children instead of explicitList', () => {
-    const catalog: SchemaCatalog = new Catalog(
+    const catalog: CatalogApi = new Catalog(
       'https://test.com/catalog.json',
       'v1.0',
       [{name: 'Row', schema: {}} as ComponentApi, {name: 'Card', schema: {}} as ComponentApi],
@@ -115,7 +115,7 @@ describe('Direct JSON Streaming protocol version and placeholder', () => {
 
 describe('Direct JSON Streaming required fields guard', () => {
   test('withholds partial component when a required property has not arrived', () => {
-    const catalog: SchemaCatalog = new Catalog(
+    const catalog: CatalogApi = new Catalog(
       'https://test.com/catalog.json',
       'v0.9',
       [
@@ -153,7 +153,7 @@ describe('Direct JSON Streaming required fields guard', () => {
   });
 
   test('emits component once all required properties arrive', () => {
-    const catalog: SchemaCatalog = new Catalog(
+    const catalog: CatalogApi = new Catalog(
       'https://test.com/catalog.json',
       'v0.9',
       [
@@ -200,7 +200,7 @@ describe('Direct JSON Streaming required fields guard', () => {
   });
 
   test('direct self-edge raises Self-reference detected', () => {
-    const catalog: SchemaCatalog = new Catalog(
+    const catalog: CatalogApi = new Catalog(
       'https://test.com/catalog.json',
       'v0.9',
       [
@@ -237,7 +237,7 @@ describe('Direct JSON Streaming required fields guard', () => {
   });
 
   test('two-node cycle raises Circular reference detected without Self-reference', () => {
-    const catalog: SchemaCatalog = new Catalog(
+    const catalog: CatalogApi = new Catalog(
       'https://test.com/catalog.json',
       'v0.9',
       [
@@ -274,7 +274,7 @@ describe('Direct JSON Streaming required fields guard', () => {
   });
 
   test('interleaved surfaces update correct surfaceId during streaming', () => {
-    const catalog: SchemaCatalog = new Catalog(
+    const catalog: CatalogApi = new Catalog(
       'https://test.com/catalog.json',
       'v0.9',
       [
@@ -448,7 +448,7 @@ describe('Direct JSON Streaming required fields guard', () => {
 
   test('does not classify childLabel as a child reference when component defines formal child refs', () => {
     // Custom component with formal child reference (ChildList) and a property named 'childLabel'
-    const catalog: SchemaCatalog = new Catalog(
+    const catalog: CatalogApi = new Catalog(
       'https://test.com/catalog.json',
       'v0.9',
       [
@@ -505,7 +505,7 @@ describe('Direct JSON Streaming required fields guard', () => {
 });
 
 describe('Direct JSON Streaming validation config', () => {
-  const catalog: SchemaCatalog = new Catalog(
+  const catalog: CatalogApi = new Catalog(
     'https://test.com/catalog.json',
     'v0.9',
     [{name: 'Text', schema: {}} as ComponentApi],
@@ -539,13 +539,13 @@ describe('Direct JSON Streaming validation config', () => {
 });
 
 describe('Direct JSON Streaming with several catalogs', () => {
-  const catalogV09: SchemaCatalog = new Catalog(
+  const catalogV09: CatalogApi = new Catalog(
     'https://test.com/v09.json',
     'v0.9',
     [{name: 'Text', schema: {}} as ComponentApi],
     [],
   );
-  const catalogV10: SchemaCatalog = new Catalog(
+  const catalogV10: CatalogApi = new Catalog(
     'https://test.com/v10.json',
     'v1.0',
     [{name: 'Text', schema: {}} as ComponentApi],
@@ -579,7 +579,7 @@ describe('Direct JSON Streaming with several catalogs', () => {
 });
 
 describe('Direct JSON Streaming partial data model', () => {
-  const catalog: SchemaCatalog = new Catalog(
+  const catalog: CatalogApi = new Catalog(
     'https://test.com/catalog.json',
     'v0.9',
     [{name: 'Text', schema: {}} as ComponentApi],
@@ -633,7 +633,7 @@ describe('Direct JSON Streaming partial data model', () => {
 });
 
 describe('Direct JSON Streaming stableStringify', () => {
-  const catalog: SchemaCatalog = new Catalog(
+  const catalog: CatalogApi = new Catalog(
     'https://test.com/catalog.json',
     'v0.9',
     [{name: 'Text', schema: {}} as ComponentApi],
@@ -658,7 +658,7 @@ describe('Direct JSON Streaming required properties', () => {
   const fields = {text: z.string(), label: z.string().optional()};
 
   function requiredProps(schema: z.ZodTypeAny): string[] {
-    const catalog: SchemaCatalog = new Catalog(
+    const catalog: CatalogApi = new Catalog(
       'https://test.com/catalog.json',
       'v0.9',
       [{name: 'Text', schema} as unknown as ComponentApi],
