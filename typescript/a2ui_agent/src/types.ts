@@ -14,14 +14,4 @@
  * limitations under the License.
  */
 
-import {Catalog, ComponentApi, FunctionApi} from './internal/web_core.js';
-
 export type {ProtocolVersion} from './internal/web_core.js';
-
-/**
- * A schema-only parameterization of the A2UI Catalog.
- *
- * An agent never executes catalog functions, so it only needs their signatures.
- * This type aliases `Catalog<ComponentApi, FunctionApi>` to reflect that.
- */
-export type SchemaCatalog = Catalog<ComponentApi, FunctionApi>;

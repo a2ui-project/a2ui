@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-import {AgentToRendererMessage} from '../../internal/web_core.js';
+import {AgentToRendererMessage, CatalogApi} from '../../internal/web_core.js';
 import {
   A2UI_SCHEMA_BLOCK_END,
   A2UI_SCHEMA_BLOCK_START,
   DEFAULT_WORKFLOW_RULES,
 } from '../../parser/constants.js';
 import {PromptGenerator} from '../../prompt/generator.js';
-import {SchemaCatalog} from '../../types.js';
 import {messageJsonSchemas} from '../../utils/message-schemas.js';
 import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 import {DirectJsonDecompiler} from './decompiler.js';
@@ -42,7 +41,7 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
    *     envelope of the catalogs' protocol versions is described.
    */
   constructor(
-    catalogs: SchemaCatalog[],
+    catalogs: CatalogApi[],
     private readonly examples?: Record<string, AgentToRendererMessage[] | string>,
     private readonly allowedMessages?: readonly string[],
   ) {
@@ -56,7 +55,7 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
   /**
    * The schema block: message envelopes once per protocol version, then each catalog.
    */
-  override generateCatalogInstructions(catalog?: SchemaCatalog): string {
+  override generateCatalogInstructions(catalog?: CatalogApi): string {
     const targets = catalog ? [catalog] : this.catalogs;
     const versions = [...new Set(targets.map(c => toWireProtocolVersion(c.protocolVersion)))];
     const sections = [
@@ -68,7 +67,7 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     return sections.join('\n\n');
   }
 
-  protected renderCatalogInstructions(catalog: SchemaCatalog): string {
+  protected renderCatalogInstructions(catalog: CatalogApi): string {
     const parts = [`### Catalog ${catalog.id}:`];
     if (catalog.instructions) {
       parts.push(catalog.instructions);
@@ -77,7 +76,7 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     return parts.join('\n');
   }
 
-  protected renderExamples(catalog: SchemaCatalog): string {
+  protected renderExamples(catalog: CatalogApi): string {
     const exampleMessages = this.examples?.[catalog.id];
     if (!exampleMessages) {
       return '';

@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import {SchemaCatalog} from '../types.js';
 import {CatalogTransformer} from './base.js';
-import {Catalog} from '../internal/web_core.js';
+import {Catalog, CatalogApi} from '../internal/web_core.js';
 
 /**
  * Prunes catalog component definitions to an allowlist of allowed components.
@@ -40,7 +39,7 @@ export class ComponentPruningTransformer implements CatalogTransformer {
    * @param catalog The catalog to prune.
    * @returns A new, pruned catalog instance.
    */
-  transform(catalog: SchemaCatalog): SchemaCatalog {
+  transform(catalog: CatalogApi): CatalogApi {
     const prunedComponents = Array.from(catalog.components.values()).filter(c =>
       this.allowedComponents.has(c.name),
     );
@@ -81,7 +80,7 @@ export class FunctionPruningTransformer implements CatalogTransformer {
    * @param catalog The catalog to prune.
    * @returns A new, pruned catalog instance.
    */
-  transform(catalog: SchemaCatalog): SchemaCatalog {
+  transform(catalog: CatalogApi): CatalogApi {
     const components = Array.from(catalog.components.values());
     const prunedFunctions = Array.from(catalog.functions.values()).filter(f =>
       this.allowedFunctions.has(f.name),

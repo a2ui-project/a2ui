@@ -16,12 +16,11 @@
 
 import {Parser} from '../../parser/parser.js';
 import {RawResponsePart} from '../../parser/response_part.js';
-import {SchemaCatalog} from '../../types.js';
 import {BlockLexer} from '../../parser/lexer.js';
 import {ParseError} from '../../errors.js';
 import {parseAndFix} from '../../parser/payload_fixer.js';
 import {A2UI_OPEN_TAG, A2UI_CLOSE_TAG} from '../../parser/constants.js';
-import {AgentToRendererMessage} from '../../internal/web_core.js';
+import {AgentToRendererMessage, CatalogApi} from '../../internal/web_core.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 
 export class DirectJsonParser extends Parser {
@@ -29,14 +28,14 @@ export class DirectJsonParser extends Parser {
    * The active catalogs, which the blueprint's parser validates against. This parser
    * doesn't validate yet; the catalogs are kept for when it does.
    */
-  readonly catalogs: SchemaCatalog[];
+  readonly catalogs: CatalogApi[];
   private readonly lexer: BlockLexer;
   private readonly decompiler: DirectJsonDecompiler;
 
   /**
    * @param catalogs The active catalogs.
    */
-  constructor(catalogs: SchemaCatalog[]) {
+  constructor(catalogs: CatalogApi[]) {
     super();
     this.catalogs = catalogs;
     this.lexer = new BlockLexer(A2UI_OPEN_TAG, A2UI_CLOSE_TAG, new Set(["'", '"']), new Set());

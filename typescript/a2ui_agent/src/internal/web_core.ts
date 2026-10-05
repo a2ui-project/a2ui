@@ -25,6 +25,7 @@
 // ./catalog
 export {Catalog} from '@a2ui/web_core/catalog';
 export type {
+  CatalogApi,
   CatalogInterface,
   ComponentApi,
   FunctionApi,

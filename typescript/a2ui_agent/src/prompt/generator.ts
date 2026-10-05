@@ -15,7 +15,7 @@
  */
 
 import {A2uiCatalogError} from '../errors.js';
-import {SchemaCatalog} from '../types.js';
+import {CatalogApi} from '../internal/web_core.js';
 
 /**
  * Abstract base class for format-specific prompt generation.
@@ -33,7 +33,7 @@ export abstract class PromptGenerator {
    * @throws {A2uiCatalogError} If no catalog is given, since the model would then have
    *     nothing it could be told to write.
    */
-  constructor(public readonly catalogs: SchemaCatalog[]) {
+  constructor(public readonly catalogs: CatalogApi[]) {
     if (catalogs.length === 0) {
       throw new A2uiCatalogError('A prompt snippet needs at least one active catalog.');
     }
@@ -47,7 +47,7 @@ export abstract class PromptGenerator {
   /**
    * Signatures for one catalog, or for all active catalogs.
    */
-  generateCatalogInstructions(catalog?: SchemaCatalog): string {
+  generateCatalogInstructions(catalog?: CatalogApi): string {
     const targets = catalog ? [catalog] : this.catalogs;
     return targets
       .map(c => this.renderCatalogInstructions(c))
@@ -58,7 +58,7 @@ export abstract class PromptGenerator {
   /**
    * Few-shot examples for one catalog, or for all active catalogs.
    */
-  generateExamples(catalog?: SchemaCatalog): string {
+  generateExamples(catalog?: CatalogApi): string {
     const targets = catalog ? [catalog] : this.catalogs;
     return targets
       .map(c => this.renderExamples(c))
@@ -67,10 +67,10 @@ export abstract class PromptGenerator {
   }
 
   /** Format-specific rendering for a single catalog's instructions. */
-  protected abstract renderCatalogInstructions(catalog: SchemaCatalog): string;
+  protected abstract renderCatalogInstructions(catalog: CatalogApi): string;
 
   /** Format-specific rendering for a single catalog's examples. */
-  protected abstract renderExamples(catalog: SchemaCatalog): string;
+  protected abstract renderExamples(catalog: CatalogApi): string;
 
   /**
    * Renders the prompt snippet: base rules, catalog instructions, and examples.

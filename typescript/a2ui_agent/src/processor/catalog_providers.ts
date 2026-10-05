@@ -17,8 +17,8 @@
 import * as fs from 'fs';
 
 import {A2uiCatalogError} from '../errors.js';
-import {Catalog, normalizeVersionString} from '../internal/web_core.js';
-import {ProtocolVersion, SchemaCatalog} from '../types.js';
+import {Catalog, CatalogApi, normalizeVersionString} from '../internal/web_core.js';
+import {ProtocolVersion} from '../types.js';
 import {toWireProtocolVersion} from '../utils/protocol_version.js';
 
 /**
@@ -51,7 +51,7 @@ export function catalogFromDocument(
   source: string,
   protocolVersion?: ProtocolVersion,
   catalogId?: string,
-): SchemaCatalog {
+): CatalogApi {
   const documentId = typeof document.catalogId === 'string' ? document.catalogId : undefined;
   if (catalogId !== undefined && documentId !== undefined && catalogId !== documentId) {
     throw new A2uiCatalogError(
@@ -104,7 +104,7 @@ export interface CatalogProvider {
    *
    * @returns A promise resolving to the catalog instance.
    */
-  load(): Promise<SchemaCatalog>;
+  load(): Promise<CatalogApi>;
 }
 
 /**
@@ -133,7 +133,7 @@ export class FileSystemCatalogProvider implements CatalogProvider {
    * @throws {A2uiCatalogError} If the file cannot be read or parsed, if the id or version
    *     conflicts with the document, or if nothing states an id or a version.
    */
-  async load(): Promise<SchemaCatalog> {
+  async load(): Promise<CatalogApi> {
     let content: string;
     try {
       content = await fs.promises.readFile(this.path, 'utf8');
@@ -182,7 +182,7 @@ export class InMemoryCatalogProvider implements CatalogProvider {
    * @throws {A2uiCatalogError} If the schema is invalid, if the id or version conflicts
    *     with it, or if nothing states an id or a version.
    */
-  async load(): Promise<SchemaCatalog> {
+  async load(): Promise<CatalogApi> {
     return catalogFromDocument(
       this.catalog,
       'in-memory schema',

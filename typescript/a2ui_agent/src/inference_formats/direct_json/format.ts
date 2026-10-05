@@ -15,8 +15,7 @@
  */
 
 import {InferenceFormat, InferenceFormatFactory} from '../../inference-format.js';
-import {SchemaCatalog} from '../../types.js';
-import {AgentToRendererMessage} from '../../internal/web_core.js';
+import {AgentToRendererMessage, CatalogApi} from '../../internal/web_core.js';
 import {Parser} from '../../parser/parser.js';
 import {DirectJsonParser} from './parser.js';
 import {DirectJsonPromptGenerator} from './prompt_generator.js';
@@ -29,7 +28,7 @@ export class DirectJsonFormat implements InferenceFormat {
   readonly supportsStreaming = false;
 
   constructor(
-    private readonly catalogs: SchemaCatalog[],
+    private readonly catalogs: CatalogApi[],
     examples?: Record<string, AgentToRendererMessage[] | string>,
   ) {
     this.promptGenerator = new DirectJsonPromptGenerator(catalogs, examples);
@@ -45,7 +44,7 @@ export class DirectJsonFormat implements InferenceFormat {
  */
 export class DirectJsonFormatFactory implements InferenceFormatFactory {
   createFormat(
-    catalogs: SchemaCatalog[],
+    catalogs: CatalogApi[],
     examples?: Record<string, AgentToRendererMessage[] | string>,
   ): InferenceFormat {
     if (catalogs.length === 0) {

@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-import {AgentToRendererMessage} from './internal/web_core.js';
+import {AgentToRendererMessage, CatalogApi} from './internal/web_core.js';
 import {Parser} from './parser/parser.js';
 import {PromptGenerator} from './prompt/generator.js';
-import {SchemaCatalog} from './types.js';
 
 /**
  * Encapsulates format-specific prompt generation and response parsing logic.
@@ -47,7 +46,7 @@ export interface InferenceFormatFactory {
    * @param examples Optional few-shot examples for prompt generation.
    */
   createFormat(
-    catalogs: SchemaCatalog[],
+    catalogs: CatalogApi[],
     examples?: Record<string, AgentToRendererMessage[] | string>,
   ): InferenceFormat;
 }

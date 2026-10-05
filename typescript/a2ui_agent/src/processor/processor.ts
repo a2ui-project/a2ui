@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import {SchemaCatalog} from '../types.js';
 import {
   AgentToRendererMessage,
-  MessageProcessor,
   Catalog,
+  CatalogApi,
   ComponentApi,
   FunctionImplementation,
+  MessageProcessor,
 } from '../internal/web_core.js';
 import {InferenceFormatFactory, InferenceFormat} from '../inference-format.js';
 import {ResponsePart} from '../parser/response_part.js';
@@ -34,7 +34,7 @@ export class A2uiRequestProcessor {
   private readonly _messageProcessor: MessageProcessor;
 
   constructor(
-    private readonly catalogs: SchemaCatalog[],
+    private readonly catalogs: CatalogApi[],
     private readonly _examples?: Record<string, AgentToRendererMessage[] | string>,
     formatFactory?: InferenceFormatFactory,
   ) {
@@ -54,7 +54,7 @@ export class A2uiRequestProcessor {
   }
 
   /** The negotiated catalogs active for this request. */
-  get activeCatalogs(): SchemaCatalog[] {
+  get activeCatalogs(): CatalogApi[] {
     return this.catalogs;
   }
 

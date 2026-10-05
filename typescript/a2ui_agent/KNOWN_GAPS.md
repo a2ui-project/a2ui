@@ -57,13 +57,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** A duplicate definition that might fall out of sync with future core updates. It is tagged `TODO(web_core)` and listed in the README shim table.
 - **Done looks like:** `web_core` exports an equivalent schema modifier, and the local shim is deleted.
 
-### Unreachable exports
-
-- **What it is:** `loadCatalogFromSchema` is unreachable from the `./catalog` subpath.
-- **Why it exists:** Tidy-up oversight in `web_core`.
-- **What it risks:** None; `Catalog.fromSchema` works and is actively used instead.
-- **Done looks like:** The export is properly wired in `web_core`, or the dead code is removed.
-
 ### Catalog loader keeps a second copy of the common types map
 
 - **What it is:** `schema_loader.ts` resolves protocol `$ref`s through its own `COMMON_TYPE_SCHEMAS` table, a partial copy of the complete `CommonSchemas` map that `types/common-types.ts` already exports.

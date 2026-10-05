@@ -15,10 +15,9 @@
  */
 
 import {A2uiCatalogError} from '../errors.js';
-import {RendererCapabilities} from '../internal/web_core.js';
+import {CatalogApi, RendererCapabilities} from '../internal/web_core.js';
 import {CatalogConfig} from '../processor/catalog_config.js';
 import {catalogFromDocument} from '../processor/catalog_providers.js';
-import {SchemaCatalog} from '../types.js';
 
 /**
  * Matches renderer capabilities against registered catalogs and returns the active,
@@ -35,7 +34,7 @@ import {SchemaCatalog} from '../types.js';
  *     the request carried none. With no capabilities the renderer stated no preference, so
  *     every registered catalog is active.
  * @param acceptsInlineCatalogs Whether the agent accepts inline catalogs from the client.
- * @returns Array of active SchemaCatalog instances.
+ * @returns Array of active CatalogApi instances.
  * @throws {A2uiCatalogError} If the agent has no catalogs, if an inline catalog cannot be
  *     built, or if negotiation leaves no active catalog.
  */
@@ -43,7 +42,7 @@ export function resolveCatalogs(
   catalogs: CatalogConfig[],
   rendererCapabilities: RendererCapabilities | undefined,
   acceptsInlineCatalogs = false,
-): SchemaCatalog[] {
+): CatalogApi[] {
   if (catalogs.length === 0) {
     throw new A2uiCatalogError('Agent has no configured catalogs');
   }
@@ -53,7 +52,7 @@ export function resolveCatalogs(
     return agentCatalogs;
   }
 
-  const active: SchemaCatalog[] = [];
+  const active: CatalogApi[] = [];
   for (const id of rendererCapabilities.supportedCatalogIds ?? []) {
     const match = agentCatalogs.find(c => c.id === id);
     if (match && !active.includes(match)) {

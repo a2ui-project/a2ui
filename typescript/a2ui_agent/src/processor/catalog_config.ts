@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import {ProtocolVersion, SchemaCatalog} from '../types.js';
+import {CatalogApi} from '../internal/web_core.js';
+import {ProtocolVersion} from '../types.js';
 import {CatalogTransformer} from '../catalog_transformers/base.js';
 import {FileSystemCatalogProvider} from './catalog_providers.js';
 
@@ -22,7 +23,7 @@ import {FileSystemCatalogProvider} from './catalog_providers.js';
  * Associates a catalog with the transformations to apply to it.
  */
 export class CatalogConfig {
-  private _transformedCatalogMemo?: SchemaCatalog;
+  private _transformedCatalogMemo?: CatalogApi;
 
   /**
    * Initializes a CatalogConfig.
@@ -31,7 +32,7 @@ export class CatalogConfig {
    * @param transformers Optional list of transformers to apply sequentially.
    */
   constructor(
-    readonly catalog: SchemaCatalog,
+    readonly catalog: CatalogApi,
     readonly transformers?: CatalogTransformer[],
   ) {}
 
@@ -43,7 +44,7 @@ export class CatalogConfig {
    * Modifying the `transformers` array after accessing this getter will not
    * recompute the transformed catalog.
    */
-  get transformedCatalog(): SchemaCatalog {
+  get transformedCatalog(): CatalogApi {
     if (!this._transformedCatalogMemo) {
       let current = this.catalog;
       if (this.transformers) {

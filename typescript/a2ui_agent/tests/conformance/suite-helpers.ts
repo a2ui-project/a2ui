@@ -25,6 +25,7 @@
 import * as path from 'path';
 import {expect, test} from 'vitest';
 
+import {CatalogApi} from '../../src/internal/web_core.js';
 import {
   A2uiCatalogError,
   A2uiValidationError,
@@ -34,7 +35,6 @@ import {
   FileSystemCatalogProvider,
   FunctionPruningTransformer,
   ParseError,
-  SchemaCatalog,
 } from '../../src/index.js';
 import {CONFORMANCE_ROOT, LoadedCase} from './loader.js';
 
@@ -92,7 +92,7 @@ export async function loadRegistrations(
 
 /** Asserts a catalog declares exactly the named components and, if given, functions. */
 export function expectCatalogContents(
-  catalog: SchemaCatalog,
+  catalog: CatalogApi,
   expected: {components?: string[]; functions?: string[]},
 ): void {
   if (expected.components) {

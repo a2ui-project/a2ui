@@ -17,9 +17,9 @@
 import * as fs from 'fs';
 import {CatalogConfig, InMemoryCatalogProvider} from '../../src/index.js';
 import * as path from 'path';
-import {SchemaCatalog, ProtocolVersion} from '../../src/types.js';
+import {ProtocolVersion} from '../../src/types.js';
 import {CatalogTransformer} from '../../src/catalog_transformers/base.js';
-import {Catalog} from '../../src/internal/web_core.js';
+import {Catalog, CatalogApi} from '../../src/internal/web_core.js';
 import {toWireProtocolVersion} from '../../src/utils/protocol_version.js';
 import {CONFORMANCE_ROOT} from './loader.js';
 
@@ -97,7 +97,7 @@ export async function createFileCatalogConfig(
  * 3. Import `RemoveStrictValidationTransformer` from `../../src/internal/web_core.js`.
  */
 export class RemoveStrictValidationTransformer implements CatalogTransformer {
-  transform(catalog: SchemaCatalog): SchemaCatalog {
+  transform(catalog: CatalogApi): CatalogApi {
     const newComponents = Array.from(catalog.components.values()).map(c => {
       const newC = {...c};
       // Safely access .passthrough() from Zod 3.x schema objects avoiding `any`

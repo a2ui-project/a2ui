@@ -17,27 +17,27 @@
 import {describe, it, expect} from 'vitest';
 import {A2uiCatalogError} from '../../../src/errors.js';
 import {PromptGenerator} from '../../../src/prompt/generator.js';
-import {SchemaCatalog} from '../../../src/types.js';
+import {CatalogApi} from '../../../src/internal/web_core.js';
 
 class TestPromptGenerator extends PromptGenerator {
   generateBaseRules(): string {
     return 'BASE_RULES';
   }
 
-  protected renderCatalogInstructions(catalog: SchemaCatalog): string {
+  protected renderCatalogInstructions(catalog: CatalogApi): string {
     return `CATALOG_INSTRUCTIONS:${catalog.id}`;
   }
 
-  protected renderExamples(catalog: SchemaCatalog): string {
+  protected renderExamples(catalog: CatalogApi): string {
     if (catalog.id === 'empty') return ''; // Test filtering
     return `EXAMPLES:${catalog.id}`;
   }
 }
 
 describe('PromptGenerator', () => {
-  const cat1 = {id: 'cat1'} as SchemaCatalog;
-  const cat2 = {id: 'cat2'} as SchemaCatalog;
-  const catEmpty = {id: 'empty'} as SchemaCatalog;
+  const cat1 = {id: 'cat1'} as CatalogApi;
+  const cat2 = {id: 'cat2'} as CatalogApi;
+  const catEmpty = {id: 'empty'} as CatalogApi;
 
   it('generate() joins base rules, catalog instructions and examples in order', () => {
     const generator = new TestPromptGenerator([cat1]);

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {SchemaCatalog} from '../types.js';
+import {CatalogApi} from '../internal/web_core.js';
 
 /**
  * Abstract base interface for transformation rules applied to catalog schemas.
@@ -28,5 +28,5 @@ export interface CatalogTransformer {
    * @param catalog The catalog to transform.
    * @returns A new, transformed catalog instance.
    */
-  transform(catalog: SchemaCatalog): SchemaCatalog;
+  transform(catalog: CatalogApi): CatalogApi;
 }
