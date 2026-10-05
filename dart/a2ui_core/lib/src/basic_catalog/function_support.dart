@@ -72,7 +72,14 @@ class BasicFunction extends FunctionImplementation {
 
 /// Whether [value] is truthy: everything except `null`, `false`, `0`, `NaN`
 /// and the empty string.
-bool isTruthy(Object? value) => switch (value) {
+///
+/// A [ValidationResult], or a map carrying a `valid` key, is truthy when it
+/// is valid, as read by [ValidationResult.validityOf]. This keeps `and`, `or`
+/// and `not` in step with the binder's `checks` evaluation when they wrap a
+/// v1.0 validation rule.
+bool isTruthy(Object? value) =>
+    ValidationResult.validityOf(value) ??
+    switch (value) {
       null || false || '' => false,
       final num n => n != 0 && !n.isNaN,
       _ => true,

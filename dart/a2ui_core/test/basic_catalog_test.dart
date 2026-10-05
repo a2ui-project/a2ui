@@ -172,6 +172,76 @@ void main() {
         throwsA(isA<A2uiExpressionError>()),
       );
     });
+
+    group('reads validity from validation results', () {
+      Object? required(Object? value) =>
+          _call(v10, 'required', {'value': value});
+
+      test('not() reads a result or {valid} map by its validity', () {
+        bool truthy(Object? value) =>
+            _call(v10, 'not', {'value': value}) == false;
+        expect(truthy(const ValidationResult(valid: false)), isFalse);
+        expect(truthy(const ValidationResult(valid: true)), isTrue);
+        expect(truthy({'valid': true}), isTrue);
+        expect(truthy({'valid': false}), isFalse);
+        expect(truthy({'valid': 'yes'}), isFalse);
+        expect(truthy({'other': 1}), isTrue);
+        expect(truthy(<String, Object?>{}), isTrue);
+      });
+
+      test('not(required(value)) inverts the validity', () {
+        expect(required(''), isA<ValidationResult>());
+        expect(_call(v10, 'not', {'value': required('')}), isTrue);
+        expect(_call(v10, 'not', {'value': required('x')}), isFalse);
+      });
+
+      test('or over two failing results is false', () {
+        expect(
+          _call(v10, 'or', {
+            'values': [required(''), required(null)],
+          }),
+          isFalse,
+        );
+      });
+
+      test('nested and(required, or(required, required)) follows the spec', () {
+        bool buttonEnabled({
+          required Object? terms,
+          required Object? email,
+          required Object? phone,
+        }) =>
+            _call(v10, 'and', {
+              'values': [
+                required(terms),
+                _call(v10, 'or', {
+                  'values': [required(email), required(phone)],
+                }),
+              ],
+            })! as bool;
+
+        expect(buttonEnabled(terms: null, email: '', phone: ''), isFalse);
+        expect(buttonEnabled(terms: true, email: '', phone: ''), isFalse);
+        expect(buttonEnabled(terms: true, email: 'a@b.c', phone: ''), isTrue);
+        expect(buttonEnabled(terms: true, email: '', phone: '555'), isTrue);
+      });
+
+      test('v0.9 validators return booleans, so the result is unchanged', () {
+        Object? requiredV09(Object? value) =>
+            _call(v09, 'required', {'value': value});
+        expect(requiredV09(''), isFalse);
+        expect(
+          _call(v09, 'and', {
+            'values': [
+              requiredV09(true),
+              _call(v09, 'or', {
+                'values': [requiredV09(''), requiredV09('')],
+              }),
+            ],
+          }),
+          isFalse,
+        );
+      });
+    });
   });
 
   group('formatString coercion', () {

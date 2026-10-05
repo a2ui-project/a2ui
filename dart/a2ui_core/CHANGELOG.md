@@ -18,6 +18,10 @@
   and argument names. Components follow in a later release.
   - v0.9 validation rules return `bool`; v1.0 rules return a
     `ValidationResult` with a failure message.
+  - `and`, `or`, and `not` read the validity of a `ValidationResult` (or a
+    map with a `valid` key) instead of treating every object as truthy, so
+    the v1.0 spec's nested `and(required, or(required, required))` check
+    blocks a submit when a field is empty.
   - Formatting uses `package:intl` for the `locale` argument (default
     `en-US`). `formatDate` reads a timestamp without an offset as UTC, keeps
     the wall-clock time of one with an offset, and emits the UTC instant for
