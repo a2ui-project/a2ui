@@ -98,5 +98,166 @@ void main() {
         ),
       );
     });
+
+    test('throws A2uiExpressionError on trailing backslash before EOF', () {
+      for (final input in [r"${'abc\", r'${"abc\']) {
+        expect(
+          () => parser.parse(input),
+          throwsA(
+            isA<A2uiExpressionError>().having(
+              (e) => e.message,
+              'message',
+              contains('Unclosed string literal'),
+            ),
+          ),
+          reason: 'parse($input) should throw A2uiExpressionError',
+        );
+      }
+
+      for (final expr in [r"'abc\", r'"abc\']) {
+        expect(
+          () => parser.parseExpression(expr),
+          throwsA(
+            isA<A2uiExpressionError>().having(
+              (e) => e.message,
+              'message',
+              contains('Unclosed string literal'),
+            ),
+          ),
+          reason: 'parseExpression($expr) should throw A2uiExpressionError',
+        );
+      }
+    });
+
+    test('throws A2uiExpressionError on unclosed string literals', () {
+      for (final expr in ["'unclosed", '"unclosed', "f(a: 'unclosed)"]) {
+        expect(
+          () => parser.parseExpression(expr),
+          throwsA(
+            isA<A2uiExpressionError>().having(
+              (e) => e.message,
+              'message',
+              contains('Unclosed string literal'),
+            ),
+          ),
+          reason: 'parseExpression($expr) should throw A2uiExpressionError',
+        );
+      }
+
+      for (final input in [r"${'unclosed}", r'${"unclosed}']) {
+        expect(
+          () => parser.parse(input),
+          throwsA(
+            isA<A2uiExpressionError>().having(
+              (e) => e.message,
+              'message',
+              contains('Unclosed string literal'),
+            ),
+          ),
+          reason: 'parse($input) should throw A2uiExpressionError',
+        );
+      }
+    });
+
+    test('parses @-prefixed function calls', () {
+      expect(parser.parse(r'${@index()}'), [
+        {'call': '@index', 'args': <String, dynamic>{}, 'returnType': 'any'},
+      ]);
+      expect(parser.parse(r'#${@index(offset: 1)}'), [
+        '#',
+        {
+          'call': '@index',
+          'args': <String, dynamic>{'offset': 1},
+          'returnType': 'any',
+        },
+      ]);
+      expect(parser.parseExpression('@index(offset: 1)'), {
+        'call': '@index',
+        'args': <String, dynamic>{'offset': 1},
+        'returnType': 'any',
+      });
+    });
+
+    test('rejects bare @ and @ in non-leading or non-function positions', () {
+      for (final input in [
+        r'${@}',
+        r'${@()}',
+        r'${@index}',
+        r'${@/a}',
+        r'${@1}',
+        r'${foo@bar()}',
+        r'${foo@bar}',
+        r'${/a@b}',
+      ]) {
+        expect(
+          () => parser.parse(input),
+          throwsA(isA<A2uiExpressionError>()),
+          reason: 'parse($input) should throw A2uiExpressionError',
+        );
+      }
+
+      for (final expr in [
+        '@',
+        '@()',
+        '@index',
+        '@/a',
+        '@1',
+        'foo@bar()',
+        'foo@bar',
+        '/a@b',
+      ]) {
+        expect(
+          () => parser.parseExpression(expr),
+          throwsA(isA<A2uiExpressionError>()),
+          reason: 'parseExpression($expr) should throw A2uiExpressionError',
+        );
+      }
+    });
+
+    test('parses ~0 and ~1 JSON Pointer escapes in paths', () {
+      expect(parser.parse(r'${/a~1b}'), [
+        {'path': '/a~1b'},
+      ]);
+      expect(parser.parse(r'${/a~0b}'), [
+        {'path': '/a~0b'},
+      ]);
+      expect(parser.parse(r'${/a~0~1b}'), [
+        {'path': '/a~0~1b'},
+      ]);
+      expect(parser.parseExpression('/a~1b'), {'path': '/a~1b'});
+      expect(parser.parseExpression('a~0b'), {'path': 'a~0b'});
+    });
+
+    test('rejects malformed ~ escapes and ~ in function names', () {
+      for (final input in [
+        r'${/a~2b}',
+        r'${/a~}',
+        r'${~}',
+        r'${a~b}',
+        r'${foo~1bar()}',
+        r'${foo~0bar()}',
+      ]) {
+        expect(
+          () => parser.parse(input),
+          throwsA(isA<A2uiExpressionError>()),
+          reason: 'parse($input) should throw A2uiExpressionError',
+        );
+      }
+
+      for (final expr in [
+        '/a~2b',
+        '/a~',
+        '~',
+        'a~b',
+        'foo~1bar()',
+        'foo~0bar()',
+      ]) {
+        expect(
+          () => parser.parseExpression(expr),
+          throwsA(isA<A2uiExpressionError>()),
+          reason: 'parseExpression($expr) should throw A2uiExpressionError',
+        );
+      }
+    });
   });
 }

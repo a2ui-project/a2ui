@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from typing import Any, Callable
-from ..catalog.catalog import TComponent, TFunction
 from ..state.component_model import ComponentModel
 from ..state.surface_components_model import SurfaceComponentsModel
 from ..state.surface_model import SurfaceModel
@@ -39,7 +38,7 @@ class ComponentContext:
     @classmethod
     def from_surface(
         cls,
-        surface: SurfaceModel[TComponent, TFunction],
+        surface: SurfaceModel,
         component_id: str,
         data_model_base_path: str = "/",
     ) -> "ComponentContext":

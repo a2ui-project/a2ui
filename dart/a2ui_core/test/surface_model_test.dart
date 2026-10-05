@@ -137,5 +137,20 @@ void main() {
       expect(errors, hasLength(4));
       expect(errors.every((e) => e.code == 'INVALID_ACTION'), isTrue);
     });
+
+    test('dispatches action with UTC timestamp that serializes with trailing Z',
+        () {
+      final surface = SurfaceModel<ComponentApi>('s1', catalog: catalog);
+      A2uiClientAction? dispatched;
+      surface.onAction.addListener((action) => dispatched = action);
+
+      surface.dispatchAction({
+        'event': {'name': 'submit'},
+      }, 'c1');
+
+      expect(dispatched, isNotNull);
+      expect(dispatched!.timestamp.isUtc, isTrue);
+      expect(dispatched!.toJson()['timestamp'], endsWith('Z'));
+    });
   });
 }
