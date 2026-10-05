@@ -1,5 +1,6 @@
 ## Unreleased
 
+- (v1_0) Basic catalog component tag names now use a `-v1` suffix (for example `a2ui-basic-column-v1`, `a2ui-basic-text-v1`, `a2ui-slider-v1`). [#3007](https://github.com/a2ui-project/a2ui/pull/3007)
 - **BREAKING CHANGE**: `ComponentModel.componentTree` names the component under `component`, as an `updateComponents` message does, instead of `type`, and writes `id`, `component` and `metadata` after the component's properties. A property named `type` no longer replaces the component's type in the tree, and is kept. Read the component's type from `tree.component`. `SurfaceComponentsModel.getChildReferences` reads that same tree, so a property named `component` or `id` no longer replaces the model's own when child references are found ([#2930](https://github.com/a2ui-project/a2ui/pull/2930)).
 
 - Fix `renderA2uiNode` so that re-rendering a parent keeps its existing child elements instead of recreating them; stateful children such as maps no longer reload when a sibling is added. `renderA2uiNode` now returns a Lit directive result instead of a static-html template result. [#2959](https://github.com/a2ui-project/a2ui/pull/2959)

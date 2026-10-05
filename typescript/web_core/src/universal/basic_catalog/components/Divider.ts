@@ -20,8 +20,6 @@ import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {DividerSupportedApis} from './supported_apis.js';
 
 export class A2uiDividerElement extends BasicCatalogA2uiLitElement<DividerSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-divider';
   /**
    * The styles of the divider can be customized by redefining the following
    * CSS variables:

@@ -19,8 +19,6 @@ import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {CardSupportedApis} from './supported_apis.js';
 
 export class A2uiCardElement extends BasicCatalogA2uiLitElement<CardSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-card';
   /**
    * The styles of the card can be customized by redefining the following
    * CSS variables:

@@ -299,7 +299,7 @@ describe('A2uiLitElement', () => {
     assert.strictEqual(el.context, root.context);
     assert.strictEqual(controllerCreatedCount, 1);
     // renderNode('child_id') hands the child element the child's own node.
-    const childEl = el.shadowRoot.querySelector('a2ui-basic-text');
+    const childEl = el.shadowRoot.querySelector('a2ui-basic-text-v1');
     assert.strictEqual(childEl.node, childNode);
     assert.strictEqual(childEl.context, childNode.context);
 
@@ -380,42 +380,25 @@ describe('A2uiLitElement', () => {
     document.body.removeChild(el);
   });
 
-  it('binds an element without an api to the api of the catalog it was rendered from', async () => {
-    class VersionAgnosticElement extends A2uiLitElement<ComponentApi> {}
-    customElements.define('test-version-agnostic-element', VersionAgnosticElement);
+  it('throws from createController when the subclass defines no api', async () => {
+    class ApilessElement extends A2uiLitElement<ComponentApi> {}
+    customElements.define('test-apiless-element', ApilessElement);
 
-    const apiUsedIn = async (api: ComponentApi, catalogId: string) => {
-      const catalog = new Catalog<ComponentApi>(catalogId, '1.0', [api]);
-      const catalogProcessor = new MessageProcessor([catalog]);
-      catalogProcessor.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId}},
-        {
-          version: 'v1.0',
-          updateComponents: {
-            surfaceId: 's',
-            components: [{id: 'root', component: 'Label', text: 'Hi'}],
-          },
-        },
-      ]);
-      const el = document.createElement('test-version-agnostic-element') as VersionAgnosticElement;
-      document.body.appendChild(el);
-      await asyncUpdate(el, (e: any) => {
-        e.context = new ComponentContext(catalogProcessor.model.getSurface('s')!, 'root');
-      });
-      assert.strictEqual((el.controller.props as any).text, 'Hi');
-      const usedApi = (el as any).findCatalogApi();
-      document.body.removeChild(el);
-      return usedApi;
-    };
+    const el = document.createElement('test-apiless-element') as ApilessElement;
+    document.body.appendChild(el);
 
-    const oldApi = {name: 'Label', schema: z.object({text: z.string()})};
-    const newApi = {
-      name: 'Label',
-      schema: z.object({text: z.string(), note: z.string().optional()}),
-    };
+    await assert.rejects(
+      asyncUpdate(el, (e: any) => {
+        e.context = new ComponentContext(surface, 'root');
+      }),
+      {
+        message:
+          "[A2uiLitElement] Either define 'protected readonly api = ...' on <test-apiless-element> or override 'createController()'.",
+      },
+    );
+    assert.strictEqual(el.controller, undefined);
 
-    assert.strictEqual(await apiUsedIn(oldApi, 'old-catalog'), oldApi);
-    assert.strictEqual(await apiUsedIn(newApi, 'new-catalog'), newApi);
+    document.body.removeChild(el);
   });
 
   it('should safely skip update and render when context or controller is not set', async () => {
@@ -477,7 +460,7 @@ describe('A2uiLitElement', () => {
       registerUniversalElement(impl as any);
     }
 
-    const rootEl = document.createElement('a2ui-basic-column') as any;
+    const rootEl = document.createElement('a2ui-basic-column-v1') as any;
     document.body.appendChild(rootEl);
     await asyncUpdate(rootEl, (e: any) => {
       e.context = new ComponentContext(columnSurface, 'root');

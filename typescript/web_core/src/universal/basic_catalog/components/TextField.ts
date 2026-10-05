@@ -20,8 +20,6 @@ import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {TextFieldSupportedApis} from './supported_apis.js';
 
 export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<TextFieldSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-basic-textfield';
   /**
    * The styles of the text field can be customized by redefining the following
    * CSS variables:
@@ -42,8 +40,7 @@ export class A2uiBasicTextFieldElement extends BasicCatalogA2uiLitElement<TextFi
    * @nocollapse
    */
   static override styles = css`
-    :host,
-    a2ui-basic-textfield {
+    :host {
       display: flex;
       flex-direction: column;
       width: var(--a2ui-textfield-width, 100%);

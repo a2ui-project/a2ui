@@ -21,8 +21,6 @@ import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ChoicePickerSupportedApis} from './supported_apis.js';
 
 export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePickerSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-choicepicker';
   /**
    * The styles of the choice picker can be customized by redefining the following
    * CSS variables:
@@ -62,7 +60,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
       font-size: var(--a2ui-choicepicker-label-font-size, inherit);
     }
     :host,
-    a2ui-choicepicker > label {
+    :host > label {
       font-size: var(
         --a2ui-choicepicker-label-font-size,
         var(--a2ui-label-font-size, var(--a2ui-font-size-s))

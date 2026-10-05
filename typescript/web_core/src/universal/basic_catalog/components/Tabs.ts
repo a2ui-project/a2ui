@@ -21,8 +21,6 @@ import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {TabsSupportedApis} from './supported_apis.js';
 
 export class A2uiLitTabs extends BasicCatalogA2uiLitElement<TabsSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-tabs';
   /**
    * The styles of the tabs can be customized by redefining the following
    * CSS variables:

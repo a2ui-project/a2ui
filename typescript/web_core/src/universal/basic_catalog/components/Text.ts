@@ -25,8 +25,6 @@ import {markdown} from '../directives/directives.js';
 const NON_MARKDOWN_VARIANTS = new Set<string>(['h1', 'h2', 'h3', 'h4', 'h5', 'caption']);
 
 export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<TextSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-basic-text';
   /**
    * The styles of the text component can be customized by redefining the following
    * CSS variables:

@@ -20,8 +20,6 @@ import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ImageSupportedApis} from './supported_apis.js';
 
 export class A2uiImageElement extends BasicCatalogA2uiLitElement<ImageSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-image';
   /**
    * The styles of the image can be customized by redefining the following
    * CSS variables:

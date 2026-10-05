@@ -22,30 +22,44 @@ import {toWebComponentImplementation} from './to_web_component_implementation.js
 
 describe('toWebComponentImplementation', () => {
   class MockElement {
-    static readonly tagName = 'a2ui-mock';
+    protected readonly api?: unknown;
+    getApi() {
+      return this.api;
+    }
   }
-  const element = MockElement as unknown as CustomElementConstructor & {readonly tagName: string};
+  const base = MockElement as unknown as Parameters<typeof toWebComponentImplementation>[0];
 
-  it('combines the api with the element and its static tag name', () => {
+  it('combines the api and tag name with an element derived from the base', () => {
     const api = {name: 'Mock', schema: z.object({text: z.string()})};
 
-    const impl = toWebComponentImplementation(element, api);
+    const impl = toWebComponentImplementation(base, api, 'a2ui-mock');
 
     assert.strictEqual(impl.name, 'Mock');
     assert.strictEqual(impl.schema, api.schema);
     assert.strictEqual(impl.tagName, 'a2ui-mock');
-    assert.strictEqual(impl.element, element);
+    assert.notStrictEqual(impl.element, base);
+    assert.ok(Object.getPrototypeOf(impl.element) === base);
   });
 
-  it('shares one element across apis of different versions', () => {
+  it('binds the derived element to the given api', () => {
+    const api = {name: 'Mock', schema: z.object({text: z.string()})};
+
+    const impl = toWebComponentImplementation(base, api, 'a2ui-mock');
+    const instance = new (impl.element as unknown as new () => MockElement)();
+
+    assert.strictEqual(instance.getApi(), api);
+  });
+
+  it('derives one element per api so a base can serve several versions', () => {
     const oldApi = {name: 'Mock', schema: z.object({text: z.string()})};
     const newApi = {name: 'Mock', schema: z.object({text: z.string(), note: z.string()})};
 
-    const oldImpl = toWebComponentImplementation(element, oldApi);
-    const newImpl = toWebComponentImplementation(element, newApi);
+    const oldImpl = toWebComponentImplementation(base, oldApi, 'a2ui-mock');
+    const newImpl = toWebComponentImplementation(base, newApi, 'a2ui-mock-v1');
 
-    assert.strictEqual(oldImpl.element, newImpl.element);
-    assert.strictEqual(oldImpl.tagName, newImpl.tagName);
+    assert.notStrictEqual(oldImpl.element, newImpl.element);
+    assert.strictEqual(oldImpl.tagName, 'a2ui-mock');
+    assert.strictEqual(newImpl.tagName, 'a2ui-mock-v1');
     assert.strictEqual(oldImpl.schema, oldApi.schema);
     assert.strictEqual(newImpl.schema, newApi.schema);
   });

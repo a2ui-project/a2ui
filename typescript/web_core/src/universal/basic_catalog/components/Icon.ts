@@ -31,8 +31,6 @@ function toMaterialIconName(name: string): string {
 }
 
 export class A2uiIconElement extends BasicCatalogA2uiLitElement<IconSupportedApis> {
-  /** @nocollapse */
-  static readonly tagName = 'a2ui-icon';
   /**
    * The icon component can be customized with the following CSS variables:
    *

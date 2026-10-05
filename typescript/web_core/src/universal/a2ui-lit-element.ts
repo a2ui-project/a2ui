@@ -20,7 +20,7 @@ import {ComponentContext} from '../resolution/component-context.js';
 import {isComponentNode, type ComponentNode} from '../resolution/component-node.js';
 import {ResolvedBinding} from '../resolution/resolved-binding.js';
 import {peekValue} from '../reactivity/signals.js';
-import {Catalog, ComponentApi, type InferredComponentApiSchemaType} from '../catalog/types.js';
+import type {Catalog, ComponentApi, InferredComponentApiSchemaType} from '../catalog/types.js';
 import type {ResolveA2uiProps} from '../resolution/generic-binder.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 import {type ComponentId} from '../types/common-types.js';
@@ -45,10 +45,12 @@ export type ResolvedChildList = A2uiChildRef[];
  * A base class for A2UI Lit elements that manages the A2uiController lifecycle
  * and provides Light DOM style adoption and scoping.
  *
- * By default, elements render into the Light DOM (direct children) to enable
- * universal CSS cascade, styling, and cross-framework composition. To opt into
- * Shadow DOM encapsulation, subclasses can override `createRenderRoot()` to return
- * `super.createRenderRoot()`.
+ * Subclasses declare the component API they implement as
+ * `protected readonly api = ...`; the controller is created from it when the
+ * element receives its `context`. Elements render into a Shadow DOM by default
+ * (standard `LitElement` behavior). Subclasses that render into the Light DOM
+ * override `createRenderRoot()` to return `this`; their styles are then scoped
+ * to the element's tag name and adopted into the enclosing root.
  *
  * @template Api The specific A2UI component API defining the schema for this element.
  * @experimental This class is experimental and subject to change as A2UI transitions
@@ -69,6 +71,10 @@ export abstract class A2uiLitElement<
 
   /**
    * Component API specification for automatic controller instantiation.
+   *
+   * Subclasses define it as a class field (`protected override readonly api =
+   * ...`). It is read when the element receives a `context`, so it has to be
+   * set before then.
    */
   protected readonly api?: Api;
 
@@ -203,42 +209,19 @@ export abstract class A2uiLitElement<
   /**
    * Instantiates the controller for this element's specific bound API.
    *
-   * Uses the instance `api` property when a subclass defines it. Otherwise it
-   * uses the API of the catalog entry the component was rendered from (see
-   * `findCatalogApi`). Subclasses can override this method if custom
-   * controller initialization is required.
+   * Uses the `api` field the subclass declares. Subclasses can override this
+   * method instead if custom controller initialization is required.
    *
    * @returns A new instance of `A2uiController` matching the component API.
+   * @throws If the subclass neither defines `api` nor overrides this method.
    */
   protected createController(): A2uiController<Api, Props> {
-    const activeApi = this.api ?? this.findCatalogApi();
-    if (!activeApi) {
+    if (!this.api) {
       throw new Error(
-        `[A2uiLitElement] Either define 'protected readonly api = ...' on ${this.constructor.name} or override 'createController()'.`,
+        `[A2uiLitElement] Either define 'protected readonly api = ...' on <${this.localName}> or override 'createController()'.`,
       );
     }
-    return new A2uiController(this, activeApi) as unknown as A2uiController<Api, Props>;
-  }
-
-  /**
-   * Finds the API of the catalog entry this element was rendered from.
-   *
-   * Version-agnostic elements, such as the basic catalog's, leave `api` unset:
-   * one element class is registered in the catalogs of several protocol
-   * versions, and the props schema has to match the catalog the component
-   * came from. That entry is the resolved node's implementation, or the
-   * component's entry in its own catalog (falling back to the surface's
-   * default catalog).
-   */
-  private findCatalogApi(): Api | undefined {
-    if (this.node?.impl) {
-      return this.node.impl as unknown as Api;
-    }
-    const componentModel = this.context?.componentModel;
-    if (!componentModel) return undefined;
-    const catalog = (componentModel.catalog ??
-      this.context.dataContext?.surface?.defaultCatalog) as Catalog<ComponentApi> | undefined;
-    return catalog?.components.get(componentModel.type) as Api | undefined;
+    return new A2uiController(this, this.api) as unknown as A2uiController<Api, Props>;
   }
 
   /**
