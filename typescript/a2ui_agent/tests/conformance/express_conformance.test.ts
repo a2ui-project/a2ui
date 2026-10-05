@@ -19,7 +19,7 @@ import * as path from 'path';
 import {describe, test, expect} from 'vitest';
 import {CONFORMANCE_ROOT, loadCases} from './loader.js';
 import {createFileCatalogConfig} from './fixtures.js';
-import {Catalog} from '../../src/internal/web_core.js';
+import {Catalog, CatalogApi} from '../../src/internal/web_core.js';
 import {registerCatalogDocument} from '../../src/utils/catalog-document.js';
 import {
   A2uiCatalogError,
@@ -36,7 +36,6 @@ import {
   ParseError,
   RawResponsePart,
   ResponsePart,
-  SchemaCatalog,
 } from '../../src/index.js';
 
 const CONFORMANCE_SURFACE_ID = 'default_surface';
@@ -301,7 +300,7 @@ describe('Express Conformance Suite', () => {
           return;
         }
 
-        const loadedCatalogs: SchemaCatalog[] = [];
+        const loadedCatalogs: CatalogApi[] = [];
         for (const entry of catEntries) {
           const fullPath = path.resolve(CONFORMANCE_ROOT, entry.catalog);
           const schema = JSON.parse(fs.readFileSync(fullPath, 'utf8'));

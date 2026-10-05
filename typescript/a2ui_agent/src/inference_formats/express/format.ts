@@ -19,8 +19,7 @@
  */
 
 import {InferenceFormat, InferenceFormatFactory} from '../../inference-format.js';
-import {SchemaCatalog} from '../../types.js';
-import {AgentToRendererMessage} from '../../internal/web_core.js';
+import {AgentToRendererMessage, CatalogApi} from '../../internal/web_core.js';
 import {resolveExpressVersion, toCatalogList} from './catalogs.js';
 import {Parser} from '../../parser/parser.js';
 import {ExpressParser} from './parser.js';
@@ -38,11 +37,11 @@ export interface ExpressFormatOptions {
 export class ExpressFormat implements InferenceFormat {
   readonly promptGenerator: ExpressPromptGenerator;
   readonly supportsStreaming = false;
-  private readonly catalogs: SchemaCatalog[];
+  private readonly catalogs: CatalogApi[];
   private readonly surfaceId: string;
   private readonly version: string;
 
-  constructor(catalogs: SchemaCatalog[], options: ExpressFormatOptions = {}) {
+  constructor(catalogs: CatalogApi[], options: ExpressFormatOptions = {}) {
     this.catalogs = toCatalogList(catalogs);
     this.surfaceId = options.surfaceId ?? 'main';
     this.version = resolveExpressVersion(this.catalogs, options.version);
@@ -67,7 +66,7 @@ export class ExpressFormatFactory implements InferenceFormatFactory {
   ) {}
 
   createFormat(
-    catalogs: SchemaCatalog[],
+    catalogs: CatalogApi[],
     examples?: Record<string, AgentToRendererMessage[] | string>,
   ): InferenceFormat {
     return new ExpressFormat(catalogs, {

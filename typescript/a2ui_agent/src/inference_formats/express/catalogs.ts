@@ -19,7 +19,7 @@
  */
 
 import {A2uiCatalogError} from '../../errors.js';
-import {SchemaCatalog} from '../../types.js';
+import {CatalogApi} from '../../internal/web_core.js';
 import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 import {CatalogSchemaHelper} from './schema_helper.js';
 
@@ -31,7 +31,7 @@ import {CatalogSchemaHelper} from './schema_helper.js';
  * @returns The catalogs as a list.
  * @throws A2uiCatalogError if the list is empty.
  */
-export function toCatalogList(catalogs: SchemaCatalog | SchemaCatalog[]): SchemaCatalog[] {
+export function toCatalogList(catalogs: CatalogApi | CatalogApi[]): CatalogApi[] {
   const list = Array.isArray(catalogs) ? catalogs : [catalogs];
   if (list.length === 0) {
     throw new A2uiCatalogError('Express requires at least one catalog.');
@@ -60,7 +60,7 @@ function versionLine(version: string): string {
  * @returns The requested version, or the first catalog's version.
  * @throws A2uiCatalogError if the catalogs, or the requested version, span release lines.
  */
-export function resolveExpressVersion(catalogs: SchemaCatalog[], requested?: string): string {
+export function resolveExpressVersion(catalogs: CatalogApi[], requested?: string): string {
   const version = toWireProtocolVersion(catalogs[0].protocolVersion);
   for (const catalog of catalogs) {
     const other = toWireProtocolVersion(catalog.protocolVersion);
@@ -90,7 +90,7 @@ export function resolveExpressVersion(catalogs: SchemaCatalog[], requested?: str
  * @returns The helpers, in catalog order.
  */
 export function buildSchemaHelpers(
-  catalogs: SchemaCatalog[],
+  catalogs: CatalogApi[],
   version: string,
 ): Map<string, CatalogSchemaHelper> {
   return new Map(catalogs.map(catalog => [catalog.id, new CatalogSchemaHelper(catalog, version)]));

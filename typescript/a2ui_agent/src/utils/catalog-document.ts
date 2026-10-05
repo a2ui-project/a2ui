@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-import {SchemaCatalog} from '../types.js';
+import {CatalogApi} from '../internal/web_core.js';
 import {A2uiCatalogError} from '../errors.js';
 
-const catalogDocuments = new WeakMap<SchemaCatalog, Record<string, unknown>>();
+const catalogDocuments = new WeakMap<CatalogApi, Record<string, unknown>>();
 
 /**
- * Registers the raw JSON document that a SchemaCatalog was loaded from.
+ * Registers the raw JSON document that a CatalogApi was loaded from.
  *
  * @param catalog The catalog instance.
  * @param document The raw parsed JSON document.
  */
 export function registerCatalogDocument(
-  catalog: SchemaCatalog,
+  catalog: CatalogApi,
   document: Record<string, unknown>,
 ): void {
   catalogDocuments.set(catalog, document);
@@ -38,18 +38,18 @@ export function registerCatalogDocument(
  * @param catalog The catalog instance.
  * @returns True if a document is registered, false otherwise.
  */
-export function hasCatalogDocument(catalog: SchemaCatalog): boolean {
+export function hasCatalogDocument(catalog: CatalogApi): boolean {
   return catalogDocuments.has(catalog);
 }
 
 /**
- * Retrieves the raw source JSON document for a SchemaCatalog.
+ * Retrieves the raw source JSON document for a CatalogApi.
  *
  * @param catalog The catalog instance.
  * @returns The registered raw JSON document.
  * @throws {A2uiCatalogError} If no document is registered for this catalog.
  */
-export function getCatalogDocument(catalog: SchemaCatalog): Record<string, unknown> {
+export function getCatalogDocument(catalog: CatalogApi): Record<string, unknown> {
   const doc = catalogDocuments.get(catalog);
   if (!doc) {
     throw new A2uiCatalogError(

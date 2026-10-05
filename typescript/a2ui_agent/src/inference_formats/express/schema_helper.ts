@@ -22,8 +22,7 @@
  */
 
 import {A2uiCatalogError} from '../../errors.js';
-import {V09_STANDARD_DEFS, V10_STANDARD_DEFS} from '../../internal/web_core.js';
-import {SchemaCatalog} from '../../types.js';
+import {CatalogApi, V09_STANDARD_DEFS, V10_STANDARD_DEFS} from '../../internal/web_core.js';
 import {getCatalogDocument} from '../../utils/catalog-document.js';
 import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 
@@ -176,7 +175,7 @@ export class CatalogSchemaHelper {
   private readonly functionProperties = new Map<string, string[]>();
   private readonly functionRequired = new Map<string, string[]>();
 
-  constructor(catalog: SchemaCatalog, protocolVersion: string) {
+  constructor(catalog: CatalogApi, protocolVersion: string) {
     this.catalog = getCatalogDocument(catalog);
     this.commonTypes = {$defs: standardDefsFor(protocolVersion)};
 

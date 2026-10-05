@@ -20,10 +20,9 @@
  * Reconstructs standard A2UI envelopes back into A2UI Express DSL code.
  */
 
-import {AgentToRendererMessage} from '../../internal/web_core.js';
+import {AgentToRendererMessage, CatalogApi} from '../../internal/web_core.js';
 import {RawResponsePart} from '../../parser/response_part.js';
 import {A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG} from '../../parser/constants.js';
-import {SchemaCatalog} from '../../types.js';
 import {CatalogSchemaHelper, commonDefName} from './schema_helper.js';
 import {isExpressIdentifier} from './identifier.js';
 import {ExpressInvalidIdentifierError, ExpressValidationError} from './errors.js';
@@ -214,7 +213,7 @@ export function decompileString(val: string): string {
  */
 export class ExpressDecompiler {
   readonly helpers: Map<string, CatalogSchemaHelper>;
-  readonly catalogs: SchemaCatalog[];
+  readonly catalogs: CatalogApi[];
   readonly protocolVersion: string;
 
   /**
@@ -222,7 +221,7 @@ export class ExpressDecompiler {
    *     their `catalogId` names, or the first one if they name none.
    * @param protocolVersion The protocol version of the messages.
    */
-  constructor(catalogs: SchemaCatalog | SchemaCatalog[], protocolVersion: string) {
+  constructor(catalogs: CatalogApi | CatalogApi[], protocolVersion: string) {
     this.catalogs = toCatalogList(catalogs);
     this.protocolVersion = protocolVersion;
     this.helpers = buildSchemaHelpers(this.catalogs, protocolVersion);

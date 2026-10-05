@@ -23,8 +23,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {fileURLToPath} from 'url';
 
-import {Catalog} from '../../src/internal/web_core.js';
-import {SchemaCatalog} from '../../src/types.js';
+import {Catalog, CatalogApi} from '../../src/internal/web_core.js';
 import {registerCatalogDocument} from '../../src/utils/catalog-document.js';
 
 /** A catalog document, with the two maps tests most often reach into. */
@@ -54,7 +53,7 @@ export function readConformanceCatalog(fileName: string): CatalogDocument {
  *
  * @param doc The catalog document.
  */
-export function catalogFromTestDocument(doc: Record<string, unknown>): SchemaCatalog {
+export function catalogFromTestDocument(doc: Record<string, unknown>): CatalogApi {
   const catalog = Catalog.fromSchema(doc);
   registerCatalogDocument(catalog, doc);
   return catalog;
@@ -65,6 +64,6 @@ export function catalogFromTestDocument(doc: Record<string, unknown>): SchemaCat
  *
  * @param fileName The file name inside `conformance/test_data/catalogs/`.
  */
-export function loadConformanceCatalog(fileName: string): SchemaCatalog {
+export function loadConformanceCatalog(fileName: string): CatalogApi {
   return catalogFromTestDocument(readConformanceCatalog(fileName));
 }

@@ -25,8 +25,11 @@
 
 import {CharStream, CommonTokenStream} from 'antlr4ng';
 
-import {type AgentToRendererMessage, normalizeVersionString} from '../../internal/web_core.js';
-import {type SchemaCatalog} from '../../types.js';
+import {
+  normalizeVersionString,
+  type AgentToRendererMessage,
+  type CatalogApi,
+} from '../../internal/web_core.js';
 import {ExpressLexer} from './generated/ExpressLexer.js';
 import {ExpressParser} from './generated/ExpressParser.js';
 import {buildSchemaHelpers, resolveExpressVersion, toCatalogList} from './catalogs.js';
@@ -249,14 +252,14 @@ class SurfaceScope {
  */
 export class ExpressCompiler {
   readonly helpers: Map<string, CatalogSchemaHelper>;
-  readonly catalogs: SchemaCatalog[];
+  readonly catalogs: CatalogApi[];
   readonly version: string;
 
   /**
    * @param catalogs The active catalog, or several. A `surface(...)` line picks one by id.
    * @param version The protocol version to emit. Defaults to the catalogs' version.
    */
-  constructor(catalogs: SchemaCatalog | SchemaCatalog[], version?: string) {
+  constructor(catalogs: CatalogApi | CatalogApi[], version?: string) {
     this.catalogs = toCatalogList(catalogs);
     this.version = resolveExpressVersion(this.catalogs, version);
     this.helpers = buildSchemaHelpers(this.catalogs, this.version);

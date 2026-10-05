@@ -22,8 +22,7 @@
  */
 
 import {PromptGenerator} from '../../prompt/generator.js';
-import {SchemaCatalog} from '../../types.js';
-import {AgentToRendererMessage} from '../../internal/web_core.js';
+import {AgentToRendererMessage, CatalogApi} from '../../internal/web_core.js';
 import {toWireProtocolVersion} from '../../utils/protocol_version.js';
 import {CatalogSchemaHelper, commonDefName} from './schema_helper.js';
 import {ExpressDecompiler, RawNumber} from './decompiler.js';
@@ -147,7 +146,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
    *     instructions for messages outside it.
    */
   constructor(
-    catalogs: SchemaCatalog[],
+    catalogs: CatalogApi[],
     examples?: Record<string, AgentToRendererMessage[] | string>,
     private readonly allowedMessages?: readonly string[],
   ) {
@@ -155,7 +154,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
     this.examples = examples;
   }
 
-  private getHelper(catalog: SchemaCatalog): CatalogSchemaHelper {
+  private getHelper(catalog: CatalogApi): CatalogSchemaHelper {
     let helper = this.helpers.get(catalog.id);
     if (!helper) {
       const version = toWireProtocolVersion(catalog.protocolVersion);
@@ -165,7 +164,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
     return helper;
   }
 
-  private getDecompiler(catalog: SchemaCatalog): ExpressDecompiler {
+  private getDecompiler(catalog: CatalogApi): ExpressDecompiler {
     let decompiler = this.decompilers.get(catalog.id);
     if (!decompiler) {
       const version = toWireProtocolVersion(catalog.protocolVersion);
@@ -220,7 +219,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
     return rules;
   }
 
-  protected renderCatalogInstructions(catalog: SchemaCatalog): string {
+  protected renderCatalogInstructions(catalog: CatalogApi): string {
     const helper = this.getHelper(catalog);
     const compSigs = this.generateComponentSignatures(helper);
     const funcSigs = this.generateFunctionSignatures(helper);
@@ -259,7 +258,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
   private replaceJsonBlockInInstructions(
     match: string,
     jsonContent: string,
-    catalog: SchemaCatalog,
+    catalog: CatalogApi,
   ): string {
     try {
       // Python's json.loads keeps `1500.00` as the float 1500.0, which the decompiler
@@ -473,14 +472,14 @@ export class ExpressPromptGenerator extends PromptGenerator {
     return signatures.join('\n');
   }
 
-  transformExamples(rawExamplesMarkdown: string, catalog: SchemaCatalog): string {
+  transformExamples(rawExamplesMarkdown: string, catalog: CatalogApi): string {
     const pattern = /```json\s*\n([\s\S]*?)\n```/g;
     return rawExamplesMarkdown.replace(pattern, (match, jsonContent) =>
       this.replaceJsonBlock(match, jsonContent, catalog),
     );
   }
 
-  private replaceJsonBlock(match: string, jsonContent: string, catalog: SchemaCatalog): string {
+  private replaceJsonBlock(match: string, jsonContent: string, catalog: CatalogApi): string {
     try {
       const parsed = JSON.parse(jsonContent.trim());
       const messages: unknown[] = Array.isArray(parsed)
@@ -504,7 +503,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
     }
   }
 
-  protected renderExamples(catalog: SchemaCatalog): string {
+  protected renderExamples(catalog: CatalogApi): string {
     if (!this.examples || !this.examples[catalog.id]) {
       return '';
     }
