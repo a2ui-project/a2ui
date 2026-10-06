@@ -690,6 +690,14 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
               steps: 5,
               value: 50,
             },
+            {
+              id: 'sliderZeroSteps',
+              component: 'Slider',
+              min: 0,
+              max: 1,
+              steps: 0,
+              value: 0,
+            },
           ],
         },
       },
@@ -706,6 +714,15 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
 
     const inputEl = sliderEl.querySelector('input[type="range"]') as HTMLInputElement;
     assert.strictEqual(inputEl.hasAttribute('step'), false);
+
+    const zeroStepsEl = document.createElement('a2ui-slider') as A2uiWebComponentElement;
+    cleanupElements.push(zeroStepsEl);
+    document.body.appendChild(zeroStepsEl);
+    await asyncUpdate(zeroStepsEl, e => {
+      e.context = new ComponentContext(surface, 'sliderZeroSteps');
+    });
+    const zeroStepsInput = zeroStepsEl.querySelector('input[type="range"]') as HTMLInputElement;
+    assert.strictEqual(zeroStepsInput.hasAttribute('step'), false);
   });
 
   it('extractFunctionDefinition preserves first argsSchema in allOf while scanning requiresUserActivation', async () => {
