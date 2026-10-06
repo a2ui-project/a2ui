@@ -576,6 +576,62 @@ describe('Direct JSON Streaming with several catalogs', () => {
   test('uses the first catalog when the surface names an unknown one', () => {
     expect(partialDataModelVersion('https://test.com/other.json')).toBe('v0.9');
   });
+
+  test('forgets the catalog of a deleted surface', () => {
+    const processor = new DirectJsonStreamProcessorImpl([catalogV09, catalogV10]);
+    processor.processChunk(
+      '<a2ui-json>[{"createSurface": {"surfaceId": "s1", "catalogId": "https://test.com/v10.json"}}, ' +
+        '{"deleteSurface": {"surfaceId": "s1"}}]</a2ui-json>',
+    );
+    // Recreated with a catalog that is not active, s1 falls back to the first catalog
+    // instead of keeping the one it was first created with.
+    const message = processor
+      .processChunk(
+        '<a2ui-json>[{"createSurface": {"surfaceId": "s1", "catalogId": "https://test.com/other.json"}}, ' +
+          '{"updateDataModel": {"surfaceId": "s1", "value": {"counter": 42',
+      )
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui)
+      .find(m => 'updateDataModel' in m);
+    expect((message as Record<string, unknown> | undefined)?.version).toBe('v0.9');
+  });
+});
+
+describe('Direct JSON Streaming surface lifecycle', () => {
+  const catalog: CatalogApi = new Catalog(
+    'https://test.com/catalog.json',
+    'v0.9',
+    [{name: 'Text', schema: {}} as ComponentApi],
+    [],
+  );
+  const create =
+    '{"createSurface": {"surfaceId": "s1", "catalogId": "https://test.com/catalog.json"}}';
+  const update = (text: string) =>
+    `{"updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "${text}"}]}}`;
+
+  function componentTexts(parts: ReturnType<DirectJsonStreamProcessorImpl['processChunk']>) {
+    return parts
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui)
+      .filter(m => 'updateComponents' in m)
+      .flatMap(
+        m =>
+          (m as {updateComponents: {components: Array<{text?: string}>}}).updateComponents
+            .components,
+      )
+      .map(c => c.text);
+  }
+
+  test('yields the components of a surface created again after deleteSurface', () => {
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
+    const first = processor.processChunk(
+      `<a2ui-json>[${create}, ${update('Before')}, {"deleteSurface": {"surfaceId": "s1"}}]</a2ui-json>`,
+    );
+    expect(componentTexts(first)).toEqual(['Before']);
+
+    const second = processor.processChunk(`<a2ui-json>[${create}, ${update('After')}]</a2ui-json>`);
+    expect(componentTexts(second)).toEqual(['After']);
+  });
 });
 
 describe('Direct JSON Streaming partial data model', () => {
@@ -613,6 +669,19 @@ describe('Direct JSON Streaming partial data model', () => {
       {items: ['a', 'b'], filter: {open: true}, title: 'Hi'},
     ]);
     expect(dataModelValues(second)).toEqual([{count: 2}]);
+  });
+
+  test('does not yield the completed message when every value was already yielded', () => {
+    const processor = new DirectJsonStreamProcessorImpl([catalog]);
+    const partial = processor.processChunk(
+      opening + '"items": ["a", "b"], "filter": {"open": true}, "title": "Hi"',
+    );
+    expect(dataModelValues(partial)).toEqual([
+      {items: ['a', 'b'], filter: {open: true}, title: 'Hi'},
+    ]);
+    // Closing the message adds nothing new, so it must not be emitted a second time.
+    const closing = processor.processChunk('}}}]</a2ui-json>');
+    expect(dataModelValues(closing)).toEqual([]);
   });
 
   test('parses a bounded number of fragments per chunk', () => {

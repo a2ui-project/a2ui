@@ -831,6 +831,12 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
       const val = obj[MSG_TYPE_CREATE_SURFACE];
       sid = val?.surfaceId ?? sid;
       this.surfaceId = sid;
+      if (sid) {
+        // A surface created again after a deleteSurface starts from scratch: it is no
+        // longer deleted, and it keeps no catalog from its earlier life.
+        this.deletedSurfaces.delete(sid);
+        delete this.surfaceCatalogs[sid];
+      }
       this.bindSurfaceCatalog(sid, val?.catalogId);
 
       if (typeof val === 'object' && val !== null) {
@@ -902,6 +908,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
           }
         }
         this.yieldedStartMessages.delete(targetSid);
+        delete this.surfaceCatalogs[targetSid];
         this.deletedSurfaces.add(targetSid);
       }
       return true;
@@ -919,7 +926,9 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
         if (typeof val === 'object' && val !== null) {
           let isNew = false;
           for (const [k, v] of Object.entries(val)) {
-            if (this.yieldedDataModel[k] !== v) {
+            // Compared by content, as in sniffPartialDataModel: arrays and objects parsed
+            // from the partial message are different instances from the completed one.
+            if (this.stableStringify(this.yieldedDataModel[k]) !== this.stableStringify(v)) {
               isNew = true;
               break;
             }
