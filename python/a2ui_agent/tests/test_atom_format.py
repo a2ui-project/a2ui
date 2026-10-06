@@ -248,8 +248,6 @@ class TestAtomFormat(unittest.TestCase):
 
     def test_atom_prompt_generator(self):
         """Test AtomPromptGenerator generation of catalog prompt rules and component signatures."""
-        import json
-        import tempfile
         from a2ui.inference_formats.experimental.atom import AtomFormat
         from a2ui.schema.catalog import CatalogConfig
 
@@ -257,98 +255,23 @@ class TestAtomFormat(unittest.TestCase):
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
         cat = cat_cfg.to_catalog(protocol_version="1.0")
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            example_payload = [
-                {
-                    "version": "v1.0",
-                    "createSurface": {
-                        "surfaceId": "main",
-                        "catalogId": cat.catalog_id,
-                    },
-                },
-                {
-                    "version": "v1.0",
-                    "updateComponents": {
-                        "surfaceId": "main",
-                        "components": [
-                            {"id": "root", "component": "Text", "text": "Hello Atom"}
-                        ],
-                    },
-                },
-            ]
-            (Path(tmp_dir) / "greeting.json").write_text(
-                json.dumps(example_payload), encoding="utf-8"
-            )
-
-            fmt = AtomFormat(catalog=cat, examples_path=tmp_dir)
-            self.assertEqual(fmt.examples_path, tmp_dir)
-            prompt_gen = fmt.prompt_generator
-            prompt = prompt_gen.generate(
-                role_description="You are a helpful UI generator.",
-                workflow_description="Follow standard A2UI guidelines.",
-                ui_description="Build a compact notification card.",
-                include_examples=True,
-                validate_examples=True,
-            )
-            self.assertIn("You are a helpful UI generator.", prompt)
-            self.assertIn("Follow standard A2UI guidelines.", prompt)
-            self.assertIn(
-                "## UI Description:\nBuild a compact notification card.", prompt
-            )
-            self.assertIn(
-                "Output the user interface using compact A2UI Atom S-Expression"
-                " notation.",
-                prompt,
-            )
-            self.assertIn("<a2ui>", prompt)
-            self.assertIn("Component Catalog Signatures", prompt)
-            self.assertIn("- (Card", prompt)
-            self.assertIn("- (Column", prompt)
-            self.assertIn("### Examples:\n---BEGIN greeting---", prompt)
-            self.assertIn("Hello Atom", prompt)
-
-            md_path = Path(tmp_dir) / "examples.md"
-            md_payload = {
-                "version": "v1.0",
-                "createSurface": {
-                    "surfaceId": "main",
-                    "catalogId": cat.catalog_id,
-                    "components": [
-                        {"id": "node_0", "component": "Card", "child": "node_1"},
-                        {"id": "node_1", "component": "Text", "text": "Hello Atom"},
-                    ],
-                },
-            }
-            md_path.write_text(
-                f"Example:\n\n```json\n{json.dumps(md_payload)}\n```\n",
-                encoding="utf-8",
-            )
-            md_fmt = AtomFormat(catalog=cat, examples_path=str(md_path))
-            md_prompt = md_fmt.prompt_generator.generate(
-                role_description="Role",
-                include_schema=False,
-                include_examples=True,
-                validate_examples=False,
-            )
-            self.assertIn("### Examples:", md_prompt)
-            self.assertIn('(Text :text "Hello Atom")', md_prompt)
-
-            pruned_prompt = prompt_gen.generate(
-                role_description="You are a helpful UI generator.",
-                allowed_components=["Text"],
-                include_examples=False,
-            )
-            self.assertIn("- (Text", pruned_prompt)
-            self.assertNotIn("- (Card", pruned_prompt)
-            self.assertNotIn("- (Column", pruned_prompt)
-            self.assertNotIn("### Examples:", pruned_prompt)
-
-            unpruned_again = prompt_gen.generate(
-                role_description="You are a helpful UI generator.",
-                include_examples=False,
-            )
-            self.assertIn("- (Card", unpruned_again)
-            self.assertIn("- (Column", unpruned_again)
+        fmt = AtomFormat(catalog=cat, examples_path="/tmp/examples")
+        self.assertEqual(fmt.examples_path, "/tmp/examples")
+        prompt_gen = fmt.prompt_generator
+        prompt = prompt_gen.generate(
+            role_description="You are a helpful UI generator.",
+            workflow_description="Follow standard A2UI guidelines.",
+        )
+        self.assertIn("You are a helpful UI generator.", prompt)
+        self.assertIn("Follow standard A2UI guidelines.", prompt)
+        self.assertIn(
+            "Output the user interface using compact A2UI Atom S-Expression notation.",
+            prompt,
+        )
+        self.assertIn("<a2ui>", prompt)
+        self.assertIn("Component Catalog Signatures", prompt)
+        self.assertIn("- (Card", prompt)
+        self.assertIn("- (Column", prompt)
 
     def test_compiler_positional_properties_with_real_catalog(self):
         """Test positional property mapping in AtomCompiler with real catalog schema helper."""

@@ -107,7 +107,9 @@ def resolve_catalogs(
                 f" '{registered[0].catalog_id}' reads '{key}' and"
                 f" '{catalog.catalog_id}' reads '{other_key}'."
             )
-    entry = _capabilities_entry(renderer_capabilities, key, entry_model)
+    entry = _capabilities_entry(
+        renderer_capabilities, key, entry_model, accepts_inline_catalogs
+    )
 
     registered_by_id: dict[str, CatalogApi] = {}
     for catalog in registered:
@@ -145,6 +147,7 @@ def _capabilities_entry(
     renderer_capabilities: _RendererCapabilities,
     key: str,
     entry_model: type[BaseModel],
+    accepts_inline_catalogs: bool = False,
 ) -> dict[str, Any]:
     """Returns the validated capabilities entry stored under a protocol key."""
     capabilities = (
@@ -162,15 +165,22 @@ def _capabilities_entry(
             f"The renderer capabilities have no '{key}' entry, which the registered"
             " catalogs read."
         )
+    if not accepts_inline_catalogs and isinstance(entry, Mapping):
+        entry = {
+            k: v
+            for k, v in entry.items()
+            if k not in ("inlineCatalogs", "inline_catalogs")
+        }
     try:
         return entry_model.model_validate(entry).model_dump(
             by_alias=True, exclude_none=True
         )
     except ValidationError as e:
-        if any(
-            len(err.get("loc", ())) >= 3
+        errors = e.errors()
+        if errors and all(
+            len(err.get("loc", ())) >= 2
             and err["loc"][0] in ("inlineCatalogs", "inline_catalogs")
-            for err in e.errors()
+            for err in errors
         ):
             raise A2uiCatalogError(
                 f"Invalid inline catalog in '{key}' renderer capabilities: {e}"

@@ -215,8 +215,14 @@ def test_an_active_catalog_keeps_its_id_over_an_inline_catalog():
         {"components": {"Marquee": {"type": "object"}}},
         {"catalogId": "", "components": {"Marquee": {"type": "object"}}},
         {"catalogId": 123, "components": {"Marquee": {"type": "object"}}},
+        "not_a_dict",
     ],
-    ids=["missing_catalog_id", "empty_catalog_id", "non_string_catalog_id"],
+    ids=[
+        "missing_catalog_id",
+        "empty_catalog_id",
+        "non_string_catalog_id",
+        "non_dict_entry",
+    ],
 )
 def test_inline_catalog_without_string_catalog_id_is_invalid(inline_catalog):
     capabilities = {
@@ -229,4 +235,32 @@ def test_inline_catalog_without_string_catalog_id_is_invalid(inline_catalog):
     with pytest.raises(A2uiCatalogError):
         resolve_catalogs(
             [_config("a", "0.9", "Text")], capabilities, accepts_inline_catalogs=True
+        )
+
+
+def test_rejected_invalid_inline_catalog_is_dropped_without_error_in_v1_0():
+    capabilities = {
+        "v1.0": {
+            "supportedCatalogIds": ["a"],
+            "inlineCatalogs": [{"components": {"Marquee": {"type": "object"}}}],
+        }
+    }
+
+    resolved = resolve_catalogs(
+        [_config("a", "1.0", "Text")], capabilities, accepts_inline_catalogs=False
+    )
+
+    assert _ids(resolved) == ["a"]
+
+
+def test_mixed_top_level_and_inline_catalog_errors_raise_validation_error():
+    capabilities = {
+        "v1.0": {
+            "inlineCatalogs": [{"components": {"Marquee": {"type": "object"}}}],
+        }
+    }
+
+    with pytest.raises(A2uiValidationError):
+        resolve_catalogs(
+            [_config("a", "1.0", "Text")], capabilities, accepts_inline_catalogs=True
         )
