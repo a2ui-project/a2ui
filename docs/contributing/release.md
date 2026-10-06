@@ -6,33 +6,54 @@ Release cadence: every 1-2 weeks.
 
 ### Pub.dev publishing steps
 
-**1. Identify publishable packages**
+Between releases, each Dart package in this repository collects the notes of
+merged pull requests under `## Unreleased` at the top of its `CHANGELOG.md`.
+`version:` in its `pubspec.yaml` stays at the last released version, and only a
+release pull request changes it.
 
-In the changelogs listed below, find the packages whose top version:
+**1. Find the packages to release**
 
-- is not `-wip...`
-- is not published yet (follow the link in the CHANGELOG.md header to verify)
-
-Changelogs:
+A package has something to release when its `CHANGELOG.md` has notes under
+`## Unreleased`:
 
 - [a2ui_core CHANGELOG.md](../../dart/a2ui_core/CHANGELOG.md)
 - [a2ui_agent CHANGELOG.md](../../dart/a2ui_agent/CHANGELOG.md)
-- [genui CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/genui/CHANGELOG.md)
-- [genui_a2a CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/genui_a2a/CHANGELOG.md)
-- [genai_primitives CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/genai_primitives/CHANGELOG.md)
-- [json_schema_builder CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/json_schema_builder/CHANGELOG.md)
 
-**2. Publish packages**
+**2. Open a release pull request**
 
-For each publishable package:
+In one pull request, for each package to release:
 
-- Check out the latest `main`.
-- Run `flutter pub publish`, making sure the console shows no warnings.
+- Choose the next version, as described in
+  [Versioning](release-pub-dev.md#versioning).
+- Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`.
+- Set `version:` in `pubspec.yaml` to the same version.
+
+Change nothing else, and merge the pull request.
+
+**3. Publish the packages**
+
+For each package in the release pull request:
+
+- Check out the commit that merged the release pull request, not the latest
+  `main`, which may already have unreleased changes.
+- Run `flutter pub publish` in the package directory, making sure the console
+  shows no warnings.
 - Verify that the correct version was uploaded to pub.dev.
 
 If any step fails, file a GitHub issue and inform the team.
 
 For troubleshooting and maintenance, see [release-pub-dev.md](release-pub-dev.md).
+
+### Packages in the genui repository
+
+In these changelogs, find the packages whose top version is not `-wip...` and
+is not published yet (follow the link in the CHANGELOG.md header to verify),
+then publish them from the latest `main` of that repository:
+
+- [genui CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/genui/CHANGELOG.md)
+- [genui_a2a CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/genui_a2a/CHANGELOG.md)
+- [genai_primitives CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/genai_primitives/CHANGELOG.md)
+- [json_schema_builder CHANGELOG.md](https://github.com/flutter/genui/blob/main/packages/json_schema_builder/CHANGELOG.md)
 
 ### NPM
 

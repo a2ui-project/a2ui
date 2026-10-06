@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Migrate package root `@a2ui/react` to export the version-agnostic renderer runtime (`A2uiSurface`, `createComponentImplementation`, `createBinderlessComponentImplementation`, `useSignalValue`, `MarkdownContext`, `useMarkdownRenderer`), while maintaining `@a2ui/react/v0_9` and `@a2ui/react/v0_8` secondary entry points.
+  - **BREAKING CHANGE**: The package root no longer re-exports the v0.8 API (`export * from './v0_8/index'`). v0.8 consumers must import from `@a2ui/react/v0_8`.
 - (v0_9) **BREAKING CHANGE**: `@a2ui/react/v0_9` no longer ships a React implementation of the basic catalog. Import `basicCatalog` and the individual components from `@a2ui/web_core/v0_9/basic_catalog` instead; they render as W3C Custom Elements. [#2630](https://github.com/a2ui-project/a2ui/pull/2630)
 - (v0_9) **BREAKING CHANGE**: the basic catalog no longer server-renders, since custom elements produce no markup outside a browser. [#2630](https://github.com/a2ui-project/a2ui/pull/2630)
 - **BREAKING CHANGE**: (v0_9) Every catalog component now renders inside a custom element (`<a2ui-react-<name>>`, `display: contents`). [#2849](https://github.com/a2ui-project/a2ui/pull/2849)

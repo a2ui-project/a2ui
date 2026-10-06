@@ -15,9 +15,9 @@
  */
 
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {ComponentHostComponent} from '../../core/component-host.component';
+import {ComponentHostComponent} from '@a2ui/angular';
 import {BasicCatalogComponent} from './basic-catalog-component';
-import {Child} from '../../core/component-binder.service';
+import {Child} from '@a2ui/angular';
 import {ListApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**

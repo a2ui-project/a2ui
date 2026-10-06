@@ -373,11 +373,17 @@ void main() {
         processor.processMessages(AgentToRendererMessagePayload(m));
 
     CreateSurfaceMessage create() => CreateSurfaceMessage(
-        version: 'v0.9', surfaceId: 's1', catalogId: catalog.id);
+          version: 'v0.9',
+          surfaceId: 's1',
+          catalogId: catalog.id,
+        );
 
     UpdateComponentsMessage update(List<Map<String, Object?>> components) =>
         UpdateComponentsMessage(
-            version: 'v0.9', surfaceId: 's1', components: components);
+          version: 'v0.9',
+          surfaceId: 's1',
+          components: components,
+        );
 
     SurfaceComponentsModel componentsOf(MessageProcessor processor) =>
         processor.groupModel.getSurface('s1')!.componentsModel;
@@ -474,7 +480,11 @@ void main() {
       expect(
         () => send(processorWith(), [
           UpdateDataModelMessage(
-              version: 'v0.9', surfaceId: 's1', path: '/a~2', value: 'x'),
+            version: 'v0.9',
+            surfaceId: 's1',
+            path: '/a~2',
+            value: 'x',
+          ),
         ]),
         throwsA(
           isA<A2uiValidationError>().having(
@@ -584,7 +594,11 @@ void main() {
         expect(
           () => send(processor, [
             UpdateDataModelMessage(
-                version: 'v0.9', surfaceId: 's1', path: '/a', value: 1),
+              version: 'v0.9',
+              surfaceId: 's1',
+              path: '/a',
+              value: 1,
+            ),
           ]),
           throwsA(isA<A2uiValidationError>()),
         );
@@ -664,7 +678,10 @@ void main() {
       processor.processMessages(
         AgentToRendererMessagePayload([
           CreateSurfaceMessage(
-              version: 'v0.9', surfaceId: 's1', catalogId: 'cat1'),
+            version: 'v0.9',
+            surfaceId: 's1',
+            catalogId: 'cat1',
+          ),
         ]),
       );
     });
@@ -672,7 +689,10 @@ void main() {
     void update(Map<String, Object?> component) => processor.processMessages(
           AgentToRendererMessagePayload([
             UpdateComponentsMessage(
-                version: 'v0.9', surfaceId: 's1', components: [component]),
+              version: 'v0.9',
+              surfaceId: 's1',
+              components: [component],
+            ),
           ]),
         );
 
