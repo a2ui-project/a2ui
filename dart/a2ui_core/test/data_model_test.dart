@@ -185,16 +185,17 @@ void main() {
       expect(childSignal.value, isNull);
     });
 
-    test('delete accepts DataPath and nulls list slot in bounds', () {
+    test('delete nulls an in-bounds list slot and ignores one out of bounds',
+        () {
       final model = DataModel({
         'items': ['x', 'y'],
       });
       addTearDown(model.dispose);
 
-      model.delete(DataPath.parse('/items/0'));
+      model.delete('/items/0');
       expect(model.get('/items'), [null, 'y']);
 
-      model.delete(DataPath.parse('/items/99'));
+      model.delete('/items/99');
       expect(model.get('/items'), [null, 'y']);
     });
 
@@ -207,7 +208,6 @@ void main() {
 
       expect(model.hasPath('/'), isTrue);
       expect(model.hasPath('/explicitNull'), isTrue);
-      expect(model.hasPath(DataPath.parse('/explicitNull')), isTrue);
       expect(model.hasPath('/missingKey'), isFalse);
       expect(model.hasPath('/explicitNull/child'), isFalse);
       expect(model.hasPath('/items/0'), isTrue);
@@ -242,6 +242,83 @@ void main() {
       expect(() => model.set('/a~', 1), throwsA(isA<A2uiDataError>()));
       expect(() => model.hasPath('/a~2b'), throwsA(isA<A2uiDataError>()));
       expect(() => model.delete('/a~'), throwsA(isA<A2uiDataError>()));
+      expect(
+          () => model.watch<Object?>('a~9/b'), throwsA(isA<A2uiDataError>()));
+      expect(() => model.get('/a~~0b'), throwsA(isA<A2uiDataError>()));
+    });
+  });
+
+  group('DataModel JSON Pointer parsing', () {
+    test('unescapes ~1 and ~0 in segments and keeps them distinct from /', () {
+      final model = DataModel();
+      addTearDown(model.dispose);
+
+      // Per RFC 6901 section 3, "/a~1b" is the single key "a/b" and
+      // "/a~0b" is the single key "a~b"; neither is the two-key path /a/b.
+      model.set('/a~1b', 1);
+      model.set('/a~0b', 2);
+      model.set('/a/b', 3);
+
+      expect(model.get('/a~1b'), 1);
+      expect(model.get('/a~0b'), 2);
+      expect(model.get('/a/b'), 3);
+      expect(model.get('/'), {
+        'a/b': 1,
+        'a~b': 2,
+        'a': {'b': 3}
+      });
+      expect(
+          identical(
+              model.watch<Object?>('/a~1b'), model.watch<Object?>('/a/b')),
+          isFalse);
+      expect(
+          identical(
+              model.watch<Object?>('/a~1b'), model.watch<Object?>('/a~1b')),
+          isTrue);
+    });
+
+    test('notifies a watcher whose key contains an escaped slash', () {
+      final model = DataModel({'a/b': 'old'});
+      addTearDown(model.dispose);
+
+      final ReadonlySignal<Object?> sig = model.watch('/a~1b');
+      expect(sig.value, 'old');
+      model.set('/a~1b', 'new');
+      expect(sig.value, 'new');
+    });
+
+    test('rejects prototype-pollution segments on every entry point', () {
+      final model = DataModel({'safe': 1});
+      addTearDown(model.dispose);
+
+      for (final forbidden in const ['__proto__', 'constructor', 'prototype']) {
+        expect(() => model.get('/$forbidden'), throwsA(isA<A2uiDataError>()));
+        expect(
+          () => model.set('/safe/$forbidden/x', 1),
+          throwsA(isA<A2uiDataError>()),
+        );
+        expect(
+          () => model.hasPath('a/$forbidden/b'),
+          throwsA(isA<A2uiDataError>()),
+        );
+        expect(
+            () => model.delete('/$forbidden'), throwsA(isA<A2uiDataError>()));
+        expect(() => model.watch<Object?>('/$forbidden'),
+            throwsA(isA<A2uiDataError>()));
+      }
+      expect(model.get('/'), {'safe': 1});
+    });
+
+    test(
+        'treats empty, root, and doubled-slash paths as the root or the same '
+        'segments', () {
+      final model = DataModel({'foo': 'bar'});
+      addTearDown(model.dispose);
+
+      expect(model.get(''), {'foo': 'bar'});
+      expect(model.get('/'), {'foo': 'bar'});
+      expect(model.get('//foo//'), 'bar');
+      expect(model.hasPath(''), isTrue);
     });
   });
 }

@@ -24,6 +24,7 @@ import 'dart:async';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:logging/logging.dart';
+import 'package:preact_signals/preact_signals.dart' show SignalEffectException;
 import 'package:test/test.dart';
 
 class _TestComponentApi extends ComponentApi {
@@ -916,12 +917,48 @@ void materializationFailureTests() {
       return fixture;
     }
 
+    /// Collects the listener errors that `EventNotifier.emit` catches and
+    /// logs, so a throw during materialization stays observable even though
+    /// it no longer escapes the `componentsModel` notification.
+    List<LogRecord> collectListenerErrors() {
+      final records = <LogRecord>[];
+      final StreamSubscription<LogRecord> subscription =
+          Logger('a2ui.EventNotifier').onRecord.listen((record) {
+        if (record.loggerName == 'a2ui.EventNotifier' &&
+            record.level == Level.SEVERE) {
+          records.add(record);
+        }
+      });
+      addTearDown(subscription.cancel);
+      return records;
+    }
+
+    /// Asserts that at least one listener error matching [error] was logged
+    /// since the last call, then clears [records] for the next step.
+    ///
+    /// A throw from inside a signal effect reaches the notifier wrapped in a
+    /// [SignalEffectException]; the matcher is applied to the original error.
+    void expectSwallowed(List<LogRecord> records, Matcher error) {
+      expect(records, isNotEmpty,
+          reason: 'the materialization throw must be logged, not lost');
+      expect(
+        records.map((record) {
+          final Object? e = record.error;
+          return e is SignalEffectException ? e.error : e;
+        }),
+        everyElement(error),
+      );
+      records.clear();
+    }
+
     test(
         'a throw while materializing leaves no orphaned record, and the '
         'tree builds once the offending component is corrected', () {
       final TestSetup fixture = setupWithPoisonedLeaf();
+      final List<LogRecord> listenerErrors = collectListenerErrors();
 
       add(fixture.surface, 'root', 'Card', {'child': 'leaf'});
+      expectSwallowed(listenerErrors, isA<TypeError>());
 
       expect(
         fixture.resolver.activeNodeCount,
@@ -957,12 +994,14 @@ void materializationFailureTests() {
         'a throw partway through a child list disposes the siblings '
         'created before it', () {
       final TestSetup fixture = setupWithPoisonedLeaf();
+      final List<LogRecord> listenerErrors = collectListenerErrors();
       add(fixture.surface, 'ok', 'Text', {'text': 'ok'});
       add(fixture.surface, 'extra', 'Text', {'text': 'extra'});
 
       add(fixture.surface, 'root', 'Column', {
         'children': ['ok', 'leaf'],
       });
+      expectSwallowed(listenerErrors, isA<TypeError>());
       expect(fixture.resolver.activeNodeCount, 0);
 
       fixture.surface.componentsModel.removeComponent('root');
@@ -974,6 +1013,7 @@ void materializationFailureTests() {
       fixture.surface.componentsModel.get('root')!.properties = {
         'children': ['ok', 'extra', 'leaf'],
       };
+      expectSwallowed(listenerErrors, isA<TypeError>());
       expect(
         fixture.resolver.activeNodeCount,
         2,
@@ -986,6 +1026,7 @@ void materializationFailureTests() {
         'disposing an aborted cyclic sibling keeps the retained '
         "placeholder's diagnostic reservation", () {
       final TestSetup fixture = setupWithPoisonedLeaf();
+      final List<LogRecord> listenerErrors = collectListenerErrors();
       final errors = <String>[];
       fixture.surface.onError.addListener((error) => errors.add(error.code));
       add(fixture.surface, 'root', 'Column', {
@@ -1000,6 +1041,7 @@ void materializationFailureTests() {
       fixture.surface.componentsModel.get('root')!.properties = {
         'children': ['root', 'root', 'leaf'],
       };
+      expectSwallowed(listenerErrors, isA<TypeError>());
       expect(fixture.resolver.activeNodeCount, 2);
       expect(errors, ['CYCLIC_REFERENCE']);
 
@@ -1021,6 +1063,7 @@ void materializationFailureTests() {
         'a failed update keeps the identity of a committed child whose '
         'same-edge replacement was aborted', () {
       final TestSetup fixture = setupWithPoisonedLeaf();
+      final List<LogRecord> listenerErrors = collectListenerErrors();
       add(fixture.surface, 'ok', 'Text', {'text': 'ok'});
       add(fixture.surface, 'extra', 'Text', {'text': 'extra'});
       add(fixture.surface, 'root', 'Column', {
@@ -1037,6 +1080,7 @@ void materializationFailureTests() {
       fixture.surface.componentsModel.get('root')!.properties = {
         'children': ['extra', 'ok', 'leaf'],
       };
+      expectSwallowed(listenerErrors, isA<TypeError>());
       expect(fixture.resolver.activeNodeCount, 3);
       expect(second.disposed, isFalse);
       expect(destroyed, 0);

@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
+import 'package:logging/logging.dart';
+import 'package:preact_signals/preact_signals.dart' show SignalEffectException;
 import 'package:test/test.dart';
 
 Catalog<ComponentApi, FunctionImplementation> _catalog() => Catalog(
@@ -113,7 +117,26 @@ void main() {
   });
 
   group('NodeResolver diagnostic bookkeeping', () {
+    /// Collects the observer errors that `EventNotifier.emit` catches and
+    /// logs, so a throwing observer stays observable in these tests. An
+    /// observer runs inside a signal effect, so its throw arrives wrapped in a
+    /// [SignalEffectException]; the original error is collected.
+    List<Object?> collectListenerErrors() {
+      final errors = <Object?>[];
+      final StreamSubscription<LogRecord> subscription =
+          Logger('a2ui.EventNotifier').onRecord.listen((record) {
+        if (record.loggerName == 'a2ui.EventNotifier' &&
+            record.level == Level.SEVERE) {
+          final Object? e = record.error;
+          errors.add(e is SignalEffectException ? e.error : e);
+        }
+      });
+      addTearDown(subscription.cancel);
+      return errors;
+    }
+
     test('a failed observer does not consume an undelivered diagnostic', () {
+      final List<Object?> listenerErrors = collectListenerErrors();
       var shouldThrow = true;
       final void Function() unsubscribe = resolver.rootNode.subscribe((node) {
         if (node != null && shouldThrow) {
@@ -126,6 +149,7 @@ void main() {
       _add(surface, 'root', 'Column', {
         'children': ['weird'],
       });
+      expect(listenerErrors, [isA<StateError>()]);
       expect(reports('UNKNOWN_COMPONENT_TYPE'), 0);
       expect(resolver.activeNodeCount, 2);
       final ComponentModel root = surface.componentsModel.get('root')!;
@@ -149,6 +173,7 @@ void main() {
       });
       expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
       surface.componentsModel.removeComponent('root');
+      final List<Object?> listenerErrors = collectListenerErrors();
       var shouldThrow = true;
       final void Function() unsubscribe = resolver.rootNode.subscribe((node) {
         if (node != null && shouldThrow) {
@@ -160,6 +185,7 @@ void main() {
       _add(surface, 'root', 'Column', {
         'children': ['known', 'later'],
       });
+      expect(listenerErrors, [isA<StateError>()]);
       final ComponentModel root = surface.componentsModel.get('root')!;
       expect(reports('UNKNOWN_COMPONENT_TYPE'), 1);
       root.properties = {'children': <String>[]};

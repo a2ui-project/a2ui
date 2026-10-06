@@ -34,7 +34,6 @@ export 'src/core/surface_group_model.dart';
 export 'src/core/surface_model.dart';
 export 'src/core/validation_result.dart';
 export 'src/primitives/cancellation.dart';
-export 'src/primitives/data_path.dart';
 export 'src/primitives/errors.dart';
 // Event notifications for discrete lifecycle events.
 export 'src/primitives/event_notifier.dart';

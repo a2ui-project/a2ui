@@ -6,12 +6,11 @@
 - **Breaking:** `SurfaceModel.dispatchAction` records action timestamps in UTC (`DateTime.now().toUtc()`) and `A2uiClientAction.toJson()` serializes timestamps in UTC (`timestamp.toUtc().toIso8601String()`) so serialized timestamps always end with `Z` per RFC 3339.
 - **Breaking:** `A2uiClientError` validates in its constructor (not only in debug assertions) that a `VALIDATION_FAILED` error provides a non-empty `path`, throwing `A2uiValidationError`.
 - `ComponentModel.toJson` writes `id` and `component` after the component's properties, so a property named `id` or `component` no longer replaces the model's own.
-- `DataPath` preserves whether a parsed or constructed path is relative or
-  absolute (`isAbsolute`), omits the leading `/` from `toString()` when
-  relative, validates RFC 6901 `~0`/`~1` escape sequences in `DataPath.parse`,
-  and enforces forbidden prototype-pollution segment names (`__proto__`,
-  `constructor`, `prototype`) in `DataPath` construction, parsing, and `append`
-  for all argument types.
+- **Breaking:** Removed `DataPath`. `DataModel` parses JSON Pointers itself,
+  as web_core and the Python core do, and every path API (`get`, `set`,
+  `delete`, `hasPath`, `watch`) takes a `String`. Parsing validates RFC 6901
+  `~0`/`~1` escape sequences and rejects prototype-pollution segment names
+  (`__proto__`, `constructor`, `prototype`) with `A2uiDataError`.
 - **Breaking:** `DataModel` takes a modifiable deep copy of incoming data on
   initialization and `set`, normalizing string-keyed maps (including untyped
   `Map<dynamic, dynamic>`) to `Map<String, Object?>` and lists to
