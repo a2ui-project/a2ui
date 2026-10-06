@@ -633,11 +633,9 @@ TypeScript visitor does not read line-by-line against Python's.
 needs Java. `antlr4ts` last published `0.5.0-alpha.4` on 2021-01-01 and predates the
 ANTLR 4.10 serialized ATN format change, so it cannot read 4.13.2 output at all.
 
-The reviewer notes asked for alongside this decision are written, at
-`antlr_parity_notes.md` in this directory, revised for the current toolchain. They
-cover the divergence risks, each marked verified or needing a test, the settled
-build-integration problems, and a checklist for reviewing a grammar diff. The document
-moves next to the generated code when the Express implementation lands.
+The reviewer notes asked for alongside this decision are at `antlr_parity_notes.md` in
+this directory. They cover the ATN parity test, the toolchain pins, the rules for
+porting the visitor, and a checklist for reviewing a grammar diff.
 
 Conformance targets the suites where they are today and migrates to the per-format
 layout when PR #2713 arrives with the `main` into `v1_0` merge. Express is built
@@ -695,12 +693,11 @@ under `typescript/web_core/dist`, and reading the `files` array in
 dependency was confirmed by grep over `typescript/a2ui_agent/src` and by reading its
 `package.json`.
 
-The evidence behind the ANTLR toolchain decision is recorded in the verification log
-of `antlr_parity_notes.md` rather than repeated here. In summary, it comes from the
-ANTLR target documentation and both tree-visitor runtimes at tag 4.13.2, from the
-npm registry over HTTPS for the three candidate packages and the file listings of
-their tarballs, and from the Python pins and codegen hook in this repository. The
-`npm` client itself is blocked in this environment by a registry proxy.
+The evidence behind the ANTLR toolchain decision came from the ANTLR target
+documentation and both tree-visitor runtimes at tag 4.13.2, from the npm registry over
+HTTPS for the three candidate packages and the file listings of their tarballs, and
+from the Python pins and codegen hook in this repository. The `npm` client itself was
+blocked in this environment by a registry proxy.
 
 The remaining file and line references come from a source survey performed for this
 addendum. A sample of its claims was checked independently and held, but individual
