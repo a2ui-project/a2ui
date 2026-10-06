@@ -40,13 +40,13 @@ _A2UI_EXAMPLES_KEY = "system:a2ui_examples"
 
 
 def get_a2ui_catalog(ctx: ReadonlyContext):
-    """Retrieves the active A2UI catalogs from the session state.
+    """Retrieves the A2UI catalog from the session state.
 
     Args:
-        ctx: The ReadonlyContext for resolving the catalogs.
+        ctx: The ReadonlyContext for resolving the catalog.
 
     Returns:
-        The active A2UI catalogs or None if not found.
+        The A2UI catalog or None if not found.
     """
     return ctx.state.get(_A2UI_CATALOG_KEY)
 
@@ -119,7 +119,7 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
             inference_format = self._agent.resolve_inference_format(
                 active_ui_version, capabilities
             )
-            a2ui_catalogs = list(inference_format.catalogs)
+            a2ui_catalog = inference_format.catalogs[0]
             examples = inference_format.prompt_generator.generate_examples(
                 validate=True
             )
@@ -132,7 +132,7 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
                     actions=EventActions(
                         state_delta={
                             _A2UI_ENABLED_KEY: True,
-                            _A2UI_CATALOG_KEY: a2ui_catalogs,
+                            _A2UI_CATALOG_KEY: a2ui_catalog,
                             _A2UI_EXAMPLES_KEY: examples,
                         }
                     ),

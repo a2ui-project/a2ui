@@ -103,10 +103,6 @@
 - `SendA2uiToClientToolset` now returns a tool error, with the validation
   message, for a payload that fails validation. Before, it ignored the errors
   that `validate_components` returned (#2966).
-- `SendA2uiToClientToolset`'s `a2ui_catalog` value or provider can give a
-  sequence of catalogs, such as the ones `resolve_catalogs` returns. The prompt
-  describes all of them and a payload may use any of them. A single catalog
-  still works (#2966).
 - The schema helpers of the Express, Elemental and Atom formats inline a
   catalog's local references with `inline_local_refs` from `a2ui.core`, as
   `Catalog.from_json` does, so a catalog built from models, such as
