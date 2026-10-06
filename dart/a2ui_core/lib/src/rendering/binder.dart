@@ -253,8 +253,9 @@ class GenericBinder {
 
       case Behavior.structural:
         if (value is Map &&
-            value.containsKey('path') &&
-            value.containsKey('componentId')) {
+            value['path'] is String &&
+            value['componentId'] is String &&
+            value.keys.every((k) => k is String)) {
           final tpl = ChildListTemplate.fromJson(
             Map<String, dynamic>.from(value),
           );
@@ -292,8 +293,11 @@ class GenericBinder {
         return value;
 
       case Behavior.checkable:
-        if (value is! List) return value;
-        final List<Object?> rules = value.cast<Object?>();
+        // A non-list value is treated as no rules, as in web_core and the
+        // Python core. Schema validation of the property is the job of
+        // PayloadValidator at message time, not of the binder.
+        final List<Object?> rules =
+            value is List ? value.cast<Object?>() : const <Object?>[];
         final ruleResults = <ValidationResult>[];
 
         void applyValidationState(
@@ -326,7 +330,7 @@ class GenericBinder {
         for (var i = 0; i < rules.length; i++) {
           if (_disposed) return null;
           final Object? rawRule = rules[i];
-          if (rawRule is! Map) {
+          if (rawRule is! Map || rawRule.keys.any((k) => k is! String)) {
             context.surface.dispatchError(
               A2uiClientError(
                 code: 'VALIDATION_FAILED',
@@ -382,7 +386,9 @@ class GenericBinder {
         final Map<String, BehaviorNode> shape = behavior.shape ?? {};
 
         for (final MapEntry<Object?, Object?> entry in value.entries) {
-          final key = entry.key as String;
+          final Object? rawKey = entry.key;
+          if (rawKey is! String) continue;
+          final String key = rawKey;
           final BehaviorNode childBehavior =
               shape[key] ?? BehaviorNode(Behavior.static);
           result[key] = _resolveAndBind(

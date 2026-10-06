@@ -84,6 +84,22 @@
 - **Breaking:** `SurfaceModel.dispatchAction` records action timestamps in UTC (`DateTime.now().toUtc()`) and `A2uiClientAction.toJson()` serializes timestamps in UTC (`timestamp.toUtc().toIso8601String()`) so serialized timestamps always end with `Z` per RFC 3339.
 - **Breaking:** `A2uiClientError` validates in its constructor (not only in debug assertions) that a `VALIDATION_FAILED` error provides a non-empty `path`, throwing `A2uiValidationError`.
 - `ComponentModel.toJson` writes `id` and `component` after the component's properties, so a property named `id` or `component` no longer replaces the model's own.
+- **Breaking:** Removed `DataPath`. `DataModel` parses JSON Pointers itself,
+  as web_core and the Python core do, and every path API (`get`, `set`,
+  `delete`, `hasPath`, `watch`) takes a `String`. Parsing validates RFC 6901
+  `~0`/`~1` escape sequences and rejects prototype-pollution segment names
+  (`__proto__`, `constructor`, `prototype`) with `A2uiDataError`.
+- **Breaking:** `DataModel` takes a modifiable deep copy of incoming data on
+  initialization and `set`, normalizing string-keyed maps (including untyped
+  `Map<dynamic, dynamic>`) to `Map<String, Object?>` and lists to
+  `List<Object?>` so external mutations do not alias internal state and
+  untyped maps are traversable.
+- Add `DataModel.delete`, `DataModel.hasPath`, and `DataModel.resolvePath`.
+- `EventNotifier.emit` isolates listener exceptions, logging them via
+  `Logger('a2ui.EventNotifier')` and continuing delivery to remaining
+  listeners.
+- Validate `DataBinding`, `FunctionCall`, `Action`, and `ChildListTemplate` fields during JSON deserialization (`A2uiValidationError`), preserve `reservedKeys` (`@path`/`@call`) and `catalogId` across `toJson` (the `@call` form omits `returnType`, which the v1.0 schema does not declare), default `FunctionCall.returnType` to `A2uiReturnType.any`, treat a non-list `checks` value as no rules (as web_core and the Python core do) and guard dynamic map casts against `TypeError`, and throw `A2uiStateError` from `ComponentContext.childContext` and `A2uiCatalogError` from `CatalogInvokerExtension.invoke`.
+- Add `isValidUax31Identifier` and `assertUax31Identifier` for UAX #31 identifier validation, `A2uiErrorDetail`, `cause` chaining on `A2uiError` subclasses, and `code`/`path`/`errors` on `A2uiValidationError`. `A2uiError` now takes `code` as a named parameter, and `A2uiValidationError` aligns its default code to `'VALIDATION_FAILED'`.
 - **Behavior change:** `MessageProcessor` checks the component graph on every
   `updateComponents` message. It used to check completeness once per payload,
   and only for the surfaces that payload created. Each batch is applied to a copy of the

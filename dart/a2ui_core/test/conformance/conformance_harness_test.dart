@@ -17,16 +17,6 @@ import 'package:test/test.dart';
 
 import 'conformance_harness.dart';
 
-class _PathValidationError extends A2uiValidationError {
-  final String? path;
-
-  _PathValidationError(
-    super.message, {
-    required this.path,
-    super.code,
-  });
-}
-
 void main() {
   group('runConformanceCase', () {
     test('marks test skipped when listed in expectedFailures and body fails',
@@ -235,7 +225,7 @@ void main() {
         path: '/items/0',
       );
       final nullPathDataError = A2uiDataError('Invalid pointer');
-      final matchingValidationError = _PathValidationError(
+      final matchingValidationError = A2uiValidationError(
         'Unallowed child',
         path: '/components/0/children/1',
         code: 'UNALLOWED_CHILD',
@@ -264,7 +254,7 @@ void main() {
 
     test('records skip when expectError.path is absent on thrown error', () {
       final skippedMessages = <String>[];
-      final errorWithoutPath = A2uiValidationError('Missing field');
+      final errorWithoutPath = A2uiParseError('Missing field');
 
       expect(
         errorWithoutPath,

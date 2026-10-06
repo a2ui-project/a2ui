@@ -26,6 +26,53 @@ import * as restaurantCardMock from './test_data/mocks/restaurant-card.json';
 import * as contactCardMock from './test_data/mocks/contact-card.json';
 
 /**
+ * Resolves child node lists from v0.8 format.
+ */
+function resolveChildren(children: any, resolveFn: (node: any) => any): any {
+  if (Array.isArray(children)) {
+    return children.map((c: any) => resolveFn(c));
+  }
+  if (children?.explicitList) {
+    return children.explicitList.map((id: string) => resolveFn(id));
+  }
+  return children;
+}
+
+/**
+ * Resolves an individual node by ID or reference in the component map.
+ */
+function resolveNode(idOrNode: any, componentMap: Map<string, any>): any {
+  if (typeof idOrNode === 'string') {
+    const node = componentMap.get(idOrNode);
+    return node ? resolveNode(node, componentMap) : null;
+  }
+  if (!idOrNode || typeof idOrNode !== 'object' || (idOrNode.type && idOrNode.properties)) {
+    return idOrNode;
+  }
+  if (!idOrNode.component) {
+    return idOrNode;
+  }
+
+  const type = Object.keys(idOrNode.component)[0];
+  const properties = {...idOrNode.component[type]};
+
+  if (properties.child) {
+    properties.child = resolveNode(properties.child, componentMap);
+  }
+  if (properties.children) {
+    properties.children = resolveChildren(properties.children, child =>
+      resolveNode(child, componentMap),
+    );
+  }
+
+  return {
+    id: idOrNode.id,
+    type,
+    properties,
+  };
+}
+
+/**
  * Resolves a component tree from a flat list of component messages.
  * This handles the v0.8 format where children are often referenced by ID.
  */
@@ -33,46 +80,8 @@ function resolveComponentTree(messages: any[], rootId: string): any {
   const surfaceUpdate = messages.find(m => m.surfaceUpdate)?.surfaceUpdate;
   if (!surfaceUpdate) return null;
 
-  const componentMap = new Map(surfaceUpdate.components.map((c: any) => [c.id, c]));
-
-  function resolve(idOrNode: any): any {
-    if (typeof idOrNode === 'string') {
-      const node = componentMap.get(idOrNode);
-      return node ? resolve(node) : null;
-    }
-
-    if (idOrNode && typeof idOrNode === 'object') {
-      // If it's already in the { type, properties } format, just return it
-      if (idOrNode.type && idOrNode.properties) return idOrNode;
-
-      // If it's in the { id, component: { Type: { ... } } } format
-      if (idOrNode.component) {
-        const type = Object.keys(idOrNode.component)[0];
-        const properties = {...idOrNode.component[type]};
-
-        // Recursively resolve children
-        if (properties.child) {
-          properties.child = resolve(properties.child);
-        }
-        if (properties.children) {
-          if (Array.isArray(properties.children)) {
-            properties.children = properties.children.map((c: any) => resolve(c));
-          } else if (properties.children.explicitList) {
-            properties.children = properties.children.explicitList.map((id: string) => resolve(id));
-          }
-        }
-
-        return {
-          id: idOrNode.id,
-          type,
-          properties,
-        };
-      }
-    }
-    return idOrNode;
-  }
-
-  return resolve(rootId);
+  const componentMap = new Map<string, any>(surfaceUpdate.components.map((c: any) => [c.id, c]));
+  return resolveNode(rootId, componentMap);
 }
 
 @Component({

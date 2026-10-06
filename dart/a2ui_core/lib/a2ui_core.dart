@@ -36,7 +36,6 @@ export 'src/core/surface_group_model.dart';
 export 'src/core/surface_model.dart';
 export 'src/core/validation_result.dart';
 export 'src/primitives/cancellation.dart';
-export 'src/primitives/data_path.dart';
 export 'src/primitives/errors.dart';
 // Event notifications for discrete lifecycle events.
 export 'src/primitives/event_notifier.dart';
@@ -45,6 +44,7 @@ export 'src/primitives/protocol_version.dart';
 // Reactivity (re-exports preact_signals primitives).
 export 'src/primitives/reactivity.dart';
 export 'src/primitives/semver.dart';
+export 'src/primitives/uax31.dart';
 export 'src/processing/adapters/v0_9_adapter.dart';
 export 'src/processing/adapters/v1_0_adapter.dart';
 export 'src/processing/adapters/version_adapter.dart';

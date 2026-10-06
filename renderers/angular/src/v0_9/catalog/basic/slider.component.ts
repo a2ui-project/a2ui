@@ -17,6 +17,7 @@
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {SliderApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BoundProperty} from '@a2ui/angular';
 
 /**
  * Angular implementation of the A2UI Slider component (v0.9).
@@ -44,10 +45,15 @@ import {SliderApi} from '@a2ui/web_core/v0_9/basic_catalog';
         type="range"
         [min]="min()"
         [max]="max()"
+        [attr.step]="stepAttr()"
         [value]="value()"
         (input)="handleInput($event)"
         class="a2ui-slider"
+        [class.invalid]="props()['isValid']?.value() === false"
       />
+      @for (message of props()['validationErrors']?.value(); track message) {
+        <div class="a2ui-error-message">{{ message }}</div>
+      }
     </div>
   `,
   styles: [
@@ -75,6 +81,10 @@ import {SliderApi} from '@a2ui/web_core/v0_9/basic_catalog';
         accent-color: var(--a2ui-slider-thumb-color, var(--a2ui-color-primary, #007bff));
         background: var(--a2ui-slider-track-color, var(--a2ui-color-secondary, #e9ecef));
       }
+      .a2ui-error-message {
+        color: var(--a2ui-slider-color-error, var(--a2ui-color-error, red));
+        font-size: var(--a2ui-font-size-xs, 12px);
+      }
     `,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -84,6 +94,15 @@ export class SliderComponent extends BasicCatalogComponent<typeof SliderApi> {
   readonly value = computed(() => this.props()['value']?.value());
   readonly min = computed(() => this.props()['min']?.value() ?? 0);
   readonly max = computed(() => this.props()['max']?.value() ?? 100);
+  readonly steps = computed(() =>
+    (this.props() as unknown as Record<string, BoundProperty<number | undefined>>)[
+      'steps'
+    ]?.value(),
+  );
+  readonly stepAttr = computed(() => {
+    const s = this.steps();
+    return typeof s === 'number' && s > 0 ? (this.max() - this.min()) / s : null;
+  });
 
   handleInput(event: Event) {
     const val = Number((event.target as HTMLInputElement).value);

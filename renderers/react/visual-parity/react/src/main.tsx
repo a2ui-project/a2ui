@@ -16,7 +16,7 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import {A2UIProvider, initializeDefaultCatalog} from '@a2ui/react';
+import {A2UIProvider, initializeDefaultCatalog} from '@a2ui/react/v0_8';
 import {injectStyles} from '@a2ui/react/styles';
 import {FixturePage} from './FixturePage';
 import {getTheme, themeNames} from '../../fixtures/themes';
