@@ -33,10 +33,7 @@ from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS, SURFACE_ID_KEY
 
 
 class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
-    """Streaming parser implementation for the legacy A2UI v0.8 specification.
-
-    A v0.8 parser holds a single catalog.
-    """
+    """Streaming parser implementation for the legacy A2UI v0.8 specification."""
 
     def __init__(
         self,
@@ -51,13 +48,14 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
         sequence as the other parsers.
 
         Args:
-            catalogs: The single catalog that components are parsed and
-                validated against, in a sequence.
+            catalogs: The catalogs that components are parsed and validated
+                against.
             progressive_keys: Keys whose string values can be safely auto-closed
                 (healed) when cut in the stream. An empty set turns healing off.
 
         Raises:
-            A2uiCatalogError: If the sequence doesn't hold exactly one catalog.
+            A2uiCatalogError: If no catalog is given, or the catalogs target
+                different protocol versions.
         """
         super().__init__(
             catalogs=catalogs,
@@ -167,6 +165,7 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
             br_val = obj[MSG_TYPE_BEGIN_RENDERING]
             if isinstance(br_val, dict):
                 self.surface_id = br_val.get(SURFACE_ID_KEY, self.surface_id)
+                self._record_surface_catalog(sid, br_val)
             self.root_id = br_val.get('root', self.root_id or DEFAULT_ROOT_ID)
             self._buffered_start_message = obj
 

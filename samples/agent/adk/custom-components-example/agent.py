@@ -519,7 +519,7 @@ class ContactAgent:
                                 full_content_list.append(p.text)
                                 yield p.text
 
-            # The stream parser checks every message against a single catalog.
+            # The format's stream parser holds only the format's own catalogs.
             # When the client's inline catalogs are active too, a response's
             # surfaces may name any of them, so the response is buffered and
             # the complete payload is validated against all of them below.

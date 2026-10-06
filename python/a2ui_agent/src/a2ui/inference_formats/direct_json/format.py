@@ -19,9 +19,6 @@ from collections.abc import Collection, Sequence
 from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.common import to_protocol_version
 from a2ui.inference_format import InferenceFormat
-from a2ui.inference_formats.direct_json._parser_catalogs import (
-    supports_multiple_catalogs,
-)
 from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 from a2ui.inference_formats.direct_json.prompt_generator import DirectJsonPromptGenerator
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
@@ -47,11 +44,9 @@ class DirectJsonFormat(InferenceFormat):
         """Initializes the DirectJsonFormat with resolved catalogs.
 
         Args:
-            catalogs: The active catalogs. The prompt describes all of them.
-              From v1.0 on, the parsers hold all of them and resolve each
-              component against the catalog that it or its surface names.
-              Before v1.0, a parser holds a single catalog, so the parsers
-              validate against the first one.
+            catalogs: The active catalogs. The prompt describes all of them, and
+              the parsers hold all of them and resolve each component against
+              the catalog that it or its surface names.
             examples_path: Optional directory or glob pattern of few-shot example
               files, which `a2ui.schema.load_examples` reads.
             progressive_keys: Keys whose string values the stream parsers heal
@@ -92,7 +87,7 @@ class DirectJsonFormat(InferenceFormat):
         """The parser instance configured for this Direct JSON format."""
         if self._parser is None:
             self._parser = DirectJsonParser(
-                self._catalogs_for_parser(),
+                self._catalogs,
                 progressive_keys=self._progressive_keys,
             )
         return self._parser
@@ -117,12 +112,6 @@ class DirectJsonFormat(InferenceFormat):
             A new streaming parser.
         """
         return DirectJsonStreamParser(
-            self._catalogs_for_parser(),
+            self._catalogs,
             progressive_keys=self._progressive_keys,
         )
-
-    def _catalogs_for_parser(self) -> Sequence[CatalogApi]:
-        """Returns the catalogs that a parser for this format may hold."""
-        if supports_multiple_catalogs(self._catalogs[0].protocol_version):
-            return self._catalogs
-        return self._catalogs[:1]

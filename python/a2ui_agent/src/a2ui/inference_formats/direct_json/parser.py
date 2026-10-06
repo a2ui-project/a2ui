@@ -84,15 +84,13 @@ class DirectJsonParser(Parser):
 
         Args:
             catalogs: The catalogs that payloads are validated against. They
-                must share a protocol version, and versions before v1.0 take a
-                single catalog.
+                must share a protocol version.
             progressive_keys: Keys whose string values the stream parser may
                 auto-close when cut. An empty set turns healing off.
 
         Raises:
-            A2uiCatalogError: If no catalog is given, the catalogs target
-                different protocol versions, or several catalogs are given for
-                a protocol version before v1.0.
+            A2uiCatalogError: If no catalog is given, or the catalogs target
+                different protocol versions.
         """
         self._catalogs = check_parser_catalogs(catalogs)
         self._progressive_keys = progressive_keys

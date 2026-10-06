@@ -100,16 +100,13 @@ class DirectJsonStreamParser:
             catalogs: The catalogs that components are parsed and validated
                 against. They must share a protocol version. A component uses
                 the catalog that its own `catalogId` names, then the catalog
-                that its surface's `createSurface` names, then the first
-                catalog. v1.0 and later support multiple catalogs; earlier
-                versions take a single catalog.
+                that its surface's start message names, then the first catalog.
             progressive_keys: Keys whose string values can be safely auto-closed
                 (healed) when cut in the stream. An empty set turns healing off.
 
         Raises:
-            A2uiCatalogError: If no catalog is given, the catalogs target
-                different protocol versions, or multiple catalogs are given for
-                a protocol version earlier than v1.0.
+            A2uiCatalogError: If no catalog is given, or the catalogs target
+                different protocol versions.
         """
         self._catalogs = check_parser_catalogs(catalogs)
         self._catalogs_by_id: dict[str, CatalogApi] = {

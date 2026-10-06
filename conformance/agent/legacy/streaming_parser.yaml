@@ -3336,7 +3336,9 @@
               createSurface:
                 surfaceId: "main"
                 catalogId: "https://a2ui.org/catalogs/basic"
-    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["t1", "m1"]}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "catalogId": "https://a2ui.org/catalogs/custom", "component": "CustomMetric", "value": 42}]}}]</a2ui-json>'
+    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["t1", "m1"]}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "catalogId": "https://a2ui.org/catalogs/custom", "component": "CustomMetric"'
+      expect: []
+    - input: ', "value": 42}'
       expect:
         - a2ui:
             - version: "v1.0"
@@ -3353,6 +3355,8 @@
                   - id: "t1"
                     component: "Text"
                     text: "Users"
+    - input: ']}}]</a2ui-json>'
+      expect: []
 
 - name: test_v1_0_streaming_component_without_catalog_uses_surface_catalog
   description: >-
@@ -3392,5 +3396,8 @@
               createSurface:
                 surfaceId: "main"
                 catalogId: "https://a2ui.org/catalogs/basic"
-    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "CustomMetric", "value": 42}]}}]</a2ui-json>'
+    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": ['
+      expect: []
+    - input: '{"id": "root", "component": "CustomMetric", "value": 42}]}}]</a2ui-json>'
       expectError: "Validation failed"
+

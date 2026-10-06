@@ -17,21 +17,7 @@
 from collections.abc import Sequence
 
 from a2ui.core import A2uiCatalogError, CatalogApi
-from a2ui.core.common import is_at_least_version, to_protocol_version
-from a2ui.core.schema import ProtocolVersion
-
-
-def supports_multiple_catalogs(protocol_version: ProtocolVersion | str) -> bool:
-    """Returns whether a Direct JSON parser may hold several catalogs.
-
-    Multiple catalogs are supported in protocol version 1.0 and later, where a
-    session can create surfaces on different catalogs and components can name
-    their own `catalogId`. Earlier versions support a single catalog per
-    parser.
-    """
-    return is_at_least_version(
-        to_protocol_version(protocol_version), ProtocolVersion.V1_0
-    )
+from a2ui.core.common import to_protocol_version
 
 
 def check_parser_catalogs(catalogs: Sequence[CatalogApi]) -> tuple[CatalogApi, ...]:
@@ -41,9 +27,8 @@ def check_parser_catalogs(catalogs: Sequence[CatalogApi]) -> tuple[CatalogApi, .
         catalogs: The catalogs that the parser resolves components against.
 
     Raises:
-        A2uiCatalogError: If no catalog is given, the catalogs target different
-            protocol versions, or several catalogs are given for a protocol
-            version before v1.0.
+        A2uiCatalogError: If no catalog is given, or the catalogs target
+            different protocol versions.
     """
     if isinstance(catalogs, (str, bytes)) or not isinstance(catalogs, Sequence):
         raise A2uiCatalogError(
@@ -59,11 +44,5 @@ def check_parser_catalogs(catalogs: Sequence[CatalogApi]) -> tuple[CatalogApi, .
         raise A2uiCatalogError(
             "The catalogs target incompatible protocol versions:"
             f" {sorted(v.value for v in versions)}."
-        )
-    (version,) = versions
-    if not supports_multiple_catalogs(version):
-        raise A2uiCatalogError(
-            f"Only a single catalog is supported for protocol version {version.value}."
-            " Multiple catalogs are supported in v1.0 and later."
         )
     return tuple(catalogs)

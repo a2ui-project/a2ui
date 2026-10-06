@@ -30,17 +30,9 @@ def _catalog(catalog_id: str, protocol_version: str) -> Catalog:
 
 
 @pytest.mark.parametrize("parser_type", [DirectJsonParser, DirectJsonStreamParser])
-@pytest.mark.parametrize("version", ["0.8", "0.9", "0.9.1"])
-def test_pre_v1_0_parsers_reject_multiple_catalogs(parser_type, version):
+@pytest.mark.parametrize("version", ["0.8", "0.9", "0.9.1", "1.0"])
+def test_parsers_hold_multiple_catalogs(parser_type, version):
     catalogs = [_catalog("basic", version), _catalog("custom", version)]
-
-    with pytest.raises(A2uiCatalogError, match=r"single catalog"):
-        parser_type(catalogs)
-
-
-@pytest.mark.parametrize("parser_type", [DirectJsonParser, DirectJsonStreamParser])
-def test_v1_0_parsers_hold_multiple_catalogs(parser_type):
-    catalogs = [BasicCatalog("1.0"), _catalog("custom", "1.0")]
 
     assert parser_type(catalogs).catalogs == tuple(catalogs)
 

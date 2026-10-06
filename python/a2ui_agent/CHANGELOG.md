@@ -2,14 +2,12 @@
 
 - **BREAKING**: `DirectJsonParser`, `DirectJsonStreamParser` and
   `A2uiPartConverter` take a sequence of catalogs instead of one catalog, and
-  expose them as `catalogs`. From v1.0 on, a parser holds every catalog the
-  renderer supports and checks each surface against the catalog that its
-  `createSurface` names, or a component against the catalog its `catalogId`
-  names. Earlier protocol versions take a single catalog. `DirectJsonFormat`
-  passes all of its catalogs to v1.0+ parsers and its first catalog to earlier
-  parsers, and `create_stream_parser()` uses the format's catalogs without
-  taking a `catalogs` parameter (#2967). To migrate, wrap a single catalog in
-  a list: `DirectJsonParser([catalog])`.
+  expose them as `catalogs`. A parser holds every catalog the renderer supports
+  and checks each surface against the catalog that its start message names, or
+  a component against the catalog its `catalogId` names. `DirectJsonFormat`
+  passes all of its catalogs to its parsers, and `create_stream_parser()` uses
+  the format's catalogs without taking a `catalog` parameter (#2967). To
+  migrate, wrap a single catalog in a list: `DirectJsonParser([catalog])`.
 - `validate_payload` takes `surface_catalog_ids`, the catalogs that earlier
   payloads created surfaces with, and checks updates to those surfaces against
   them, and types `payload` as `AgentToRendererMessagePayload` (#2967).

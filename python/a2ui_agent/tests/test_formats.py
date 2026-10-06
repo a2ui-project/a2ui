@@ -329,8 +329,8 @@ def test_direct_json_prompt_describes_every_catalog():
     assert '"catalogId":"a"' in prompt
     assert '"catalogId":"b"' in prompt
     assert direct_json_format.catalogs == tuple(catalogs)
-    assert direct_json_format.parser.catalogs == (catalogs[0],)
-    assert direct_json_format.create_stream_parser().catalogs == (catalogs[0],)
+    assert direct_json_format.parser.catalogs == tuple(catalogs)
+    assert direct_json_format.create_stream_parser().catalogs == tuple(catalogs)
 
 
 def test_direct_json_format_passes_all_catalogs_to_v1_0_parsers():

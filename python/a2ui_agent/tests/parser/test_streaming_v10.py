@@ -144,9 +144,9 @@ def test_v10_component_catalog_overrides_surface_catalog(
                 ' ["t1", "m1"]}, '
             ),
             '{"id": "t1", "component": "Text", "text": "Users"}, ',
-            f'{{"id": "m1", "catalogId": "{CUSTOM_ID}", "component": "CustomMetric",'
-            ' "value": 42}]}}]'
-            + A2UI_CLOSE_TAG,
+            f'{{"id": "m1", "catalogId": "{CUSTOM_ID}", "component": "CustomMetric"',
+            ', "value": 42}',
+            "]}}]" + A2UI_CLOSE_TAG,
         ],
     )
 
@@ -175,11 +175,12 @@ def test_v10_component_without_catalog_uses_surface_catalog(
             [
                 A2UI_OPEN_TAG
                 + '[{"version": "v1.0", "createSurface": {"surfaceId": "main",'
-                f' "catalogId": "{BASIC_ID}"}}}}, '
-                + '{"version": "v1.0", "updateComponents": {"surfaceId": "main",'
-                ' "components": [{"id": "root", "component": "CustomMetric",'
-                ' "value": 1}]}}]'
-                + A2UI_CLOSE_TAG,
+                f' "catalogId": "{BASIC_ID}"}}}}, ',
+                (
+                    '{"version": "v1.0", "updateComponents": {"surfaceId": "main",'
+                    ' "components": [{"id": "root", "component": "CustomMetric"'
+                ),
+                ', "value": 1}]}}]' + A2UI_CLOSE_TAG,
             ],
         )
 
@@ -276,6 +277,34 @@ def test_v10_create_surface_sniffs_catalog_id_for_inline_components():
     )
     assert parser._surface_catalog_ids.get("s2") == "cat-b"
     assert "root" in parser._components_by_surface.get("s2", {})
+
+
+def test_v10_create_surface_sniffs_only_top_level_catalog_id(
+    basic_catalog_v10, custom_catalog_v10
+):
+    """Nested catalogIds in components, dataModel, or later messages do not leak into createSurface."""
+    parser = DirectJsonStreamParser([basic_catalog_v10, custom_catalog_v10])
+
+    # 1. Open createSurface without top-level catalogId does not pick up nested catalogIds
+    parser.process_chunk(
+        A2UI_OPEN_TAG
+        + '{"messages": [{"version": "v1.0", "createSurface": {"surfaceId": "s1",'
+        f' "dataModel": {{"catalogId": "{CUSTOM_ID}"}}, "components": [{{"id":'
+        f' "root", "catalogId": "{CUSTOM_ID}", "component": "CustomMetric", "value":'
+        " 1}]"
+    )
+    assert "s1" not in parser._surface_catalog_ids
+
+    # 2. Trailing top-level catalogId after components is picked up while createSurface is open
+    parser.process_chunk(f', "catalogId": "{BASIC_ID}"')
+    assert parser._surface_catalog_ids.get("s1") == BASIC_ID
+
+    # 3. Once createSurface closes, a later message's catalogId does not overwrite s1
+    parser.process_chunk(
+        '}}, {"version": "v1.0", "callRendererFunction": {"functionCallId": "c1",'
+        f' "callFunction": {{"call": "fn", "catalogId": "{CUSTOM_ID}"'
+    )
+    assert parser._surface_catalog_ids.get("s1") == BASIC_ID
 
 
 def test_v10_deleted_surface_forgets_its_catalog_and_can_be_recreated(

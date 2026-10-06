@@ -84,6 +84,50 @@ class DirectJsonStreamParserModern(DirectJsonStreamParser):
         """Returns the message type identifier for data model updates."""
         return MSG_TYPE_UPDATE_DATA_MODEL
 
+    def _open_create_surface_top_level(self) -> str | None:
+        """Returns the top-level text of an unclosed `createSurface` body, if any."""
+        marker = f'"{MSG_TYPE_CREATE_SURFACE}"'
+        cs_idx = self._json_buffer.rfind(marker)
+        if cs_idx == -1:
+            return None
+        rest = self._json_buffer[cs_idx + len(marker) :]
+        colon_match = re.match(r'\s*:\s*\{', rest)
+        if not colon_match:
+            return None
+
+        top_level: list[str] = []
+        depth = 1
+        in_string = False
+        escaped = False
+        for ch in rest[colon_match.end() :]:
+            if escaped:
+                if depth == 1:
+                    top_level.append(ch)
+                escaped = False
+                continue
+            if ch == '\\' and in_string:
+                if depth == 1:
+                    top_level.append(ch)
+                escaped = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                if depth == 1:
+                    top_level.append(ch)
+                continue
+            if not in_string:
+                if ch in ('{', '['):
+                    depth += 1
+                    continue
+                if ch in ('}', ']'):
+                    depth -= 1
+                    if depth == 0:
+                        return None
+                    continue
+            if depth == 1:
+                top_level.append(ch)
+        return ''.join(top_level)
+
     def _sniff_metadata(self) -> None:
         """Sniffs for metadata in the json_buffer."""
 
@@ -103,17 +147,17 @@ class DirectJsonStreamParserModern(DirectJsonStreamParser):
         if parsed_root is not None:
             self.root_id = parsed_root
 
-        if f'"{MSG_TYPE_CREATE_SURFACE}"' in self._json_buffer:
-            cs_idx = self._json_buffer.rfind(f'"{MSG_TYPE_CREATE_SURFACE}"')
-            cs_header = self._json_buffer[cs_idx:].split(
-                f'"{CATALOG_COMPONENTS_KEY}"', 1
-            )[0]
-            surface_match = re.search(r'"surfaceId"\s*:\s*"([^"]+)"', cs_header)
-            catalog_match = re.search(r'"catalogId"\s*:\s*"([^"]+)"', cs_header)
-            if surface_match and catalog_match:
-                self._surface_catalog_ids[surface_match.group(1)] = catalog_match.group(
-                    1
-                )
+        cs_top_level = self._open_create_surface_top_level()
+        if cs_top_level is not None:
+            surface_match = re.search(r'"surfaceId"\s*:\s*"([^"]+)"', cs_top_level)
+            catalog_match = re.search(r'"catalogId"\s*:\s*"([^"]+)"', cs_top_level)
+            if surface_match:
+                if catalog_match:
+                    self._surface_catalog_ids[surface_match.group(1)] = (
+                        catalog_match.group(1)
+                    )
+                else:
+                    self._surface_catalog_ids.pop(surface_match.group(1), None)
 
         for msg_type in (
             MSG_TYPE_CREATE_SURFACE,
