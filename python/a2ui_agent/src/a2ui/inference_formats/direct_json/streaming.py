@@ -297,6 +297,15 @@ class DirectJsonStreamParser:
         """Returns the message type identifier for data model updates."""
         raise NotImplementedError("Subclasses must implement _data_model_msg_type")
 
+    @property
+    def _buffers_incomplete_components(self) -> bool:
+        """Whether a component is held back until its JSON object closes.
+
+        Before v1.0 every component uses its surface's catalog, so a component
+        can be healed and yielded while it is still arriving.
+        """
+        return False
+
     def _get_active_msg_type_for_components(self) -> str | None:
         """Determines which msg_type to use when wrapping component updates."""
         raise NotImplementedError(
@@ -857,6 +866,8 @@ class DirectJsonStreamParser:
 
     def _sniff_partial_component(self, messages: list[ResponsePart]) -> None:
         """Attempts to parse a partial component from the current buffer."""
+        if self._buffers_incomplete_components:
+            return
         # We only care about components if we are inside a "components" array
         if f'"{CATALOG_COMPONENTS_KEY}"' not in self._json_buffer:
             return

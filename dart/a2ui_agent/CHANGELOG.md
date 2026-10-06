@@ -8,7 +8,11 @@
   root once the whole example is applied. Undeclared component types,
   duplicate ids, cycles and malformed data-model paths are still rejected per
   message.
-
+- `DirectJsonParser`, `DirectJsonFormat` and `DirectJsonFormatFactory` take
+  `bufferIncompleteComponents`. When it is true, a streamed component is
+  emitted only once its JSON object closes, as v1.0 requires, and progressive
+  keys heal only values outside components. It is false by default, which keeps
+  the v0.9 behavior of healing a component while it streams.
 - The Direct JSON message reader and the Express decompiler continue to
   reject a `createSurface` message without a `catalogId` with
   `A2uiValidationError`. The check moved into the agent SDK now that

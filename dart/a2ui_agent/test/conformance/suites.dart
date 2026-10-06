@@ -98,6 +98,21 @@ List<CatalogApi> caseCatalogs(Map<String, Object?> args) => [
       catalogConfig(entry).transformedCatalog,
 ];
 
+/// Whether a catalog the case names in `args` declares v1.0 before it is
+/// lowered, which turns on what this SDK does only for a v1.0 agent.
+bool caseDeclaresV1(Map<String, Object?> args) =>
+    [
+      if (args['catalog'] case final Object catalog) catalog,
+      ...?(args['catalogs'] as List<Object?>?),
+    ].any((Object? entry) {
+      final Object? path = entry is Map ? entry['catalog'] : entry;
+      if (path is! String) return false;
+      final document =
+          jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
+              as Map<String, Object?>;
+      return document['protocolVersion'] == '1.0';
+    });
+
 CatalogTransformer _transformer(Object? spec) => switch (spec) {
   {'component_pruning': final List<Object?> names} =>
     ComponentPruningTransformer(names.cast<String>()),

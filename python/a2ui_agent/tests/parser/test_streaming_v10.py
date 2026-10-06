@@ -185,6 +185,96 @@ def test_v10_component_without_catalog_uses_surface_catalog(
         )
 
 
+def _stream_steps(parser, chunks):
+    """Returns the A2UI messages each chunk yields, one list per chunk."""
+    return [
+        [m for part in parser.process_chunk(chunk) for m in part.a2ui_json or []]
+        for chunk in chunks
+    ]
+
+
+def test_v10_component_with_late_catalog_id_waits_until_closed(
+    basic_catalog_v10, custom_catalog_v10
+):
+    """A component is yielded once closed, so a late catalogId picks its catalog."""
+    parser = DirectJsonStreamParser([basic_catalog_v10, custom_catalog_v10])
+
+    steps = _stream_steps(
+        parser,
+        [
+            A2UI_OPEN_TAG
+            + '[{"version": "v1.0", "createSurface": {"surfaceId": "main",'
+            f' "catalogId": "{BASIC_ID}"}}}}, ',
+            (
+                '{"version": "v1.0", "updateComponents": {"surfaceId": "main",'
+                ' "components": [{"id": "root", "component": "CustomMetric",'
+                ' "value": 42'
+            ),
+            ', "catalogId": "https://a2ui.org/cata',
+            'logs/custom"',
+            "}",
+            "]}}]" + A2UI_CLOSE_TAG,
+        ],
+    )
+
+    assert [len(step) for step in steps] == [1, 0, 0, 0, 1, 0]
+    assert _components_for(steps[4], "main") == [{
+        "id": "root",
+        "component": "CustomMetric",
+        "value": 42,
+        "catalogId": CUSTOM_ID,
+    }]
+
+
+def test_v10_progressive_text_waits_until_component_closes(basic_catalog_v10):
+    """A v1.0 component isn't healed while a progressive string arrives."""
+    parser = DirectJsonStreamParser([basic_catalog_v10])
+
+    steps = _stream_steps(
+        parser,
+        [
+            A2UI_OPEN_TAG
+            + '[{"version": "v1.0", "createSurface": {"surfaceId": "main",'
+            f' "catalogId": "{BASIC_ID}"}}}}, ',
+            (
+                '{"version": "v1.0", "updateComponents": {"surfaceId": "main",'
+                ' "components": [{"id": "root", "component": "Text", "text": "Hel'
+            ),
+            'lo"}',
+            "]}}]" + A2UI_CLOSE_TAG,
+        ],
+    )
+
+    assert steps[1] == []
+    assert _components_for(steps[2], "main") == [
+        {"id": "root", "component": "Text", "text": "Hello"}
+    ]
+    assert steps[3] == []
+
+
+def test_v09_progressive_text_still_heals_partial_component():
+    """v0.9 components keep yielding while a progressive string arrives."""
+    parser = DirectJsonStreamParser([BasicCatalog("v0.9")])
+    basic_v09_id = BasicCatalog("v0.9").catalog_id
+
+    steps = _stream_steps(
+        parser,
+        [
+            A2UI_OPEN_TAG
+            + '[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
+            f' "catalogId": "{basic_v09_id}"}}}}, ',
+            (
+                '{"version": "v0.9", "updateComponents": {"surfaceId": "main",'
+                ' "components": [{"id": "root", "component": "Text", "text": "Hel'
+            ),
+        ],
+    )
+
+    assert _components_for(steps[1], "main") == [
+        {"id": "root", "component": "Text", "text": "Hel"}
+    ]
+
+
 def test_v10_surfaces_use_their_own_catalogs(basic_catalog_v10, custom_catalog_v10):
     """Each surface resolves components against the catalog it was created with across chunks."""
     parser = DirectJsonStreamParser([basic_catalog_v10, custom_catalog_v10])

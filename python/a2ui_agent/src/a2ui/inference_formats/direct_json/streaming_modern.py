@@ -67,6 +67,19 @@ class DirectJsonStreamParserModern(DirectJsonStreamParser):
         return ()
 
     @property
+    def _buffers_incomplete_components(self) -> bool:
+        """Whether a component is held back until its JSON object closes.
+
+        From v1.0, a component may name its own `catalogId`, and the key can
+        arrive after the type and properties. A component yielded before it
+        closes would be resolved against its surface's catalog, which can be
+        the wrong one.
+        """
+        return is_at_least_version(
+            to_protocol_version(self._version), ProtocolVersion.V1_0
+        )
+
+    @property
     def _message_version(self) -> str:
         """The `version` string that synthesized messages carry."""
         return self._seen_version or f'v{self._version}'

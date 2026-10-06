@@ -1,6 +1,11 @@
 ## Unreleased
 
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.3.0,<0.4.0`.
+- From v1.0, `DirectJsonStreamParser` yields a component only once its JSON
+  object closes, instead of healing and yielding it while it streams. A v1.0
+  component may name its own `catalogId` after its type and properties, and a
+  component yielded early was checked against its surface's catalog. Progressive
+  keys still heal data model values. v0.8 and v0.9 streaming is unchanged.
 - **BREAKING**: `DirectJsonParser`, `DirectJsonStreamParser` and
   `A2uiPartConverter` take a sequence of catalogs instead of one catalog, and
   expose them as `catalogs`. A parser holds every catalog the renderer supports
