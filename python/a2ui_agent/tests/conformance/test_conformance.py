@@ -584,7 +584,8 @@ KNOWN_GAPS = {
     ),
     # Express reserved keys (#3006). v1.0 writes a data binding as `@path` and
     # a function call as `@call`, and the compiler still writes `path` and
-    # `call`.
+    # `call`. The decompiler reads both, so the decompile cases fail only on
+    # their round trip back through the compiler.
     **{
         name: (
             "the compiler writes v1.0 data bindings and function calls with"
@@ -602,17 +603,6 @@ KNOWN_GAPS = {
             "test_compile_express_bare_path_is_the_whole_bound_value",
             "test_compile_express_several_checks_in_one_list",
             "test_compile_express_check_without_a_message_still_carries_one",
-        )
-    },
-    # The decompiler reads only `path` and `call`, so it writes a v1.0 binding
-    # or call out as a literal map.
-    **{
-        name: (
-            "the decompiler reads v1.0 data bindings and function calls only"
-            " under `path` and `call`, so `@path` and `@call` come out as"
-            " literal maps (#3006)"
-        )
-        for name in (
             "test_decompile_express_data_model",
             "test_decompile_express_function_call_action",
             "test_decompile_express_renderer_function_call",
