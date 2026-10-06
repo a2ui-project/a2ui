@@ -737,6 +737,10 @@ class Catalog(Generic[TComponent, TFunction]):
         )
 
         components_map = inlined_catalog_schema.get("components", {})
+        if not isinstance(components_map, Mapping):
+            raise A2uiCatalogError(
+                "Catalog 'components' must be an object mapping names to schemas."
+            )
         any_comp_refs = (
             inlined_catalog_schema.get("$defs", {})
             .get("anyComponent", {})
@@ -753,6 +757,11 @@ class Catalog(Generic[TComponent, TFunction]):
 
         components = []
         for name, schema in components_map.items():
+            if not isinstance(schema, Mapping):
+                raise A2uiCatalogError(
+                    f"Component '{name}' schema must be a JSON schema object, got"
+                    f" {type(schema)}."
+                )
             if validate_identifiers and not is_valid_uax31_identifier(name):
                 raise A2uiCatalogError(
                     f"Invalid UAX #31 component identifier: '{name}'"

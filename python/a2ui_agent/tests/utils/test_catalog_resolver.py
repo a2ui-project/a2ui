@@ -217,12 +217,14 @@ def test_an_active_catalog_keeps_its_id_over_an_inline_catalog():
         {"catalogId": "", "components": {"Marquee": {"type": "object"}}},
         {"catalogId": 123, "components": {"Marquee": {"type": "object"}}},
         {"catalogId": "i", "components": "not_a_dict"},
+        {"catalogId": "i", "components": {"Marquee": "not_a_dict"}},
     ],
     ids=[
         "missing_catalog_id",
         "empty_catalog_id",
         "non_string_catalog_id",
         "invalid_components",
+        "invalid_component_schema",
     ],
 )
 def test_invalid_inline_catalog_is_a_catalog_error(
@@ -249,7 +251,7 @@ def test_invalid_inline_catalog_is_a_catalog_error(
     [["not_a_dict"], "not_a_list"],
     ids=["non_dict_entry", "non_list_value"],
 )
-def test_malformed_inline_catalogs_are_a_validation_error(
+def test_malformed_inline_catalogs_are_a_catalog_error(
     inline_catalogs, accepts_inline_catalogs
 ):
     capabilities = {
@@ -259,13 +261,12 @@ def test_malformed_inline_catalogs_are_a_validation_error(
         }
     }
 
-    with pytest.raises(A2uiValidationError) as exc_info:
+    with pytest.raises(A2uiCatalogError):
         resolve_catalogs(
             [_config("a", "1.0", "Text")],
             capabilities,
             accepts_inline_catalogs=accepts_inline_catalogs,
         )
-    assert type(exc_info.value) is A2uiValidationError
 
 
 def test_mixed_top_level_and_inline_catalog_errors_raise_validation_error():

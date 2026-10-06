@@ -53,10 +53,10 @@
 # * An inline catalog an agent does not accept is dropped without an error, the
 #   same as an id the agent does not hold.
 # * A malformed inline catalog is an error whether or not the agent accepts
-#   inline catalogs, because it makes the capabilities object malformed. An
-#   `inlineCatalogs` that is not an array, or an entry that is not an object, is
-#   a `ValidationError`. An object that is not a valid catalog, for example one
-#   with no non-empty string `catalogId`, is a `CatalogError`.
+#   inline catalogs. An `inlineCatalogs` that is not an array, an entry in
+#   `inlineCatalogs` that is not an object, or an inline catalog object that is
+#   not a valid catalog (for example one with no non-empty string `catalogId` or
+#   bad `components`) is a `CatalogError`.
 # * Resolved catalogs are the transformed ones, so a pruning transformer on a
 #   registration is visible in the result.
 #
@@ -379,7 +379,7 @@
     category: CatalogError
 
 - name: test_inline_catalog_entry_that_is_not_an_object_is_an_error
-  description: An inline catalog entry that is not an object is a malformed capabilities object, which fails with ValidationError.
+  description: An inline catalog entry that is not an object fails with CatalogError.
   action: resolve_catalogs
   args:
     catalogs:
@@ -390,10 +390,10 @@
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs: ["conformance/simplified"]
   expect_error:
-    category: ValidationError
+    category: CatalogError
 
 - name: test_inline_catalogs_that_is_not_an_array_is_an_error
-  description: An inlineCatalogs value that is not an array is a malformed capabilities object, which fails with ValidationError even when the agent does not accept inline catalogs.
+  description: An inlineCatalogs value that is not an array fails with CatalogError even when the agent does not accept inline catalogs.
   action: resolve_catalogs
   args:
     catalogs:
@@ -404,7 +404,7 @@
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs: "conformance/simplified"
   expect_error:
-    category: ValidationError
+    category: CatalogError
 
 # --- Transformers ---
 

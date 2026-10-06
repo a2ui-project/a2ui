@@ -35,8 +35,8 @@ class A2uiVersionCapabilities {
   /// Parses a version capabilities object.
   ///
   /// Throws [A2uiValidationError] unless `supportedCatalogIds` is a list of
-  /// strings and `inlineCatalogs`, if present, is a list of objects. Throws
-  /// [A2uiCatalogError] if one of those objects is not a valid catalog.
+  /// strings. Throws [A2uiCatalogError] if `inlineCatalogs`, when present, is
+  /// not a list of valid catalog objects.
   factory A2uiVersionCapabilities.fromJson(Map<String, Object?> json) {
     final Object? rawIds = json['supportedCatalogIds'];
     if (rawIds is! List) {
@@ -47,9 +47,8 @@ class A2uiVersionCapabilities {
     }
     final Object? rawInline = json['inlineCatalogs'];
     if (rawInline != null && rawInline is! List) {
-      throw A2uiValidationError(
+      throw A2uiCatalogError(
         "'inlineCatalogs' must be an array of catalog objects.",
-        details: json,
       );
     }
     return A2uiVersionCapabilities(
@@ -69,10 +68,9 @@ class A2uiVersionCapabilities {
             if (catalog is Map)
               Catalog.fromJson(catalog.cast<String, Object?>())
             else
-              throw A2uiValidationError(
+              throw A2uiCatalogError(
                 "'inlineCatalogs' must contain only catalog objects (got "
                 '${catalog.runtimeType}).',
-                details: json,
               ),
       ],
     );

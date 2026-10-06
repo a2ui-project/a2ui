@@ -52,7 +52,7 @@ void main() {
             'inlineCatalogs': [malformed],
           }),
           throwsA(
-            isA<A2uiValidationError>().having(
+            isA<A2uiCatalogError>().having(
               (e) => e.message,
               'message',
               contains('inlineCatalogs'),
@@ -71,7 +71,7 @@ void main() {
             'inlineCatalogs': malformed,
           }),
           throwsA(
-            isA<A2uiValidationError>().having(
+            isA<A2uiCatalogError>().having(
               (e) => e.message,
               'message',
               contains('inlineCatalogs'),

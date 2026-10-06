@@ -81,14 +81,13 @@ def resolve_catalogs(
     Raises:
       A2uiCatalogError: If capabilities are given and no catalog is active, for
         example because the renderer names none of the registered catalogs or
-        sends an empty `supportedCatalogIds` without inline catalogs; if an
-        inline catalog object is not a valid catalog, for example because it
-        has no non-empty string `catalogId`; or if the registered catalogs read
-        different capabilities keys, since one capabilities entry can't
-        describe them all.
+        sends an empty `supportedCatalogIds` without inline catalogs; if
+        `inlineCatalogs` is not a list of valid catalog objects, for example
+        because an inline catalog has no non-empty string `catalogId`; or if the
+        registered catalogs read different capabilities keys, since one
+        capabilities entry can't describe them all.
       A2uiValidationError: If the capabilities have no valid entry for the
-        protocol version of the registered catalogs, for example because
-        `inlineCatalogs` is not a list of objects.
+        protocol version of the registered catalogs.
     """
     registered = [config.to_catalog() for config in catalogs]
     if renderer_capabilities is None:
@@ -146,8 +145,7 @@ def _capabilities_entry(
 ) -> dict[str, Any]:
     """Returns the validated capabilities entry stored under a protocol key.
 
-    An error inside an inline catalog object is an `A2uiCatalogError`. Any other
-    error, including an `inlineCatalogs` value that isn't a list of objects, is
+    An error in `inlineCatalogs` is an `A2uiCatalogError`. Any other error is
     an `A2uiValidationError`, since the capabilities themselves are malformed.
     """
     capabilities = (
@@ -171,10 +169,8 @@ def _capabilities_entry(
         )
     except ValidationError as e:
         errors = e.errors()
-        # A location of (field, index, ...) points inside an inline catalog
-        # object. (field, index) alone means the entry isn't an object.
         if errors and all(
-            len(err.get("loc", ())) >= 3
+            len(err.get("loc", ())) >= 1
             and err["loc"][0] in ("inlineCatalogs", "inline_catalogs")
             for err in errors
         ):
