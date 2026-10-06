@@ -15,6 +15,8 @@
 import '../primitives/errors.dart';
 import 'catalog.dart';
 
+export 'catalog.dart' show A2uiReturnType;
+
 /// A JSON Pointer path to a value in the data model.
 class DataBinding {
   /// The JSON Pointer path into the data model.
