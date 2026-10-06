@@ -14,6 +14,14 @@
 
 import 'package:json_schema_builder/json_schema_builder.dart';
 
+/// Hand-built schemas for the v0.9 `common_types.json` wire shapes.
+///
+/// These describe what a v0.9 message may carry. `functionCall.returnType`
+/// therefore accepts only the seven v0.9 return types: v1.0 function calls
+/// carry no `returnType` on the wire, and the v1.0 return-type enum (which
+/// adds `validationResult`) belongs to the catalog definition, not to the
+/// common types. `A2uiReturnType` is the API-level counterpart and is not
+/// gated by version.
 class CommonSchemas {
   static final dataBinding = Schema.object(
     description:
