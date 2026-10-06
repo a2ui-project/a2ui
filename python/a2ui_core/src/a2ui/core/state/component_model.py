@@ -15,7 +15,7 @@
 import copy
 from typing import Any, Final, Iterator
 from ..common.events import EventSource
-from ..catalog.catalog import Catalog, TComponent, TFunction
+from ..catalog import Catalog, CatalogApi
 from ..catalog.reference_map import (
     ComponentRefSpec,
     analyze_child_ref_schema,
@@ -129,7 +129,7 @@ class ComponentModel:
         self,
         component_id: str,
         component_type: str,
-        catalog: Catalog[TComponent, TFunction] | dict[str, Any] | None = None,
+        catalog: CatalogApi | dict[str, Any] | None = None,
         properties: dict[str, Any] | None = None,
     ):
         self.id = component_id
@@ -154,9 +154,7 @@ class ComponentModel:
     @property
     def component_tree(self) -> dict[str, Any]:
         """Returns a dictionary representation of the component tree."""
-        tree = {"id": self.id, "type": self.type}
-        tree.update(self._properties)
-        return tree
+        return {**self._properties, "id": self.id, "component": self.type}
 
     def validate(self, config: Any | None = None) -> None:
         """Validates this component instance against its bound catalog using PayloadValidator.
@@ -166,7 +164,7 @@ class ComponentModel:
         """
         from ..validation.payload_validator import PayloadValidator
 
-        comp_dict = {"id": self.id, "component": self.type, **self.properties}
+        comp_dict = self.component_tree
         if not isinstance(self.catalog, Catalog):
             return
         validator = PayloadValidator(self.catalog, config=config)
@@ -175,7 +173,7 @@ class ComponentModel:
     def get_child_references(
         self,
         known_component_ids: set[str] | None = None,
-        catalog: Catalog[TComponent, TFunction] | None = None,
+        catalog: CatalogApi | None = None,
     ) -> Iterator[tuple[str, str]]:
         """Recursively extracts referenced child ComponentIds and their property paths from properties.
 

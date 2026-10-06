@@ -14,26 +14,25 @@
 
 import copy
 import warnings
-from typing import Any, Generic, cast
+from typing import Any, cast
 from ..common.events import EventSource
 from .data_model import DataModel
 from .surface_components_model import SurfaceComponentsModel
-from ..catalog import Catalog
-from ..catalog.catalog import TComponent, TFunction
+from ..catalog import CatalogApi
 
 
 from collections.abc import Sequence
 from ..exceptions import A2uiCatalogError
 
 
-class SurfaceModel(Generic[TComponent, TFunction]):
+class SurfaceModel:
     """Represents a single active UI Surface state tree."""
 
     def __init__(
         self,
         surface_id: str,
-        default_catalog: Catalog[TComponent, TFunction],
-        available_catalogs: dict[str, Catalog[TComponent, TFunction]] | None = None,
+        default_catalog: CatalogApi,
+        available_catalogs: dict[str, CatalogApi] | None = None,
         theme: dict[str, Any] | None = None,
         send_data_model: bool = False,
         data_model: DataModel | None = None,
@@ -41,7 +40,7 @@ class SurfaceModel(Generic[TComponent, TFunction]):
     ) -> None:
         self.id = surface_id
         self.default_catalog = default_catalog
-        catalogs: dict[str, Catalog[TComponent, TFunction]] = (
+        catalogs: dict[str, CatalogApi] = (
             dict(available_catalogs) if available_catalogs else {}
         )
         if default_catalog.id and default_catalog.id not in catalogs:
@@ -59,7 +58,7 @@ class SurfaceModel(Generic[TComponent, TFunction]):
         self.on_warning = EventSource()
 
     @property
-    def catalog(self) -> Catalog[TComponent, TFunction]:
+    def catalog(self) -> CatalogApi:
         """The surface's default catalog (deprecated alias for default_catalog)."""
         return self.default_catalog
 

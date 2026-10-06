@@ -133,13 +133,11 @@ class MacroExpander:
         """
         from a2ui.schema.constants import (
             CATALOG_COMPONENTS_KEY,
-            PROTOCOL_VERSION_MAP,
-            SERVER_TO_CLIENT_SCHEMA_KEY,
             VERSION_0_9_1,
         )
         from a2ui.schema.utils import (
+            load_agent_to_renderer_schema,
             load_common_types_schema,
-            load_from_bundled_resource,
         )
 
         version = VERSION_0_9_1
@@ -169,9 +167,7 @@ class MacroExpander:
             name=name,
             version=version,
             catalog_schema=schema,
-            s2c_schema=load_from_bundled_resource(
-                version, SERVER_TO_CLIENT_SCHEMA_KEY, PROTOCOL_VERSION_MAP
-            ),
+            s2c_schema=load_agent_to_renderer_schema(version),
             common_types_schema=load_common_types_schema(version),
         )
 

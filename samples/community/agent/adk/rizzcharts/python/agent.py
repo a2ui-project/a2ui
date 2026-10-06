@@ -25,7 +25,7 @@ from a2ui.adk import (
     A2uiExamplesProvider,
     SendA2uiToClientToolset,
 )
-from a2ui.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import CatalogConfig, VERSION_0_8, VERSION_0_9
 from google.adk.agents.llm_agent import LlmAgent
@@ -156,8 +156,9 @@ class RizzchartsAgent:
                     ),
                     examples_path=f"../examples/rizzcharts_catalog/{version}",
                 ),
-                BasicCatalog.get_config(
-                    version=version,
+                CatalogConfig.from_catalog(
+                    "basic",
+                    BasicCatalog(version),
                     examples_path=f"../examples/standard_catalog/{version}",
                 ),
             ],

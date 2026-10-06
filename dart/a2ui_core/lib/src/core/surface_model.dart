@@ -67,8 +67,9 @@ class SurfaceModel<T extends ComponentApi> {
   /// 'userMessage': ...}}` or the same fields without the `event` wrapper.
   /// Its values must already be resolved against the data model.
   ///
-  /// Any other payload, including a `functionCall` or `call` action, is
-  /// ignored, as is an event whose `name` is missing, empty or not a string.
+  /// Any other payload, including a `functionCall` or `call` action, or an
+  /// event whose `name` is missing, empty, or not a string, is reported on
+  /// [onError] with code `'INVALID_ACTION'` and not emitted on [onAction].
   /// Local function actions run in `GenericBinder`, which calls this method
   /// only for actions that go to the agent.
   Future<void> dispatchAction(
@@ -81,11 +82,31 @@ class SurfaceModel<T extends ComponentApi> {
     } else if (payload.containsKey('name')) {
       event = payload;
     } else {
+      await dispatchError(
+        A2uiClientError(
+          code: 'INVALID_ACTION',
+          surfaceId: id,
+          message: "Invalid action payload in component '$sourceComponentId': "
+              'missing event or action name.',
+          details: payload,
+        ),
+      );
       return;
     }
 
     final Object? name = event['name'];
-    if (name is! String || name.isEmpty) return;
+    if (name is! String || name.isEmpty) {
+      await dispatchError(
+        A2uiClientError(
+          code: 'INVALID_ACTION',
+          surfaceId: id,
+          message: "Invalid action payload in component '$sourceComponentId': "
+              'action name must be a non-empty string.',
+          details: payload,
+        ),
+      );
+      return;
+    }
 
     final Object? rawContext = event['context'];
     final Map<String, dynamic> context;
@@ -105,7 +126,7 @@ class SurfaceModel<T extends ComponentApi> {
       name: name,
       surfaceId: id,
       sourceComponentId: sourceComponentId,
-      timestamp: DateTime.now(),
+      timestamp: DateTime.now().toUtc(),
       context: context,
       userMessage: event['userMessage'] is String
           ? event['userMessage'] as String
