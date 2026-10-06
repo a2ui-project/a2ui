@@ -12,40 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'dart:io';
-
-import 'package:a2ui_core/src/primitives/errors.dart';
-import 'package:a2ui_core/src/processing/expressions.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
-import 'package:yaml/yaml.dart';
+
+import 'conformance_harness.dart';
 
 /// Suite-level error categories mapped onto this SDK's exception types.
 const Map<String, Type> _categoryToError = {'ParseError': A2uiExpressionError};
 
-/// Walks up from the working directory until it finds the shared suite.
-File _findSuite(String relativePath) {
-  Directory dir = Directory.current;
-  while (true) {
-    final candidate = File('${dir.path}/$relativePath');
-    if (candidate.existsSync()) return candidate;
-    final Directory parent = dir.parent;
-    if (parent.path == dir.path) {
-      throw StateError('Could not find conformance suite $relativePath');
-    }
-    dir = parent;
-  }
-}
-
-/// Converts the YAML document into plain Dart collections.
-Object? _plain(Object? node) {
-  if (node is YamlMap) {
-    return node.map((key, value) => MapEntry(key.toString(), _plain(value)));
-  }
-  if (node is YamlList) {
-    return node.map(_plain).toList();
-  }
-  return node;
-}
+/// Conformance cases in `core/expressions.yaml` that are expected to fail
+/// until v1.0 validation and `formatString` AST adaptation land.
+const Map<String, String> _expectedFailures = {
+  'test_expression_parser_string_interpolation_multiple_bindings':
+      'Requires v1.0 validate action and formatString resolution.',
+  'test_expression_parser_escaped_interpolation_sequence':
+      'Requires v1.0 validate action and formatString resolution.',
+  'test_expression_parser_nested_function_call':
+      'Requires v1.0 validate action and formatCurrency/formatString resolution.',
+  'test_expression_parser_data_type_coercion_matrix':
+      'Requires v1.0 validate action and formatString resolution.',
+  'test_expression_parser_syntax_error_unclosed_brace':
+      'Requires v1.0 validate action and expression validation.',
+  'test_expression_parser_max_depth_exceeded_error':
+      'Requires v1.0 validate action and expression validation.',
+};
 
 /// Joins adjacent literal parts and drops empty ones.
 ///
@@ -66,8 +56,9 @@ List<Object?> _joinLiterals(List<Object?> parts) {
 }
 
 void main() {
-  final File suite = _findSuite('conformance/core/expressions.yaml');
-  final cases = _plain(loadYaml(suite.readAsStringSync())) as List<Object?>;
+  final List<ConformanceTestCase> cases = loadConformanceSuite(
+    'core/expressions.yaml',
+  );
 
   group('expression parser conformance', () {
     late ExpressionParser parser;
@@ -76,42 +67,47 @@ void main() {
       parser = ExpressionParser();
     });
 
-    for (final entry in cases) {
-      final testCase = entry as Map<String, Object?>;
-      final action = testCase['action'] as String?;
-      if (action != null && action != 'parse_expression_template') {
-        continue;
-      }
-      final name = testCase['name'] as String;
-      final input = testCase['input'] as String;
-      final Object? expectError =
-          testCase['expect_error'] ?? testCase['expectError'];
-
-      test(name, () {
-        if (expectError != null) {
-          final error = expectError as Map<String, Object?>;
-          final category = error['category'] as String;
-          final String message = error['message'] as String? ?? '';
-          final Type expectedType =
-              _categoryToError[category] ?? A2uiExpressionError;
-
-          expect(
-            () => parser.parse(input),
-            throwsA(
-              predicate(
-                (Object? e) =>
-                    e.runtimeType == expectedType &&
-                    RegExp(message).hasMatch(e.toString()),
-                'throws $expectedType matching "$message"',
-              ),
-            ),
-          );
-          return;
-        }
-
-        final expected = testCase['expect'] as List<Object?>;
-        expect(_joinLiterals(parser.parse(input)), equals(expected, 1000));
-      });
-    }
+    runConformanceSuite(
+      cases,
+      (testCase) => _runCase(parser, testCase),
+      expectedFailures: _expectedFailures,
+    );
   });
+}
+
+void _runCase(ExpressionParser parser, ConformanceTestCase testCase) {
+  final String action =
+      (testCase['action'] as String?) ?? 'parse_expression_template';
+  if (action != 'parse_expression_template') {
+    fail(
+      'Action "$action" in expressions.yaml is not yet supported by '
+      'expressions_conformance_test.dart.',
+    );
+  }
+  final input = testCase['input']! as String;
+  final Object? expectError =
+      testCase['expect_error'] ?? testCase['expectError'];
+
+  if (expectError != null) {
+    final error = expectError as Map<String, Object?>;
+    final category = error['category'] as String;
+    final String message = error['message'] as String? ?? '';
+    final Type expectedType = _categoryToError[category] ?? A2uiExpressionError;
+
+    expect(
+      () => parser.parse(input),
+      throwsA(
+        predicate(
+          (Object? e) =>
+              e.runtimeType == expectedType &&
+              RegExp(message).hasMatch(e.toString()),
+          'throws $expectedType matching "$message"',
+        ),
+      ),
+    );
+    return;
+  }
+
+  final expected = testCase['expect']! as List<Object?>;
+  expect(_joinLiterals(parser.parse(input)), equals(expected, 1000));
 }

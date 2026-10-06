@@ -19,7 +19,7 @@ import preset from '../../eslint.preset.mjs';
 export default [
   ...preset,
   {
-    files: ['src/v0_8/**/*.ts'],
+    files: ['src/core/**/*.ts', 'src/catalog/**/*.ts', 'src/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -28,14 +28,31 @@ export default [
             {
               name: '@a2ui/angular',
               message:
-                'Use relative imports within @a2ui/angular/v0_8 instead of self-importing the package.',
+                'Use relative imports within root @a2ui/angular instead of self-importing the package.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/v0_8/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@a2ui/angular/v0_8',
+              message:
+                'Use relative imports within @a2ui/angular/v0_8 instead of self-importing the entry point.',
             },
           ],
           patterns: [
             {
               group: ['@a2ui/angular/v0_8', '@a2ui/angular/v0_8/*'],
               message:
-                'Use relative imports within @a2ui/angular/v0_8 instead of self-importing the package.',
+                'Use relative imports within @a2ui/angular/v0_8 instead of self-importing the entry point.',
             },
           ],
         },
@@ -49,13 +66,6 @@ export default [
       'no-restricted-imports': [
         'error',
         {
-          paths: [
-            {
-              name: '@a2ui/angular',
-              message:
-                'Use relative imports within @a2ui/angular/v0_9 instead of self-importing the package.',
-            },
-          ],
           patterns: [
             {
               group: [
@@ -66,7 +76,7 @@ export default [
                 '!@a2ui/angular/v0_9/testing',
               ],
               message:
-                'Use relative imports within @a2ui/angular/v0_9 instead of self-importing the package.',
+                'Use relative imports within @a2ui/angular/v0_9 instead of self-importing the entry point.',
             },
           ],
         },
@@ -79,13 +89,6 @@ export default [
       'no-restricted-imports': [
         'error',
         {
-          paths: [
-            {
-              name: '@a2ui/angular',
-              message:
-                'Use relative imports within @a2ui/angular/v0_9/testing instead of self-importing the package.',
-            },
-          ],
           patterns: [
             {
               group: [
@@ -95,7 +98,7 @@ export default [
                 '@a2ui/angular/v0_9/testing/*',
               ],
               message:
-                'Use relative imports within @a2ui/angular/v0_9/testing instead of self-importing the package.',
+                'Use relative imports within @a2ui/angular/v0_9/testing instead of self-importing the entry point.',
             },
           ],
         },

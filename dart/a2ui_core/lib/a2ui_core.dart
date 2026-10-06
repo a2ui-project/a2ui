@@ -18,6 +18,8 @@
 /// Implements protocol v0.9, v0.9.1 and v1.0 message envelopes.
 library;
 
+// Basic catalog with evaluable functions.
+export 'src/basic_catalog/basic_catalog.dart';
 // Protocol models.
 export 'src/core/catalog.dart';
 export 'src/core/common.dart';
@@ -34,7 +36,6 @@ export 'src/core/surface_group_model.dart';
 export 'src/core/surface_model.dart';
 export 'src/core/validation_result.dart';
 export 'src/primitives/cancellation.dart';
-export 'src/primitives/data_path.dart';
 export 'src/primitives/errors.dart';
 // Event notifications for discrete lifecycle events.
 export 'src/primitives/event_notifier.dart';
@@ -45,6 +46,7 @@ export 'src/primitives/reactivity.dart';
 export 'src/primitives/reference_schema.dart'
     show ComponentRefMap, ListRef, NestedRef, RefFields, RefKind, SingleRef;
 export 'src/primitives/semver.dart';
+export 'src/primitives/uax31.dart';
 export 'src/processing/basic_functions.dart';
 export 'src/processing/expressions.dart';
 // Processing & expressions.

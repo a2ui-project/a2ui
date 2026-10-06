@@ -14,5 +14,43 @@
  * limitations under the License.
  */
 
-export const A2UI_ANGULAR_VERSION = '0.9.0';
-export * from './v0_8/public-api';
+// Core Services and Components
+export {
+  A2UI_RENDERER_CONFIG,
+  A2uiRendererService,
+  provideA2Ui,
+  type RendererConfiguration,
+} from './core/a2ui-renderer.service';
+export {ComponentHostComponent} from './core/component-host.component';
+export {SurfaceComponent} from './core/surface.component';
+export {CatalogComponent} from './core/catalog_component';
+export {ComponentBinder, type Child} from './core/component-binder.service';
+export {
+  type BoundProperty,
+  type ComponentApiToProps,
+  type ComponentTemplate,
+  type ExtendedProps,
+} from './core/types';
+export {getNormalizedPath} from './core/utils';
+export {DefaultMarkdownRenderer, MarkdownRenderer, provideMarkdownRenderer} from './core/markdown';
+
+// Catalog Types and Web Component utilities
+export {
+  AngularCatalog,
+  type AngularComponentImplementation,
+  type AnyDuringSchemaAlignment,
+  createComponentImplementation,
+} from './catalog/types';
+export {toWebComponent} from './catalog/to_web_component';
+export {UniversalOnlyComponent} from './catalog/universal_only.component';
+
+// Providers and v1.0 BasicCatalog
+export {
+  BASIC_CATALOG_OPTIONS,
+  BASIC_COMPONENTS,
+  BASIC_FUNCTIONS,
+  BasicCatalog,
+  BasicCatalogBase,
+  type BasicCatalogOptions,
+  provideA2UI,
+} from './basic-catalog';

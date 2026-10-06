@@ -23,13 +23,14 @@ import {ServerToClientMessage} from 'src/v0_8/types';
 export enum Version {
   V0_8 = 'v0.8',
   V0_9 = 'v0.9',
+  V1_0 = 'v1.0',
 }
 
 export {A2UI_VERSION} from './version_injector';
 export {A2UI_EXAMPLES} from './examples_injector';
 
 /**
- * A union type representing either a v0.9 or v0.8 example.
+ * A union type representing a v1.0, v0.9, or v0.8 example.
  */
 export type A2uiExample = Example | Example_08;
 
@@ -37,7 +38,7 @@ export type A2uiExample = Example | Example_08;
  * Represents a demo example configuration.
  */
 export interface Example {
-  version: '0.9';
+  version: '0.9' | '1.0';
   /** The name of the example, displayed in the sidebar. */
   name: string;
   /** A short description of what the example demonstrates. */

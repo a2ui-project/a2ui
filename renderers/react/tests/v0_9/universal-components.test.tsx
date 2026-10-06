@@ -44,8 +44,8 @@ import {
   createComponentImplementation,
   type ReactCatalogComponent,
   type ReactComponentImplementation,
-} from '../../src/v0_9';
-import type {ReactHostElement} from '../../src/v0_9/catalog/react_host_element';
+} from '../../src';
+import type {ReactHostElement} from '../../src/catalog/react_host_element';
 
 const Theme = createContext('no provider');
 

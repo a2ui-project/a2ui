@@ -33,12 +33,12 @@ import {
   createComponentImplementation,
   type ReactCatalogComponent,
   type ReactComponentImplementation,
-} from '../../src/v0_9';
+} from '../../src';
 
-import type {ReactHostElement} from '../../src/v0_9/catalog/react_host_element';
-import {toWebComponent} from '../../src/v0_9/catalog/to_web_component';
-import {A2uiSurface} from '../../src/v0_9/A2uiSurface';
-import {HostRegistry} from '../../src/v0_9/host_registry';
+import type {ReactHostElement} from '../../src/catalog/react_host_element';
+import {toWebComponent} from '../../src/catalog/to_web_component';
+import {A2uiSurface} from '../../src/A2uiSurface';
+import {HostRegistry} from '../../src/host_registry';
 import {basicCatalog as webCoreBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /** View render counts, keyed per component instance. */
