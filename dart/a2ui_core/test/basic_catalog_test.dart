@@ -12,8 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_core/src/basic_catalog/v0_9/catalog.g.dart';
+import 'package:a2ui_core/src/basic_catalog/v1_0/catalog.g.dart';
 import 'package:test/test.dart';
+
+import 'conformance/conformance_harness.dart';
 
 typedef _RendererCatalog = Catalog<ComponentApi, FunctionImplementation>;
 
@@ -119,6 +126,75 @@ void main() {
       expect(props(v09, 'openUrl').keys, ['url']);
       expect(props(v09, 'and').keys, ['values']);
     });
+  });
+
+  group('BasicCatalog published documents', () {
+    /// The published catalog document a factory implements.
+    Map<String, Object?> published(String path) =>
+        jsonDecode(File(resolveConformancePath('../$path')).readAsStringSync())
+            as Map<String, Object?>;
+
+    for (final (String constant, String embedded, String path) in [
+      (
+        'basicCatalogV0_9Json',
+        basicCatalogV0_9Json,
+        'specification/v0_9/catalogs/basic/catalog.json',
+      ),
+      (
+        'basicCatalogV1_0Json',
+        basicCatalogV1_0Json,
+        'catalogs/basic/v1/catalog.json',
+      ),
+    ]) {
+      test('$constant is identical to $path', () {
+        expect(
+          embedded,
+          File(resolveConformancePath('../$path')).readAsStringSync(),
+          reason: '$constant has drifted from $path. Run '
+              '`dart run tool/generate_basic_catalogs.dart`.',
+        );
+      });
+    }
+
+    for (final (String label, _RendererCatalog catalog, String path) in [
+      ('v0.9', v09, 'specification/v0_9/catalogs/basic/catalog.json'),
+      ('v1.0', v10, 'catalogs/basic/v1/catalog.json'),
+    ]) {
+      test('$label implements every published function, and no other', () {
+        final Map<String, Object?> document = published(path);
+        final functions = document['functions']! as Map<String, Object?>;
+
+        expect(catalog.functions.keys.toList(), functions.keys.toList());
+        for (final MapEntry<String, FunctionImplementation> entry
+            in catalog.functions.entries) {
+          expect(entry.value.name, entry.key);
+        }
+      });
+
+      test('$label function signatures are the published ones', () {
+        final CatalogApi parsed = Catalog.fromJson(published(path));
+
+        for (final String name in parsed.functions.keys) {
+          final FunctionApi expected = parsed.functions[name]!;
+          final FunctionImplementation actual = catalog.functions[name]!;
+          expect(
+            actual.argumentSchema.value,
+            expected.argumentSchema.value,
+            reason: '$name argument schema',
+          );
+          expect(actual.returnType, expected.returnType, reason: name);
+        }
+      });
+
+      test('$label carries the published identity', () {
+        final Map<String, Object?> document = published(path);
+
+        expect(catalog.id, document['catalogId']);
+        expect(catalog.schemaId, document[r'$id']);
+        expect(catalog.title, document['title']);
+        expect(catalog.description, document['description']);
+      });
+    }
   });
 
   group('truthiness', () {
@@ -239,6 +315,32 @@ void main() {
             ],
           }),
           isFalse,
+        );
+      });
+
+      test('v0.9 treats a {valid} map as a plain, truthy object', () {
+        expect(
+            _call(v09, 'not', {
+              'value': {'valid': false}
+            }),
+            isFalse);
+        expect(
+          _call(v09, 'and', {
+            'values': [
+              {'valid': false},
+              {'valid': false},
+            ],
+          }),
+          isTrue,
+        );
+        expect(
+          _call(v09, 'or', {
+            'values': [
+              {'valid': false},
+              0,
+            ],
+          }),
+          isTrue,
         );
       });
     });
@@ -538,6 +640,19 @@ void main() {
       expect(format(null, 'yyyy'), '');
       expect(format('', 'yyyy'), '');
       expect(format('not a date', 'yyyy'), '');
+    });
+
+    test('rejects dates whose fields do not survive parsing', () {
+      // DateTime.parse would roll these over to March 2 and January 2027.
+      expect(format('2026-02-30', 'yyyy-MM-dd'), '');
+      expect(format('2026-13-01', 'yyyy-MM-dd'), '');
+      expect(format('2026-02-30T12:00:00Z', 'yyyy-MM-dd'), '');
+      expect(format('2026-02-29T00:00:00-05:00', 'yyyy-MM-dd'), '');
+      expect(format('2026-01-01T25:00:00Z', 'HH'), '');
+      // Leap days and month ends that exist are unaffected.
+      expect(format('2024-02-29', 'yyyy-MM-dd'), '2024-02-29');
+      expect(format('2026-01-31T23:59:59Z', 'yyyy-MM-dd HH:mm:ss'),
+          '2026-01-31 23:59:59');
     });
   });
 

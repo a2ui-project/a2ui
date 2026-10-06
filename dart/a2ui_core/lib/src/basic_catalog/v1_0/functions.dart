@@ -12,25 +12,41 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+
 import '../../core/catalog.dart';
 import '../../core/validation_result.dart';
 import '../function_support.dart';
 import '../locale_formatting.dart';
+import 'catalog.g.dart';
 
-/// The functions of the v1.0 basic catalog, formatting for [locale].
+/// The published v1.0 basic catalog, read through [Catalog.fromJson].
+///
+/// The function signatures come from this document rather than from a
+/// hand-written copy, so every argument schema and return type is the
+/// published one, and `tool/generate_basic_catalogs.dart` refreshes it.
+///
+/// Parsed on each call, so each catalog owns its schemas and a caller that
+/// edits one cannot change another.
+CatalogApi publishedBasicCatalogV1_0() => Catalog.fromJson(
+      jsonDecode(basicCatalogV1_0Json) as Map<String, Object?>,
+    );
+
+/// The behaviour of the v1.0 basic catalog functions, formatting for
+/// [locale].
 ///
 /// Validation rules return a [ValidationResult] whose message explains a
-/// failure.
-/// `openUrl` hands validated URLs to [openUrl] and fails without one.
-List<FunctionImplementation> basicFunctionsV1_0({
+/// failure, and `and`, `or` and `not` read such a result, or a map carrying
+/// a `valid` key, by its validity. `openUrl` hands validated URLs to
+/// [openUrl] and fails without one.
+Map<String, BasicFunctionBody> basicFunctionBodiesV1_0({
   String locale = defaultBasicCatalogLocale,
   OpenUrlCallback? openUrl,
 }) {
   final String intlLocale = resolveIntlLocale(locale);
-  return buildBasicFunctions(
-    schemas: const BasicArgumentSchemas(directives: true),
-    validatorReturnType: A2uiReturnType.validationResult,
+  return basicFunctionBodies(
     validator: (result) => result,
+    truthy: isTruthyOrValid,
     formatNumber: (value, args) => formatNumber(
       value,
       decimals: args['decimals'],

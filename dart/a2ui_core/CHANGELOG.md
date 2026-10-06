@@ -14,18 +14,22 @@
 - Added `BasicCatalog.v0_9()` and `BasicCatalog.v1_0()`, which carry the
   basic catalog's 14 functions (`required`, `regex`, `length`, `numeric`,
   `email`, `formatString`, `formatNumber`, `formatCurrency`, `formatDate`,
-  `pluralize`, `openUrl`, `and`, `or`, `not`) with the published catalog ids
-  and argument names. Components follow in a later release.
+  `pluralize`, `openUrl`, `and`, `or`, `not`). Each function's argument schema
+  and return type are read from an embedded copy of the published catalog
+  document, so they cannot drift from it. Components follow in a later
+  release.
   - v0.9 validation rules return `bool`; v1.0 rules return a
     `ValidationResult` with a failure message.
-  - `and`, `or`, and `not` read the validity of a `ValidationResult` (or a
-    map with a `valid` key) instead of treating every object as truthy, so
-    the v1.0 spec's nested `and(required, or(required, required))` check
-    blocks a submit when a field is empty.
+  - In v1.0, `and`, `or`, and `not` read the validity of a `ValidationResult`
+    (or a map with a `valid` key) instead of treating every object as truthy,
+    so the v1.0 spec's nested `and(required, or(required, required))` check
+    blocks a submit when a field is empty. v0.9 keeps plain truthiness, since
+    its validators return booleans.
   - Formatting uses `package:intl` for the `locale` argument (default
     `en-US`). `formatDate` reads a timestamp without an offset as UTC, keeps
     the wall-clock time of one with an offset, and emits the UTC instant for
-    the `ISO` pattern.
+    the `ISO` pattern. It returns an empty string for a date that does not
+    exist, such as `2026-02-30`, instead of rolling it into the next month.
   - `openUrl` accepts only absolute `http`, `https`, `mailto` and `tel` URLs
     and passes them to an `OpenUrlCallback`. Without a callback it throws,
     which a binder reports as `EXECUTION_ERROR`.
