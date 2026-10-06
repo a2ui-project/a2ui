@@ -25,7 +25,6 @@ from a2ui.core import (
     A2uiParseError,
     A2uiValidationError,
     CatalogApi,
-    PayloadValidator,
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
     ValidationConfig,
@@ -98,9 +97,6 @@ class DirectJsonStreamParser:
                 (healed) when cut in the stream. An empty set turns healing off.
         """
         self._catalog = catalog
-        self._validator: PayloadValidator | None = PayloadValidator(
-            catalog, config=STRICT_VALIDATION
-        )
         self._version = str(catalog.protocol_version).removeprefix("v")
         self._progressive_keys = frozenset(progressive_keys)
         self._schema_helper = CatalogSchemaHelper(catalog)
@@ -245,10 +241,6 @@ class DirectJsonStreamParser:
         """Provides access to version-specific yielded surfaces set."""
         raise NotImplementedError("Subclasses must implement _yielded_surfaces_set")
 
-    def is_protocol_msg(self, obj: dict[str, Any]) -> bool:
-        """Checks if the object is a recognized A2UI message for this version."""
-        raise NotImplementedError("Subclasses must implement is_protocol_msg")
-
     @property
     def _data_model_msg_type(self) -> str:
         """Returns the message type identifier for data model updates."""
@@ -299,13 +291,8 @@ class DirectJsonStreamParser:
             if not self._deduplicate_data_model(m):
                 continue
 
-            if self._validator:
-                if not self.is_protocol_msg(m):
-                    raise A2uiValidationError(
-                        f"Validation failed: Invalid message payload {m}"
-                    )
-                if config == STRICT_VALIDATION:
-                    self._validate_message(m)
+            if config == STRICT_VALIDATION:
+                self._validate_message(m)
 
             # Consolidated appending logic
             if messages and messages[-1].a2ui_json is None:
@@ -599,10 +586,6 @@ class DirectJsonStreamParser:
                                             " protocol check follows..."
                                         )
 
-                                        is_protocol = (
-                                            self._in_top_level_list
-                                            and self.is_protocol_msg(obj)
-                                        )
                                         is_comp = obj.get("id") and obj.get("component")
                                         # Process objects at top-level OR items in top-level list
                                         # When in a list, we are top-level if the ONLY thing on the stack is the list opener
@@ -617,7 +600,7 @@ class DirectJsonStreamParser:
                                             self._handle_partial_component(
                                                 obj, messages
                                             )
-                                        elif is_top_level or is_protocol:
+                                        elif is_top_level:
                                             if not self._handle_complete_object(
                                                 obj, self.surface_id, messages
                                             ):
@@ -1063,7 +1046,7 @@ class DirectJsonStreamParser:
                     _collect_tree(root, complete_nodes)
                 available_reachable = complete_nodes
 
-            if check_root and self._validator:
+            if check_root:
                 all_errors = []
                 for cid in available_reachable:
                     comp_m = comp_models.get(cid)

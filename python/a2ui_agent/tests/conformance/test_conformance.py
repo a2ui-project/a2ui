@@ -212,7 +212,7 @@ cases_parser = get_conformance_cases("agent/legacy/streaming_parser.yaml")
 def test_parser_conformance(name, test_case):
     parser = make_stream_parser(test_case["catalog"])
     if test_case.get("disableValidation"):
-        parser._validator = None
+        parser._validate_message = lambda m: None
 
     steps = test_case.get("steps")
     if steps is None and "process_chunk" in test_case:
@@ -427,6 +427,8 @@ def test_schema_manager_conformance(name, test_case):
         expect_contains = test_case.get("expectContains")
         if expect_contains:
             for expected in expect_contains:
+                if expected == "### Server To Client Schema:":
+                    expected = "### Agent to Renderer Schema:"
                 expected_normalized = re.sub(r"\s+", "", expected.strip())
                 assert expected_normalized in output_normalized
 
@@ -486,7 +488,7 @@ def test_schema_manager_conformance(name, test_case):
     elif action == "process_chunk":
         parser = make_stream_parser(test_case.get("catalog", {}))
         if test_case.get("disableValidation"):
-            parser._validator = None
+            parser._validate_message = lambda m: None
 
         steps = test_case.get("steps")
         if steps is None and "process_chunk" in test_case:

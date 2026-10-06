@@ -186,8 +186,6 @@ def test_streaming_msg_type_deduplication(mock_catalog):
 def test_v08_path_heuristic_adds_slash(mock_catalog):
     """Tests that v0.8 adds a leading slash to relative paths."""
     parser = DirectJsonStreamParser(catalog=mock_catalog)
-    # Disable validation for simplicity
-    parser._validator = None
 
     # 1. Send beginRendering first to avoid buffering
     chunk_br = (

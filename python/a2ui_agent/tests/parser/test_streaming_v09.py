@@ -242,14 +242,12 @@ def test_streaming_msg_type_deduplication(mock_catalog):
 def test_v09_path_heuristic_relative_path(mock_catalog):
     """Tests that v0.9 allows relative paths (no leading slash)."""
     parser = DirectJsonStreamParser(catalog=mock_catalog)
-    # Disable validation to avoid needing full catalog for this test
-    parser._validator = None
 
     # 1. Create surface
     chunk_cs = (
         A2UI_OPEN_TAG
         + '[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId":'
-        ' "c1"}}]'
+        ' "test_catalog"}}]'
         + A2UI_CLOSE_TAG
     )
     list(parser.process_chunk(chunk_cs))
@@ -276,13 +274,12 @@ def test_v09_path_heuristic_relative_path(mock_catalog):
 def test_v09_path_heuristic_absolute_path(mock_catalog):
     """Tests that v0.9 still supports absolute paths (leading slash)."""
     parser = DirectJsonStreamParser(catalog=mock_catalog)
-    parser._validator = None
 
     # 1. Create surface
     chunk_cs = (
         A2UI_OPEN_TAG
         + '[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId":'
-        ' "c1"}}]'
+        ' "test_catalog"}}]'
         + A2UI_CLOSE_TAG
     )
     list(parser.process_chunk(chunk_cs))

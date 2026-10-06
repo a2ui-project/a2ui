@@ -484,7 +484,7 @@
   steps:
     - input: "<a2ui-json>["
       expect: []
-    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "name", "valueString": "Alice"}]}, '
+    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "name", "valueString": "Alice"}]}}, '
       expect:
         - a2ui:
             - dataModelUpdate:
@@ -492,7 +492,7 @@
                 contents: [{key: "name", valueString: "Alice"}]
     - input: '{"beginRendering": {"root": "root", "surfaceId": "s1"}}, '
       expect: [{a2ui: [{beginRendering: {root: "root", surfaceId: "s1"}}]}]
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text": {"text": {"path": "/name"}}}}}}]</a2ui-json>'
+    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text": {"text": {"path": "/name"}}}}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -524,7 +524,7 @@
       expect: []
     - input: '{"beginRendering": {"root": "root", "surfaceId": "s1"}}, '
       expect: [{a2ui: [{beginRendering: {root: "root", surfaceId: "s1"}}]}]
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text": {"text": {"path": "/name"}}}}}}, '
+    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text": {"text": {"path": "/name"}}}}]}}, '
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -898,7 +898,7 @@
                     component: {Text: {text: {path: "/p2"}}}
                   - id: "root"
                     component: {Container: {children: ["c1", "c2"]}}
-    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "p1", "valueString": "v1"}]}, '
+    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "p1", "valueString": "v1"}]}}, '
       expect:
         - a2ui:
             - dataModelUpdate:

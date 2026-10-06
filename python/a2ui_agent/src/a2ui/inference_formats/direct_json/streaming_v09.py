@@ -61,18 +61,6 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         """Returns the message type identifier for data model updates."""
         return MSG_TYPE_UPDATE_DATA_MODEL
 
-    def is_protocol_msg(self, obj: dict[str, Any]) -> bool:
-        """Checks if the object is a recognized v0.9 message."""
-        return any(
-            k in obj
-            for k in (
-                MSG_TYPE_CREATE_SURFACE,
-                MSG_TYPE_UPDATE_COMPONENTS,
-                MSG_TYPE_UPDATE_DATA_MODEL,
-                MSG_TYPE_DELETE_SURFACE,
-            )
-        )
-
     def _sniff_metadata(self) -> None:
         """Sniffs for v0.9 metadata in the json_buffer."""
 
@@ -109,8 +97,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
         if not isinstance(obj, dict):
             return False
 
-        if self._validator:
-            self._validate_message(obj)
+        self._validate_message(obj)
 
         # Update state based on the message content
         surface_id = obj.get(SURFACE_ID_KEY, self.surface_id)

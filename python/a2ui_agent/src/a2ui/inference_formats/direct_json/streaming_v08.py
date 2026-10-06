@@ -62,18 +62,6 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
         """Provides access to version-specific yielded surfaces set."""
         return self._yielded_begin_rendering_surfaces
 
-    def is_protocol_msg(self, obj: dict[str, Any]) -> bool:
-        """Checks if the object is a recognized v0.8 message."""
-        return any(
-            k in obj
-            for k in (
-                MSG_TYPE_BEGIN_RENDERING,
-                MSG_TYPE_SURFACE_UPDATE,
-                MSG_TYPE_DATA_MODEL_UPDATE,
-                MSG_TYPE_DELETE_SURFACE,
-            )
-        )
-
     @property
     def _data_model_msg_type(self) -> str:
         """Returns the message type identifier for data model updates."""

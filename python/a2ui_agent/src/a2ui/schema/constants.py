@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-CATALOG_SCHEMA_KEY = "catalog"
 CATALOG_COMPONENTS_KEY = "components"
 CATALOG_ID_KEY = "catalogId"
-CATALOG_STYLES_KEY = "styles"
 SURFACE_ID_KEY = "surfaceId"
 
 # Keys whose string values can be safely auto-closed (healed) if fragmented in the stream.
@@ -33,8 +31,6 @@ DEFAULT_PROGRESSIVE_KEYS = frozenset({
 
 # A2UI Metadata
 A2UI_CLIENT_CAPABILITIES_KEY = "a2uiClientCapabilities"
-SUPPORTED_CATALOG_IDS_KEY = "supportedCatalogIds"
-INLINE_CATALOGS_KEY = "inlineCatalogs"
 A2UI_CLIENT_DATA_MODEL_KEY = "a2uiClientDataModel"
 A2UI_CLIENT_DATA_MODEL_SURFACES_KEY = "surfaces"
 
@@ -52,9 +48,6 @@ A2UI_SURFACE_ID_KEY = "surfaceId"
 A2UI_VERSION_KEY = "version"
 A2UI_CODE_KEY = "code"
 A2UI_MESSAGE_KEY = "message"
-
-BASE_SCHEMA_URL = "https://a2ui.org/"
-INLINE_CATALOG_NAME = "inline"
 
 VERSION_0_8 = "0.8"
 VERSION_0_9 = "0.9"

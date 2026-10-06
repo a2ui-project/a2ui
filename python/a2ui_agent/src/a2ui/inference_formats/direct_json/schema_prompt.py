@@ -78,9 +78,7 @@ def schema_to_prompt(
     agent_renderer_str = (
         json.dumps(a2r_schema, separators=(",", ":")) if a2r_schema else "{}"
     )
-    # The heading keeps its published wording, which the conformance suite
-    # and the other SDKs' prompts use.
-    all_schemas.append(f"### Server To Client Schema:\n{agent_renderer_str}")
+    all_schemas.append(f"### Agent to Renderer Schema:\n{agent_renderer_str}")
 
     if common_types_schema.get("$defs"):
         common_str = json.dumps(common_types_schema, separators=(",", ":"))

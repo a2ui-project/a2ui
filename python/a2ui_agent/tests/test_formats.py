@@ -91,7 +91,7 @@ def test_schema_strategy_prompt_shows_the_protocol_schemas_once(test_catalog):
     instructions = direct_json_format.prompt_generator.generate_catalog_instructions()
 
     for text in (prompt, instructions):
-        assert text.count("### Server To Client Schema:") == 1
+        assert text.count("### Agent to Renderer Schema:") == 1
         assert text.count("### Common Types Schema:") <= 1
         assert text.count("### Catalog Schema:") == 2
 
