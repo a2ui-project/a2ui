@@ -39,4 +39,9 @@ export class LruCache<V> {
     }
     return created;
   }
+
+  /** Drops the entry for `key`, if any, so the next `getOrCreate` builds a new one. */
+  delete(key: string): void {
+    this.map.delete(key);
+  }
 }

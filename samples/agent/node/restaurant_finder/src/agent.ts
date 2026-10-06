@@ -38,6 +38,11 @@ import {VERSIONS, type VersionProfile} from './versions.js';
 /** How many times a turn is tried: once, plus one retry after a validation failure, as in Python. */
 const MAX_ATTEMPTS = 2;
 
+/** Keys a conversation's Direct JSON stream processor. */
+function streamProcessorKey(contextId: string, profile: VersionProfile): string {
+  return `${contextId}:${profile.version}`;
+}
+
 /**
  * Answers restaurant requests with A2UI, in the version the renderer asks for.
  *
@@ -50,7 +55,8 @@ export class RestaurantExecutor implements AgentExecutor {
   /**
    * Direct JSON stream processors per conversation and version. A processor remembers
    * which surfaces, components and data it has already streamed, and skips them in later
-   * turns, so it has to live as long as the conversation, as in the Python sample.
+   * turns, so it has to live as long as the conversation, as in the Python sample. An
+   * attempt that fails validation drops it, so the retry starts from a clean one.
    */
   private readonly streamProcessors = new LruCache<DirectJsonStreamProcessorImpl>(1000);
 
@@ -128,17 +134,19 @@ export class RestaurantExecutor implements AgentExecutor {
     catalogIds: string[],
     publish?: (parts: Part[]) => void,
   ): Promise<{parts: Part[]; published: boolean}> {
-    let published = false;
-    const track = publish
-      ? (parts: Part[]) => {
-          published = true;
-          publish(parts);
-        }
-      : undefined;
-
     let query = turn.query;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       console.log(`--- RestaurantExecutor: Attempt ${attempt + 1}/${MAX_ATTEMPTS} ---`);
+      // Tracked per attempt: the final status must carry the parts of the attempt that
+      // succeeded unless that attempt published them itself.
+      let published = false;
+      const track = publish
+        ? (parts: Part[]) => {
+            published = true;
+            publish(parts);
+          }
+        : undefined;
+
       const fullText = await this.streamText({...turn, query}, track);
       try {
         const parts = this.validate(fullText, turn.profile, catalogIds);
@@ -150,6 +158,9 @@ export class RestaurantExecutor implements AgentExecutor {
       } catch (e) {
         const error = e instanceof Error ? e.message : String(e);
         console.warn(`--- A2UI validation failed: ${error} (Attempt ${attempt + 1}) ---`);
+        // The processor holds the failed attempt's unfinished text and remembers what it
+        // emitted, so the retry would build on it. Start the retry with a new one.
+        this.streamProcessors.delete(streamProcessorKey(turn.contextId, turn.profile));
         query = retryQuery(this.format, error, turn.query);
       }
     }
@@ -181,7 +192,7 @@ export class RestaurantExecutor implements AgentExecutor {
       return undefined;
     }
     return this.streamProcessors.getOrCreate(
-      `${contextId}:${profile.version}`,
+      streamProcessorKey(contextId, profile),
       () =>
         new DirectJsonStreamProcessorImpl([this.catalogs.get(profile.version)!], {
           progressiveKeys: ['text', 'literalString'],

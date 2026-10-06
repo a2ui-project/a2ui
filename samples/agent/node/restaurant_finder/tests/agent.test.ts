@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-// Drives RestaurantExecutor with a scripted backend to check how it treats replies
-// that hold no A2UI.
+// Drives RestaurantExecutor with a scripted backend to check how it retries replies
+// that hold no A2UI or fail validation.
 
 import type {AgentExecutionEvent} from '@a2a-js/sdk/server';
 import {DefaultExecutionEventBus, RequestContext} from '@a2a-js/sdk/server';
@@ -49,22 +49,30 @@ class TextFirstBackend implements ModelBackend {
   }
 }
 
-/** Runs one non-streaming turn and returns the parts of its final status. */
-async function finalParts(executor: RestaurantExecutor) {
+/** Runs one turn and returns every event it published, appended to `events`. */
+async function runTurn(
+  executor: RestaurantExecutor,
+  useStreaming: boolean,
+  events: AgentExecutionEvent[] = [],
+): Promise<AgentExecutionEvent[]> {
   const message = {
     kind: 'message' as const,
     messageId: 'message-1',
     role: 'user' as const,
     parts: [
       {kind: 'text' as const, text: 'Top 5 Chinese restaurants in New York.'},
-      {kind: 'data' as const, data: {useStreaming: false}},
+      {kind: 'data' as const, data: {useStreaming}},
     ],
   };
-  const events: AgentExecutionEvent[] = [];
   const eventBus = new DefaultExecutionEventBus();
   eventBus.on('event', event => events.push(event));
   await executor.execute(new RequestContext(message, 'task-1', 'context-1'), eventBus);
-  const last = events.at(-1);
+  return events;
+}
+
+/** Runs one non-streaming turn and returns the parts of its final status. */
+async function finalParts(executor: RestaurantExecutor) {
+  const last = (await runTurn(executor, false)).at(-1);
   expect(last?.kind).toBe('status-update');
   return last?.kind === 'status-update' ? (last.status.message?.parts ?? []) : [];
 }
@@ -94,5 +102,83 @@ describe.each(FORMATS)('a reply without A2UI (%s)', format => {
 
     expect(backend.queries).toHaveLength(2);
     expect(parts).toEqual([{kind: 'text', text: FALLBACK_TEXT}]);
+  });
+});
+
+/**
+ * Streams the first half of the stub's reply on the first turn, cut off inside its
+ * `<a2ui-json>` block, then answers like the stub. Records where in `events` each turn
+ * starts.
+ */
+class CutOffFirstBackend implements ModelBackend {
+  readonly turnStarts: number[] = [];
+
+  constructor(
+    private readonly stub: StubBackend,
+    private readonly events: AgentExecutionEvent[],
+  ) {}
+
+  async *streamTurn(input: TurnInput): AsyncIterable<string> {
+    this.turnStarts.push(this.events.length);
+    if (this.turnStarts.length > 1) {
+      yield* this.stub.streamTurn(input);
+      return;
+    }
+    let text = '';
+    for await (const chunk of this.stub.streamTurn(input)) text += chunk;
+    const half = text.substring(0, Math.floor(text.length / 2));
+    const split = Math.floor(half.length / 2);
+    yield half.substring(0, split);
+    yield half.substring(split);
+  }
+}
+
+/** Lists the surfaces and components the data parts of `events` create. */
+function uiKeys(events: AgentExecutionEvent[]): Set<string> {
+  const keys = new Set<string>();
+  for (const event of events) {
+    if (event.kind !== 'status-update') continue;
+    for (const part of event.status.message?.parts ?? []) {
+      if (part.kind !== 'data') continue;
+      const {createSurface, updateComponents} = part.data as {
+        createSurface?: {surfaceId: string};
+        updateComponents?: {surfaceId: string; components: Array<{id: string}>};
+      };
+      if (createSurface) keys.add(`surface ${createSurface.surfaceId}`);
+      for (const c of updateComponents?.components ?? []) {
+        keys.add(`component ${updateComponents!.surfaceId}/${c.id}`);
+      }
+    }
+  }
+  return keys;
+}
+
+describe('a streamed Direct JSON reply that fails validation', () => {
+  let catalogs: BasicCatalogs;
+
+  beforeAll(async () => {
+    catalogs = await loadBasicCatalogs();
+  });
+
+  it('is retried from a clean stream, and the retry sends its whole UI', async () => {
+    const reference = new RestaurantExecutor(
+      'direct_json',
+      new StubBackend('direct_json', catalogs),
+      catalogs,
+    );
+    const expected = uiKeys(await runTurn(reference, false));
+
+    const events: AgentExecutionEvent[] = [];
+    const backend = new CutOffFirstBackend(new StubBackend('direct_json', catalogs), events);
+    await runTurn(new RestaurantExecutor('direct_json', backend, catalogs), true, events);
+
+    expect(backend.turnStarts).toHaveLength(2);
+    const [, retryStart] = backend.turnStarts;
+    // The cut-off attempt streamed part of the UI before it failed validation.
+    expect(uiKeys(events.slice(0, retryStart)).size).toBeGreaterThan(0);
+    // Everything the retry streamed, plus the final status, carries the whole UI. Streaming
+    // also sends `loading_*` placeholders, so the retry's keys are a superset.
+    const retried = uiKeys(events.slice(retryStart));
+    expect([...expected].filter(key => !retried.has(key))).toEqual([]);
   });
 });
