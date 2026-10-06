@@ -455,8 +455,3 @@ def test_typed_schema_models_are_accepted():
     validate_payload([_BASIC], msg)
     validate_payload([_BASIC], [msg])
     validate_payload([_BASIC], wrapper)
-
-
-def test_validate_payload_rejects_single_catalog_not_in_a_sequence():
-    with pytest.raises(A2uiCatalogError, match="sequence of catalogs"):
-        validate_payload(_BASIC, [_update(_TEXT)])

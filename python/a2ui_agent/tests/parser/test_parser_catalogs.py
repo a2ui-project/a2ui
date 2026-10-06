@@ -47,9 +47,3 @@ def test_catalogs_of_incompatible_versions_are_rejected(parser_type):
 def test_no_catalogs_are_rejected(parser_type):
     with pytest.raises(A2uiCatalogError, match="At least one catalog"):
         parser_type([])
-
-
-@pytest.mark.parametrize("parser_type", [DirectJsonParser, DirectJsonStreamParser])
-def test_a_single_catalog_not_in_a_sequence_is_rejected(parser_type):
-    with pytest.raises(A2uiCatalogError, match="sequence of catalogs"):
-        parser_type(BasicCatalog("0.9"))

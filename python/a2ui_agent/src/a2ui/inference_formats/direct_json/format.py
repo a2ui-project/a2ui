@@ -56,11 +56,6 @@ class DirectJsonFormat(InferenceFormat):
             A2uiCatalogError: If no catalog is given, or the catalogs target
               different protocol versions.
         """
-        if isinstance(catalogs, (str, bytes)) or not isinstance(catalogs, Sequence):
-            raise A2uiCatalogError(
-                "The Direct JSON format takes a sequence of catalogs, got"
-                f" {type(catalogs).__name__}."
-            )
         if not catalogs:
             raise A2uiCatalogError("The Direct JSON format needs at least one catalog.")
         versions = {to_protocol_version(c.protocol_version) for c in catalogs}

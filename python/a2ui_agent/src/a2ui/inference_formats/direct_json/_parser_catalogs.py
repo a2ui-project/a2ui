@@ -30,11 +30,6 @@ def check_parser_catalogs(catalogs: Sequence[CatalogApi]) -> tuple[CatalogApi, .
         A2uiCatalogError: If no catalog is given, or the catalogs target
             different protocol versions.
     """
-    if isinstance(catalogs, (str, bytes)) or not isinstance(catalogs, Sequence):
-        raise A2uiCatalogError(
-            "The Direct JSON parsers take a sequence of catalogs, got"
-            f" {type(catalogs).__name__}."
-        )
     if not catalogs:
         raise A2uiCatalogError("At least one catalog must be provided.")
     if len(catalogs) == 1:

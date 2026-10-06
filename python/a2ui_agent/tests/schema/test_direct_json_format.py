@@ -38,11 +38,6 @@ def test_direct_json_format_without_catalogs_is_an_error():
         DirectJsonFormat([])
 
 
-def test_direct_json_format_rejects_single_catalog_not_in_a_sequence():
-    with pytest.raises(A2uiCatalogError, match="sequence of catalogs"):
-        DirectJsonFormat(BasicCatalog(VERSION_0_9))
-
-
 def test_direct_json_format_with_mixed_versions_is_an_error():
     with pytest.raises(A2uiCatalogError, match="different protocol versions"):
         DirectJsonFormat([BasicCatalog(VERSION_0_8), BasicCatalog(VERSION_0_9)])

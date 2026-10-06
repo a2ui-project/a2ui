@@ -104,11 +104,6 @@ def validate_payload(
       A2uiCatalogError: If no catalogs are given, or if their messages state
         different versions, for example v0.9 and v1.0 catalogs.
     """
-    if isinstance(catalogs, (str, bytes)) or not isinstance(catalogs, Sequence):
-        raise A2uiCatalogError(
-            "Validating a payload takes a sequence of catalogs, got"
-            f" {type(catalogs).__name__}."
-        )
     if not catalogs:
         raise A2uiCatalogError("Validating a payload requires at least one catalog.")
     protocol_version = to_protocol_version(catalogs[0].protocol_version)

@@ -3355,7 +3355,7 @@
                   - id: "t1"
                     component: "Text"
                     text: "Users"
-    - input: ']}}]</a2ui-json>'
+    - input: "]}}]</a2ui-json>"
       expect: []
 
 - name: test_v1_0_streaming_component_without_catalog_uses_surface_catalog
@@ -3400,4 +3400,3 @@
       expect: []
     - input: '{"id": "root", "component": "CustomMetric", "value": 42}]}}]</a2ui-json>'
       expectError: "Validation failed"
-
