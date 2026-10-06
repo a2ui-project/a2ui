@@ -1,5 +1,22 @@
 ## Unreleased
 
+- (v1_0) The basic catalog's `and`, `or` and `not` read a ValidationResult
+  operand by its `valid` member instead of treating every non-empty dict as
+  truthy, so the v1.0 specification's nested
+  `and(required, or(required, required))` check is false when a field is
+  empty. The v0.9 catalog keeps plain truthiness, since its validators return
+  booleans.
+- **BREAKING**: `DataContext` validates a function call's arguments as
+  written, before resolving the bindings and nested calls in them, and passes
+  the resolved values to the function body without validating them again.
+  The catalog's argument schema describes the written shape (a
+  `DynamicBoolean` admits a `{"@call": ...}`), so validating the resolved
+  values rejected, for example, the ValidationResult a v1.0 validator returns
+  to `and`, `or` or `not`. This matches web_core. Accordingly,
+  `FunctionImplementation.execute` no longer validates its arguments; callers
+  that invoke it directly validate the written arguments first, with
+  `PayloadValidator.validate_function` or the function's schema model.
+
 - **BREAKING**: `ComponentModel.component_tree` names the component under
   `component`, as an `updateComponents` message does, instead of `type`. A
   property named `type` no longer replaces the component type in the tree,

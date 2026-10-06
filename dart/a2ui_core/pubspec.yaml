@@ -24,6 +24,7 @@ environment:
 
 dependencies:
   collection: ^1.18.0
+  intl: ^0.20.0
   json_schema_builder: ^0.1.7
   logging: ^1.3.0
   meta: ^1.17.0
