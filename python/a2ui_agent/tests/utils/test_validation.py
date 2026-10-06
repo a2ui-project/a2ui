@@ -113,6 +113,20 @@ def test_empty_payload_is_accepted():
     validate_payload([_BASIC], [])
 
 
+@pytest.mark.parametrize(
+    "extra_action",
+    [
+        {"updateComponents": {"surfaceId": "s", "components": [_TEXT]}},
+        {"deleteSurface": {"surfaceId": "s"}},
+    ],
+)
+def test_message_with_several_actions_is_rejected(extra_action):
+    message = {**_create(_BASIC.catalog_id), **extra_action}
+
+    with pytest.raises(A2uiValidationError, match="multiple conflicting"):
+        validate_payload([_BASIC], [message, _update(_COLUMN, _TEXT)])
+
+
 def test_message_that_is_not_an_object_is_rejected():
     with pytest.raises(A2uiValidationError, match="Message 1 is not a JSON object"):
         validate_payload([_BASIC], [_update(_TEXT), "text"])

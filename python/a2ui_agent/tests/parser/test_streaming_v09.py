@@ -13,21 +13,22 @@
 # limitations under the License.
 
 import copy
+
 import pytest
 
-from a2ui.schema.constants import (
-    A2UI_OPEN_TAG,
-    A2UI_CLOSE_TAG,
-    VERSION_0_9,
-    CATALOG_COMPONENTS_KEY,
-)
+from a2ui.core import Catalog
+from a2ui.inference_formats.direct_json import DirectJsonStreamParser
+from a2ui.parser import ResponsePart
 from a2ui.parser.constants import (
     MSG_TYPE_CREATE_SURFACE,
     MSG_TYPE_UPDATE_COMPONENTS,
 )
-from a2ui.core import Catalog
-from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
-from a2ui.parser.response_part import ResponsePart
+from a2ui.schema import (
+    A2UI_CLOSE_TAG,
+    A2UI_OPEN_TAG,
+    CATALOG_COMPONENTS_KEY,
+    VERSION_0_9,
+)
 
 
 @pytest.fixture

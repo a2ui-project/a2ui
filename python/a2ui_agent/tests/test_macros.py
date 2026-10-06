@@ -356,7 +356,7 @@ def test_processor_argument_coercion():
 def test_macro_parser_parse_response():
     """Verifies that MacroParser.parse_response returns ResponsePart objects with fully expanded macros."""
     from a2ui.core.basic_catalog import BasicCatalog
-    from a2ui.inference_formats.experimental.express.format import ExpressFormat
+    from a2ui.inference_formats.experimental.express import ExpressFormat
 
     @macro
     def UserInfoCard(name: str, role: str = "Engineer") -> Card:

@@ -78,8 +78,30 @@ instruction = inference_format.prompt_generator.generate(
     ui_description="Use the following components...",
     include_schema=True,  # Injects the raw JSON schema
     include_examples=True,  # Injects few-shot examples
-    # Optional: prune schema to save tokens
-    allowed_components=["Text", "Button", "Column"],
+)
+```
+
+To save tokens, prune the catalogs before building the format rather than
+when generating the prompt. `allowed_components` and `allowed_messages` on
+`prompt_generator.generate` are deprecated and ignored.
+
+```python
+from a2ui.catalog_transformers import ComponentPruningTransformer
+from a2ui.inference_formats.direct_json import schema_to_prompt
+
+# Keep only some components in the catalog that the prompt describes.
+config = CatalogConfig.from_catalog(
+    "basic",
+    BasicCatalog(VERSION_0_9),
+    transformers=[ComponentPruningTransformer(["Text", "Button", "Column"])],
+)
+inference_format = DirectJsonFormat(
+    [config.to_catalog(protocol_version=VERSION_0_9)]
+)
+
+# Keep only some messages in the agent-to-renderer schema.
+schema_text = schema_to_prompt(
+    inference_format.catalogs,
     allowed_messages=["CreateSurfaceMessage", "UpdateComponentsMessage"],
 )
 ```

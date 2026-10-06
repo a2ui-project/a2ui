@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
@@ -77,8 +78,14 @@ if __name__ == "__main__":
     ).to_catalog(
         protocol_version=my_version, schema_modifiers=[remove_strict_validation]
     )
+    # The examples target both the basic catalog and the inline catalog.
+    basic_catalog = CatalogConfig.from_catalog(
+        "basic", BasicCatalog(my_version)
+    ).to_catalog(
+        protocol_version=my_version, schema_modifiers=[remove_strict_validation]
+    )
     direct_json_format = DirectJsonFormat(
-        [inline_catalog], examples_path=f"examples/{my_version}"
+        [inline_catalog, basic_catalog], examples_path=f"examples/{my_version}"
     )
     contact_prompt = direct_json_format.generate_system_prompt(
         role_description=ROLE_DESCRIPTION,

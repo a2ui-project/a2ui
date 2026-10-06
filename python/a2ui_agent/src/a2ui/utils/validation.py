@@ -160,12 +160,19 @@ def _check_version(
 
 
 def _target(message: Mapping[str, Any]) -> tuple[str | None, bool]:
-    """Returns the surface that a message targets and whether it creates it."""
-    for creates, actions in ((True, _CREATE_ACTIONS), (False, _UPDATE_ACTIONS)):
-        for action in actions:
-            body = message.get(action)
-            if isinstance(body, Mapping) and isinstance(body.get("surfaceId"), str):
-                return body["surfaceId"], creates
+    """Returns the surface that a message targets and whether it creates it.
+
+    A message that holds more than one action is malformed. It targets no
+    surface, so it is checked in full and the processor rejects it, instead of
+    changing how the payload's other messages for the surface are checked.
+    """
+    actions = [a for a in (*_CREATE_ACTIONS, *_UPDATE_ACTIONS) if a in message]
+    if len(actions) != 1:
+        return None, False
+    action = actions[0]
+    body = message[action]
+    if isinstance(body, Mapping) and isinstance(body.get("surfaceId"), str):
+        return body["surfaceId"], action in _CREATE_ACTIONS
     return None, False
 
 

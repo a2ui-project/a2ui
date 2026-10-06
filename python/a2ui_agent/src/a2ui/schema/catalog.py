@@ -24,14 +24,9 @@ import os
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
-from a2ui.core import A2uiCatalogError, A2uiError, Catalog
+from a2ui.core import A2uiCatalogError, A2uiError, Catalog, CatalogApi
 from a2ui.core.common import to_protocol_version
 from a2ui.utils import validate_payload
-
-if TYPE_CHECKING:
-    # Only used in annotations, which aren't evaluated at runtime.
-    from a2ui.catalog_transformers import CatalogTransformer
-    from a2ui.core import CatalogApi
 
 from .catalog_provider import (
     A2uiCatalogProvider,
@@ -39,6 +34,10 @@ from .catalog_provider import (
     InMemoryCatalogProvider,
 )
 from .constants import CATALOG_ID_KEY, ENCODING
+
+if TYPE_CHECKING:
+    # Only used in annotations, which aren't evaluated at runtime.
+    from a2ui.catalog_transformers import CatalogTransformer
 
 
 @dataclass(init=False)

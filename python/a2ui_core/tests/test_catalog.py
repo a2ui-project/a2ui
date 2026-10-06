@@ -1018,3 +1018,47 @@ def test_function_api_description_fallback():
 
     api_override = RequiredApi("required", description="Overridden description")
     assert api_override.description == "Overridden description"
+
+
+def test_from_json_reads_inline_function_definitions():
+    """The v0.9 inline catalog form lists functions as definitions."""
+    catalog = Catalog.from_json(
+        {
+            "catalogId": "inline",
+            "components": {},
+            "functions": [{
+                "name": "shout",
+                "description": "Upper-cases a string.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                },
+                "returnType": "string",
+            }],
+        },
+        protocol_version="0.9",
+    )
+
+    fn = catalog.get_function("shout")
+    assert fn is not None
+    assert fn.return_type == "string"
+    assert "name" not in fn.schema
+    assert fn.schema["parameters"]["properties"] == {"value": {"type": "string"}}
+
+
+@pytest.mark.parametrize(
+    "functions, message",
+    [
+        ("shout", "must be an object or a list of definitions"),
+        ({"shout": "string"}, "function 'shout' must be a JSON schema object"),
+        (["shout"], "function definition 0 must be an object"),
+        ([{"returnType": "string"}], "function definition 0 is missing"),
+        ([{"name": ""}], "function definition 0 is missing"),
+    ],
+)
+def test_from_json_rejects_malformed_functions(functions, message):
+    with pytest.raises(A2uiCatalogError, match=message):
+        Catalog.from_json(
+            {"catalogId": "inline", "components": {}, "functions": functions},
+            protocol_version="0.9",
+        )

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
@@ -67,6 +68,8 @@ def _renderer_capabilities(
 
     Clients may send the bare capabilities entry, and may leave out
     `supportedCatalogIds`, which then names every catalog of the agent.
+    Capabilities that are already keyed by protocol version are only read
+    under the negotiated version's key.
 
     Args:
         version: The negotiated A2UI protocol version.
@@ -75,15 +78,32 @@ def _renderer_capabilities(
 
     Returns:
         The capabilities for `a2ui.utils.resolve_catalogs`, or `None` if the
-        client sent none.
+        client sent none for the negotiated version.
     """
     if not client_ui_capabilities:
         return None
     key = f"v{version}"
-    entry = dict(client_ui_capabilities.get(key, client_ui_capabilities))
+    raw: Any = client_ui_capabilities
+    if any(_is_version_key(k) for k in client_ui_capabilities):
+        raw = client_ui_capabilities.get(key)
+        if raw is None:
+            return None
+        if not isinstance(raw, Mapping):
+            # Left for `resolve_catalogs` to reject with a validation error.
+            return {key: raw}
+    entry = dict(raw)
     if "supportedCatalogIds" not in entry and "supported_catalog_ids" not in entry:
         entry["supportedCatalogIds"] = list(catalog_ids)
     return {key: entry}
+
+
+def _is_version_key(key: Any) -> bool:
+    """Whether a capabilities key names a protocol version, such as `v0.9`."""
+    return (
+        isinstance(key, str)
+        and key.startswith("v")
+        and bool(re.fullmatch(r"\d+(\.\d+)*", key[1:]))
+    )
 
 
 class FileUploadSummarizerAgent:

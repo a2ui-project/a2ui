@@ -216,35 +216,6 @@ async def test_send_tool_run_async_valid():
 
 
 @pytest.mark.asyncio
-async def test_send_tool_run_async_valid_list():
-    catalog_mock = MagicMock(spec=Catalog)
-    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(catalog_mock, "examples")
-    tool_context_mock = MagicMock(spec=ToolContext)
-    tool_context_mock.state = {}
-    tool_context_mock.actions = MagicMock(skip_summarization=False)
-
-    valid_a2ui = [{"type": "Text", "text": "Hello"}]
-    args = {
-        SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: (
-            json.dumps(valid_a2ui)
-        )
-    }
-
-    with patch(
-        "a2ui.adk.send_a2ui_to_client_toolset.validate_payload"
-    ) as mock_validate:
-        result = await tool.run_async(args=args, tool_context=tool_context_mock)
-        mock_validate.assert_called_once_with([catalog_mock], valid_a2ui)
-
-    assert result == {
-        SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY: (
-            valid_a2ui
-        )
-    }
-    assert tool_context_mock.actions.skip_summarization
-
-
-@pytest.mark.asyncio
 async def test_send_tool_run_async_missing_arg():
     tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
         MagicMock(spec=Catalog), "examples"

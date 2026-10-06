@@ -20,12 +20,9 @@ signatures, and requirements directly from standard catalog JSON schemas.
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
-from a2ui.core import Catalog, inline_local_refs
-
-if TYPE_CHECKING:
-    from a2ui.core import CatalogApi
+from a2ui.core import Catalog, CatalogApi, inline_local_refs
 
 
 class CatalogSchemaHelper:

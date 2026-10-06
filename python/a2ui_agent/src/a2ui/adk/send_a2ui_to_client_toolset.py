@@ -260,14 +260,12 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             Returns:
                 The A2UI catalog.
             """
-            if callable(self._a2ui_catalog) and not isinstance(
-                self._a2ui_catalog, Catalog
-            ):
-                catalog = self._a2ui_catalog(ctx)
-                if inspect.isawaitable(catalog):
-                    catalog = await catalog
-                return catalog
-            return self._a2ui_catalog
+            if isinstance(self._a2ui_catalog, Catalog):
+                return self._a2ui_catalog
+            catalog = self._a2ui_catalog(ctx)
+            if inspect.isawaitable(catalog):
+                catalog = await catalog
+            return catalog
 
         async def process_llm_request(
             self,

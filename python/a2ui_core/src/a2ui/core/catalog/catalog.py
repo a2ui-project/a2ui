@@ -796,7 +796,9 @@ class Catalog(Generic[TComponent, TFunction]):
                 )
 
         functions = []
-        raw_functions = inlined_catalog_schema.get("functions", {})
+        function_entries = _function_entries(
+            inlined_catalog_schema.get("functions"), catalog_id
+        )
         any_func_refs = (
             inlined_catalog_schema.get("$defs", {})
             .get("anyFunction", {})
@@ -809,40 +811,37 @@ class Catalog(Generic[TComponent, TFunction]):
                 if isinstance(ref, str) and ref.startswith("#/functions/"):
                     permitted_func_names.add(ref.split("/")[-1])
 
-        if isinstance(raw_functions, dict):
-            for name, spec in raw_functions.items():
-                if validate_identifiers and not is_valid_uax31_identifier(name):
-                    raise A2uiCatalogError(
-                        f"Invalid UAX #31 function identifier: '{name}'"
-                    )
-                spec_dict = spec if isinstance(spec, dict) else {}
-                props = (
-                    spec_dict.get("properties")
-                    if isinstance(spec_dict.get("properties"), dict)
-                    else spec_dict.get("parameters")
-                    if isinstance(spec_dict.get("parameters"), dict)
-                    else None
-                )
-                if validate_identifiers and isinstance(props, dict):
-                    for arg_name in props:
-                        if not is_valid_uax31_identifier(arg_name):
-                            raise A2uiCatalogError(
-                                f"Invalid UAX #31 argument identifier: '{arg_name}' in"
-                                f" function '{name}'"
-                            )
-
-                if not permitted_func_names or name in permitted_func_names:
-                    functions.append(
-                        FunctionApi(
-                            name=name,
-                            return_type=spec_dict.get("returnType"),
-                            schema=spec,
-                            allowed_callers=spec_dict.get("allowedCallers"),
-                            requires_user_activation=spec_dict.get(
-                                "requiresUserActivation"
-                            ),
+        for name, spec in function_entries:
+            if validate_identifiers and not is_valid_uax31_identifier(name):
+                raise A2uiCatalogError(f"Invalid UAX #31 function identifier: '{name}'")
+            spec_dict = spec
+            props = (
+                spec_dict.get("properties")
+                if isinstance(spec_dict.get("properties"), dict)
+                else spec_dict.get("parameters")
+                if isinstance(spec_dict.get("parameters"), dict)
+                else None
+            )
+            if validate_identifiers and isinstance(props, dict):
+                for arg_name in props:
+                    if not is_valid_uax31_identifier(arg_name):
+                        raise A2uiCatalogError(
+                            f"Invalid UAX #31 argument identifier: '{arg_name}' in"
+                            f" function '{name}'"
                         )
+
+            if not permitted_func_names or name in permitted_func_names:
+                functions.append(
+                    FunctionApi(
+                        name=name,
+                        return_type=spec_dict.get("returnType"),
+                        schema=spec,
+                        allowed_callers=spec_dict.get("allowedCallers"),
+                        requires_user_activation=spec_dict.get(
+                            "requiresUserActivation"
+                        ),
                     )
+                )
 
         # `catalog_schema` merges in the built-in common types defs.
         return CatalogApi(
@@ -856,6 +855,58 @@ class Catalog(Generic[TComponent, TFunction]):
             instructions=inlined_catalog_schema.get("instructions"),
             defs=inlined_catalog_schema.get("$defs"),
         )
+
+
+def _function_entries(raw: Any, catalog_id: str) -> list[tuple[str, dict[str, Any]]]:
+    """Returns a catalog document's functions as `(name, schema)` pairs.
+
+    Accepts both forms of `functions`: the map of name to JSON schema used by
+    published catalog documents, and the list of `{name, parameters,
+    returnType}` definitions used by v0.9 inline catalogs in renderer
+    capabilities. A list entry's schema is the entry without its `name`.
+
+    Args:
+        raw: The document's `functions` value.
+        catalog_id: The catalog's id, for error messages.
+
+    Returns:
+        The functions in document order.
+
+    Raises:
+        A2uiCatalogError: If `functions` is neither a map nor a list, or an
+            entry is not an object or a list entry has no non-empty `name`.
+    """
+    if raw is None:
+        return []
+    entries: list[tuple[str, dict[str, Any]]] = []
+    if isinstance(raw, Mapping):
+        for name, spec in raw.items():
+            if not isinstance(spec, Mapping):
+                raise A2uiCatalogError(
+                    f"Catalog '{catalog_id}' function '{name}' must be a JSON"
+                    f" schema object, got {type(spec).__name__}."
+                )
+            entries.append((name, dict(spec)))
+        return entries
+    if isinstance(raw, list):
+        for index, entry in enumerate(raw):
+            if not isinstance(entry, Mapping):
+                raise A2uiCatalogError(
+                    f"Catalog '{catalog_id}' function definition {index} must be an"
+                    f" object, got {type(entry).__name__}."
+                )
+            name = entry.get("name")
+            if not isinstance(name, str) or not name:
+                raise A2uiCatalogError(
+                    f"Catalog '{catalog_id}' function definition {index} is missing"
+                    " a non-empty 'name' string."
+                )
+            entries.append((name, {k: v for k, v in entry.items() if k != "name"}))
+        return entries
+    raise A2uiCatalogError(
+        f"Catalog '{catalog_id}' 'functions' must be an object or a list of"
+        f" definitions, got {type(raw).__name__}."
+    )
 
 
 CatalogApi: TypeAlias = Catalog[ComponentApi, FunctionApi]

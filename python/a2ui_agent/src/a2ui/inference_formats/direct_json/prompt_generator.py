@@ -14,11 +14,10 @@
 
 """Generator for standard A2UI JSON schema system prompt instructions."""
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from typing import Any, TYPE_CHECKING
 
 from a2ui.core import A2uiCatalogError, CatalogApi
-from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.inference_formats.direct_json.schema_prompt import schema_to_prompt
 from a2ui.prompt import PromptGenerator
 from a2ui.schema import load_examples
@@ -80,7 +79,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
         role_description: str,
         workflow_description: str = "",
         ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
+        client_ui_capabilities: Any = None,
         allowed_components: Sequence[str] | None = None,
         allowed_messages: Sequence[str] | None = None,
         include_schema: bool = False,
@@ -98,8 +97,13 @@ class DirectJsonPromptGenerator(PromptGenerator):
             client_ui_capabilities: Not supported. The format's catalogs are
               already resolved, so resolve them with
               `a2ui.utils.resolve_catalogs` before building the format.
-            allowed_components: Optional list of component tags the LLM may use.
-            allowed_messages: Optional list of A2UI message types allowed.
+            allowed_components: Deprecated and ignored. Prune the catalogs
+              before building the format instead, with
+              `a2ui.catalog_transformers.ComponentPruningTransformer`, for
+              example passed to `CatalogConfig` as `transformers`.
+            allowed_messages: Deprecated and ignored. To restrict the messages
+              in the schema, call
+              `schema_to_prompt(catalogs, allowed_messages=...)` instead.
             include_schema: Whether to include component schemas in the prompt.
             include_examples: Whether to include few-shot examples.
             validate_examples: Whether to validate few-shot examples on generation.

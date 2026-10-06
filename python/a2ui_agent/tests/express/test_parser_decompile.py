@@ -28,11 +28,9 @@ conformance suites leave to the SDK implementation:
 import json
 import os
 import unittest
+
 from a2ui.core import Catalog
-
-from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.parser import ExpressParser
-
+from a2ui.inference_formats.experimental.express import ExpressCompiler, ExpressParser
 from a2ui.schema.utils import find_repo_root, get_spec_dir
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""

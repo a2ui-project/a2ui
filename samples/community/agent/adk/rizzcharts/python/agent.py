@@ -12,29 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
+import re
 from collections.abc import Mapping, Sequence
-from pathlib import Path
-import pkgutil
 from typing import Any, ClassVar
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a import get_a2ui_agent_extension
-from a2ui.adk import (
-    A2uiCatalogProvider,
-    A2uiEnabledProvider,
-    A2uiExamplesProvider,
-    SendA2uiToClientToolset,
-)
+from a2ui.adk import SendA2uiToClientToolset
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import CatalogConfig, VERSION_0_8, VERSION_0_9
 from a2ui.utils import resolve_catalogs
 from google.adk.agents.llm_agent import LlmAgent
-from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.planners.built_in_planner import BuiltInPlanner
 from google.genai import types
-from pydantic import PrivateAttr
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
@@ -105,6 +96,8 @@ def _renderer_capabilities(
 
     Clients may send the bare capabilities entry, and may leave out
     `supportedCatalogIds`, which then names every catalog of the agent.
+    Capabilities that are already keyed by protocol version are only read
+    under the negotiated version's key.
 
     Args:
         version: The negotiated A2UI protocol version.
@@ -113,15 +106,32 @@ def _renderer_capabilities(
 
     Returns:
         The capabilities for `a2ui.utils.resolve_catalogs`, or `None` if the
-        client sent none.
+        client sent none for the negotiated version.
     """
     if not client_ui_capabilities:
         return None
     key = f"v{version}"
-    entry = dict(client_ui_capabilities.get(key, client_ui_capabilities))
+    raw: Any = client_ui_capabilities
+    if any(_is_version_key(k) for k in client_ui_capabilities):
+        raw = client_ui_capabilities.get(key)
+        if raw is None:
+            return None
+        if not isinstance(raw, Mapping):
+            # Left for `resolve_catalogs` to reject with a validation error.
+            return {key: raw}
+    entry = dict(raw)
     if "supportedCatalogIds" not in entry and "supported_catalog_ids" not in entry:
         entry["supportedCatalogIds"] = list(catalog_ids)
     return {key: entry}
+
+
+def _is_version_key(key: Any) -> bool:
+    """Whether a capabilities key names a protocol version, such as `v0.9`."""
+    return (
+        isinstance(key, str)
+        and key.startswith("v")
+        and bool(re.fullmatch(r"\d+(\.\d+)*", key[1:]))
+    )
 
 
 class RizzchartsAgent:

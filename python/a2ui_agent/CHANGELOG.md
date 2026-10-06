@@ -76,8 +76,11 @@
     The agent card still takes `accepts_inline_catalogs`.
   - The prompt describes every catalog of the format, and
     `prompt_generator.generate` raises `A2uiCatalogError` if given
-    `client_ui_capabilities`. `allowed_components` and `allowed_messages`
-    still restrict the prompt.
+    `client_ui_capabilities`. Its `allowed_components` and
+    `allowed_messages` are deprecated and ignored. Prune components before
+    building the format with `ComponentPruningTransformer`, for example passed
+    to `CatalogConfig` as `transformers`, and restrict messages with
+    `schema_to_prompt(catalogs, allowed_messages=...)`.
   - `examples_path` replaces `CatalogConfig.examples_path` for the prompt's
     examples, which are validated against every catalog of the format.
   - `_supported_catalogs` and `supported_catalog_ids` become the `catalogs`

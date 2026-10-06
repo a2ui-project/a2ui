@@ -18,9 +18,10 @@ import json
 import os
 import tempfile
 import unittest
+
 from a2ui.core import Catalog
-from a2ui.schema.constants import VERSION_1_0
-from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
+from a2ui.inference_formats.experimental.elemental import ElementalFormat
+from a2ui.schema import VERSION_1_0
 
 
 class TestElementalPromptGenerator(unittest.TestCase):

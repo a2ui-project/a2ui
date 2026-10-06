@@ -14,10 +14,10 @@
 
 import json
 import logging
+import re
 import os
 from collections import OrderedDict
 from collections.abc import AsyncIterable, Mapping, Sequence
-from dataclasses import dataclass
 from typing import Any
 
 import jsonschema
@@ -34,7 +34,6 @@ from a2a.types import (
     AgentCapabilities,
     AgentCard,
     AgentSkill,
-    DataPart,
     Part,
     TextPart,
 )
@@ -46,7 +45,7 @@ from tools import get_contact_info
 from a2ui.core import CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
-from a2ui.parser import ResponsePart, parse_response
+from a2ui.parser import parse_response
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
@@ -56,7 +55,6 @@ from a2ui.schema import (
     remove_strict_validation,
 )
 from a2ui.a2a import (
-    create_a2ui_part,
     get_a2ui_agent_extension,
     parse_response_to_parts,
     stream_response_to_parts,
@@ -75,6 +73,8 @@ def _renderer_capabilities(
 
     Clients may send the bare capabilities entry, and may leave out
     `supportedCatalogIds`, which then names every catalog of the agent.
+    Capabilities that are already keyed by protocol version are only read
+    under the negotiated version's key.
 
     Args:
         version: The negotiated A2UI protocol version.
@@ -83,15 +83,32 @@ def _renderer_capabilities(
 
     Returns:
         The capabilities for `a2ui.utils.resolve_catalogs`, or `None` if the
-        client sent none.
+        client sent none for the negotiated version.
     """
     if not client_ui_capabilities:
         return None
     key = f"v{version}"
-    entry = dict(client_ui_capabilities.get(key, client_ui_capabilities))
+    raw: Any = client_ui_capabilities
+    if any(_is_version_key(k) for k in client_ui_capabilities):
+        raw = client_ui_capabilities.get(key)
+        if raw is None:
+            return None
+        if not isinstance(raw, Mapping):
+            # Left for `resolve_catalogs` to reject with a validation error.
+            return {key: raw}
+    entry = dict(raw)
     if "supportedCatalogIds" not in entry and "supported_catalog_ids" not in entry:
         entry["supportedCatalogIds"] = list(catalog_ids)
     return {key: entry}
+
+
+def _is_version_key(key: Any) -> bool:
+    """Whether a capabilities key names a protocol version, such as `v0.9`."""
+    return (
+        isinstance(key, str)
+        and key.startswith("v")
+        and bool(re.fullmatch(r"\d+(\.\d+)*", key[1:]))
+    )
 
 
 class ContactAgent:
@@ -502,7 +519,11 @@ class ContactAgent:
                                 full_content_list.append(p.text)
                                 yield p.text
 
-            if inference_format and selected_catalog:
+            # The stream parser checks every message against a single catalog.
+            # When the client's inline catalogs are active too, a response's
+            # surfaces may name any of them, so the response is buffered and
+            # the complete payload is validated against all of them below.
+            if inference_format and selected_catalog and len(validation_catalogs) == 1:
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
@@ -521,6 +542,9 @@ class ContactAgent:
                         "is_task_complete": False,
                         "parts": [part],
                     }
+            elif inference_format:
+                async for _ in token_stream():
+                    pass
             else:
                 async for token in token_stream():
                     yield {
