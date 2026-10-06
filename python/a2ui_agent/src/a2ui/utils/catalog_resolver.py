@@ -58,7 +58,9 @@ def resolve_catalogs(
     renderer's order of preference, and ids that the agent doesn't hold are
     ignored. When the agent accepts inline catalogs, each inline catalog
     becomes an active catalog of its own after the registered ones, unless an
-    active catalog already has its id. Otherwise inline catalogs are dropped.
+    active catalog already has its id. Otherwise inline catalogs are dropped,
+    but they are still checked, since a malformed one makes the capabilities
+    malformed whether or not the agent uses it.
 
     Args:
       catalogs: The catalogs that the agent registered. The returned catalogs
@@ -80,11 +82,13 @@ def resolve_catalogs(
       A2uiCatalogError: If capabilities are given and no catalog is active, for
         example because the renderer names none of the registered catalogs or
         sends an empty `supportedCatalogIds` without inline catalogs; if an
-        inline catalog has no non-empty string `catalogId` or is invalid; or if
-        the registered catalogs read different capabilities keys, since one
-        capabilities entry can't describe them all.
+        inline catalog object is not a valid catalog, for example because it
+        has no non-empty string `catalogId`; or if the registered catalogs read
+        different capabilities keys, since one capabilities entry can't
+        describe them all.
       A2uiValidationError: If the capabilities have no valid entry for the
-        protocol version of the registered catalogs.
+        protocol version of the registered catalogs, for example because
+        `inlineCatalogs` is not a list of objects.
     """
     registered = [config.to_catalog() for config in catalogs]
     if renderer_capabilities is None:
@@ -107,9 +111,13 @@ def resolve_catalogs(
                 f" '{registered[0].catalog_id}' reads '{key}' and"
                 f" '{catalog.catalog_id}' reads '{other_key}'."
             )
-    entry = _capabilities_entry(
-        renderer_capabilities, key, entry_model, accepts_inline_catalogs
-    )
+    entry = _capabilities_entry(renderer_capabilities, key, entry_model)
+    # Every inline catalog is parsed, so a malformed one is an error even when
+    # the agent doesn't accept inline catalogs.
+    inline = [
+        Catalog.from_json(document, protocol_version=protocol_version.value)
+        for document in entry.get("inlineCatalogs", [])
+    ]
 
     registered_by_id: dict[str, CatalogApi] = {}
     for catalog in registered:
@@ -120,20 +128,8 @@ def resolve_catalogs(
         if catalog_id in registered_by_id and catalog_id not in active:
             active[catalog_id] = registered_by_id[catalog_id]
     if accepts_inline_catalogs:
-        for document in entry.get("inlineCatalogs", []):
-            catalog_id = (
-                document.get("catalogId") if isinstance(document, Mapping) else None
-            )
-            if not isinstance(catalog_id, str) or not catalog_id:
-                raise A2uiCatalogError(
-                    "Inline catalog must have a non-empty string 'catalogId'."
-                )
-            if catalog_id not in active:
-                active[catalog_id] = Catalog.from_json(
-                    document,
-                    protocol_version=protocol_version.value,
-                    catalog_id=catalog_id,
-                )
+        for catalog in inline:
+            active.setdefault(catalog.catalog_id, catalog)
 
     if not active:
         raise A2uiCatalogError(
@@ -147,9 +143,13 @@ def _capabilities_entry(
     renderer_capabilities: _RendererCapabilities,
     key: str,
     entry_model: type[BaseModel],
-    accepts_inline_catalogs: bool = False,
 ) -> dict[str, Any]:
-    """Returns the validated capabilities entry stored under a protocol key."""
+    """Returns the validated capabilities entry stored under a protocol key.
+
+    An error inside an inline catalog object is an `A2uiCatalogError`. Any other
+    error, including an `inlineCatalogs` value that isn't a list of objects, is
+    an `A2uiValidationError`, since the capabilities themselves are malformed.
+    """
     capabilities = (
         renderer_capabilities.model_dump(by_alias=True, exclude_none=True)
         if isinstance(renderer_capabilities, BaseModel)
@@ -165,20 +165,16 @@ def _capabilities_entry(
             f"The renderer capabilities have no '{key}' entry, which the registered"
             " catalogs read."
         )
-    if not accepts_inline_catalogs and isinstance(entry, Mapping):
-        entry = {
-            k: v
-            for k, v in entry.items()
-            if k not in ("inlineCatalogs", "inline_catalogs")
-        }
     try:
         return entry_model.model_validate(entry).model_dump(
             by_alias=True, exclude_none=True
         )
     except ValidationError as e:
         errors = e.errors()
+        # A location of (field, index, ...) points inside an inline catalog
+        # object. (field, index) alone means the entry isn't an object.
         if errors and all(
-            len(err.get("loc", ())) >= 2
+            len(err.get("loc", ())) >= 3
             and err["loc"][0] in ("inlineCatalogs", "inline_catalogs")
             for err in errors
         ):

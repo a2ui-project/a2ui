@@ -96,21 +96,34 @@ class SkillGenerator:
                     "No catalog provided or configured on the inference format to"
                     " compile catalog skill."
                 )
-        clean_name = _clean_catalog_name(target_catalog)
+        examples = (
+            self.fmt.prompt_generator.generate_examples(catalog=target_catalog)
+            if include_examples
+            else ""
+        )
+        return self._catalog_skill(target_catalog, examples, name, description)
+
+    def _catalog_skill(
+        self,
+        catalog: CatalogApi,
+        examples: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Skill:
+        """Builds a catalog Skill from examples that are already generated."""
+        clean_name = _clean_catalog_name(catalog)
         skill_name = name or f"a2ui-{clean_name}"
-        prompt_gen = self.fmt.prompt_generator
 
         cat_body = (
-            prompt_gen.generate_catalog_instructions(catalog=target_catalog) or ""
+            self.fmt.prompt_generator.generate_catalog_instructions(catalog=catalog)
+            or ""
         )
-        if include_examples:
-            ex = prompt_gen.generate_examples(catalog=target_catalog)
-            if ex:
-                cat_body += f"\n\n### Examples:\n\n{ex}"
+        if examples:
+            cat_body += f"\n\n### Examples:\n\n{examples}"
 
         desc = (
             description
-            or getattr(target_catalog, "description", None)
+            or getattr(catalog, "description", None)
             or f"UI component catalog signatures for {clean_name}. Use when building {clean_name} user interface components."
         )
 
@@ -164,8 +177,8 @@ class SkillGenerator:
         for cat in resolved_catalogs:
             examples = prompt_gen.generate_examples(catalog=cat)
             skill_set.add(
-                self.generate_catalog_skill(
-                    cat, include_examples=examples not in seen_examples
+                self._catalog_skill(
+                    cat, examples if examples not in seen_examples else ""
                 )
             )
             seen_examples.add(examples)

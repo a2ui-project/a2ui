@@ -52,6 +52,11 @@
 #   registered CatalogConfig rather than to a catalog document.
 # * An inline catalog an agent does not accept is dropped without an error, the
 #   same as an id the agent does not hold.
+# * A malformed inline catalog is an error whether or not the agent accepts
+#   inline catalogs, because it makes the capabilities object malformed. An
+#   `inlineCatalogs` that is not an array, or an entry that is not an object, is
+#   a `ValidationError`. An object that is not a valid catalog, for example one
+#   with no non-empty string `catalogId`, is a `CatalogError`.
 # * Resolved catalogs are the transformed ones, so a pruning transformer on a
 #   registration is visible in the result.
 #
@@ -331,6 +336,75 @@
                 required: ["component", "text"]
   expect_error:
     category: CatalogError
+
+- name: test_inline_catalog_with_empty_catalog_id_is_an_error
+  description: An empty catalogId identifies nothing either, which fails with CatalogError.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    accepts_inline_catalogs: true
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+        inlineCatalogs:
+          - catalogId: ""
+            components:
+              Marquee:
+                type: object
+                properties:
+                  component: {const: "Marquee"}
+                required: ["component"]
+  expect_error:
+    category: CatalogError
+
+- name: test_rejected_inline_catalog_without_catalog_id_is_an_error
+  description: A malformed inline catalog makes the capabilities malformed, so it fails with CatalogError even when the agent does not accept inline catalogs.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    accepts_inline_catalogs: false
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+        inlineCatalogs:
+          - components:
+              Marquee:
+                type: object
+                properties:
+                  component: {const: "Marquee"}
+                required: ["component"]
+  expect_error:
+    category: CatalogError
+
+- name: test_inline_catalog_entry_that_is_not_an_object_is_an_error
+  description: An inline catalog entry that is not an object is a malformed capabilities object, which fails with ValidationError.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    accepts_inline_catalogs: true
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+        inlineCatalogs: ["conformance/simplified"]
+  expect_error:
+    category: ValidationError
+
+- name: test_inline_catalogs_that_is_not_an_array_is_an_error
+  description: An inlineCatalogs value that is not an array is a malformed capabilities object, which fails with ValidationError even when the agent does not accept inline catalogs.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    accepts_inline_catalogs: false
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+        inlineCatalogs: "conformance/simplified"
+  expect_error:
+    category: ValidationError
 
 # --- Transformers ---
 

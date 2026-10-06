@@ -63,6 +63,25 @@ void main() {
       }
     });
 
+    test('rejects inlineCatalogs that is not an array', () {
+      for (final malformed in <Object?>['nope', 42, <String, Object?>{}]) {
+        expect(
+          () => A2uiVersionCapabilities.fromJson({
+            'supportedCatalogIds': <String>[],
+            'inlineCatalogs': malformed,
+          }),
+          throwsA(
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              contains('inlineCatalogs'),
+            ),
+          ),
+          reason: '$malformed',
+        );
+      }
+    });
+
     test('rejects missing or malformed supportedCatalogIds', () {
       expect(
         () => A2uiVersionCapabilities.fromJson(<String, Object?>{}),

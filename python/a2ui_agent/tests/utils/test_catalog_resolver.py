@@ -209,22 +209,25 @@ def test_an_active_catalog_keeps_its_id_over_an_inline_catalog():
     assert set(resolved.components) == {"Text"}
 
 
+@pytest.mark.parametrize("accepts_inline_catalogs", [True, False])
 @pytest.mark.parametrize(
     "inline_catalog",
     [
         {"components": {"Marquee": {"type": "object"}}},
         {"catalogId": "", "components": {"Marquee": {"type": "object"}}},
         {"catalogId": 123, "components": {"Marquee": {"type": "object"}}},
-        "not_a_dict",
+        {"catalogId": "i", "components": "not_a_dict"},
     ],
     ids=[
         "missing_catalog_id",
         "empty_catalog_id",
         "non_string_catalog_id",
-        "non_dict_entry",
+        "invalid_components",
     ],
 )
-def test_inline_catalog_without_string_catalog_id_is_invalid(inline_catalog):
+def test_invalid_inline_catalog_is_a_catalog_error(
+    inline_catalog, accepts_inline_catalogs
+):
     capabilities = {
         "v0.9": {
             "supportedCatalogIds": ["a"],
@@ -234,23 +237,35 @@ def test_inline_catalog_without_string_catalog_id_is_invalid(inline_catalog):
 
     with pytest.raises(A2uiCatalogError):
         resolve_catalogs(
-            [_config("a", "0.9", "Text")], capabilities, accepts_inline_catalogs=True
+            [_config("a", "0.9", "Text")],
+            capabilities,
+            accepts_inline_catalogs=accepts_inline_catalogs,
         )
 
 
-def test_rejected_invalid_inline_catalog_is_dropped_without_error_in_v1_0():
+@pytest.mark.parametrize("accepts_inline_catalogs", [True, False])
+@pytest.mark.parametrize(
+    "inline_catalogs",
+    [["not_a_dict"], "not_a_list"],
+    ids=["non_dict_entry", "non_list_value"],
+)
+def test_malformed_inline_catalogs_are_a_validation_error(
+    inline_catalogs, accepts_inline_catalogs
+):
     capabilities = {
         "v1.0": {
             "supportedCatalogIds": ["a"],
-            "inlineCatalogs": [{"components": {"Marquee": {"type": "object"}}}],
+            "inlineCatalogs": inline_catalogs,
         }
     }
 
-    resolved = resolve_catalogs(
-        [_config("a", "1.0", "Text")], capabilities, accepts_inline_catalogs=False
-    )
-
-    assert _ids(resolved) == ["a"]
+    with pytest.raises(A2uiValidationError) as exc_info:
+        resolve_catalogs(
+            [_config("a", "1.0", "Text")],
+            capabilities,
+            accepts_inline_catalogs=accepts_inline_catalogs,
+        )
+    assert type(exc_info.value) is A2uiValidationError
 
 
 def test_mixed_top_level_and_inline_catalog_errors_raise_validation_error():
@@ -260,7 +275,8 @@ def test_mixed_top_level_and_inline_catalog_errors_raise_validation_error():
         }
     }
 
-    with pytest.raises(A2uiValidationError):
+    with pytest.raises(A2uiValidationError) as exc_info:
         resolve_catalogs(
             [_config("a", "1.0", "Text")], capabilities, accepts_inline_catalogs=True
         )
+    assert type(exc_info.value) is A2uiValidationError

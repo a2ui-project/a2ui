@@ -214,11 +214,14 @@ class TestSkillGenerator(unittest.TestCase):
         skill = gen.generate_skill()
         self.assertEqual(skill.content.count("SHARED EXAMPLES"), 1)
 
+        mock_fmt.prompt_generator.generate_examples.reset_mock()
         skill_set = gen.generate_skillset()
         examples_per_skill = [
             text.count("SHARED EXAMPLES") for text in skill_set.to_dict().values()
         ]
         self.assertEqual(sorted(examples_per_skill), [0, 0, 1])
+        # Each catalog's examples are loaded and transformed once.
+        self.assertEqual(mock_fmt.prompt_generator.generate_examples.call_count, 2)
 
 
 if __name__ == "__main__":
