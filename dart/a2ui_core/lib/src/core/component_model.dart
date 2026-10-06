@@ -43,7 +43,7 @@ class ComponentModel {
 
   /// Returns a JSON representation of the component tree.
   Map<String, dynamic> toJson() {
-    return {'id': id, 'component': type, ..._properties};
+    return {..._properties, 'id': id, 'component': type};
   }
 }
 

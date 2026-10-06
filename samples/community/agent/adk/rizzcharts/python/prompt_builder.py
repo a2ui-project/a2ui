@@ -15,7 +15,7 @@
 """Prompt builder for the rizzcharts agent."""
 
 # pylint: disable=g-importing-member, line-too-long
-from a2ui.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import CatalogConfig, VERSION_0_9, remove_strict_validation
 from agent import ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
@@ -31,8 +31,9 @@ if __name__ == "__main__":
                 catalog_path="rizzcharts_catalog_definition.json",
                 examples_path=f"../examples/rizzcharts_catalog/{version}",
             ),
-            BasicCatalog.get_config(
-                version=version,
+            CatalogConfig.from_catalog(
+                "basic",
+                BasicCatalog(version),
                 examples_path=f"../examples/standard_catalog/{version}",
             ),
         ],

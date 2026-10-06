@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **BREAKING**: `ComponentModel.component_tree` names the component under
+  `component`, as an `updateComponents` message does, instead of `type`. A
+  property named `type` no longer replaces the component type in the tree,
+  and is kept. `ComponentModel.validate` validates that same dict, so a
+  property named `component` or `id` no longer replaces the model's own
+  during validation ([#2930](https://github.com/a2ui-project/a2ui/pull/2930)).
 - JSON Schema patterns are validated with `regex` (`SchemaValidator` in
   `a2ui.core.validation`), supporting Unicode property escapes such as
   `\p{XID_Start}` and `\p{XID_Continue}` natively and anchoring `$` to the end
@@ -26,6 +32,16 @@
 - **BREAKING**: Optional JSON Schema `default` annotations in generated v0.9
   and v1.0 Pydantic models are kept in field descriptions instead of becoming
   field values. `const` values remain fixed.
+- **BREAKING**: `BasicCatalog` from `a2ui.core.basic_catalog` is a factory that
+  returns the basic catalog of a protocol version, for example
+  `BasicCatalog("0.9")`. The package no longer re-exports the v0.9 basic
+  catalog's symbols; import them from `a2ui.core.basic_catalog.v0_9`.
+- The v0.8 basic catalog's `catalog_id` is the v0.8 standard catalog ID,
+  `https://a2ui.org/specification/v0_8/standard_catalog_definition.json`.
+- **BREAKING**: `PayloadValidator`, `SurfaceModel`, `SurfaceGroupModel`,
+  `DataContext`, and `RpcHandler` are no longer generic. They take `CatalogApi`
+  catalogs, so remove type arguments such as
+  `SurfaceModel[MyComponent, MyFunction]`.
 
 ## 0.2.0 (2026-09-28)
 

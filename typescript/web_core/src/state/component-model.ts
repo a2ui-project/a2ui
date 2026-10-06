@@ -71,10 +71,10 @@ export class ComponentModel {
    */
   get componentTree(): any {
     return {
-      id: this.id,
-      type: this.type,
-      ...(this.metadata !== undefined ? {metadata: this.metadata} : {}),
       ...this._properties,
+      id: this.id,
+      component: this.type,
+      ...(this.metadata !== undefined ? {metadata: this.metadata} : {}),
     };
   }
 }
