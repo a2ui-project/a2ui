@@ -17,7 +17,7 @@
 # pylint: disable=g-importing-member, line-too-long
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig, VERSION_0_9, remove_strict_validation
+from a2ui.schema import CatalogConfig, VERSION_0_9
 from agent import ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
 
 
@@ -26,10 +26,10 @@ if __name__ == "__main__":
     rizzcharts_catalog = CatalogConfig.from_path(
         name="rizzcharts",
         catalog_path=f"../catalog_schemas/{version}/rizzcharts_catalog_definition.json",
-    ).to_catalog(protocol_version=version, schema_modifiers=[remove_strict_validation])
+    ).to_catalog(protocol_version=version)
     basic_catalog = CatalogConfig.from_catalog(
         "basic", BasicCatalog(version)
-    ).to_catalog(protocol_version=version, schema_modifiers=[remove_strict_validation])
+    ).to_catalog(protocol_version=version)
     inference_format = DirectJsonFormat(
         [rizzcharts_catalog, basic_catalog],
         examples_path=f"../examples/rizzcharts_catalog/{version}",

@@ -14,14 +14,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 import copy
 from dataclasses import dataclass
 import glob
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from a2ui.core import A2uiCatalogError, A2uiError, Catalog, CatalogApi
@@ -138,26 +138,17 @@ class CatalogConfig:
             transformers=transformers,
         )
 
-    def to_catalog(
-        self,
-        protocol_version: str | None = None,
-        schema_modifiers: (
-            Sequence[Callable[[dict[str, Any]], dict[str, Any]]] | None
-        ) = None,
-    ) -> CatalogApi:
+    def to_catalog(self, protocol_version: str | None = None) -> CatalogApi:
         """Loads and returns a core Catalog instance from this configuration.
 
-        A configured `catalog` is used as is unless schema modifiers are given
-        or it targets a different protocol version. Otherwise the provider's
-        schema is modified and parsed with `Catalog.from_json`. The transformers
-        are applied last, in order.
+        A configured `catalog` is used as is unless it targets a different
+        protocol version. Otherwise the provider's schema is parsed with
+        `Catalog.from_json`. The transformers are applied last, in order.
 
         Args:
           protocol_version: The protocol version of the returned catalog. Defaults
             to the configured catalog's version, then to the schema's
             `protocolVersion`, then to 1.0.
-          schema_modifiers: Functions applied in order to the catalog schema
-            before it is parsed.
 
         Returns:
           The catalog, with the transformers applied.
@@ -165,32 +156,21 @@ class CatalogConfig:
         Raises:
           A2uiCatalogError: If the schema lacks a string `catalogId`.
         """
-        catalog = self._load_catalog(protocol_version, schema_modifiers)
+        catalog = self._load_catalog(protocol_version)
         for transformer in self.transformers:
             catalog = transformer.transform(catalog)
         return catalog
 
-    def _load_catalog(
-        self,
-        protocol_version: str | None,
-        schema_modifiers: Sequence[Callable[[dict[str, Any]], dict[str, Any]]] | None,
-    ) -> CatalogApi:
+    def _load_catalog(self, protocol_version: str | None) -> CatalogApi:
         """Returns the catalog before the transformers are applied."""
-        if (
-            self.catalog is not None
-            and not schema_modifiers
-            and (
-                protocol_version is None
-                or to_protocol_version(self.catalog.protocol_version)
-                == to_protocol_version(protocol_version)
-            )
+        if self.catalog is not None and (
+            protocol_version is None
+            or to_protocol_version(self.catalog.protocol_version)
+            == to_protocol_version(protocol_version)
         ):
             return self.catalog
 
         catalog_schema = copy.deepcopy(dict(self.provider.load()))
-        if schema_modifiers:
-            for modifier in schema_modifiers:
-                catalog_schema = modifier(catalog_schema)
 
         if CATALOG_ID_KEY not in catalog_schema:
             raise A2uiCatalogError(f"Catalog '{self.name}' is missing 'catalogId'")

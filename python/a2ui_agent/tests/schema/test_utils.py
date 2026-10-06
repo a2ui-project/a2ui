@@ -20,7 +20,6 @@ from a2ui.core import A2uiCatalogError
 from a2ui.schema import (
     A2uiCatalogProvider,
     FileSystemCatalogProvider,
-    remove_strict_validation,
 )
 from a2ui.schema.utils import (
     deep_update,
@@ -130,26 +129,6 @@ class TestSchemaUtils(unittest.TestCase):
         with self.assertRaises(IOError) as ctx:
             provider.load()
         self.assertIn("Could not load schema", str(ctx.exception))
-
-    def test_remove_strict_validation(self):
-        """Verifies remove_strict_validation removes additionalProperties and unevaluatedProperties if False."""
-        schema = {
-            "type": "object",
-            "properties": {"foo": {"type": "string"}},
-            "additionalProperties": False,
-            "unevaluatedProperties": False,
-            "sub": [{
-                "type": "object",
-                "additionalProperties": False,
-                "unevaluatedProperties": False,
-            }],
-        }
-        expected = {
-            "type": "object",
-            "properties": {"foo": {"type": "string"}},
-            "sub": [{"type": "object"}],
-        }
-        self.assertEqual(remove_strict_validation(schema), expected)
 
     def test_catalog_schema_helper_extended(self):
         from a2ui.core import Catalog

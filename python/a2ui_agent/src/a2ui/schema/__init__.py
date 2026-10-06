@@ -19,7 +19,6 @@ from .catalog_provider import (
     FileSystemCatalogProvider,
     InMemoryCatalogProvider,
 )
-from .common_modifiers import remove_strict_validation
 from .constants import (
     A2UI_CLIENT_CAPABILITIES_KEY,
     A2UI_CLOSE_TAG,
@@ -48,5 +47,4 @@ __all__ = [
     "VERSION_1_0",
     "constants",
     "load_examples",
-    "remove_strict_validation",
 ]

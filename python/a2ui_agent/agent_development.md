@@ -53,8 +53,8 @@ Notes:
 
 - The format needs at least one catalog, and all of its catalogs must target
   the same protocol version. The system prompt describes all of them.
-- To post-process a catalog schema, pass schema modifiers to `to_catalog`,
-  for example `schema_modifiers=[remove_strict_validation]`.
+- To shape a catalog, such as pruning components or functions, pass
+  `transformers` to `CatalogConfig`. `to_catalog` applies them in order.
 - The provided catalogs must be freestanding, i.e. they should not reference any
   external schemas or components, except for the common types.
 - If you have a modular catalog that references other catalogs, refer

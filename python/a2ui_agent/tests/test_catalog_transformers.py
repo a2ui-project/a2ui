@@ -199,33 +199,6 @@ def test_to_catalog_applies_transformers_in_order():
     assert set(catalog.components) == {"Text"}
 
 
-def test_to_catalog_applies_transformers_after_schema_modifiers():
-    def add_marquee(schema: dict[str, Any]) -> dict[str, Any]:
-        schema["components"]["Marquee"] = {
-            "type": "object",
-            "properties": {"component": {"const": "Marquee"}},
-        }
-        return schema
-
-    config = CatalogConfig(
-        name="custom",
-        provider=InMemoryCatalogProvider({
-            "catalogId": "custom",
-            "components": {
-                "Text": {
-                    "type": "object",
-                    "properties": {"component": {"const": "Text"}},
-                },
-            },
-        }),
-        transformers=[ComponentPruningTransformer(["Marquee"])],
-    )
-
-    catalog = config.to_catalog(protocol_version="0.9", schema_modifiers=[add_marquee])
-
-    assert set(catalog.components) == {"Marquee"}
-
-
 def test_from_path_accepts_transformers(tmp_path):
     path = tmp_path / "catalog.json"
     path.write_text(

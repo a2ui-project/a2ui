@@ -15,7 +15,7 @@
 import os
 
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig, VERSION_0_9, remove_strict_validation
+from a2ui.schema import CatalogConfig, VERSION_0_9
 
 COMPOSITE_CATALOG_PATH = os.path.join(
     os.path.dirname(__file__), "gemini_enterprise_composite_catalog.json"
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     catalog = CatalogConfig.from_path(
         name="composite",
         catalog_path=COMPOSITE_CATALOG_PATH,
-    ).to_catalog(protocol_version=version, schema_modifiers=[remove_strict_validation])
+    ).to_catalog(protocol_version=version)
     demo_prompt = DirectJsonFormat(
         [catalog], examples_path=f"examples/{version}"
     ).generate_system_prompt(

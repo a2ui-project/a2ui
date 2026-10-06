@@ -17,7 +17,6 @@ from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import (
     CatalogConfig,
     VERSION_0_9,
-    remove_strict_validation,
 )
 
 ROLE_DESCRIPTION = (
@@ -65,7 +64,7 @@ if __name__ == "__main__":
     # different examples but use the same `get_ui_prompt` function.
     version = VERSION_0_9
     catalog = CatalogConfig.from_catalog("basic", BasicCatalog(version)).to_catalog(
-        protocol_version=version, schema_modifiers=[remove_strict_validation]
+        protocol_version=version
     )
     restaurant_prompt = DirectJsonFormat(
         [catalog], examples_path=f"examples/{version}"

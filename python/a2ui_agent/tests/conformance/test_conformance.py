@@ -41,7 +41,6 @@ from a2ui.schema import (
     CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
-    remove_strict_validation,
 )
 from a2ui.utils import resolve_catalogs
 
@@ -393,16 +392,10 @@ def test_schema_manager_conformance(name, test_case):
 
     elif action == "load_catalog":
         catalog_configs = test_case.get("catalogConfigs", [])
-        modifiers = test_case.get("modifiers", [])
-        schema_modifiers = []
-        if "remove_strict_validation" in modifiers:
-            schema_modifiers.append(remove_strict_validation)
         catalogs = [
             CatalogConfig.from_path(
                 name=cfg["name"], catalog_path=get_conformance_path(cfg["path"])
-            ).to_catalog(
-                protocol_version=VERSION_0_8, schema_modifiers=schema_modifiers
-            )
+            ).to_catalog(protocol_version=VERSION_0_8)
             for cfg in catalog_configs
         ]
         direct_json_format = DirectJsonFormat(catalogs)

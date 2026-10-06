@@ -21,7 +21,6 @@ from a2ui.schema import (
     VERSION_0_9,
     CatalogConfig,
     InMemoryCatalogProvider,
-    remove_strict_validation,
 )
 
 BASIC_CATALOG_NAME = "basic"
@@ -71,16 +70,6 @@ def test_to_catalog_reparses_for_another_version():
     assert reparsed.protocol_version == VERSION_0_8
     assert reparsed.catalog_id == catalog.catalog_id
     assert set(reparsed.components) == set(catalog.components)
-
-
-def test_to_catalog_with_modifiers_keeps_configured_catalog_version():
-    catalog = BasicCatalog(VERSION_0_9)
-    config = CatalogConfig.from_catalog(BASIC_CATALOG_NAME, catalog)
-
-    modified = config.to_catalog(schema_modifiers=[remove_strict_validation])
-
-    assert modified is not catalog
-    assert modified.protocol_version == catalog.protocol_version
 
 
 def test_resolve_examples_path_handling():

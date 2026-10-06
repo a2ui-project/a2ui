@@ -28,7 +28,6 @@ import com.google.a2ui.schema.A2uiSchemaManager
 import com.google.a2ui.schema.A2uiValidator
 import com.google.a2ui.schema.A2uiVersion
 import com.google.a2ui.schema.CatalogConfig
-import com.google.a2ui.schema.SchemaModifiers
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -413,17 +412,6 @@ class ConformanceTest {
               assertEquals(expectOutput.trim(), output.trim())
             }
           }
-          "remove_strict_validation" -> {
-            val schema = args["schema"] as Map<*, *>
-            val jsonStr = jsonMapper.writeValueAsString(schema)
-            val jsonElement = Json.parseToJsonElement(jsonStr) as JsonObject
-            val modified = SchemaModifiers.removeStrictValidation(jsonElement)
-
-            val expect = case[ConformanceTestHelper.KEY_EXPECT] as Map<*, *>
-            val expectSchemaStr = jsonMapper.writeValueAsString(expect["schema"])
-            val expectSchema = Json.parseToJsonElement(expectSchemaStr) as JsonObject
-            assertEquals(expectSchema, modified)
-          }
           "render" -> {
             val output = catalog!!.renderAsLlmInstructions()
             val expectOutput = case["expectOutput"] as String
@@ -507,13 +495,6 @@ class ConformanceTest {
           }
           "load_catalog" -> {
             val catalogConfigs = case["catalogConfigs"] as? List<*> ?: emptyList<Any>()
-            val modifiers = case["modifiers"] as? List<String> ?: emptyList()
-
-            val schemaModifiers = mutableListOf<(JsonObject) -> JsonObject>()
-            if (modifiers.contains("remove_strict_validation")) {
-              schemaModifiers.add { SchemaModifiers.removeStrictValidation(it) }
-            }
-
             val configs =
               catalogConfigs.map { cfgObj ->
                 val cfg = cfgObj as Map<*, *>
@@ -526,7 +507,6 @@ class ConformanceTest {
               A2uiSchemaManager(
                 version = A2uiVersion.VERSION_0_8,
                 catalogs = configs,
-                schemaModifiers = schemaModifiers,
               )
 
             val selected = manager.getSelectedCatalog()

@@ -51,7 +51,6 @@ from a2ui.schema import (
     CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
-    remove_strict_validation,
 )
 from a2ui.a2a import (
     get_a2ui_agent_extension,
@@ -93,7 +92,7 @@ class RestaurantAgent:
 
     def _build_inference_format(self, version: str) -> DirectJsonFormat:
         catalog = CatalogConfig.from_catalog("basic", BasicCatalog(version)).to_catalog(
-            protocol_version=version, schema_modifiers=[remove_strict_validation]
+            protocol_version=version
         )
         return DirectJsonFormat([catalog], examples_path=f"examples/{version}")
 

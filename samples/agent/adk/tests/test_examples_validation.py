@@ -22,7 +22,6 @@ from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.schema import (
     CatalogConfig,
     VERSION_0_9,
-    remove_strict_validation,
 )
 from a2ui.utils import validate_payload
 
@@ -45,7 +44,6 @@ SAMPLE_CONFIGS = [
                 BasicCatalog(VERSION_0_9),
             ),
         ],
-        "schema_modifiers": [remove_strict_validation],
         "validate": True,
     },
     {
@@ -58,7 +56,6 @@ SAMPLE_CONFIGS = [
                 examples_path="examples/0.9",
             )
         ],
-        "schema_modifiers": [remove_strict_validation],
         "validate": True,
     },
 ]
@@ -74,10 +71,7 @@ def test_sample_examples_validation(config):
     )  # Change to sample dir to resolve relative catalog paths if any
 
     sample_catalogs = [
-        catalog_config.to_catalog(
-            protocol_version=VERSION_0_9,
-            schema_modifiers=config["schema_modifiers"],
-        )
+        catalog_config.to_catalog(protocol_version=VERSION_0_9)
         for catalog_config in config["catalogs"]
     ]
 

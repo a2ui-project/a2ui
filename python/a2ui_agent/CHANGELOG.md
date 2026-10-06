@@ -1,6 +1,13 @@
 ## Unreleased
 
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.3.0,<0.4.0`.
+- **BREAKING**: `remove_strict_validation` and the `schema_modifiers`
+  parameter of `CatalogConfig.to_catalog` are removed. Catalog schemas are
+  parsed as published, with `additionalProperties` and `unevaluatedProperties`
+  kept, and `CatalogConfig` `transformers` are the way to shape a catalog. To
+  migrate, drop `schema_modifiers=[remove_strict_validation]` from
+  `to_catalog` calls, and make examples and generated payloads match the
+  catalog schema.
 - From v1.0, `DirectJsonStreamParser` yields a component only once its JSON
   object closes, instead of healing and yielding it while it streams. A v1.0
   component may name its own `catalogId` after its type and properties, and a
@@ -60,8 +67,8 @@
   - `validator` becomes `PayloadValidator(catalog)` from `a2ui.core`.
 - Add `a2ui.catalog_transformers` with `CatalogTransformer`,
   `ComponentPruningTransformer` and `FunctionPruningTransformer`.
-  `CatalogConfig` takes `transformers`, which `to_catalog` applies after the
-  schema modifiers (#2966).
+  `CatalogConfig` takes `transformers`, which `to_catalog` applies to the
+  loaded catalog (#2966).
 - Add `a2ui.utils`. `resolve_catalogs` returns the catalogs that are active
   for the capabilities a renderer sent. `prune_messages_schema` and
   `prune_common_types_schema` reduce the protocol schemas. `validate_payload`
@@ -83,10 +90,9 @@
   takes the catalogs that are already resolved for a renderer and no longer
   selects or changes them (#2966). To migrate:
   - The protocol version comes from the catalogs, which must share one. Pass
-    the version and any schema modifiers to `CatalogConfig.to_catalog`
-    instead of `version` and `schema_modifiers`. Schema modifiers now apply
-    only to catalog schemas; the agent-to-renderer and common types schemas
-    are used as published.
+    the version to `CatalogConfig.to_catalog` instead of `version`.
+    `schema_modifiers` is removed; the catalog, agent-to-renderer and common
+    types schemas are used as published.
   - `get_selected_catalog(client_ui_capabilities)` is removed. Call
     `resolve_catalogs(configs, capabilities, accepts_inline_catalogs)` from
     `a2ui.utils` and build the format from the result, once per renderer.

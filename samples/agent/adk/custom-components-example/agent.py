@@ -52,7 +52,6 @@ from a2ui.schema import (
     CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
-    remove_strict_validation,
 )
 from a2ui.a2a import (
     get_a2ui_agent_extension,
@@ -177,8 +176,7 @@ class ContactAgent:
                 catalog
                 if catalog.catalog_id in catalog_ids
                 else CatalogConfig.from_catalog(catalog.catalog_id, catalog).to_catalog(
-                    protocol_version=version,
-                    schema_modifiers=[remove_strict_validation],
+                    protocol_version=version
                 )
             )
             for catalog in catalogs
@@ -186,7 +184,7 @@ class ContactAgent:
 
     def _build_inference_format(self, version: str) -> DirectJsonFormat:
         catalog = CatalogConfig.from_catalog("basic", BasicCatalog(version)).to_catalog(
-            protocol_version=version, schema_modifiers=[remove_strict_validation]
+            protocol_version=version
         )
         # Per-request resolution reuses the catalog as it is.
         self._catalog_configs[version] = [CatalogConfig.from_catalog("basic", catalog)]

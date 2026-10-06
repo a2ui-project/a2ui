@@ -35,7 +35,6 @@ from a2ui.schema import (
     A2UI_OPEN_TAG,
     CatalogConfig,
     VERSION_0_9,
-    remove_strict_validation,
 )
 from a2ui.utils import validate_payload
 from google.adk.agents import run_config
@@ -100,10 +99,7 @@ class A2uiDemoAgent:
         catalog = CatalogConfig.from_path(
             name=COMPOSITE_CATALOG_NAME,
             catalog_path=COMPOSITE_CATALOG_PATH,
-        ).to_catalog(
-            protocol_version=A2UI_VERSION,
-            schema_modifiers=[remove_strict_validation],
-        )
+        ).to_catalog(protocol_version=A2UI_VERSION)
         return DirectJsonFormat([catalog], examples_path=f"examples/{A2UI_VERSION}")
 
     def _build_agent_card(self) -> AgentCard:

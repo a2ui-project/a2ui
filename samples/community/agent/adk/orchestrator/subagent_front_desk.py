@@ -38,11 +38,10 @@ from a2ui.schema import (
     CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
-    remove_strict_validation,
 )
 
 my_catalog = CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_9)).to_catalog(
-    protocol_version=VERSION_0_9, schema_modifiers=[remove_strict_validation]
+    protocol_version=VERSION_0_9
 )
 a2ui_converter = A2uiPartConverter(catalogs=[my_catalog], version=VERSION_0_9)
 

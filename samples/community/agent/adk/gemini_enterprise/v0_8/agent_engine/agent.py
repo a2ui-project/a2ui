@@ -36,7 +36,6 @@ from a2ui.schema import (
     A2UI_OPEN_TAG,
     CatalogConfig,
     VERSION_0_8,
-    remove_strict_validation,
 )
 from a2ui.utils import validate_payload
 import dotenv
@@ -84,7 +83,7 @@ class ContactAgent:
     def _build_inference_format(self, version: str) -> DirectJsonFormat:
         # Gemini Enerprise only supports VERSION_0_8 for now.
         catalog = CatalogConfig.from_catalog("basic", BasicCatalog(version)).to_catalog(
-            protocol_version=version, schema_modifiers=[remove_strict_validation]
+            protocol_version=version
         )
         return DirectJsonFormat(
             [catalog],

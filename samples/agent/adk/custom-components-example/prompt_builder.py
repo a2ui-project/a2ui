@@ -19,7 +19,6 @@ from a2ui.schema import (
     A2UI_OPEN_TAG,
     CatalogConfig,
     VERSION_0_9,
-    remove_strict_validation,
 )
 
 ROLE_DESCRIPTION = (
@@ -75,15 +74,11 @@ if __name__ == "__main__":
     inline_catalog = CatalogConfig.from_path(
         name="custom-components-example_inline_catalog",
         catalog_path=inline_catalog_path,
-    ).to_catalog(
-        protocol_version=my_version, schema_modifiers=[remove_strict_validation]
-    )
+    ).to_catalog(protocol_version=my_version)
     # The examples target both the basic catalog and the inline catalog.
     basic_catalog = CatalogConfig.from_catalog(
         "basic", BasicCatalog(my_version)
-    ).to_catalog(
-        protocol_version=my_version, schema_modifiers=[remove_strict_validation]
-    )
+    ).to_catalog(protocol_version=my_version)
     direct_json_format = DirectJsonFormat(
         [inline_catalog, basic_catalog], examples_path=f"examples/{my_version}"
     )
