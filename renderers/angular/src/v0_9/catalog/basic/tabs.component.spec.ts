@@ -19,8 +19,8 @@ import {Component, input} from '@angular/core';
 import {By} from '@angular/platform-browser';
 import {TabsComponent} from './tabs.component';
 import {ComponentModel, DynamicString, SurfaceComponentsModel} from '@a2ui/web_core/v0_9';
-import {A2uiRendererService} from '../../core/a2ui-renderer.service';
-import {ComponentBinder} from '../../core/component-binder.service';
+import {A2uiRendererService} from '@a2ui/angular';
+import {ComponentBinder} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 
 @Component({

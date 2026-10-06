@@ -19,7 +19,7 @@ import {
   AngularCatalog,
   AngularComponentImplementation,
   createComponentImplementation,
-} from '../types';
+} from '@a2ui/angular';
 import {
   BASIC_FUNCTIONS,
   createBasicCatalogFunctions,

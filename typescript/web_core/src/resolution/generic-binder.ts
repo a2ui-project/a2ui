@@ -526,7 +526,7 @@ export class GenericBinder<T> {
     if (typeof val !== 'object' || val === null) return val;
     if (depth > MAX_DYNAMIC_VALUE_DEPTH) return undefined;
 
-    if ('path' in val || 'call' in val) {
+    if ('path' in val || 'call' in val || '@path' in val || '@call' in val) {
       return this.context.dataContext.resolveDynamicValue(val, depth);
     }
     if (Array.isArray(val)) return val.map(item => this.resolveDeepSync(item, depth + 1));

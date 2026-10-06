@@ -37,6 +37,7 @@ module.exports = function (config) {
       format: 'iife',
       sourcemap: true,
       alias: {
+        '@a2ui/react/v1_0': path.resolve(__dirname, '../src/v1_0/index.ts'),
         '@a2ui/react/v0_9': path.resolve(__dirname, '../src/v0_9/index.ts'),
         '@a2ui/react/v0_8': path.resolve(__dirname, '../src/v0_8/index.ts'),
         '@a2ui/react/styles': path.resolve(__dirname, '../src/styles/index.ts'),

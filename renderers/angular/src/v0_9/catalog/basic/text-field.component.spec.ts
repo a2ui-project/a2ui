@@ -16,7 +16,7 @@
 
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {TextFieldComponent} from './text-field.component';
-import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '../../core/a2ui-renderer.service';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 import {By} from '@angular/platform-browser';
 
@@ -132,5 +132,16 @@ describe('TextFieldComponent', () => {
     expect(errorMsgs.length).toBe(2);
     expect(errorMsgs[0].nativeElement.textContent).toContain('Error 1');
     expect(errorMsgs[1].nativeElement.textContent).toContain('Error 2');
+  });
+
+  it('should bind placeholder attribute when provided', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      placeholder: createBoundProperty('Enter username'),
+    } as any);
+    fixture.detectChanges();
+
+    const input = fixture.debugElement.query(By.css('input'));
+    expect(input.nativeElement.getAttribute('placeholder')).toBe('Enter username');
   });
 });
