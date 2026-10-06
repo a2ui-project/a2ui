@@ -38,6 +38,7 @@ export type A2uiChildRef =
       basePath: string;
     };
 
+/** @deprecated Use `ResolvedChildRef` from `@a2ui/web_core` (or `A2uiChildRef` for web component child references). */
 export type ResolvedChildRef = A2uiChildRef;
 export type ResolvedChildList = A2uiChildRef[];
 

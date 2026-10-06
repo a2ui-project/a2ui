@@ -38,7 +38,7 @@ currently played by `web_core`.
 | Subpath                     | What we use                                                                                                                              |
 | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `@a2ui/web_core/catalog`    | `Catalog`, `CatalogApi`, `CatalogInterface`, `ComponentApi`, `FunctionApi`                                                               |
-| `@a2ui/web_core/v1_0`       | `AgentToRendererMessage`, `AgentToRendererMessageSchema`, `RendererToAgentMessage`, `V10RendererCapabilities`                            |
+| `@a2ui/web_core/schema/v1_0`| `AgentToRendererMessage`, `AgentToRendererMessageSchema`, `RendererToAgentMessage`, `V10RendererCapabilities`, `V10_STANDARD_DEFS`       |
 | `@a2ui/web_core/validating` | `validateRecursionAndPaths`, `STRICT_VALIDATION`, `getComponentReferences`, `buildComponentRefMap`, `V10_CHILD_REF_OPTIONS`              |
 | `@a2ui/web_core/processing` | `MessageProcessor` (see section 6)                                                                                                       |
 | `@a2ui/web_core/errors`     | `A2uiError`, `A2uiValidationError`, `A2uiIntegrityError`, `A2uiRecursionError`, `A2uiStateError`, `A2uiDataError`, `A2uiExpressionError` |

@@ -73,13 +73,17 @@ import {
 } from '../validation/integrity-checker.js';
 
 /**
- * Union of individual message types supported by the MessageProcessor across protocol versions.
+ * A single inbound protocol envelope in any supported specification version (v0.8, v0.9, v1.0).
  */
-export type ProcessableMessage =
+export type AgentToRendererMessage =
   | V08ServerToClientMessage
   | V09A2uiMessage
-  | V10AgentToRendererMessage
-  | InternalOperation;
+  | V10AgentToRendererMessage;
+
+/**
+ * Union of individual message types supported by the MessageProcessor across protocol versions.
+ */
+export type ProcessableMessage = AgentToRendererMessage | InternalOperation;
 
 /**
  * Valid payload format for `MessageProcessor.processMessages`, which can be a single message,
@@ -97,7 +101,7 @@ export type {
   ValidationConfig,
   OutboundMessageListener,
   CallOptions,
-  V10AgentToRendererMessage as AgentToRendererMessage,
+  V10AgentToRendererMessage,
   CallRendererFunctionMessage,
   RendererToAgentMessage,
   RendererFunctionResponseMessage,

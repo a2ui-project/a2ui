@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Consolidate version-agnostic SDK functionality into root `@a2ui/web_core` and remove the `@a2ui/web_core/v1_0` SDK entrypoint.
+  - The root `@a2ui/web_core` entrypoint now exports all modern runtime state models, resolution, RPC utilities (`RpcHandler`, `CallOptions`, etc.), dynamic value schema types (`DynamicString`, `DataBinding`, `CommonSchemas`, etc.), and universal web component bindings.
+  - `AgentToRendererMessage` is now exported from `@a2ui/web_core` as the multi-version union across all supported protocol versions (`V08ServerToClientMessage | V09A2uiMessage | V10AgentToRendererMessage`), with `V10AgentToRendererMessage` available for callers specifically targeting the v1.0 schema shape.
+  - Pure v1.0 protocol wire schemas are exposed under `@a2ui/web_core/schema/v1_0` and standard definitions under `@a2ui/web_core/schema/v1_0/defs`.
+  - Migration: Update imports of runtime state or components from `@a2ui/web_core/v1_0` to `@a2ui/web_core`. Update imports of pure wire schemas to `@a2ui/web_core/schema/v1_0`. ([#3032](https://github.com/a2ui-project/a2ui/pull/3032))
+
 - (v1_0) The basic catalog's `and`, `or` and `not` read a ValidationResult operand by its `valid` member instead of treating every object as truthy, so the v1.0 specification's nested `and(required, or(required, required))` check is false when a field is empty. The v0.9 catalog keeps JavaScript truthiness, since its validators return booleans. `createAndImplementation`, `createOrImplementation` and `createNotImplementation` accept a `truthy` option, and `executeAnd`, `executeOr` and `executeNot` a `truthy` argument.
 - `formatDate` returns an empty string for a date that does not exist, such as `2026-02-30`, instead of rolling it into the next month. `parseTimestamp` returns null when the written fields do not survive parsing.
 
