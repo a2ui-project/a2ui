@@ -29,8 +29,9 @@ from a2ui.catalog_transformers import (
     ComponentPruningTransformer,
     FunctionPruningTransformer,
 )
-from a2ui.core import CatalogApi
+from a2ui.core import Catalog, CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.catalog import ComponentApi, FunctionApi
 from a2ui.schema import CatalogConfig, InMemoryCatalogProvider
 
 
@@ -57,6 +58,75 @@ def test_function_pruning_regenerates_any_function():
     schema = pruned.catalog_schema
     assert set(schema["functions"]) == {"email"}
     assert _refs(schema["$defs"]["anyFunction"]) == {"#/functions/email"}
+
+
+def test_pruning_removes_unreferenced_helper_defs():
+    catalog = Catalog(
+        catalog_id="custom",
+        protocol_version="0.9",
+        components=[
+            ComponentApi(
+                "Card",
+                {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Card"},
+                        "style": {"$ref": "#/$defs/CardStyle"},
+                    },
+                },
+            ),
+            ComponentApi(
+                "Badge",
+                {
+                    "type": "object",
+                    "properties": {
+                        "component": {"const": "Badge"},
+                        "variant": {"$ref": "#/$defs/BadgeVariant"},
+                    },
+                },
+            ),
+        ],
+        functions=[
+            FunctionApi(
+                name="formatBadge",
+                return_type="string",
+                schema={
+                    "type": "object",
+                    "properties": {
+                        "args": {
+                            "type": "object",
+                            "properties": {
+                                "variant": {"$ref": "#/$defs/FnArgDef"},
+                            },
+                        }
+                    },
+                },
+            )
+        ],
+        defs={
+            "CardStyle": {
+                "type": "object",
+                "properties": {"border": {"$ref": "#/$defs/BorderStyle"}},
+            },
+            "BorderStyle": {"type": "string"},
+            "BadgeVariant": {"type": "string", "enum": ["primary", "secondary"]},
+            "FnArgDef": {"type": "string"},
+        },
+    )
+
+    pruned_comps = ComponentPruningTransformer(["Card"]).transform(catalog)
+    comp_defs = pruned_comps.catalog_schema["$defs"]
+    assert "CardStyle" in comp_defs
+    assert "BorderStyle" in comp_defs
+    assert "FnArgDef" in comp_defs
+    assert "BadgeVariant" not in comp_defs
+
+    pruned_fns = FunctionPruningTransformer([]).transform(pruned_comps)
+    fn_defs = pruned_fns.catalog_schema["$defs"]
+    assert "CardStyle" in fn_defs
+    assert "BorderStyle" in fn_defs
+    assert "FnArgDef" not in fn_defs
+    assert "BadgeVariant" not in fn_defs
 
 
 def test_pruning_keeps_the_rest_of_the_catalog():

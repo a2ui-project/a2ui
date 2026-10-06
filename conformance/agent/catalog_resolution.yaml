@@ -310,6 +310,28 @@
       - catalog_id: "renderer/inline_two"
         components: ["Ticker"]
 
+- name: test_inline_catalog_without_catalog_id_is_an_error
+  description: An inline catalog with no catalogId cannot be identified, which fails with CatalogError.
+  action: resolve_catalogs
+  args:
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    accepts_inline_catalogs: true
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+        inlineCatalogs:
+          - protocolVersion: "1.0"
+            components:
+              Marquee:
+                type: object
+                properties:
+                  component: {const: "Marquee"}
+                  text: {type: string}
+                required: ["component", "text"]
+  expect_error:
+    category: CatalogError
+
 # --- Transformers ---
 
 - name: test_resolved_catalog_is_the_transformed_one

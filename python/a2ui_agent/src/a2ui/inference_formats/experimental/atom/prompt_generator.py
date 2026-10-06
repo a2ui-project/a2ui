@@ -15,6 +15,8 @@
 """Prompt compiler for A2UI Atom inference format."""
 
 from collections.abc import Mapping, Sequence
+import json
+import re
 from typing import Any, TYPE_CHECKING
 
 from a2ui.catalog_transformers import ComponentPruningTransformer
@@ -158,6 +160,55 @@ class AtomPromptGenerator(PromptGenerator):
         funcs = self._generate_function_signatures(helper=helper)
         return (comps + ("\n\n" if funcs else "") + funcs).strip()
 
+    def _replace_json_block(self, match: re.Match[str]) -> str:
+        json_content = match.group(1).strip()
+        try:
+            parsed = json.loads(json_content)
+            if isinstance(parsed, dict):
+                messages = [parsed]
+            elif isinstance(parsed, list):
+                messages = parsed
+            else:
+                return str(match.group(0))
+
+            parser = self.format.parser if self.format else None
+            if not parser:
+                return str(match.group(0))
+
+            blocks = []
+            for msg in messages:
+                if isinstance(msg, dict) and any(
+                    k in msg
+                    for k in [
+                        "createSurface",
+                        "updateDataModel",
+                        "deleteSurface",
+                        "callFunction",
+                    ]
+                ):
+                    blocks.append(parser.decompile(msg))
+                else:
+                    return str(match.group(0))
+
+            return parser.wrap_decompiled_blocks(blocks)
+        except Exception:
+            return str(match.group(0))
+
+    def transform_examples(self, raw_examples_markdown: str) -> str:
+        """Transforms JSON blocks in raw markdown into Atom S-expression syntax."""
+        if not self.format or not self.format.catalog:
+            return raw_examples_markdown
+
+        triple_backticks = chr(96) * 3
+        pattern = rf"{triple_backticks}json\s*\n(.*?)\n{triple_backticks}"
+
+        return re.sub(
+            pattern,
+            self._replace_json_block,
+            raw_examples_markdown,
+            flags=re.DOTALL,
+        )
+
     def generate_examples(
         self,
         catalog: Any | None = None,
@@ -211,19 +262,20 @@ class AtomPromptGenerator(PromptGenerator):
             rules += f"\n\n{workflow_description}"
         parts.append(f"## Instructions:\n{rules}")
 
+        if ui_description:
+            parts.append(f"## UI Description:\n{ui_description}")
+
         helper = self.schema_helper
         catalog = self.format.catalog if self.format else None
         if catalog and allowed_components is not None:
-            pruned_catalog = ComponentPruningTransformer(allowed_components).transform(
-                catalog
-            )
+            catalog = ComponentPruningTransformer(allowed_components).transform(catalog)
             try:
                 from a2ui.schema.schema_helper import CatalogSchemaHelper
             except ImportError:
                 from a2ui.inference_formats.experimental.express.schema_helper import (
                     CatalogSchemaHelper,
                 )
-            helper = CatalogSchemaHelper(pruned_catalog)
+            helper = CatalogSchemaHelper(catalog)
 
         if include_schema and helper:
             comp_sigs = self._generate_component_signatures(helper=helper)
@@ -232,6 +284,14 @@ class AtomPromptGenerator(PromptGenerator):
                 parts.append(f"## Component Catalog Signatures:\n{comp_sigs}")
             if func_sigs:
                 parts.append(f"## Function Signatures:\n{func_sigs}")
+
+        if include_examples and self.format and self.format.examples_path and catalog:
+            raw_examples = load_examples(
+                [catalog], self.format.examples_path, validate=validate_examples
+            )
+            if raw_examples:
+                formatted_examples = self.transform_examples(raw_examples)
+                parts.append(f"### Examples:\n{formatted_examples}")
 
         return "\n\n".join(parts)
 

@@ -266,6 +266,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
     def test_allowed_components_pruning(self):
         elemental_format = ElementalFormat(catalog=self.catalog)
         generator = elemental_format.prompt_generator
+        original_helper = generator.helper
 
         # Only allow Text component, which should prune RichComponent
         prompt = generator.generate(
@@ -275,6 +276,10 @@ class TestElementalPromptGenerator(unittest.TestCase):
         )
         self.assertNotIn("interface RichComponent", prompt)
         self.assertIn("interface Text", prompt)
+        self.assertIs(generator.catalog, self.catalog)
+        self.assertIs(generator.helper, original_helper)
+        self.assertIn("RichComponent", generator.helper.components)
+        self.assertIn("Text", generator.helper.components)
 
         # Subsequent call without allowed_components should remain unpruned
         unpruned_prompt = generator.generate(

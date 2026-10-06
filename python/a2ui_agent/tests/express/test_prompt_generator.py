@@ -72,6 +72,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
     def test_express_allowed_components_pruning(self):
         express_format = ExpressFormat(catalog=self.catalog)
         generator = express_format.prompt_generator
+        original_helper = generator.helper
 
         # Only allow other component tags, Text should be pruned out
         prompt = generator.generate(
@@ -80,6 +81,9 @@ class TestExpressPromptGenerator(unittest.TestCase):
             allowed_components=["Button"],
         )
         self.assertNotIn("Text(", prompt)
+        self.assertIs(generator.catalog, self.catalog)
+        self.assertIs(generator.helper, original_helper)
+        self.assertIn("Text", generator.helper.components)
 
         # Subsequent call without allowed_components should remain unpruned
         unpruned_prompt = generator.generate(

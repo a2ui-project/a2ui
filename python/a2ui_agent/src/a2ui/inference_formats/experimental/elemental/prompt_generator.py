@@ -480,11 +480,7 @@ class ElementalPromptGenerator(PromptGenerator):
         Returns:
             The complete system prompt string explaining A2UI Elemental and its catalog.
         """
-        catalog = (
-            self._format.catalog
-            if self._format and self._format.catalog
-            else self.catalog
-        )
+        catalog = self.catalog
         if allowed_components is not None:
             catalog = ComponentPruningTransformer(allowed_components).transform(catalog)
 

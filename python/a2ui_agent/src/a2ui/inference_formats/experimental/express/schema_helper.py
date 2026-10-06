@@ -19,10 +19,14 @@ signatures, and requirements directly from standard catalog JSON schemas.
 """
 
 from typing import Any
-from a2ui.core import Catalog, CatalogApi, inline_local_refs
+
+from a2ui.core import CatalogApi
+from a2ui.schema.schema_helper import (
+    CatalogSchemaHelper as _BaseCatalogSchemaHelper,
+)
 
 
-class CatalogSchemaHelper:
+class CatalogSchemaHelper(_BaseCatalogSchemaHelper):
     """Dynamic schema crawler for A2UI catalogs.
 
     Resolves component and function properties in strict schema definition order
@@ -43,18 +47,7 @@ class CatalogSchemaHelper:
         Args:
             catalog: A Catalog instance.
         """
-        if isinstance(catalog, Catalog):
-            self.catalog_model = catalog
-        else:
-            raise TypeError(f"Unsupported catalog type: {type(catalog)}")
-
-        # Inline the catalog's own definitions, as `Catalog.from_json` does,
-        # so model-backed and JSON catalogs read the same.
-        catalog_schema = dict(catalog.catalog_schema or {})
-        self.catalog = inline_local_refs(catalog_schema, catalog_schema)
-        self.components = dict(self.catalog.get("components", {}))
-        self.functions = dict(self.catalog.get("functions", {}))
-        self._load_mappings()
+        super().__init__(catalog)
 
     def _load_mappings(self) -> None:
         """Crawls the component and function schemas to build internal mappings."""

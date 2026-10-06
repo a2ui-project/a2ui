@@ -212,3 +212,25 @@ def test_v08_path_heuristic_adds_slash(mock_catalog):
     assert len(messages) > 0
     comp = messages[0][MSG_TYPE_SURFACE_UPDATE]["components"][0]
     assert comp["component"]["Text"]["text"]["path"] == "/some/relative/path"
+
+
+def test_v08_surface_update_validates_envelope(mock_catalog):
+    """Tests that a complete v0.8 surfaceUpdate validates its message envelope."""
+    from a2ui.core import A2uiValidationError
+
+    parser = DirectJsonStreamParser(catalog=mock_catalog)
+    chunk_br = (
+        A2UI_OPEN_TAG
+        + '[{"beginRendering": {"surfaceId": "s1", "root": "root"}}]'
+        + A2UI_CLOSE_TAG
+    )
+    list(parser.process_chunk(chunk_br))
+
+    chunk_su = (
+        A2UI_OPEN_TAG
+        + '[{"surfaceUpdate": {"surfaceId": "s1", "extra": 1, "components":'
+        ' [{"id": "root", "component": {"Text": {"text": "hi"}}}]}}]'
+        + A2UI_CLOSE_TAG
+    )
+    with pytest.raises(A2uiValidationError):
+        list(parser.process_chunk(chunk_su))

@@ -23,6 +23,7 @@ from typing import Any
 from a2ui.core import (
     A2uiIntegrityError,
     A2uiParseError,
+    A2uiRecursionError,
     A2uiValidationError,
     CatalogApi,
     ComponentModel,
@@ -276,6 +277,8 @@ class DirectJsonStreamParser:
         """
         try:
             validate_payload([self._catalog], message)
+        except A2uiRecursionError:
+            raise
         except A2uiValidationError as e:
             raise A2uiValidationError(
                 f"Validation failed: {e}", details=e.details

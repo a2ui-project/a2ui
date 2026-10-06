@@ -525,11 +525,7 @@ class ExpressPromptGenerator(PromptGenerator):
         Returns:
             The complete system prompt string explaining A2UI Express and its catalog.
         """
-        catalog = (
-            self._format.catalog
-            if self._format and self._format.catalog
-            else self.catalog
-        )
+        catalog = self.catalog
         if catalog and allowed_components is not None:
             catalog = ComponentPruningTransformer(allowed_components).transform(catalog)
 
@@ -537,10 +533,10 @@ class ExpressPromptGenerator(PromptGenerator):
         prev_helper = self.helper
         prev_parser = self.parser
         try:
-            if self._format or catalog is not None:
+            if catalog is not None:
                 self.catalog = catalog
-                self.helper = CatalogSchemaHelper(catalog) if catalog else None
-                self.parser = ExpressParser(catalog) if catalog else None
+                self.helper = CatalogSchemaHelper(catalog)
+                self.parser = ExpressParser(catalog)
 
             return super().generate(
                 role_description=role_description,

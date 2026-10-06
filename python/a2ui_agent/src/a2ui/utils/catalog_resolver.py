@@ -79,9 +79,10 @@ def resolve_catalogs(
     Raises:
       A2uiCatalogError: If capabilities are given and no catalog is active, for
         example because the renderer names none of the registered catalogs or
-        sends an empty `supportedCatalogIds` without inline catalogs. Also
-        raised if the registered catalogs read different capabilities keys,
-        since one capabilities entry can't describe them all.
+        sends an empty `supportedCatalogIds` without inline catalogs; if an
+        inline catalog has no non-empty string `catalogId` or is invalid; or if
+        the registered catalogs read different capabilities keys, since one
+        capabilities entry can't describe them all.
       A2uiValidationError: If the capabilities have no valid entry for the
         protocol version of the registered catalogs.
     """
@@ -122,7 +123,7 @@ def resolve_catalogs(
                 document.get("catalogId") if isinstance(document, Mapping) else None
             )
             if not isinstance(catalog_id, str) or not catalog_id:
-                raise A2uiValidationError(
+                raise A2uiCatalogError(
                     "Inline catalog must have a non-empty string 'catalogId'."
                 )
             if catalog_id not in active:
@@ -166,4 +167,12 @@ def _capabilities_entry(
             by_alias=True, exclude_none=True
         )
     except ValidationError as e:
+        if any(
+            len(err.get("loc", ())) >= 3
+            and err["loc"][0] in ("inlineCatalogs", "inline_catalogs")
+            for err in e.errors()
+        ):
+            raise A2uiCatalogError(
+                f"Invalid inline catalog in '{key}' renderer capabilities: {e}"
+            ) from e
         raise A2uiValidationError(f"Invalid '{key}' renderer capabilities: {e}") from e

@@ -105,7 +105,7 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
         if not isinstance(obj, dict):
             return False
 
-        # TODO: Leverage MessageProcessor to validate the json data.
+        self._validate_message(obj)
 
         # Update state based on the message content
         surface_id = obj.get(SURFACE_ID_KEY, self.surface_id)

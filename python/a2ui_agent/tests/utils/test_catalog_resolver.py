@@ -226,7 +226,7 @@ def test_inline_catalog_without_string_catalog_id_is_invalid(inline_catalog):
         }
     }
 
-    with pytest.raises(A2uiValidationError):
+    with pytest.raises(A2uiCatalogError):
         resolve_catalogs(
             [_config("a", "0.9", "Text")], capabilities, accepts_inline_catalogs=True
         )
