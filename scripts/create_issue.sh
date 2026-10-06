@@ -15,7 +15,8 @@
 
 # This script creates a GitHub issue when a CI workflow fails on the main branch.
 # It uses the GitHub CLI (`gh`) to file an issue containing the commit SHA,
-# a link to any associated pull request, and a link to the failed workflow run logs.
+# a link to any associated pull request, a link to the failed workflow run logs,
+# and a link to the workflow's run history, to see whether later runs passed.
 #
 # Arguments:
 #   $1 - WORKFLOW_NAME: The name of the workflow that failed (e.g., "Evals", "E2E tests").
@@ -23,7 +24,7 @@
 #   $3 - SUMMARY_FILE: (Optional) Path to a file containing a detailed summary to include in the issue body.
 #
 # Expected Environment Variables (provided by GitHub Actions):
-#   GITHUB_REPOSITORY, GITHUB_SHA, GITHUB_SERVER_URL, GITHUB_RUN_ID
+#   GITHUB_REPOSITORY, GITHUB_SHA, GITHUB_SERVER_URL, GITHUB_RUN_ID, GITHUB_WORKFLOW_REF
 #   GH_TOKEN or GITHUB_TOKEN (required for the gh cli to authenticate)
 
 set -e
@@ -33,7 +34,7 @@ LABEL_NAME="${2:-eval_failure}"
 SUMMARY_FILE="${3:-}"
 
 # Check required environment variables
-if [[ -z "$GITHUB_REPOSITORY" || -z "$GITHUB_SHA" || -z "$GITHUB_SERVER_URL" || -z "$GITHUB_RUN_ID" ]]; then
+if [[ -z "$GITHUB_REPOSITORY" || -z "$GITHUB_SHA" || -z "$GITHUB_SERVER_URL" || -z "$GITHUB_RUN_ID" || -z "$GITHUB_WORKFLOW_REF" ]]; then
   echo "Error: Missing required GitHub Actions environment variables."
   exit 1
 fi
@@ -59,12 +60,17 @@ else
   TITLE="${WORKFLOW_NAME} failed on main for commit ${SHORT_SHA}"
 fi
 
+# GITHUB_WORKFLOW_REF looks like "owner/repo/.github/workflows/e2e_test.yml@refs/heads/main".
+WORKFLOW_FILE=$(basename "${GITHUB_WORKFLOW_REF%@*}")
+HISTORY_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/${WORKFLOW_FILE}?query=branch%3A${GITHUB_REF_NAME:-main}"
+
 # Lowercase workflow name for the body
 LOWER_WORKFLOW_NAME=$(echo "$WORKFLOW_NAME" | tr '[:upper:]' '[:lower:]')
 
 BODY="The ${LOWER_WORKFLOW_NAME} workflow failed on main for commit ${GITHUB_SHA}.
 ${PR_LINK}
-See logs: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+See logs: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+See run history, to check whether later runs passed: ${HISTORY_URL}"
 
 if [[ -n "$SUMMARY_FILE" && -s "$SUMMARY_FILE" ]]; then
   echo "Found summary file at $SUMMARY_FILE. Appending to body..."

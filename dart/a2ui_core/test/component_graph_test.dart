@@ -48,10 +48,10 @@ void main() {
         );
 
         final typedMessage = UpdateDataModelMessage(
+          version: 'v0.9',
           surfaceId: 's1',
           path: '/valid/path',
           value: deepCallValue,
-          version: 'v0.9',
         );
         expect(() => checkPathsAndRecursion(typedMessage), returnsNormally);
       },
@@ -73,10 +73,10 @@ void main() {
       );
 
       final typedInvalid = UpdateDataModelMessage(
+        version: 'v0.9',
         surfaceId: 's1',
         path: '/invalid~path',
         value: const {'ok': true},
-        version: 'v0.9',
       );
       expect(
         () => checkPathsAndRecursion(typedInvalid),

@@ -17,15 +17,19 @@
 import fs from 'fs';
 import path from 'path';
 
-const SPEC_EXAMPLES_DIR = path.resolve(
+const SPEC_V09_EXAMPLES_DIR = path.resolve(
   import.meta.dirname,
   '../../../../specification/v0_9/catalogs/basic/examples',
+);
+const CATALOGS_V10_EXAMPLES_DIR = path.resolve(
+  import.meta.dirname,
+  '../../../../catalogs/basic/v1/examples',
 );
 const OUT_FILE = path.resolve(import.meta.dirname, '../src/generated/examples-list.ts');
 
 /**
  * Generates a static TypeScript module bundle that imports all the basic catalog
- * example JSON files.
+ * example JSON files for both v0.9 and v1.0.
  *
  * This allows the Lit explorer application and integration tests to resolve the
  * spec files dynamically at runtime without relying on Vite-specific APIs like
@@ -33,26 +37,43 @@ const OUT_FILE = path.resolve(import.meta.dirname, '../src/generated/examples-li
  * (such as the esbuild preprocessor in our Karma test runner).
  */
 function generateExamplesBundle() {
-  if (!fs.existsSync(SPEC_EXAMPLES_DIR)) {
-    console.error(`Specification directory not found: ${SPEC_EXAMPLES_DIR}`);
+  if (!fs.existsSync(SPEC_V09_EXAMPLES_DIR)) {
+    console.error(`v0.9 specification directory not found: ${SPEC_V09_EXAMPLES_DIR}`);
+    process.exit(1);
+  }
+  if (!fs.existsSync(CATALOGS_V10_EXAMPLES_DIR)) {
+    console.error(`v1.0 catalog examples directory not found: ${CATALOGS_V10_EXAMPLES_DIR}`);
     process.exit(1);
   }
 
-  const files = fs
-    .readdirSync(SPEC_EXAMPLES_DIR)
+  const filesV09 = fs
+    .readdirSync(SPEC_V09_EXAMPLES_DIR)
+    .filter(file => file.endsWith('.json'))
+    .sort();
+
+  const filesV10 = fs
+    .readdirSync(CATALOGS_V10_EXAMPLES_DIR)
     .filter(file => file.endsWith('.json'))
     .sort();
 
   const imports = [];
-  const entries = [];
+  const entriesV09 = [];
+  const entriesV10 = [];
 
-  files.forEach((file, index) => {
-    // Relative path from src/generated/examples-list.ts to the specification examples folder
+  filesV09.forEach((file, index) => {
     const relativePath = `../../../../../specification/v0_9/catalogs/basic/examples/${file}`;
-    const variableName = `example_${index}`;
+    const variableName = `example_v09_${index}`;
 
     imports.push(`import ${variableName} from '${relativePath}';`);
-    entries.push(`  '${file}': { default: ${variableName} }`);
+    entriesV09.push(`  '${file}': { default: ${variableName}, version: '0.9' }`);
+  });
+
+  filesV10.forEach((file, index) => {
+    const relativePath = `../../../../../catalogs/basic/v1/examples/${file}`;
+    const variableName = `example_v10_${index}`;
+
+    imports.push(`import ${variableName} from '${relativePath}';`);
+    entriesV10.push(`  '${file}': { default: ${variableName}, version: '1.0' }`);
   });
 
   const content = `/**
@@ -62,37 +83,43 @@ function generateExamplesBundle() {
  *   yarn generate-examples
  *
  * Run this command whenever you add, remove, or rename example JSON files
- * in the specification directory.
+ * in the specification or catalogs directories.
  */
 
 import {A2uiMessage} from '@a2ui/web_core/v0_9';
+import {AgentToRendererMessage} from '@a2ui/web_core/v1_0';
 
 ${imports.join('\n')}
+
+export type ExplorerMessage = A2uiMessage | AgentToRendererMessage;
 
 /**
  * Represents the expected structure of the example JSON data.
  * It can be a direct array of messages or an object containing messages and metadata.
  */
 export interface ExampleData {
-  messages?: A2uiMessage[];
+  messages?: ExplorerMessage[];
   description?: string;
 }
 
 /**
- * Represents the module structure returned by Vite when importing a JSON file
- * via import.meta.glob.
- *
- * The \`default\` property contains the parsed content of the file (in this case,
- * our example data).
+ * Represents the module structure returned when importing an example JSON file.
  */
 export interface ExampleModule {
-  default: ExampleData | A2uiMessage[];
+  default: ExampleData | ExplorerMessage[];
+  version?: '0.9' | '1.0';
 }
 
-// Cast is required because JSON imports infer 'version' as 'string' instead of literal '"v0.9"'.
-export const exampleModules: Record<string, ExampleModule> = {
-${entries.join(',\n')}
+export const EXAMPLES_V09: Record<string, ExampleModule> = {
+${entriesV09.join(',\n')}
 } as Record<string, ExampleModule>;
+
+export const EXAMPLES_V10: Record<string, ExampleModule> = {
+${entriesV10.join(',\n')}
+} as Record<string, ExampleModule>;
+
+export const EXAMPLES: Record<string, ExampleModule> = EXAMPLES_V09;
+export const exampleModules: Record<string, ExampleModule> = EXAMPLES_V09;
 `;
 
   const outDir = path.dirname(OUT_FILE);

@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "generate-examples": "node scripts/generate-examples.mjs",
+    "generate:examples": "wireit",
     "dev": "yarn generate-examples && vite",
     "build": "wireit",
     "test": "wireit",
@@ -20,9 +21,21 @@
     "format:check": "prettier --ignore-path ../../../.prettierignore --check ."
   },
   "wireit": {
+    "generate:examples": {
+      "command": "node scripts/generate-examples.mjs",
+      "files": [
+        "scripts/generate-examples.mjs",
+        "../../../specification/v0_9/catalogs/basic/examples/*.json",
+        "../../../catalogs/basic/v1/examples/*.json"
+      ],
+      "output": [
+        "src/generated/examples-list.ts"
+      ]
+    },
     "build": {
       "command": "yarn generate-examples && tsc && vite build",
       "dependencies": [
+        "generate:examples",
         "../../../typescript/web_core:build",
         "../../markdown/markdown-it:build",
         "../:build"

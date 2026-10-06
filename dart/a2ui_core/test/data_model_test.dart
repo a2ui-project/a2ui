@@ -28,5 +28,297 @@ void main() {
       expect(identical(s1, s2), isTrue);
       expect(identical(s1, s3), isTrue);
     });
+
+    test(
+        'returns identical cached ReadonlySignal for relative and '
+        'absolute equivalents', () {
+      final model = DataModel({'foo': 'bar'});
+      addTearDown(model.dispose);
+
+      final ReadonlySignal<Object?> s1 = model.watch('/foo');
+      final ReadonlySignal<Object?> s2 = model.watch('foo');
+
+      expect(identical(s1, s2), isTrue);
+    });
+  });
+
+  group('DataModel deep-copy ownership and Map normalization', () {
+    test('a const seed does not make later writes throw', () {
+      const seed = <String, Object?>{
+        'form': <String, Object?>{'email': ''},
+      };
+      final model = DataModel(seed);
+      addTearDown(model.dispose);
+
+      model.set('/form/email', 'a@b.com');
+
+      expect(model.get('/form/email'), 'a@b.com');
+    });
+
+    test('a const value set at the root behaves the same', () {
+      const seed = <String, Object?>{
+        'form': <String, Object?>{'email': ''},
+      };
+      final model = DataModel();
+      addTearDown(model.dispose);
+      model.set('', seed);
+
+      model.set('/form/email', 'a@b.com');
+
+      expect(model.get('/form/email'), 'a@b.com');
+    });
+
+    test('a const value set at a path behaves the same', () {
+      const branch = <String, Object?>{'email': ''};
+      final model = DataModel();
+      addTearDown(model.dispose);
+      model.set('/form', branch);
+
+      model.set('/form/email', 'a@b.com');
+
+      expect(model.get('/form/email'), 'a@b.com');
+    });
+
+    test('a const list set at a path behaves the same', () {
+      const rows = <Object?>[
+        <String, Object?>{'label': 'one'},
+      ];
+      final model = DataModel();
+      addTearDown(model.dispose);
+      model.set('/rows', rows);
+
+      model.set('/rows/0/label', 'two');
+
+      expect(model.get('/rows/0/label'), 'two');
+    });
+
+    test('mutating the seed afterwards does not reach inside the model', () {
+      final seed = <String, Object?>{
+        'form': <String, Object?>{'email': 'first'},
+      };
+      final model = DataModel(seed);
+      addTearDown(model.dispose);
+
+      (seed['form']! as Map<String, Object?>)['email'] = 'second';
+
+      expect(model.get('/form/email'), 'first');
+    });
+
+    test('writing does not reach back out into the caller value', () {
+      final value = <String, Object?>{'email': 'first'};
+      final model = DataModel();
+      addTearDown(model.dispose);
+      model.set('/form', value);
+
+      model.set('/form/email', 'second');
+
+      expect(value['email'], 'first');
+      expect(model.get('/form/email'), 'second');
+    });
+
+    test(
+        'normalizes untyped Map<dynamic, dynamic> on init and set for '
+        'traversal', () {
+      final decoded = <dynamic, dynamic>{
+        'form': <dynamic, dynamic>{'email': 'a@b.com'},
+      };
+      final model = DataModel(decoded);
+      addTearDown(model.dispose);
+
+      expect(model.get('/form/email'), 'a@b.com');
+      expect(model.hasPath('/form/email'), isTrue);
+
+      model.set('/nested', <dynamic, dynamic>{});
+      expect(model.hasPath('/nested'), isTrue);
+      model.set('/nested/name', 'Alice');
+      expect(model.get('/nested/name'), 'Alice');
+      expect(model.hasPath('/nested/name'), isTrue);
+    });
+
+    test('a map with non-string keys is preserved as a value', () {
+      final model = DataModel();
+      addTearDown(model.dispose);
+      model.set('/byIndex', {1: 'one', 2: 'two'});
+
+      expect(model.get('/byIndex'), {1: 'one', 2: 'two'});
+    });
+  });
+
+  group('DataModel root writes and primitive root guard', () {
+    test('set at root with primitive stores primitive and rejects child writes',
+        () {
+      final model = DataModel();
+      addTearDown(model.dispose);
+
+      model.set('/', 42);
+      expect(model.get('/'), 42);
+      expect(
+        () => model.set('/a', 1),
+        throwsA(isA<A2uiDataError>()),
+      );
+      expect(model.get('/'), 42);
+
+      model.set('/', null);
+      expect(model.get('/'), <String, Object?>{});
+      model.set('/a', 1);
+      expect(model.get('/a'), 1);
+    });
+  });
+
+  group('DataModel delete, hasPath, and resolvePath', () {
+    test('delete removes map key and notifies watchers', () {
+      final model = DataModel({
+        'a': {'b': 1, 'c': 2},
+      });
+      addTearDown(model.dispose);
+
+      final ReadonlySignal<Object?> parentSignal = model.watch('/a');
+      final ReadonlySignal<Object?> childSignal = model.watch('/a/b');
+      expect(parentSignal.value, {'b': 1, 'c': 2});
+      expect(childSignal.value, 1);
+
+      model.delete('/a/b');
+
+      expect(model.hasPath('/a/b'), isFalse);
+      expect(model.get('/a/b'), isNull);
+      expect(parentSignal.value, {'c': 2});
+      expect(childSignal.value, isNull);
+    });
+
+    test('delete nulls an in-bounds list slot and ignores one out of bounds',
+        () {
+      final model = DataModel({
+        'items': ['x', 'y'],
+      });
+      addTearDown(model.dispose);
+
+      model.delete('/items/0');
+      expect(model.get('/items'), [null, 'y']);
+
+      model.delete('/items/99');
+      expect(model.get('/items'), [null, 'y']);
+    });
+
+    test('hasPath distinguishes explicit null from absent key', () {
+      final model = DataModel({
+        'explicitNull': null,
+        'items': ['a', null],
+      });
+      addTearDown(model.dispose);
+
+      expect(model.hasPath('/'), isTrue);
+      expect(model.hasPath('/explicitNull'), isTrue);
+      expect(model.hasPath('/missingKey'), isFalse);
+      expect(model.hasPath('/explicitNull/child'), isFalse);
+      expect(model.hasPath('/items/0'), isTrue);
+      expect(model.hasPath('/items/1'), isTrue);
+      expect(model.hasPath('/items/2'), isFalse);
+      expect(model.hasPath('/items/nonNumeric'), isFalse);
+    });
+
+    test('static resolvePath resolves relative, absolute, empty, and dot paths',
+        () {
+      expect(DataModel.resolvePath('/abs/path', '/base'), '/abs/path');
+      expect(DataModel.resolvePath('rel', '/base'), '/base/rel');
+      expect(DataModel.resolvePath('rel/sub', '/base/'), '/base/rel/sub');
+      expect(DataModel.resolvePath('rel/sub', '/base///'), '/base/rel/sub');
+      expect(DataModel.resolvePath('standalone'), '/standalone');
+      expect(DataModel.resolvePath('standalone', '/'), '/standalone');
+      expect(DataModel.resolvePath('', '/user'), '/user');
+      expect(DataModel.resolvePath('', '/user/'), '/user');
+      expect(DataModel.resolvePath('.', '/user'), '/user');
+      expect(DataModel.resolvePath('', '/'), '/');
+      expect(DataModel.resolvePath('.', '/'), '/');
+      expect(DataModel.resolvePath(''), '/');
+      expect(DataModel.resolvePath('.'), '/');
+    });
+
+    test('get and set reject malformed tilde escapes directly on DataModel',
+        () {
+      final model = DataModel({'a': 1});
+      addTearDown(model.dispose);
+
+      expect(() => model.get('/a~2b'), throwsA(isA<A2uiDataError>()));
+      expect(() => model.set('/a~', 1), throwsA(isA<A2uiDataError>()));
+      expect(() => model.hasPath('/a~2b'), throwsA(isA<A2uiDataError>()));
+      expect(() => model.delete('/a~'), throwsA(isA<A2uiDataError>()));
+      expect(
+          () => model.watch<Object?>('a~9/b'), throwsA(isA<A2uiDataError>()));
+      expect(() => model.get('/a~~0b'), throwsA(isA<A2uiDataError>()));
+    });
+  });
+
+  group('DataModel JSON Pointer parsing', () {
+    test('unescapes ~1 and ~0 in segments and keeps them distinct from /', () {
+      final model = DataModel();
+      addTearDown(model.dispose);
+
+      // Per RFC 6901 section 3, "/a~1b" is the single key "a/b" and
+      // "/a~0b" is the single key "a~b"; neither is the two-key path /a/b.
+      model.set('/a~1b', 1);
+      model.set('/a~0b', 2);
+      model.set('/a/b', 3);
+
+      expect(model.get('/a~1b'), 1);
+      expect(model.get('/a~0b'), 2);
+      expect(model.get('/a/b'), 3);
+      expect(model.get('/'), {
+        'a/b': 1,
+        'a~b': 2,
+        'a': {'b': 3}
+      });
+      expect(
+          identical(
+              model.watch<Object?>('/a~1b'), model.watch<Object?>('/a/b')),
+          isFalse);
+      expect(
+          identical(
+              model.watch<Object?>('/a~1b'), model.watch<Object?>('/a~1b')),
+          isTrue);
+    });
+
+    test('notifies a watcher whose key contains an escaped slash', () {
+      final model = DataModel({'a/b': 'old'});
+      addTearDown(model.dispose);
+
+      final ReadonlySignal<Object?> sig = model.watch('/a~1b');
+      expect(sig.value, 'old');
+      model.set('/a~1b', 'new');
+      expect(sig.value, 'new');
+    });
+
+    test('rejects prototype-pollution segments on every entry point', () {
+      final model = DataModel({'safe': 1});
+      addTearDown(model.dispose);
+
+      for (final forbidden in const ['__proto__', 'constructor', 'prototype']) {
+        expect(() => model.get('/$forbidden'), throwsA(isA<A2uiDataError>()));
+        expect(
+          () => model.set('/safe/$forbidden/x', 1),
+          throwsA(isA<A2uiDataError>()),
+        );
+        expect(
+          () => model.hasPath('a/$forbidden/b'),
+          throwsA(isA<A2uiDataError>()),
+        );
+        expect(
+            () => model.delete('/$forbidden'), throwsA(isA<A2uiDataError>()));
+        expect(() => model.watch<Object?>('/$forbidden'),
+            throwsA(isA<A2uiDataError>()));
+      }
+      expect(model.get('/'), {'safe': 1});
+    });
+
+    test(
+        'treats empty, root, and doubled-slash paths as the root or the same '
+        'segments', () {
+      final model = DataModel({'foo': 'bar'});
+      addTearDown(model.dispose);
+
+      expect(model.get(''), {'foo': 'bar'});
+      expect(model.get('/'), {'foo': 'bar'});
+      expect(model.get('//foo//'), 'bar');
+      expect(model.hasPath(''), isTrue);
+    });
   });
 }
