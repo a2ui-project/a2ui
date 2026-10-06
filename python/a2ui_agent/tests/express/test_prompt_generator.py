@@ -70,27 +70,18 @@ class TestExpressPromptGenerator(unittest.TestCase):
         self.assertIn("Text(", desc)
 
     def test_express_allowed_components_pruning(self):
-        express_format = ExpressFormat(catalog=self.catalog)
+        from a2ui.catalog_transformers import ComponentPruningTransformer
+
+        pruned_catalog = ComponentPruningTransformer(["Button"]).transform(self.catalog)
+        express_format = ExpressFormat(catalog=pruned_catalog)
         generator = express_format.prompt_generator
-        original_helper = generator.helper
 
         # Only allow other component tags, Text should be pruned out
         prompt = generator.generate(
             role_description="Test role",
             include_schema=True,
-            allowed_components=["Button"],
         )
         self.assertNotIn("Text(", prompt)
-        self.assertIs(generator.catalog, self.catalog)
-        self.assertIs(generator.helper, original_helper)
-        self.assertIn("Text", generator.helper.components)
-
-        # Subsequent call without allowed_components should remain unpruned
-        unpruned_prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-        )
-        self.assertIn("Text(", unpruned_prompt)
 
     def test_express_include_examples_transformation(self):
         # Write a markdown file containing a JSON block wrapped in backticks

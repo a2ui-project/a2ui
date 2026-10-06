@@ -23,7 +23,6 @@ import json
 import re
 from typing import Any, TYPE_CHECKING
 
-from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import CatalogApi
 from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.inference_formats.experimental.express.schema_helper import (
@@ -470,9 +469,7 @@ class ElementalPromptGenerator(PromptGenerator):
             ui_description: Optional UI context or rules.
             client_ui_capabilities: Optional client UI capability details.
             allowed_components: Optional list of component tags the LLM may use.
-              The list is read literally, so an empty list keeps no component.
-            allowed_messages: Ignored. This format's prompt has no message schema
-              to restrict.
+            allowed_messages: Optional list of A2UI message types allowed.
             include_schema: Whether to include component schemas in the prompt.
             include_examples: Whether to include few-shot examples.
             validate_examples: Whether to validate few-shot examples on generation.
@@ -481,48 +478,31 @@ class ElementalPromptGenerator(PromptGenerator):
             The complete system prompt string explaining A2UI Elemental and its catalog.
         """
         catalog = self.catalog
-        if allowed_components is not None:
-            catalog = ComponentPruningTransformer(allowed_components).transform(catalog)
 
-        prev_catalog = self.catalog
-        prev_helper = self.helper
-        prev_catalog_id = self.catalog_id
-        prev_parser = self.parser
-        try:
-            self.catalog = catalog
-            self.helper = CatalogSchemaHelper(catalog)
-            self.catalog_id = catalog.catalog_id
-            self.parser = ElementalParser(catalog)
+        prompt = self._catalog_description(include_schema=True)
 
-            prompt = self._catalog_description(include_schema=True)
+        parts = [role_description]
 
-            parts = [role_description]
+        rules = ELEMENTAL_RULES.replace("[CATALOG_ID]", self.catalog_id)
+        if workflow_description:
+            rules += f"\n\n{workflow_description}"
+        parts.append(f"## Workflow Description:\n{rules}")
 
-            rules = ELEMENTAL_RULES.replace("[CATALOG_ID]", self.catalog_id)
-            if workflow_description:
-                rules += f"\n\n{workflow_description}"
-            parts.append(f"## Workflow Description:\n{rules}")
+        if ui_description:
+            parts.append(f"## UI Description:\n{ui_description}")
 
-            if ui_description:
-                parts.append(f"## UI Description:\n{ui_description}")
+        if include_schema and self.helper:
+            parts.append(prompt)
 
-            if include_schema and self.helper:
-                parts.append(prompt)
+        if include_examples and self._format.examples_path and catalog:
+            raw_examples = load_examples(
+                [catalog], self._format.examples_path, validate=validate_examples
+            )
+            if raw_examples:
+                formatted_examples = self.transform_examples(raw_examples)
+                parts.append(f"### Examples:\n{formatted_examples}")
 
-            if include_examples and self._format.examples_path and catalog:
-                raw_examples = load_examples(
-                    [catalog], self._format.examples_path, validate=validate_examples
-                )
-                if raw_examples:
-                    formatted_examples = self.transform_examples(raw_examples)
-                    parts.append(f"### Examples:\n{formatted_examples}")
-
-            return "\n\n".join(parts)
-        finally:
-            self.catalog = prev_catalog
-            self.helper = prev_helper
-            self.catalog_id = prev_catalog_id
-            self.parser = prev_parser
+        return "\n\n".join(parts)
 
     def _catalog_description(
         self, include_schema: bool = True, catalog: Any | None = None

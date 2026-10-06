@@ -264,30 +264,19 @@ class TestElementalPromptGenerator(unittest.TestCase):
         self.assertIn("genericObject?: Record<string, any>", prompt)
 
     def test_allowed_components_pruning(self):
-        elemental_format = ElementalFormat(catalog=self.catalog)
+        from a2ui.catalog_transformers import ComponentPruningTransformer
+
+        pruned_catalog = ComponentPruningTransformer(["Text"]).transform(self.catalog)
+        elemental_format = ElementalFormat(catalog=pruned_catalog)
         generator = elemental_format.prompt_generator
-        original_helper = generator.helper
 
         # Only allow Text component, which should prune RichComponent
         prompt = generator.generate(
             role_description="Test role",
             include_schema=True,
-            allowed_components=["Text"],
         )
         self.assertNotIn("interface RichComponent", prompt)
         self.assertIn("interface Text", prompt)
-        self.assertIs(generator.catalog, self.catalog)
-        self.assertIs(generator.helper, original_helper)
-        self.assertIn("RichComponent", generator.helper.components)
-        self.assertIn("Text", generator.helper.components)
-
-        # Subsequent call without allowed_components should remain unpruned
-        unpruned_prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-        )
-        self.assertIn("interface RichComponent", unpruned_prompt)
-        self.assertIn("interface Text", unpruned_prompt)
 
     def test_elemental_include_examples_transformation(self):
         example_payload = {

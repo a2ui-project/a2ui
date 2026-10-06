@@ -17,7 +17,6 @@
 from collections.abc import Mapping, Sequence
 from typing import Any, TYPE_CHECKING
 
-from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.inference_formats.direct_json.schema_prompt import schema_to_prompt
@@ -100,7 +99,6 @@ class DirectJsonPromptGenerator(PromptGenerator):
               already resolved, so resolve them with
               `a2ui.utils.resolve_catalogs` before building the format.
             allowed_components: Optional list of component tags the LLM may use.
-              The prompt describes only these components.
             allowed_messages: Optional list of A2UI message types allowed.
             include_schema: Whether to include component schemas in the prompt.
             include_examples: Whether to include few-shot examples.
@@ -119,9 +117,6 @@ class DirectJsonPromptGenerator(PromptGenerator):
                 " format from the result."
             )
         catalogs: Sequence[CatalogApi] = self._format.catalogs
-        if allowed_components is not None:
-            pruner = ComponentPruningTransformer(allowed_components)
-            catalogs = [pruner.transform(c) for c in catalogs]
 
         parts = [role_description]
 
@@ -134,7 +129,7 @@ class DirectJsonPromptGenerator(PromptGenerator):
             parts.append(f"## UI Description:\n{ui_description}")
 
         if include_schema:
-            parts.append(schema_to_prompt(catalogs, allowed_messages=allowed_messages))
+            parts.append(schema_to_prompt(catalogs))
 
         if include_examples:
             examples_str = load_examples(

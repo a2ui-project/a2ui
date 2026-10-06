@@ -23,7 +23,6 @@ import json
 import re
 from typing import Any, TYPE_CHECKING
 
-from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.prompt import PromptGenerator
 from a2ui.schema import load_examples
@@ -164,9 +163,7 @@ class ExpressPromptGenerator(PromptGenerator):
         return self._catalog_description(include_schema=True, catalog=catalog)
 
     def generate_examples(
-        self,
-        catalog: Any | None = None,
-        validate: bool = False,
+        self, catalog: Any | None = None, validate: bool = False
     ) -> str:
         """Loads and formats few-shot Express DSL examples."""
         target_catalog = catalog or self.catalog
@@ -515,9 +512,7 @@ class ExpressPromptGenerator(PromptGenerator):
             ui_description: Optional UI context or rules.
             client_ui_capabilities: Optional client UI capability details.
             allowed_components: Optional list of component tags the LLM may use.
-              The list is read literally, so an empty list keeps no component.
-            allowed_messages: Ignored. This format's prompt has no message schema
-              to restrict.
+            allowed_messages: Optional list of A2UI message types allowed.
             include_schema: Whether to include component schemas in the prompt.
             include_examples: Whether to include few-shot examples.
             validate_examples: Whether to validate few-shot examples on generation.
@@ -525,31 +520,19 @@ class ExpressPromptGenerator(PromptGenerator):
         Returns:
             The complete system prompt string explaining A2UI Express and its catalog.
         """
-        catalog = self.catalog
-        if catalog and allowed_components is not None:
-            catalog = ComponentPruningTransformer(allowed_components).transform(catalog)
+        catalog = self._format.catalog if self._format else None
+        if self._format:
+            self.helper = CatalogSchemaHelper(catalog) if catalog else None
+            self.parser = ExpressParser(catalog) if catalog else None
 
-        prev_catalog = self.catalog
-        prev_helper = self.helper
-        prev_parser = self.parser
-        try:
-            if catalog is not None:
-                self.catalog = catalog
-                self.helper = CatalogSchemaHelper(catalog)
-                self.parser = ExpressParser(catalog)
-
-            return super().generate(
-                role_description=role_description,
-                workflow_description=workflow_description,
-                ui_description=ui_description,
-                client_ui_capabilities=client_ui_capabilities,
-                allowed_components=allowed_components,
-                allowed_messages=allowed_messages,
-                include_schema=include_schema,
-                include_examples=include_examples,
-                validate_examples=validate_examples,
-            )
-        finally:
-            self.catalog = prev_catalog
-            self.helper = prev_helper
-            self.parser = prev_parser
+        return super().generate(
+            role_description=role_description,
+            workflow_description=workflow_description,
+            ui_description=ui_description,
+            client_ui_capabilities=client_ui_capabilities,
+            allowed_components=allowed_components,
+            allowed_messages=allowed_messages,
+            include_schema=include_schema,
+            include_examples=include_examples,
+            validate_examples=validate_examples,
+        )
