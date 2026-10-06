@@ -123,7 +123,7 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
 
             # Yield createSurface immediately when it completes
             if sid not in self._yielded_start_messages:
-                self._yield_messages([obj], messages)
+                self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
                 self._yielded_start_messages.add(sid)
                 self._yielded_surfaces_set.add(sid)
                 self._buffered_start_message = None
@@ -152,14 +152,14 @@ class DirectJsonStreamParserV09(DirectJsonStreamParser):
                 self._pending_messages.setdefault(sid, []).append(obj)
                 return True
             self.add_msg_type(MSG_TYPE_DELETE_SURFACE)
-            self._yield_messages([obj], messages)
+            self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
             return True
 
         if MSG_TYPE_UPDATE_DATA_MODEL in obj:
 
             self.add_msg_type(MSG_TYPE_UPDATE_DATA_MODEL)
             self.update_data_model(obj[MSG_TYPE_UPDATE_DATA_MODEL], messages)
-            self._yield_messages([obj], messages)
+            self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
             return True
 
         return False

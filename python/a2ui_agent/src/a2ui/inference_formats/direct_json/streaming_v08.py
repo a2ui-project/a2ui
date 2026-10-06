@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from a2ui.core import CatalogApi
+from a2ui.core import CatalogApi, RELAXED_VALIDATION
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.parser import ResponsePart
 from a2ui.parser.constants import (
@@ -153,7 +153,7 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
 
             # Yield beginRendering immediately when it completes
             if sid not in self._yielded_start_messages:
-                self._yield_messages([obj], messages)
+                self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
                 self._yielded_start_messages.add(sid)
                 self._yielded_surfaces_set.add(sid)
                 self._buffered_start_message = None
@@ -178,16 +178,16 @@ class DirectJsonStreamParserV08(DirectJsonStreamParser):
         if MSG_TYPE_DATA_MODEL_UPDATE in obj:
             self.add_msg_type(MSG_TYPE_DATA_MODEL_UPDATE)
             self.update_data_model(obj[MSG_TYPE_DATA_MODEL_UPDATE], messages)
-            self._yield_messages([obj], messages)
+            self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
             self.yield_reachable(messages, check_root=False, raise_on_orphans=False)
             return True
 
         if MSG_TYPE_DELETE_SURFACE in obj:
-            self._yield_messages([obj], messages)
+            self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
             return True
 
         # If unknown, let base class yield it or yield it here
-        self._yield_messages([obj], messages)
+        self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
         return True
 
     def _construct_partial_message(

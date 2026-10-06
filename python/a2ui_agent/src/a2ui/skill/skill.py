@@ -26,8 +26,6 @@ from a2ui.schema import CatalogConfig
 
 def _clean_catalog_name(catalog: Any) -> str:
     """Derives a clean, LLM-friendly catalog name from a catalog ID or URL."""
-    if isinstance(catalog, CatalogConfig):
-        catalog = catalog.to_catalog()
     raw_id = getattr(catalog, "catalog_id", "basic")
     if not raw_id:
         return "basic"
@@ -43,37 +41,26 @@ def _clean_catalog_name(catalog: Any) -> str:
 
 
 def _resolve_catalogs_list(
-    catalogs: Optional[list[Union[str, CatalogApi, CatalogConfig]]],
+    catalogs: Optional[list[Union[str, CatalogApi]]],
     fmt: InferenceFormat,
 ) -> list[CatalogApi]:
-    """Resolves catalogs from catalog paths, configs, catalogs, or the format's defaults."""
+    """Resolves catalogs from catalog paths, catalogs, or the format's defaults."""
     if catalogs is not None:
         resolved: list[CatalogApi] = []
         for c in catalogs:
             if isinstance(c, str):
                 cat_name = os.path.splitext(os.path.basename(c))[0] or "custom"
                 resolved.append(CatalogConfig.from_path(cat_name, c).to_catalog())
-            elif isinstance(c, CatalogConfig):
-                resolved.append(c.to_catalog())
             else:
                 resolved.append(c)
         return resolved
 
     defaults: list[CatalogApi] = []
-    format_catalogs = getattr(fmt, "catalogs", None)
-    if format_catalogs:
-        defaults.extend(
-            c.to_catalog() if isinstance(c, CatalogConfig) else c
-            for c in format_catalogs
-        )
+    if hasattr(fmt, "catalogs") and fmt.catalogs:
+        defaults.extend(fmt.catalogs)
     if hasattr(fmt, "catalog") and fmt.catalog:
-        fmt_cat = (
-            fmt.catalog.to_catalog()
-            if isinstance(fmt.catalog, CatalogConfig)
-            else fmt.catalog
-        )
-        if fmt_cat not in defaults:
-            defaults.append(fmt_cat)
+        if fmt.catalog not in defaults:
+            defaults.append(fmt.catalog)
 
     return defaults
 

@@ -14,11 +14,10 @@
 
 """SkillGenerator for compiling InferenceFormat and Catalog into Skill and SkillSet packages."""
 
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
-from a2ui.schema import CatalogConfig
 from a2ui.skill.skill import Skill, SkillSet, _clean_catalog_name, _resolve_catalogs_list
 
 
@@ -32,7 +31,7 @@ class SkillGenerator:
         self,
         name: str = "a2ui",
         description: Optional[str] = None,
-        catalogs: Optional[list[Union[str, CatalogApi, CatalogConfig]]] = None,
+        catalogs: Optional[list[Union[str, CatalogApi]]] = None,
     ) -> Skill:
         """Compiles an InferenceFormat into a single unified (monolithic) Skill.
 
@@ -78,7 +77,7 @@ class SkillGenerator:
 
     def generate_catalog_skill(
         self,
-        catalog: Optional[Union[str, CatalogApi, CatalogConfig]] = None,
+        catalog: Optional[CatalogApi] = None,
         name: Optional[str] = None,
         description: Optional[str] = None,
         include_examples: bool = True,
@@ -87,9 +86,8 @@ class SkillGenerator:
 
         If catalog is not specified, defaults to the catalog configured on the inference format.
         """
-        if catalog is not None:
-            target_catalog = _resolve_catalogs_list([catalog], self.fmt)[0]
-        else:
+        target_catalog = catalog
+        if target_catalog is None:
             format_catalogs = _resolve_catalogs_list(None, self.fmt)
             if format_catalogs:
                 target_catalog = format_catalogs[0]
@@ -145,7 +143,7 @@ class SkillGenerator:
 
     def generate_skillset(
         self,
-        catalogs: Optional[list[Union[str, CatalogApi, CatalogConfig]]] = None,
+        catalogs: Optional[list[Union[str, CatalogApi]]] = None,
         core_name: str = "a2ui-core",
     ) -> SkillSet:
         """Generates standard modular skills (a2ui-core + 1 skill per catalog) for an inference format.
