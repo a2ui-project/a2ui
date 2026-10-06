@@ -1,5 +1,12 @@
 ## Unreleased
 
+- (v1_0) The basic catalog's `and`, `or` and `not` read a ValidationResult
+  operand by its `valid` member instead of treating every non-empty dict as
+  truthy, so the v1.0 specification's nested
+  `and(required, or(required, required))` check is false when a field is
+  empty. The v0.9 catalog keeps plain truthiness, since its validators return
+  booleans.
+
 - **BREAKING**: `ComponentModel.component_tree` names the component under
   `component`, as an `updateComponents` message does, instead of `type`. A
   property named `type` no longer replaces the component type in the tree,
