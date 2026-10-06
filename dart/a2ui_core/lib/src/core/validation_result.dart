@@ -68,6 +68,24 @@ class ValidationResult {
     );
   }
 
+  /// The validity carried by [value] when it is a validation result, or
+  /// `null` when it is not one.
+  ///
+  /// A [ValidationResult] reports its [valid] field; a map carrying a `valid`
+  /// key reports whether that key is exactly `true`. Anything else, including
+  /// booleans and maps without a `valid` key, returns `null`.
+  ///
+  /// This is the one rule for reading a check result's validity. The binder's
+  /// `checks` evaluation uses it through [ValidationResult.fromEvaluation], and
+  /// the basic catalog's `and`, `or`, and `not` functions use it to read their
+  /// operands, so a value cannot pass as a check and fail as an operand.
+  static bool? validityOf(Object? value) => switch (value) {
+        ValidationResult(:final valid) => valid,
+        final Map<Object?, Object?> map when map.containsKey('valid') =>
+          map['valid'] == true,
+        _ => null,
+      };
+
   /// Coerces the evaluated result of a check `condition` into a normalized
   /// [ValidationResult], using [fallbackMessage] when no message is supplied by
   /// the function result.
@@ -76,17 +94,17 @@ class ValidationResult {
     String fallbackMessage = 'Validation failed',
   }) {
     if (value is ValidationResult) {
+      final bool isValid = validityOf(value)!;
       final bool hasCustomMessage =
           value.message != null && value.message!.isNotEmpty;
-      final String? resolvedMessage = hasCustomMessage
-          ? value.message
-          : (value.valid ? null : fallbackMessage);
+      final String? resolvedMessage =
+          hasCustomMessage ? value.message : (isValid ? null : fallbackMessage);
       final String? resolvedSeverity =
           (value.severity == 'warning' || value.severity == 'info')
               ? value.severity!
-              : (value.valid ? null : 'error');
+              : (isValid ? null : 'error');
       return ValidationResult(
-        valid: value.valid,
+        valid: isValid,
         message: resolvedMessage,
         code: value.code,
         severity: resolvedSeverity,
@@ -94,7 +112,7 @@ class ValidationResult {
     }
 
     if (value is Map && value.containsKey('valid')) {
-      final isValid = value['valid'] == true;
+      final bool isValid = validityOf(value)!;
       final Object? rawMessage = value['message'];
       final customMessage = rawMessage?.toString();
       final String? resolvedMessage =
