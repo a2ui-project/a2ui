@@ -169,8 +169,8 @@ def test_v10_component_without_catalog_uses_surface_catalog(
     """A component that names no catalog isn't looked up in the other catalogs."""
     parser = DirectJsonStreamParser([basic_catalog_v10, custom_catalog_v10])
 
-    with pytest.raises(A2uiValidationError, match="Validation failed"):
-        _stream(
+    assert (
+        _stream_steps(
             parser,
             [
                 A2UI_OPEN_TAG
@@ -180,9 +180,13 @@ def test_v10_component_without_catalog_uses_surface_catalog(
                     '{"version": "v1.0", "updateComponents": {"surfaceId": "main",'
                     ' "components": [{"id": "root", "component": "CustomMetric"'
                 ),
-                ', "value": 1}]}}]' + A2UI_CLOSE_TAG,
+                ', "value": 1}',
             ],
-        )
+        )[2]
+        == []
+    )
+    with pytest.raises(A2uiValidationError, match="Validation failed"):
+        parser.process_chunk("]}}]" + A2UI_CLOSE_TAG)
 
 
 def _stream_steps(parser, chunks):

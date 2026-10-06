@@ -1138,7 +1138,7 @@ class DirectJsonStreamParser:
                     _collect_tree(root, complete_nodes)
                 available_reachable = complete_nodes
 
-            if check_root:
+            if check_root or self._buffers_incomplete_components:
                 self._validate_components(comp_models, available_reachable)
 
             # 1. Process placeholders and partial children

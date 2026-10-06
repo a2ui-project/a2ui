@@ -3398,7 +3398,9 @@
                 catalogId: "https://a2ui.org/catalogs/basic"
     - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": ['
       expect: []
-    - input: '{"id": "root", "component": "CustomMetric", "value": 42}]}}]</a2ui-json>'
+    - input: '{"id": "root", "component": "CustomMetric", "value": 42}'
+      expect: []
+    - input: "]}}]</a2ui-json>"
       expectError: "Validation failed"
 
 - name: test_v1_0_streaming_component_catalog_id_arrives_late
