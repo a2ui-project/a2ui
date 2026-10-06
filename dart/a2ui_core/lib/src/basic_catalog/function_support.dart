@@ -21,8 +21,6 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:json_schema_builder/json_schema_builder.dart' show Schema;
-
 import '../core/catalog.dart';
 import '../core/contexts.dart';
 import '../core/validation_result.dart';
@@ -71,12 +69,22 @@ class BasicFunction extends FunctionImplementation {
 // ---------------------------------------------------------------------------
 
 /// Whether [value] is truthy: everything except `null`, `false`, `0`, `NaN`
-/// and the empty string.
+/// and the empty string. Lists and maps are truthy, even when empty.
 bool isTruthy(Object? value) => switch (value) {
       null || false || '' => false,
       final num n => n != 0 && !n.isNaN,
       _ => true,
     };
+
+/// [isTruthy], except that a [ValidationResult], or a map carrying a `valid`
+/// key, is truthy when it is valid, as read by [ValidationResult.validityOf].
+///
+/// The v1.0 logic functions use this so `and`, `or` and `not` agree with the
+/// binder's `checks` evaluation when they wrap a validation rule. The v0.9
+/// functions keep [isTruthy]: their validation rules return `bool`, and a
+/// data-model object that happens to carry a `valid` key is an object.
+bool isTruthyOrValid(Object? value) =>
+    ValidationResult.validityOf(value) ?? isTruthy(value);
 
 /// Reads [value] as a number, or `NaN` when it is not one.
 ///
@@ -221,14 +229,15 @@ List<Object?> _logicOperands(String name, Object? values) {
       expression: name);
 }
 
-/// Whether every entry of [values] is truthy. Throws [A2uiExpressionError]
-/// for fewer than two values.
-bool evaluateAnd(Object? values) =>
-    _logicOperands('and', values).every(isTruthy);
+/// Whether every entry of [values] is truthy by [truthy]. Throws
+/// [A2uiExpressionError] for fewer than two values.
+bool evaluateAnd(Object? values, [bool Function(Object?) truthy = isTruthy]) =>
+    _logicOperands('and', values).every(truthy);
 
-/// Whether any entry of [values] is truthy. Throws [A2uiExpressionError]
-/// for fewer than two values.
-bool evaluateOr(Object? values) => _logicOperands('or', values).any(isTruthy);
+/// Whether any entry of [values] is truthy by [truthy]. Throws
+/// [A2uiExpressionError] for fewer than two values.
+bool evaluateOr(Object? values, [bool Function(Object?) truthy = isTruthy]) =>
+    _logicOperands('or', values).any(truthy);
 
 // ---------------------------------------------------------------------------
 // formatString
@@ -241,8 +250,8 @@ bool evaluateOr(Object? values) => _logicOperands('or', values).any(isTruthy);
 /// recomputes when the data it reads changes. Interpolated values are
 /// rendered with [coerceToString].
 ///
-/// On a v1.0 context the parser's `{path}` and `{call, args}` parts are
-/// rewritten to the `@path` and `@call` forms that v1.0 resolution expects.
+/// The parser's `{path}` and `{call, args}` parts are rewritten with
+/// [DataContext.adaptExpressionPart] into the shape the context resolves.
 Object? formatTemplate(Object? template, DataContext context) {
   final List<Object?> parts = ExpressionParser().parse(
     coerceToString(template),
@@ -253,9 +262,7 @@ Object? formatTemplate(Object? template, DataContext context) {
   final List<Object?> sources = [
     for (final Object? part in parts)
       if (part is Map)
-        context.resolveListenable(
-          context.isV10 ? adaptExpressionPartForV10(part) : part,
-        )
+        context.resolveListenable(context.adaptExpressionPart(part))
       else
         part,
   ];
@@ -268,34 +275,6 @@ Object? formatTemplate(Object? template, DataContext context) {
         )
         .join(),
   );
-}
-
-/// Rewrites a parsed expression part for v1.0 resolution: `{path}` becomes
-/// `{'@path'}` and `{call, args, returnType}` becomes `{'@call', ...}`, with
-/// call arguments rewritten recursively. Other values pass through.
-Object? adaptExpressionPartForV10(Object? part) {
-  if (part is List) {
-    return [for (final item in part) adaptExpressionPartForV10(item)];
-  }
-  if (part is! Map) return part;
-  if (part['path'] is String &&
-      !part.containsKey('componentId') &&
-      !part.containsKey('@path')) {
-    return <String, Object?>{'@path': part['path']};
-  }
-  if (part['call'] is String && !part.containsKey('@call')) {
-    final Object? rawArgs = part['args'];
-    return <String, Object?>{
-      '@call': part['call'],
-      'args': <String, Object?>{
-        if (rawArgs is Map)
-          for (final MapEntry<Object?, Object?> entry in rawArgs.entries)
-            entry.key.toString(): adaptExpressionPartForV10(entry.value),
-      },
-      'returnType': part['returnType'] ?? 'any',
-    };
-  }
-  return part;
 }
 
 // ---------------------------------------------------------------------------
@@ -340,301 +319,56 @@ Future<void>? openUrl(Object? url, OpenUrlCallback? onOpen) {
 }
 
 // ---------------------------------------------------------------------------
-// Argument schemas
+// Function bodies
 // ---------------------------------------------------------------------------
 
-/// Builds argument schemas in the shape of one protocol version's catalog,
-/// where dynamic values are a literal, a data binding or a function call.
-class BasicArgumentSchemas {
-  /// Creates schemas whose bindings and calls use the v1.0 `@path`/`@call`
-  /// keys when [v10] is true, and `path`/`call` otherwise.
-  const BasicArgumentSchemas({required this.v10});
-
-  /// Whether bindings and calls use the v1.0 keys.
-  final bool v10;
-
-  String get _pathKey => v10 ? '@path' : 'path';
-  String get _callKey => v10 ? '@call' : 'call';
-
-  Map<String, Object?> get _binding => {
-        'type': 'object',
-        'properties': {
-          _pathKey: {'type': 'string'},
-        },
-        'required': [_pathKey],
-      };
-
-  Map<String, Object?> get _call => {
-        'type': 'object',
-        'properties': {
-          _callKey: {'type': 'string'},
-          'args': {'type': 'object'},
-          'returnType': {'type': 'string'},
-        },
-        'required': [_callKey],
-      };
-
-  /// A value that is a literal of one of [types], a binding or a call.
-  Map<String, Object?> dynamic(String description, List<String> types) => {
-        'description': description,
-        'anyOf': [
-          for (final type in types) {'type': type},
-          _binding,
-          _call,
-        ],
-      };
-
-  /// A dynamic string.
-  Map<String, Object?> string(String description) =>
-      dynamic(description, const ['string']);
-
-  /// A dynamic number.
-  Map<String, Object?> number(String description) =>
-      dynamic(description, const ['number']);
-
-  /// A dynamic boolean.
-  Map<String, Object?> boolean(String description) =>
-      dynamic(description, const ['boolean']);
-
-  /// A dynamic value of any JSON type.
-  Map<String, Object?> any(String description) => dynamic(
-        description,
-        const ['string', 'number', 'boolean', 'array', 'object', 'null'],
-      );
-
-  /// The URL argument of `openUrl`.
-  Map<String, Object?> get url => v10
-      ? {
-          'description': 'The URL to open.',
-          'oneOf': [
-            {'type': 'string', 'format': 'uri'},
-            _binding,
-            _call,
-          ],
-        }
-      : {'type': 'string', 'format': 'uri', 'description': 'The URL to open.'};
-
-  /// An argument object with [properties], of which [required] must be
-  /// present, and no other properties.
-  Schema object(
-    Map<String, Map<String, Object?>> properties, {
-    List<String> required = const [],
-    List<Object?>? anyOf,
-  }) =>
-      Schema.fromMap({
-        'type': 'object',
-        'properties': properties,
-        if (required.isNotEmpty) 'required': required,
-        if (anyOf != null) 'anyOf': anyOf,
-        'unevaluatedProperties': false,
-      });
-}
-
-/// Builds the 14 basic catalog functions for one protocol version.
+/// The behaviour of the 14 basic catalog functions, by name, for one
+/// protocol version.
 ///
-/// [schemas] picks the binding and call shapes for the argument schemas.
-/// [validator] wraps a rule's [ValidationResult] in the version's return
-/// value, with [validatorReturnType] as its declared type.
-List<FunctionImplementation> buildBasicFunctions({
-  required BasicArgumentSchemas schemas,
-  required A2uiReturnType validatorReturnType,
+/// A body evaluates a call; its name, argument schema and return type come
+/// from the published catalog document, which `BasicCatalog` reads from an
+/// embedded copy. [validator] wraps a rule's [ValidationResult] in the
+/// version's return value, and [truthy] is the version's truthiness rule for
+/// `and`, `or` and `not`.
+Map<String, BasicFunctionBody> basicFunctionBodies({
   required Object? Function(ValidationResult result) validator,
+  required bool Function(Object?) truthy,
   required String Function(Object?, Map<String, dynamic>) formatNumber,
   required String Function(Object?, Map<String, dynamic>) formatCurrency,
   required String Function(Object?, Map<String, dynamic>) formatDate,
   required String Function(Object?, Map<String, dynamic>) pluralize,
   OpenUrlCallback? onOpenUrl,
 }) {
-  const List<Object?> minOrMax = [
-    {
-      'required': ['min'],
-    },
-    {
-      'required': ['max'],
-    },
-  ];
-  final s = schemas;
+  BasicFunctionBody validation(
+    ValidationResult Function(Map<String, dynamic> args) rule,
+  ) =>
+      (args, _) => validator(rule(args));
 
-  BasicFunction validation(
-    String name,
-    Map<String, Map<String, Object?>> properties,
-    List<String> required,
-    ValidationResult Function(Map<String, dynamic> args) rule, {
-    List<Object?>? anyOf,
-  }) =>
-      BasicFunction(
-        name: name,
-        returnType: validatorReturnType,
-        argumentSchema: s.object(properties, required: required, anyOf: anyOf),
-        body: (args, _) => validator(rule(args)),
-      );
-
-  BasicFunction formatter(
-    String name,
-    Map<String, Map<String, Object?>> properties,
-    List<String> required,
+  BasicFunctionBody formatter(
     String Function(Object?, Map<String, dynamic>) format,
   ) =>
-      BasicFunction(
-        name: name,
-        returnType: A2uiReturnType.string,
-        argumentSchema: s.object(properties, required: required),
-        body: (args, _) => format(args['value'], args),
-      );
+      (args, _) => format(args['value'], args);
 
-  return [
-    validation(
-      'required',
-      {
-        'value': {'description': 'The value to check.'},
-      },
-      ['value'],
-      (args) => validateRequired(args['value']),
-    ),
-    validation(
-      'regex',
-      {
-        'value': s.string('The value to test.'),
-        'pattern': {
-          'type': 'string',
-          'description': 'The regex pattern to match against.',
-        },
-      },
-      ['value', 'pattern'],
+  return {
+    'required': validation((args) => validateRequired(args['value'])),
+    'regex': validation(
       (args) => validateRegex(args['value'], args['pattern']),
     ),
-    validation(
-      'length',
-      {
-        'value': s.string('The string or list to measure.'),
-        'min': {
-          'type': 'integer',
-          'minimum': 0,
-          'description': 'The minimum allowed length.',
-        },
-        'max': {
-          'type': 'integer',
-          'minimum': 0,
-          'description': 'The maximum allowed length.',
-        },
-      },
-      ['value'],
+    'length': validation(
       (args) => validateLength(args['value'], args['min'], args['max']),
-      anyOf: minOrMax,
     ),
-    validation(
-      'numeric',
-      {
-        'value': s.number('The value to check.'),
-        'min': {'type': 'number', 'description': 'The minimum allowed value.'},
-        'max': {'type': 'number', 'description': 'The maximum allowed value.'},
-      },
-      ['value'],
+    'numeric': validation(
       (args) => validateNumeric(args['value'], args['min'], args['max']),
-      anyOf: minOrMax,
     ),
-    validation(
-      'email',
-      {'value': s.string('The value to check.')},
-      ['value'],
-      (args) => validateEmail(args['value']),
-    ),
-    BasicFunction(
-      name: 'formatString',
-      returnType: A2uiReturnType.string,
-      argumentSchema: s.object({
-        'value': s.string('The string template to interpolate.'),
-      }, required: [
-        'value'
-      ]),
-      body: (args, context) => formatTemplate(args['value'], context),
-    ),
-    formatter(
-      'formatNumber',
-      {
-        'value': s.number('The number to format.'),
-        'decimals': s.number('Optional. The number of decimal places.'),
-        'grouping': s.boolean(
-          'Optional. Whether to use locale grouping separators. Defaults to '
-          'true.',
-        ),
-      },
-      ['value'],
-      formatNumber,
-    ),
-    formatter(
-      'formatCurrency',
-      {
-        'value': s.number('The monetary amount.'),
-        'currency': s.string("The ISO 4217 currency code (e.g., 'USD')."),
-        'decimals': s.number('Optional. The number of decimal places.'),
-        'grouping': s.boolean(
-          'Optional. Whether to use locale grouping separators. Defaults to '
-          'true.',
-        ),
-      },
-      ['currency', 'value'],
-      formatCurrency,
-    ),
-    formatter(
-      'formatDate',
-      {
-        'value': s.any('The date to format.'),
-        'format': s.string("A Unicode TR35 date pattern string, or 'ISO'."),
-      },
-      ['format', 'value'],
-      formatDate,
-    ),
-    formatter(
-      'pluralize',
-      {
-        'value': s.number(
-          'The numeric value used to determine the plural category.',
-        ),
-        'zero': s.string("String for the 'zero' category."),
-        'one': s.string("String for the 'one' category."),
-        'two': s.string("String for the 'two' category."),
-        'few': s.string("String for the 'few' category."),
-        'many': s.string("String for the 'many' category."),
-        'other': s.string('The default/fallback string.'),
-      },
-      ['value', 'other'],
-      pluralize,
-    ),
-    BasicFunction(
-      name: 'openUrl',
-      returnType: A2uiReturnType.void_,
-      argumentSchema: s.object({'url': s.url}, required: ['url']),
-      body: (args, _) => openUrl(args['url'], onOpenUrl),
-    ),
-    for (final (String name, bool Function(Object?) evaluate) in [
-      ('and', evaluateAnd),
-      ('or', evaluateOr),
-    ])
-      BasicFunction(
-        name: name,
-        returnType: A2uiReturnType.boolean,
-        argumentSchema: s.object({
-          'values': {
-            'type': 'array',
-            'description': 'The list of boolean values to evaluate.',
-            'items': s.boolean('A value to evaluate.'),
-            'minItems': 2,
-          },
-        }, required: [
-          'values'
-        ]),
-        body: (args, _) => evaluate(args['values']),
-      ),
-    BasicFunction(
-      name: 'not',
-      returnType: A2uiReturnType.boolean,
-      argumentSchema: s.object({
-        'value': s.boolean('The boolean value to negate.'),
-      }, required: [
-        'value'
-      ]),
-      body: (args, _) => !isTruthy(args['value']),
-    ),
-  ];
+    'email': validation((args) => validateEmail(args['value'])),
+    'formatString': (args, context) => formatTemplate(args['value'], context),
+    'formatNumber': formatter(formatNumber),
+    'formatCurrency': formatter(formatCurrency),
+    'formatDate': formatter(formatDate),
+    'pluralize': formatter(pluralize),
+    'openUrl': (args, _) => openUrl(args['url'], onOpenUrl),
+    'and': (args, _) => evaluateAnd(args['values'], truthy),
+    'or': (args, _) => evaluateOr(args['values'], truthy),
+    'not': (args, _) => !truthy(args['value']),
+  };
 }

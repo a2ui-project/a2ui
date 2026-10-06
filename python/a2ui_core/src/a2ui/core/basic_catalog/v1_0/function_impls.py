@@ -460,6 +460,18 @@ OpenUrlImplementation = create_function_implementation(OpenUrlApi, _open_url_exe
 
 
 # Logical
+#
+# The v1.0 validators return a ValidationResult rather than a boolean, so a
+# nested ``and(required(...), or(...))`` receives dicts. A dict with a boolean
+# ``valid`` member is truthy by its validity, not by being a non-empty dict.
+def _is_truthy_or_valid(val: Any) -> bool:
+    if isinstance(val, dict):
+        valid = val.get("valid")
+        if isinstance(valid, bool):
+            return valid
+    return _to_bool(val)
+
+
 def _and_execute(
     args: dict[str, Any],
     context: Any = None,
@@ -468,7 +480,7 @@ def _and_execute(
     values = args.get("values")
     if not isinstance(values, list) or len(values) < 2:
         raise A2uiExpressionError("AndFunction requires at least 2 values")
-    return all(_to_bool(v) for v in values)
+    return all(_is_truthy_or_valid(v) for v in values)
 
 
 AndImplementation = create_function_implementation(AndApi, _and_execute)
@@ -482,7 +494,7 @@ def _or_execute(
     values = args.get("values")
     if not isinstance(values, list) or len(values) < 2:
         raise A2uiExpressionError("OrFunction requires at least 2 values")
-    return any(_to_bool(v) for v in values)
+    return any(_is_truthy_or_valid(v) for v in values)
 
 
 OrImplementation = create_function_implementation(OrApi, _or_execute)
@@ -493,7 +505,7 @@ def _not_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return not _to_bool(args.get("value"))
+    return not _is_truthy_or_valid(args.get("value"))
 
 
 NotImplementation = create_function_implementation(NotApi, _not_execute)

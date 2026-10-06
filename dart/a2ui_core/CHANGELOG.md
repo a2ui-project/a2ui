@@ -10,21 +10,28 @@
   `Video`, `AudioPlayer`, `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`,
   `Divider`, `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`,
   `DateTimeInput`).
-  - Component schemas, the catalog's `$id`, `title`, `description` and
-    theme, and its `protocolVersion` come from an embedded verbatim copy of
-    the published catalog document (`v0.9` for the v0.9 catalog, whose
-    document declares none). `tool/generate_basic_catalogs.dart` refreshes
-    the copy, and a test fails when it drifts.
+  - Component schemas, function argument schemas and return types, the
+    catalog's `$id`, `title`, `description` and theme, and its
+    `protocolVersion` come from an embedded verbatim copy of the published
+    catalog document (`v0.9` for the v0.9 catalog, whose document declares
+    none). `tool/generate_basic_catalogs.dart` refreshes the copy, and a test
+    fails when it drifts.
   - Component schemas reference the shared types through
     `common_types.json`, as the published documents do. v0.9 surfaces on
     the catalog validate; v1.0 surfaces cannot until the v1.0 common types
     are embedded.
   - v0.9 validation rules return `bool`; v1.0 rules return a
     `ValidationResult` with a failure message.
+  - In v1.0, `and`, `or`, and `not` read the validity of a `ValidationResult`
+    (or a map with a `valid` key) instead of treating every object as truthy,
+    so the v1.0 spec's nested `and(required, or(required, required))` check
+    blocks a submit when a field is empty. v0.9 keeps plain truthiness, since
+    its validators return booleans.
   - Formatting uses `package:intl` for the `locale` argument (default
     `en-US`). `formatDate` reads a timestamp without an offset as UTC, keeps
     the wall-clock time of one with an offset, and emits the UTC instant for
-    the `ISO` pattern.
+    the `ISO` pattern. It returns an empty string for a date that does not
+    exist, such as `2026-02-30`, instead of rolling it into the next month.
   - `openUrl` accepts only absolute `http`, `https`, `mailto` and `tel` URLs
     and passes them to an `OpenUrlCallback`. Without a callback it throws,
     which a binder reports as `EXECUTION_ERROR`.
@@ -35,8 +42,6 @@
   - From protocol 1.0, a function entry declares its return type as a
     top-level `returnType` keyword and no longer sets `properties.returnType`
     or `unevaluatedProperties: false`. Entries before 1.0 are unchanged.
-- `BasicCatalog` functions take their argument schemas and return types from
-  the published catalog documents.
 - `FormatStringFunction` now delegates to the basic catalog's `formatString`:
   it coerces a non-string `value` instead of throwing, renders integral
   doubles without `.0`, and resolves template bindings and calls on a v1.0
@@ -165,7 +170,7 @@
   `@`-prefixed function names (such as `${@index()}` and
   `${@index(offset: 1)}`), and accept `~0` and `~1` JSON Pointer escapes inside
   `${}` paths while rejecting malformed `~` escapes and non-leading `@` tokens.
-- Add `DataContext.isDataBinding`, `DataContext.isFunctionCall`, and `DataContext.bindingFor` for protocol-version-aware binding and function-call detection; adapt `FormatStringFunction` parser AST nodes (`@path`/`@call`) in v1.0 mode, pre-build function argument signals outside `computed` in `DataContext.resolveListenable`, skip binding/call validation inside `updateDataModel.value` in `checkPathsAndRecursion`, and report unrecognized or invalid action payloads on `SurfaceModel.onError` with code `INVALID_ACTION`.
+- Add `DataContext.isDataBinding`, `DataContext.isFunctionCall`, `DataContext.bindingFor`, and `DataContext.adaptExpressionPart` for protocol-version-aware binding and function-call detection; adapt `FormatStringFunction` parser AST nodes (`@path`/`@call`) in v1.0 mode, pre-build function argument signals outside `computed` in `DataContext.resolveListenable`, skip binding/call validation inside `updateDataModel.value` in `checkPathsAndRecursion`, and report unrecognized or invalid action payloads on `SurfaceModel.onError` with code `INVALID_ACTION`.
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.
 - `FormatStringFunction` coerces null expression arguments to empty strings and encodes maps and lists as JSON.
@@ -247,7 +252,6 @@
   entry and tracks nested bindings reactively; previously a container holding
   bindings (such as a function argument list or a nested `{path}` value) was
   passed through as a static literal.
-  > > > > > > > upstream/main
 
 ## 0.2.2
 

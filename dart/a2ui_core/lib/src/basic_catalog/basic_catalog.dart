@@ -13,14 +13,10 @@
 // limitations under the License.
 
 import '../core/catalog.dart';
-import '../core/contexts.dart';
 import '../core/validation_result.dart';
-import '../primitives/cancellation.dart';
 import 'function_support.dart';
 import 'locale_formatting.dart';
-import 'v0_9/components.dart';
 import 'v0_9/functions.dart';
-import 'v1_0/components.dart';
 import 'v1_0/functions.dart';
 
 export 'function_support.dart' show OpenUrlCallback;
@@ -69,7 +65,7 @@ abstract final class BasicCatalog {
   }) =>
       _fromPublished(
         publishedBasicCatalogV0_9(),
-        basicFunctionsV0_9(locale: locale, openUrl: openUrl),
+        basicFunctionBodiesV0_9(locale: locale, openUrl: openUrl),
       );
 
   /// The v1.0 basic catalog, whose validation rules return a
@@ -80,19 +76,29 @@ abstract final class BasicCatalog {
   }) =>
       _fromPublished(
         publishedBasicCatalogV1_0(),
-        basicFunctionsV1_0(locale: locale, openUrl: openUrl),
+        basicFunctionBodiesV1_0(locale: locale, openUrl: openUrl),
       );
 
   /// The [published] document's components, theme, identity and function
-  /// signatures, each function evaluated by its entry in [implementations].
+  /// signatures, each function evaluated by its entry in [bodies].
+  ///
+  /// Throws [StateError] when the document and [bodies] do not name the same
+  /// functions, so a change to either cannot go unnoticed.
   static Catalog<ComponentApi, FunctionImplementation> _fromPublished(
     CatalogApi published,
-    List<FunctionImplementation> implementations,
+    Map<String, BasicFunctionBody> bodies,
   ) {
-    final Map<String, FunctionImplementation> byName = {
-      for (final FunctionImplementation function in implementations)
-        function.name: function,
-    };
+    final Set<String> unimplemented =
+        published.functions.keys.toSet().difference(bodies.keys.toSet());
+    final Set<String> unpublished =
+        bodies.keys.toSet().difference(published.functions.keys.toSet());
+    if (unimplemented.isNotEmpty || unpublished.isNotEmpty) {
+      throw StateError(
+        'Basic catalog ${published.id}: functions without an implementation '
+        '$unimplemented, implementations the document does not declare '
+        '$unpublished.',
+      );
+    }
     return Catalog(
       id: published.id,
       schemaId: published.schemaId,
@@ -102,38 +108,14 @@ abstract final class BasicCatalog {
       components: published.components.values.toList(),
       functions: [
         for (final FunctionApi signature in published.functions.values)
-          _PublishedFunction(
-            signature,
-            byName[signature.name] ??
-                (throw StateError(
-                  "Published basic catalog function '${signature.name}' has "
-                  'no implementation.',
-                )),
+          BasicFunction(
+            name: signature.name,
+            argumentSchema: signature.argumentSchema,
+            returnType: signature.returnType,
+            body: bodies[signature.name]!,
           ),
       ],
       themeSchema: published.themeSchema,
     );
   }
-}
-
-/// A basic catalog function with the published signature: the argument
-/// schema and return type of the catalog document, evaluated by
-/// [_implementation].
-final class _PublishedFunction extends FunctionImplementation {
-  _PublishedFunction(FunctionApi signature, this._implementation)
-      : super(
-          name: signature.name,
-          argumentSchema: signature.argumentSchema,
-          returnType: signature.returnType,
-        );
-
-  final FunctionImplementation _implementation;
-
-  @override
-  Object? execute(
-    Map<String, dynamic> args,
-    DataContext context, [
-    CancellationSignal? cancellationSignal,
-  ]) =>
-      _implementation.execute(args, context, cancellationSignal);
 }

@@ -42,12 +42,15 @@ import {
   createFormatDateImplementation as createCommonFormatDate,
   createPluralizeImplementation as createCommonPluralize,
   createOpenUrlImplementation,
+  isTruthyOrValid,
 } from '../../../../common/basic_functions.js';
 
-// Logical
-export const AndImplementation = createAndImplementation(AndApi);
-export const OrImplementation = createOrImplementation(OrApi);
-export const NotImplementation = createNotImplementation(NotApi);
+// Logical. The v1.0 validators return a ValidationResult, so the logical
+// functions read an operand's `valid` member rather than treating every
+// object as truthy.
+export const AndImplementation = createAndImplementation(AndApi, {truthy: isTruthyOrValid});
+export const OrImplementation = createOrImplementation(OrApi, {truthy: isTruthyOrValid});
+export const NotImplementation = createNotImplementation(NotApi, {truthy: isTruthyOrValid});
 
 // Formatting
 export const FormatStringImplementation = createFormatStringImplementation(FormatStringApi);

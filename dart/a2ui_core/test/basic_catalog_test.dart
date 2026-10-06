@@ -128,7 +128,7 @@ void main() {
     });
   });
 
-  group('BasicCatalog components', () {
+  group('BasicCatalog published documents', () {
     /// The published catalog document a factory implements.
     Map<String, Object?> published(String path) =>
         jsonDecode(File(resolveConformancePath('../$path')).readAsStringSync())
@@ -143,7 +143,7 @@ void main() {
       (
         'basicCatalogV1_0Json',
         basicCatalogV1_0Json,
-        'catalogs/basic/v1/catalog.json'
+        'catalogs/basic/v1/catalog.json',
       ),
     ]) {
       test('$constant is identical to $path', () {
@@ -183,6 +183,35 @@ void main() {
             parsed.components[name]!.schema.value,
             reason: name,
           );
+        }
+      });
+
+      test('$label implements every published function, and no other', () {
+        final Map<String, Object?> document = published(path);
+        final functions = document['functions']! as Map<String, Object?>;
+
+        expect(catalog.functions.keys.toList(), functions.keys.toList());
+        for (final MapEntry<String, FunctionImplementation> entry
+            in catalog.functions.entries) {
+          expect(entry.value.name, entry.key);
+        }
+      });
+
+      test('$label function signatures are the published ones', () {
+        final CatalogApi parsed = Catalog.fromJson(
+          published(path),
+          protocolVersion: catalog.protocolVersion,
+        );
+
+        for (final String name in parsed.functions.keys) {
+          final FunctionApi expected = parsed.functions[name]!;
+          final FunctionImplementation actual = catalog.functions[name]!;
+          expect(
+            actual.argumentSchema.value,
+            expected.argumentSchema.value,
+            reason: '$name argument schema',
+          );
+          expect(actual.returnType, expected.returnType, reason: name);
         }
       });
 
@@ -262,6 +291,102 @@ void main() {
         () => _call(v10, 'or', {'values': null}),
         throwsA(isA<A2uiExpressionError>()),
       );
+    });
+
+    group('reads validity from validation results', () {
+      Object? required(Object? value) =>
+          _call(v10, 'required', {'value': value});
+
+      test('not() reads a result or {valid} map by its validity', () {
+        bool truthy(Object? value) =>
+            _call(v10, 'not', {'value': value}) == false;
+        expect(truthy(const ValidationResult(valid: false)), isFalse);
+        expect(truthy(const ValidationResult(valid: true)), isTrue);
+        expect(truthy({'valid': true}), isTrue);
+        expect(truthy({'valid': false}), isFalse);
+        expect(truthy({'valid': 'yes'}), isFalse);
+        expect(truthy({'other': 1}), isTrue);
+        expect(truthy(<String, Object?>{}), isTrue);
+      });
+
+      test('not(required(value)) inverts the validity', () {
+        expect(required(''), isA<ValidationResult>());
+        expect(_call(v10, 'not', {'value': required('')}), isTrue);
+        expect(_call(v10, 'not', {'value': required('x')}), isFalse);
+      });
+
+      test('or over two failing results is false', () {
+        expect(
+          _call(v10, 'or', {
+            'values': [required(''), required(null)],
+          }),
+          isFalse,
+        );
+      });
+
+      test('nested and(required, or(required, required)) follows the spec', () {
+        bool buttonEnabled({
+          required Object? terms,
+          required Object? email,
+          required Object? phone,
+        }) =>
+            _call(v10, 'and', {
+              'values': [
+                required(terms),
+                _call(v10, 'or', {
+                  'values': [required(email), required(phone)],
+                }),
+              ],
+            })! as bool;
+
+        expect(buttonEnabled(terms: null, email: '', phone: ''), isFalse);
+        expect(buttonEnabled(terms: true, email: '', phone: ''), isFalse);
+        expect(buttonEnabled(terms: true, email: 'a@b.c', phone: ''), isTrue);
+        expect(buttonEnabled(terms: true, email: '', phone: '555'), isTrue);
+      });
+
+      test('v0.9 validators return booleans, so the result is unchanged', () {
+        Object? requiredV09(Object? value) =>
+            _call(v09, 'required', {'value': value});
+        expect(requiredV09(''), isFalse);
+        expect(
+          _call(v09, 'and', {
+            'values': [
+              requiredV09(true),
+              _call(v09, 'or', {
+                'values': [requiredV09(''), requiredV09('')],
+              }),
+            ],
+          }),
+          isFalse,
+        );
+      });
+
+      test('v0.9 treats a {valid} map as a plain, truthy object', () {
+        expect(
+            _call(v09, 'not', {
+              'value': {'valid': false}
+            }),
+            isFalse);
+        expect(
+          _call(v09, 'and', {
+            'values': [
+              {'valid': false},
+              {'valid': false},
+            ],
+          }),
+          isTrue,
+        );
+        expect(
+          _call(v09, 'or', {
+            'values': [
+              {'valid': false},
+              0,
+            ],
+          }),
+          isTrue,
+        );
+      });
     });
   });
 
@@ -559,6 +684,19 @@ void main() {
       expect(format(null, 'yyyy'), '');
       expect(format('', 'yyyy'), '');
       expect(format('not a date', 'yyyy'), '');
+    });
+
+    test('rejects dates whose fields do not survive parsing', () {
+      // DateTime.parse would roll these over to March 2 and January 2027.
+      expect(format('2026-02-30', 'yyyy-MM-dd'), '');
+      expect(format('2026-13-01', 'yyyy-MM-dd'), '');
+      expect(format('2026-02-30T12:00:00Z', 'yyyy-MM-dd'), '');
+      expect(format('2026-02-29T00:00:00-05:00', 'yyyy-MM-dd'), '');
+      expect(format('2026-01-01T25:00:00Z', 'HH'), '');
+      // Leap days and month ends that exist are unaffected.
+      expect(format('2024-02-29', 'yyyy-MM-dd'), '2024-02-29');
+      expect(format('2026-01-31T23:59:59Z', 'yyyy-MM-dd HH:mm:ss'),
+          '2026-01-31 23:59:59');
     });
   });
 

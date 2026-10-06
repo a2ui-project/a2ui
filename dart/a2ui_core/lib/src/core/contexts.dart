@@ -91,6 +91,44 @@ class DataContext {
     return isV10 ? value['@call'] is String : value['call'] is String;
   }
 
+  /// Rewrites [part], a node of a parsed `${...}` expression, into the
+  /// dynamic-value shape this context resolves.
+  ///
+  /// `ExpressionParser` always emits `{path}` and `{call, args, returnType}`
+  /// nodes. Before v1.0 those are already the resolvable shape and [part] is
+  /// returned unchanged. From v1.0 a path node becomes [bindingFor] of its
+  /// path, a call node becomes `{'@call', 'args', 'returnType'}` with its
+  /// arguments rewritten recursively, and lists and other maps are rewritten
+  /// element by element.
+  Object? adaptExpressionPart(Object? part) {
+    if (!isV10) return part;
+    if (part is List) {
+      return [for (final Object? item in part) adaptExpressionPart(item)];
+    }
+    if (part is! Map) return part;
+    if (part['path'] is String &&
+        !part.containsKey('componentId') &&
+        !part.containsKey('@path')) {
+      return bindingFor(part['path'] as String);
+    }
+    if (part['call'] is String && !part.containsKey('@call')) {
+      final Object? rawArgs = part['args'];
+      return <String, Object?>{
+        '@call': part['call'],
+        'args': <String, Object?>{
+          if (rawArgs is Map)
+            for (final MapEntry<Object?, Object?> entry in rawArgs.entries)
+              entry.key.toString(): adaptExpressionPart(entry.value),
+        },
+        'returnType': part['returnType'] ?? 'any',
+      };
+    }
+    return <String, Object?>{
+      for (final MapEntry<Object?, Object?> entry in part.entries)
+        entry.key.toString(): adaptExpressionPart(entry.value),
+    };
+  }
+
   static const Set<String> _reservedDirectives = {'@path', '@call'};
 
   static bool _isSingleAtKey(String key) =>

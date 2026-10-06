@@ -120,13 +120,44 @@ final RegExp _timeOffset = RegExp(
   r'[T ]\d{2}(?::?\d{2}(?::?\d{2}(?:[.,]\d+)?)?)?(?:([zZ])|([+-])(\d{2})(?::?(\d{2}))?)$',
 );
 
+/// The calendar fields as written at the start of an ISO 8601 timestamp:
+/// year, month, day, and optionally hour, minute and second.
+final RegExp _writtenFields = RegExp(
+  r'^([+-]?\d{4,6})-?(\d{2})-?(\d{2})(?:[T ](\d{2})(?::?(\d{2})(?::?(\d{2}))?)?)?',
+);
+
 /// A parsed timestamp: the UTC instant, and the same instant shifted so its
 /// UTC fields read as the wall-clock time the timestamp was written with.
 typedef _Timestamp = ({DateTime instant, DateTime shifted});
 
 /// Parses an ISO 8601 [value]. A timestamp without an offset is read as UTC,
 /// never as host-local time.
+///
+/// Returns null for a timestamp whose written fields do not survive the
+/// round trip, such as `2026-02-30` or `2026-13-01`, which [DateTime.parse]
+/// would otherwise roll over into the following month or year.
 _Timestamp? _parseTimestamp(String value) {
+  final _Timestamp? parsed = _parseLenientTimestamp(value);
+  if (parsed == null || !_fieldsRoundTrip(value, parsed.shifted)) return null;
+  return parsed;
+}
+
+/// Whether the year, month, day and (when written) time fields of [value]
+/// equal the fields of [shifted].
+bool _fieldsRoundTrip(String value, DateTime shifted) {
+  final RegExpMatch? written = _writtenFields.firstMatch(value);
+  if (written == null) return false;
+  int? field(int group) =>
+      written[group] == null ? null : int.parse(written[group]!);
+  return field(1) == shifted.year &&
+      field(2) == shifted.month &&
+      field(3) == shifted.day &&
+      (field(4) ?? shifted.hour) == shifted.hour &&
+      (field(5) ?? shifted.minute) == shifted.minute &&
+      (field(6) ?? shifted.second) == shifted.second;
+}
+
+_Timestamp? _parseLenientTimestamp(String value) {
   final DateTime? parsed = DateTime.tryParse(value);
   if (parsed == null) return null;
   final RegExpMatch? offset = _timeOffset.firstMatch(value);
