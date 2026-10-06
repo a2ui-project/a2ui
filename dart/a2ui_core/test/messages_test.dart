@@ -795,10 +795,10 @@ void main() {
           'args': {'value': '2026-01-01'},
           'returnType': 'any',
         });
+        // The v1.0 FunctionCall schema has no returnType property.
         expect(v09.toJson(reservedKeys: true), {
           '@call': 'formatDate',
           'args': {'value': '2026-01-01'},
-          'returnType': 'any',
         });
 
         final v10 = FunctionCall.fromJson({
@@ -815,7 +815,6 @@ void main() {
         expect(v10.toJson(), {
           '@call': 'customOp',
           'args': {'x': 1},
-          'returnType': 'string',
           'catalogId': 'https://example.com/catalog.json',
         });
         expect(v10.toJson(reservedKeys: false), {
@@ -915,7 +914,6 @@ void main() {
           'functionCall': {
             '@call': 'openUrl',
             'args': {'url': 'https://example.com'},
-            'returnType': 'any',
             'catalogId': 'cat1',
           },
         });

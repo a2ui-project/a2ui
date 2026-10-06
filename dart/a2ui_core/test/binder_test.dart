@@ -656,7 +656,7 @@ void main() {
       );
     });
 
-    test('handles non-list checks without TypeError and reports error', () {
+    test('treats non-list checks as no rules, like web_core and Python', () {
       final errors = <A2uiClientError>[];
       surface.onError.addListener(errors.add);
 
@@ -671,8 +671,8 @@ void main() {
 
       expect(binder.resolvedProps.value['isValid'], isTrue);
       expect(binder.resolvedProps.value['validationErrors'], isEmpty);
-      expect(errors, isNotEmpty);
-      expect(errors.first.code, 'VALIDATION_FAILED');
+      expect(binder.resolvedProps.value['validationResults'], isEmpty);
+      expect(errors, isEmpty);
     });
 
     test('handles non-map and untyped map entries in checks without TypeError',

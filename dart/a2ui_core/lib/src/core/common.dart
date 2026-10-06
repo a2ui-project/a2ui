@@ -150,13 +150,16 @@ class FunctionCall {
   /// Serializes this function call to a JSON map.
   ///
   /// Uses `@call` when [reservedKeys] (or [this.reservedKeys] if omitted) is
-  /// `true`, and `call` otherwise.
+  /// `true`, and `call` otherwise. `returnType` is only emitted with the
+  /// legacy `call` key: the v1.0 `FunctionCall` schema declares no
+  /// `returnType` property (the return type is declared by the catalog) and
+  /// sets `unevaluatedProperties: false`.
   Map<String, dynamic> toJson({bool? reservedKeys}) {
     final bool useReserved = reservedKeys ?? this.reservedKeys;
     return {
       useReserved ? '@call' : 'call': call,
       'args': args,
-      'returnType': returnType.jsonValue,
+      if (!useReserved) 'returnType': returnType.jsonValue,
       if (catalogId != null) 'catalogId': catalogId,
     };
   }

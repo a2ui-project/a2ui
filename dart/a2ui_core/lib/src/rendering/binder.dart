@@ -293,24 +293,11 @@ class GenericBinder {
         return value;
 
       case Behavior.checkable:
-        if (value is! List) {
-          context.surface.dispatchError(
-            A2uiClientError(
-              code: 'VALIDATION_FAILED',
-              surfaceId: context.surface.id,
-              path: '/${path.join('/')}',
-              message:
-                  'Expected "checks" to be a List, got ${value.runtimeType}.',
-            ),
-          );
-          if (!_disposed && parentResult != null) {
-            parentResult['isValid'] = true;
-            parentResult['validationErrors'] = const <String>[];
-            parentResult['validationResults'] = const <ValidationResult>[];
-          }
-          return value;
-        }
-        final List<Object?> rules = value.cast<Object?>();
+        // A non-list value is treated as no rules, as in web_core and the
+        // Python core. Schema validation of the property is the job of
+        // PayloadValidator at message time, not of the binder.
+        final List<Object?> rules =
+            value is List ? value.cast<Object?>() : const <Object?>[];
         final ruleResults = <ValidationResult>[];
 
         void applyValidationState(
