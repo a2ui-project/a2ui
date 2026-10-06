@@ -16,8 +16,8 @@
 
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {VideoComponent} from './video.component';
-import {A2uiRendererService} from '../../core/a2ui-renderer.service';
-import {ComponentBinder} from '../../core/component-binder.service';
+import {A2uiRendererService} from '@a2ui/angular';
+import {ComponentBinder} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 
 describe('VideoComponent', () => {
@@ -76,5 +76,15 @@ describe('VideoComponent', () => {
     fixture.detectChanges();
     const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
     expect(video.getAttribute('src')).toBeFalsy();
+  });
+
+  it('should bind poster attribute from posterUrl', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      posterUrl: createBoundProperty('https://example.com/poster.jpg'),
+    } as any);
+    fixture.detectChanges();
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    expect(video.getAttribute('poster')).toBe('https://example.com/poster.jpg');
   });
 });

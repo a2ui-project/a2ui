@@ -2,15 +2,6 @@
 
 ## Unreleased
 
-- **Breaking:** `UpdateDataModelMessage` adds `hasValue` (defaulting to `true`) so `toJson()` emits `'value': null` for explicit null deletions while `fromJson()` distinguishes an omitted `value` from an explicit `null`.
-- **Breaking:** `SurfaceModel.dispatchAction` records action timestamps in UTC (`DateTime.now().toUtc()`) and `A2uiClientAction.toJson()` serializes timestamps in UTC (`timestamp.toUtc().toIso8601String()`) so serialized timestamps always end with `Z` per RFC 3339.
-- **Breaking:** `A2uiClientError` validates in its constructor (not only in debug assertions) that a `VALIDATION_FAILED` error provides a non-empty `path`, throwing `A2uiValidationError`.
-- `ComponentModel.toJson` writes `id` and `component` after the component's properties, so a property named `id` or `component` no longer replaces the model's own.
-- Harden `ExpressionParser` to clamp scanner bounds at EOF, reject unclosed
-  string literals and trailing backslashes with `A2uiExpressionError`, accept
-  `@`-prefixed function names (such as `${@index()}` and
-  `${@index(offset: 1)}`), and accept `~0` and `~1` JSON Pointer escapes inside
-  `${}` paths while rejecting malformed `~` escapes and non-leading `@` tokens.
 - `DataContext` adds `parent`, `index`, `childContext(path, {index})`, and
   `subscribeDynamicValue`, which returns a `DataSubscription`. `nested` now
   returns a child context linked to its parent. In v1.0 contexts, the
@@ -33,7 +24,6 @@
   including components whose schema does not declare `accessibility`.
 - **Behavior change:** Template `ChildList`s in v1.0 surfaces bind their
   `path` with the v1.0 `@path` key, so v1.0 templates expand.
-
 - **Breaking:** `SurfaceModel.catalog` is replaced by a nullable
   `defaultCatalog`, and the constructor's `catalog:` argument by
   `defaultCatalog:`. `SurfaceModel` adds `availableCatalogs`, `metadata`,
@@ -56,8 +46,11 @@
 - **Behavior change:** `SurfaceGroupModel.addSurface` throws `A2uiStateError`
   for a surface id it already holds, instead of ignoring the new surface.
 - **Behavior change:** `Catalog` throws `A2uiCatalogError` for two components
-  or two functions with one name, for a component named `Surface`, and for a
-  function name starting with `@`.
+  or two functions with one name, for a component named `Surface`, for a
+  function name starting with `@`, and for a function declaring
+  `returnType: 'validationResult'` when the catalog's effective
+  `protocolVersion` is below `1.0` (an omitted `protocolVersion` defaults to
+  `'0.9'`).
 - **Behavior change:** `Catalog.invoke` checks arguments against the
   function's argument schema and throws `A2uiExpressionError` on a mismatch
   before the function runs. Null arguments, such as bindings to missing data,
@@ -67,7 +60,26 @@
 - `Catalog` adds `protocolVersion` and `instructions`, read by
   `Catalog.fromJson` and written by `catalogSchema`. `catalogSchema` requires
   `args` only for functions with required parameters.
-
+- **Breaking:** `UpdateDataModelMessage` adds `hasValue` (defaulting to `true`) so `toJson()` emits `'value': null` for explicit null deletions while `fromJson()` distinguishes an omitted `value` from an explicit `null`.
+- **Breaking:** `SurfaceModel.dispatchAction` records action timestamps in UTC (`DateTime.now().toUtc()`) and `A2uiClientAction.toJson()` serializes timestamps in UTC (`timestamp.toUtc().toIso8601String()`) so serialized timestamps always end with `Z` per RFC 3339.
+- **Breaking:** `A2uiClientError` validates in its constructor (not only in debug assertions) that a `VALIDATION_FAILED` error provides a non-empty `path`, throwing `A2uiValidationError`.
+- `ComponentModel.toJson` writes `id` and `component` after the component's properties, so a property named `id` or `component` no longer replaces the model's own.
+- **Breaking:** Removed `DataPath`. `DataModel` parses JSON Pointers itself,
+  as web_core and the Python core do, and every path API (`get`, `set`,
+  `delete`, `hasPath`, `watch`) takes a `String`. Parsing validates RFC 6901
+  `~0`/`~1` escape sequences and rejects prototype-pollution segment names
+  (`__proto__`, `constructor`, `prototype`) with `A2uiDataError`.
+- **Breaking:** `DataModel` takes a modifiable deep copy of incoming data on
+  initialization and `set`, normalizing string-keyed maps (including untyped
+  `Map<dynamic, dynamic>`) to `Map<String, Object?>` and lists to
+  `List<Object?>` so external mutations do not alias internal state and
+  untyped maps are traversable.
+- Add `DataModel.delete`, `DataModel.hasPath`, and `DataModel.resolvePath`.
+- `EventNotifier.emit` isolates listener exceptions, logging them via
+  `Logger('a2ui.EventNotifier')` and continuing delivery to remaining
+  listeners.
+- Validate `DataBinding`, `FunctionCall`, `Action`, and `ChildListTemplate` fields during JSON deserialization (`A2uiValidationError`), preserve `reservedKeys` (`@path`/`@call`) and `catalogId` across `toJson` (the `@call` form omits `returnType`, which the v1.0 schema does not declare), default `FunctionCall.returnType` to `A2uiReturnType.any`, treat a non-list `checks` value as no rules (as web_core and the Python core do) and guard dynamic map casts against `TypeError`, and throw `A2uiStateError` from `ComponentContext.childContext` and `A2uiCatalogError` from `CatalogInvokerExtension.invoke`.
+- Add `isValidUax31Identifier` and `assertUax31Identifier` for UAX #31 identifier validation, `A2uiErrorDetail`, `cause` chaining on `A2uiError` subclasses, and `code`/`path`/`errors` on `A2uiValidationError`. `A2uiError` now takes `code` as a named parameter, and `A2uiValidationError` aligns its default code to `'VALIDATION_FAILED'`.
 - **Behavior change:** `MessageProcessor` checks the component graph on every
   `updateComponents` message. It used to check completeness once per payload,
   and only for the surfaces that payload created. Each batch is applied to a copy of the
@@ -149,6 +161,11 @@
   against the specification's envelope schemas.
 - `PayloadValidator.commonTypesFor` throws for v1.0, whose common types this
   package does not embed yet.
+- Harden `ExpressionParser` to clamp scanner bounds at EOF, reject unclosed
+  string literals and trailing backslashes with `A2uiExpressionError`, accept
+  `@`-prefixed function names (such as `${@index()}` and
+  `${@index(offset: 1)}`), and accept `~0` and `~1` JSON Pointer escapes inside
+  `${}` paths while rejecting malformed `~` escapes and non-leading `@` tokens.
 - Added `BasicCatalog.v0_9()` and `BasicCatalog.v1_0()`, which carry the
   basic catalog's 14 functions (`required`, `regex`, `length`, `numeric`,
   `email`, `formatString`, `formatNumber`, `formatCurrency`, `formatDate`,

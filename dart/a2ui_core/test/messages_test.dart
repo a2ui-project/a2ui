@@ -735,6 +735,299 @@ void main() {
     });
   });
 
+  group('Common models (DataBinding, FunctionCall, Action, ChildListTemplate)',
+      () {
+    group('DataBinding', () {
+      test('parses and round-trips path and @path with reservedKeys', () {
+        final v09 = DataBinding.fromJson({'path': '/user/name'});
+        expect(v09.path, '/user/name');
+        expect(v09.reservedKeys, isFalse);
+        expect(v09.toJson(), {'path': '/user/name'});
+        expect(v09.toJson(reservedKeys: true), {'@path': '/user/name'});
+
+        final v10 = DataBinding.fromJson({'@path': '/user/name'});
+        expect(v10.path, '/user/name');
+        expect(v10.reservedKeys, isTrue);
+        expect(v10.toJson(), {'@path': '/user/name'});
+        expect(v10.toJson(reservedKeys: false), {'path': '/user/name'});
+      });
+
+      test('throws A2uiValidationError on missing, null, or non-string path',
+          () {
+        expect(
+          () => DataBinding.fromJson({}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => DataBinding.fromJson({'path': null}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => DataBinding.fromJson({'path': 123}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => DataBinding.fromJson({'@path': null}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => DataBinding.fromJson({'@path': 123}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
+    });
+
+    group('FunctionCall', () {
+      test(
+          'parses and round-trips call, @call, catalogId, and default '
+          'returnType any', () {
+        final v09 = FunctionCall.fromJson({
+          'call': 'formatDate',
+          'args': {'value': '2026-01-01'},
+        });
+        expect(v09.call, 'formatDate');
+        expect(v09.args, {'value': '2026-01-01'});
+        expect(v09.returnType, A2uiReturnType.any);
+        expect(v09.catalogId, isNull);
+        expect(v09.reservedKeys, isFalse);
+        expect(v09.toJson(), {
+          'call': 'formatDate',
+          'args': {'value': '2026-01-01'},
+          'returnType': 'any',
+        });
+        // The v1.0 FunctionCall schema has no returnType property.
+        expect(v09.toJson(reservedKeys: true), {
+          '@call': 'formatDate',
+          'args': {'value': '2026-01-01'},
+        });
+
+        final v10 = FunctionCall.fromJson({
+          '@call': 'customOp',
+          'args': {'x': 1},
+          'returnType': 'string',
+          'catalogId': 'https://example.com/catalog.json',
+        });
+        expect(v10.call, 'customOp');
+        expect(v10.args, {'x': 1});
+        expect(v10.returnType, A2uiReturnType.string);
+        expect(v10.catalogId, 'https://example.com/catalog.json');
+        expect(v10.reservedKeys, isTrue);
+        expect(v10.toJson(), {
+          '@call': 'customOp',
+          'args': {'x': 1},
+          'catalogId': 'https://example.com/catalog.json',
+        });
+        expect(v10.toJson(reservedKeys: false), {
+          'call': 'customOp',
+          'args': {'x': 1},
+          'returnType': 'string',
+          'catalogId': 'https://example.com/catalog.json',
+        });
+      });
+
+      test('defaults args to empty map when omitted', () {
+        final fc = FunctionCall.fromJson({'call': 'noop'});
+        expect(fc.args, isEmpty);
+        expect(fc.returnType, A2uiReturnType.any);
+      });
+
+      test('throws A2uiValidationError on malformed fields', () {
+        expect(
+          () => FunctionCall.fromJson({}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => FunctionCall.fromJson({'call': null}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => FunctionCall.fromJson({'call': 123}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => FunctionCall.fromJson({'@call': null}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => FunctionCall.fromJson({'@call': 123}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => FunctionCall.fromJson({'call': 'fn', 'args': 'not_a_map'}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => FunctionCall.fromJson({'call': 'fn', 'args': null}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => FunctionCall.fromJson({
+            'call': 'fn',
+            'args': <Object?, Object?>{1: 'a'},
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => FunctionCall.fromJson({'call': 'fn', 'returnType': 123}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => FunctionCall.fromJson({'call': 'fn', 'catalogId': 123}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
+    });
+
+    group('Action', () {
+      test('parses and round-trips event and functionCall actions', () {
+        final eventAction = Action.fromJson({
+          'event': {
+            'name': 'submit',
+            'context': {'id': 42},
+          },
+        });
+        expect(eventAction.event, {
+          'name': 'submit',
+          'context': {'id': 42},
+        });
+        expect(eventAction.functionCall, isNull);
+        expect(eventAction.toJson(), {
+          'event': {
+            'name': 'submit',
+            'context': {'id': 42},
+          },
+        });
+
+        final fnAction = Action.fromJson({
+          'functionCall': {
+            '@call': 'openUrl',
+            'args': {'url': 'https://example.com'},
+            'catalogId': 'cat1',
+          },
+        });
+        expect(fnAction.event, isNull);
+        expect(fnAction.functionCall, isNotNull);
+        expect(fnAction.functionCall!.call, 'openUrl');
+        expect(fnAction.functionCall!.catalogId, 'cat1');
+        expect(fnAction.functionCall!.reservedKeys, isTrue);
+        expect(fnAction.toJson(), {
+          'functionCall': {
+            '@call': 'openUrl',
+            'args': {'url': 'https://example.com'},
+            'catalogId': 'cat1',
+          },
+        });
+        expect(fnAction.toJson(reservedKeys: false), {
+          'functionCall': {
+            'call': 'openUrl',
+            'args': {'url': 'https://example.com'},
+            'returnType': 'any',
+            'catalogId': 'cat1',
+          },
+        });
+      });
+
+      test('throws A2uiValidationError on malformed Action payloads', () {
+        expect(
+          () => Action.fromJson({}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => Action.fromJson({
+            'event': {'name': 'a'},
+            'functionCall': {'call': 'b'},
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => Action.fromJson({'event': 'not_a_map'}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => Action.fromJson({'event': <String, dynamic>{}}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => Action.fromJson({
+            'event': {'name': 123},
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => Action.fromJson({
+            'event': {'name': 'ok', 'context': 'not_a_map'},
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => Action.fromJson({'functionCall': 'not_a_map'}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => Action.fromJson({
+            'functionCall': {'@call': null},
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
+    });
+
+    group('ChildListTemplate', () {
+      test('parses and round-trips valid template', () {
+        final tpl = ChildListTemplate.fromJson({
+          'componentId': 'rowItem',
+          'path': '/items',
+        });
+        expect(tpl.componentId, 'rowItem');
+        expect(tpl.path, '/items');
+        expect(tpl.toJson(), {
+          'componentId': 'rowItem',
+          'path': '/items',
+        });
+      });
+
+      test('throws A2uiValidationError on missing, null, or non-string fields',
+          () {
+        expect(
+          () => ChildListTemplate.fromJson({'path': '/items'}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => ChildListTemplate.fromJson({
+            'componentId': null,
+            'path': '/items',
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => ChildListTemplate.fromJson({
+            'componentId': 123,
+            'path': '/items',
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => ChildListTemplate.fromJson({'componentId': 'rowItem'}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => ChildListTemplate.fromJson({
+            'componentId': 'rowItem',
+            'path': null,
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => ChildListTemplate.fromJson({
+            'componentId': 'rowItem',
+            'path': 456,
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
+    });
+  });
+
   group('v1.0 agent-to-renderer envelopes', () {
     Map<String, Object?> roundTrip(Map<String, Object?> json) =>
         AgentToRendererMessage.fromJson(json).toJson();

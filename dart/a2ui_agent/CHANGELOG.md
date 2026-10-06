@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Validation forwards `catalog.protocolVersion` when constructing its
+  signature-only `Catalog` for `MessageProcessor`.
 - The Direct JSON message reader and the Express decompiler continue to
   reject a `createSurface` message without a `catalogId` with
   `A2uiValidationError`. The check moved into the agent SDK now that

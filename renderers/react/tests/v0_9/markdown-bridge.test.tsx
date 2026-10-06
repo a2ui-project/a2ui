@@ -23,7 +23,7 @@ import {
   getMarkdownRenderer,
   setMarkdownRenderer,
 } from '@a2ui/web_core/v0_9/basic_catalog';
-import {A2uiSurface, MarkdownContext, type ReactCatalogComponent} from '../../src/v0_9';
+import {A2uiSurface, MarkdownContext, type ReactCatalogComponent} from '../../src';
 
 const Text = basicCatalog.components.get('Text')!;
 const catalog = new Catalog<ReactCatalogComponent>('markdown-bridge', '0.9', [Text]);

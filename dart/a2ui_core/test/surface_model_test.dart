@@ -60,8 +60,10 @@ void main() {
     test(
       'reports functionCall and call actions to onError',
       () async {
-        final surface =
-            SurfaceModel<ComponentApi>('s1', defaultCatalog: catalog);
+        final surface = SurfaceModel<ComponentApi>(
+          's1',
+          defaultCatalog: catalog,
+        );
         var actionCount = 0;
         final errors = <A2uiClientError>[];
         surface.onAction.addListener((_) => actionCount++);

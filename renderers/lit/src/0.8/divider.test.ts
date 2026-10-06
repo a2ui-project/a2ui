@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import {setupTestDom, teardownTestDom, asyncUpdate} from '../v0_9/tests/dom-setup.js';
+import {setupTestDom, teardownTestDom, asyncUpdate} from '../tests/dom-setup.js';
 import assert from 'node:assert';
 import {describe, it, after, before} from 'node:test';
 
@@ -33,7 +33,7 @@ describe('0.8 Divider Component', () => {
     el.theme = {components: {Divider: 'test-divider'}};
     document.body.appendChild(el);
 
-    await asyncUpdate(el, e => {
+    await asyncUpdate(el, (e: any) => {
       e.axis = 'horizontal';
     });
 
@@ -50,7 +50,7 @@ describe('0.8 Divider Component', () => {
     el.theme = {components: {Divider: 'test-divider'}};
     document.body.appendChild(el);
 
-    await asyncUpdate(el, e => {
+    await asyncUpdate(el, (e: any) => {
       e.axis = 'vertical';
     });
 
@@ -68,7 +68,7 @@ describe('0.8 Divider Component', () => {
     el.theme = {components: {Divider: 'test-divider'}};
     document.body.appendChild(el);
 
-    await asyncUpdate(el, e => {
+    await asyncUpdate(el, (e: any) => {
       e.color = 'rgb(255, 0, 0)';
       e.thickness = 5;
     });

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import '../primitives/data_path.dart';
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
 
@@ -33,15 +32,109 @@ class DataModel {
   Object? _data;
   final Map<String, WeakReference<Signal<Object?>>> _signals = {};
 
-  DataModel([Object? initialData]) : _data = initialData ?? <String, Object?>{};
+  DataModel([Object? initialData])
+      : _data = _own(initialData) ?? <String, Object?>{};
+
+  /// Returns a modifiable deep copy of [value], normalizing string-keyed maps
+  /// to `Map<String, Object?>` and lists to `List<Object?>`.
+  ///
+  /// Maps whose keys are all strings (including empty `Map<dynamic, dynamic>`)
+  /// are normalized to `Map<String, Object?>` so JSON Pointer traversal works
+  /// uniformly regardless of the caller's map runtime type. Maps containing
+  /// non-string keys are deep-copied as `Map<Object?, Object?>` so opaque
+  /// caller values round-trip with their original keys intact.
+  static Object? _own(Object? value) {
+    if (value is Map) {
+      if (value is Map<String, Object?> ||
+          value.keys.every((Object? key) => key is String)) {
+        return <String, Object?>{
+          for (final MapEntry<Object?, Object?> entry in value.entries)
+            entry.key as String: _own(entry.value),
+        };
+      }
+      return <Object?, Object?>{
+        for (final MapEntry<Object?, Object?> entry in value.entries)
+          entry.key: _own(entry.value),
+      };
+    }
+    if (value is List) {
+      return <Object?>[for (final Object? entry in value) _own(entry)];
+    }
+    return value;
+  }
+
+  static const Set<String> _forbiddenKeys = {
+    '__proto__',
+    'constructor',
+    'prototype',
+  };
+
+  static final RegExp _invalidEscapePattern = RegExp(r'~(?![01])');
+
+  /// Splits a JSON Pointer (RFC 6901) into unescaped segments.
+  ///
+  /// `~1` and `~0` are unescaped to `/` and `~`. Any other `~` sequence, and
+  /// any segment that is a prototype-pollution key (`__proto__`,
+  /// `constructor`, `prototype`), throws [A2uiDataError]. Empty segments are
+  /// dropped, so `''`, `'/'`, and `'foo'` parse the same as `web_core` and the
+  /// Python core parse them.
+  static List<String> _parsePointer(String path) {
+    if (_invalidEscapePattern.hasMatch(path)) {
+      throw A2uiDataError(
+        "Invalid escape sequence in path '$path': "
+        "'~' must be followed by '0' or '1'.",
+        path: path,
+      );
+    }
+    if (path.isEmpty || path == '/') return const [];
+
+    final List<String> segments = path
+        .split('/')
+        .where((s) => s.isNotEmpty)
+        .map((s) => s.replaceAll('~1', '/').replaceAll('~0', '~'))
+        .toList(growable: false);
+    for (final segment in segments) {
+      if (_forbiddenKeys.contains(segment)) {
+        throw A2uiDataError(
+          "Forbidden path segment '$segment' in path '$path'.",
+          path: path,
+        );
+      }
+    }
+    return segments;
+  }
+
+  /// Assembles unescaped [segments] back into an absolute JSON Pointer, the
+  /// canonical key under which signals are cached.
+  static String _buildPointer(List<String> segments) {
+    if (segments.isEmpty) return '/';
+    return '/${segments.map((s) => s.replaceAll('~', '~0').replaceAll('/', '~1')).join('/')}';
+  }
+
+  /// Resolves [path] against an optional [basePath] into an absolute JSON
+  /// Pointer string.
+  static String resolvePath(String path, [String? basePath]) {
+    if (path.startsWith('/')) return path;
+    final String rawBase = basePath == null || basePath.isEmpty
+        ? '/'
+        : (basePath.startsWith('/') ? basePath : '/$basePath');
+    var trimmedBase = rawBase;
+    while (trimmedBase.length > 1 && trimmedBase.endsWith('/')) {
+      trimmedBase = trimmedBase.substring(0, trimmedBase.length - 1);
+    }
+    if (path.isEmpty || path == '.') return trimmedBase;
+
+    final base = trimmedBase == '/' ? '' : trimmedBase;
+    return '$base/$path';
+  }
 
   /// Synchronously gets data at a specific JSON pointer path.
   Object? get(String path) {
-    final dataPath = DataPath.parse(path);
-    if (dataPath.isEmpty) return _data;
+    final List<String> segments = _parsePointer(path);
+    if (segments.isEmpty) return _data;
 
     Object? currentNode = _data;
-    for (final String segment in dataPath.segments) {
+    for (final segment in segments) {
       if (currentNode == null) return null;
       if (currentNode is Map<String, Object?>) {
         currentNode = currentNode[segment];
@@ -59,12 +152,15 @@ class DataModel {
   }
 
   /// Whether a value, possibly null, exists at the JSON pointer [path].
-  bool has(String path) => _hasPath(DataPath.parse(path));
+  bool has(String path) => hasPath(path);
 
-  bool _hasPath(DataPath dataPath) {
-    if (dataPath.isEmpty) return true;
+  /// Returns whether [path] physically exists in the data model hierarchy.
+  bool hasPath(String path) => _hasSegments(_parsePointer(path));
+
+  bool _hasSegments(List<String> segments) {
+    if (segments.isEmpty) return true;
     Object? currentNode = _data;
-    for (final String segment in dataPath.segments) {
+    for (final segment in segments) {
       if (currentNode is Map<String, Object?>) {
         if (!currentNode.containsKey(segment)) return false;
         currentNode = currentNode[segment];
@@ -81,16 +177,22 @@ class DataModel {
     return true;
   }
 
+  /// Deletes the value at [path].
+  ///
+  /// Equivalent to `set(path, null)`: removes the key from its parent map,
+  /// sets an in-bounds list slot to `null`, or resets the root to `{}`.
+  void delete(String path) => set(path, null);
+
   /// Updates data at a specific path and notifies subscribers.
   void set(String path, Object? value) {
-    final dataPath = DataPath.parse(path);
-    if (!dataPath.isEmpty && value == null && !_hasPath(dataPath)) {
+    final List<String> segments = _parsePointer(path);
+    if (segments.isNotEmpty && value == null && !_hasSegments(segments)) {
       return;
     }
 
     batch(() {
-      if (dataPath.isEmpty) {
-        _data = value ?? <String, Object?>{};
+      if (segments.isEmpty) {
+        _data = _own(value) ?? <String, Object?>{};
       } else {
         if (_data != null && _data is! Map && _data is! List) {
           throw A2uiDataError(
@@ -101,9 +203,9 @@ class DataModel {
         }
         _data ??= <String, Object?>{};
         Object? current = _data;
-        for (var i = 0; i < dataPath.segments.length - 1; i++) {
-          final String segment = dataPath.segments[i];
-          final String nextSegment = dataPath.segments[i + 1];
+        for (var i = 0; i < segments.length - 1; i++) {
+          final String segment = segments[i];
+          final String nextSegment = segments[i + 1];
           final isNextNumeric = _parseListIndex(nextSegment) != null;
 
           if (current is Map<String, Object?>) {
@@ -143,12 +245,12 @@ class DataModel {
           }
         }
 
-        final String lastSegment = dataPath.segments.last;
+        final String lastSegment = segments.last;
         if (current is Map<String, Object?>) {
           if (value == null) {
             current.remove(lastSegment);
           } else {
-            current[lastSegment] = value;
+            current[lastSegment] = _own(value);
           }
         } else if (current is List<Object?>) {
           final int? index = _parseListIndex(lastSegment);
@@ -170,7 +272,7 @@ class DataModel {
             while (current.length <= index) {
               current.add(null);
             }
-            current[index] = value;
+            current[index] = _own(value);
           } else if (index < current.length) {
             current[index] = null;
           }
@@ -185,14 +287,14 @@ class DataModel {
         }
       }
 
-      _notifyPathAndRelated(dataPath);
+      _notifyPathAndRelated(segments);
     });
   }
 
   /// Returns a [ReadonlySignal] for a specific path.
   /// Internally cached using a [WeakReference] to prevent leaks.
   ReadonlySignal<T?> watch<T>(String path) {
-    final normalizedPath = DataPath.parse(path).toString();
+    final String normalizedPath = _buildPointer(_parsePointer(path));
     final WeakReference<Signal<Object?>>? ref = _signals[normalizedPath];
     if (ref != null) {
       final Signal<Object?>? sig = ref.target;
@@ -207,8 +309,8 @@ class DataModel {
     return sig;
   }
 
-  void _notifyPathAndRelated(DataPath dataPath) {
-    final changedPath = dataPath.toString();
+  void _notifyPathAndRelated(List<String> segments) {
+    final String changedPath = _buildPointer(segments);
     final String changedDescendantPrefix = _descendantPrefix(changedPath);
     for (final String entryPath in _signals.keys.toList()) {
       if (changedPath == entryPath ||
