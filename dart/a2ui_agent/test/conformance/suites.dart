@@ -98,8 +98,8 @@ List<CatalogApi> caseCatalogs(Map<String, Object?> args) => [
       catalogConfig(entry).transformedCatalog,
 ];
 
-/// Whether a catalog the case names in `args` declares v1.0 before it is
-/// lowered, which turns on what this SDK does only for a v1.0 agent.
+/// Whether a catalog the case names in `args` declares v1.0 or later before it
+/// is lowered, which turns on what this SDK does only for a v1.0+ agent.
 bool caseDeclaresV1(Map<String, Object?> args) =>
     [
       if (args['catalog'] case final Object catalog) catalog,
@@ -110,7 +110,10 @@ bool caseDeclaresV1(Map<String, Object?> args) =>
       final document =
           jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
               as Map<String, Object?>;
-      return document['protocolVersion'] == '1.0';
+      final versionStr = document['protocolVersion'];
+      if (versionStr is! String) return false;
+      final version = double.tryParse(versionStr.replaceFirst('v', ''));
+      return version != null && version >= 1.0;
     });
 
 CatalogTransformer _transformer(Object? spec) => switch (spec) {

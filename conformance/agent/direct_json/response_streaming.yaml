@@ -313,7 +313,7 @@
       expect: []
     - input: 'lo"'
       expect: []
-    - input: '}'
+    - input: "}"
       expect:
         - a2ui:
             - version: "v1.0"
@@ -323,7 +323,7 @@
                   - id: "root"
                     component: "Text"
                     text: "Hello"
-    - input: ']}}]</a2ui-json>'
+    - input: "]}}]</a2ui-json>"
       expect: []
   expect_matches_single_shot: true
 
@@ -373,7 +373,7 @@
             - version: "v1.0"
               createSurface:
                 surfaceId: "s1"
-    - input: '}]}}]</a2ui-json>'
+    - input: "}]}}]</a2ui-json>"
       expect:
         - a2ui:
             - version: "v1.0"

@@ -3458,7 +3458,7 @@
                   - id: "root"
                     component: "Column"
                     children: ["m1"]
-    - input: ']}}]</a2ui-json>'
+    - input: "]}}]</a2ui-json>"
       expect: []
 
 - name: test_v1_0_streaming_catalog_id_split_across_chunks
@@ -3503,13 +3503,13 @@
       expect: []
     - input: 'ogId"'
       expect: []
-    - input: ': '
+    - input: ": "
       expect: []
     - input: '"https://a2ui.org/cat'
       expect: []
     - input: 'alogs/custom"'
       expect: []
-    - input: '}'
+    - input: "}"
       expect:
         - a2ui:
             - version: "v1.0"
@@ -3520,7 +3520,7 @@
                     component: "CustomMetric"
                     value: 42
                     catalogId: "https://a2ui.org/catalogs/custom"
-    - input: ']}}]</a2ui-json>'
+    - input: "]}}]</a2ui-json>"
       expect: []
 
 - name: test_v1_0_streaming_component_on_surface_catalog_waits_until_closed
@@ -3554,7 +3554,7 @@
       expect: []
     - input: 'lo"'
       expect: []
-    - input: '}'
+    - input: "}"
       expect:
         - a2ui:
             - version: "v1.0"
@@ -3564,7 +3564,7 @@
                   - id: "root"
                     component: "Text"
                     text: "Hello"
-    - input: ']}}]</a2ui-json>'
+    - input: "]}}]</a2ui-json>"
       expect: []
 
 - name: test_v0_9_streaming_still_heals_incomplete_components
