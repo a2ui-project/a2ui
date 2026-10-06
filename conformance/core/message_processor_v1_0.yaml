@@ -80,12 +80,46 @@
         catalogId: "test-catalog-v10"
         metadata:
           extensions:
-            "a2ui:experimental":
+            a2ui_experimental:
               streaming: true
   expect:
     surfaces:
       s_v10_meta:
         exists: true
+
+- name: test_v10_create_surface_metadata_extension_key_must_be_identifier
+  description: Tests that v1.0 createSurface rejects metadata extensions whose key is not a Unicode identifier (UAX 31).
+  action: process_messages
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_v10_meta_bad_key"
+        catalogId: "test-catalog-v10"
+        metadata:
+          extensions:
+            "a2ui:experimental":
+              streaming: true
+  expectError:
+    category: "ValidationError"
+
+- name: test_v10_create_surface_metadata_only_holds_extensions
+  description: Tests that v1.0 createSurface rejects metadata keys other than extensions.
+  action: process_messages
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s_v10_meta_bad_field"
+        catalogId: "test-catalog-v10"
+        metadata:
+          owner: "me"
+  expectError:
+    category: "ValidationError"
 
 - name: test_v10_component_catalog_override
   description: Tests that individual components in v1.0 can specify a catalogId override different from the surface default.

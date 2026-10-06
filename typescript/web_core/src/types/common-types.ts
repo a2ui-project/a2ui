@@ -405,5 +405,3 @@ export const CommonSchemas = {
   Surface: SurfaceSchema,
   FunctionResponse: FunctionResponseSchema,
 };
-
-export * from './helpers.js';

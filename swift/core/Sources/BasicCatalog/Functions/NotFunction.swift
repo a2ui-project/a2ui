@@ -35,7 +35,9 @@ public final class NotFunction: FunctionImplementation, Sendable {
   public init() {}
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
-    guard let value = arguments["value"]?.boolValue else { return .boolean(false) }
-    return .boolean(!value)
+    guard let value = arguments["value"] else {
+      throw FunctionError.missingArgument("value")
+    }
+    return .boolean(!value.isTruthy)
   }
 }

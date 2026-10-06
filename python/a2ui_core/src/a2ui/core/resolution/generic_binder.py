@@ -14,10 +14,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
+from functools import cache
 from typing import Any, Callable, Final
 from ..common import Subscription
+from ..schema._dynamic_types import dynamic_literal_kinds
+from ..schema.common_types_schema import get_all_dynamic_type_names
 from .component_context import ComponentContext
 
 
@@ -50,14 +54,16 @@ STRUCTURAL_REF_NAMES: Final[frozenset[str]] = frozenset({
     "Child",
     "TemplateChildList",
 })
-DYNAMIC_REF_NAMES: Final[frozenset[str]] = frozenset({
-    "DataBinding",
-    "DynamicString",
-    "DynamicNumber",
-    "DynamicBoolean",
-    "DynamicStringList",
-    "DynamicValue",
-})
+
+
+@cache
+def _dynamic_ref_names() -> frozenset[str]:
+    """Returns the defs that bind to dynamic values.
+
+    These are `DataBinding` plus every dynamic value def (e.g. `DynamicString`)
+    identified structurally in the generated common_types schemas.
+    """
+    return frozenset({"DataBinding"}) | get_all_dynamic_type_names()
 
 
 def _extract_ref_name(ref: str | None) -> str:
@@ -70,14 +76,50 @@ def _extract_ref_name(ref: str | None) -> str:
     return parts[-1] if parts else ""
 
 
-def _classify_combiners(schema: dict[str, Any]) -> BehaviorNode | None:
+def _localize_branch_refs(node: Any) -> Any:
+    """Rewrites the `$ref`s of a union branch as local `#/$defs/<name>` pointers.
+
+    Catalogs may reference shared types across documents (e.g.
+    `common_types.json#/$defs/DataBinding`); dynamic unions are recognized by
+    local refs.
+    """
+    if isinstance(node, list):
+        return [_localize_branch_refs(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    return {
+        k: (
+            f"#/$defs/{_extract_ref_name(v)}"
+            if k == "$ref" and isinstance(v, str)
+            else _localize_branch_refs(v)
+        )
+        for k, v in node.items()
+    }
+
+
+def _is_dynamic_def(def_schema: Any) -> bool:
+    """Returns whether a def is a dynamic value union (e.g. `DynamicDate`).
+
+    Such a def accepts a `DataBinding`, a `FunctionCall`, and literal values.
+    """
+    if not isinstance(def_schema, Mapping):
+        return False
+    items = def_schema.get("oneOf", def_schema.get("anyOf"))
+    if not isinstance(items, list):
+        return False
+    return dynamic_literal_kinds(_localize_branch_refs(items)) is not None
+
+
+def _classify_combiners(
+    schema: dict[str, Any], defs: Mapping[str, Any]
+) -> BehaviorNode | None:
     """Classifies oneOf/anyOf/allOf combiners into a BehaviorNode if recognized."""
     for comb in ("oneOf", "anyOf", "allOf"):
         branches = schema.get(comb)
         if isinstance(branches, list):
             for branch in branches:
                 if isinstance(branch, dict):
-                    node = classify_schema_behavior(branch)
+                    node = classify_schema_behavior(branch, defs)
                     if node.type in (
                         BehaviorType.CHECKABLE,
                         BehaviorType.ACTION,
@@ -88,13 +130,15 @@ def _classify_combiners(schema: dict[str, Any]) -> BehaviorNode | None:
     return None
 
 
-def _classify_container(schema: dict[str, Any]) -> BehaviorNode | None:
+def _classify_container(
+    schema: dict[str, Any], defs: Mapping[str, Any]
+) -> BehaviorNode | None:
     """Classifies object or array schemas into structured BehaviorNodes."""
     schema_type = schema.get("type")
     if schema_type == "array" or "items" in schema:
         items = schema.get("items")
         elem_node = (
-            classify_schema_behavior(items)
+            classify_schema_behavior(items, defs)
             if isinstance(items, dict)
             else BehaviorNode(BehaviorType.STATIC)
         )
@@ -112,7 +156,7 @@ def _classify_container(schema: dict[str, Any]) -> BehaviorNode | None:
             if "condition" in props:
                 return BehaviorNode(BehaviorType.CHECKABLE)
             shape = {
-                k: classify_schema_behavior(v)
+                k: classify_schema_behavior(v, defs)
                 for k, v in props.items()
                 if isinstance(v, dict)
             }
@@ -121,10 +165,21 @@ def _classify_container(schema: dict[str, Any]) -> BehaviorNode | None:
     return None
 
 
-def classify_schema_behavior(schema: Any) -> BehaviorNode:
-    """Classifies a JSON Schema dictionary into a runtime BehaviorNode."""
+def classify_schema_behavior(
+    schema: Any, defs: Mapping[str, Any] | None = None
+) -> BehaviorNode:
+    """Classifies a JSON Schema dictionary into a runtime BehaviorNode.
+
+    Args:
+        schema: The schema to classify.
+        defs: The `$defs` that `$ref`s resolve against. Defaults to the
+            schema's own `$defs`.
+    """
     if not isinstance(schema, dict):
         return BehaviorNode(BehaviorType.STATIC)
+    if defs is None:
+        own_defs = schema.get("$defs")
+        defs = own_defs if isinstance(own_defs, Mapping) else {}
 
     ref = schema.get("$ref")
     if isinstance(ref, str):
@@ -135,18 +190,37 @@ def classify_schema_behavior(schema: Any) -> BehaviorNode:
             return BehaviorNode(BehaviorType.ACTION)
         if ref_name in STRUCTURAL_REF_NAMES:
             return BehaviorNode(BehaviorType.STRUCTURAL)
-        if ref_name in DYNAMIC_REF_NAMES or ref_name.startswith("Dynamic"):
+        if ref_name in _dynamic_ref_names():
+            return BehaviorNode(BehaviorType.DYNAMIC)
+        # A catalog-defined dynamic def (e.g. `DynamicDate`) is recognized by
+        # the shape of the def it references.
+        if "$defs/" in ref and _is_dynamic_def(defs.get(ref_name)):
             return BehaviorNode(BehaviorType.DYNAMIC)
 
-    combiner = _classify_combiners(schema)
+    combiner = _classify_combiners(schema, defs)
     if combiner is not None:
         return combiner
 
-    container = _classify_container(schema)
+    container = _classify_container(schema, defs)
     if container is not None:
         return container
 
     return BehaviorNode(BehaviorType.STATIC)
+
+
+def _schema_defs(catalog: Any, schema: Any) -> dict[str, Any]:
+    """Returns the defs that a component schema's `$ref`s resolve against.
+
+    These are the catalog's defs, overridden by the schema's own `$defs`.
+    """
+    defs: dict[str, Any] = {}
+    catalog_defs = getattr(catalog, "defs", None)
+    if isinstance(catalog_defs, Mapping):
+        defs.update(catalog_defs)
+    own_defs = schema.get("$defs") if isinstance(schema, Mapping) else None
+    if isinstance(own_defs, Mapping):
+        defs.update(own_defs)
+    return defs
 
 
 def _classify_value_fallback(key: str, val: Any, is_v10: bool = False) -> BehaviorNode:
@@ -222,7 +296,9 @@ class GenericBinder:
                 resolved_schema = getattr(comp_api, "schema", None)
 
         self.behavior_tree = (
-            classify_schema_behavior(resolved_schema)
+            classify_schema_behavior(
+                resolved_schema, _schema_defs(cat, resolved_schema)
+            )
             if isinstance(resolved_schema, dict)
             else BehaviorNode(BehaviorType.OBJECT, shape={})
         )

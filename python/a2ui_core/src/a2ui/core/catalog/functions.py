@@ -51,12 +51,30 @@ class FunctionApi:
         schema: Any = None,
         allowed_callers: AllowedCallers | None = "rendererOnly",
         requires_user_activation: bool | None = False,
+        description: str | None = None,
     ):
+        """Initializes the function API.
+
+        Args:
+            name: The function's name, which calls use as `call`.
+            return_type: The type of the function's result.
+            schema: The schema of the function's `args`, as a Pydantic model
+                class or a JSON schema.
+            allowed_callers: Who may call the function.
+            requires_user_activation: Whether a call needs a user gesture.
+            description: What the function does, published in the catalog
+                schema.
+        """
         self.name = name
         self.return_type = return_type or "any"
         self.schema = schema
         self.allowed_callers = allowed_callers or "rendererOnly"
         self.requires_user_activation = bool(requires_user_activation)
+        self.description = (
+            description
+            if description is not None
+            else getattr(self, "description", None)
+        )
 
 
 class FunctionImplementation(FunctionApi, Generic[TReturn]):
@@ -70,6 +88,7 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
         execute: Callable[[dict[str, Any], Any, Any | None], TReturn] | None = None,
         allowed_callers: AllowedCallers | None = "rendererOnly",
         requires_user_activation: bool | None = False,
+        description: str | None = None,
     ):
         super().__init__(
             name=name,
@@ -77,6 +96,7 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
             schema=schema,
             allowed_callers=allowed_callers,
             requires_user_activation=requires_user_activation,
+            description=description,
         )
         self.execute_func = execute
 
@@ -86,12 +106,24 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
         context: Any = None,
         abort_signal: Any | None = None,
     ) -> TReturn:
+        """Runs the function with already-validated, already-resolved arguments.
+
+        ``execute`` does not validate ``args``. The argument schema describes
+        the arguments as written in a payload (a ``DynamicBoolean`` admits a
+        ``{"@call": ...}``), so it applies before bindings and nested calls are
+        resolved, not to the resolved values this method receives. The caller
+        validates the written arguments, with
+        ``PayloadValidator.validate_function`` or the schema model directly,
+        resolves them, and then calls ``execute``. ``DataContext`` does this
+        for every call it evaluates.
+
+        Args:
+            args: The named arguments, resolved to plain values.
+            context: The data context the call is evaluated in.
+            abort_signal: Cancels a long-running call.
+        """
         if self.execute_func is None:
             raise ValueError(f"Function {self.name} has no executable logic.")
-        if self.schema and hasattr(self.schema, "model_validate"):
-            safe_args = self.schema.model_validate(args).model_dump(by_alias=True)
-        else:
-            safe_args = args
         exec_fn = cast(Callable[..., TReturn], self.execute_func)
         try:
             sig = inspect.signature(exec_fn)
@@ -100,11 +132,11 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
             param_count = 3
 
         if param_count >= 3:
-            return exec_fn(safe_args, context, abort_signal)
+            return exec_fn(args, context, abort_signal)
         elif param_count == 2:
-            return exec_fn(safe_args, context)
+            return exec_fn(args, context)
         else:
-            return exec_fn(safe_args)
+            return exec_fn(args)
 
 
 def create_function_implementation(
@@ -119,6 +151,7 @@ def create_function_implementation(
         execute=execute,
         allowed_callers=getattr(api, "allowed_callers", "rendererOnly"),
         requires_user_activation=getattr(api, "requires_user_activation", False),
+        description=getattr(api, "description", None),
     )
 
 

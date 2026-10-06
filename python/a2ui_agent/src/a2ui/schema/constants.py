@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-A2UI_ASSET_PACKAGE = "a2ui.assets"
-SERVER_TO_CLIENT_SCHEMA_KEY = "server_to_client"
-COMMON_TYPES_SCHEMA_KEY = "common_types"
 CATALOG_SCHEMA_KEY = "catalog"
 CATALOG_COMPONENTS_KEY = "components"
 CATALOG_ID_KEY = "catalogId"
@@ -63,26 +60,6 @@ VERSION_0_8 = "0.8"
 VERSION_0_9 = "0.9"
 VERSION_0_9_1 = "0.9.1"
 VERSION_1_0 = "1.0"
-
-PROTOCOL_VERSION_MAP = {
-    VERSION_0_8: {
-        SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v0_8/json/server_to_client.json",
-    },
-    VERSION_0_9: {
-        SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v0_9/json/server_to_client.json",
-        COMMON_TYPES_SCHEMA_KEY: "specification/v0_9/json/common_types.json",
-    },
-    VERSION_0_9_1: {
-        SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v0_9_1/json/server_to_client.json",
-        COMMON_TYPES_SCHEMA_KEY: "specification/v0_9_1/json/common_types.json",
-    },
-    VERSION_1_0: {
-        SERVER_TO_CLIENT_SCHEMA_KEY: "specification/v1_0/json/agent_to_renderer.json",
-        COMMON_TYPES_SCHEMA_KEY: "specification/v1_0/json/common_types.json",
-    },
-}
-
-SPEC_VERSION_MAP = PROTOCOL_VERSION_MAP
 
 SPECIFICATION_DIR = "specification"
 

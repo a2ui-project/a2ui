@@ -13,11 +13,15 @@
 # limitations under the License.
 
 import datetime
+import json
 import math
 import re
 from typing import Any
+from urllib.parse import urlparse
+
 from ...resolution.data_context import DataContext
 from ...common.events import AbortSignal
+from ...exceptions import A2uiExpressionError
 from ...catalog import (
     FunctionImplementation,
     create_function_implementation,
@@ -61,8 +65,6 @@ def _to_str(val: Any) -> str:
     if val is None:
         return ""
     if isinstance(val, (dict, list)):
-        import json
-
         return json.dumps(val, separators=(",", ":"))
     if isinstance(val, bool):
         return "true" if val else "false"
@@ -96,9 +98,12 @@ def _regex_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> dict[str, Any]:
-    valid = bool(
-        re.search(_to_str(args.get("pattern", "")), _to_str(args.get("value", "")))
-    )
+    pattern = _to_str(args.get("pattern", ""))
+    val = _to_str(args.get("value", ""))
+    try:
+        valid = bool(re.search(pattern, val))
+    except re.error as e:
+        raise A2uiExpressionError(f"Invalid regex pattern '{pattern}': {e}") from e
     return {"valid": valid}
 
 
@@ -110,12 +115,15 @@ def _length_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> dict[str, Any]:
-    valid = (
-        args.get("min") is None
-        or len(_to_str(args.get("value", ""))) >= int(args["min"])
-    ) and (
-        args.get("max") is None
-        or len(_to_str(args.get("value", ""))) <= int(args["max"])
+    val = args.get("value")
+    if isinstance(val, list):
+        l = len(val)
+    elif val is None:
+        l = 0
+    else:
+        l = len(_to_str(val))
+    valid = (args.get("min") is None or l >= int(args["min"])) and (
+        args.get("max") is None or l <= int(args["max"])
     )
     return {"valid": valid}
 
@@ -128,12 +136,25 @@ def _numeric_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> dict[str, Any]:
-    valid = (
-        args.get("min") is None or _to_float(args["value"]) >= _to_float(args["min"])
-    ) and (
-        args.get("max") is None or _to_float(args["value"]) <= _to_float(args["max"])
-    )
-    return {"valid": valid}
+    try:
+        val = _to_float(args["value"])
+    except (ValueError, TypeError):
+        return {"valid": False}
+    min_val = args.get("min")
+    if min_val is not None:
+        try:
+            if val < _to_float(min_val):
+                return {"valid": False}
+        except (ValueError, TypeError):
+            return {"valid": False}
+    max_val = args.get("max")
+    if max_val is not None:
+        try:
+            if val > _to_float(max_val):
+                return {"valid": False}
+        except (ValueError, TypeError):
+            return {"valid": False}
+    return {"valid": True}
 
 
 NumericImplementation = create_function_implementation(NumericApi, _numeric_execute)
@@ -415,12 +436,23 @@ def create_pluralize_implementation(
 PluralizeImplementation = create_pluralize_implementation(None)
 
 
+_ALLOWED_URL_SCHEMES = ("http:", "https:", "mailto:", "tel:")
+
+
 # Actions
 def _open_url_execute(
     args: dict[str, Any],
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> None:
+    url = args.get("url")
+    if not isinstance(url, str) or not url.strip():
+        return None
+
+    parsed = urlparse(url)
+    scheme = f"{parsed.scheme.lower()}:"
+    if scheme not in _ALLOWED_URL_SCHEMES:
+        raise A2uiExpressionError(f"Unsupported URL scheme: {parsed.scheme}")
     return None
 
 
@@ -428,12 +460,27 @@ OpenUrlImplementation = create_function_implementation(OpenUrlApi, _open_url_exe
 
 
 # Logical
+#
+# The v1.0 validators return a ValidationResult rather than a boolean, so a
+# nested ``and(required(...), or(...))`` receives dicts. A dict with a boolean
+# ``valid`` member is truthy by its validity, not by being a non-empty dict.
+def _is_truthy_or_valid(val: Any) -> bool:
+    if isinstance(val, dict):
+        valid = val.get("valid")
+        if isinstance(valid, bool):
+            return valid
+    return _to_bool(val)
+
+
 def _and_execute(
     args: dict[str, Any],
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return all(_to_bool(v) for v in args.get("values", []))
+    values = args.get("values")
+    if not isinstance(values, list) or len(values) < 2:
+        raise A2uiExpressionError("AndFunction requires at least 2 values")
+    return all(_is_truthy_or_valid(v) for v in values)
 
 
 AndImplementation = create_function_implementation(AndApi, _and_execute)
@@ -444,7 +491,10 @@ def _or_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return any(_to_bool(v) for v in args.get("values", []))
+    values = args.get("values")
+    if not isinstance(values, list) or len(values) < 2:
+        raise A2uiExpressionError("OrFunction requires at least 2 values")
+    return any(_is_truthy_or_valid(v) for v in values)
 
 
 OrImplementation = create_function_implementation(OrApi, _or_execute)
@@ -455,7 +505,7 @@ def _not_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return not _to_bool(args.get("value"))
+    return not _is_truthy_or_valid(args.get("value"))
 
 
 NotImplementation = create_function_implementation(NotApi, _not_execute)

@@ -14,17 +14,11 @@
 
 import 'dart:async';
 
-import 'package:a2ui_core/src/core/catalog.dart';
-import 'package:a2ui_core/src/core/common_schemas.dart';
-import 'package:a2ui_core/src/core/component_model.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/core/contexts.dart';
-import 'package:a2ui_core/src/core/messages.dart';
-import 'package:a2ui_core/src/core/minimal_catalog.dart';
-import 'package:a2ui_core/src/core/surface_model.dart';
-import 'package:a2ui_core/src/primitives/cancellation.dart';
 import 'package:a2ui_core/src/rendering/binder.dart';
-import 'package:a2ui_core/src/resolution/resolved_binding.dart';
-import 'package:json_schema_builder/json_schema_builder.dart';
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
 import 'package:test/test.dart';
 
 /// A catalog function that hands its resolved arguments to [onExecute].
@@ -414,14 +408,484 @@ void main() {
       final context = ComponentContext(surface, comp);
       final binder = GenericBinder(context, MinimalTextFieldApi().schema);
 
-      // Wait for Timer.run in GenericBinder
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-
       expect(binder.resolvedProps.value['isValid'], false);
       expect(binder.resolvedProps.value['validationErrors'], ['Must be valid']);
+      expect(binder.resolvedProps.value['validationResults'], [
+        const ValidationResult(
+          valid: false,
+          message: 'Must be valid',
+          severity: 'error',
+        ),
+      ]);
 
       surface.dataModel.set('/valid', true);
       expect(binder.resolvedProps.value['isValid'], true);
+      expect(binder.resolvedProps.value['validationErrors'], isEmpty);
+      expect(binder.resolvedProps.value['validationResults'], isEmpty);
+      binder.dispose();
+    });
+
+    test('evaluates checks returning ValidationResult maps and instances', () {
+      final customCatalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'validation-test',
+        components: [MinimalTextFieldApi()],
+        functions: [
+          _SpyFunction('checkResult', (args) => args['result']),
+        ],
+      );
+      final SurfaceModel<ComponentApi> customSurface =
+          SurfaceModel('s-val', catalog: customCatalog);
+      customSurface.dataModel.set('/r1', {'valid': true});
+      customSurface.dataModel.set('/r2', {
+        'valid': false,
+        'message': 'Function error message',
+        'code': 'ERR_CUSTOM',
+        'severity': 'error',
+      });
+      customSurface.dataModel.set('/r3', {
+        'valid': false,
+        'message': 'Weak password',
+        'code': 'WARN_WEAK',
+        'severity': 'warning',
+      });
+      customSurface.dataModel.set('/r4', {
+        'valid': false,
+        'message': 'Helpful hint',
+        'code': 'INFO_HINT',
+        'severity': 'info',
+      });
+      customSurface.dataModel.set('/r5', {'valid': false});
+
+      final comp = ComponentModel('c1', 'TextField', {
+        'label': 'Input',
+        'checks': [
+          {
+            'condition': {
+              'call': 'checkResult',
+              'args': {
+                'result': {'path': '/r1'},
+              },
+            },
+            'message': 'Fallback 1',
+          },
+          {
+            'condition': {
+              'call': 'checkResult',
+              'args': {
+                'result': {'path': '/r2'},
+              },
+            },
+            'message': 'Fallback 2',
+          },
+          {
+            'condition': {
+              'call': 'checkResult',
+              'args': {
+                'result': {'path': '/r3'},
+              },
+            },
+            'message': 'Fallback 3',
+          },
+          {
+            'condition': {
+              'call': 'checkResult',
+              'args': {
+                'result': {'path': '/r4'},
+              },
+            },
+            'message': 'Fallback 4',
+          },
+          {
+            'condition': {
+              'call': 'checkResult',
+              'args': {
+                'result': {'path': '/r5'},
+              },
+            },
+            'message': 'Fallback 5',
+          },
+        ],
+      });
+      customSurface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(customSurface, comp);
+      final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+
+      expect(binder.resolvedProps.value['isValid'], isFalse);
+      expect(binder.resolvedProps.value['validationErrors'], [
+        'Function error message',
+        'Fallback 5',
+      ]);
+      expect(binder.resolvedProps.value['validationResults'], [
+        const ValidationResult(
+          valid: false,
+          message: 'Function error message',
+          code: 'ERR_CUSTOM',
+          severity: 'error',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Weak password',
+          code: 'WARN_WEAK',
+          severity: 'warning',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Helpful hint',
+          code: 'INFO_HINT',
+          severity: 'info',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Fallback 5',
+          severity: 'error',
+        ),
+      ]);
+
+      // Resolve errors while keeping warning and info active: isValid becomes
+      // true.
+      customSurface.dataModel.set('/r2', {'valid': true});
+      customSurface.dataModel.set(
+        '/r5',
+        const ValidationResult(valid: true),
+      );
+      expect(binder.resolvedProps.value['isValid'], isTrue);
+      expect(binder.resolvedProps.value['validationErrors'], isEmpty);
+      expect(binder.resolvedProps.value['validationResults'], [
+        const ValidationResult(
+          valid: false,
+          message: 'Weak password',
+          code: 'WARN_WEAK',
+          severity: 'warning',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Helpful hint',
+          code: 'INFO_HINT',
+          severity: 'info',
+        ),
+      ]);
+
+      binder.dispose();
+      customSurface.dispose();
+    });
+
+    test('reports validation error for non-map rule entries in checks', () {
+      final errors = <A2uiClientError>[];
+      surface.onError.addListener(errors.add);
+      surface.dataModel.set('/valid', false);
+
+      final comp = ComponentModel('c1', 'TextField', {
+        'label': 'Name',
+        'checks': [
+          42,
+          'not-a-rule-map',
+          {
+            'condition': {'path': '/valid'},
+            'message': 'Must be valid',
+          },
+        ],
+      });
+      surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+
+      expect(errors, hasLength(2));
+      expect(errors[0].code, 'VALIDATION_FAILED');
+      expect(errors[0].path, '/checks/0');
+      expect(errors[1].code, 'VALIDATION_FAILED');
+      expect(errors[1].path, '/checks/1');
+
+      expect(binder.resolvedProps.value['isValid'], isFalse);
+      expect(binder.resolvedProps.value['validationErrors'], ['Must be valid']);
+      expect(binder.resolvedProps.value['validationResults'], [
+        const ValidationResult(
+          valid: false,
+          message: 'Must be valid',
+          severity: 'error',
+        ),
+      ]);
+
+      binder.dispose();
+    });
+
+    test('ValidationResult serializes and compares by value', () {
+      final parsed = ValidationResult.fromJson({
+        'valid': false,
+        'message': 'Invalid input',
+        'code': 'ERR_INVALID',
+        'severity': 'warning',
+      });
+      const expected = ValidationResult(
+        valid: false,
+        message: 'Invalid input',
+        code: 'ERR_INVALID',
+        severity: 'warning',
+      );
+      expect(parsed, equals(expected));
+      expect(parsed.hashCode, equals(expected.hashCode));
+      expect(parsed.toJson(), {
+        'valid': false,
+        'message': 'Invalid input',
+        'code': 'ERR_INVALID',
+        'severity': 'warning',
+      });
+      expect(
+        const ValidationResult(valid: true).toJson(),
+        {'valid': true},
+      );
+      expect(
+        ValidationResult.fromEvaluation(true).toJson(),
+        {'valid': true},
+      );
+      expect(
+        ValidationResult.fromJson({
+          'valid': true,
+          'severity': 'error',
+        }).severity,
+        isNull,
+      );
+      expect(
+        () => ValidationResult(valid: true, severity: 'error'),
+        throwsA(isA<AssertionError>()),
+      );
+      expect(
+        () => ValidationResult(valid: false, severity: 'invalid'),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test(
+      'v1.0 @path produces WritableBinding while plain path is read-only',
+      () {
+        final v1Surface = SurfaceModel<ComponentApi>(
+          's-v1',
+          catalog: catalog,
+          protocolVersion: 'v1.0',
+        );
+        addTearDown(v1Surface.dispose);
+        v1Surface.dataModel.set('/val', 'initial');
+
+        final comp = ComponentModel('c1', 'Text', {
+          'text': {'@path': '/val'},
+        });
+        v1Surface.componentsModel.addComponent(comp);
+
+        final context = ComponentContext(v1Surface, comp);
+        final binder = GenericBinder(context, MinimalTextApi().schema);
+
+        final Object? binding = binder.resolvedProps.value['text'];
+        expect(binding, isA<WritableBinding<Object?>>());
+        final writable = binding as WritableBinding<Object?>;
+        expect(writable.value, 'initial');
+        expect(writable.path, '/val');
+
+        writable.set('updated-v1');
+        expect(v1Surface.dataModel.get('/val'), 'updated-v1');
+
+        // Plain {'path': '/val'} in v1.0 is a literal map, not a WritableBinding.
+        final comp2 = ComponentModel('c2', 'Text', {
+          'text': {'path': '/val'},
+        });
+        v1Surface.componentsModel.addComponent(comp2);
+        final binder2 = GenericBinder(
+          ComponentContext(v1Surface, comp2),
+          MinimalTextApi().schema,
+        );
+        final Object? plainBinding = binder2.resolvedProps.value['text'];
+        expect(plainBinding, isNot(isA<WritableBinding<Object?>>()));
+        expect((plainBinding as ResolvedBinding<Object?>).value, {
+          'path': '/val',
+        });
+      },
+    );
+
+    test(
+      'v1.0 local function actions execute @call and reject plain call',
+      () async {
+        final calls = <Map<String, dynamic>>[];
+        final actions = <A2uiClientAction>[];
+        final errors = <A2uiClientError>[];
+        final v1Surface = SurfaceModel<ComponentApi>(
+          's-v1-fn',
+          protocolVersion: 'v1.0',
+          catalog: Catalog<ComponentApi, FunctionImplementation>(
+            id: 'test-v1',
+            components: [MinimalButtonApi()],
+            functions: [
+              _SpyFunction('spy', (args) {
+                calls.add(args);
+                return null;
+              }),
+              _SpyFunction('failAsync', (_) async {
+                await Future<void>.delayed(Duration.zero);
+                throw StateError('v1 async boom');
+              }),
+            ],
+          ),
+        );
+        addTearDown(v1Surface.dispose);
+        v1Surface.onAction.addListener(actions.add);
+        v1Surface.onError.addListener(errors.add);
+        v1Surface.dataModel.set('/items/0/label', 'v1-item');
+
+        Future<void> invokeV1Action(
+          Map<String, dynamic> action, {
+          String? basePath,
+        }) async {
+          final comp = ComponentModel('c1', 'Button', {
+            'child': 'c2',
+            'action': action,
+          });
+          v1Surface.componentsModel.removeComponent('c1');
+          v1Surface.componentsModel.addComponent(comp);
+          final ctx = ComponentContext(v1Surface, comp, basePath: basePath);
+          final binder = GenericBinder(ctx, MinimalButtonApi().schema);
+          final callback =
+              binder.resolvedProps.value['action'] as Future<void> Function();
+          await callback();
+          binder.dispose();
+        }
+
+        await invokeV1Action({
+          'functionCall': {
+            '@call': 'spy',
+            'args': {
+              'label': {'@path': 'label'},
+            },
+          },
+        }, basePath: '/items/0');
+        expect(calls, [
+          {'label': 'v1-item'},
+        ]);
+        expect(actions, isEmpty);
+        expect(errors, isEmpty);
+
+        calls.clear();
+        await invokeV1Action({
+          '@call': 'spy',
+          'args': {
+            'label': {'@path': 'label'},
+          },
+        }, basePath: '/items/0');
+        expect(calls, [
+          {'label': 'v1-item'},
+        ]);
+
+        // Async failure in v1.0 @call reports function name in error message.
+        await invokeV1Action({
+          'functionCall': {'@call': 'failAsync', 'args': <String, Object?>{}},
+        });
+        expect(errors, hasLength(1));
+        expect(errors.single.message, contains('failAsync'));
+
+        // Plain 'call' in v1.0 is not a function call; fails action dispatch.
+        errors.clear();
+        calls.clear();
+        await invokeV1Action({
+          'functionCall': {'call': 'spy', 'args': <String, Object?>{}},
+        });
+        expect(calls, isEmpty);
+        expect(actions, isEmpty);
+        expect(errors, hasLength(1));
+        expect(errors.single.code, 'INVALID_ACTION');
+      },
+    );
+
+    test('v1.0 ChildListTemplate expands items using bindingFor', () {
+      final v1Surface = SurfaceModel<ComponentApi>(
+        's-v1-tpl',
+        catalog: catalog,
+        protocolVersion: 'v1.0',
+      );
+      addTearDown(v1Surface.dispose);
+      v1Surface.dataModel.set('/todos', [
+        {'title': 'One'},
+        {'title': 'Two'},
+      ]);
+
+      final comp = ComponentModel('c1', 'Row', {
+        'children': {'path': '/todos', 'componentId': 'todo-item'},
+      });
+      v1Surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(v1Surface, comp);
+      final binder = GenericBinder(context, MinimalRowApi().schema);
+
+      final children =
+          binder.resolvedProps.value['children'] as List<ChildNode>;
+      expect(children, [
+        ChildNode('todo-item', '/todos/0'),
+        ChildNode('todo-item', '/todos/1'),
+      ]);
+
+      v1Surface.dataModel.set('/todos', [
+        {'title': 'One'},
+        {'title': 'Two'},
+        {'title': 'Three'},
+      ]);
+      final updated = binder.resolvedProps.value['children'] as List<ChildNode>;
+      expect(updated, hasLength(3));
+      expect(updated[2], ChildNode('todo-item', '/todos/2'));
+    });
+
+    test(
+      'reports unrecognized action payloads via onError',
+      () async {
+        final actions = <A2uiClientAction>[];
+        final errors = <A2uiClientError>[];
+        surface.onAction.addListener(actions.add);
+        surface.onError.addListener(errors.add);
+
+        final comp = ComponentModel('c1', 'Button', {
+          'child': 'c2',
+          'action': {'unexpected': 'payload'},
+        });
+        surface.componentsModel.addComponent(comp);
+
+        final context = ComponentContext(surface, comp);
+        final binder = GenericBinder(context, MinimalButtonApi().schema);
+        final callback =
+            binder.resolvedProps.value['action'] as Future<void> Function();
+        await callback();
+
+        expect(actions, isEmpty);
+        expect(errors, hasLength(1));
+        expect(errors.single.code, 'INVALID_ACTION');
+        expect(errors.single.surfaceId, 's1');
+      },
+    );
+
+    test('resolves dynamic binding to an action payload before dispatching',
+        () async {
+      final actions = <A2uiClientAction>[];
+      final errors = <A2uiClientError>[];
+      surface.onAction.addListener(actions.add);
+      surface.onError.addListener(errors.add);
+      surface.dataModel.set('/boundAction', {
+        'event': {
+          'name': 'bound_submit',
+          'context': {'from': 'binding'},
+        },
+      });
+
+      final comp = ComponentModel('c1', 'Button', {
+        'child': 'c2',
+        'action': {'path': '/boundAction'},
+      });
+      surface.componentsModel.addComponent(comp);
+
+      final context = ComponentContext(surface, comp);
+      final binder = GenericBinder(context, MinimalButtonApi().schema);
+      final callback =
+          binder.resolvedProps.value['action'] as Future<void> Function();
+      await callback();
+
+      expect(errors, isEmpty);
+      expect(actions, hasLength(1));
+      expect(actions.single.name, 'bound_submit');
+      expect(actions.single.context, {'from': 'binding'});
     });
   });
 }

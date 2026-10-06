@@ -138,14 +138,14 @@ struct PluralizeFunctionTests {
   }
 
   @Test(arguments: [
-    ("en", 0.0, "other"),
-    ("en", 2.0, "other"),
-    ("zh", 1.0, "other"),
+    ("en", 0.0, "zero"),
+    ("en", 2.0, "two"),
+    ("zh", 1.0, "one"),
     ("ar", 3.0, "few"),
     ("ru", 5.0, "many"),
     ("fr", 1.5, "one"),
-    ("pt-BR", 0.0, "one"),
-    ("pt-PT", 0.0, "other"),
+    ("pt-BR", 0.0, "zero"),
+    ("pt-PT", 0.0, "zero"),
     ("eng", 1.0, "one"),
     ("fra", 1.0, "one"),
     ("deu", 1.0, "one"),

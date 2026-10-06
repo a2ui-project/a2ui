@@ -37,7 +37,7 @@ class V08Capabilities(StrictBaseModel):
         ),
     )
     inline_catalogs: list[CatalogDefinition] | None = Field(
-        None,
+        default=None,
         alias="inlineCatalogs",
         description=(
             "An array of inline catalog definitions. This should only be provided if"
@@ -50,7 +50,7 @@ V0_8Capabilities = V08Capabilities
 
 
 class A2uiClientCapabilities(StrictBaseModel):
-    v0_8: V08Capabilities | None = Field(None, alias=PROTOCOL_VERSION)
+    v0_8: V08Capabilities | None = Field(default=None, alias=PROTOCOL_VERSION)
 
 
 A2uiRendererCapabilities = A2uiClientCapabilities

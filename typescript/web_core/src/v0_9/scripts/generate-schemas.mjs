@@ -114,7 +114,6 @@ function generateCommonTypes() {
 
   const commonEntries = defKeys.map(k => `  ${k}: ${k}Schema,`).join('\n');
   commonTs += `export const CommonSchemas = {\n${commonEntries}\n};\n\n`;
-  commonTs += `export * from './helpers.js';\n`;
 
   writeFileSync(join(destDir, 'common-types.ts'), commonTs);
 
@@ -156,7 +155,7 @@ function generateIncomingMessageSchemas(commonDefNames) {
 
   const neededImports = Array.from(commonDefNames)
     .map(name => `${name}Schema`)
-    .filter(schemaName => bodyCode.includes(schemaName))
+    .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
     .sort();
 
   let outTs = getHeader(VERSION_TAG, SCRIPT_SOURCE) + "import {z} from 'zod';\n";

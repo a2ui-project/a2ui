@@ -1,5 +1,42 @@
 ## Unreleased
 
+- (v1_0) The basic catalog's `and`, `or` and `not` read a ValidationResult
+  operand by its `valid` member instead of treating every non-empty dict as
+  truthy, so the v1.0 specification's nested
+  `and(required, or(required, required))` check is false when a field is
+  empty. The v0.9 catalog keeps plain truthiness, since its validators return
+  booleans.
+- **BREAKING**: `DataContext` validates a function call's arguments as
+  written, before resolving the bindings and nested calls in them, and passes
+  the resolved values to the function body without validating them again.
+  The catalog's argument schema describes the written shape (a
+  `DynamicBoolean` admits a `{"@call": ...}`), so validating the resolved
+  values rejected, for example, the ValidationResult a v1.0 validator returns
+  to `and`, `or` or `not`. This matches web_core. Accordingly,
+  `FunctionImplementation.execute` no longer validates its arguments; callers
+  that invoke it directly validate the written arguments first, with
+  `PayloadValidator.validate_function` or the function's schema model.
+
+- **BREAKING**: `ComponentModel.component_tree` names the component under
+  `component`, as an `updateComponents` message does, instead of `type`. A
+  property named `type` no longer replaces the component type in the tree,
+  and is kept. `ComponentModel.validate` validates that same dict, so a
+  property named `component` or `id` no longer replaces the model's own
+  during validation ([#2930](https://github.com/a2ui-project/a2ui/pull/2930)).
+- JSON Schema patterns are validated with `regex` (`SchemaValidator` in
+  `a2ui.core.validation`), supporting Unicode property escapes such as
+  `\p{XID_Start}` and `\p{XID_Continue}` natively and anchoring `$` to the end
+  of the string per ECMA-262. `clean_schema_node` leaves `const`, `enum`,
+  `default`, and `examples` values untouched.
+- `PayloadValidator` reports invalid `Extensions` keys even with
+  `allow_unknown_elements`.
+- Catalog schemas reference `DynamicStringList` for string list values, as the
+  basic catalog does, instead of `DynamicValue`.
+- Patch and pre-release protocol versions use the common types of their release
+  line (`1.0.0-rc.1` uses v1.0). Unparsable versions raise `A2uiCatalogError`
+  when a catalog schema is built.
+- `GenericBinder` binds `$ref`s to catalog-defined dynamic defs (for example
+  `DynamicDate`).
 - Add `CatalogApi`, the name for a schema-only `Catalog[ComponentApi, FunctionApi]`, exported from `a2ui.core`. `Catalog.from_json` returns it.
 - Execute `functionCall` and `call` component actions locally in `GenericBinder` and prevent `SurfaceModel.dispatch_action` from emitting them as agent-facing `on_action` events.
 - `ExpressionParser` accepts number literals with a leading decimal point
@@ -12,6 +49,16 @@
 - **BREAKING**: Optional JSON Schema `default` annotations in generated v0.9
   and v1.0 Pydantic models are kept in field descriptions instead of becoming
   field values. `const` values remain fixed.
+- **BREAKING**: `BasicCatalog` from `a2ui.core.basic_catalog` is a factory that
+  returns the basic catalog of a protocol version, for example
+  `BasicCatalog("0.9")`. The package no longer re-exports the v0.9 basic
+  catalog's symbols; import them from `a2ui.core.basic_catalog.v0_9`.
+- The v0.8 basic catalog's `catalog_id` is the v0.8 standard catalog ID,
+  `https://a2ui.org/specification/v0_8/standard_catalog_definition.json`.
+- **BREAKING**: `PayloadValidator`, `SurfaceModel`, `SurfaceGroupModel`,
+  `DataContext`, and `RpcHandler` are no longer generic. They take `CatalogApi`
+  catalogs, so remove type arguments such as
+  `SurfaceModel[MyComponent, MyFunction]`.
 
 ## 0.2.0 (2026-09-28)
 

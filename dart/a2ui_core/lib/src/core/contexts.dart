@@ -61,6 +61,74 @@ class DataContext {
     return (int.tryParse(core.split('.').first) ?? 0) >= 1;
   }
 
+  /// Returns a data-binding map for [path] using the key required by the
+  /// active protocol version (`{'@path': path}` in v1.0+, `{'path': path}` in
+  /// pre-v1.0).
+  Map<String, Object?> bindingFor(String path) => isV10
+      ? <String, Object?>{'@path': path}
+      : <String, Object?>{'path': path};
+
+  /// Whether [value] is a data-binding object under this context's protocol
+  /// version.
+  ///
+  /// From v1.0, a data binding is `{'@path': '<pointer>'}`. Before v1.0 it is
+  /// `{'path': '<pointer>'}` without a `componentId` sibling, which would make
+  /// it a `ChildListTemplate` instead.
+  bool isDataBinding(Object? value) {
+    if (value is! Map) return false;
+    return isV10
+        ? value['@path'] is String
+        : value['path'] is String && !value.containsKey('componentId');
+  }
+
+  /// Whether [value] is a function-call object under this context's protocol
+  /// version.
+  ///
+  /// From v1.0, a function call is `{'@call': '<name>', ...}`. Before v1.0 it
+  /// is `{'call': '<name>', ...}`.
+  bool isFunctionCall(Object? value) {
+    if (value is! Map) return false;
+    return isV10 ? value['@call'] is String : value['call'] is String;
+  }
+
+  /// Rewrites [part], a node of a parsed `${...}` expression, into the
+  /// dynamic-value shape this context resolves.
+  ///
+  /// `ExpressionParser` always emits `{path}` and `{call, args, returnType}`
+  /// nodes. Before v1.0 those are already the resolvable shape and [part] is
+  /// returned unchanged. From v1.0 a path node becomes [bindingFor] of its
+  /// path, a call node becomes `{'@call', 'args', 'returnType'}` with its
+  /// arguments rewritten recursively, and lists and other maps are rewritten
+  /// element by element.
+  Object? adaptExpressionPart(Object? part) {
+    if (!isV10) return part;
+    if (part is List) {
+      return [for (final Object? item in part) adaptExpressionPart(item)];
+    }
+    if (part is! Map) return part;
+    if (part['path'] is String &&
+        !part.containsKey('componentId') &&
+        !part.containsKey('@path')) {
+      return bindingFor(part['path'] as String);
+    }
+    if (part['call'] is String && !part.containsKey('@call')) {
+      final Object? rawArgs = part['args'];
+      return <String, Object?>{
+        '@call': part['call'],
+        'args': <String, Object?>{
+          if (rawArgs is Map)
+            for (final MapEntry<Object?, Object?> entry in rawArgs.entries)
+              entry.key.toString(): adaptExpressionPart(entry.value),
+        },
+        'returnType': part['returnType'] ?? 'any',
+      };
+    }
+    return <String, Object?>{
+      for (final MapEntry<Object?, Object?> entry in part.entries)
+        entry.key.toString(): adaptExpressionPart(entry.value),
+    };
+  }
+
   static const Set<String> _reservedDirectives = {'@path', '@call'};
 
   static bool _isSingleAtKey(String key) =>
@@ -100,16 +168,14 @@ class DataContext {
   /// bindings or calls is returned as-is rather than copied.
   Object? resolveSync(Object? value) {
     if (isV10) {
-      if (value is Map &&
-          value.containsKey('@path') &&
-          value['@path'] is String) {
-        final pathVal = value['@path'] as String;
+      if (isDataBinding(value)) {
+        final pathVal = (value as Map)['@path'] as String;
         return dataModel.get(resolvePath(pathVal));
       }
-      if (value is Map &&
-          value.containsKey('@call') &&
-          value['@call'] is String) {
-        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+      if (isFunctionCall(value)) {
+        final call = FunctionCall.fromJson(
+          Map<String, dynamic>.from(value as Map),
+        );
         final args = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
           args[entry.key] = resolveSync(entry.value);
@@ -122,6 +188,7 @@ class DataContext {
       }
       if (value is Map) {
         _validateReservedDirectives(value.keys);
+        if (!_containsDynamicValue(value)) return value;
         final result = <String, dynamic>{};
         for (final MapEntry<Object?, Object?> entry in value.entries) {
           final keyStr = entry.key as String;
@@ -132,17 +199,14 @@ class DataContext {
         return result;
       }
     } else {
-      if (value is Map &&
-          value.containsKey('path') &&
-          value['path'] is String &&
-          !value.containsKey('componentId')) {
-        final pathVal = value['path'] as String;
+      if (isDataBinding(value)) {
+        final pathVal = (value as Map)['path'] as String;
         return dataModel.get(resolvePath(pathVal));
       }
-      if (value is Map &&
-          value.containsKey('call') &&
-          value['call'] is String) {
-        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+      if (isFunctionCall(value)) {
+        final call = FunctionCall.fromJson(
+          Map<String, dynamic>.from(value as Map),
+        );
         final args = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
           args[entry.key] = resolveSync(entry.value);
@@ -172,18 +236,18 @@ class DataContext {
     return value;
   }
 
-  /// Whether a value (typically an array element) contains any dynamic
-  /// parts (path bindings or function calls) that require resolution.
-  static bool _containsDynamicValue(Object? value) {
+  /// Whether a value (typically an array element or map) contains any dynamic
+  /// parts (path bindings, function calls, or v1.0 `@` directives/escapes)
+  /// that require resolution or unescaping in the current protocol mode.
+  bool _containsDynamicValue(Object? value) {
     if (value is List) {
       return value.any(_containsDynamicValue);
     }
     if (value is Map) {
-      if (value.containsKey('path') ||
-          value.containsKey('call') ||
-          value.containsKey('@path') ||
-          value.containsKey('@call') ||
-          value.keys.any((k) => k is String && k.startsWith('@@'))) {
+      if (isDataBinding(value) || isFunctionCall(value)) {
+        return true;
+      }
+      if (isV10 && value.keys.any((k) => k is String && k.startsWith('@'))) {
         return true;
       }
       return value.values.any(_containsDynamicValue);
@@ -196,24 +260,24 @@ class DataContext {
   /// payloads resolve per entry, mirroring [resolveSync].
   ReadonlySignal<Object?> resolveListenable(Object? value) {
     if (isV10) {
-      if (value is Map &&
-          value.containsKey('@path') &&
-          value['@path'] is String) {
-        final pathVal = value['@path'] as String;
+      if (isDataBinding(value)) {
+        final pathVal = (value as Map)['@path'] as String;
         return dataModel.watch(resolvePath(pathVal));
       }
-      if (value is Map &&
-          value.containsKey('@call') &&
-          value['@call'] is String) {
-        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+      if (isFunctionCall(value)) {
+        final call = FunctionCall.fromJson(
+          Map<String, dynamic>.from(value as Map),
+        );
+        final Map<String, ReadonlySignal<Object?>> argSignals = {
+          for (final MapEntry<String, dynamic> entry in call.args.entries)
+            entry.key: resolveListenable(entry.value),
+        };
         return computed(() {
-          final args = <String, dynamic>{};
-          for (final MapEntry<String, dynamic> entry in call.args.entries) {
-            final ReadonlySignal<Object?> resolved = resolveListenable(
-              entry.value,
-            );
-            args[entry.key] = resolved.value;
-          }
+          final args = <String, dynamic>{
+            for (final MapEntry<String, ReadonlySignal<Object?>> entry
+                in argSignals.entries)
+              entry.key: entry.value.value,
+          };
           final Object? result = _evaluateFunction(call.call, args);
           if (result is ReadonlySignal) {
             return result.value;
@@ -223,6 +287,9 @@ class DataContext {
       }
       if (value is Map) {
         _validateReservedDirectives(value.keys);
+        if (!_containsDynamicValue(value)) {
+          return signal(value);
+        }
         final entries = <String, ReadonlySignal<Object?>>{
           for (final MapEntry<Object?, Object?> e in value.entries)
             (e.key.toString().startsWith('@@')
@@ -234,25 +301,24 @@ class DataContext {
             });
       }
     } else {
-      if (value is Map &&
-          value.containsKey('path') &&
-          value['path'] is String &&
-          !value.containsKey('componentId')) {
-        final pathVal = value['path'] as String;
+      if (isDataBinding(value)) {
+        final pathVal = (value as Map)['path'] as String;
         return dataModel.watch(resolvePath(pathVal));
       }
-      if (value is Map &&
-          value.containsKey('call') &&
-          value['call'] is String) {
-        final call = FunctionCall.fromJson(Map<String, dynamic>.from(value));
+      if (isFunctionCall(value)) {
+        final call = FunctionCall.fromJson(
+          Map<String, dynamic>.from(value as Map),
+        );
+        final Map<String, ReadonlySignal<Object?>> argSignals = {
+          for (final MapEntry<String, dynamic> entry in call.args.entries)
+            entry.key: resolveListenable(entry.value),
+        };
         return computed(() {
-          final args = <String, dynamic>{};
-          for (final MapEntry<String, dynamic> entry in call.args.entries) {
-            final ReadonlySignal<Object?> resolved = resolveListenable(
-              entry.value,
-            );
-            args[entry.key] = resolved.value;
-          }
+          final args = <String, dynamic>{
+            for (final MapEntry<String, ReadonlySignal<Object?>> entry
+                in argSignals.entries)
+              entry.key: entry.value.value,
+          };
           final Object? result = _evaluateFunction(call.call, args);
           if (result is ReadonlySignal) {
             return result.value;
@@ -319,6 +385,52 @@ class DataContext {
 
   void set(String relativePath, Object? value) {
     dataModel.set(resolvePath(relativePath), value);
+  }
+
+  /// Resolves an action payload by evaluating dynamic values in its context and
+  /// userMessage.
+  Map<String, dynamic>? resolveAction(Object? action) {
+    if (action == null) return null;
+    if (action is String) {
+      if (action.isEmpty) return null;
+      return {
+        'event': {'name': action, 'context': <String, Object?>{}}
+      };
+    }
+    if (action is! Map) return null;
+    final map = Map<String, dynamic>.from(action);
+    final Object? eventObj = map['event'];
+    if (eventObj is Map) {
+      final Object? name = eventObj['name'];
+      if (name is! String || name.isEmpty) return null;
+      final Map<String, dynamic> ev = _resolveActionFields(
+        Map<String, dynamic>.from(eventObj),
+      );
+      return {...map, 'event': ev};
+    }
+    if (map.containsKey('name')) {
+      final Object? name = map['name'];
+      if (name is! String || name.isEmpty) return null;
+      return _resolveActionFields(map);
+    }
+    return null;
+  }
+
+  Map<String, dynamic> _resolveActionFields(Map<String, dynamic> map) {
+    final result = Map<String, dynamic>.from(map);
+    final Object? ctx = result['context'];
+    if (ctx is Map) {
+      result['context'] = <String, Object?>{
+        for (final MapEntry<Object?, Object?> e in ctx.entries)
+          e.key.toString(): resolveSync(e.value),
+      };
+    } else {
+      result['context'] = <String, Object?>{};
+    }
+    if (result.containsKey('userMessage')) {
+      result['userMessage'] = resolveSync(result['userMessage']);
+    }
+    return result;
   }
 }
 

@@ -26,7 +26,8 @@ import {
 } from '../reactivity/signals.js';
 import {z} from 'zod';
 import {DataModel, DataSubscription} from '../state/data-model.js';
-import {type FunctionCall, type Action, MAX_FUNCTION_CALL_ARGS} from '../types/common-types.js';
+import {type FunctionCall, type Action} from '../types/common-types.js';
+import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {A2uiCatalogError, A2uiExpressionError, A2uiValidationError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
 
@@ -807,23 +808,49 @@ export class DataContext {
    * @param action The Action object to resolve.
    * @returns The resolved action payload or function execution result.
    */
-  resolveAction(action: Action): Action | unknown {
-    if ('event' in action) {
+  resolveAction(action: Action | Record<string, unknown>): Action | unknown {
+    if ('event' in action && typeof action.event === 'object' && action.event !== null) {
       const resolvedContext: Record<string, unknown> = {};
-      if (action.event.context) {
-        for (const [key, value] of Object.entries(action.event.context)) {
+      const ev = action.event as Record<string, unknown>;
+      if (ev.context && typeof ev.context === 'object' && !Array.isArray(ev.context)) {
+        for (const [key, value] of Object.entries(ev.context as Record<string, unknown>)) {
           resolvedContext[key] = this.resolveDynamicValue(value);
         }
       }
+      const resolvedEvent: Record<string, unknown> = {
+        ...ev,
+        context: resolvedContext,
+      };
+      if (ev.userMessage !== undefined) {
+        resolvedEvent.userMessage = this.resolveDynamicValue(ev.userMessage);
+      }
       return {
-        event: {
-          ...action.event,
-          context: resolvedContext,
-        },
+        ...action,
+        event: resolvedEvent,
       };
     }
+    if ('name' in action) {
+      const actObj = action as Record<string, unknown>;
+      const resolvedContext: Record<string, unknown> = {};
+      if (actObj.context && typeof actObj.context === 'object' && !Array.isArray(actObj.context)) {
+        for (const [key, value] of Object.entries(actObj.context as Record<string, unknown>)) {
+          resolvedContext[key] = this.resolveDynamicValue(value);
+        }
+      }
+      const resolved: Record<string, unknown> = {
+        ...actObj,
+        context: resolvedContext,
+      };
+      if (actObj.userMessage !== undefined) {
+        resolved.userMessage = this.resolveDynamicValue(actObj.userMessage);
+      }
+      return resolved;
+    }
     if ('functionCall' in action) {
-      return this.resolveDynamicValue(action.functionCall, 0, true);
+      return this.resolveDynamicValue((action as any).functionCall, 0, true);
+    }
+    if ('call' in action) {
+      return this.resolveDynamicValue(action, 0, true);
     }
     return action;
   }

@@ -30,6 +30,7 @@ import {
   executeFormatCurrency,
   executeFormatDate,
   executePluralize,
+  isTruthyOrValid,
   parseTimestamp,
 } from './basic_functions.js';
 
@@ -84,13 +85,15 @@ describe('Common Basic Functions', () => {
     it('executeAnd', () => {
       assert.strictEqual(executeAnd([true, true]), true);
       assert.strictEqual(executeAnd([true, false]), false);
-      assert.strictEqual(executeAnd([]), true);
+      assert.throws(() => executeAnd([]), {name: 'A2uiExpressionError'});
+      assert.throws(() => executeAnd([true]), {name: 'A2uiExpressionError'});
     });
 
     it('executeOr', () => {
       assert.strictEqual(executeOr([false, true]), true);
       assert.strictEqual(executeOr([false, false]), false);
-      assert.strictEqual(executeOr([]), false);
+      assert.throws(() => executeOr([]), {name: 'A2uiExpressionError'});
+      assert.throws(() => executeOr([false]), {name: 'A2uiExpressionError'});
     });
 
     it('executeNot', () => {
@@ -98,6 +101,26 @@ describe('Common Basic Functions', () => {
       assert.strictEqual(executeNot(false), true);
       assert.strictEqual(executeNot(0), true);
       assert.strictEqual(executeNot('text'), false);
+    });
+
+    it('treats a {valid} object as truthy by default', () => {
+      assert.strictEqual(executeNot({valid: false}), false);
+      assert.strictEqual(executeAnd([{valid: false}, {valid: false}]), true);
+    });
+
+    it('reads a {valid} object by its validity with isTruthyOrValid', () => {
+      assert.strictEqual(isTruthyOrValid({valid: true}), true);
+      assert.strictEqual(isTruthyOrValid({valid: false, message: 'Required'}), false);
+      assert.strictEqual(isTruthyOrValid({valid: 'yes'}), true);
+      assert.strictEqual(isTruthyOrValid({other: 1}), true);
+      assert.strictEqual(isTruthyOrValid([]), true);
+      assert.strictEqual(isTruthyOrValid(''), false);
+      assert.strictEqual(isTruthyOrValid(null), false);
+
+      assert.strictEqual(executeNot({valid: false}, isTruthyOrValid), true);
+      assert.strictEqual(executeAnd([{valid: true}, {valid: false}], isTruthyOrValid), false);
+      assert.strictEqual(executeOr([{valid: false}, {valid: false}], isTruthyOrValid), false);
+      assert.strictEqual(executeOr([{valid: false}, {valid: true}], isTruthyOrValid), true);
     });
   });
 
@@ -132,6 +155,21 @@ describe('Common Basic Functions', () => {
       const parsed = parseTimestamp('2025-01-01T12:00:00+02:00');
       assert.ok(parsed);
       assert.strictEqual(parsed.instant.toISOString(), '2025-01-01T10:00:00.000Z');
+    });
+
+    it('rejects dates whose fields do not survive parsing', () => {
+      // Date would roll these over to March 2 and January 2027.
+      assert.strictEqual(parseTimestamp('2026-02-30'), null);
+      assert.strictEqual(parseTimestamp('2026-02-30T12:00:00Z'), null);
+      assert.strictEqual(parseTimestamp('2026-02-29T00:00:00-05:00'), null);
+      assert.strictEqual(parseTimestamp('2026-13-01'), null);
+      assert.strictEqual(executeFormatDate('2026-02-30', 'yyyy-MM-dd', 'en-US'), '');
+      // Leap days and month ends that exist are unaffected.
+      assert.strictEqual(executeFormatDate('2024-02-29', 'yyyy-MM-dd', 'en-US'), '2024-02-29');
+      assert.strictEqual(
+        executeFormatDate('2026-01-31T23:59:59Z', 'yyyy-MM-dd HH:mm:ss', 'en-US'),
+        '2026-01-31 23:59:59',
+      );
     });
 
     it('executePluralize', () => {

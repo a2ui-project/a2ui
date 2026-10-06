@@ -37,7 +37,7 @@ class V10Capabilities(StrictBaseModel):
         ),
     )
     inline_catalogs: list[CatalogDefinition] | None = Field(
-        None,
+        default=None,
         alias="inlineCatalogs",
         description=(
             "An array of inline catalog definitions, which can contain both components"
@@ -51,4 +51,4 @@ V1_0Capabilities = V10Capabilities
 
 
 class A2uiRendererCapabilities(StrictBaseModel):
-    v1_0: V10Capabilities | None = Field(None, alias=PROTOCOL_VERSION)
+    v1_0: V10Capabilities | None = Field(default=None, alias=PROTOCOL_VERSION)

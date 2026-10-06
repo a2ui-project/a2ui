@@ -22,6 +22,7 @@ from .common_types import (
     ActionEvent,
     ActionEventWrapper,
     ActionFunctionCallWrapper,
+    COMMON_TYPES_DEFS,
     CheckRule,
     Checkable,
     Child,
@@ -38,6 +39,7 @@ from .common_types import (
     FunctionCall,
     ListReference,
     SingleReference,
+    SpecBaseModel,
     StrictBaseModel,
     TemplateChildList,
 )
@@ -56,6 +58,7 @@ from .server_to_client import (
     AgentToRendererMessage,
     A2uiMessage,
     A2uiMessageListWrapper,
+    AGENT_TO_RENDERER_DEFS,
 )
 from .client_capabilities import (
     FunctionDefinition,
@@ -101,6 +104,7 @@ __all__ = [
     "ActionEvent",
     "ActionEventWrapper",
     "ActionFunctionCallWrapper",
+    "COMMON_TYPES_DEFS",
     "CheckRule",
     "Checkable",
     "Child",
@@ -117,6 +121,7 @@ __all__ = [
     "FunctionCall",
     "ListReference",
     "SingleReference",
+    "SpecBaseModel",
     "StrictBaseModel",
     "TemplateChildList",
     "ComponentsList",
@@ -133,6 +138,7 @@ __all__ = [
     "AgentToRendererMessage",
     "A2uiMessage",
     "A2uiMessageListWrapper",
+    "AGENT_TO_RENDERER_DEFS",
     "FunctionDefinition",
     "InlineCatalog",
     "Catalog",

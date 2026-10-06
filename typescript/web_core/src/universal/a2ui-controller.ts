@@ -94,9 +94,10 @@ export class A2uiController<
   }
 
   /**
-   * Disposes the underlying GenericBinder to clean up resources from the context.
+   * Unsubscribes host listeners and disposes the underlying GenericBinder.
    */
   dispose() {
+    this.hostDisconnected();
     this.binder.dispose();
   }
 }

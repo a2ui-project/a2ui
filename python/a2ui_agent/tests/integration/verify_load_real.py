@@ -14,10 +14,11 @@
 
 import sys
 
+from a2ui.core.basic_catalog import v0_8, v0_9
 from a2ui.inference_formats.direct_json.format import DirectJsonFormat
-from a2ui.schema.constants import CATALOG_COMPONENTS_KEY, VERSION_0_8, VERSION_0_9
+from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.common_modifiers import remove_strict_validation
-from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.schema.constants import CATALOG_COMPONENTS_KEY, VERSION_0_8, VERSION_0_9
 
 
 def verify():
@@ -25,7 +26,7 @@ def verify():
     try:
         direct_json_format = DirectJsonFormat(
             version=VERSION_0_8,
-            catalogs=[BasicCatalog.get_config(VERSION_0_8)],
+            catalogs=[CatalogConfig.from_catalog('basic', v0_8.BasicCatalog())],
             schema_modifiers=[remove_strict_validation],
         )
         catalog = direct_json_format.get_selected_catalog()
@@ -418,7 +419,7 @@ def verify():
     try:
         direct_json_format = DirectJsonFormat(
             version=VERSION_0_9,
-            catalogs=[BasicCatalog.get_config(VERSION_0_9)],
+            catalogs=[CatalogConfig.from_catalog('basic', v0_9.BasicCatalog())],
             schema_modifiers=[remove_strict_validation],
         )
         catalog = direct_json_format.get_selected_catalog()
