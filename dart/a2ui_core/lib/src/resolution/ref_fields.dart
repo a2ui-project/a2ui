@@ -23,14 +23,14 @@ export '../primitives/reference_schema.dart'
 /// Classifies the child-reference properties of [schema], including
 /// structural `ChildList` shapes and the `child`/`children` name fallbacks.
 ///
+/// [commonTypes] is the `common_types.json` document used for external and
+/// fallback pointers; it defaults to the embedded v0.9 document.
+///
 /// Uses the same classification as [Catalog.refMap], which is what the node
 /// resolver and graph validation read for a catalog's components. This entry
 /// point is for a schema outside a catalog, so nothing is cached: local
 /// aliases can resolve differently when the same schema is used in different
 /// catalog documents.
-///
-/// [commonTypes] is the `common_types.json` document used for external and
-/// fallback pointers; it defaults to the embedded v0.9 document.
 RefFields extractRefFields(
   Schema schema, {
   Map<String, Object?> document = const {},

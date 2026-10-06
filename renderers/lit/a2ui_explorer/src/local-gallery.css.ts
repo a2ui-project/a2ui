@@ -54,6 +54,37 @@ export const appStyles = css`
     font-size: 0.9rem;
   }
 
+  .version-selector {
+    display: flex;
+    gap: 6px;
+    background: #1e293b;
+    padding: 4px;
+    border-radius: 6px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+  }
+
+  .version-btn {
+    background: transparent;
+    color: #94a3b8;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .version-btn:hover {
+    color: #f1f5f9;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .version-btn.active {
+    background: #38bdf8;
+    color: #0f172a;
+  }
+
   main {
     flex: 1;
     display: flex;

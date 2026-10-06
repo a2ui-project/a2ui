@@ -34,6 +34,7 @@ module.exports = function (config) {
         // Map @a2ui/lit packages directly to their TypeScript source files.
         // This allows tests to run against live code changes without requiring
         // a rebuild step first.
+        '@a2ui/lit/v1_0': path.resolve(__dirname, '../src/v1_0/index.ts'),
         '@a2ui/lit/v0_9': path.resolve(__dirname, '../src/v0_9/index.ts'),
         '@a2ui/lit': path.resolve(__dirname, '../src/index.ts'),
       },

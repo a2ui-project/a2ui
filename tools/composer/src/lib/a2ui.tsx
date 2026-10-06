@@ -27,7 +27,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import {A2UIViewer as BaseA2UIViewer} from '@a2ui/react';
+import {A2UIViewer as BaseA2UIViewer} from '@a2ui/react/v0_8';
 import {viewerTheme} from './viewerTheme';
 import type {A2UIComponent, SpecVersion} from '@/types/widget';
 

@@ -229,25 +229,13 @@ class DataContext:
                 else ("call" in value and isinstance(value["call"], str))
             )
             if has_call:
-                from ..validation.payload_validator import MAX_FUNCTION_CALL_ARGS
-
                 func_name = value["@call"] if is_v10 else value["call"]
                 raw_args = value.get("args", {})
                 cat_id = value.get("catalogId") or value.get("catalog_id")
 
-                # Check argument count limit before recursively resolving arguments
-                if (
-                    isinstance(raw_args, dict)
-                    and len(raw_args) > MAX_FUNCTION_CALL_ARGS
-                ):
-                    resolved_args = raw_args
-                else:
-                    resolved_args = self.resolve_dynamic_value(
-                        raw_args, peek=True, abort_signal=abort_signal
-                    )
                 res = self._execute_function(
                     func_name,
-                    resolved_args,
+                    raw_args,
                     catalog_id=cat_id,
                     abort_signal=abort_signal,
                 )
@@ -412,17 +400,24 @@ class DataContext:
     def _execute_function(
         self,
         name: str,
-        resolved_args: dict[str, Any],
+        raw_args: Any,
         catalog_id: str | None = None,
         abort_signal: AbortSignal | None = None,
     ) -> Any:
+        """Validates, resolves and runs a function call.
+
+        The catalog's argument schema describes the arguments as written,
+        before nested bindings and calls are resolved: a ``DynamicBoolean``
+        admits ``{"@call": ...}`` as well as a boolean. So ``raw_args`` are
+        validated against it first, then resolved, and the resolved values
+        are handed to the function body as they are. Validating the resolved
+        values instead would reject, for example, the ``ValidationResult``
+        that a v1.0 validator returns to ``and``, ``or`` or ``not``.
+        """
         from ..exceptions import A2uiCatalogError, A2uiExpressionError
 
         try:
-            if (
-                isinstance(resolved_args, dict)
-                and len(resolved_args) > MAX_FUNCTION_CALL_ARGS
-            ):
+            if isinstance(raw_args, dict) and len(raw_args) > MAX_FUNCTION_CALL_ARGS:
                 raise A2uiExpressionError(
                     f"Function call '{name}' exceeds maximum allowed arguments count"
                     f" ({MAX_FUNCTION_CALL_ARGS})"
@@ -436,11 +431,7 @@ class DataContext:
             else:
                 target_catalog = self.surface.default_catalog
 
-            val_args = PayloadValidator(catalog=target_catalog).validate_function(
-                name, resolved_args
-            )
-            if isinstance(val_args, dict):
-                resolved_args = val_args
+            PayloadValidator(catalog=target_catalog).validate_function(name, raw_args)
 
             fn = (
                 target_catalog.get_function(name)
@@ -456,6 +447,12 @@ class DataContext:
                 raise A2uiCatalogError(
                     f"Function '{name}' not found in {catalog_desc}."
                 )
+
+            resolved_args = self.resolve_dynamic_value(
+                raw_args, peek=True, abort_signal=abort_signal
+            )
+            if resolved_args is None:
+                resolved_args = {}
 
             if hasattr(fn, "execute") and callable(fn.execute):
                 return fn.execute(resolved_args, self, abort_signal)

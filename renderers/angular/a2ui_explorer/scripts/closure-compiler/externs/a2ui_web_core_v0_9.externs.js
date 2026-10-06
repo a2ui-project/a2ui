@@ -93,9 +93,15 @@ function AnyComponentExterns() {}
 /** @type {?} */ AnyComponentExterns.prototype.minValue;
 /** @type {?} */ AnyComponentExterns.prototype.maxValue;
 /** @type {?} */ AnyComponentExterns.prototype.step;
+/** @type {?} */ AnyComponentExterns.prototype.steps;
+/** @type {?} */ AnyComponentExterns.prototype.posterUrl;
+/** @type {?} */ AnyComponentExterns.prototype.placeholder;
 /** @type {?} */ AnyComponentExterns.prototype.enableDate;
 /** @type {?} */ AnyComponentExterns.prototype.enableTime;
 /** @type {?} */ AnyComponentExterns.prototype.accessibility;
+/** @type {?} */ AnyComponentExterns.prototype.valid;
+/** @type {?} */ AnyComponentExterns.prototype.severity;
+/** @type {?} */ AnyComponentExterns.prototype.code;
 
 /**
  * Externs for `UpdateDataModelMessage` interface (`typescript/web_core/src/v0_9/schema/server-to-client.ts`).

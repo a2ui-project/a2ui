@@ -21,6 +21,9 @@ import 'package:test/test.dart';
 import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
+/// Conformance cases in `core/validator_v0_9.yaml` that are expected to fail.
+const Map<String, String> _v09ExpectedFailures = {};
+
 /// Runs the shared `conformance/core/validator_v0_9.yaml` suite against
 /// [MessageProcessor.processMessages], the entry point for checking a payload
 /// on its own.
@@ -28,25 +31,32 @@ import 'conformance_harness.dart';
 /// Cases targeting a protocol version this SDK does not implement are skipped
 /// with a reason, so the suite doubles as the implementation checklist.
 void main() {
-  final List<Map<String, Object?>> cases = loadConformanceSuite(
+  _registerValidatorSuite(
     'core/validator_v0_9.yaml',
+    expectedFailures: _v09ExpectedFailures,
   );
+}
 
-  group('conformance core/validator_v0_9.yaml', () {
+void _registerValidatorSuite(
+  String suite, {
+  Map<String, String> expectedFailures = const {},
+}) {
+  final List<ConformanceTestCase> cases = loadConformanceSuite(suite);
+
+  group('conformance $suite', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
-    for (final testCase in cases) {
-      test(
-        testCase['name']! as String,
-        () => _runCase(testCase),
-        skip: _skipReason(testCase),
-      );
-    }
+    runConformanceSuite(
+      cases,
+      _runCase,
+      expectedFailures: expectedFailures,
+      skipReason: _skipReason,
+    );
   });
 }
 
 /// Why a case cannot run yet, or null when it can.
-String? _skipReason(Map<String, Object?> testCase) {
+String? _skipReason(ConformanceTestCase testCase) {
   final String? version = caseVersion(testCase);
   if (version != null && version != '0.9') {
     return 'Targets protocol v$version; this harness runs v0.9 cases only.';
@@ -261,8 +271,11 @@ Set<String> _catalogIdsNamedBy(List<Map<String, Object?>> payload) => <String>{
           if (body['catalogId'] case final String id) id,
     };
 
-/// Matches the error a case expects, by category, message, and populated
-/// [A2uiValidationError] `code` / `path` fields.
+/// Matches the error a case expects, by category, message, code, and path.
+///
+/// `details` is not asserted. It carries the field path and code a Pydantic
+/// model reports, which this SDK does not model; the category, message, code,
+/// and path pin the same behaviour.
 Matcher _matchesError(Object? expectError) {
   if (expectError is String) {
     return _messageMatches(expectError);
@@ -271,37 +284,9 @@ Matcher _matchesError(Object? expectError) {
       (expectError! as Map).cast<String, Object?>();
   final matchers = <Matcher>[
     _categoryMatches(expected['category'] as String?),
+    if (expected['message'] case final String message) _messageMatches(message),
+    matchesErrorFields(expected),
   ];
-  if (expected['message'] case final String message) {
-    matchers.add(_messageMatches(message));
-  }
-  if (expected['code'] case final String expectedCode) {
-    matchers.add(
-      predicate<Object?>(
-        (e) =>
-            e is! A2uiError ||
-            (e is A2uiValidationError && e.code == 'VALIDATION_FAILED') ||
-            e.code == expectedCode,
-        'has code "$expectedCode" when populated',
-      ),
-    );
-  }
-  if (expected['path'] case final String expectedPath) {
-    matchers.add(
-      predicate<Object?>(
-        (e) {
-          if (e is A2uiValidationError) {
-            return e.path == null || e.path == expectedPath;
-          }
-          if (e is A2uiDataError) {
-            return e.path == null || e.path == expectedPath;
-          }
-          return true;
-        },
-        'has path "$expectedPath" when populated',
-      ),
-    );
-  }
   return allOf(matchers);
 }
 

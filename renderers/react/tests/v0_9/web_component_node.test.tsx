@@ -30,7 +30,7 @@ import type {
   A2uiWebComponentElement,
   WebComponentImplementation,
 } from '@a2ui/web_core/v0_9/universal';
-import {WebComponentNode} from '../../src/v0_9/web_component_node';
+import {WebComponentNode} from '../../src/web_component_node';
 
 const TestComp: WebComponentImplementation = {
   name: 'TestComp',

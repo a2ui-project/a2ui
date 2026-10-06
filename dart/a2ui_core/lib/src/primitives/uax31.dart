@@ -39,21 +39,6 @@ bool isValidUax31Identifier(String value, {bool allowLeadingAt = false}) {
   return _uax31Identifier.hasMatch(candidate);
 }
 
-/// Asserts that [value] satisfies UAX #31 identifier rules.
-///
-/// Throws an [A2uiCatalogError] when [value] is not a valid UAX #31
-/// identifier.
-void assertValidUax31Identifier(
-  String value, {
-  String context = 'Identifier',
-  bool allowLeadingAt = false,
-}) {
-  if (!isValidUax31Identifier(value, allowLeadingAt: allowLeadingAt)) {
-    final suffix = context.endsWith("'$value'") ? '' : ": '$value'";
-    throw A2uiCatalogError('Invalid UAX #31 $context$suffix');
-  }
-}
-
 /// Asserts that [name] satisfies UAX #31 identifier rules.
 ///
 /// Unlike TypeScript and Python, [allowLeadingAt] defaults to `false` so
@@ -66,9 +51,8 @@ void assertUax31Identifier(
   String context = 'Identifier',
   bool allowLeadingAt = false,
 }) {
-  assertValidUax31Identifier(
-    name,
-    context: context,
-    allowLeadingAt: allowLeadingAt,
-  );
+  if (!isValidUax31Identifier(name, allowLeadingAt: allowLeadingAt)) {
+    final suffix = context.endsWith("'$name'") ? '' : ": '$name'";
+    throw A2uiCatalogError('Invalid UAX #31 $context$suffix');
+  }
 }
