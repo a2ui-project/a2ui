@@ -34,6 +34,11 @@
 ///   whose suites use the joined form.
 /// - v0.9 `createSurface` states `sendDataModel` even when it is false,
 ///   which v1.0 leaves out.
+/// - v1.0 writes a data binding as `@path` and a function call as `@call`,
+///   where v0.9 writes `path` and `call`. Only components and the function a
+///   `callRendererFunction` names are renamed: a `ChildList` template
+///   (`componentId` beside `path`), the `updateDataModel` envelope's `path`
+///   and data model values keep their keys in both versions.
 library;
 
 import 'dart:convert';
@@ -141,18 +146,24 @@ final RegExp _versionField = RegExp(
 );
 
 /// [text], a payload a model wrote, lowered to v0.9: each `version` swapped,
-/// and each `createSurface` given [catalogId] when it is not null.
+/// each `@path` and `@call` key written without its `@`, and each
+/// `createSurface` given [catalogId] when it is not null.
 String lowerText(String text, {String? catalogId}) {
-  final String lowered = text.replaceAllMapped(
-    _versionField,
-    (m) => '${m[1]}${swapVersion(m[2])}${m[3]}',
-  );
+  final String lowered = text
+      .replaceAllMapped(
+        _versionField,
+        (m) => '${m[1]}${swapVersion(m[2])}${m[3]}',
+      )
+      .replaceAllMapped(_reservedKeyField, (m) => '"${m[1]}"');
   if (catalogId == null) return lowered;
   return lowered.replaceAll(
     RegExp(r'"createSurface"\s*:\s*\{'),
     '"createSurface": {"catalogId": ${jsonEncode(catalogId)}, ',
   );
 }
+
+// A single `@`: a doubled one escapes a literal key and stays as it is.
+final RegExp _reservedKeyField = RegExp(r'"@(path|call)"(?=\s*:)');
 
 /// The catalog a harness names in each `createSurface` of a case that names
 /// none, or null when the case names one itself.
@@ -173,7 +184,10 @@ List<AgentToRendererMessage> lowerMessages(
 }) {
   final lowered = <Map<String, Object?>>[];
   for (final message in messages) {
-    final json = Map<String, Object?>.from(message! as Map);
+    final Map<String, Object?> json = _renameReservedKeys(
+      Map<String, Object?>.from(message! as Map),
+      lower: true,
+    );
     json['version'] = swapVersion(json['version']);
     if (json['createSurface'] case final Map<Object?, Object?> body) {
       final create = Map<String, Object?>.from(body);
@@ -233,7 +247,10 @@ List<Object?> liftMessages(
 }) {
   final lifted = <Map<String, Object?>>[];
   for (final message in messages) {
-    final Map<String, Object?> json = message.toJson();
+    final Map<String, Object?> json = _renameReservedKeys(
+      message.toJson(),
+      lower: false,
+    );
     final create = lifted.lastOrNull?['createSurface'] as Map<String, Object?>?;
     final Object? surfaceId = create?['surfaceId'];
     switch (json) {
@@ -270,6 +287,55 @@ List<Object?> liftMessages(
   }
   return lifted;
 }
+
+/// The v1.0 spelling of each key a data binding or function call reserves,
+/// mapped to its v0.9 spelling.
+const Map<String, String> _reservedKeys = {'@path': 'path', '@call': 'call'};
+
+/// [message] with the reserved keys of its components, and of the function
+/// a `callRendererFunction` names, renamed to v0.9 when [lower] is true and
+/// to v1.0 otherwise.
+Map<String, Object?> _renameReservedKeys(
+  Map<String, Object?> message, {
+  required bool lower,
+}) => {
+  for (final MapEntry<String, Object?> entry in message.entries)
+    entry.key: switch (entry.value) {
+      final Map<String, Object?> body => {
+        for (final MapEntry<String, Object?> field in body.entries)
+          field.key: field.key == 'components' || field.key == 'callFunction'
+              ? _renameKeysIn(field.value, lower: lower)
+              : field.value,
+      },
+      final Object? value => value,
+    },
+};
+
+/// [node] with each reserved key renamed, except in a `ChildList` template,
+/// whose `path` is unprefixed in both versions.
+Object? _renameKeysIn(Object? node, {required bool lower}) => switch (node) {
+  final List<Object?> list => [
+    for (final Object? item in list) _renameKeysIn(item, lower: lower),
+  ],
+  final Map<String, Object?> map => {
+    for (final MapEntry<String, Object?> entry in map.entries)
+      (map.containsKey('componentId')
+          ? entry.key
+          : _renameKey(entry.key, lower)): _renameKeysIn(
+        entry.value,
+        lower: lower,
+      ),
+  },
+  _ => node,
+};
+
+String _renameKey(String key, bool lower) =>
+    (lower ? _reservedKeys : _liftedKeys)[key] ?? key;
+
+final Map<String, String> _liftedKeys = {
+  for (final MapEntry<String, String> entry in _reservedKeys.entries)
+    entry.value: entry.key,
+};
 
 /// [parts] in the vocabulary of the suites, with messages lifted to v1.0.
 List<Object?> liftParts(

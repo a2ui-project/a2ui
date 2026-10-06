@@ -23,6 +23,11 @@
   and is kept. `ComponentModel.validate` validates that same dict, so a
   property named `component` or `id` no longer replaces the model's own
   during validation ([#2930](https://github.com/a2ui-project/a2ui/pull/2930)).
+- The path syntax and function call depth checks in
+  `validate_recursion_and_paths` also read v1.0's `@path` and `@call`. A v1.0
+  payload with a malformed `@path`, or with `@call` expressions nested deeper
+  than the limit, used to pass validation
+  ([#3013](https://github.com/a2ui-project/a2ui/pull/3013)).
 - JSON Schema patterns are validated with `regex` (`SchemaValidator` in
   `a2ui.core.validation`), supporting Unicode property escapes such as
   `\p{XID_Start}` and `\p{XID_Continue}` natively and anchoring `$` to the end

@@ -365,7 +365,7 @@
                 component: "Button"
                 label: "Click Me"
                 action:
-                  call: "unknownFunc"
+                  "@call": "unknownFunc"
                   args:
                     arg: "val"
       expectError:
@@ -502,7 +502,7 @@
               - id: root
                 component: Text
                 text:
-                  path: /invalid/escape/~2
+                  "@path": /invalid/escape/~2
       expectError:
         category: ValidationError
         message: Invalid path syntax
@@ -1094,22 +1094,22 @@
               - id: root
                 component: Text
                 text:
-                  call: f1
+                  "@call": f1
                   args:
                     v:
-                      call: f2
+                      "@call": f2
                       args:
                         v:
-                          call: f3
+                          "@call": f3
                           args:
                             v:
-                              call: f4
+                              "@call": f4
                               args:
                                 v:
-                                  call: f5
+                                  "@call": f5
                                   args:
                                     v:
-                                      call: f6
+                                      "@call": f6
                                       args: {}
       expectError:
         category: ValidationError
