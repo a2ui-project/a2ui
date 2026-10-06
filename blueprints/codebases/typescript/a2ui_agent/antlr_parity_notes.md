@@ -38,7 +38,7 @@ differences, the shape of the generated visitor, and the hand-written code that 
 on top. The rest of this document is that list.
 
 Python pins the tool to 4.13.2 explicitly, in
-[pack_specs_hook.py:143](../../../../python/a2ui_agent/pack_specs_hook.py#L143),
+[generate_express_parser.py:44](../../../../python/a2ui_agent/scripts/generate_express_parser.py#L44),
 and pins the runtime to the matching 4.13.x range in
 [pyproject.toml:24](../../../../python/a2ui_agent/pyproject.toml#L24).
 TypeScript pins `antlr-ng` at exactly 1.0.10 as a devDependency and `antlr4ng` at
