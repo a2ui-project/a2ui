@@ -105,10 +105,25 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
         args: dict[str, Any],
         context: Any = None,
         abort_signal: Any | None = None,
+        *,
+        validate_args: bool = True,
     ) -> TReturn:
+        """Runs the function.
+
+        Args:
+            args: The named arguments.
+            context: The data context the call is evaluated in.
+            abort_signal: Cancels a long-running call.
+            validate_args: Whether to validate ``args`` against the argument
+                schema first. A caller that has already validated the
+                arguments as written, and then resolved their bindings and
+                nested calls, passes ``False``: a resolved value such as the
+                ``ValidationResult`` a v1.0 validator returns does not match
+                the written shape (``DynamicBoolean``) the schema describes.
+        """
         if self.execute_func is None:
             raise ValueError(f"Function {self.name} has no executable logic.")
-        if self.schema and hasattr(self.schema, "model_validate"):
+        if validate_args and self.schema and hasattr(self.schema, "model_validate"):
             safe_args = self.schema.model_validate(args).model_dump(by_alias=True)
         else:
             safe_args = args
