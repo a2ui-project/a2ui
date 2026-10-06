@@ -49,7 +49,7 @@ public final class DataContext {
     return major >= 1
   }
 
-  public static func validateReservedDirectives<S: Sequence>(_ keys: S) throws
+  public nonisolated static func validateReservedDirectives<S: Sequence>(_ keys: S) throws
   where S.Element == String {
     for key in keys {
       if key.hasPrefix("@") && !key.hasPrefix("@@") && key != "@path" && key != "@call" {

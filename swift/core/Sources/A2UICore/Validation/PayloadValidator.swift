@@ -432,7 +432,11 @@ public final class PayloadValidator: Sendable {
       }
 
     case .object(let dict):
-      if let rawName = (dict["@call"] ?? dict["call"] ?? dict["function"])?.stringValue,
+      if enforceIdentifiers {
+        try DataContext.validateReservedDirectives(dict.keys)
+      }
+      let callValue = enforceIdentifiers ? dict["@call"] : (dict["call"] ?? dict["function"])
+      if let rawName = callValue?.stringValue,
         !rawName.isEmpty
       {
         let rawArgs = dict["args"]?.dictionaryValue

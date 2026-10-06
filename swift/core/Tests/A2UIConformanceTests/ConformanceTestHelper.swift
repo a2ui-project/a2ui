@@ -136,16 +136,32 @@ public enum ConformanceTestHelper {
   /// specification version.
   public static func buildCatalogs(for testCase: ConformanceTestCase) throws -> [AnyCatalog] {
     if let inlineCatalog = testCase.inlineCatalog {
+      let version =
+        testCase.protocolVersion
+        ?? inlineCatalog["protocolVersion"]?.stringValue
+        ?? inlineCatalog["protocol_version"]?.stringValue
+        ?? "v0.9"
       let commonTypes = try? commonTypesSchema(
-        forProtocolVersion: testCase.protocolVersion ?? "v0.9"
+        forProtocolVersion: version
       )
-      return [
-        buildCatalog(
-          catalogSchema: inlineCatalog,
-          commonTypes: commonTypes,
-          protocolVersion: testCase.protocolVersion
+      var catalogs: [AnyCatalog] = []
+      if inlineCatalog["components"] != nil || inlineCatalog["functions"] != nil
+        || inlineCatalog["theme"] != nil
+      {
+        catalogs.append(
+          buildCatalog(
+            catalogSchema: inlineCatalog,
+            commonTypes: commonTypes,
+            protocolVersion: version
+          )
         )
-      ]
+      }
+      if inlineCatalog["components"] == nil {
+        let basicVersion: A2UIProtocolVersion =
+          (version.hasPrefix("v1") || version.hasPrefix("1")) ? .v10 : .v091
+        catalogs.append(BasicCatalog.makeCatalog(version: basicVersion))
+      }
+      return catalogs
     }
     return try testCase.catalogPaths.map { path in
       buildCatalog(

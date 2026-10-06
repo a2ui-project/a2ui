@@ -231,6 +231,77 @@ struct ValidatorConformanceTests {
     }
   }
 
+  @Test func reservedKeysConformance() throws {
+    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/reserved_keys.yaml")
+    let testCases = ConformanceTestHelper.parseTestCases(from: rawYAML)
+    #expect(!testCases.isEmpty, "Should find test cases in core/reserved_keys.yaml")
+
+    var executed = 0
+    for testCase in testCases {
+      let catalogs = try buildCatalogsWithAliases(for: testCase)
+      let processor = MessageProcessor(
+        catalogs: catalogs,
+        validationConfig: ValidationConfig(targetVersion: "v1.0")
+      )
+
+      for (stepIndex, step) in testCase.steps.enumerated() {
+        guard let payload = step.payload else { continue }
+        executed += 1
+
+        let expectedError = step.expectError ?? testCase.expectError
+        if let expectedError {
+          var caughtError: Error?
+          do {
+            try processor.processMessages(payload)
+          } catch {
+            caughtError = error
+          }
+          let error = try #require(
+            caughtError,
+            "Expected failure for '\(testCase.name)' at step \(stepIndex)"
+          )
+          assertErrorMatches(error: error, expected: expectedError, testName: testCase.name)
+        } else {
+          try processor.processMessages(payload)
+          if let expectedSurfaces = (step.expect ?? testCase.expect)?["surfaces"]?.objectValue {
+            for (surfaceID, expectedSurface) in expectedSurfaces {
+              let surface = try #require(
+                processor.surfaceGroupModel[surfaceID],
+                "[\(testCase.name)] Expected surface '\(surfaceID)' to exist"
+              )
+              if let expectedComps = expectedSurface["components"]?.arrayValue {
+                for expectedComp in expectedComps {
+                  guard let compObj = expectedComp.objectValue,
+                    let id = compObj["id"]?.stringValue
+                  else { continue }
+                  let node = try #require(
+                    surface.findNode(id: id),
+                    "[\(testCase.name)] Expected resolved node '\(id)'"
+                  )
+                  for (propKey, expectedVal) in compObj
+                  where propKey != "id" && propKey != "component" {
+                    if let binding = node.properties[propKey] as? DataBinding<JSONValue> {
+                      #expect(
+                        binding.value == expectedVal,
+                        "[\(testCase.name)] Property '\(propKey)' mismatch"
+                      )
+                    } else if let strBinding = node.properties[propKey] as? DataBinding<String> {
+                      #expect(
+                        strBinding.value == expectedVal.stringValue,
+                        "[\(testCase.name)] Property '\(propKey)' mismatch"
+                      )
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    #expect(executed == testCases.count, "All cases in reserved_keys.yaml should execute")
+  }
+
   private func assertErrorMatches(
     error: Error,
     expected: ConformanceExpectError,

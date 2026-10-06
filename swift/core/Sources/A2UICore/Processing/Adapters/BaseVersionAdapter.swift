@@ -301,14 +301,15 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
   internal func validatePathsAndRecursion(
     _ value: JSONValue,
     globalDepth: Int = 0,
-    functionDepth: Int = 0
+    functionDepth: Int = 0,
+    validateExpressions: Bool = true
   ) throws {
     if globalDepth > Self.maxGlobalDepth {
       throw A2UIRecursionError(
         "Global recursion limit exceeded: Depth > \(Self.maxGlobalDepth)"
       )
     }
-    if functionDepth > Self.maxFunctionDepth {
+    if validateExpressions && functionDepth > Self.maxFunctionDepth {
       throw A2UIRecursionError(
         "Recursion limit exceeded: functionCall depth > \(Self.maxFunctionDepth)"
       )
@@ -316,45 +317,57 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
 
     switch value {
     case .object(let dictionary):
-      if let path = dictionary["path"]?.stringValue {
-        let range = NSRange(path.startIndex..<path.endIndex, in: path)
-        if Self.validPathRegex.firstMatch(in: path, range: range) == nil {
+      var nextDepth = functionDepth
+      if validateExpressions {
+        let pathKey = version.isAtLeastV10 ? "@path" : "path"
+        if let path = dictionary[pathKey]?.stringValue ?? dictionary["path"]?.stringValue {
+          let range = NSRange(path.startIndex..<path.endIndex, in: path)
+          if Self.validPathRegex.firstMatch(in: path, range: range) == nil {
+            throw A2UIValidationError(
+              "Invalid path syntax: '\(path)'",
+              details: [
+                A2UIErrorDetail(
+                  path: path,
+                  code: "invalid_path_syntax",
+                  message: "Invalid path syntax"
+                )
+              ]
+            )
+          }
+        }
+
+        let callKey = version.isAtLeastV10 ? "@call" : "call"
+        if let callName = dictionary[callKey]?.stringValue ?? dictionary["call"]?.stringValue,
+          !UnicodeIdentifierValidator.isValidFunctionIdentifier(callName)
+        {
           throw A2UIValidationError(
-            "Invalid path syntax: '\(path)'",
+            "Invalid function identifier: '\(callName)'",
             details: [
               A2UIErrorDetail(
-                path: path,
-                code: "invalid_path_syntax",
-                message: "Invalid path syntax"
+                path: callName,
+                code: "invalid_identifier",
+                message: "Invalid function identifier: '\(callName)'"
               )
             ]
           )
         }
+
+        let isFunctionCall =
+          dictionary[callKey] != nil || dictionary["call"] != nil || dictionary["function"] != nil
+        if isFunctionCall {
+          nextDepth += 1
+        }
       }
 
-      if let callName = dictionary["call"]?.stringValue,
-        !UnicodeIdentifierValidator.isValidFunctionIdentifier(callName)
-      {
-        throw A2UIValidationError(
-          "Invalid function identifier: '\(callName)'",
-          details: [
-            A2UIErrorDetail(
-              path: callName,
-              code: "invalid_identifier",
-              message: "Invalid function identifier: '\(callName)'"
-            )
-          ]
-        )
-      }
-
-      let isFunctionCall = dictionary["call"] != nil || dictionary["function"] != nil
-      let nextDepth = isFunctionCall ? functionDepth + 1 : functionDepth
-
-      for propertyValue in dictionary.values {
+      for (key, propertyValue) in dictionary {
+        let isRawDataPayload =
+          globalDepth == 1
+          && (key == "dataModel" || key == "value" || key == "metadata")
         try validatePathsAndRecursion(
           propertyValue,
           globalDepth: globalDepth + 1,
-          functionDepth: nextDepth
+          functionDepth: nextDepth,
+          validateExpressions: validateExpressions && !isRawDataPayload
         )
       }
 
@@ -363,7 +376,8 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
         try validatePathsAndRecursion(
           item,
           globalDepth: globalDepth + 1,
-          functionDepth: functionDepth
+          functionDepth: functionDepth,
+          validateExpressions: validateExpressions
         )
       }
 

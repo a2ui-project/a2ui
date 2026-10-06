@@ -698,7 +698,8 @@ public final class NodeResolver: Sendable {
       let conditionJSON = ruleDict?["condition"] ?? ruleJSON
       let fallbackMessage = ruleDict?["message"]?.stringValue ?? "Validation failed"
 
-      if let dict = conditionJSON.dictionaryValue, let pathStr = dict["path"]?.stringValue {
+      let bindingKey = self.isV10 ? "@path" : "path"
+      if let dict = conditionJSON.dictionaryValue, let pathStr = dict[bindingKey]?.stringValue {
         let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
         let rawVal = data[absPath]
         if let rawDict = rawVal?.objectValue, let valid = rawDict["valid"]?.boolValue {
@@ -804,10 +805,11 @@ public final class NodeResolver: Sendable {
       eventObj = nil
     }
 
+    let callKey = isV10 ? "@call" : "call"
     let funcCallVal: JSONValue?
     if let wrapped = value["functionCall"], wrapped.dictionaryValue != nil {
       funcCallVal = wrapped
-    } else if dict["call"]?.stringValue != nil {
+    } else if dict[callKey]?.stringValue != nil {
       funcCallVal = value
     } else {
       funcCallVal = nil
@@ -871,7 +873,7 @@ public final class NodeResolver: Sendable {
         }
       )
     } else if let funcCallVal, let funcCallDict = funcCallVal.dictionaryValue,
-      let call = funcCallDict["call"]?.stringValue
+      let call = funcCallDict[callKey]?.stringValue
     {
       let argsDict = funcCallDict["args"]?.dictionaryValue
       let unresolvedIdentity = ResolvedAction.Identity.function(

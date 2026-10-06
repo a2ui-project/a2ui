@@ -434,6 +434,207 @@ struct StateEngineV10Tests {
     #expect(items?[2] == .null)
     #expect(items?[3] == .string("fourth"))
   }
+
+  @Test func nodeResolverResolvesV10FunctionCallActionsAndCheckPaths() throws {
+    let buttonSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Action"
+            },
+            "checks": {
+              "type": "array",
+              "items": {
+                "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/CheckRule"
+              }
+            }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "test_v10",
+      protocolVersion: "v1.0",
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    ).eraseToAnyCatalog()
+
+    let dataModel = DataModel(initial: ["isValid": true])
+    let componentsModel = SurfaceComponentsModel()
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Button",
+        properties: [
+          "action": .object([
+            "functionCall": .object([
+              "@call": .string("openUrl"),
+              "args": .object(["url": .string("https://a2ui.org")]),
+            ])
+          ]),
+          "checks": .array([
+            .object([
+              "condition": .object(["@path": .string("/isValid")]),
+              "message": .string("Must be valid"),
+            ])
+          ]),
+        ]
+      )
+    )
+
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog],
+      componentsModel: componentsModel,
+      dataModel: dataModel,
+      protocolVersion: "1.0"
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
+    #expect(rootNode.isValid == true)
+    let action = try #require(rootNode.action(for: "action"))
+    if case .function(let call, let args) = action.identity {
+      #expect(call == "openUrl")
+      #expect(args?["url"]?.stringValue == "https://a2ui.org")
+    } else {
+      Issue.record("Expected function action identity")
+    }
+  }
+
+  @Test func adapterValidatesAtPathAndAtCallAndSkipsRawDataModelPayloads() throws {
+    let v10Adapter = V10VersionAdapter()
+    let v09Adapter = V09VersionAdapter()
+
+    // 1. Invalid @path in v1.0 components should throw A2UIValidationError
+    let invalidAtPathMsg: JSONValue = .object([
+      "version": .string("v1.0"),
+      "updateComponents": .object([
+        "surfaceId": .string("s1"),
+        "components": .array([
+          .object([
+            "id": .string("root"),
+            "component": .string("Text"),
+            "text": .object(["@path": .string("/invalid/escape/~2")]),
+          ])
+        ]),
+      ]),
+    ])
+    #expect(throws: A2UIValidationError.self) {
+      _ = try v10Adapter.extractOperations(from: invalidAtPathMsg)
+    }
+
+    // 2. Invalid @call identifier in v1.0 components should throw A2UIValidationError
+    let invalidAtCallMsg: JSONValue = .object([
+      "version": .string("v1.0"),
+      "updateComponents": .object([
+        "surfaceId": .string("s1"),
+        "components": .array([
+          .object([
+            "id": .string("root"),
+            "component": .string("Text"),
+            "text": .object(["@call": .string("911")]),
+          ])
+        ]),
+      ]),
+    ])
+    #expect(throws: A2UIValidationError.self) {
+      _ = try v10Adapter.extractOperations(from: invalidAtCallMsg)
+    }
+
+    // 3. Excessive @call nesting depth (> 5) in v1.0 components should throw A2UIRecursionError
+    let deepAtCallMsg: JSONValue = .object([
+      "version": .string("v1.0"),
+      "updateComponents": .object([
+        "surfaceId": .string("s1"),
+        "components": .array([
+          .object([
+            "id": .string("root"),
+            "component": .string("Text"),
+            "text": .object([
+              "@call": .string("f1"),
+              "args": .object([
+                "v": .object([
+                  "@call": .string("f2"),
+                  "args": .object([
+                    "v": .object([
+                      "@call": .string("f3"),
+                      "args": .object([
+                        "v": .object([
+                          "@call": .string("f4"),
+                          "args": .object([
+                            "v": .object([
+                              "@call": .string("f5"),
+                              "args": .object([
+                                "v": .object([
+                                  "@call": .string("f6"),
+                                  "args": .object([:]),
+                                ])
+                              ]),
+                            ])
+                          ]),
+                        ])
+                      ]),
+                    ])
+                  ]),
+                ])
+              ]),
+            ]),
+          ])
+        ]),
+      ]),
+    ])
+    #expect(throws: A2UIRecursionError.self) {
+      _ = try v10Adapter.extractOperations(from: deepAtCallMsg)
+    }
+
+    // 4. Raw user data with "path"/"@path"/"call"/"@call" in createSurface.dataModel
+    //    and updateDataModel.value must NOT be rejected in either v0.9 or v1.0.
+    let rawUserData: JSONValue = .object([
+      "file": .object([
+        "path": .string("/invalid/escape/~2"),
+        "@path": .string("/invalid/escape/~2"),
+      ]),
+      "emergency": .object([
+        "call": .string("911"),
+        "@call": .string("911"),
+      ]),
+    ])
+
+    let v10CreateWithUserData: JSONValue = .object([
+      "version": .string("v1.0"),
+      "createSurface": .object([
+        "surfaceId": .string("s1"),
+        "catalogId": .string("https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"),
+        "dataModel": rawUserData,
+      ]),
+    ])
+    let v10CreateOps = try v10Adapter.extractOperations(from: v10CreateWithUserData)
+    #expect(v10CreateOps.count == 1)
+
+    let v10UpdateDataWithUserData: JSONValue = .object([
+      "version": .string("v1.0"),
+      "updateDataModel": .object([
+        "surfaceId": .string("s1"),
+        "path": .string("/"),
+        "value": rawUserData,
+      ]),
+    ])
+    let v10UpdateDataOps = try v10Adapter.extractOperations(from: v10UpdateDataWithUserData)
+    #expect(v10UpdateDataOps.count == 1)
+
+    let v09UpdateDataWithUserData: JSONValue = .object([
+      "version": .string("v0.9"),
+      "updateDataModel": .object([
+        "surfaceId": .string("s1"),
+        "path": .string("/"),
+        "value": rawUserData,
+      ]),
+    ])
+    let v09UpdateDataOps = try v09Adapter.extractOperations(from: v09UpdateDataWithUserData)
+    #expect(v09UpdateDataOps.count == 1)
+  }
 }
 
 private final class DummyFunctionHandler: FunctionHandler {
