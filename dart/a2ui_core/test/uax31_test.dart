@@ -59,23 +59,21 @@ void main() {
       expect(isValidUax31Identifier('foo.bar'), isFalse);
     });
 
-    test(
-        'assertValidUax31Identifier and assertUax31Identifier throw on invalid',
-        () {
+    test('assertUax31Identifier throws on invalid identifiers', () {
       expect(
-        () => assertValidUax31Identifier('ValidName'),
+        () => assertUax31Identifier('ValidName'),
         returnsNormally,
       );
       expect(
-        () => assertValidUax31Identifier('@index', allowLeadingAt: true),
+        () => assertUax31Identifier('@index', allowLeadingAt: true),
         returnsNormally,
       );
       expect(
-        () => assertValidUax31Identifier('@index'),
+        () => assertUax31Identifier('@index'),
         throwsA(isA<A2uiCatalogError>()),
       );
       expect(
-        () => assertValidUax31Identifier(
+        () => assertUax31Identifier(
           'bad-name',
           context: "component identifier: 'bad-name'",
         ),

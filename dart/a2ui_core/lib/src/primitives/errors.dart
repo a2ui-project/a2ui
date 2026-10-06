@@ -94,18 +94,6 @@ class A2uiValidationError extends A2uiError {
   }
 }
 
-/// Thrown when a payload violates a JSON Schema constraint.
-class A2uiSchemaError extends A2uiValidationError {
-  A2uiSchemaError(
-    super.message, {
-    super.code = 'SCHEMA_ERROR',
-    super.path,
-    super.errors,
-    super.details,
-    super.cause,
-  });
-}
-
 /// Thrown during DataModel mutations (invalid paths, type mismatches).
 class A2uiDataError extends A2uiError {
   final String? path;
@@ -145,28 +133,6 @@ class A2uiStateError extends A2uiError {
   A2uiStateError(
     super.message, {
     super.code = 'STATE_ERROR',
-    super.cause,
-  });
-}
-
-/// Thrown when an unsupported A2UI protocol version is encountered.
-class A2uiUnsupportedVersionError extends A2uiError {
-  /// The unsupported version string, when known.
-  final String? version;
-
-  A2uiUnsupportedVersionError(
-    super.message, {
-    this.version,
-    super.code = 'UNSUPPORTED_VERSION',
-    super.cause,
-  });
-}
-
-/// Thrown when a processor operation fails.
-class A2uiOperationError extends A2uiError {
-  A2uiOperationError(
-    super.message, {
-    super.code = 'OPERATION_ERROR',
     super.cause,
   });
 }

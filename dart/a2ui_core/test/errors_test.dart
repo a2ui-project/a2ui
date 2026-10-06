@@ -107,14 +107,9 @@ void main() {
 
   group('A2uiError hierarchy and cause chaining', () {
     test(
-        'pins A2uiSchemaError, A2uiIntegrityError, and A2uiRecursionError '
-        'under A2uiValidationError', () {
+        'pins A2uiIntegrityError and A2uiRecursionError under '
+        'A2uiValidationError', () {
       final cause = StateError('root cause');
-      final schemaError = A2uiSchemaError(
-        'Schema mismatch',
-        path: '/theme/color',
-        cause: cause,
-      );
       final integrityError = A2uiIntegrityError(
         'Dangling reference',
         componentIds: const ['c1'],
@@ -127,12 +122,6 @@ void main() {
         path: '/components/0',
         cause: cause,
       );
-
-      expect(schemaError, isA<A2uiValidationError>());
-      expect(schemaError, isA<A2uiError>());
-      expect(schemaError.code, 'SCHEMA_ERROR');
-      expect(schemaError.path, '/theme/color');
-      expect(schemaError.cause, same(cause));
 
       expect(integrityError, isA<A2uiValidationError>());
       expect(integrityError, isA<A2uiError>());
@@ -175,12 +164,6 @@ void main() {
         cause: cause,
       );
       final stateError = A2uiStateError('state', cause: cause);
-      final unsupportedVersionError = A2uiUnsupportedVersionError(
-        'unsupported',
-        version: 'v9.9',
-        cause: cause,
-      );
-      final operationError = A2uiOperationError('operation', cause: cause);
       final parseError = A2uiParseError(
         'parse',
         rawContent: '{bad',
@@ -193,8 +176,6 @@ void main() {
         expressionError,
         dataError,
         stateError,
-        unsupportedVersionError,
-        operationError,
         parseError,
       ]) {
         expect(err.cause, same(cause));
@@ -204,7 +185,6 @@ void main() {
       expect(expressionError.expression, r'${foo}');
       expect(dataError.path, '/a/b');
       expect(dataError.toString(), contains('(/a/b)'));
-      expect(unsupportedVersionError.version, 'v9.9');
       expect(parseError.rawContent, '{bad');
     });
   });
