@@ -147,6 +147,10 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
         if MSG_TYPE_DELETE_SURFACE in obj:
             if sid in self._yielded_surfaces_set or self._buffered_start_message:
                 self._delete_surface(sid)
+        else:
+            # v0.8 has no createSurface, so any other message for a deleted
+            # surface starts it over.
+            self._deleted_surfaces.discard(sid)
 
         if sid in self._deleted_surfaces:
             return True

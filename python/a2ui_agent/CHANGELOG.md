@@ -8,6 +8,11 @@
   passes all of its catalogs to its parsers, and `create_stream_parser()` uses
   the format's catalogs without taking a `catalog` parameter (#2967). To
   migrate, wrap a single catalog in a list: `DirectJsonParser([catalog])`.
+- A `DirectJsonStreamParser` surface can be created again after
+  `deleteSurface`. Before, the parser kept the surface ID as deleted and
+  dropped every later message for it. v0.9 and later clear it on
+  `createSurface`; v0.8, which has no `createSurface`, clears it on the next
+  message for the surface that isn't `deleteSurface` (#2967).
 - `validate_payload` takes `surface_catalog_ids`, the catalogs that earlier
   payloads created surfaces with, and checks updates to those surfaces against
   them, and types `payload` as `AgentToRendererMessagePayload` (#2967).
