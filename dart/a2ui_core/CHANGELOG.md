@@ -95,6 +95,28 @@
 - `SurfaceComponentsModel` adds `getAll()`, `has()`, `size`, `entries`, `keys`,
   `values`, `getChildIds()`, `validateTopology()`, `detectCycles()`,
   `validateReferences()` and `validateComponentsUpdate()`.
+- Added `ValidationResult` and `A2uiReturnType.validationResult` for structured
+  client-side validation outcomes (`valid`, `message`, `code`, `severity`), and
+  exposed `validationResults` alongside `isValid` and `validationErrors` on
+  resolved component properties. `A2uiReturnType.validationResult` is an
+  API-level value; the v0.9 `CommonSchemas.functionCall` wire schema still
+  accepts only the seven v0.9 return types. `ValidationResult.validityOf`
+  exposes the rule the binder uses to read a check result's validity.
+- Fixed `checks` evaluation in `GenericBinder`:
+  - Rules evaluate once during initial binding without a duplicate object-branch
+    pass.
+  - `_subscribe` skips invoking its reactive callback during the initial
+    synchronous pass so rebuilds do not write into stale property maps.
+  - Non-map rule entries emit a `VALIDATION_FAILED` client error on the surface
+    instead of throwing a `TypeError`.
+  - Checkable properties are classified from schema markers or `CheckRule` item
+    structure rather than matching the property name `'checks'`.
+- `ReferenceSchemaReader` resolves external `common_types.json#/$defs/...`
+  pointers against the `common_types.json` document the caller supplies (the
+  embedded v0.9 document by default) so catalogs loaded via `Catalog.fromJson`
+  classify `Checkable`, `DynamicValue`, `Action`, and `ChildList` properties
+  identically to code-constructed catalogs. `extractRefFields` forwards the
+  same optional `commonTypes` document.
 - **Breaking:** Message constructors no longer default `version` to
   `'v0.9'`; every `AgentToRendererMessage` and `RendererToAgentMessage`
   subclass takes a required `version`. `A2uiClientAction.fromJson` and

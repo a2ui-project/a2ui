@@ -310,15 +310,140 @@ void main() {
             'construction, not $callCount times',
       );
     });
+
+    test(
+      'checks conditions evaluate once on initial bind and once per dependency '
+      'change without writing to stale resolvedProps during rebuild',
+      () {
+        var checkCallCount = 0;
+        final trackingCatalog = _TrackingCatalog(
+          onExecute: () => checkCallCount++,
+        );
+        final trackingSurface = SurfaceModel<ComponentApi>(
+          's1',
+          defaultCatalog: trackingCatalog,
+        );
+
+        final comp = ComponentModel('c1', 'TextField', {
+          'label': {'path': '/label'},
+          'checks': [
+            {
+              'condition': {
+                'call': 'trackingCheckFn',
+                'args': {
+                  'value': {'path': '/val'},
+                },
+                'returnType': 'boolean',
+              },
+              'message': 'Value must be valid',
+            },
+          ],
+        });
+        trackingSurface.componentsModel.addComponent(comp);
+        trackingSurface.dataModel.set('/label', 'Initial label');
+        trackingSurface.dataModel.set('/val', 'bad');
+
+        checkCallCount = 0;
+        final context = ComponentContext(trackingSurface, comp);
+        final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+        addTearDown(binder.dispose);
+
+        expect(
+          checkCallCount,
+          1,
+          reason: 'Checks condition should be evaluated exactly once on '
+              'initial bind, not $checkCallCount times',
+        );
+        expect(binder.resolvedProps.value['isValid'], isFalse);
+        expect(binder.resolvedProps.value['validationErrors'], [
+          'Value must be valid',
+        ]);
+
+        // Listen for resolvedProps emissions during a component model rebuild:
+        // _rebuildAllBindings must emit only the final rebuilt map, never
+        // intermediate partial mutations on the stale _resolvedProps map.
+        final emissions = <Map<String, dynamic>>[];
+        final void Function() unsub = binder.resolvedProps.subscribe(
+          emissions.add,
+        );
+        addTearDown(unsub);
+        emissions.clear();
+
+        // Trigger adependency change: should evaluate once more.
+        trackingSurface.dataModel.set('/val', 'good');
+        expect(
+          checkCallCount,
+          2,
+          reason: 'Checks condition should evaluate once per dependency change',
+        );
+        expect(binder.resolvedProps.value['isValid'], isTrue);
+        expect(binder.resolvedProps.value['validationErrors'], isEmpty);
+        expect(emissions, hasLength(1));
+
+        // Trigger a full component model rebuild (_rebuildAllBindings).
+        emissions.clear();
+        comp.properties = {
+          'label': {'path': '/label'},
+          'checks': [
+            {
+              'condition': {
+                'call': 'trackingCheckFn',
+                'args': {
+                  'value': {'path': '/val'},
+                },
+                'returnType': 'boolean',
+              },
+              'message': 'Value must be valid',
+            },
+          ],
+        };
+        expect(
+          checkCallCount,
+          3,
+          reason: 'Rebuild should evaluate checks condition once',
+        );
+        expect(
+          emissions,
+          hasLength(1),
+          reason: 'Rebuild must emit once when replacing _resolvedProps.value, '
+              'not mutate stale _resolvedProps during subscription setup',
+        );
+      },
+    );
   });
 }
 
 class _TrackingCatalog extends MinimalCatalog {
   _TrackingCatalog({required this.onExecute}) {
     functions['trackingFn'] = _TrackingFunction(onExecute);
+    functions['trackingCheckFn'] = _TrackingCheckFunction(onExecute);
   }
 
   final void Function() onExecute;
+}
+
+class _TrackingCheckFunction extends FunctionImplementation {
+  final void Function() _onExecute;
+
+  _TrackingCheckFunction(this._onExecute)
+      : super(
+          name: 'trackingCheckFn',
+          returnType: A2uiReturnType.boolean,
+          argumentSchema: Schema.object(
+            properties: {'value': CommonSchemas.dynamicString},
+            required: ['value'],
+          ),
+        );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) {
+    _onExecute();
+    return args['value'] == 'good';
+  }
 }
 
 class _TrackingFunction extends FunctionImplementation {

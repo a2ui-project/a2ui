@@ -13,12 +13,14 @@
 // limitations under the License.
 
 import 'package:collection/collection.dart';
-import 'package:json_schema_builder/json_schema_builder.dart';
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
 
 import '../core/common.dart';
 import '../core/component_model.dart';
 import '../core/contexts.dart';
 import '../core/messages.dart';
+import '../core/validation_result.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
 import '../resolution/resolved_binding.dart';
@@ -143,27 +145,38 @@ class GenericBinder {
 
   // subscribe evaluates synchronously. Evaluation may dispose this binder
   // before subscribe returns its cleanup; never acquire that cleanup afterward.
-  void _subscribe(
+  // The initial synchronous pass captures initialValue without invoking
+  // onValue, avoiding writes to stale _resolvedProps during a rebuild.
+  Object? _subscribe(
     ReadonlySignal<Object?> source,
     void Function(Object?) onValue,
   ) {
-    if (_disposed) return;
+    if (_disposed) return null;
+    Object? initialValue;
+    var isInitial = true;
     final void Function() unsubscribe = source.subscribe((value) {
+      if (isInitial) {
+        isInitial = false;
+        initialValue = value;
+        return;
+      }
       if (!_disposed) onValue(value);
     });
     if (_disposed) {
       unsubscribe();
-    } else {
-      _subscriptions.add(unsubscribe);
+      return null;
     }
+    _subscriptions.add(unsubscribe);
+    return initialValue;
   }
 
   Object? _resolveAndBind(
     Object? value,
     BehaviorNode behavior,
     List<String> path,
-    bool isSync,
-  ) {
+    bool isSync, {
+    Map<String, dynamic>? parentResult,
+  }) {
     if (_disposed) return null;
     if (value == null) {
       return behavior.type == Behavior.dynamic
@@ -199,12 +212,12 @@ class GenericBinder {
                   boundPath,
                 );
         }
-        if (!isSync) {
-          _subscribe(sig, (newValue) {
-            _updateDeepValue(path, wrap(newValue));
-          });
-        }
-        return _disposed ? null : wrap(sig.value);
+        final Object? current = isSync
+            ? sig.value
+            : _subscribe(sig, (newValue) {
+                _updateDeepValue(path, wrap(newValue));
+              });
+        return _disposed ? null : wrap(current);
 
       case Behavior.action:
         final String cacheKey = path.join('/');
@@ -274,12 +287,12 @@ class GenericBinder {
             );
           }
 
-          if (!isSync) {
-            _subscribe(sig, (newValue) {
-              _updateDeepValue(path, resolveChildren(newValue));
-            });
-          }
-          return _disposed ? null : resolveChildren(sig.value);
+          final Object? current = isSync
+              ? sig.value
+              : _subscribe(sig, (newValue) {
+                  _updateDeepValue(path, resolveChildren(newValue));
+                });
+          return _disposed ? null : resolveChildren(current);
         }
         if (value is List) {
           return value
@@ -290,38 +303,85 @@ class GenericBinder {
         return value;
 
       case Behavior.checkable:
-        final List<Object?> rules = value is List ? value.cast<Object?>() : [];
-        final List<bool> results = List.filled(rules.length, true);
-        final List<String> messages = rules
-            .cast<Map<String, dynamic>>()
-            .map((r) => r['message']?.toString() ?? 'Validation failed')
-            .toList();
+        if (value is! List) return value;
+        final List<Object?> rules = value.cast<Object?>();
+        final ruleResults = <ValidationResult>[];
+
+        void applyValidationState(
+          void Function(String key, Object value) write,
+        ) {
+          final failedResults = <ValidationResult>[
+            for (final ValidationResult r in ruleResults)
+              if (!r.valid) r,
+          ];
+          final errors = <String>[
+            for (final ValidationResult r in failedResults)
+              if ((r.severity ?? 'error') == 'error')
+                r.message ?? 'Validation failed',
+          ];
+          write('isValid', errors.isEmpty);
+          write('validationErrors', errors);
+          write('validationResults', failedResults);
+        }
 
         void updateValidationState() {
-          final errors = <String>[];
-          for (var i = 0; i < results.length; i++) {
-            if (!results[i]) errors.add(messages[i]);
-          }
-          final List<String> parentPath = path.sublist(0, path.length - 1);
-          _updateDeepValue([...parentPath, 'isValid'], errors.isEmpty);
-          _updateDeepValue([...parentPath, 'validationErrors'], errors);
+          final List<String> parentPath =
+              path.isEmpty ? const [] : path.sublist(0, path.length - 1);
+          batch(() {
+            applyValidationState(
+              (key, val) => _updateDeepValue([...parentPath, key], val),
+            );
+          });
         }
 
         for (var i = 0; i < rules.length; i++) {
           if (_disposed) return null;
-          final Object? condition =
-              (rules[i] as Map<String, dynamic>)['condition'] ?? rules[i];
-          final ReadonlySignal<Object?> sig =
-              context.dataContext.resolveListenable(condition);
-          results[i] = sig.value == true;
-
-          if (!isSync) {
-            final idx = i;
-            _subscribe(sig, (newValue) {
-              results[idx] = newValue == true;
-              updateValidationState();
-            });
+          final Object? rawRule = rules[i];
+          if (rawRule is! Map) {
+            context.surface.dispatchError(
+              A2uiClientError(
+                code: 'VALIDATION_FAILED',
+                surfaceId: context.surface.id,
+                path: '/${[...path, i.toString()].join('/')}',
+                message: 'Check rule at index $i in component '
+                    "'${context.componentModel.id}' must be an object, "
+                    'got ${rawRule.runtimeType}.',
+              ),
+            );
+            continue;
           }
+          final Object? condition =
+              rawRule.containsKey('condition') ? rawRule['condition'] : rawRule;
+          final Object? rawMessage = rawRule['message'];
+          final fallbackMessage =
+              (rawMessage != null && rawMessage.toString().isNotEmpty)
+                  ? rawMessage.toString()
+                  : 'Validation failed';
+
+          final int slot = ruleResults.length;
+          ruleResults.add(const ValidationResult(valid: true));
+
+          final Object? initialVal = isSync
+              ? context.dataContext.resolveSync(condition)
+              : _subscribe(
+                  context.dataContext.resolveListenable(condition),
+                  (newValue) {
+                    ruleResults[slot] = ValidationResult.fromEvaluation(
+                      newValue,
+                      fallbackMessage: fallbackMessage,
+                    );
+                    updateValidationState();
+                  },
+                );
+          if (_disposed) return null;
+          ruleResults[slot] = ValidationResult.fromEvaluation(
+            initialVal,
+            fallbackMessage: fallbackMessage,
+          );
+        }
+
+        if (!_disposed && parentResult != null) {
+          applyValidationState((key, val) => parentResult[key] = val);
         }
 
         // Return original rules for 'checks' property
@@ -337,13 +397,12 @@ class GenericBinder {
           final BehaviorNode childBehavior =
               shape[key] ?? BehaviorNode(Behavior.static);
           result[key] = _resolveAndBind(
-              entry.value,
-              childBehavior,
-              [
-                ...path,
-                key,
-              ],
-              isSync);
+            entry.value,
+            childBehavior,
+            [...path, key],
+            isSync,
+            parentResult: result,
+          );
         }
 
         // Dynamic props always have a binding, including omitted values. Only
@@ -353,29 +412,6 @@ class GenericBinder {
               !result.containsKey(entry.key)) {
             result[entry.key] = const ResolvedBinding<Object?>(null);
           }
-        }
-
-        // Inject validation properties if 'checks' is present in shape
-        if (!_disposed &&
-            shape.containsKey('checks') &&
-            result.containsKey('checks')) {
-          final List<Object?> rules =
-              (value['checks'] as List?)?.cast<Object?>() ?? [];
-          var isValid = true;
-          final errors = <String>[];
-          final List<Map<String, dynamic>> typedRules =
-              rules.cast<Map<String, dynamic>>();
-          for (final rule in typedRules) {
-            if (_disposed) return null;
-            final Object? condition = rule['condition'] ?? rule;
-            final Object? val = context.dataContext.resolveSync(condition);
-            if (val != true) {
-              isValid = false;
-              errors.add(rule['message']?.toString() ?? 'Validation failed');
-            }
-          }
-          result['isValid'] = isValid;
-          result['validationErrors'] = errors;
         }
 
         return result;
@@ -458,7 +494,6 @@ class GenericBinder {
     String? propertyName,
     Set<Object>? ancestors,
   ]) {
-    if (propertyName == 'checks') return BehaviorNode(Behavior.checkable);
     final Set<Object> visiting = Set.identity()..addAll(ancestors ?? {});
     if (schema == null || !visiting.add(schema)) {
       return BehaviorNode(Behavior.static);
@@ -475,6 +510,10 @@ class GenericBinder {
       return BehaviorNode(Behavior.static);
     }
     visiting.addAll(schemasToInspect);
+
+    if (_schemaReader.isCheckable(schemasToInspect)) {
+      return BehaviorNode(Behavior.checkable);
+    }
 
     if (_schemaReader.referencesType(schemasToInspect, 'Action')) {
       return BehaviorNode(Behavior.action);
