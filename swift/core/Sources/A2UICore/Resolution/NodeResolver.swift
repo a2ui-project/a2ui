@@ -34,6 +34,28 @@ public final class NodeResolver: Sendable {
   public weak var actionHandler: (any ActionHandling)?
   public let protocolVersion: String?
 
+  /// Identifies a render-time expression error for de-duplication across tree passes.
+  private struct ExpressionErrorKey: Hashable {
+    let componentID: String
+    let basePath: String
+    let propertyKey: String
+    let functionName: String
+    let message: String
+    /// Counts identical failures earlier in the same pass, e.g. two check rules
+    /// or two arguments calling the same missing function.
+    let occurrence: Int
+  }
+
+  /// The component property being resolved, used to scope render-time expression errors.
+  private var resolutionScope: (componentID: String, basePath: String, propertyKey: String)?
+  private var isResolvingTree = false
+  private var isFlushingErrors = false
+  private var pendingErrors: [ClientServerError] = []
+  /// Expression errors reported by the previous tree pass, suppressed while they persist.
+  private var reportedExpressionErrors: Set<ExpressionErrorKey> = []
+  /// Expression errors raised so far by the tree pass in progress.
+  private var currentPassExpressionErrors: Set<ExpressionErrorKey> = []
+
   public var isV10: Bool {
     guard let version = protocolVersion else { return false }
     let core = version.hasPrefix("v") ? String(version.dropFirst()) : version
@@ -125,8 +147,37 @@ public final class NodeResolver: Sendable {
 
   /// Resolves the component tree starting from the root component ("root")
   /// using the stored component and data models.
+  ///
+  /// Expression errors raised while resolving are dispatched to the action
+  /// handler once the tree is resolved.
   public func resolveTree() -> Node? {
-    resolveNode(
+    let root = resolveTreeDeferringErrors()
+    flushPendingErrors()
+    return root
+  }
+
+  /// Resolves the tree, queueing expression errors until ``flushPendingErrors()``.
+  ///
+  /// An error handler may synchronously mutate the data model, which triggers
+  /// another rebuild. Deferring dispatch lets the caller publish the new root
+  /// first, so a nested rebuild never races a half-published tree.
+  ///
+  /// Unlike web_core, which reports on every evaluation, and Dart, which reports
+  /// whenever a binding recomputes, a render-time error is dispatched once per
+  /// failure while it persists across passes, and again if it recovers and then
+  /// recurs. A failure is identified by component instance, path, property,
+  /// function, message, and its occurrence among identical failures in the pass,
+  /// so repeated identical failures in one property are each reported once.
+  /// Swift re-resolves the whole tree on every change, so reporting on every
+  /// pass would repeat unchanged failures.
+  func resolveTreeDeferringErrors() -> Node? {
+    isResolvingTree = true
+    currentPassExpressionErrors = []
+    defer {
+      isResolvingTree = false
+      reportedExpressionErrors = currentPassExpressionErrors
+    }
+    return resolveNode(
       definitionID: "root",
       instanceID: "root",
       basePath: nil,
@@ -134,6 +185,20 @@ public final class NodeResolver: Sendable {
       components: componentsModel.components,
       data: dataModel.data
     )
+  }
+
+  /// Dispatches queued errors to the action handler.
+  ///
+  /// Reentrant calls return immediately; the outermost call drains errors
+  /// queued by handlers that trigger further rebuilds.
+  func flushPendingErrors() {
+    guard !isFlushingErrors else { return }
+    isFlushingErrors = true
+    defer { isFlushingErrors = false }
+    while !pendingErrors.isEmpty {
+      let error = pendingErrors.removeFirst()
+      actionHandler?.handle(error: error, from: surfaceID)
+    }
   }
 
   /// Resolves a component definition into a concrete ``Node``.
@@ -169,22 +234,36 @@ public final class NodeResolver: Sendable {
     var visited = visited
     visited.insert(instanceID)
 
+    let outerScope = resolutionScope
+    defer { resolutionScope = outerScope }
+
     let schemaJSON = targetCatalog?.components[type]?.schema.jsonValue ?? .object([:])
     let propertiesSchema = extractPropertiesSchema(from: schemaJSON)
 
+    // Checks are resolved first so actions can gate on them, and only once per
+    // pass so each failing condition is evaluated, and reported, a single time.
     var componentChecks: [ResolvedCheck] = []
+    var resolvedChecksByKey: [String: [ResolvedCheck]] = [:]
     for (key, val) in component.properties {
       let propSchema = propertiesSchema[key] ?? .boolean(true)
       let propType = classifySchema(propSchema)
       if propType == .checks {
-        componentChecks.append(contentsOf: resolveChecks(val, basePath: basePath, data: data))
+        resolutionScope = (componentID: instanceID, basePath: basePath ?? "", propertyKey: key)
+        let checks = resolveChecks(val, basePath: basePath, data: data)
+        resolvedChecksByKey[key] = checks
+        componentChecks.append(contentsOf: checks)
       }
     }
 
     var resolvedProperties: [String: any Resolved] = [:]
     for (key, val) in component.properties {
+      if let checks = resolvedChecksByKey[key] {
+        resolvedProperties[key] = checks
+        continue
+      }
       let propSchema = propertiesSchema[key] ?? .boolean(true)
       let propType = classifySchema(propSchema)
+      resolutionScope = (componentID: instanceID, basePath: basePath ?? "", propertyKey: key)
 
       if let resolvedVal = resolveProperty(
         value: val,
@@ -857,5 +936,56 @@ extension NodeResolver: FunctionHandler {
       }
     }
     return targetFunction
+  }
+
+  public func reportExpressionError(functionName: String, catalogID: String?, error: Error?) {
+    let resolvedCatalogID = catalogID ?? defaultCatalogID ?? ""
+    let message: String
+    if let error {
+      if let a2uiError = error as? any A2UIError {
+        message = a2uiError.message
+      } else if let description = (error as? any LocalizedError)?.errorDescription {
+        message = description
+      } else {
+        message = String(describing: error)
+      }
+    } else {
+      message = "Function not found in catalog '\(resolvedCatalogID)': \(functionName)"
+    }
+
+    let report = ClientServerError.generic(
+      GenericError(
+        code: "EXPRESSION_ERROR",
+        surfaceID: surfaceID,
+        message: message,
+        expression: functionName
+      )
+    )
+
+    guard isResolvingTree else {
+      // Evaluated outside a tree pass, e.g. by a triggered action: report every time.
+      pendingErrors.append(report)
+      flushPendingErrors()
+      return
+    }
+
+    if let resolutionScope {
+      var occurrence = 0
+      var key: ExpressionErrorKey
+      repeat {
+        key = ExpressionErrorKey(
+          componentID: resolutionScope.componentID,
+          basePath: resolutionScope.basePath,
+          propertyKey: resolutionScope.propertyKey,
+          functionName: functionName,
+          message: message,
+          occurrence: occurrence
+        )
+        occurrence += 1
+      } while currentPassExpressionErrors.contains(key)
+      currentPassExpressionErrors.insert(key)
+      guard !reportedExpressionErrors.contains(key) else { return }
+    }
+    pendingErrors.append(report)
   }
 }

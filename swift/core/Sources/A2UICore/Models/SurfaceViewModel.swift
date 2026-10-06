@@ -54,6 +54,12 @@ public final class SurfaceViewModel: ObservableObject {
   }
 
   private var cancellables = Set<AnyCancellable>()
+  private var isRebuilding = false
+  private var needsRebuild = false
+
+  /// The most tree passes one model update may trigger through handlers that
+  /// change the model while the tree is rebuilt.
+  static let maxRebuildPassesPerUpdate = 100
 
   /// The root node of the resolved component tree, published to the UI
   /// on the Main Thread.
@@ -139,9 +145,18 @@ public final class SurfaceViewModel: ObservableObject {
     nodeResolver.getCatalog(id: id)
   }
 
+  // Separate sinks rather than `CombineLatest`, which drops values sent from
+  // inside its own downstream, such as a model change made by an error handler.
   private func setUpSubscriptions() {
-    Publishers.CombineLatest(componentsModel.componentsPublisher, dataModel.dataPublisher)
-      .sink { [weak self] _, _ in
+    componentsModel.componentsPublisher
+      .sink { [weak self] _ in
+        self?.rebuildTree()
+      }
+      .store(in: &cancellables)
+    // The components subscription already rendered the initial data.
+    dataModel.dataPublisher
+      .dropFirst()
+      .sink { [weak self] _ in
         self?.rebuildTree()
       }
       .store(in: &cancellables)
@@ -149,10 +164,33 @@ public final class SurfaceViewModel: ObservableObject {
 
   // MARK: - Tree Rebuilding
 
-  /// Rebuilds the node tree and publishes the new root.
+  /// Rebuilds the node tree, publishes the new root, then dispatches errors
+  /// raised while resolving it.
+  ///
+  /// A model change made while rebuilding, e.g. by an error handler, schedules
+  /// one more pass instead of resolving the tree reentrantly. A handler that
+  /// changes the model on every pass is stopped after
+  /// ``maxRebuildPassesPerUpdate`` passes, leaving the last published root.
   private func rebuildTree() {
-    let newRoot = nodeResolver.resolveTree()
-    self.rootNode = newRoot
+    needsRebuild = true
+    guard !isRebuilding else { return }
+    isRebuilding = true
+    defer { isRebuilding = false }
+    var passes = 0
+    while needsRebuild {
+      guard passes < Self.maxRebuildPassesPerUpdate else {
+        needsRebuild = false
+        assertionFailure(
+          "Surface '\(surfaceID)' rebuilt \(passes) times in one update; a handler likely "
+            + "changes the model on every pass."
+        )
+        return
+      }
+      passes += 1
+      needsRebuild = false
+      self.rootNode = nodeResolver.resolveTreeDeferringErrors()
+      nodeResolver.flushPendingErrors()
+    }
   }
 }
 
@@ -161,5 +199,10 @@ public final class SurfaceViewModel: ObservableObject {
 extension SurfaceViewModel: FunctionHandler {
   public func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     nodeResolver.function(named: name, catalogID: catalogID)
+  }
+
+  public func reportExpressionError(functionName: String, catalogID: String?, error: Error?) {
+    nodeResolver.reportExpressionError(
+      functionName: functionName, catalogID: catalogID, error: error)
   }
 }

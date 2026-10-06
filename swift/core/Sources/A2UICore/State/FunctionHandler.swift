@@ -15,4 +15,12 @@
 @MainActor
 public protocol FunctionHandler: AnyObject, Sendable {
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)?
+
+  /// Reports a failure evaluating a catalog function: lookup failure
+  /// (`error == nil`) or a thrown error from `evaluate`.
+  func reportExpressionError(functionName: String, catalogID: String?, error: Error?)
+}
+
+extension FunctionHandler {
+  public func reportExpressionError(functionName: String, catalogID: String?, error: Error?) {}
 }

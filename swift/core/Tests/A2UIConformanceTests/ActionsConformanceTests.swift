@@ -18,22 +18,19 @@ import Foundation
 import OrderedJSON
 import Testing
 
-@MainActor
-private final class ConformanceFunctionHandler: FunctionHandler {
-  private let functionsMap: [String: any FunctionImplementation] = Dictionary(
-    uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
-  )
+private final class ConformanceErrorCaptureHandler: ActionHandling, @unchecked Sendable {
+  var capturedErrors: [ClientServerError] = []
 
-  func function(named: String, catalogID: String?) -> (any FunctionImplementation)? {
-    functionsMap[named]
+  func handle(action: ResolvedAction, from surfaceID: String) {}
+
+  func handle(error: ClientServerError, from surfaceID: String) {
+    capturedErrors.append(error)
   }
 }
 
 /// Runs the shared `conformance/core/actions.yaml` suite.
 @MainActor
 struct ActionsConformanceTests {
-  private let functionHandler = ConformanceFunctionHandler()
-
   @Test func actionsConformance() throws {
     let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/actions.yaml")
     let cases = (rawYAML as? [[String: Any]]) ?? []
@@ -50,13 +47,43 @@ struct ActionsConformanceTests {
         } ?? .object([:])
       let model = DataModel(initial: initialData)
       let scope = testCase["scope"] as? String ?? "/"
-      let context = DataContext(dataModel: model, path: scope, functionHandler: functionHandler)
+      let surfaceID = testCase["surfaceId"] as? String ?? "main"
+      let errorHandler = ConformanceErrorCaptureHandler()
+      // The resolver is the surface's function handler and error sink.
+      let resolver = NodeResolver(
+        surfaceID: surfaceID,
+        catalogs: [BasicCatalog.v09Catalog],
+        dataModel: model,
+        actionHandler: errorHandler
+      )
+      let context = DataContext(dataModel: model, path: scope, functionHandler: resolver)
 
       let rawAction =
         (testCase["actionPayload"] ?? testCase["action_data"]).map {
           ConformanceTestHelper.toJSONValue($0)
         } ?? .null
-      let resolved = context.resolveAction(rawAction)
+      // A functionCall action runs locally, as `NodeResolver` does when triggered.
+      let resolved: JSONValue
+      if let functionCall = rawAction["functionCall"] {
+        _ = context.resolveDynamicValue(functionCall)
+        resolved = .null
+      } else {
+        resolved = context.resolveAction(rawAction)
+      }
+
+      if let expectedErrors = testCase["expectDispatchedErrors"] as? [[String: Any]] {
+        let actualCodes = errorHandler.capturedErrors.map { error -> String in
+          switch error {
+          case .generic(let generic):
+            #expect(generic.surfaceID == surfaceID, "\(name): error surfaceId mismatch")
+            return generic.code
+          case .validationFailed:
+            return "VALIDATION_FAILED"
+          }
+        }
+        let expectedCodes = expectedErrors.compactMap { $0["code"] as? String }
+        #expect(actualCodes == expectedCodes, "\(name): dispatched error codes mismatch")
+      }
 
       let expectedDispatched =
         (testCase["expectDispatched"] ?? testCase["expected"]).map {

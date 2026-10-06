@@ -20,3 +20,20 @@ public enum FunctionError: Error, Sendable {
   case securityConstraintViolation(String)
   case executionFailed(name: String, message: String)
 }
+
+extension FunctionError: A2UIError {
+  public var message: String {
+    switch self {
+    case .functionNotFound(let name):
+      return "Function not found: \(name)"
+    case .missingArgument(let name):
+      return "Missing required argument: \(name)"
+    case .invalidArgumentType(let expected, let actual):
+      return "Invalid argument type: expected \(expected), got \(actual)"
+    case .securityConstraintViolation(let message):
+      return message
+    case .executionFailed(_, let message):
+      return message
+    }
+  }
+}

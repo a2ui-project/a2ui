@@ -132,3 +132,35 @@
     name: "click"
     context:
       target: "btn1"
+
+- name: test_action_function_call_unknown_function_reports_expression_error
+  description: >-
+    Verifies a functionCall action naming an unregistered function dispatches
+    one EXPRESSION_ERROR to the surface's error channel and no server event.
+  action: dispatch_action
+  actionPayload:
+    functionCall:
+      call: "noSuchFunction"
+  expectDispatchedErrors:
+    - code: "EXPRESSION_ERROR"
+
+- name: test_action_event_context_unknown_function_reports_expression_error
+  description: >-
+    Verifies an event whose context calls an unregistered function dispatches
+    one EXPRESSION_ERROR and still dispatches the event, with the failed
+    value resolved to null.
+  action: dispatch_action
+  actionPayload:
+    event:
+      name: "submit"
+      context:
+        value:
+          call: "noSuchFunction"
+        kept: "literal"
+  expectDispatched:
+    name: "submit"
+    context:
+      value: null
+      kept: "literal"
+  expectDispatchedErrors:
+    - code: "EXPRESSION_ERROR"

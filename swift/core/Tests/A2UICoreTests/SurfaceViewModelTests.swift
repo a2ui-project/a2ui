@@ -67,6 +67,36 @@ struct TestRequiredFunction: FunctionImplementation {
   }
 }
 
+struct TestThrowingFunction: FunctionImplementation {
+  let api = FunctionAPI(
+    name: "alwaysThrows",
+    returnType: .boolean,
+    schema: try! Schema(instance: "{\"type\": \"object\"}")
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    throw FunctionError.executionFailed(name: "alwaysThrows", message: "boom")
+  }
+}
+
+struct TestLocalizedError: LocalizedError {
+  var errorDescription: String? { "Localized failure" }
+}
+
+struct TestLocalizedThrowingFunction: FunctionImplementation {
+  let api = FunctionAPI(
+    name: "throwsLocalized",
+    returnType: .boolean,
+    schema: try! Schema(instance: "{\"type\": \"object\"}")
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    throw TestLocalizedError()
+  }
+}
+
 struct TestEmailFunction: FunctionImplementation {
   let api = FunctionAPI(
     name: "email",
@@ -146,7 +176,10 @@ func makeTestCatalog() throws -> AnyCatalog {
   return Catalog(
     id: "test-catalog",
     components: [AnyComponentAPI(name: "button", schema: buttonSchema)],
-    functions: [TestConcatFunction(), TestRequiredFunction(), TestEmailFunction()]
+    functions: [
+      TestConcatFunction(), TestRequiredFunction(), TestEmailFunction(), TestThrowingFunction(),
+      TestLocalizedThrowingFunction(),
+    ]
   )
 }
 
@@ -161,6 +194,19 @@ final class TestActionHandler: ActionHandling, @unchecked Sendable {
 
   func handle(error: ClientServerError, from surfaceID: String) {
     capturedErrors.append(error)
+  }
+}
+
+/// An `ActionHandling` that runs `onError` synchronously when an error is reported.
+final class DataMutatingErrorHandler: ActionHandling, @unchecked Sendable {
+  var onError: (@MainActor () -> Void)?
+  var errorCount = 0
+
+  func handle(action: ResolvedAction, from surfaceID: String) {}
+
+  func handle(error: ClientServerError, from surfaceID: String) {
+    errorCount += 1
+    MainActor.assumeIsolated { onError?() }
   }
 }
 
@@ -864,6 +910,415 @@ struct SurfaceViewModelTests {
     validAction()
     #expect(handler.capturedActions.count == 1)
   }
+
+  // MARK: - Function Call Error Reporting
+
+  /// Messages of the generic `EXPRESSION_ERROR`s captured by `handler`, in order.
+  private func expressionErrorMessages(_ handler: TestActionHandler) -> [String] {
+    handler.capturedErrors.compactMap { error in
+      guard case .generic(let generic) = error, generic.code == "EXPRESSION_ERROR" else {
+        return nil
+      }
+      return generic.message
+    }
+  }
+
+  @Test func functionCallActionWithUnknownFunctionReportsExpressionError() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": "Click Me",
+          "onClick": ["functionCall": ["call": "noSuchFunction"]],
+        ]
+      ]
+    )
+    await Task.yield()
+    #expect(handler.capturedErrors.isEmpty)
+
+    let node = try #require(surface.rootNode)
+    let action = try #require(node.properties["onClick"] as? ResolvedAction)
+    action()
+
+    #expect(handler.capturedActions.isEmpty)
+    #expect(handler.capturedErrors.count == 1)
+    if case .generic(let err) = handler.capturedErrors[0] {
+      #expect(err.code == "EXPRESSION_ERROR")
+      #expect(err.surfaceID == surface.surfaceID)
+      #expect(err.message == "Function not found in catalog 'test-catalog': noSuchFunction")
+      #expect(err.expression == "noSuchFunction")
+    } else {
+      Issue.record("Expected a generic EXPRESSION_ERROR")
+    }
+  }
+
+  @Test func functionCallActionWithThrowingFunctionReportsExpressionError() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": "Click Me",
+          "onClick": ["functionCall": ["call": "alwaysThrows"]],
+        ]
+      ]
+    )
+    await Task.yield()
+    let node = try #require(surface.rootNode)
+    let action = try #require(node.properties["onClick"] as? ResolvedAction)
+    action()
+
+    #expect(handler.capturedActions.isEmpty)
+    #expect(handler.capturedErrors.count == 1)
+    if case .generic(let err) = handler.capturedErrors[0] {
+      #expect(err.code == "EXPRESSION_ERROR")
+      #expect(err.surfaceID == surface.surfaceID)
+      #expect(err.message == "boom")
+      #expect(err.expression == "alwaysThrows")
+    } else {
+      Issue.record("Expected a generic EXPRESSION_ERROR")
+    }
+  }
+
+  @Test func functionCallActionReportsOnEveryTrigger() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "onClick": ["functionCall": ["call": "noSuchFunction"]],
+        ]
+      ]
+    )
+    await Task.yield()
+    let node = try #require(surface.rootNode)
+    let action = try #require(node.properties["onClick"] as? ResolvedAction)
+    action()
+    action()
+
+    #expect(expressionErrorMessages(handler).count == 2)
+  }
+
+  @Test func eventActionContextWithFailingCallReportsAndDispatchesNull() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "onClick": [
+            "event": [
+              "name": "submit",
+              "context": ["value": ["call": "noSuchFunction"]],
+            ]
+          ],
+        ]
+      ]
+    )
+    await Task.yield()
+    #expect(handler.capturedErrors.isEmpty)
+
+    let node = try #require(surface.rootNode)
+    let action = try #require(node.properties["onClick"] as? ResolvedAction)
+    action()
+
+    #expect(expressionErrorMessages(handler).count == 1)
+    let dispatched = try #require(handler.capturedActions.first)
+    guard case .event(let name, let context) = dispatched.identity else {
+      Issue.record("Expected an event action")
+      return
+    }
+    #expect(name == "submit")
+    #expect(context?["value"] == .null)
+  }
+
+  @Test func renderTimeBindingReportsOnceWhileFailurePersists() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        ["id": "root", "component": "button", "label": ["call": "noSuchFunction"]]
+      ]
+    )
+    await Task.yield()
+    #expect(
+      expressionErrorMessages(handler) == [
+        "Function not found in catalog 'test-catalog': noSuchFunction"
+      ])
+
+    for i in 0..<3 {
+      processor.updateDataModel(surfaceID: surface.surfaceID, path: "/x", value: .integer(i))
+    }
+    await Task.yield()
+    #expect(expressionErrorMessages(handler).count == 1)
+  }
+
+  @Test func renderTimeBindingReportsAgainAfterRecovery() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    let failing: [String: JSONValue] = [
+      "id": "root", "component": "button", "label": ["call": "noSuchFunction"],
+    ]
+    processor.updateComponents(surfaceID: surface.surfaceID, components: [failing])
+    await Task.yield()
+    #expect(expressionErrorMessages(handler).count == 1)
+
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [["id": "root", "component": "button", "label": "OK"]]
+    )
+    await Task.yield()
+    #expect(expressionErrorMessages(handler).count == 1)
+
+    processor.updateComponents(surfaceID: surface.surfaceID, components: [failing])
+    await Task.yield()
+    #expect(expressionErrorMessages(handler).count == 2)
+  }
+
+  @Test func renderTimeDistinctFailuresOnOneComponentAreEachReported() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": ["call": "noSuchFunction"],
+          "details": ["call": "alwaysThrows"],
+        ]
+      ]
+    )
+    await Task.yield()
+    #expect(
+      Set(expressionErrorMessages(handler)) == [
+        "Function not found in catalog 'test-catalog': noSuchFunction", "boom",
+      ])
+  }
+
+  @Test func renderTimeSameFailureOnTwoPropertiesIsReportedPerProperty() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": ["call": "noSuchFunction"],
+          "details": ["call": "noSuchFunction"],
+        ]
+      ]
+    )
+    await Task.yield()
+    #expect(expressionErrorMessages(handler).count == 2)
+
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/x", value: 1)
+    await Task.yield()
+    #expect(expressionErrorMessages(handler).count == 2)
+  }
+
+  @Test func renderTimeRepeatedFailureInOneCheckPropertyIsReportedPerRule() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "checks": [
+            ["condition": ["call": "noSuchFunction"], "message": "First"],
+            ["condition": ["call": "noSuchFunction"], "message": "Second"],
+          ],
+        ]
+      ]
+    )
+    await Task.yield()
+    #expect(expressionErrorMessages(handler).count == 2)
+
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/x", value: 1)
+    await Task.yield()
+    #expect(expressionErrorMessages(handler).count == 2)
+  }
+
+  @Test func renderTimeRepeatedFailureInOnePropertyReportsWhenCountGrows() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    let oneFailure: JSONValue = [
+      "call": "concat", "args": ["a": ["call": "noSuchFunction"], "b": "literal"],
+    ]
+    let twoFailures: JSONValue = [
+      "call": "concat",
+      "args": ["a": ["call": "noSuchFunction"], "b": ["call": "noSuchFunction"]],
+    ]
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [["id": "root", "component": "button", "label": oneFailure]]
+    )
+    await Task.yield()
+    #expect(expressionErrorMessages(handler).count == 1)
+
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [["id": "root", "component": "button", "label": twoFailures]]
+    )
+    await Task.yield()
+    #expect(expressionErrorMessages(handler).count == 2)
+
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/x", value: 1)
+    await Task.yield()
+    #expect(expressionErrorMessages(handler).count == 2)
+  }
+
+  @Test func renderTimeDifferentFunctionsInOnePropertyAreEachReported() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": [
+            "call": "concat",
+            "args": ["a": ["call": "noSuchFunction"], "b": ["call": "otherMissingFunction"]],
+          ],
+        ]
+      ]
+    )
+    await Task.yield()
+    let expressions = handler.capturedErrors.compactMap { error -> String? in
+      guard case .generic(let generic) = error else { return nil }
+      return generic.expression
+    }
+    #expect(Set(expressions) == ["noSuchFunction", "otherMissingFunction"])
+    #expect(expressions.count == 2)
+  }
+
+  @Test func localizedErrorReportsErrorDescription() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [["id": "root", "component": "button", "label": ["call": "throwsLocalized"]]]
+    )
+    await Task.yield()
+    #expect(handler.capturedErrors.count == 1)
+    if case .generic(let err) = handler.capturedErrors.first {
+      #expect(err.message == "Localized failure")
+      #expect(err.expression == "throwsLocalized")
+    } else {
+      Issue.record("Expected a generic EXPRESSION_ERROR")
+    }
+  }
+
+  @Test func renderTimeFailureInTemplateReportsPerInstance() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateDataModel(
+      surfaceID: surface.surfaceID, path: "/items", value: [["n": 1], ["n": 2]])
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "children": ["componentId": "item", "path": "/items"],
+        ],
+        ["id": "item", "component": "button", "label": ["call": "noSuchFunction"]],
+      ]
+    )
+    await Task.yield()
+    #expect(expressionErrorMessages(handler).count == 2)
+
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/x", value: 1)
+    await Task.yield()
+    #expect(expressionErrorMessages(handler).count == 2)
+  }
+
+  @Test func checkConditionWithFailingCallReportsAndFailsCheck() async throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "checks": [
+            ["condition": ["call": "alwaysThrows"], "message": "Must pass"]
+          ],
+        ]
+      ]
+    )
+    await Task.yield()
+    let node = try #require(surface.rootNode)
+    #expect(node.validationErrors == ["Must pass"])
+    #expect(expressionErrorMessages(handler) == ["boom"])
+  }
+
+  #if DEBUG
+    /// A handler that adds a failing template row on every error raises a new
+    /// error every pass; the rebuild cap stops it instead of spinning forever.
+    @Test func runawayErrorHandlerHitsRebuildCap() async {
+      await #expect(processExitsWith: .failure) {
+        await MainActor.run {
+          let handler = DataMutatingErrorHandler()
+          guard let catalog = try? makeTestCatalog() else { return }
+          let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
+          let surface = SurfaceViewModel(
+            surfaceID: "test-surface", catalog: catalog, actionHandler: handler)
+          processor.surfaceGroupModel.addSurface(surface)
+          handler.onError = {
+            let rows = surface.dataModel.get("/items")?.arrayValue ?? []
+            surface.dataModel.set("/items", value: .array(rows + [["n": .integer(rows.count)]]))
+          }
+          processor.updateComponents(
+            surfaceID: surface.surfaceID,
+            components: [
+              [
+                "id": "root",
+                "component": "button",
+                "children": ["componentId": "item", "path": "/items"],
+              ],
+              ["id": "item", "component": "button", "label": ["call": "noSuchFunction"]],
+            ]
+          )
+          processor.updateDataModel(
+            surfaceID: surface.surfaceID, path: "/items", value: [["n": 0]])
+        }
+      }
+    }
+  #endif
+
+  @Test func errorHandlerMutatingDataModelLeavesLatestRootPublished() async throws {
+    let handler = DataMutatingErrorHandler()
+    let catalog = try makeTestCatalog()
+    let processor = MessageProcessor(catalogs: [catalog], actionHandler: handler)
+    let surface = SurfaceViewModel(
+      surfaceID: "test-surface", catalog: catalog, actionHandler: handler)
+    processor.surfaceGroupModel.addSurface(surface)
+    handler.onError = { surface.dataModel.set("/name", value: "updated") }
+
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/name", value: "initial")
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": ["path": "/name"],
+          "details": ["call": "noSuchFunction"],
+        ]
+      ]
+    )
+    await Task.yield()
+
+    #expect(handler.errorCount == 1)
+    let binding = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
+    #expect(binding.value == "updated")
+  }
+
   // MARK: - Child List Resolution (Static)
 
   @Test func childListResolvesStaticArray() throws {

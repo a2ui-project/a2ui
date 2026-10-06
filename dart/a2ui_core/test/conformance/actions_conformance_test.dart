@@ -62,26 +62,62 @@ Future<void> _runDispatchActionCase(Map<String, Object?> testCase) async {
   }
 
   final String scope = testCase['scope'] as String? ?? '/';
+  final dispatchedErrors = <A2uiClientError>[];
+  surface.onError.addListener(dispatchedErrors.add);
+  // Report as ComponentContext does by default: to the surface's error channel.
   final context = DataContext(
     surface.dataModel,
     catalog.invoke,
     scope,
+    onError: (error) {
+      surface.dispatchError(
+        A2uiClientError(
+          code: 'EXPRESSION_ERROR',
+          surfaceId: surface.id,
+          message: error.message,
+          details: error.details,
+        ),
+      );
+    },
   );
 
   final Object? rawAction =
       testCase['actionPayload'] ?? testCase['action_data'];
-  final Map<String, dynamic>? resolvedAction = context.resolveAction(rawAction);
-  expect(resolvedAction, isNotNull);
 
   A2uiClientAction? dispatched;
   surface.onAction.addListener((action) {
     dispatched = action;
   });
 
-  await surface.dispatchAction(
-    resolvedAction!,
-    'test_component',
-  );
+  final Object? functionCall =
+      rawAction is Map ? rawAction['functionCall'] : null;
+  if (functionCall != null) {
+    // A functionCall action runs locally, as GenericBinder does when triggered.
+    context.resolveSync(functionCall);
+  } else {
+    final Map<String, dynamic>? resolvedAction =
+        context.resolveAction(rawAction);
+    expect(resolvedAction, isNotNull);
+    await surface.dispatchAction(
+      resolvedAction!,
+      'test_component',
+    );
+  }
+
+  final expectedErrors = testCase['expectDispatchedErrors'] as List<Object?>?;
+  if (expectedErrors != null) {
+    expect(
+      dispatchedErrors.map((error) => error.code).toList(),
+      equals([
+        for (final Object? error in expectedErrors)
+          (error! as Map<Object?, Object?>)['code'],
+      ]),
+    );
+    expect(
+      dispatchedErrors.map((error) => error.surfaceId),
+      everyElement(surface.id),
+    );
+  }
 
   final expected = (testCase['expectDispatched'] ?? testCase['expected'])
       as Map<String, Object?>?;

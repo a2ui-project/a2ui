@@ -1731,6 +1731,7 @@ def validate_dispatch_action_case(case: dict[str, Any]) -> None:
     expect_dispatched = case.get("expectDispatched")
     expect_data_model = case.get("expectDataModel")
     expect_error = case.get("expectError")
+    expect_dispatched_errors = case.get("expectDispatchedErrors")
 
     catalogs = get_catalogs_for_test_case(case)
     default_cat = catalogs[0] if catalogs else v09_catalog
@@ -1742,6 +1743,8 @@ def validate_dispatch_action_case(case: dict[str, Any]) -> None:
     )
     dispatched: list[dict[str, Any]] = []
     surface.on_action.subscribe(lambda evt: dispatched.append(evt))
+    dispatched_errors: list[dict[str, Any]] = []
+    surface.on_error.subscribe(lambda err: dispatched_errors.append(err))
 
     context = DataContext(surface=surface, path=scope or "/")
 
@@ -1771,6 +1774,12 @@ def validate_dispatch_action_case(case: dict[str, Any]) -> None:
 
         if expect_data_model is not None:
             assert data_model.data == expect_data_model
+
+        if expect_dispatched_errors is not None:
+            assert [e.get("code") for e in dispatched_errors] == [
+                e["code"] for e in expect_dispatched_errors
+            ]
+            assert all(e.get("surfaceId") == surface_id for e in dispatched_errors)
 
 
 def validate_evaluate_function_case(case: dict[str, Any]) -> None:

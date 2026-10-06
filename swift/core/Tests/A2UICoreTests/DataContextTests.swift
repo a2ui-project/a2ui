@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import A2UICore
+import JSONSchema
 import OrderedJSON
 import Testing
 
@@ -134,6 +135,56 @@ struct DataContextTests {
       try DataContext.validateReservedDirectives(["@invalidKey"])
     }
   }
+  @Test(arguments: [nil, "v1.0"])
+  func resolveDynamicValueReportsMissingFunction(protocolVersion: String?) {
+    let mockHandler = MockFunctionHandler()
+    let context = DataContext(
+      dataModel: DataModel(),
+      path: "/",
+      functionHandler: mockHandler,
+      protocolVersion: protocolVersion
+    )
+    let callKey = protocolVersion == nil ? "call" : "@call"
+
+    let result = context.resolveDynamicValue([callKey: "missing", "catalogId": "cat"])
+
+    #expect(result == .null)
+    #expect(mockHandler.reportedErrors.count == 1)
+    #expect(mockHandler.reportedErrors.first?.functionName == "missing")
+    #expect(mockHandler.reportedErrors.first?.catalogID == "cat")
+    #expect(mockHandler.reportedErrors.first?.error == nil)
+  }
+
+  @Test(arguments: [nil, "v1.0"])
+  func resolveDynamicValueReportsThrowingFunction(protocolVersion: String?) {
+    let mockHandler = MockFunctionHandler()
+    mockHandler.functionToReturn = ThrowingFunction()
+    let context = DataContext(
+      dataModel: DataModel(),
+      path: "/",
+      functionHandler: mockHandler,
+      protocolVersion: protocolVersion
+    )
+    let callKey = protocolVersion == nil ? "call" : "@call"
+
+    let result = context.resolveDynamicValue([callKey: "throws"])
+
+    #expect(result == .null)
+    #expect(mockHandler.reportedErrors.count == 1)
+    #expect(mockHandler.reportedErrors.first?.functionName == "throws")
+    let error = mockHandler.reportedErrors.first?.error as? FunctionError
+    #expect(error?.message == "boom")
+  }
+
+  @Test func resolveDynamicValueDoesNotReportSuccessfulCall() {
+    let mockHandler = MockFunctionHandler()
+    mockHandler.functionToReturn = ConcatFunction()
+    let context = DataContext(dataModel: DataModel(), path: "/", functionHandler: mockHandler)
+
+    _ = context.resolveDynamicValue(["call": "concat", "args": ["a": "x", "b": "y"]])
+
+    #expect(mockHandler.reportedErrors.isEmpty)
+  }
 }
 
 @MainActor
@@ -141,10 +192,28 @@ private final class MockFunctionHandler: FunctionHandler {
   var functionToReturn: (any FunctionImplementation)? = nil
   var lastRequestedName: String? = nil
   var lastRequestedCatalogID: String? = nil
+  var reportedErrors: [(functionName: String, catalogID: String?, error: Error?)] = []
 
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     lastRequestedName = name
     lastRequestedCatalogID = catalogID
     return functionToReturn
+  }
+
+  func reportExpressionError(functionName: String, catalogID: String?, error: Error?) {
+    reportedErrors.append((functionName, catalogID, error))
+  }
+}
+
+private struct ThrowingFunction: FunctionImplementation {
+  let api = FunctionAPI(
+    name: "throws",
+    returnType: .any,
+    schema: try! Schema(instance: "{\"type\": \"object\"}")
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    throw FunctionError.executionFailed(name: "throws", message: "boom")
   }
 }

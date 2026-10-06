@@ -17,16 +17,20 @@ public struct GenericError: Error, Equatable, Codable, Sendable {
   public let code: String
   public let surfaceID: String
   public let message: String
+  /// The expression that failed, e.g. the function name of an `EXPRESSION_ERROR`.
+  public let expression: String?
 
   private enum CodingKeys: String, CodingKey {
     case code
     case surfaceID = "surfaceId"
     case message
+    case expression
   }
 
-  public init(code: String, surfaceID: String, message: String) {
+  public init(code: String, surfaceID: String, message: String, expression: String? = nil) {
     self.code = code
     self.surfaceID = surfaceID
     self.message = message
+    self.expression = expression
   }
 }

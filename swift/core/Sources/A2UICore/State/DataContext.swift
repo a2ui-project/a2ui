@@ -46,7 +46,8 @@ public final class DataContext {
     return major >= 1
   }
 
-  public static func validateReservedDirectives<S: Sequence>(_ keys: S) throws where S.Element == String {
+  public static func validateReservedDirectives<S: Sequence>(_ keys: S) throws
+  where S.Element == String {
     for key in keys {
       if key.hasPrefix("@") && !key.hasPrefix("@@") && key != "@path" && key != "@call" {
         throw A2UIValidationError(
@@ -96,7 +97,10 @@ public final class DataContext {
           return dataModel.get(absPath) ?? .null
         } else if let callName = dict["@call"]?.stringValue {
           let catalogID = dict["catalogId"]?.stringValue
-          guard let function = functionHandler?.function(named: callName, catalogID: catalogID) else {
+          guard let function = functionHandler?.function(named: callName, catalogID: catalogID)
+          else {
+            functionHandler?.reportExpressionError(
+              functionName: callName, catalogID: catalogID, error: nil)
             return .null
           }
 
@@ -110,6 +114,8 @@ public final class DataContext {
           do {
             return try function.evaluate(arguments: resolvedArgs, context: self)
           } catch {
+            functionHandler?.reportExpressionError(
+              functionName: callName, catalogID: catalogID, error: error)
             return .null
           }
         }
@@ -130,7 +136,10 @@ public final class DataContext {
           return dataModel.get(absPath) ?? .null
         } else if let callName = dict["call"]?.stringValue {
           let catalogID = dict["catalogId"]?.stringValue
-          guard let function = functionHandler?.function(named: callName, catalogID: catalogID) else {
+          guard let function = functionHandler?.function(named: callName, catalogID: catalogID)
+          else {
+            functionHandler?.reportExpressionError(
+              functionName: callName, catalogID: catalogID, error: nil)
             return .null
           }
 
@@ -144,6 +153,8 @@ public final class DataContext {
           do {
             return try function.evaluate(arguments: resolvedArgs, context: self)
           } catch {
+            functionHandler?.reportExpressionError(
+              functionName: callName, catalogID: catalogID, error: error)
             return .null
           }
         }
@@ -205,4 +216,3 @@ public final class DataContext {
     }
   }
 }
-

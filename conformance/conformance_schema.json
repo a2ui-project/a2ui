@@ -573,6 +573,18 @@
           "type": "object",
           "description": "Expected data model state after local functionCall execution."
         },
+        "expectDispatchedErrors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {"type": "string"}
+            },
+            "required": ["code"],
+            "additionalProperties": false
+          },
+          "description": "Expected client errors dispatched to the surface's error channel while resolving the action, in order. Messages are SDK-specific and not compared."
+        },
         "expectError": {
           "$ref": "#/$defs/ExpectError"
         }
