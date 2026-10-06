@@ -16,6 +16,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:a2ui_core/src/core/contexts.dart' show ComponentContext;
+import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
@@ -64,6 +66,112 @@ void main() {
         A2uiReturnType.string,
       );
     });
+
+    test('parses and round-trips validationResult function returnType', () {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'https://example.com/v1_validation_catalog',
+        'functions': {
+          'checkEmail': {
+            'type': 'object',
+            'properties': {
+              'call': {'const': 'checkEmail'},
+              'args': {
+                'type': 'object',
+                'properties': {
+                  'value': {'type': 'string'},
+                },
+                'required': ['value'],
+              },
+              'returnType': {'const': 'validationResult'},
+            },
+            'required': ['call', 'args'],
+          },
+          'checkInline': {
+            'returnType': 'validationResult',
+            'parameters': {
+              'type': 'object',
+              'properties': {
+                'value': {'type': 'string'},
+              },
+            },
+          },
+        },
+      });
+
+      expect(
+        catalog.functions['checkEmail']!.returnType,
+        A2uiReturnType.validationResult,
+      );
+      expect(
+        catalog.functions['checkInline']!.returnType,
+        A2uiReturnType.validationResult,
+      );
+
+      final Map<String, Object?> rebuilt = catalog.catalogSchema;
+      final CatalogApi reparsed = Catalog.fromJson(rebuilt);
+      expect(
+        reparsed.functions['checkEmail']!.returnType,
+        A2uiReturnType.validationResult,
+      );
+      expect(
+        reparsed.functions['checkInline']!.returnType,
+        A2uiReturnType.validationResult,
+      );
+    });
+
+    test(
+      'GenericBinder evaluates checks on a JSON-loaded catalog referencing '
+      'common_types.json#/\$defs/Checkable',
+      () {
+        final CatalogApi parsed = Catalog.fromJson(loadBasicCatalogJson());
+        final rendererCatalog = Catalog<ComponentApi, FunctionImplementation>(
+          id: parsed.id,
+          components: parsed.components.values.toList(),
+          functions: const [],
+        );
+        final surface = SurfaceModel<ComponentApi>(
+          's-json',
+          catalog: rendererCatalog,
+        );
+        addTearDown(surface.dispose);
+
+        surface.dataModel.set('/isValidEmail', false);
+        final model = ComponentModel('tf1', 'TextField', {
+          'label': 'Email',
+          'value': 'invalid@',
+          'checks': [
+            {
+              'condition': {'path': '/isValidEmail'},
+              'message': 'Enter a valid email address',
+            },
+          ],
+        });
+        surface.componentsModel.addComponent(model);
+
+        final binder = GenericBinder(
+          ComponentContext(surface, model),
+          rendererCatalog.components['TextField']!.schema,
+        );
+        addTearDown(binder.dispose);
+
+        expect(binder.resolvedProps.value['isValid'], isFalse);
+        expect(binder.resolvedProps.value['validationErrors'], [
+          'Enter a valid email address',
+        ]);
+        expect(binder.resolvedProps.value['validationResults'], [
+          const ValidationResult(
+            valid: false,
+            message: 'Enter a valid email address',
+            severity: 'error',
+          ),
+        ]);
+
+        surface.dataModel.set('/isValidEmail', true);
+        expect(binder.resolvedProps.value['isValid'], isTrue);
+        expect(binder.resolvedProps.value['validationErrors'], isEmpty);
+        expect(binder.resolvedProps.value['validationResults'], isEmpty);
+      },
+    );
   });
 
   group('Catalog generics', () {
