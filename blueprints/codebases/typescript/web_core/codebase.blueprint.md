@@ -22,7 +22,7 @@ This is the reference TypeScript implementation of the A2UI Core State Layer (`a
 ## **Local Technical Decisions & Overrides**
 
 - **TypeScript Reflection**: We utilize Zod runtime reflection to implement the automated generic binder layer. This automatically resolves complex properties (such as `DynamicString` or action callbacks) into simple static native types, freeing renderers (React, Angular, Lit) from having to deal with raw subscription loops.
-- **State Partitioning**: State is segmented under `src/v0_9/state` and `src/v1_0/state` to support side-by-side protocol evolution while sharing utilities inside `src/common`.
+- **Unified State & Protocol Agnosticism**: State is consolidated under `src/state` to power a single, version-agnostic runtime supporting both v0.9 and v1.0 messages, while v0.8 remains isolated under `src/v0_8`.
 
 ## **Validation & Execution Recipes**
 

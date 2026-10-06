@@ -27,7 +27,7 @@ import {
   A2uiExpressionError,
   PayloadValidator,
   getValue,
-} from '../../../v1_0/index.js';
+} from '../../../index.js';
 import {
   type A2uiWebComponentElement,
   registerUniversalElement,

@@ -87,7 +87,7 @@ function generateExamplesBundle() {
  */
 
 import {A2uiMessage} from '@a2ui/web_core/v0_9';
-import {AgentToRendererMessage} from '@a2ui/web_core/v1_0';
+import {AgentToRendererMessage} from '@a2ui/web_core';
 
 ${imports.join('\n')}
 

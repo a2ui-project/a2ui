@@ -41,7 +41,7 @@ export {
   V09_STANDARD_DEFS,
 } from '@a2ui/web_core/v0_9';
 
-// ./v1_0
+// ./schema/v1_0
 export {
   CreateSurfaceMessageSchema as V10CreateSurfaceMessageSchema,
   UpdateComponentsMessageSchema as V10UpdateComponentsMessageSchema,
@@ -52,13 +52,13 @@ export {
   AgentToRendererMessageSchema,
   RendererToAgentMessageSchema,
   V10RendererCapabilitiesSchema,
-  V10_STANDARD_DEFS,
-} from '@a2ui/web_core/v1_0';
+} from '@a2ui/web_core/schema/v1_0';
+export {V10_STANDARD_DEFS} from '@a2ui/web_core/schema/v1_0/defs';
 import type {
   AgentToRendererMessage,
   RendererToAgentMessage,
   V10RendererCapabilities,
-} from '@a2ui/web_core/v1_0';
+} from '@a2ui/web_core/schema/v1_0';
 export type {AgentToRendererMessage, RendererToAgentMessage, V10RendererCapabilities};
 
 /**

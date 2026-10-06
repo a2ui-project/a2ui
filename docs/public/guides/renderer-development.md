@@ -51,11 +51,10 @@ See the [React renderer](../../../renderers/react), [Lit renderer](../../../rend
 
 ### Version support
 
-`web_core` exports API sets per version:
+`web_core` provides a version-agnostic entrypoint supporting modern protocol specifications (v0.9 through v1.0), with v0.8 maintained separately:
 
-- `@a2ui/web_core/v0_8` — stable v0.8
-- `@a2ui/web_core/v0_9` — v0.9/v0.9.1 support with `createSurface`, custom catalogs, client-side functions
-- `@a2ui/web_core/v1_0` — candidate v1.0 support including RPC action responses
+- `@a2ui/web_core` — single version-agnostic entrypoint for modern runtimes (v0.9, v0.9.1, and v1.0 messages, RPC, and catalogs)
+- `@a2ui/web_core/v0_8` — legacy v0.8 support
 
 > TIP: Start with `web_core`
 >

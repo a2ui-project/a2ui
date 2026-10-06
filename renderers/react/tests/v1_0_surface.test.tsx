@@ -23,8 +23,7 @@ import {
   createComponentImplementation,
   type ReactCatalogComponent,
 } from '../src/index';
-import {Catalog, MessageProcessor} from '@a2ui/web_core';
-import {CommonSchemas} from '@a2ui/web_core/v1_0';
+import {Catalog, MessageProcessor, CommonSchemas} from '@a2ui/web_core';
 import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 
 const V1_0_CATALOG_ID = basicCatalog.id;

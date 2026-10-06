@@ -51,7 +51,10 @@ import type {
   AgentToRendererMessage as V10AgentToRendererMessage,
   CallRendererFunctionMessage,
 } from '../v1_0/schema/agent-to-renderer.js';
-import type {RendererFunctionResponseMessage} from '../v1_0/schema/renderer-to-agent.js';
+import type {
+  RendererToAgentMessage,
+  RendererFunctionResponseMessage,
+} from '../v1_0/schema/renderer-to-agent.js';
 import type {FunctionCall} from '../v1_0/schema/common-types.js';
 import {
   RpcHandler,
@@ -94,6 +97,10 @@ export type {
   ValidationConfig,
   OutboundMessageListener,
   CallOptions,
+  V10AgentToRendererMessage as AgentToRendererMessage,
+  CallRendererFunctionMessage,
+  RendererToAgentMessage,
+  RendererFunctionResponseMessage,
 };
 export {STRICT_VALIDATION, RELAXED_VALIDATION, A2uiRpcError, RpcErrorCode};
 

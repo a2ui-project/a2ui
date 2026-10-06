@@ -24,7 +24,7 @@ import {
   provideA2UI,
   SurfaceComponent,
 } from './public-api';
-import {isWebComponentImplementation} from '@a2ui/web_core/v1_0';
+import {isWebComponentImplementation} from '@a2ui/web_core';
 
 describe('@a2ui/angular v1.0 & BasicCatalog', () => {
   describe('BasicCatalog', () => {
