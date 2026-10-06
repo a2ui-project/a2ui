@@ -15,12 +15,8 @@
  */
 
 import {useState, useEffect, useCallback, useMemo, useRef, FormEvent} from 'react';
-import {
-  A2uiSurface,
-  basicCatalog,
-  MarkdownContext,
-  ReactComponentImplementation,
-} from '@a2ui/react/v0_9';
+import {A2uiSurface, MarkdownContext, ReactCatalogComponent} from '@a2ui/react/v0_9';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiClientMessage, A2uiMessage, MessageProcessor, SurfaceModel} from '@a2ui/web_core/v0_9';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {A2UIClient} from './client';
@@ -66,7 +62,7 @@ export function App() {
   );
 
   const processor = useMemo(() => {
-    return new MessageProcessor<ReactComponentImplementation>([basicCatalog], action => {
+    return new MessageProcessor<ReactCatalogComponent>([basicCatalog], action => {
       console.log('User action:', action);
       if (sendAndProcessRef.current) {
         sendAndProcessRef.current({version: 'v0.9', action});
@@ -92,7 +88,7 @@ interface ShellContentProps {
   sendAndProcessRef: React.MutableRefObject<
     ((message: A2uiClientMessage | string) => Promise<void>) | null
   >;
-  processor: MessageProcessor<ReactComponentImplementation>;
+  processor: MessageProcessor<ReactCatalogComponent>;
 }
 
 function ShellContent({config, client, sendAndProcessRef, processor}: ShellContentProps) {
@@ -108,7 +104,7 @@ function ShellContent({config, client, sendAndProcessRef, processor}: ShellConte
     return prefersDark;
   });
 
-  const [surfaces, setSurfaces] = useState<SurfaceModel<ReactComponentImplementation>[]>(() =>
+  const [surfaces, setSurfaces] = useState<SurfaceModel<ReactCatalogComponent>[]>(() =>
     Array.from(processor.model.surfacesMap.values()),
   );
 

@@ -127,6 +127,7 @@ abstract class AgentToRendererMessage {
           surfaceId: _required<String>(body, 'surfaceId', key),
           path: _optional<String>(body, 'path', key),
           value: body['value'],
+          hasValue: body.containsKey('value'),
         );
       case 'deleteSurface':
         _checkKeys(body, const {'surfaceId'}, key);
@@ -650,12 +651,28 @@ class UpdateDataModelMessage extends AgentToRendererMessage {
   /// deletion; before v1.0 a deletion omits it.
   final Object? value;
 
+  /// Whether this message carries a `value` entry on the wire.
+  ///
+  /// Distinguishes an explicit `value: null` (which deletes the key at [path])
+  /// from a v0.9 message that omits `value` altogether. Defaults to `true` so
+  /// `UpdateDataModelMessage(surfaceId: 's', value: null)` emits
+  /// `'value': null` in [toJson].
+  final bool hasValue;
+
   UpdateDataModelMessage({
     required super.version,
     required this.surfaceId,
     this.path,
     this.value,
-  });
+    this.hasValue = true,
+  }) {
+    if (!hasValue && value != null) {
+      throw A2uiValidationError(
+        "UpdateDataModelMessage cannot have a non-null 'value' when "
+        "'hasValue' is false.",
+      );
+    }
+  }
 
   @override
   Map<String, dynamic> toJson() => {
@@ -663,7 +680,7 @@ class UpdateDataModelMessage extends AgentToRendererMessage {
         'updateDataModel': {
           'surfaceId': surfaceId,
           if (path != null) 'path': path,
-          if (value != null || _isV1(version)) 'value': value,
+          if (hasValue || _isV1(version)) 'value': value,
         },
       };
 }
@@ -901,7 +918,7 @@ class A2uiClientAction {
         'name': name,
         'surfaceId': surfaceId,
         'sourceComponentId': sourceComponentId,
-        'timestamp': timestamp.toIso8601String(),
+        'timestamp': timestamp.toUtc().toIso8601String(),
         'context': context,
         if (userMessage != null && userMessage!.isNotEmpty)
           'userMessage': userMessage,
@@ -949,6 +966,11 @@ class A2uiClientError {
   /// round trip does not lose them.
   final Map<String, Object?> additionalProperties;
 
+  /// Creates a client-side error report.
+  ///
+  /// Throws [A2uiValidationError] when [code] is [validationFailedCode] and
+  /// the error names no non-empty [path] or no [surfaceId], or carries
+  /// [details] or [additionalProperties].
   A2uiClientError({
     required this.code,
     this.surfaceId,
@@ -957,18 +979,25 @@ class A2uiClientError {
     this.functionCallId,
     this.details,
     Map<String, Object?>? additionalProperties,
-  })  : additionalProperties = Map<String, Object?>.unmodifiable(
+  }) : additionalProperties = Map<String, Object?>.unmodifiable(
           additionalProperties ?? const <String, Object?>{},
-        ),
-        assert(
-          code != validationFailedCode ||
-              (path != null &&
-                  surfaceId != null &&
-                  details == null &&
-                  (additionalProperties?.isEmpty ?? true)),
-          "A '$validationFailedCode' error must name the 'surfaceId' and "
-          "'path' that failed, and carry no other fields.",
-        );
+        ) {
+    if (code != validationFailedCode) return;
+    final String? path = this.path;
+    if (path == null || path.isEmpty) {
+      throw A2uiValidationError(
+        "Field 'error.path' is required of a '$validationFailedCode' error.",
+      );
+    }
+    if (surfaceId == null ||
+        details != null ||
+        this.additionalProperties.isNotEmpty) {
+      throw A2uiValidationError(
+        "A '$validationFailedCode' error must name the 'surfaceId' and "
+        "'path' that failed, and carry no other fields.",
+      );
+    }
+  }
 
   /// The code of a payload that failed validation.
   static const String validationFailedCode = 'VALIDATION_FAILED';
@@ -1000,9 +1029,9 @@ class A2uiClientError {
   /// Parses the body of an `error` envelope declaring [protocolVersion].
   ///
   /// Throws [A2uiValidationError] for a missing or mistyped field, for a path
-  /// error that names no `surfaceId` or `path` or carries any other field,
-  /// and for a generic error that names no `surfaceId` before v1.0, or not
-  /// exactly one of `surfaceId` and `functionCallId` from v1.0.
+  /// error that names no `surfaceId` or non-empty `path` or carries any other
+  /// field, and for a generic error that names no `surfaceId` before v1.0, or
+  /// not exactly one of `surfaceId` and `functionCallId` from v1.0.
   factory A2uiClientError.fromJson(
     Map<String, dynamic> json, {
     required A2uiProtocolVersion protocolVersion,
@@ -1012,7 +1041,8 @@ class A2uiClientError {
     final bool isPathError =
         isV1 ? pathErrorCodes.contains(code) : code == validationFailedCode;
     if (isPathError) {
-      if (json['path'] == null) {
+      final String? path = _optional<String>(json, 'path', 'error');
+      if (path == null || path.isEmpty) {
         throw A2uiValidationError(
           "Field 'error.path' is required of a '$code' error.",
           details: json,
@@ -1023,7 +1053,7 @@ class A2uiClientError {
         code: code,
         surfaceId: _required<String>(json, 'surfaceId', 'error'),
         message: _required<String>(json, 'message', 'error'),
-        path: _required<String>(json, 'path', 'error'),
+        path: path,
       );
     }
 

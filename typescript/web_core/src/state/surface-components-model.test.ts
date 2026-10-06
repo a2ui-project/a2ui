@@ -165,6 +165,13 @@ describe('SurfaceComponentsModel', () => {
       assert.ok(childIds.includes('c4'));
     });
 
+    it('extracts child references by the component type over a component property', () => {
+      const root = new ComponentModel('root', 'Box', {child: 'c1', component: 'Text'}, testCatalog);
+      model.addComponent(root);
+
+      assert.deepStrictEqual(model.getChildIds('root'), ['c1']);
+    });
+
     it('detects immediate self-reference', () => {
       const root = new ComponentModel('root', 'Box', {child: 'root'}, testCatalog);
       model.addComponent(root);

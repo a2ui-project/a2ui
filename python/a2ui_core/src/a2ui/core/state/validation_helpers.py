@@ -19,8 +19,6 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from ..catalog import Catalog
-from ..catalog.catalog import TComponent, TFunction
 from ..exceptions import (
     A2uiErrorDetail,
     A2uiIntegrityError,

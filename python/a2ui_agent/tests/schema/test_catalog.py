@@ -13,13 +13,12 @@
 # limitations under the License.
 
 import pytest
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import (
-    VERSION_0_8,
-    VERSION_0_9,
-)
-from a2ui.basic_catalog.constants import BASIC_CATALOG_NAME
-from a2ui.basic_catalog import BasicCatalog
+
+from a2ui.core.basic_catalog import BasicCatalog, v0_8, v0_9, v1_0
+from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
+from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
+
+BASIC_CATALOG_NAME = "basic"
 
 
 def test_catalog_id_property():
@@ -60,7 +59,6 @@ def test_resolve_examples_path_handling():
 
 
 def test_catalog_config_from_path_schemes():
-    from a2ui.schema.catalog import CatalogConfig
     # Test local path
     config = CatalogConfig.from_path(
         name="test_file", catalog_path="relative_path/to/catalog.json"
@@ -86,27 +84,33 @@ def test_catalog_config_from_path_schemes():
         )
 
 
-def test_basic_catalog_get_config_examples_path():
-    from a2ui.basic_catalog.provider import BasicCatalog
-
-    # Test get_config with file:// scheme examples path
-    config = BasicCatalog.get_config(
-        version=VERSION_0_9, examples_path="file:///absolute/examples"
+def test_basic_catalog_from_catalog_examples_path():
+    # Test CatalogConfig.from_catalog with file:// scheme examples path
+    config = CatalogConfig.from_catalog(
+        "basic", BasicCatalog(VERSION_0_9), examples_path="file:///absolute/examples"
     )
+    assert config.name == "basic"
     assert config.examples_path == "/absolute/examples"
+    assert config.provider.load() == BasicCatalog(VERSION_0_9).catalog_schema
 
 
 def test_basic_catalog_id_retrieval_methods():
-
-    # Test v0.8 variations
     expected_0_8 = (
         "https://a2ui.org/specification/v0_8/standard_catalog_definition.json"
     )
-    assert BasicCatalog.get_catalog_id("0.8") == expected_0_8
+    assert v0_8.BasicCatalog().catalog_id == expected_0_8
+    assert BasicCatalog("0.8").catalog_id == expected_0_8
+    assert BasicCatalog(VERSION_0_8).catalog_id == expected_0_8
 
-    # Test other version variations
     expected_0_9 = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-    assert BasicCatalog.get_catalog_id("0.9") == expected_0_9
+    assert v0_9.BasicCatalog().catalog_id == expected_0_9
+    assert BasicCatalog("0.9").catalog_id == expected_0_9
+    assert BasicCatalog(VERSION_0_9).catalog_id == expected_0_9
 
-    with pytest.raises(ValueError, match="Unsupported version: 0.7"):
-        BasicCatalog.get_catalog_id("0.7")
+    expected_1_0 = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    assert v1_0.BasicCatalog().catalog_id == expected_1_0
+    assert BasicCatalog("1.0").catalog_id == expected_1_0
+
+    # BasicCatalog requires protocol_version with no implicit default.
+    with pytest.raises(TypeError):
+        BasicCatalog()  # type: ignore[call-arg]

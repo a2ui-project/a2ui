@@ -18,16 +18,21 @@ from collections.abc import Mapping, Sequence
 import copy
 from typing import Any, Callable
 
-from a2ui.schema.utils import load_common_types_schema, load_from_bundled_resource
+from a2ui.schema.utils import (
+    load_agent_to_renderer_schema,
+    load_common_types_schema,
+)
 from a2ui.inference_format import InferenceFormat
 from a2ui.core.schema.v0_9 import V09Capabilities
 
 from a2ui.schema.constants import (
-    SERVER_TO_CLIENT_SCHEMA_KEY,
-    PROTOCOL_VERSION_MAP,
     INLINE_CATALOGS_KEY,
     CATALOG_COMPONENTS_KEY,
     INLINE_CATALOG_NAME,
+    VERSION_0_8,
+    VERSION_0_9,
+    VERSION_0_9_1,
+    VERSION_1_0,
 )
 from a2ui.schema.catalog import CatalogConfig, A2uiCatalog
 from a2ui.core import A2uiCatalogError
@@ -114,17 +119,16 @@ class DirectJsonFormat(InferenceFormat):
     ) -> None:
         """Loads separate schema components and processes catalogs."""
         catalogs = catalogs or []
-        if version not in PROTOCOL_VERSION_MAP:
+        supported_versions = (VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0)
+        if version not in supported_versions:
             raise A2uiCatalogError(
                 f"Unknown A2UI specification version: {version}. Supported:"
-                f" {list(PROTOCOL_VERSION_MAP.keys())}"
+                f" {list(supported_versions)}"
             )
 
         # Load server-to-client and common types schemas
         self._server_to_client_schema = self._apply_modifiers(
-            load_from_bundled_resource(
-                version, SERVER_TO_CLIENT_SCHEMA_KEY, PROTOCOL_VERSION_MAP
-            )
+            load_agent_to_renderer_schema(version)
         )
         self._common_types_schema = self._apply_modifiers(
             load_common_types_schema(version)

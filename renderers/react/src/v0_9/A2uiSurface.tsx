@@ -18,22 +18,22 @@
  * Surface renderer driven by the node layer.
  *
  * `A2uiSurface` owns one `NodeResolver` for the surface it is given,
- * subscribes to the resolved root node, and renders it through `NodeView`
- * under `NodeSurfaceContext`. Everything below the root, including dispatch
- * to each implementation and child reference resolution, lives in
- * `node-view.tsx`.
+ * subscribes to the resolved root node and renders its element; it also
+ * portals content into the surface's React hosts that no React-rendered
+ * element owns. Everything below the root, including dispatch to each
+ * implementation and child reference resolution, lives in `node-view.tsx`.
  */
 
 import React, {useCallback, useLayoutEffect, useMemo, useSyncExternalStore} from 'react';
 import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
 import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
-import type {ReactComponentImplementation} from './react_component_implementation';
-
-import {LoadingPlaceholder, NodeSurfaceContext, NodeView} from './node-view';
+import {prepareCatalogs} from './catalog/prepare_catalogs';
+import {ChildElement, HostedChildren, LoadingPlaceholder} from './node-view';
+import type {ReactCatalogComponent} from './react_component_implementation';
 import {useMarkdownRenderer} from './markdown-context';
 
 export const A2uiSurface: React.FC<{
-  surface: SurfaceModel<ReactComponentImplementation>;
+  surface: SurfaceModel<ReactCatalogComponent>;
 }> = ({surface}) => {
   // web_core's basic catalog reads its markdown renderer from a module-level
   // slot. A layout effect sets it during commit, so it is in place before any
@@ -54,12 +54,13 @@ export const A2uiSurface: React.FC<{
   // The factory reads nothing; the dependency exists to reset the box when
   // the surface is swapped.
   const box = useMemo(
-    () => ({resolver: undefined as NodeResolver<ReactComponentImplementation> | undefined}),
+    () => ({resolver: undefined as NodeResolver<ReactCatalogComponent> | undefined}),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [surface],
   );
   const subscribe = useCallback(
     (onChange: () => void) => {
+      prepareCatalogs(surface);
       const resolver = new NodeResolver(surface, surface.defaultCatalog);
       box.resolver = resolver;
       const stopEffect = effect(() => {
@@ -85,9 +86,12 @@ export const A2uiSurface: React.FC<{
   if (!root) {
     return <LoadingPlaceholder componentId="root" />;
   }
+  // A React host of this surface with no React-rendered element above it
+  // (one created outside the surface's tree) gets its content from here.
   return (
-    <NodeSurfaceContext.Provider value={surface}>
-      <NodeView surface={surface} node={root} />
-    </NodeSurfaceContext.Provider>
+    <>
+      <ChildElement node={root} />
+      <HostedChildren surface={surface} owner={null} />
+    </>
   );
 };

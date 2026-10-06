@@ -22,9 +22,6 @@ dependencies = []
 [tool.uv]
 package = false
 
-[tool.uv.extra-build-dependencies]
-a2ui-agent-sdk = ["a2ui-core"]
-
 [tool.uv.workspace]
 members = [
   "conformance",
@@ -123,7 +120,6 @@ exclude = [
     "^eval/",
     # TODO(#1614): Typecheck all packages here.
     "^python/a2ui_agent/src/a2ui/inference_formats/experimental/",
-    "^python/a2ui_agent/pack_specs_hook\\.py$",
     "^samples/",
     "^tools/",
     "^docs/",

@@ -105,9 +105,10 @@ First, make sure you have `a2ui-agent-sdk` installed (it is included in the samp
 In your agent file (e.g., `agent.py`), import the necessary classes:
 
 ```python
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.schema.catalog import CatalogConfig
 from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
 from a2ui.strategies.schema import A2uiSchemaManager
-from a2ui.basic_catalog.provider import BasicCatalog
 ```
 
 Then, you can use `A2uiSchemaManager` to generate the system prompt. This ensures that the schema and examples are correctly formatted and up to date.
@@ -132,8 +133,8 @@ UI_DESCRIPTION = """
 schema_manager = A2uiSchemaManager(
     version=VERSION_0_8, # Use VERSION_0_9 for newer protocol
     catalogs=[
-        BasicCatalog.get_config(
-            version=VERSION_0_8, examples_path="examples/0.8"
+        CatalogConfig.from_catalog(
+            "basic", BasicCatalog(VERSION_0_8), examples_path="examples/0.8"
         )
     ],
 )
