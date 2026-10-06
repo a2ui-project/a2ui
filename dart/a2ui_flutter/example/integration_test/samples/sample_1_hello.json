@@ -1,0 +1,22 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "sample_1_hello",
+      "catalogId": "https://a2ui.org/specification/v0_9/basic_catalog.json"
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "sample_1_hello",
+      "components": [
+        {
+          "id": "root",
+          "component": "Text",
+          "text": "Hello, World!"
+        }
+      ]
+    }
+  }
+]
