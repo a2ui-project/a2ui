@@ -503,11 +503,7 @@ class ConformanceTest {
                 CatalogConfig.fromPath(name = cfg["name"] as String, catalogPath = fullPath)
               }
 
-            val manager =
-              A2uiSchemaManager(
-                version = A2uiVersion.VERSION_0_8,
-                catalogs = configs,
-              )
+            val manager = A2uiSchemaManager(version = A2uiVersion.VERSION_0_8, catalogs = configs)
 
             val selected = manager.getSelectedCatalog()
             val expect = case[ConformanceTestHelper.KEY_EXPECT] as Map<*, *>
