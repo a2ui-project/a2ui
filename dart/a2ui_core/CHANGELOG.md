@@ -102,6 +102,9 @@
   - `openUrl` accepts only absolute `http`, `https`, `mailto` and `tel` URLs
     and passes them to an `OpenUrlCallback`. Without a callback it throws,
     which a binder reports as `EXECUTION_ERROR`.
+  - The embedded v1.0 document matches `catalogs/basic/v1/catalog.json`,
+    whose instruction examples write bindings and calls as `@path` and
+    `@call`.
 - `FormatStringFunction` now delegates to the basic catalog's `formatString`:
   it coerces a non-string `value` instead of throwing, renders integral
   doubles without `.0`, and resolves template bindings and calls on a v1.0
