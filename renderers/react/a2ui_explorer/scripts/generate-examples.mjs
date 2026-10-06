@@ -21,11 +21,15 @@ const SPEC_EXAMPLES_DIR = path.resolve(
   import.meta.dirname,
   '../../../../specification/v0_9/catalogs/basic/examples',
 );
+const V10_EXAMPLES_DIR = path.resolve(
+  import.meta.dirname,
+  '../../../../catalogs/basic/v1/examples',
+);
 const OUT_FILE = path.resolve(import.meta.dirname, '../src/generated/examples-list.ts');
 
 /**
  * Generates a static TypeScript module bundle that imports all the basic catalog
- * example JSON files.
+ * example JSON files for v0.9 and v1.0.
  *
  * This allows the React explorer application and integration tests to resolve the
  * spec files dynamically at runtime without relying on Vite-specific APIs like
@@ -37,22 +41,39 @@ function generateExamplesBundle() {
     console.error(`Specification directory not found: ${SPEC_EXAMPLES_DIR}`);
     process.exit(1);
   }
+  if (!fs.existsSync(V10_EXAMPLES_DIR)) {
+    console.error(`v1.0 examples directory not found: ${V10_EXAMPLES_DIR}`);
+    process.exit(1);
+  }
 
-  const files = fs
+  const v09Files = fs
     .readdirSync(SPEC_EXAMPLES_DIR)
     .filter(file => file.endsWith('.json'))
     .sort();
 
-  const imports = [];
-  const entries = [];
+  const v10Files = fs
+    .readdirSync(V10_EXAMPLES_DIR)
+    .filter(file => file.endsWith('.json'))
+    .sort();
 
-  files.forEach((file, index) => {
-    // Relative path from src/generated/examples-list.ts to the specification examples folder
+  const imports = [];
+  const v09Entries = [];
+  const v10Entries = [];
+
+  v09Files.forEach((file, index) => {
     const relativePath = `../../../../../specification/v0_9/catalogs/basic/examples/${file}`;
-    const variableName = `example_${index}`;
+    const variableName = `example_v09_${index}`;
 
     imports.push(`import ${variableName} from '${relativePath}';`);
-    entries.push(`  '${file}': { default: ${variableName} }`);
+    v09Entries.push(`  '${file}': { default: ${variableName} }`);
+  });
+
+  v10Files.forEach((file, index) => {
+    const relativePath = `../../../../../catalogs/basic/v1/examples/${file}`;
+    const variableName = `example_v10_${index}`;
+
+    imports.push(`import ${variableName} from '${relativePath}';`);
+    v10Entries.push(`  '${file}': { default: ${variableName} }`);
   });
 
   const content = `/**
@@ -65,8 +86,6 @@ function generateExamplesBundle() {
  * in the specification directory.
  */
 
-import type {A2uiMessage} from '@a2ui/web_core/v0_9';
-
 ${imports.join('\n')}
 
 /**
@@ -74,7 +93,7 @@ ${imports.join('\n')}
  * It can be a direct array of messages or an object containing messages and metadata.
  */
 export interface ExampleData {
-  messages?: A2uiMessage[];
+  messages?: unknown[];
   description?: string;
   name?: string;
 }
@@ -87,12 +106,20 @@ export interface ExampleData {
  * our example data).
  */
 export interface ExampleModule {
-  default: ExampleData | A2uiMessage[];
+  default: ExampleData | unknown[];
 }
 
 export const exampleModules: Record<string, ExampleModule> = {
-${entries.join(',\n')}
+${v09Entries.join(',\n')}
 } as Record<string, ExampleModule>;
+
+export const EXAMPLES: Record<string, ExampleModule> = exampleModules;
+
+export const exampleModulesV10: Record<string, ExampleModule> = {
+${v10Entries.join(',\n')}
+} as Record<string, ExampleModule>;
+
+export const EXAMPLES_V10: Record<string, ExampleModule> = exampleModulesV10;
 `;
 
   const outDir = path.dirname(OUT_FILE);

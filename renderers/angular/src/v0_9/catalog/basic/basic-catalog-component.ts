@@ -16,10 +16,10 @@
 
 import {Directive, computed, HostBinding, inject} from '@angular/core';
 import {injectBasicCatalogStyles, isValidCssColor} from '@a2ui/web_core/v0_9/basic_catalog';
-import {A2uiRendererService} from '../../core/a2ui-renderer.service';
+import {A2uiRendererService} from '@a2ui/angular';
 import {ComponentApi} from '@a2ui/web_core/v0_9';
-import {CatalogComponent} from '../../core/catalog_component';
-import {BoundProperty} from '../../core/types';
+import {CatalogComponent} from '@a2ui/angular';
+import {BoundProperty} from '@a2ui/angular';
 
 /**
  * Base class for A2UI basic catalog components in Angular.

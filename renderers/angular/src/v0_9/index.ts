@@ -23,18 +23,31 @@
  * @module v0.9
  */
 
-// Core Services and Components
-export * from './core/a2ui-renderer.service';
-export * from './core/component-host.component';
-export * from './core/surface.component';
-export * from './core/catalog_component';
-export * from './core/component-binder.service';
-export * from './core/types';
-export * from './core/utils';
-export * from './core/markdown';
+// Core Services and Components re-exported from @a2ui/angular
+export {
+  A2uiRendererService,
+  A2UI_RENDERER_CONFIG,
+  type RendererConfiguration,
+  ComponentHostComponent,
+  SurfaceComponent,
+  CatalogComponent,
+  ComponentBinder,
+  type Child,
+  type BoundProperty,
+  type ComponentTemplate,
+  type ComponentApiToProps,
+  getNormalizedPath,
+  MarkdownRenderer,
+  provideMarkdownRenderer,
+  AngularCatalog,
+  type AngularComponentImplementation,
+  createComponentImplementation,
+  toWebComponent,
+  UniversalOnlyComponent,
+  provideA2Ui,
+} from '@a2ui/angular';
 
 // Catalog Types and Implementations
-export * from './catalog/types';
 export * from './catalog/basic/basic-catalog';
 
 // Basic Catalog Components

@@ -15,7 +15,7 @@
  */
 
 import {Component, computed, ChangeDetectionStrategy, inject, signal, effect} from '@angular/core';
-import {MarkdownRenderer} from '../../core/markdown';
+import {MarkdownRenderer} from '@a2ui/angular';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
 

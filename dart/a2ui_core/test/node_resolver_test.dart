@@ -24,6 +24,7 @@ import 'dart:async';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:logging/logging.dart';
+import 'package:preact_signals/preact_signals.dart' show SignalEffectException;
 import 'package:test/test.dart';
 
 class _TestComponentApi extends ComponentApi {
@@ -920,15 +921,48 @@ void materializationFailureTests() {
       return fixture;
     }
 
+    /// Collects the listener errors that `EventNotifier.emit` catches and
+    /// logs, so a throw during materialization stays observable even though
+    /// it no longer escapes the `componentsModel` notification.
+    List<LogRecord> collectListenerErrors() {
+      final records = <LogRecord>[];
+      final StreamSubscription<LogRecord> subscription =
+          Logger('a2ui.EventNotifier').onRecord.listen((record) {
+        if (record.loggerName == 'a2ui.EventNotifier' &&
+            record.level == Level.SEVERE) {
+          records.add(record);
+        }
+      });
+      addTearDown(subscription.cancel);
+      return records;
+    }
+
+    /// Asserts that at least one listener error matching [error] was logged
+    /// since the last call, then clears [records] for the next step.
+    ///
+    /// A throw from inside a signal effect reaches the notifier wrapped in a
+    /// [SignalEffectException]; the matcher is applied to the original error.
+    void expectSwallowed(List<LogRecord> records, Matcher error) {
+      expect(records, isNotEmpty,
+          reason: 'the materialization throw must be logged, not lost');
+      expect(
+        records.map((record) {
+          final Object? e = record.error;
+          return e is SignalEffectException ? e.error : e;
+        }),
+        everyElement(error),
+      );
+      records.clear();
+    }
+
     test(
         'a throw while materializing leaves no orphaned record, and the '
         'tree builds once the offending component is corrected', () {
       final TestSetup fixture = setupWithPoisonedLeaf();
+      final List<LogRecord> listenerErrors = collectListenerErrors();
 
-      expect(
-        () => add(fixture.surface, 'root', 'Card', {'child': 'leaf'}),
-        throwsA(isA<TypeError>()),
-      );
+      add(fixture.surface, 'root', 'Card', {'child': 'leaf'});
+      expectSwallowed(listenerErrors, isA<TypeError>());
 
       expect(
         fixture.resolver.activeNodeCount,
@@ -964,15 +998,14 @@ void materializationFailureTests() {
         'a throw partway through a child list disposes the siblings '
         'created before it', () {
       final TestSetup fixture = setupWithPoisonedLeaf();
+      final List<LogRecord> listenerErrors = collectListenerErrors();
       add(fixture.surface, 'ok', 'Text', {'text': 'ok'});
       add(fixture.surface, 'extra', 'Text', {'text': 'extra'});
 
-      expect(
-        () => add(fixture.surface, 'root', 'Column', {
-          'children': ['ok', 'leaf'],
-        }),
-        throwsA(isA<TypeError>()),
-      );
+      add(fixture.surface, 'root', 'Column', {
+        'children': ['ok', 'leaf'],
+      });
+      expectSwallowed(listenerErrors, isA<TypeError>());
       expect(fixture.resolver.activeNodeCount, 0);
 
       fixture.surface.componentsModel.removeComponent('root');
@@ -981,12 +1014,10 @@ void materializationFailureTests() {
       });
       expect(fixture.resolver.activeNodeCount, 2);
 
-      expect(
-        () => fixture.surface.componentsModel.get('root')!.properties = {
-          'children': ['ok', 'extra', 'leaf'],
-        },
-        throwsA(anything),
-      );
+      fixture.surface.componentsModel.get('root')!.properties = {
+        'children': ['ok', 'extra', 'leaf'],
+      };
+      expectSwallowed(listenerErrors, isA<TypeError>());
       expect(
         fixture.resolver.activeNodeCount,
         2,
@@ -999,6 +1030,7 @@ void materializationFailureTests() {
         'disposing an aborted cyclic sibling keeps the retained '
         "placeholder's diagnostic reservation", () {
       final TestSetup fixture = setupWithPoisonedLeaf();
+      final List<LogRecord> listenerErrors = collectListenerErrors();
       final errors = <String>[];
       fixture.surface.onError.addListener((error) => errors.add(error.code));
       add(fixture.surface, 'root', 'Column', {
@@ -1010,12 +1042,10 @@ void materializationFailureTests() {
       expect(errors, ['CYCLIC_REFERENCE']);
       expect(fixture.resolver.activeNodeCount, 2);
 
-      expect(
-        () => fixture.surface.componentsModel.get('root')!.properties = {
-          'children': ['root', 'root', 'leaf'],
-        },
-        throwsA(anything),
-      );
+      fixture.surface.componentsModel.get('root')!.properties = {
+        'children': ['root', 'root', 'leaf'],
+      };
+      expectSwallowed(listenerErrors, isA<TypeError>());
       expect(fixture.resolver.activeNodeCount, 2);
       expect(errors, ['CYCLIC_REFERENCE']);
 
@@ -1037,6 +1067,7 @@ void materializationFailureTests() {
         'a failed update keeps the identity of a committed child whose '
         'same-edge replacement was aborted', () {
       final TestSetup fixture = setupWithPoisonedLeaf();
+      final List<LogRecord> listenerErrors = collectListenerErrors();
       add(fixture.surface, 'ok', 'Text', {'text': 'ok'});
       add(fixture.surface, 'extra', 'Text', {'text': 'extra'});
       add(fixture.surface, 'root', 'Column', {
@@ -1050,12 +1081,10 @@ void materializationFailureTests() {
       addTearDown(emissions.dispose);
       expect(fixture.resolver.activeNodeCount, 3);
 
-      expect(
-        () => fixture.surface.componentsModel.get('root')!.properties = {
-          'children': ['extra', 'ok', 'leaf'],
-        },
-        throwsA(anything),
-      );
+      fixture.surface.componentsModel.get('root')!.properties = {
+        'children': ['extra', 'ok', 'leaf'],
+      };
+      expectSwallowed(listenerErrors, isA<TypeError>());
       expect(fixture.resolver.activeNodeCount, 3);
       expect(second.disposed, isFalse);
       expect(destroyed, 0);
@@ -1576,12 +1605,12 @@ void main() {
       expect(child(root, 'main').instanceId, 't-~2/items/0~3');
       expect(child(root, 'items', 0).instanceId, 't-[/items/0]');
 
-      surface.dataModel.set('/items@[#~>', [<String, Object?>{}]);
+      surface.dataModel.set('/items@[#~0>', [<String, Object?>{}]);
       surface.componentsModel.get('root')!.properties = {
-        'items': {'componentId': 't', 'path': '/items@[#~>'},
+        'items': {'componentId': 't', 'path': '/items@[#~0>'},
       };
-      expect(child(root, 'items', 0).instanceId, 't-[/items~5~2~1~0~4/0]');
-      expect(child(root, 'items', 0).dataPath, '/items@[#~>/0');
+      expect(child(root, 'items', 0).instanceId, 't-[/items~5~2~1~00~4/0]');
+      expect(child(root, 'items', 0).dataPath, '/items@[#~0>/0');
     });
 
     test('spawns one node per array item for a template child list', () {

@@ -15,7 +15,7 @@
  */
 
 import {InjectionToken, inject} from '@angular/core';
-import {EXAMPLES_V08, EXAMPLES_V09} from './generated/examples-bundle';
+import {EXAMPLES_V08, EXAMPLES_V09, EXAMPLES_V10} from './generated/examples-bundle';
 import {Version, A2uiExample} from './types';
 import {A2UI_VERSION} from './version_injector';
 
@@ -26,6 +26,9 @@ export const A2UI_EXAMPLES = new InjectionToken<Array<A2uiExample>>('A2UI_EXAMPL
   providedIn: 'root',
   factory: () => {
     const version = inject(A2UI_VERSION);
+    if (version === Version.V1_0) {
+      return EXAMPLES_V10;
+    }
     return version === Version.V0_9 ? EXAMPLES_V09 : EXAMPLES_V08;
   },
 });

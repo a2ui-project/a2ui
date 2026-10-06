@@ -14,8 +14,24 @@
  * limitations under the License.
  */
 
+export type {LitComponentApi} from './types.js';
+export {A2uiSurface} from './surface/a2ui-surface.js';
+export {renderA2uiNode} from './surface/render-a2ui-node.js';
+export {A2uiLitElement} from './a2ui-lit-element.js';
+export {A2uiController} from './a2ui-controller.js';
+export {Context} from './context/context.js';
+
 /**
  * @deprecated Import v0.8 from '@a2ui/lit/v0_8'.
- * This entrypoint is maintained for backwards compatibility.
+ * Maintained for backwards compatibility.
+ *
+ * This re-exports `./0.8/core.js` rather than `./0.8/index.js` on purpose.
+ * `0.8/index.js` also pulls in `0.8/ui/*`, whose `@customElement` decorators
+ * register `a2ui-surface`, `a2ui-slider`, `a2ui-card`, and other tags at import
+ * time. This entry point registers the version-agnostic `A2uiSurface` under the
+ * same `a2ui-surface` tag, and the universal elements in `@a2ui/web_core` use
+ * the other tag names, so importing `0.8/index.js` here would throw duplicate
+ * `customElements.define` errors. The v0.8 elements remain available from
+ * `@a2ui/lit/v0_8`.
  */
-export * as v0_8 from './0.8/index.js';
+export * as v0_8 from './0.8/core.js';
