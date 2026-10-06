@@ -105,28 +105,25 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
         args: dict[str, Any],
         context: Any = None,
         abort_signal: Any | None = None,
-        *,
-        validate_args: bool = True,
     ) -> TReturn:
-        """Runs the function.
+        """Runs the function with already-validated, already-resolved arguments.
+
+        ``execute`` does not validate ``args``. The argument schema describes
+        the arguments as written in a payload (a ``DynamicBoolean`` admits a
+        ``{"@call": ...}``), so it applies before bindings and nested calls are
+        resolved, not to the resolved values this method receives. The caller
+        validates the written arguments, with
+        ``PayloadValidator.validate_function`` or the schema model directly,
+        resolves them, and then calls ``execute``. ``DataContext`` does this
+        for every call it evaluates.
 
         Args:
-            args: The named arguments.
+            args: The named arguments, resolved to plain values.
             context: The data context the call is evaluated in.
             abort_signal: Cancels a long-running call.
-            validate_args: Whether to validate ``args`` against the argument
-                schema first. A caller that has already validated the
-                arguments as written, and then resolved their bindings and
-                nested calls, passes ``False``: a resolved value such as the
-                ``ValidationResult`` a v1.0 validator returns does not match
-                the written shape (``DynamicBoolean``) the schema describes.
         """
         if self.execute_func is None:
             raise ValueError(f"Function {self.name} has no executable logic.")
-        if validate_args and self.schema and hasattr(self.schema, "model_validate"):
-            safe_args = self.schema.model_validate(args).model_dump(by_alias=True)
-        else:
-            safe_args = args
         exec_fn = cast(Callable[..., TReturn], self.execute_func)
         try:
             sig = inspect.signature(exec_fn)
@@ -135,11 +132,11 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
             param_count = 3
 
         if param_count >= 3:
-            return exec_fn(safe_args, context, abort_signal)
+            return exec_fn(args, context, abort_signal)
         elif param_count == 2:
-            return exec_fn(safe_args, context)
+            return exec_fn(args, context)
         else:
-            return exec_fn(safe_args)
+            return exec_fn(args)
 
 
 def create_function_implementation(

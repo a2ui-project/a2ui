@@ -455,9 +455,7 @@ class DataContext:
                 resolved_args = {}
 
             if hasattr(fn, "execute") and callable(fn.execute):
-                return fn.execute(
-                    resolved_args, self, abort_signal, validate_args=False
-                )
+                return fn.execute(resolved_args, self, abort_signal)
             if hasattr(fn, "execute_func") and callable(fn.execute_func):
                 return fn.execute_func(resolved_args, self, abort_signal)
             if callable(fn):
