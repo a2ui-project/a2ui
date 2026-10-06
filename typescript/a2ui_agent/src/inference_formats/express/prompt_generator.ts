@@ -296,11 +296,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
         return match;
       }
 
-      const decompiler = this.getDecompiler(catalog);
-      const dslBlocks = (messages as AgentToRendererMessage[]).map(msg =>
-        decompiler.decompile(msg),
-      );
-      const fullDsl = decompiler.wrapDecompiledBlocks(dslBlocks);
+      const fullDsl = this.decompileMessages(messages as AgentToRendererMessage[], catalog);
       return `\`\`\`\n${fullDsl}\n\`\`\``;
     } catch {
       // Mirrors prompt_generator.py:446 (except Exception:)
@@ -498,13 +494,27 @@ export class ExpressPromptGenerator extends PromptGenerator {
         return match;
       }
 
-      const decompiler = this.getDecompiler(catalog);
-      const blocks = (messages as AgentToRendererMessage[]).map(msg => decompiler.decompile(msg));
-      return decompiler.wrapDecompiledBlocks(blocks);
+      return this.decompileMessages(messages as AgentToRendererMessage[], catalog);
     } catch {
       // Mirrors prompt_generator.py:477 (except Exception:)
       return match;
     }
+  }
+
+  /**
+   * Decompiles a list of messages into one sentinel-wrapped Express block.
+   *
+   * The list goes to the decompiler as a whole so that messages for the same surface
+   * (e.g. `createSurface` followed by `updateComponents`) merge under a single
+   * `surface(...)` header. Decompiling them one at a time would emit an empty
+   * `surface(...)` scope per message, which fails to compile.
+   *
+   * @param messages The messages of one example.
+   * @param catalog The catalog the example belongs to.
+   */
+  private decompileMessages(messages: AgentToRendererMessage[], catalog: CatalogApi): string {
+    const decompiler = this.getDecompiler(catalog);
+    return decompiler.wrapDecompiledBlocks([decompiler.decompile(messages)]);
   }
 
   protected renderExamples(catalog: CatalogApi): string {
@@ -517,8 +527,6 @@ export class ExpressPromptGenerator extends PromptGenerator {
       return this.transformExamples(ex, catalog);
     }
 
-    const decompiler = this.getDecompiler(catalog);
-    const decompiled = decompiler.decompile(ex);
-    return decompiler.wrapDecompiledBlocks([decompiled]);
+    return this.decompileMessages(ex, catalog);
   }
 }

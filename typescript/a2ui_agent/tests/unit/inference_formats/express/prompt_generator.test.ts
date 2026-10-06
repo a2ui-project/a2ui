@@ -25,6 +25,7 @@ import {
   loadConformanceCatalog,
   readConformanceCatalog,
 } from '../../../helpers/conformance-catalogs.js';
+import {compileSurfaces, surface, text} from '../../../helpers/express.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressPromptGenerator} from '../../../../src/inference_formats/express/prompt_generator.js';
 
@@ -395,24 +396,38 @@ describe('ExpressPromptGenerator', () => {
           'utf8',
         ),
       );
-      doc.instructions =
-        'Example:\n```json\n' +
-        JSON.stringify([
-          {version: 'v0.9', createSurface: {surfaceId: 's1', catalogId: basicCatalogV09.id}},
-          {
-            version: 'v0.9',
-            updateComponents: {
-              surfaceId: 's1',
-              components: [{id: 'root', component: 'Text', text: 'Hello'}],
-            },
-          },
-        ]) +
-        '\n```';
+      const example = [surface('s1', basicCatalogV09.id), text('s1', 'Hello')];
+      doc.instructions = 'Example:\n```json\n' + JSON.stringify(example) + '\n```';
       const cat = catalogFromTestDocument(doc);
 
       const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
       expect(instructions).not.toContain('```json');
-      expect(instructions).toContain('root = Text("Hello")');
+      const surfaces = compileSurfaces(instructions, cat);
+      expect(surfaces).toHaveLength(1);
+      expect(surfaces[0].id).toBe('s1');
+      expect(surfaces[0].components).toEqual([{id: 'root', component: 'Text', text: 'Hello'}]);
+    });
+
+    it('groups a multi-message fenced example by surface', () => {
+      const cat = basicCatalogV09;
+      const generator = new ExpressPromptGenerator([cat]);
+      // Two surfaces over interleaved messages; updates arrive in the reverse order.
+      const example = [
+        surface('s1', cat.id),
+        surface('s2', cat.id),
+        text('s2', 'World'),
+        text('s1', 'Hello'),
+      ];
+      const rawMarkdown = 'Example:\n```json\n' + JSON.stringify(example, null, 2) + '\n```';
+
+      const transformed = generator.transformExamples(rawMarkdown, cat);
+      expect(transformed).not.toContain('```json');
+      const surfaces = compileSurfaces(transformed, cat);
+      expect(surfaces).toHaveLength(2);
+      expect(surfaces[0].id).toBe('s1');
+      expect(surfaces[0].components).toEqual([{id: 'root', component: 'Text', text: 'Hello'}]);
+      expect(surfaces[1].id).toBe('s2');
+      expect(surfaces[1].components).toEqual([{id: 'root', component: 'Text', text: 'World'}]);
     });
   });
 
