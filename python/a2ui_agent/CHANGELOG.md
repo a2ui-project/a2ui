@@ -25,6 +25,8 @@
   `CatalogConfig.from_catalog("basic", BasicCatalog(version))`.
 - Add `CatalogConfig.from_catalog` and `InMemoryCatalogProvider` (exported from
   `a2ui.schema`) to configure a catalog from an `a2ui.core` catalog instance.
+- Rebuild `$defs.anyComponent` and `$defs.anyFunction` when merging client
+  `inlineCatalogs` in `DirectJsonFormat._select_catalog` (#2115).
 
 ## 0.7.0 (2026-09-28)
 

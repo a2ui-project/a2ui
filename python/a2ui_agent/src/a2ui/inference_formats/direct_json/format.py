@@ -222,14 +222,51 @@ class DirectJsonFormat(InferenceFormat):
                         base_catalog = agent_supported_catalogs[cscid]
                         break
 
-            merged_schema = copy.deepcopy(base_catalog.catalog_schema)
+            merged_schema: dict[str, Any] = copy.deepcopy(
+                dict(base_catalog.catalog_schema)
+            )
 
             for inline_catalog_schema in inline_catalogs:
                 inline_catalog_schema = self._apply_modifiers(inline_catalog_schema)
-                inline_components = inline_catalog_schema.get(
-                    CATALOG_COMPONENTS_KEY, {}
+                inline_components = (
+                    inline_catalog_schema.get(CATALOG_COMPONENTS_KEY) or {}
                 )
+                if merged_schema.get(CATALOG_COMPONENTS_KEY) is None:
+                    merged_schema[CATALOG_COMPONENTS_KEY] = {}
                 merged_schema[CATALOG_COMPONENTS_KEY].update(inline_components)
+                inline_functions = inline_catalog_schema.get("functions")
+                if inline_functions:
+                    if merged_schema.get("functions") is None:
+                        merged_schema["functions"] = {}
+                    if isinstance(inline_functions, dict):
+                        merged_schema["functions"].update(inline_functions)
+                    elif isinstance(inline_functions, list):
+                        for fn_def in inline_functions:
+                            if isinstance(fn_def, dict) and "name" in fn_def:
+                                merged_schema["functions"][fn_def["name"]] = fn_def
+
+            if "$defs" in merged_schema and "anyComponent" in merged_schema["$defs"]:
+                components = merged_schema.get(CATALOG_COMPONENTS_KEY) or {}
+                if components:
+                    any_comp = merged_schema["$defs"]["anyComponent"]
+                    if isinstance(any_comp, dict):
+                        any_comp["oneOf"] = [
+                            {"$ref": f"#/{CATALOG_COMPONENTS_KEY}/{name}"}
+                            for name in sorted(components.keys())
+                        ]
+                        any_comp.setdefault(
+                            "discriminator", {"propertyName": "component"}
+                        )
+
+            if "$defs" in merged_schema and "anyFunction" in merged_schema["$defs"]:
+                functions = merged_schema.get("functions") or {}
+                if functions:
+                    any_func = merged_schema["$defs"]["anyFunction"]
+                    if isinstance(any_func, dict):
+                        any_func["oneOf"] = [
+                            {"$ref": f"#/functions/{name}"}
+                            for name in sorted(functions.keys())
+                        ]
 
             return A2uiCatalog(
                 version=self._version,

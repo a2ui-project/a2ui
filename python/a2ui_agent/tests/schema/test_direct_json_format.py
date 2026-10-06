@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import pytest
 
 from a2ui.core import A2uiCatalogError
@@ -94,3 +95,101 @@ def test_direct_json_parser_no_supported_catalogs():
     direct_json_format._supported_catalogs = []
     with pytest.raises(A2uiCatalogError, match="No supported catalogs configured"):
         _ = direct_json_format.parser
+
+
+def test_select_catalog_rebuilds_any_component_with_inline_catalogs():
+    fmt = DirectJsonFormat(
+        VERSION_0_9,
+        catalogs=[CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_9))],
+        accepts_inline_catalogs=True,
+    )
+
+    caps = {
+        "supportedCatalogIds": [
+            "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+        ],
+        "inlineCatalogs": [{
+            "catalogId": "example_inline",
+            "components": {
+                "StatusChip": {
+                    "type": "object",
+                    "allOf": [
+                        {
+                            "$ref": (
+                                "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+                            )
+                        },
+                        {"$ref": "#/$defs/CatalogComponentCommon"},
+                        {
+                            "type": "object",
+                            "properties": {
+                                "component": {"const": "StatusChip"},
+                                "label": {
+                                    "$ref": (
+                                        "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+                                    )
+                                },
+                            },
+                            "required": ["component", "label"],
+                        },
+                    ],
+                }
+            },
+            "functions": [{
+                "name": "customFormat",
+                "description": "Custom formatting function",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"value": {"type": "string"}},
+                    "required": ["value"],
+                },
+                "returnType": "string",
+            }],
+        }],
+    }
+
+    catalog = fmt.get_selected_catalog(client_ui_capabilities=caps)
+
+    # 1. Custom component and function are in merged maps
+    assert "StatusChip" in catalog.catalog_schema["components"]
+    assert "customFormat" in catalog.catalog_schema["functions"]
+
+    # 2. $defs.anyComponent.oneOf and $defs.anyFunction.oneOf contain references
+    any_comp = catalog.catalog_schema.get("$defs", {}).get("anyComponent", {})
+    one_of_refs = [
+        item.get("$ref") for item in any_comp.get("oneOf", []) if isinstance(item, dict)
+    ]
+    assert "#/components/StatusChip" in one_of_refs
+    assert "#/components/Text" in one_of_refs
+
+    any_func = catalog.catalog_schema.get("$defs", {}).get("anyFunction", {})
+    func_one_of_refs = [
+        item.get("$ref") for item in any_func.get("oneOf", []) if isinstance(item, dict)
+    ]
+    assert "#/functions/customFormat" in func_one_of_refs
+
+    # 3. Payload with StatusChip validates successfully
+    cat_id = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+    messages = [
+        {
+            "version": "v0.9",
+            "createSurface": {"surfaceId": "main", "catalogId": cat_id},
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "main",
+                "components": [
+                    {"id": "root", "component": "StatusChip", "label": "OK"}
+                ],
+            },
+        },
+    ]
+    assert catalog.validate_components(messages) == []
+    catalog.validate(messages)
+
+    # 4. Streaming parser processes payload containing StatusChip
+    parser = DirectJsonParser(catalog)
+    payload_str = f"<a2ui-json>\n{json.dumps(messages)}\n</a2ui-json>"
+    parts = parser.process_chunk(payload_str)
+    assert len(parts) >= 1
