@@ -24,6 +24,13 @@ from a2ui.core.resolution import (
 )
 from a2ui.core.catalog import Catalog
 from a2ui.core.basic_catalog import BasicCatalog, v0_9
+from a2ui.core.schema.v0_9.common_types import DynamicString, StrictBaseModel
+
+
+class _OrderArgs(StrictBaseModel):
+    """Arguments of the test-only submit functions, as written in a payload."""
+
+    orderId: DynamicString
 
 
 def test_component_context_from_surface():
@@ -468,6 +475,70 @@ def test_data_context_expression_error_dispatching():
     assert "division by zero" in errors[0]["message"].lower()
 
 
+def test_data_context_v10_nested_validators_feed_logical_functions():
+    """The v1.0 specification's enable-when-valid example, resolved through
+    DataContext: ``and(required(terms), or(required(email), required(phone)))``.
+
+    The argument schema is checked against the call as written, where each
+    operand is a ``{"@call": ...}``, and the resolved ``ValidationResult``
+    values reach ``and``/``or`` without being re-validated as booleans."""
+    from a2ui.core.basic_catalog import v1_0
+
+    errors: list[dict[str, Any]] = []
+    surface = SurfaceModel("s1", v1_0.BasicCatalog(), data_model=DataModel({}))
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    ctx = DataContext(surface, path="/")
+
+    def required(path: str) -> dict[str, Any]:
+        return {"@call": "required", "args": {"value": {"@path": path}}}
+
+    enabled = {
+        "@call": "and",
+        "args": {
+            "values": [
+                required("/terms"),
+                {
+                    "@call": "or",
+                    "args": {"values": [required("/email"), required("/phone")]},
+                },
+            ]
+        },
+    }
+
+    assert ctx.resolve_dynamic_value(enabled) is False
+    surface.data_model.set("/terms", True)
+    assert ctx.resolve_dynamic_value(enabled) is False
+    surface.data_model.set("/email", "a@b.c")
+    assert ctx.resolve_dynamic_value(enabled) is True
+    surface.data_model.set("/email", "")
+    surface.data_model.set("/phone", "555")
+    assert ctx.resolve_dynamic_value(enabled) is True
+    assert ctx.resolve_dynamic_value(
+        {"@call": "not", "args": {"value": required("/email")}}
+    )
+    assert errors == []
+
+
+def test_data_context_validates_arguments_as_written():
+    """An argument the schema does not declare is rejected before resolution."""
+    from a2ui.core.basic_catalog import v1_0
+
+    errors: list[dict[str, Any]] = []
+    surface = SurfaceModel("s1", v1_0.BasicCatalog(), data_model=DataModel({}))
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    ctx = DataContext(surface, path="/")
+
+    result = ctx.resolve_dynamic_value(
+        {"@call": "not", "args": {"value": True, "bogus": {"@path": "/x"}}}
+    )
+
+    assert result is None
+    assert len(errors) == 1
+    assert errors[0]["code"] == "EXPRESSION_ERROR"
+    assert errors[0]["expression"] == "not"
+    assert "bogus" in errors[0]["message"]
+
+
 def test_data_context_catalog_and_missing_function_error_dispatch():
     errors: list[dict[str, Any]] = []
     cat = BasicCatalog("0.9")
@@ -628,7 +699,9 @@ def test_generic_binder_function_call_action_closure():
     func_impl = FunctionImplementation(
         name="submitOrder",
         execute=mock_submit,
-        schema={"type": "object", "properties": {"orderId": {"type": "string"}}},
+        # The argument schema describes the call as written, so a bound
+        # argument is a DynamicString, not a plain string.
+        schema=_OrderArgs,
         return_type="string",
     )
     cat = BasicCatalog("0.9")
@@ -685,7 +758,7 @@ def test_generic_binder_unwrapped_call_action_closure():
     func_impl = FunctionImplementation(
         name="submitDirect",
         execute=mock_submit,
-        schema={"type": "object", "properties": {"orderId": {"type": "string"}}},
+        schema=_OrderArgs,
         return_type="string",
     )
     cat = BasicCatalog("0.9")

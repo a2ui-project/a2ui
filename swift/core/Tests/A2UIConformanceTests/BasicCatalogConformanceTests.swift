@@ -73,6 +73,15 @@ struct BasicCatalogConformanceTests {
         continue
       }
 
+      // The Swift basic catalog implements v0.9, whose validators return
+      // booleans. Cases pinned to a later protocol version exercise v1.0
+      // behaviour (ValidationResult operands) that this catalog does not have.
+      let catalogVersion = (testCase["catalog"] as? [String: Any])?["protocolVersion"] as? String
+      let protocolVersion = (testCase["protocolVersion"] as? String) ?? catalogVersion
+      if let protocolVersion, !protocolVersion.hasPrefix("v0.9") {
+        continue
+      }
+
       guard let name = testCase["name"] as? String,
         let funcName = testCase["function"] as? String
       else {

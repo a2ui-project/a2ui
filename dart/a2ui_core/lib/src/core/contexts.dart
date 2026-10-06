@@ -16,6 +16,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
+import '../validation/schema_resolution.dart';
 import 'catalog.dart';
 import 'common.dart';
 import 'component_model.dart';
@@ -186,6 +187,44 @@ class DataContext {
   bool isFunctionCall(Object? value) {
     if (value is! Map) return false;
     return isV10 ? value['@call'] is String : value['call'] is String;
+  }
+
+  /// Rewrites [part], a node of a parsed `${...}` expression, into the
+  /// dynamic-value shape this context resolves.
+  ///
+  /// `ExpressionParser` always emits `{path}` and `{call, args, returnType}`
+  /// nodes. Before v1.0 those are already the resolvable shape and [part] is
+  /// returned unchanged. From v1.0 a path node becomes [bindingFor] of its
+  /// path, a call node becomes `{'@call', 'args', 'returnType'}` with its
+  /// arguments rewritten recursively, and lists and other maps are rewritten
+  /// element by element.
+  Object? adaptExpressionPart(Object? part) {
+    if (!isV10) return part;
+    if (part is List) {
+      return [for (final Object? item in part) adaptExpressionPart(item)];
+    }
+    if (part is! Map) return part;
+    if (part['path'] is String &&
+        !part.containsKey('componentId') &&
+        !part.containsKey('@path')) {
+      return bindingFor(part['path'] as String);
+    }
+    if (part['call'] is String && !part.containsKey('@call')) {
+      final Object? rawArgs = part['args'];
+      return <String, Object?>{
+        '@call': part['call'],
+        'args': <String, Object?>{
+          if (rawArgs is Map)
+            for (final MapEntry<Object?, Object?> entry in rawArgs.entries)
+              entry.key.toString(): adaptExpressionPart(entry.value),
+        },
+        'returnType': part['returnType'] ?? 'any',
+      };
+    }
+    return <String, Object?>{
+      for (final MapEntry<Object?, Object?> entry in part.entries)
+        entry.key.toString(): adaptExpressionPart(entry.value),
+    };
   }
 
   static const Set<String> _reservedDirectives = {'@path', '@call'};
@@ -719,8 +758,11 @@ extension CatalogInvokerExtension
       for (final MapEntry<String, dynamic> entry in args.entries)
         if (entry.value == null) entry.key,
     };
-    if (unresolved.isEmpty) return fn.argumentSchema.validateSync(args);
-    final Map<String, Object?> schema = fn.argumentSchema.value;
+    final Map<String, Object?> schema = resolveSchemaRefs(
+      fn.argumentSchema.value,
+      const {},
+    );
+    if (unresolved.isEmpty) return Schema.fromMap(schema).validateSync(args);
     final Object? required = schema['required'];
     return Schema.fromMap({
       ...schema,

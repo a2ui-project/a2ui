@@ -296,8 +296,18 @@ export const DATE_TOKENS = /yyyy|yy|MMMM|MMM|MM|M|EEEE|E|dd|d|HH|H|hh|h|mm|ss|a/
 export const ISO_OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/;
 
 /**
+ * The calendar fields as written at the start of an ISO 8601 timestamp:
+ * year, month, day, and optionally hour, minute and second.
+ */
+const WRITTEN_FIELDS = /^([+-]?\d{4,6})-(\d{2})-(\d{2})(?:[T ](\d{2})(?::(\d{2})(?::(\d{2}))?)?)?/;
+
+/**
  * Parses an ISO 8601 timestamp and shifts it so that UTC accessors report
  * the wall-clock fields the timestamp was written with.
+ *
+ * Returns null for a timestamp whose written fields do not survive the round
+ * trip, such as `2026-02-30`, which `Date` would otherwise roll over into
+ * the following month.
  */
 export function parseTimestamp(value: string): {shifted: Date; instant: Date} | null {
   const hasOffset = ISO_OFFSET.test(value);
@@ -310,7 +320,28 @@ export function parseTimestamp(value: string): {shifted: Date; instant: Date} | 
     const sign = match[1] === '-' ? -1 : 1;
     offsetMinutes = sign * (Number(match[2]) * 60 + Number(match[3]));
   }
-  return {shifted: new Date(instant.getTime() + offsetMinutes * 60_000), instant};
+  const shifted = new Date(instant.getTime() + offsetMinutes * 60_000);
+  if (!fieldsRoundTrip(value, shifted)) return null;
+  return {shifted, instant};
+}
+
+/**
+ * Whether the year, month, day and (when written) time fields of `value`
+ * equal the UTC fields of `shifted`.
+ */
+function fieldsRoundTrip(value: string, shifted: Date): boolean {
+  const written = WRITTEN_FIELDS.exec(value);
+  if (!written) return false;
+  const field = (group: number): number | undefined =>
+    written[group] === undefined ? undefined : Number(written[group]);
+  return (
+    field(1) === shifted.getUTCFullYear() &&
+    field(2) === shifted.getUTCMonth() + 1 &&
+    field(3) === shifted.getUTCDate() &&
+    (field(4) ?? shifted.getUTCHours()) === shifted.getUTCHours() &&
+    (field(5) ?? shifted.getUTCMinutes()) === shifted.getUTCMinutes() &&
+    (field(6) ?? shifted.getUTCSeconds()) === shifted.getUTCSeconds()
+  );
 }
 
 const pluralRulesCache = new Map<string, Intl.PluralRules>();
@@ -328,25 +359,47 @@ export function getPluralRules(locale: string): Intl.PluralRules {
 // Execution Functions
 // ---------------------------------------------------------------------------
 
+/** A truthiness rule for the logical functions. */
+export type TruthyFn = (value: unknown) => boolean;
+
+/** JavaScript truthiness: objects and arrays are truthy, even when empty. */
+export const isTruthy: TruthyFn = value => !!value;
+
+/**
+ * Truthiness that reads a ValidationResult by its validity.
+ *
+ * In v1.0 the validators return a ValidationResult object rather than a
+ * boolean, so a nested `and(required(...), or(...))` receives objects. An
+ * object with a boolean `valid` member is truthy when `valid` is true; any
+ * other value follows JavaScript truthiness.
+ */
+export const isTruthyOrValid: TruthyFn = value => {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    const valid = (value as {valid?: unknown}).valid;
+    if (typeof valid === 'boolean') return valid;
+  }
+  return !!value;
+};
+
 /** Evaluates logical AND across an array of values. */
-export function executeAnd(values: unknown[]): boolean {
+export function executeAnd(values: unknown[], truthy: TruthyFn = isTruthy): boolean {
   if (!Array.isArray(values) || values.length < 2) {
     throw new A2uiExpressionError('and requires at least 2 values', 'and');
   }
-  return values.every(v => !!v);
+  return values.every(truthy);
 }
 
 /** Evaluates logical OR across an array of values. */
-export function executeOr(values: unknown[]): boolean {
+export function executeOr(values: unknown[], truthy: TruthyFn = isTruthy): boolean {
   if (!Array.isArray(values) || values.length < 2) {
     throw new A2uiExpressionError('or requires at least 2 values', 'or');
   }
-  return values.some(v => !!v);
+  return values.some(truthy);
 }
 
 /** Evaluates logical NOT on a single value. */
-export function executeNot(value: unknown): boolean {
-  return !value;
+export function executeNot(value: unknown, truthy: TruthyFn = isTruthy): boolean {
+  return !truthy(value);
 }
 
 function adaptAstPartForV10(part: any): any {
@@ -540,16 +593,35 @@ export function executeOpenUrl(urlInput: unknown): void {
 // Implementation Factory Functions
 // ---------------------------------------------------------------------------
 
-export function createAndImplementation(api: any): FunctionImplementation {
-  return createFunctionImplementation(api, args => executeAnd(args.values));
+/** Options for the logical function implementations. */
+export interface LogicalFunctionOptions {
+  /**
+   * The truthiness rule for operands. Defaults to JavaScript truthiness; the
+   * v1.0 catalog passes `isTruthyOrValid` so ValidationResult operands count
+   * by their validity.
+   */
+  truthy?: TruthyFn;
 }
 
-export function createOrImplementation(api: any): FunctionImplementation {
-  return createFunctionImplementation(api, args => executeOr(args.values));
+export function createAndImplementation(
+  api: any,
+  {truthy = isTruthy}: LogicalFunctionOptions = {},
+): FunctionImplementation {
+  return createFunctionImplementation(api, args => executeAnd(args.values, truthy));
 }
 
-export function createNotImplementation(api: any): FunctionImplementation {
-  return createFunctionImplementation(api, args => executeNot(args.value));
+export function createOrImplementation(
+  api: any,
+  {truthy = isTruthy}: LogicalFunctionOptions = {},
+): FunctionImplementation {
+  return createFunctionImplementation(api, args => executeOr(args.values, truthy));
+}
+
+export function createNotImplementation(
+  api: any,
+  {truthy = isTruthy}: LogicalFunctionOptions = {},
+): FunctionImplementation {
+  return createFunctionImplementation(api, args => executeNot(args.value, truthy));
 }
 
 export function createFormatStringImplementation(api: any): FunctionImplementation {
