@@ -475,6 +475,47 @@ void main() {
       expect(v10Ctx.isFunctionCall({'@call': 123}), isFalse);
     });
 
+    test('adaptExpressionPart rewrites parser nodes only from v1.0', () {
+      final v09Ctx = DataContext(dataModel, mockInvoker, '/');
+      final v10Ctx = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v1.0',
+      );
+      final Map<String, Object?> call = {
+        'call': 'upper',
+        'args': {
+          'value': {'path': '/name'},
+          'items': [
+            {'path': '/a'},
+            'literal',
+          ],
+        },
+      };
+
+      expect(identical(v09Ctx.adaptExpressionPart(call), call), isTrue);
+      expect(v09Ctx.adaptExpressionPart({'path': '/x'}), {'path': '/x'});
+
+      expect(v10Ctx.adaptExpressionPart({'path': '/x'}), {'@path': '/x'});
+      expect(v10Ctx.adaptExpressionPart(call), {
+        '@call': 'upper',
+        'args': {
+          'value': {'@path': '/name'},
+          'items': [
+            {'@path': '/a'},
+            'literal',
+          ],
+        },
+        'returnType': 'any',
+      });
+      expect(v10Ctx.adaptExpressionPart('text'), 'text');
+      expect(
+        v10Ctx.adaptExpressionPart({'path': '/x', 'componentId': 'row'}),
+        {'path': '/x', 'componentId': 'row'},
+      );
+    });
+
     test('preserves identity of static maps in both v0.9 and v1.0', () {
       final v09Ctx = DataContext(
         dataModel,
