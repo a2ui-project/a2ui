@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-import {type A2uiMessage} from '@a2ui/web_core/v0_9';
-import {exampleModules, type ExampleModule, type ExampleData} from './generated/examples-list';
+import {EXAMPLES, EXAMPLES_V10, type ExampleModule} from './generated/examples-list';
 
 /**
  * Represents a demo item loaded from an example JSON file.
@@ -31,7 +30,7 @@ export interface DemoItem {
   /** Description of the example, or a fallback source string. */
   description: string;
   /** The list of A2UI messages to be processed for this demo. */
-  messages: A2uiMessage[];
+  messages: Record<string, unknown>[];
 }
 
 /**
@@ -71,17 +70,22 @@ export function processExampleModules(modules: Record<string, ExampleModule>): D
  * Extracts the array of A2UI messages and the description from the loaded JSON data.
  */
 function extractMessagesAndDescription(
-  jsonData: ExampleData | A2uiMessage[],
+  jsonData: ExampleModule['default'],
   filename: string,
-): [A2uiMessage[], string] {
-  let messages: A2uiMessage[] = [];
+): [Record<string, unknown>[], string] {
+  let messages: Record<string, unknown>[] = [];
   let description = `Source: ${filename}`;
 
   if (Array.isArray(jsonData)) {
-    messages = jsonData;
+    messages = jsonData as Record<string, unknown>[];
   } else if (jsonData && typeof jsonData === 'object') {
-    messages = jsonData.messages || [];
-    description = jsonData.description || description;
+    const dataObj = jsonData as Record<string, unknown>;
+    if (Array.isArray(dataObj.messages)) {
+      messages = dataObj.messages as Record<string, unknown>[];
+    }
+    if (typeof dataObj.description === 'string') {
+      description = dataObj.description;
+    }
   }
 
   if (messages.length === 0) {
@@ -103,8 +107,8 @@ function filenameToTitle(filename: string): string {
 }
 
 /**
- * Loads and returns the list of all available demo items.
+ * Loads and returns the list of all available demo items for the given protocol version.
  */
-export function getDemoItems(): DemoItem[] {
-  return processExampleModules(exampleModules);
+export function getDemoItems(version: 'v0.9' | 'v1.0' = 'v0.9'): DemoItem[] {
+  return processExampleModules(version === 'v1.0' ? EXAMPLES_V10 : EXAMPLES);
 }

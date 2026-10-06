@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:logging/logging.dart';
+
+final Logger _logger = Logger('a2ui.EventNotifier');
+
 abstract interface class EventListenable<T> {
   /// Registers [listener] to be called whenever an event is emitted.
   void addListener(void Function(T event) listener);
@@ -26,9 +30,14 @@ class EventNotifier<T> implements EventListenable<T> {
 
   /// Emits an event to all registered listeners.
   void emit(T event) {
+    if (_listeners.isEmpty) return;
     // Iterate over a copy to allow listeners to remove themselves.
     for (final void Function(T event) listener in List.of(_listeners)) {
-      listener(event);
+      try {
+        listener(event);
+      } catch (e, st) {
+        _logger.severe('Error in EventNotifier listener', e, st);
+      }
     }
   }
 
