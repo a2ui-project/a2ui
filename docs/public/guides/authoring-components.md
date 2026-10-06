@@ -257,11 +257,11 @@ The Agent uses [SendA2uiToClientToolset](../../../python/a2ui_agent/src/a2ui/adk
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.utils import resolve_catalogs
 
-a2ui_catalogs = resolve_catalogs(self.catalog_configs, capabilities)
+a2ui_catalog = resolve_catalogs(self.catalog_configs, capabilities)[0]
 agent.tools = [
     SendA2uiToClientToolset(
         a2ui_enabled=True,
-        a2ui_catalog=a2ui_catalogs,
+        a2ui_catalog=a2ui_catalog,
         a2ui_examples=examples,
     )
 ]

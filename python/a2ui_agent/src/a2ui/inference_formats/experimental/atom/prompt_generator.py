@@ -17,6 +17,7 @@
 from collections.abc import Mapping, Sequence
 from typing import Any, TYPE_CHECKING
 
+from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.prompt import PromptGenerator
 from a2ui.schema import load_examples
@@ -210,9 +211,23 @@ class AtomPromptGenerator(PromptGenerator):
             rules += f"\n\n{workflow_description}"
         parts.append(f"## Instructions:\n{rules}")
 
-        if include_schema and self.schema_helper:
-            comp_sigs = self._generate_component_signatures()
-            func_sigs = self._generate_function_signatures()
+        helper = self.schema_helper
+        catalog = self.format.catalog if self.format else None
+        if catalog and allowed_components is not None:
+            pruned_catalog = ComponentPruningTransformer(allowed_components).transform(
+                catalog
+            )
+            try:
+                from a2ui.schema.schema_helper import CatalogSchemaHelper
+            except ImportError:
+                from a2ui.inference_formats.experimental.express.schema_helper import (
+                    CatalogSchemaHelper,
+                )
+            helper = CatalogSchemaHelper(pruned_catalog)
+
+        if include_schema and helper:
+            comp_sigs = self._generate_component_signatures(helper=helper)
+            func_sigs = self._generate_function_signatures(helper=helper)
             if comp_sigs:
                 parts.append(f"## Component Catalog Signatures:\n{comp_sigs}")
             if func_sigs:

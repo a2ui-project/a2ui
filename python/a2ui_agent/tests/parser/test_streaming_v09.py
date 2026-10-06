@@ -350,3 +350,25 @@ def test_v09_leaf_component_child_fields_not_heuristic(mock_catalog):
         {"component": "Text", "id": "t1", "text": "Hello world", "customProp": "Value"}
     )
     assert child_fields == set()
+
+
+def test_v09_nested_top_level_list(mock_catalog):
+    """Tests that nested lists of messages yield all messages instead of dropping them."""
+    parser = DirectJsonStreamParser(catalog=mock_catalog)
+
+    chunk = (
+        A2UI_OPEN_TAG
+        + '[[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId":'
+        ' "test_catalog"}}, '
+        + '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":'
+        ' [{"id": "root", "component": "Text", "text": "Nested"}]}}]]'
+        + A2UI_CLOSE_TAG
+    )
+    messages = []
+    for part in parser.process_chunk(chunk):
+        if part.a2ui_json:
+            messages.extend(part.a2ui_json)
+
+    assert len(messages) == 2
+    assert messages[0]["createSurface"]["surfaceId"] == "s1"
+    assert messages[1][MSG_TYPE_UPDATE_COMPONENTS]["components"][0]["text"] == "Nested"

@@ -525,22 +525,35 @@ class ExpressPromptGenerator(PromptGenerator):
         Returns:
             The complete system prompt string explaining A2UI Express and its catalog.
         """
-        catalog = self._format.catalog if self._format else None
+        catalog = (
+            self._format.catalog
+            if self._format and self._format.catalog
+            else self.catalog
+        )
         if catalog and allowed_components is not None:
             catalog = ComponentPruningTransformer(allowed_components).transform(catalog)
 
-        if self._format:
-            self.helper = CatalogSchemaHelper(catalog) if catalog else None
-            self.parser = ExpressParser(catalog) if catalog else None
+        prev_catalog = self.catalog
+        prev_helper = self.helper
+        prev_parser = self.parser
+        try:
+            if self._format or catalog is not None:
+                self.catalog = catalog
+                self.helper = CatalogSchemaHelper(catalog) if catalog else None
+                self.parser = ExpressParser(catalog) if catalog else None
 
-        return super().generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
-            ui_description=ui_description,
-            client_ui_capabilities=client_ui_capabilities,
-            allowed_components=allowed_components,
-            allowed_messages=allowed_messages,
-            include_schema=include_schema,
-            include_examples=include_examples,
-            validate_examples=validate_examples,
-        )
+            return super().generate(
+                role_description=role_description,
+                workflow_description=workflow_description,
+                ui_description=ui_description,
+                client_ui_capabilities=client_ui_capabilities,
+                allowed_components=allowed_components,
+                allowed_messages=allowed_messages,
+                include_schema=include_schema,
+                include_examples=include_examples,
+                validate_examples=validate_examples,
+            )
+        finally:
+            self.catalog = prev_catalog
+            self.helper = prev_helper
+            self.parser = prev_parser

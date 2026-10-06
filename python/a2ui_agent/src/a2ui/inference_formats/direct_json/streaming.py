@@ -25,6 +25,7 @@ from a2ui.core import (
     A2uiParseError,
     A2uiValidationError,
     CatalogApi,
+    ComponentModel,
     RELAXED_VALIDATION,
     STRICT_VALIDATION,
     ValidationConfig,
@@ -279,6 +280,26 @@ class DirectJsonStreamParser:
             raise A2uiValidationError(
                 f"Validation failed: {e}", details=e.details
             ) from e
+
+    def _validate_components(
+        self,
+        comp_models: dict[str, ComponentModel],
+        available_reachable: set[str],
+    ) -> None:
+        """Validates reachable components against the catalog."""
+        all_errors = []
+        for cid in available_reachable:
+            comp_m = comp_models.get(cid)
+            if comp_m:
+                try:
+                    comp_m.validate(config=STRICT_VALIDATION)
+                except A2uiValidationError as e:
+                    all_errors.extend(e.details)
+        if all_errors:
+            raise A2uiValidationError(
+                f"Validation failed: {[detail.message for detail in all_errors]}",
+                details=all_errors,
+            )
 
     def _yield_messages(
         self,
@@ -587,15 +608,14 @@ class DirectJsonStreamParser:
                                         )
 
                                         is_comp = obj.get("id") and obj.get("component")
-                                        # Process objects at top-level OR items in top-level list
-                                        # When in a list, we are top-level if the ONLY thing on the stack is the list opener
+                                        # Process objects at top-level OR items in top-level list(s)
+                                        # When in a list, we are top-level if everything on the stack is a list opener
+                                        in_list_only = bool(self._brace_stack) and all(
+                                            b_t == "[" for b_t, _ in self._brace_stack
+                                        )
                                         is_top_level = (
                                             len(self._brace_stack) == 0
-                                        ) or (
-                                            self._in_top_level_list
-                                            and len(self._brace_stack) == 1
-                                            and self._brace_stack[0][0] == "["
-                                        )
+                                        ) or (self._in_top_level_list and in_list_only)
                                         if is_comp:
                                             self._handle_partial_component(
                                                 obj, messages
@@ -608,14 +628,10 @@ class DirectJsonStreamParser:
                                                 self._yield_messages([obj], messages)
 
                                         if self._brace_count == 0 or (
-                                            self._in_top_level_list
-                                            and len(self._brace_stack) == 1
+                                            self._in_top_level_list and in_list_only
                                         ):
                                             # Aggressively clear processed objects from the buffer to prevent slowdown.
-                                            if (
-                                                len(self._brace_stack) == 1
-                                                and self._brace_stack[0][0] == "["
-                                            ):
+                                            if in_list_only:
                                                 # Keep '[' and remove the object after it
                                                 self._json_buffer = (
                                                     self._json_buffer[:start_idx]
@@ -965,8 +981,6 @@ class DirectJsonStreamParser:
 
         try:
             # Construct ComponentModels for topology analysis
-            from a2ui.core import ComponentModel
-
             comp_models: dict[str, ComponentModel] = {}
             for cid, cdef in self._seen_components.items():
                 c_component = cdef.get("component")
@@ -1047,20 +1061,7 @@ class DirectJsonStreamParser:
                 available_reachable = complete_nodes
 
             if check_root:
-                all_errors = []
-                for cid in available_reachable:
-                    comp_m = comp_models.get(cid)
-                    if comp_m:
-                        try:
-                            comp_m.validate(config=STRICT_VALIDATION)
-                        except A2uiValidationError as e:
-                            all_errors.extend(e.details)
-                if all_errors:
-                    raise A2uiValidationError(
-                        "Validation failed:"
-                        f" {[detail.message for detail in all_errors]}",
-                        details=all_errors,
-                    )
+                self._validate_components(comp_models, available_reachable)
 
             # 1. Process placeholders and partial children
             processed_components: list[dict[str, Any]] = []

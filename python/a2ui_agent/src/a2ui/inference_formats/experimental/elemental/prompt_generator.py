@@ -487,35 +487,46 @@ class ElementalPromptGenerator(PromptGenerator):
         )
         if allowed_components is not None:
             catalog = ComponentPruningTransformer(allowed_components).transform(catalog)
-        self.catalog = catalog
-        self.helper = CatalogSchemaHelper(catalog)
-        self.catalog_id = catalog.catalog_id
-        self.parser = ElementalParser(catalog)
 
-        prompt = self._catalog_description(include_schema=True)
+        prev_catalog = self.catalog
+        prev_helper = self.helper
+        prev_catalog_id = self.catalog_id
+        prev_parser = self.parser
+        try:
+            self.catalog = catalog
+            self.helper = CatalogSchemaHelper(catalog)
+            self.catalog_id = catalog.catalog_id
+            self.parser = ElementalParser(catalog)
 
-        parts = [role_description]
+            prompt = self._catalog_description(include_schema=True)
 
-        rules = ELEMENTAL_RULES.replace("[CATALOG_ID]", self.catalog_id)
-        if workflow_description:
-            rules += f"\n\n{workflow_description}"
-        parts.append(f"## Workflow Description:\n{rules}")
+            parts = [role_description]
 
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
+            rules = ELEMENTAL_RULES.replace("[CATALOG_ID]", self.catalog_id)
+            if workflow_description:
+                rules += f"\n\n{workflow_description}"
+            parts.append(f"## Workflow Description:\n{rules}")
 
-        if include_schema and self.helper:
-            parts.append(prompt)
+            if ui_description:
+                parts.append(f"## UI Description:\n{ui_description}")
 
-        if include_examples and self._format.examples_path and catalog:
-            raw_examples = load_examples(
-                [catalog], self._format.examples_path, validate=validate_examples
-            )
-            if raw_examples:
-                formatted_examples = self.transform_examples(raw_examples)
-                parts.append(f"### Examples:\n{formatted_examples}")
+            if include_schema and self.helper:
+                parts.append(prompt)
 
-        return "\n\n".join(parts)
+            if include_examples and self._format.examples_path and catalog:
+                raw_examples = load_examples(
+                    [catalog], self._format.examples_path, validate=validate_examples
+                )
+                if raw_examples:
+                    formatted_examples = self.transform_examples(raw_examples)
+                    parts.append(f"### Examples:\n{formatted_examples}")
+
+            return "\n\n".join(parts)
+        finally:
+            self.catalog = prev_catalog
+            self.helper = prev_helper
+            self.catalog_id = prev_catalog_id
+            self.parser = prev_parser
 
     def _catalog_description(
         self, include_schema: bool = True, catalog: Any | None = None

@@ -81,6 +81,13 @@ class TestExpressPromptGenerator(unittest.TestCase):
         )
         self.assertNotIn("Text(", prompt)
 
+        # Subsequent call without allowed_components should remain unpruned
+        unpruned_prompt = generator.generate(
+            role_description="Test role",
+            include_schema=True,
+        )
+        self.assertIn("Text(", unpruned_prompt)
+
     def test_express_include_examples_transformation(self):
         # Write a markdown file containing a JSON block wrapped in backticks
         example_payload = {

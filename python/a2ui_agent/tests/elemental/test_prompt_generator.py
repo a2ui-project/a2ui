@@ -276,6 +276,14 @@ class TestElementalPromptGenerator(unittest.TestCase):
         self.assertNotIn("interface RichComponent", prompt)
         self.assertIn("interface Text", prompt)
 
+        # Subsequent call without allowed_components should remain unpruned
+        unpruned_prompt = generator.generate(
+            role_description="Test role",
+            include_schema=True,
+        )
+        self.assertIn("interface RichComponent", unpruned_prompt)
+        self.assertIn("interface Text", unpruned_prompt)
+
     def test_elemental_include_examples_transformation(self):
         example_payload = {
             "version": "1.0",

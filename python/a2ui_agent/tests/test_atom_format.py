@@ -273,6 +273,20 @@ class TestAtomFormat(unittest.TestCase):
         self.assertIn("- (Card", prompt)
         self.assertIn("- (Column", prompt)
 
+        pruned_prompt = prompt_gen.generate(
+            role_description="You are a helpful UI generator.",
+            allowed_components=["Text"],
+        )
+        self.assertIn("- (Text", pruned_prompt)
+        self.assertNotIn("- (Card", pruned_prompt)
+        self.assertNotIn("- (Column", pruned_prompt)
+
+        unpruned_again = prompt_gen.generate(
+            role_description="You are a helpful UI generator.",
+        )
+        self.assertIn("- (Card", unpruned_again)
+        self.assertIn("- (Column", unpruned_again)
+
     def test_compiler_positional_properties_with_real_catalog(self):
         """Test positional property mapping in AtomCompiler with real catalog schema helper."""
         from a2ui.inference_formats.experimental.atom import AtomCompiler

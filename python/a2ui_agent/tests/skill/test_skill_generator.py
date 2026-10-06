@@ -179,6 +179,15 @@ class TestSkillGenerator(unittest.TestCase):
         self.assertIn("TestComponent(value)", mono_skill.content)
         self.assertNotIn("Button(", mono_skill.content)
 
+        # 4. CatalogConfig instances are also accepted directly
+        testing_config = CatalogConfig.from_path("testing", testing_catalog_path)
+        cfg_cat_skill = self.generator.generate_catalog_skill(testing_config)
+        self.assertEqual(cfg_cat_skill.name, "a2ui-specification")
+        cfg_skill_set = self.generator.generate_skillset(catalogs=[testing_config])
+        self.assertIn("a2ui-specification/SKILL.md", cfg_skill_set)
+        cfg_mono_skill = self.generator.generate_skill(catalogs=[testing_config])
+        self.assertIn("TestComponent(value)", cfg_mono_skill.content)
+
     def test_generate_core_skill_with_none_rules(self):
         """Verifies generate_core_skill() handles prompt_generator returning None defensively."""
         mock_fmt = MagicMock()

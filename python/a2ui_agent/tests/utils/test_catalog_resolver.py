@@ -207,3 +207,26 @@ def test_an_active_catalog_keeps_its_id_over_an_inline_catalog():
     )
 
     assert set(resolved.components) == {"Text"}
+
+
+@pytest.mark.parametrize(
+    "inline_catalog",
+    [
+        {"components": {"Marquee": {"type": "object"}}},
+        {"catalogId": "", "components": {"Marquee": {"type": "object"}}},
+        {"catalogId": 123, "components": {"Marquee": {"type": "object"}}},
+    ],
+    ids=["missing_catalog_id", "empty_catalog_id", "non_string_catalog_id"],
+)
+def test_inline_catalog_without_string_catalog_id_is_invalid(inline_catalog):
+    capabilities = {
+        "v0.9": {
+            "supportedCatalogIds": ["a"],
+            "inlineCatalogs": [inline_catalog],
+        }
+    }
+
+    with pytest.raises(A2uiValidationError):
+        resolve_catalogs(
+            [_config("a", "0.9", "Text")], capabilities, accepts_inline_catalogs=True
+        )

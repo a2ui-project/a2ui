@@ -202,6 +202,11 @@ def make_stream_parser(catalog_config):
     )
 
 
+def _disable_validation(parser: DirectJsonStreamParser) -> None:
+    parser._validate_message = lambda m: None
+    parser._validate_components = lambda comp_models, available_reachable: None
+
+
 # --- Streaming Parser Conformance ---
 cases_parser = get_conformance_cases("agent/legacy/streaming_parser.yaml")
 
@@ -212,7 +217,7 @@ cases_parser = get_conformance_cases("agent/legacy/streaming_parser.yaml")
 def test_parser_conformance(name, test_case):
     parser = make_stream_parser(test_case["catalog"])
     if test_case.get("disableValidation"):
-        parser._validate_message = lambda m: None
+        _disable_validation(parser)
 
     steps = test_case.get("steps")
     if steps is None and "process_chunk" in test_case:
@@ -488,7 +493,7 @@ def test_schema_manager_conformance(name, test_case):
     elif action == "process_chunk":
         parser = make_stream_parser(test_case.get("catalog", {}))
         if test_case.get("disableValidation"):
-            parser._validate_message = lambda m: None
+            _disable_validation(parser)
 
         steps = test_case.get("steps")
         if steps is None and "process_chunk" in test_case:

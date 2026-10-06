@@ -118,7 +118,13 @@ def resolve_catalogs(
             active[catalog_id] = registered_by_id[catalog_id]
     if accepts_inline_catalogs:
         for document in entry.get("inlineCatalogs", []):
-            catalog_id = document["catalogId"]
+            catalog_id = (
+                document.get("catalogId") if isinstance(document, Mapping) else None
+            )
+            if not isinstance(catalog_id, str) or not catalog_id:
+                raise A2uiValidationError(
+                    "Inline catalog must have a non-empty string 'catalogId'."
+                )
             if catalog_id not in active:
                 active[catalog_id] = Catalog.from_json(
                     document,
