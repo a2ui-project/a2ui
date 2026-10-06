@@ -36,7 +36,7 @@ import {
   A2uiTextField,
   A2uiVideo,
 } from '@a2ui/web_core/v0_9/basic_catalog';
-import type {LitComponentApi} from '../../types.js';
+import type {LitComponentApi} from '../../../types.js';
 
 /**
  * The basic catalog for A2UI components in Lit.

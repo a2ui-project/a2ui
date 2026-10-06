@@ -22,7 +22,7 @@ from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 class V09ServerCapabilities(StrictBaseModel):
     supported_catalog_ids: list[str] | None = Field(
-        None,
+        default=None,
         alias="supportedCatalogIds",
         description=(
             "An array of strings, where each string is an ID identifying a Catalog"
@@ -31,7 +31,7 @@ class V09ServerCapabilities(StrictBaseModel):
         ),
     )
     accepts_inline_catalogs: bool | None = Field(
-        None,
+        default=None,
         alias="acceptsInlineCatalogs",
         description=(
             "A boolean indicating if the server can accept an 'inlineCatalogs' array in"
@@ -50,7 +50,7 @@ V0_9AgentCapabilities = V09ServerCapabilities
 
 
 class A2uiServerCapabilities(StrictBaseModel):
-    v0_9: V09ServerCapabilities | None = Field(None, alias=PROTOCOL_VERSION)
+    v0_9: V09ServerCapabilities | None = Field(default=None, alias=PROTOCOL_VERSION)
 
 
 A2uiAgentCapabilities = A2uiServerCapabilities

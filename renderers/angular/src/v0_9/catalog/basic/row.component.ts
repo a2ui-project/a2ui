@@ -15,8 +15,8 @@
  */
 
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {ComponentHostComponent} from '../../core/component-host.component';
-import {Child} from '../../core/component-binder.service';
+import {ComponentHostComponent} from '@a2ui/angular';
+import {Child} from '@a2ui/angular';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {JUSTIFY_MAP, ALIGN_MAP} from './utils';
 import {RowApi} from '@a2ui/web_core/v0_9/basic_catalog';

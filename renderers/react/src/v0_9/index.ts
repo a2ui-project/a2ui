@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     https://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-export {A2uiSurface} from './A2uiSurface';
-export {createBinderlessComponentImplementation, createComponentImplementation} from './adapter';
-export {useSignalValue} from './node-view';
+export {
+  A2uiSurface,
+  createBinderlessComponentImplementation,
+  createComponentImplementation,
+  MarkdownContext,
+  useMarkdownRenderer,
+  useSignalValue,
+} from '../index';
 export type {
   NodeBuildChild,
   NodeViewProps,
   ReactA2uiComponentProps,
+  ReactCatalogComponent,
   ReactComponentImplementation,
-} from './react_component_implementation';
-
-// Export basic catalog components directly for 3P developers
-export * from './catalog/basic';
+} from '../index';

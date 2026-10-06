@@ -19,8 +19,6 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from ..catalog import Catalog
-from ..catalog.catalog import TComponent, TFunction
 from ..exceptions import (
     A2uiErrorDetail,
     A2uiIntegrityError,
@@ -96,14 +94,17 @@ def validate_recursion_and_paths(data: Any) -> None:
             return
 
         if isinstance(item, dict):
-            if "path" in item and isinstance(item["path"], str):
-                path = item["path"]
-                if not re.fullmatch(RELAXED_PATH_PATTERN, path):
+            # v1.0 binds data with "@path"; v0.9 and templates use "path".
+            for path_key in ("path", "@path"):
+                path = item.get(path_key)
+                if isinstance(path, str) and not re.fullmatch(
+                    RELAXED_PATH_PATTERN, path
+                ):
                     raise A2uiValidationError(
                         f"Invalid path syntax: '{path}'",
                         details=[
                             A2uiErrorDetail(
-                                path="path",
+                                path=path_key,
                                 code="invalid_pointer",
                                 message=f"Invalid path syntax: '{path}'",
                             )
@@ -113,7 +114,7 @@ def validate_recursion_and_paths(data: Any) -> None:
             is_func_v08 = "functionCall" in item and isinstance(
                 item["functionCall"], dict
             )
-            is_func_v09 = "call" in item and "args" in item
+            is_func_v09 = ("call" in item or "@call" in item) and "args" in item
 
             if is_func_v08:
                 if func_depth >= MAX_FUNC_CALL_DEPTH:

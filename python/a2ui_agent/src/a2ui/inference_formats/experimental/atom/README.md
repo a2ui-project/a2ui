@@ -48,11 +48,12 @@ Atom uses parenthesized S-expressions to represent component nodes and propertie
 ## Python Usage Example
 
 ```python
-from a2ui.basic_catalog import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.experimental.atom import AtomFormat
+from a2ui.schema.constants import VERSION_1_0
 
 # 1. Initialize format with catalog
-catalog = BasicCatalog()
+catalog = BasicCatalog(VERSION_1_0)
 atom_fmt = AtomFormat(catalog=catalog, surface_id="main")
 
 # 2. Generate system prompt instructions

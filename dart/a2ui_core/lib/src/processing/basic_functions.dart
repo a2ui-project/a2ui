@@ -14,13 +14,18 @@
 
 import 'package:json_schema_builder/json_schema_builder.dart';
 
+import '../basic_catalog/function_support.dart';
 import '../core/catalog.dart';
 import '../core/common.dart';
 import '../core/data_context.dart';
 import '../primitives/cancellation.dart';
-import '../primitives/reactivity.dart';
-import 'expressions.dart';
 
+/// The basic catalog's `formatString` function on its own, for catalogs that
+/// want template interpolation without the rest of the basic catalog.
+///
+/// Delegates to the same implementation as `BasicCatalog`: a non-string
+/// `value` is coerced to text, and on a v1.0 context the template's bindings
+/// and calls resolve in their `@path`/`@call` form.
 class FormatStringFunction extends FunctionImplementation {
   FormatStringFunction()
       : super(
@@ -41,21 +46,6 @@ class FormatStringFunction extends FunctionImplementation {
     Map<String, dynamic> args,
     DataContext context, [
     CancellationSignal? cancellationSignal,
-  ]) {
-    final template = args['value'] as String;
-    final parser = ExpressionParser();
-    final List<Object?> parts = parser.parse(template);
-
-    if (parts.isEmpty) return '';
-    if (parts.length == 1 && parts[0] is String) return parts[0];
-
-    return computed(() {
-      final Iterable<String> resolvedParts = parts.map((part) {
-        if (part is String) return part;
-        final ReadonlySignal<Object?> sig = context.resolveListenable(part);
-        return sig.value?.toString() ?? '';
-      });
-      return resolvedParts.join('');
-    });
-  }
+  ]) =>
+      formatTemplate(args['value'], context);
 }

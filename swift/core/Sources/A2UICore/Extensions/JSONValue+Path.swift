@@ -61,6 +61,26 @@ extension JSONValue {
     }
   }
 
+  /// Returns the truthiness of this JSONValue according to A2UI protocol rules.
+  ///
+  /// Null, false, zero numbers, and empty strings are falsy; all other values are truthy.
+  public var isTruthy: Bool {
+    switch self {
+    case .null:
+      return false
+    case .boolean(let value):
+      return value
+    case .integer(let value):
+      return value != 0
+    case .number(let value):
+      return value != 0.0 && !value.isNaN
+    case .string(let value):
+      return !value.isEmpty
+    case .array, .object:
+      return true
+    }
+  }
+
   /// Returns the underlying object as an `OrderedDictionary` if this is
   /// an `.object` case.
   public var objectValue: OrderedDictionary<String, JSONValue>? {

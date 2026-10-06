@@ -14,51 +14,56 @@
  * limitations under the License.
  */
 
-import {describe, it, expect, afterEach} from 'vitest';
-import {render} from '@testing-library/react';
+import {describe, it, expect, afterEach, vi} from 'vitest';
+import {render, screen} from '@testing-library/react';
 import React from 'react';
 import {Catalog, ComponentModel, SurfaceModel} from '@a2ui/web_core/v0_9';
-import {getMarkdownRenderer, setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
-  A2uiSurface,
-  MarkdownContext,
-  Text,
-  type ReactComponentImplementation,
-} from '../../src/v0_9';
+  basicCatalog,
+  getMarkdownRenderer,
+  setMarkdownRenderer,
+} from '@a2ui/web_core/v0_9/basic_catalog';
+import {A2uiSurface, MarkdownContext, type ReactCatalogComponent} from '../../src';
 
-const catalog = new Catalog<ReactComponentImplementation>('markdown-bridge', '0.9', [Text]);
+const Text = basicCatalog.components.get('Text')!;
+const catalog = new Catalog<ReactCatalogComponent>('markdown-bridge', '0.9', [Text]);
 
 function surfaceWith(id: string, text: string) {
-  const surface = new SurfaceModel<ReactComponentImplementation>(id, catalog);
+  const surface = new SurfaceModel<ReactCatalogComponent>(id, catalog);
   surface.componentsModel.addComponent(new ComponentModel('root', 'Text', {text}));
   return surface;
 }
 
-const renderMarkdown = async (markdown: string) => `<em>${markdown}</em>`;
+/** Renders markdown as marked-up HTML so the test can tell it from plain text. */
+const renderMarkdown = vi.fn(async (markdown: string) => `<em>${markdown}</em>`);
 const hostRenderer = async (markdown: string) => `<strong>${markdown}</strong>`;
 
 afterEach(() => {
+  renderMarkdown.mockClear();
   setMarkdownRenderer(undefined);
 });
 
 describe('A2uiSurface markdown bridge', () => {
-  it('registers the renderer from MarkdownContext with web_core', () => {
+  it("renders web_core's Text through the renderer from MarkdownContext", async () => {
     render(
       <MarkdownContext.Provider value={renderMarkdown}>
         <A2uiSurface surface={surfaceWith('md-1', 'hello')} />
       </MarkdownContext.Provider>,
     );
-    expect(getMarkdownRenderer()).toBe(renderMarkdown);
+    expect(await screen.findByText('hello', {selector: 'em'})).toBeInTheDocument();
+    expect(renderMarkdown).toHaveBeenCalledWith('hello', undefined);
   });
 
-  it('registers nothing when no renderer is configured anywhere', () => {
+  it('renders plain text when no renderer is configured anywhere', async () => {
     render(<A2uiSurface surface={surfaceWith('md-2', 'plain')} />);
+    expect(await screen.findByText('plain')).toBeInTheDocument();
+    expect(screen.queryByText('plain', {selector: 'em'})).toBeNull();
     expect(getMarkdownRenderer()).toBeUndefined();
   });
 
-  it('leaves a renderer the host registered untouched when the context has none', () => {
+  it('leaves a renderer the host registered untouched when the context has none', async () => {
     setMarkdownRenderer(hostRenderer);
     render(<A2uiSurface surface={surfaceWith('md-3', 'plain')} />);
-    expect(getMarkdownRenderer()).toBe(hostRenderer);
+    expect(await screen.findByText('plain', {selector: 'strong'})).toBeInTheDocument();
   });
 });

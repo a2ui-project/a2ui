@@ -416,7 +416,9 @@ def generate_basic_catalog(
             f.write(func_code)
 
     # 3. Styles
-    style_code = generate_basic_catalog_styles(version, cat_data)
+    style_code = generate_basic_catalog_styles(
+        version, cat_data, spec_fidelity=bool(common_data)
+    )
     styles_path = os.path.join(out_dir, "styles.py")
     if style_code:
         with open(styles_path, "w", encoding="utf-8") as f:
@@ -426,7 +428,12 @@ def generate_basic_catalog(
 
     # 4. Catalog & __init__.py
     cat_init_code = generate_basic_catalog_index(
-        version, out_dir, comp_code, func_code, style_code
+        version,
+        out_dir,
+        comp_code,
+        func_code,
+        style_code,
+        catalog_data=cat_data if common_data else None,
     )
     with open(os.path.join(out_dir, "__init__.py"), "w", encoding="utf-8") as f:
         f.write(cat_init_code)
@@ -527,6 +534,25 @@ from .common_types import (
         [x.strip().rstrip(",") for x in renderer_union_items]
     )
 
+    schema_helper_lines: list[str] = []
+    if os.path.exists(os.path.join(o_root, "schema", "agent_to_renderer_schema.py")):
+        schema_helper_lines.extend([
+            "from .agent_to_renderer_schema import (",
+            "    get_agent_to_renderer_schema_json,",
+            "    get_agent_to_renderer_schema_map,",
+            ")",
+        ])
+    if os.path.exists(os.path.join(o_root, "schema", "common_types_schema.py")):
+        schema_helper_lines.extend([
+            "from .common_types_schema import (",
+            "    get_common_types_schema_json,",
+            "    get_common_types_schema_map,",
+            ")",
+        ])
+    schema_helpers_section = (
+        "\n" + "\n".join(schema_helper_lines) + "\n" if schema_helper_lines else ""
+    )
+
     content = f"""{FILE_HEADER}
 from collections.abc import Mapping, Sequence
 from enum import Enum
@@ -588,8 +614,7 @@ ClientToServerMessagePayload = RendererToAgentMessagePayload
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction
 
-{legacy_reexports}
-"""
+{legacy_reexports}{schema_helpers_section}"""
     with open(os.path.join(o_root, "schema/__init__.py"), "w", encoding="utf-8") as f:
         f.write(content)
 

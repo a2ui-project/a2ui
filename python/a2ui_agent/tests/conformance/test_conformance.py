@@ -22,7 +22,6 @@ from .conformance_helpers import (
     load_conformance_yaml as load_tests,
 )
 
-from a2ui.basic_catalog import BasicCatalog
 from a2ui.core import (
     A2uiCatalogError,
     A2uiError,
@@ -32,6 +31,7 @@ from a2ui.core import (
     A2uiValidationError,
     MessageProcessor,
 )
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
 from a2ui.schema import (
     A2uiCatalog,
@@ -346,13 +346,11 @@ def test_schema_manager_conformance(name, test_case):
         if examples_path:
             examples_path = get_conformance_path(examples_path)
 
-        config = BasicCatalog.get_config(version)
-        if examples_path:
-            config = CatalogConfig(
-                name=config.name,
-                provider=config.provider,
-                examples_path=examples_path,
-            )
+        config = CatalogConfig.from_catalog(
+            "basic",
+            BasicCatalog(version),
+            examples_path=examples_path,
+        )
 
         accepts_inline = args.get("acceptsInlineCatalogs", False)
         direct_json_format = DirectJsonFormat(
@@ -584,6 +582,32 @@ KNOWN_GAPS = {
         "the envelope is not validated, so a message stating no version"
         " compiles unchanged"
     ),
+    # Express reserved keys (#3006). v1.0 writes a data binding as `@path` and
+    # a function call as `@call`, and the compiler still writes `path` and
+    # `call`. The decompiler reads both, so the decompile cases fail only on
+    # their round trip back through the compiler.
+    **{
+        name: (
+            "the compiler writes v1.0 data bindings and function calls with"
+            " `path` and `call` rather than `@path` and `@call` (#3006)"
+        )
+        for name in (
+            "test_compile_express_template_children",
+            "test_compile_express_absolute_data_binding_path",
+            "test_compile_express_nested_function_call",
+            "test_compile_express_validation_expression",
+            "test_compile_express_validation_expression_with_an_argument",
+            "test_compile_express_data_model_assignment",
+            "test_compile_express_standalone_function_call",
+            "test_compile_express_function_call_action",
+            "test_compile_express_bare_path_is_the_whole_bound_value",
+            "test_compile_express_several_checks_in_one_list",
+            "test_compile_express_check_without_a_message_still_carries_one",
+            "test_decompile_express_data_model",
+            "test_decompile_express_function_call_action",
+            "test_decompile_express_renderer_function_call",
+        )
+    },
 }
 
 

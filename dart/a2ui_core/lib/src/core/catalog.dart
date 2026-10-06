@@ -424,10 +424,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 extension CatalogInvokerExtension
     on Catalog<ComponentApi, FunctionImplementation> {
   /// Invokes a catalog function by name with the given arguments.
+  ///
+  /// Throws [A2uiCatalogError] if [name] is not registered in this catalog.
   Object? invoke(String name, Map<String, dynamic> args, DataContext context) {
     final FunctionImplementation? fn = functions[name];
     if (fn == null) {
-      throw ArgumentError('Function not found: $name');
+      throw A2uiCatalogError('Function not found: $name', catalogId: id);
     }
     return fn.execute(args, context);
   }

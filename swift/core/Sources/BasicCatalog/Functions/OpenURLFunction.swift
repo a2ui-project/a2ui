@@ -78,9 +78,9 @@ public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable 
 
     // Enforce scheme allowlist (prevent javascript:, data:, etc.)
     let scheme = resolvedURL.scheme?.lowercased()
-    guard scheme == "https" || scheme == "http" else {
+    guard scheme == "https" || scheme == "http" || scheme == "mailto" || scheme == "tel" else {
       throw FunctionError.securityConstraintViolation(
-        "URL scheme must be http or https. Found: \(scheme ?? "none")")
+        "URL scheme must be http, https, mailto, or tel. Found: \(scheme ?? "none")")
     }
 
     // Delegate to the handler

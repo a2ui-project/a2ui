@@ -25,7 +25,7 @@ export default defineConfig({
   },
   server: {
     fs: {
-      allow: ['../', '../../../specification'],
+      allow: ['../', '../../../specification', '../../../catalogs'],
     },
   },
 });

@@ -37,7 +37,34 @@
 .headerLeft {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+}
+
+.versionSelectorContainer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.versionLabel {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.versionSelect {
+  background: #1e293b;
+  color: #f1f5f9;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.versionSelect:focus {
+  border-color: #38bdf8;
 }
 
 .h1 {

@@ -17,7 +17,7 @@
 import * as assert from 'node:assert';
 import {describe, it, beforeEach, after} from 'node:test';
 import {setupTestDom, teardownTestDom} from '../test/dom-setup.js';
-import {nothing} from 'lit';
+import {html, nothing, render} from 'lit';
 import {z} from 'zod';
 
 import {ComponentContext} from '../resolution/component-context.js';
@@ -26,6 +26,7 @@ import {getValue} from '../reactivity/signals.js';
 import {MessageProcessor} from '../processing/message-processor.js';
 import {renderA2uiNode} from './render-a2ui-node.js';
 import {Catalog} from '../catalog/types.js';
+import type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 
 // The mock element below extends HTMLElement, so the DOM globals have to be in place before this
@@ -110,26 +111,68 @@ describe('renderA2uiNode', () => {
     assert.strictEqual(customElements.get('a2ui-mock-button'), MockButtonElement);
   });
 
-  it('renders a Lit TemplateResult with the registered component tagName and context', () => {
-    const context = new ComponentContext(surface, 'btn1');
-    const result = renderA2uiNode(context, testCatalog);
+  function renderInParent(container: HTMLElement, child: unknown) {
+    render(html`<div>${child}</div>`, container);
+    return container.firstElementChild!.firstElementChild as A2uiWebComponentElement;
+  }
 
-    assert.notStrictEqual(result, nothing);
-    assert.ok(typeof result === 'object' && result !== null);
-    // Verify Lit TemplateResult strings contain the tag name
-    assert.ok(JSON.stringify(result).includes('a2ui-mock-button'));
+  it('renders the registered custom element with its context', () => {
+    const context = new ComponentContext(surface, 'btn1');
+    const element = renderInParent(
+      document.createElement('div'),
+      renderA2uiNode(context, testCatalog),
+    );
+
+    assert.ok(element instanceof MockButtonElement);
+    assert.strictEqual(element.context, context);
   });
 
-  it('renders a resolved node with its node and context, defining the element', () => {
+  it('keeps the element when the parent re-renders with a fresh context', () => {
+    const container = document.createElement('div');
+    const first = renderInParent(
+      container,
+      renderA2uiNode(new ComponentContext(surface, 'btn1'), testCatalog),
+    );
+    const nextContext = new ComponentContext(surface, 'btn1');
+    const second = renderInParent(container, renderA2uiNode(nextContext, testCatalog));
+
+    assert.strictEqual(second, first);
+    assert.strictEqual(second.context, nextContext);
+  });
+
+  it('replaces the element when the tag at its position changes', () => {
+    class MockOtherButtonElement extends HTMLElement {}
+    const otherCatalog = new Catalog<WebComponentImplementation>('other-catalog', '0.9', [
+      {...mockButtonImpl, tagName: 'a2ui-mock-other-button', element: MockOtherButtonElement},
+    ]);
+    const container = document.createElement('div');
+    const context = new ComponentContext(surface, 'btn1');
+    const first = renderInParent(container, renderA2uiNode(context, testCatalog));
+    const second = renderInParent(container, renderA2uiNode(context, otherCatalog));
+
+    assert.notStrictEqual(second, first);
+    assert.ok(second instanceof MockOtherButtonElement);
+    assert.strictEqual(second.context, context);
+  });
+
+  it('keeps a resolved node element across re-renders, setting its node and context', () => {
     const resolver = new NodeResolver(surface, testCatalog);
     const root = getValue(resolver.rootNode)!;
+    const container = document.createElement('div');
 
-    const result = renderA2uiNode(root) as any;
+    const first = renderInParent(container, renderA2uiNode(root));
+    const second = renderInParent(container, renderA2uiNode(root));
 
     assert.strictEqual(customElements.get('a2ui-mock-button'), MockButtonElement);
-    assert.ok(JSON.stringify(result).includes('a2ui-mock-button'));
-    assert.strictEqual(result.values[0], root);
-    assert.strictEqual(result.values[1], root.context);
+    assert.strictEqual(second, first);
+    assert.strictEqual(second.node, root);
+    assert.strictEqual(second.context, root.context);
+
+    const contextOnly = new ComponentContext(surface, 'root');
+    const third = renderInParent(container, renderA2uiNode(contextOnly, testCatalog));
+    assert.strictEqual(third, first);
+    assert.strictEqual(third.node, undefined);
+    assert.strictEqual(third.context, contextOnly);
     resolver.dispose();
   });
 

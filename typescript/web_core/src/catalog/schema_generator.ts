@@ -16,7 +16,7 @@
  */
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
-import {ComponentApi, FunctionApi, CatalogInterface} from './types.js';
+import type {ComponentApi, FunctionApi, CatalogInterface} from './types.js';
 import {V08_STANDARD_DEFS} from '../v0_8/standard_defs.js';
 import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
 import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';

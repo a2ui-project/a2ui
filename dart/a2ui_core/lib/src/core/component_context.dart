@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import '../primitives/errors.dart';
 import 'catalog.dart';
 import 'component_model.dart';
 import 'data_context.dart';
@@ -59,10 +60,19 @@ class ComponentContext {
   }
 
   /// Returns a context for rendering a child component.
+  ///
+  /// Throws [A2uiStateError] if [childId] does not exist on the surface or if
+  /// [basePath] is not an absolute JSON Pointer path starting with `/`.
   ComponentContext childContext(String childId, {String? basePath}) {
+    if (basePath != null && !basePath.startsWith('/')) {
+      throw A2uiStateError(
+        "Base path for child context must be absolute (start with '/'), "
+        "got '$basePath'.",
+      );
+    }
     final ComponentModel? childModel = surface.componentsModel.get(childId);
     if (childModel == null) {
-      throw ArgumentError('Child component not found: $childId');
+      throw A2uiStateError('Child component not found: $childId');
     }
     return ComponentContext(
       surface,

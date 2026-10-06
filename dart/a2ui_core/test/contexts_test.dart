@@ -428,5 +428,350 @@ void main() {
       );
       expect(ctx3.isV10, isFalse);
     });
+
+    test('bindingFor returns version-appropriate binding map', () {
+      final v09Ctx = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v0.9',
+      );
+      expect(v09Ctx.bindingFor('/user/name'), {'path': '/user/name'});
+
+      final v10Ctx = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v1.0',
+      );
+      expect(v10Ctx.bindingFor('/user/name'), {'@path': '/user/name'});
+    });
+
+    test('isDataBinding and isFunctionCall follow the protocol version', () {
+      final v09Ctx = DataContext(dataModel, mockInvoker, '/');
+      final v10Ctx = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v1.0',
+      );
+
+      expect(v09Ctx.isDataBinding({'path': '/x'}), isTrue);
+      expect(
+          v09Ctx.isDataBinding({'path': '/x', 'componentId': 'row'}), isFalse);
+      expect(v09Ctx.isDataBinding({'@path': '/x'}), isFalse);
+      expect(v09Ctx.isDataBinding({'path': 123}), isFalse);
+      expect(v09Ctx.isDataBinding('not a map'), isFalse);
+
+      expect(v10Ctx.isDataBinding({'@path': '/x'}), isTrue);
+      expect(v10Ctx.isDataBinding({'path': '/x'}), isFalse);
+      expect(v10Ctx.isDataBinding({'@path': 123}), isFalse);
+
+      expect(v09Ctx.isFunctionCall({'call': 'fn'}), isTrue);
+      expect(v09Ctx.isFunctionCall({'@call': 'fn'}), isFalse);
+      expect(v09Ctx.isFunctionCall({'call': 123}), isFalse);
+
+      expect(v10Ctx.isFunctionCall({'@call': 'fn'}), isTrue);
+      expect(v10Ctx.isFunctionCall({'call': 'fn'}), isFalse);
+      expect(v10Ctx.isFunctionCall({'@call': 123}), isFalse);
+    });
+
+    test('adaptExpressionPart rewrites parser nodes only from v1.0', () {
+      final v09Ctx = DataContext(dataModel, mockInvoker, '/');
+      final v10Ctx = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v1.0',
+      );
+      final Map<String, Object?> call = {
+        'call': 'upper',
+        'args': {
+          'value': {'path': '/name'},
+          'items': [
+            {'path': '/a'},
+            'literal',
+          ],
+        },
+      };
+
+      expect(identical(v09Ctx.adaptExpressionPart(call), call), isTrue);
+      expect(v09Ctx.adaptExpressionPart({'path': '/x'}), {'path': '/x'});
+
+      expect(v10Ctx.adaptExpressionPart({'path': '/x'}), {'@path': '/x'});
+      expect(v10Ctx.adaptExpressionPart(call), {
+        '@call': 'upper',
+        'args': {
+          'value': {'@path': '/name'},
+          'items': [
+            {'@path': '/a'},
+            'literal',
+          ],
+        },
+        'returnType': 'any',
+      });
+      expect(v10Ctx.adaptExpressionPart('text'), 'text');
+      expect(
+        v10Ctx.adaptExpressionPart({'path': '/x', 'componentId': 'row'}),
+        {'path': '/x', 'componentId': 'row'},
+      );
+    });
+
+    test('preserves identity of static maps in both v0.9 and v1.0', () {
+      final v09Ctx = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v0.9',
+      );
+      final v09LiteralWithAt = <String, Object?>{
+        'meta': {'@path': '/user/name'},
+        'template': {'path': '/items', 'componentId': 'item-row'},
+      };
+      expect(
+        identical(v09Ctx.resolveSync(v09LiteralWithAt), v09LiteralWithAt),
+        isTrue,
+      );
+
+      final v10Ctx = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+        protocolVersion: 'v1.0',
+      );
+      final v10LiteralWithLegacyKeys = <String, Object?>{
+        'path': '/user/name',
+        'call': 'uppercase',
+        'nested': [
+          {'path': '/items/0'},
+        ],
+      };
+      expect(
+        identical(
+          v10Ctx.resolveSync(v10LiteralWithLegacyKeys),
+          v10LiteralWithLegacyKeys,
+        ),
+        isTrue,
+      );
+      final ReadonlySignal<Object?> sig = v10Ctx.resolveListenable(
+        v10LiteralWithLegacyKeys,
+      );
+      expect(identical(sig.value, v10LiteralWithLegacyKeys), isTrue);
+    });
+
+    test(
+      'resolveListenable pre-builds argument signals outside computed',
+      () {
+        final countingModel = _WatchCountingDataModel();
+        addTearDown(countingModel.dispose);
+
+        for (final version in ['v0.9', 'v1.0']) {
+          countingModel.set('/a', 'hello');
+          countingModel.set('/b', 'world');
+          countingModel.watchCounts.clear();
+          final ctx = DataContext(
+            countingModel,
+            (name, args, _) => '${args['first']}-${args['second']}',
+            '/',
+            protocolVersion: version,
+          );
+          final isV1 = version == 'v1.0';
+          final ReadonlySignal<Object?> sig = ctx.resolveListenable({
+            if (isV1) '@call': 'concat' else 'call': 'concat',
+            'args': {
+              'first': isV1 ? {'@path': '/a'} : {'path': '/a'},
+              'second': isV1 ? {'@path': '/b'} : {'path': '/b'},
+            },
+          });
+
+          expect(sig.value, 'hello-world');
+          expect(countingModel.watchCounts['/a'], 1);
+          expect(countingModel.watchCounts['/b'], 1);
+
+          countingModel.set('/a', 'hi');
+          expect(sig.value, 'hi-world');
+          countingModel.set('/b', 'there');
+          expect(sig.value, 'hi-there');
+
+          // Re-evaluating the computed signal must not call watch() again.
+          expect(countingModel.watchCounts['/a'], 1);
+          expect(countingModel.watchCounts['/b'], 1);
+        }
+      },
+    );
+
+    test('resolveAction rejects empty or non-string event names', () {
+      expect(context.resolveAction(''), isNull);
+      expect(context.resolveAction({'name': ''}), isNull);
+      expect(context.resolveAction({'name': 42}), isNull);
+      expect(
+        context.resolveAction({
+          'event': {'name': ''},
+        }),
+        isNull,
+      );
+      expect(
+        context.resolveAction({
+          'event': {'name': 42},
+        }),
+        isNull,
+      );
+    });
+
+    test(
+      'throws A2uiValidationError on malformed @path, @call, args, or map keys',
+      () {
+        final v10Context = DataContext(
+          dataModel,
+          mockInvoker,
+          '/',
+          protocolVersion: 'v1.0',
+        );
+
+        expect(
+          () => v10Context.resolveSync({'@path': 123}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveListenable({'@path': 123}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveSync({'@path': null}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveSync({'@call': null}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveListenable({'@call': null}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveSync({'@call': 123}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveSync({
+            '@call': 'uppercase',
+            'args': 'not_a_map',
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveListenable({
+            '@call': 'uppercase',
+            'args': 'not_a_map',
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v10Context.resolveSync(<Object?, Object?>{123: 'bad_key'}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () =>
+              v10Context.resolveListenable(<Object?, Object?>{123: 'bad_key'}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+
+        final v09Context = DataContext(
+          dataModel,
+          mockInvoker,
+          '/',
+          protocolVersion: 'v0.9',
+        );
+        expect(
+          () => v09Context.resolveSync({
+            'call': 'uppercase',
+            'args': 'not_a_map',
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v09Context.resolveListenable({
+            'call': 'uppercase',
+            'args': 'not_a_map',
+          }),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () => v09Context.resolveSync(<Object?, Object?>{123: 'bad_key'}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        expect(
+          () =>
+              v09Context.resolveListenable(<Object?, Object?>{123: 'bad_key'}),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      },
+    );
   });
+
+  group('ComponentContext.childContext and CatalogInvokerExtension error types',
+      () {
+    late SurfaceModel surface;
+    late ComponentModel component;
+
+    setUp(() {
+      surface = SurfaceModel('surf-err', catalog: MinimalCatalog());
+      component = ComponentModel('root', 'Column', {});
+      surface.componentsModel.addComponent(component);
+      surface.componentsModel.addComponent(ComponentModel('child', 'Text', {}));
+      addTearDown(surface.dispose);
+    });
+
+    test('childContext throws A2uiStateError when child component is missing',
+        () {
+      final componentContext = ComponentContext(surface, component);
+      expect(
+        () => componentContext.childContext('nonexistent'),
+        throwsA(isA<A2uiStateError>()),
+      );
+    });
+
+    test('childContext throws A2uiStateError when basePath is not absolute',
+        () {
+      final componentContext = ComponentContext(surface, component);
+      expect(
+        () => componentContext.childContext('child', basePath: 'relative/path'),
+        throwsA(isA<A2uiStateError>()),
+      );
+      expect(
+        () => componentContext.childContext('child', basePath: ''),
+        throwsA(isA<A2uiStateError>()),
+      );
+    });
+
+    test(
+        'CatalogInvokerExtension.invoke throws A2uiCatalogError on unknown '
+        'function', () {
+      final componentContext = ComponentContext(surface, component);
+      expect(
+        () => surface.catalog.invoke(
+          'unknownFn',
+          const {},
+          componentContext.dataContext,
+        ),
+        throwsA(
+          isA<A2uiCatalogError>().having(
+            (e) => e.catalogId,
+            'catalogId',
+            surface.catalog.id,
+          ),
+        ),
+      );
+    });
+  });
+}
+
+class _WatchCountingDataModel extends DataModel {
+  final Map<String, int> watchCounts = {};
+
+  @override
+  ReadonlySignal<T?> watch<T>(String path) {
+    watchCounts[path] = (watchCounts[path] ?? 0) + 1;
+    return super.watch<T>(path);
+  }
 }

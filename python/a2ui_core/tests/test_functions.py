@@ -41,7 +41,9 @@ def invoke(name: str, args: dict, context: Any = None) -> Any:
 def test_logical_and():
     assert invoke("and", {"values": [True, True]}) is True
     assert invoke("and", {"values": [True, False]}) is False
-    assert invoke("and", {"values": [True]}) is True
+    # The specification requires at least two values.
+    with pytest.raises(ValidationError):
+        invoke("and", {"values": [True]})
 
 
 def test_logical_or():
@@ -54,6 +56,55 @@ def test_logical_not():
     assert invoke("not", {"value": True}) is False
     with pytest.raises(ValidationError):
         invoke("not", {})
+
+
+def test_v10_logical_functions_read_validation_result_operands():
+    """In v1.0 the validators return a ValidationResult, so a nested
+    ``and(required(...), or(...))`` receives dicts. A dict with a boolean
+    ``valid`` member counts by its validity, not as a non-empty dict.
+
+    This calls ``execute_func`` as the conformance harness does. The
+    argument models (``DynamicBoolean``) do not admit a ValidationResult
+    dict, so ``execute`` would reject the operand before the body runs."""
+    from a2ui.core.basic_catalog import v1_0
+
+    impls = {impl.name: impl for impl in v1_0.BASIC_FUNCTION_IMPLEMENTATIONS}
+    required = impls["required"].execute_func
+    and_ = impls["and"].execute_func
+    or_ = impls["or"].execute_func
+    not_ = impls["not"].execute_func
+
+    assert not_({"value": {"valid": False}}) is True
+    assert not_({"value": {"valid": True}}) is False
+    assert not_({"value": {"valid": "yes"}}) is False
+    assert not_({"value": {"other": 1}}) is False
+    assert and_({"values": [{"valid": True}, {"valid": False}]}) is False
+    assert or_({"values": [{"valid": False}, {"valid": False}]}) is False
+    assert or_({"values": [{"valid": False}, {"valid": True}]}) is True
+
+    def button_enabled(terms: Any, email: Any, phone: Any) -> bool:
+        return and_({
+            "values": [
+                required({"value": terms}),
+                or_(
+                    {"values": [required({"value": email}), required({"value": phone})]}
+                ),
+            ]
+        })
+
+    assert button_enabled(None, "", "") is False
+    assert button_enabled(True, "", "") is False
+    assert button_enabled(True, "a@b.c", "") is True
+    assert button_enabled(True, "", "555") is True
+
+
+def test_v09_logical_functions_treat_valid_dict_as_plain_object():
+    """The v0.9 validators return booleans, so a ``{valid}`` dict is an
+    ordinary non-empty dict and therefore truthy."""
+    not_ = IMPLS_MAP["not"].execute_func
+    and_ = IMPLS_MAP["and"].execute_func
+    assert not_({"value": {"valid": False}}) is False
+    assert and_({"values": [{"valid": False}, {"valid": False}]}) is True
 
 
 def test_validation_required():

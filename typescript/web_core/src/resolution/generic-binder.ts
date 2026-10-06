@@ -22,8 +22,8 @@ import {
   ChildList,
   DataBinding,
   FunctionCall,
-  childRefKindOf,
 } from '../types/common-types.js';
+import {childRefKindOf} from '../types/child-ref-helpers.js';
 import type {Action as V1Action} from '../v1_0/schema/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
 import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
@@ -60,6 +60,8 @@ export type BehaviorNode =
   | {type: 'OBJECT'; shape: Record<string, BehaviorNode>}
   | {type: 'ARRAY'; element: BehaviorNode};
 
+const behaviorCache = new WeakMap<z.ZodTypeAny, BehaviorNode>();
+
 /**
  * Traverses a Zod schema tree to build a `BehaviorNode` map.
  *
@@ -70,17 +72,23 @@ export type BehaviorNode =
  * @returns Root BehaviorNode describing schema properties.
  */
 export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
-  const behavior = getFieldBehavior(schema);
-  if (behavior.type === 'OBJECT' && behavior.shape && !('accessibility' in behavior.shape)) {
-    return {
-      ...behavior,
-      shape: {
-        ...behavior.shape,
-        accessibility: getFieldBehavior(AccessibilityAttributesSchema),
-      },
-    };
+  const cached = behaviorCache.get(schema);
+  if (cached) {
+    return cached;
   }
-  return behavior;
+  const behavior = getFieldBehavior(schema);
+  const result: BehaviorNode =
+    behavior.type === 'OBJECT' && behavior.shape && !('accessibility' in behavior.shape)
+      ? {
+          ...behavior,
+          shape: {
+            ...behavior.shape,
+            accessibility: getFieldBehavior(AccessibilityAttributesSchema),
+          },
+        }
+      : behavior;
+  behaviorCache.set(schema, result);
+  return result;
 }
 
 /**
@@ -518,13 +526,24 @@ export class GenericBinder<T> {
     if (typeof val !== 'object' || val === null) return val;
     if (depth > MAX_DYNAMIC_VALUE_DEPTH) return undefined;
 
-    if ('path' in val || 'call' in val) {
+    if ('path' in val || 'call' in val || '@path' in val || '@call' in val) {
       return this.context.dataContext.resolveDynamicValue(val, depth);
     }
     if (Array.isArray(val)) return val.map(item => this.resolveDeepSync(item, depth + 1));
     const res: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(val)) {
       res[k] = this.resolveDeepSync(v, depth + 1);
+    }
+    return res;
+  }
+
+  private resolveActionContext(context: unknown): Record<string, unknown> | undefined {
+    if (typeof context !== 'object' || context === null || Array.isArray(context)) {
+      return undefined;
+    }
+    const res: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(context)) {
+      res[k] = this.resolveDeepSync(v, 1);
     }
     return res;
   }
@@ -542,9 +561,7 @@ export class GenericBinder<T> {
       const ev = obj.event as Record<string, unknown>;
       const resolvedEvent: Record<string, unknown> = {
         ...ev,
-        context: ev.context
-          ? (this.resolveDeepSync(ev.context, 1) as Record<string, unknown>)
-          : undefined,
+        context: ev.context ? this.resolveActionContext(ev.context) : undefined,
       };
       // `userMessage` is a DynamicString; the agent expects it already
       // resolved to a plain string.
@@ -556,9 +573,7 @@ export class GenericBinder<T> {
     if ('name' in obj) {
       const resolved: Record<string, unknown> = {
         ...obj,
-        context: obj.context
-          ? (this.resolveDeepSync(obj.context, 1) as Record<string, unknown>)
-          : undefined,
+        context: obj.context ? this.resolveActionContext(obj.context) : undefined,
       };
       if (obj['userMessage'] !== undefined) {
         resolved['userMessage'] = this.resolveDeepSync(obj['userMessage'], 1);
