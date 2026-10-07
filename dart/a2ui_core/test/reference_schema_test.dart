@@ -593,6 +593,7 @@ void main() {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
         protocolVersion: A2uiProtocolVersion.v0_9,
+        validationConfig: ValidationConfig.strict,
       );
       addTearDown(processor.groupModel.dispose);
       return processor;
