@@ -373,8 +373,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     check = subparsers.add_parser(
         "check", help="Run release preflight checks", parents=[common]
     )
-    check.add_argument("--package", required=True, choices=sorted(PACKAGES))
-    check.add_argument("--version", required=True)
+    check.add_argument("--package", required=True, choices=[*sorted(PACKAGES), "both"])
+    check.add_argument("--version", default=None, help="Explicit version to check")
+    check.add_argument(
+        "--bump",
+        default=None,
+        choices=VALID_BUMPS,
+        help="Bump level to compute version from tags",
+    )
 
     plan = subparsers.add_parser(
         "plan", help="Emit the release plan as JSON", parents=[common]
@@ -394,6 +400,78 @@ def main(argv: Sequence[str] | None = None) -> int:
                 handle.write(rendered + "\n")
         print(rendered)
         return 0
+
+    if args.command == "check":
+        if args.package == "both":
+            if not args.bump:
+                print(
+                    "error: --bump is required when --package is 'both'",
+                    file=sys.stderr,
+                )
+                return 2
+            if args.version:
+                print(
+                    "error: --version cannot be specified when --package is 'both'",
+                    file=sys.stderr,
+                )
+                return 2
+            packages_to_check = [
+                (CORE, bump_version(current_version(CORE, repo_root), args.bump)),
+                (AGENT, bump_version(current_version(AGENT, repo_root), args.bump)),
+            ]
+        else:
+            pkg = PACKAGES[args.package]
+            if args.version and args.bump:
+                print(
+                    "error: specify either --version or --bump, not both",
+                    file=sys.stderr,
+                )
+                return 2
+            if not args.version and not args.bump:
+                print(
+                    "error: either --version or --bump is required",
+                    file=sys.stderr,
+                )
+                return 2
+            v = args.version or bump_version(current_version(pkg, repo_root), args.bump)
+            packages_to_check = [(pkg, v)]
+
+        all_problems = []
+        for pkg, ver in packages_to_check:
+            problems = []
+            changelog_path = os.path.join(repo_root, pkg.changelog_path)
+            with open(changelog_path, encoding="utf-8") as handle:
+                try:
+                    if not read_unreleased(handle.read()):
+                        problems.append(
+                            f"{pkg.changelog_path} has an empty {UNRELEASED_HEADING}"
+                            " section, there is nothing to release."
+                        )
+                except ValueError as error:
+                    problems.append(str(error))
+
+            existing = versions_from_tags(pkg, list_tags(pkg, repo_root))
+            if ver in existing:
+                problems.append(
+                    f"{pkg.tag_for(ver)} already exists. Releasing it "
+                    "again would be rejected by PyPI."
+                )
+
+            if pkg is CORE:
+                agent_pyproject = os.path.join(repo_root, AGENT.pyproject_path)
+                with open(agent_pyproject, encoding="utf-8") as handle:
+                    error = check_core_constraint(ver, handle.read())
+                if error:
+                    problems.append(error)
+
+            if problems:
+                for problem in problems:
+                    print(f"error: {problem}", file=sys.stderr)
+                all_problems.extend(problems)
+            else:
+                print(f"Preflight checks passed for {pkg.pypi_name} {ver}")
+
+        return 1 if all_problems else 0
 
     package = PACKAGES[args.package]
 
@@ -436,41 +514,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Updated {package.changelog_path} for {args.version}")
         else:
             print(updated)
-        return 0
-
-    if args.command == "check":
-        problems = []
-
-        with open(changelog_path, encoding="utf-8") as handle:
-            try:
-                if not read_unreleased(handle.read()):
-                    problems.append(
-                        f"{package.changelog_path} has an empty "
-                        f"{UNRELEASED_HEADING} section, there is nothing to release."
-                    )
-            except ValueError as error:
-                problems.append(str(error))
-
-        existing = versions_from_tags(package, list_tags(package, repo_root))
-        if args.version in existing:
-            problems.append(
-                f"{package.tag_for(args.version)} already exists. Releasing it "
-                "again would be rejected by PyPI."
-            )
-
-        if package is CORE:
-            agent_pyproject = os.path.join(repo_root, AGENT.pyproject_path)
-            with open(agent_pyproject, encoding="utf-8") as handle:
-                error = check_core_constraint(args.version, handle.read())
-            if error:
-                problems.append(error)
-
-        if problems:
-            for problem in problems:
-                print(f"error: {problem}", file=sys.stderr)
-            return 1
-
-        print(f"Preflight checks passed for {package.pypi_name} {args.version}")
         return 0
 
     raise AssertionError(f"unhandled command {args.command!r}")

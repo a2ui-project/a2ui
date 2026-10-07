@@ -60,6 +60,11 @@ by hand to perform a release. If the workflow cannot do it, fix the workflow.
 > would never get the required checks and could never be merged. The workflow
 > pushes the branch; Step 6 opens the pull request.
 
+### Environment Prerequisites
+
+- **Python Interpreter**: Python 3.11+ is required to execute `.github/scripts/release_version.py` locally because it relies on standard library `tomllib`. On macOS, Apple's default `/usr/bin/python3` is 3.9; use `/Library/GoogleCorpSupport/bin/python3` or an active virtual environment (`uv run python3`).
+- **Git Identity**: Ensure `git config user.name` and `git config user.email` are configured in your environment so that the changelog commit and pull request created during the release pass CLA verification.
+
 ---
 
 ## Step 1: Work out what is being released
@@ -123,6 +128,12 @@ python3 .github/scripts/release_version.py plan --package "${PACKAGE}" --bump "$
 >   or the Step 2 guard will block it. Release `a2ui-core` first if both are
 >   going out, since `a2ui-agent-sdk` depends on it.
 
+> [!IMPORTANT]
+> **Pre-Release Code Prerequisite: `a2ui-core` Dependency Pin**
+> Under SemVer for pre-1.0 packages, breaking changes (`**BREAKING**`) require a **minor** version bump.
+> Whenever `a2ui-core` has a **minor or major** bump, inspect `python/a2ui_agent/pyproject.toml`.
+> If `a2ui-core`'s proposed version falls outside the `a2ui-core>=...` range declared by `a2ui-agent-sdk`, **a separate PR updating the pin must be merged to `main` before triggering the release workflow**. The release workflow dispatches against `refs/heads/main` and cannot modify package configs on the fly.
+
 Put the proposal to the maintainer with `ask_question`, showing the pending
 entries and the resulting versions, and let them correct it.
 
@@ -162,23 +173,26 @@ git status --short --branch
 Uncommitted changes under `python/*/CHANGELOG.md`, or a branch behind
 `origin/main`, mean stop and say what was found.
 
-**3. The repository's own preflight passes.** Use the version from Step 1. This
-is the same check the workflow runs, so a failure here is a failure there:
+**3. The repository's own preflight passes.** This is the same check the workflow runs, so a failure here is a failure there:
 
 ```bash
+# Check using bump level (supports 'both', 'a2ui-core', or 'a2ui-agent-sdk'):
+python3 .github/scripts/release_version.py check --package "${PACKAGE}" --bump "${BUMP}"
+
+# Or check a specific version directly (single package only):
 python3 .github/scripts/release_version.py check --package "${PACKAGE}" --version "${VERSION}"
 ```
 
 It rejects an empty `## Unreleased`, a version that already has a tag, and an
-`a2ui-core` version outside the range that `a2ui-agent-sdk` pins.
+`a2ui-core` version outside the range that `a2ui-agent-sdk` pins. When `--package both`
+is passed with `--bump`, it evaluates both packages and their cross-dependency
+pin compatibility in a single step.
 
 > [!IMPORTANT]
-> That last one is the usual surprise. An `a2ui-core` **minor or major** bump
-> needs the `a2ui-core>=...` pin in
-> [a2ui_agent/pyproject.toml](../../../python/a2ui_agent/pyproject.toml)
-> widened in the same release. That is a code change requiring its own reviewed
-> pull request, so it has to land before the release, not during it. If the
-> check reports this, stop and tell the maintainer what needs widening.
+> If preflight reports that `a2ui-core` falls outside the `a2ui-agent-sdk` pin,
+> stop immediately. This requires widening the `a2ui-core>=...` pin in
+> [a2ui_agent/pyproject.toml](../../../python/a2ui_agent/pyproject.toml) via a reviewed
+> PR merged to `main` before the release can proceed.
 
 ---
 

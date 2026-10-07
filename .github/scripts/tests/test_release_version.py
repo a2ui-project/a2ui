@@ -335,5 +335,91 @@ class NotesCommandTest(unittest.TestCase):
         self.assertEqual(out.strip(), "- Fixed a thing.")
 
 
+class CheckCommandTest(unittest.TestCase):
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.repo_root = self.temp_dir.name
+        # Seed tags for core and agent.
+        subprocess.run(
+            ["git", "init", "-b", "main"],
+            cwd=self.repo_root,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"], cwd=self.repo_root, check=True
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@test.local"],
+            cwd=self.repo_root,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "--allow-empty", "-m", "Initial"],
+            cwd=self.repo_root,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "tag", "python/a2ui-core/v0.2.0"], cwd=self.repo_root, check=True
+        )
+        subprocess.run(
+            ["git", "tag", "python/a2ui-agent-sdk/v0.7.0"],
+            cwd=self.repo_root,
+            check=True,
+        )
+
+        for pkg in (rv.CORE, rv.AGENT):
+            path = os.path.join(self.repo_root, pkg.changelog_path)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write("# Changelog\n\n## Unreleased\n\n- Something new.\n")
+
+        agent_pyproject = os.path.join(self.repo_root, rv.AGENT.pyproject_path)
+        os.makedirs(os.path.dirname(agent_pyproject), exist_ok=True)
+        with open(agent_pyproject, "w", encoding="utf-8") as handle:
+            handle.write(
+                '[project]\nname = "a2ui-agent-sdk"\ndependencies = [\n'
+                '  "a2ui-core>=0.2.0,<0.3.0",\n]\n'
+            )
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def _run(self, args: list[str]) -> tuple[int, str, str]:
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = rv.main(["check", *args, "--repo-root", self.repo_root])
+        return code, out.getvalue(), err.getvalue()
+
+    def test_single_package_with_version_success(self):
+        code, out, _ = self._run(["--package", "a2ui-core", "--version", "0.2.1"])
+        self.assertEqual(code, 0)
+        self.assertIn("Preflight checks passed for a2ui-core 0.2.1", out)
+
+    def test_single_package_with_bump_success(self):
+        code, out, _ = self._run(["--package", "a2ui-core", "--bump", "patch"])
+        self.assertEqual(code, 0)
+        self.assertIn("Preflight checks passed for a2ui-core 0.2.1", out)
+
+    def test_both_packages_with_patch_bump_success(self):
+        code, out, _ = self._run(["--package", "both", "--bump", "patch"])
+        self.assertEqual(code, 0)
+        self.assertIn("Preflight checks passed for a2ui-core 0.2.1", out)
+        self.assertIn("Preflight checks passed for a2ui-agent-sdk 0.7.1", out)
+
+    def test_both_packages_without_bump_errors(self):
+        code, _, err = self._run(["--package", "both"])
+        self.assertEqual(code, 2)
+        self.assertIn("--bump is required when --package is 'both'", err)
+
+    def test_both_packages_with_minor_bump_catches_pin_violation(self):
+        code, out, err = self._run(["--package", "both", "--bump", "minor"])
+        self.assertEqual(code, 1)
+        self.assertIn("falls outside the a2ui-core>=0.2.0,<0.3.0 range", err)
+        self.assertIn("Preflight checks passed for a2ui-agent-sdk 0.8.0", out)
+
+
 if __name__ == "__main__":
     unittest.main()
