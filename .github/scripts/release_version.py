@@ -359,6 +359,61 @@ def check_environment(repo_root: str, is_custom_repo_root: bool = False) -> list
                 "'gh' is not authenticated. Run 'gh auth login' before releasing."
             )
 
+    # 5. Check for uncommitted changes in releasable package directories.
+    status_proc = subprocess.run(
+        ["git", "status", "--porcelain", "python/a2ui_core", "python/a2ui_agent"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+    if status_proc.returncode == 0 and status_proc.stdout.strip():
+        problems.append(
+            "Uncommitted changes detected in python/a2ui_core or python/a2ui_agent."
+            " Commit or stash them so the local preview matches what the workflow on"
+            " main will release."
+        )
+
+    # 6. Check for outstanding release/changelog-* branches on origin or upstream.
+    for remote in ("origin", "upstream"):
+        ls_proc = subprocess.run(
+            ["git", "ls-remote", "--heads", remote, "release/changelog-*"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+        )
+        if ls_proc.returncode == 0 and ls_proc.stdout.strip():
+            branches = [
+                line.split()[-1].removeprefix("refs/heads/")
+                for line in ls_proc.stdout.splitlines()
+                if line.strip()
+            ]
+            problems.append(
+                f"Outstanding changelog branch(es) found on {remote}:"
+                f" {', '.join(branches)}. The previous release changelog PR must be"
+                " merged before starting a new release."
+            )
+            break
+
+    # 7. Check if local branch is behind origin/main (warn if behind).
+    rev_proc = subprocess.run(
+        ["git", "rev-list", "--count", "HEAD..origin/main"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+    if rev_proc.returncode == 0:
+        try:
+            behind_count = int(rev_proc.stdout.strip())
+            if behind_count > 0:
+                print(
+                    f"warning: local branch is behind origin/main by {behind_count}"
+                    " commit(s). Consider running 'git pull' or 'git fetch origin main"
+                    " --tags' to ensure your local preview is current.",
+                    file=sys.stderr,
+                )
+        except ValueError:
+            pass
+
     return problems
 
 

@@ -476,6 +476,36 @@ class CheckEnvironmentTest(unittest.TestCase):
         problems = rv.check_environment(self.repo_root, is_custom_repo_root=False)
         self.assertTrue(any("not the repository root" in p for p in problems))
 
+    def test_environment_check_detects_uncommitted_changes(self):
+        core_changelog = os.path.join(self.repo_root, rv.CORE.changelog_path)
+        os.makedirs(os.path.dirname(core_changelog), exist_ok=True)
+        with open(core_changelog, "w", encoding="utf-8") as handle:
+            handle.write("# Uncommitted change\n")
+        problems = rv.check_environment(self.repo_root, is_custom_repo_root=True)
+        self.assertTrue(any("Uncommitted changes detected" in p for p in problems))
+
+    def test_environment_check_detects_outstanding_changelog_branch(self):
+        with mock.patch("subprocess.run") as mock_run:
+
+            def side_effect(cmd, **kwargs):
+                if "ls-remote" in cmd:
+                    return subprocess.CompletedProcess(
+                        args=cmd,
+                        returncode=0,
+                        stdout="abc1234\trefs/heads/release/changelog-20261007\n",
+                        stderr="",
+                    )
+                return subprocess.CompletedProcess(
+                    args=cmd,
+                    returncode=0,
+                    stdout="test",
+                    stderr="",
+                )
+
+            mock_run.side_effect = side_effect
+            problems = rv.check_environment(self.repo_root, is_custom_repo_root=True)
+            self.assertTrue(any("Outstanding changelog branch" in p for p in problems))
+
 
 if __name__ == "__main__":
     unittest.main()
