@@ -30,6 +30,7 @@ renderers/lit/a2ui_explorer/src/generated/**
 renderers/react/a2ui_explorer/src/generated/**
 typescript/a2ui_agent/src/inference-formats/express/generated/**
 renderers/*/a2ui_explorer/public/a2ui-sandbox/**
+renderers/*/a2ui_explorer/public/a2ui-fixtures/**
 typescript/catalogs/mcp/tests/fixtures/generated/**
 .next
 **/.next

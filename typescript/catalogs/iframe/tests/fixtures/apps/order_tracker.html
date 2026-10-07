@@ -1,0 +1,137 @@
+<!--
+ Copyright 2024 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     https://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Order tracker</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 16px;
+      }
+      ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      li {
+        margin-bottom: 8px;
+      }
+      button {
+        font: inherit;
+        padding: 4px 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <ul id="orders"></ul>
+    <script>
+      // The application the catalog example catalogs/iframe/examples/url-order-tracker.json points
+      // at (its test swaps the example's placeholder URL for this file). It receives the orders
+      // through the "orders" binding, keeps the "summary" binding in sync and reports selected and
+      // delivered orders as actions.
+      var STATUSES = ['processing', 'shipped', 'delivered'];
+      var port = null;
+      var orders = [];
+      var lastStatusById = {};
+
+      function send(message) {
+        port.postMessage(message);
+      }
+
+      function applyOrdersUpdate(msg) {
+        if (!msg.subpath) {
+          orders = msg.value || [];
+          return;
+        }
+        // The host diffs the array and sends each changed order as a subpath update such as "/1".
+        var index = Number(msg.subpath.split('/')[1]);
+        if (msg.value === undefined) {
+          orders.splice(index, 1);
+        } else {
+          orders[index] = msg.value;
+        }
+      }
+
+      function summarize() {
+        return STATUSES.map(function (status) {
+          var count = orders.filter(function (order) {
+            return order.status === status;
+          }).length;
+          return count ? count + ' ' + status : '';
+        })
+          .filter(Boolean)
+          .join(', ');
+      }
+
+      function render() {
+        var list = document.getElementById('orders');
+        list.textContent = '';
+        orders.forEach(function (order) {
+          var button = document.createElement('button');
+          button.textContent = order.id + ' - ' + order.status;
+          button.addEventListener('click', function () {
+            send({type: 'a2ui_action', action: 'order_selected', data: {orderId: order.id}});
+          });
+          var item = document.createElement('li');
+          item.appendChild(button);
+          list.appendChild(item);
+        });
+      }
+
+      function ordersChanged() {
+        orders.forEach(function (order) {
+          var lastStatus = lastStatusById[order.id];
+          if (order.status === 'delivered' && lastStatus && lastStatus !== 'delivered') {
+            send({type: 'a2ui_action', action: 'order_delivered', data: {orderId: order.id}});
+          }
+        });
+        lastStatusById = {};
+        orders.forEach(function (order) {
+          lastStatusById[order.id] = order.status;
+        });
+        render();
+        // "summary" is listed in mutableData, so the host writes it back to /summary.
+        send({type: 'a2ui_data_model_change', key: 'summary', value: summarize()});
+        send({type: 'a2ui_size_changed', height: document.body.scrollHeight + 32});
+      }
+
+      function onPortMessage(event) {
+        var msg = event.data || {};
+        if (msg.type === 'a2ui_data_model_update' && msg.key === 'orders') {
+          applyOrdersUpdate(msg);
+          ordersChanged();
+        }
+      }
+
+      // Only the handshake travels over the ambient window channel. Everything after it uses
+      // the MessagePort transferred with a2ui_app_frame_init.
+      window.addEventListener('message', function (event) {
+        if (event.source !== window.parent) return;
+        var msg = event.data || {};
+        if (msg.type !== 'a2ui_app_frame_init' || !event.ports || !event.ports[0]) return;
+        port = event.ports[0];
+        port.onmessage = onPortMessage;
+        var initial = (msg.value && msg.value.initialData) || {};
+        orders = initial.orders || [];
+        ordersChanged();
+      });
+
+      window.parent.postMessage({type: 'a2ui_app_frame_ready'}, '*');
+    </script>
+  </body>
+</html>

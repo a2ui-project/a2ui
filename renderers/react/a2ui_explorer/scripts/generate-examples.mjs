@@ -42,6 +42,12 @@ const EXTRA_EXAMPLES = [
     key: 'srcdoc-tip-calculator.json',
     relativePath: '../../../../../catalogs/iframe/examples/srcdoc-tip-calculator.json',
   },
+  {
+    key: 'url-order-tracker.json',
+    relativePath: '../../../../../catalogs/iframe/examples/url-order-tracker.json',
+    rewritePlaceholderUrl: 'https://example.com/a2ui-apps/order-tracker/',
+    fixturePath: '/a2ui-fixtures/apps/order_tracker.html',
+  },
 ];
 const OUT_FILE = path.resolve(import.meta.dirname, '../src/generated/examples-list.ts');
 
@@ -97,8 +103,14 @@ function generateExamplesBundle() {
   EXTRA_EXAMPLES.forEach((extra, index) => {
     const variableName = `extra_example_${index}`;
     imports.push(`import ${variableName} from '${extra.relativePath}';`);
-    v09Entries.push(`  '${extra.key}': { default: ${variableName} }`);
-    v10Entries.push(`  '${extra.key}': { default: ${variableName} }`);
+    if (extra.rewritePlaceholderUrl && extra.fixturePath) {
+      const rewrittenEntry = `  '${extra.key}': { default: JSON.parse(JSON.stringify(${variableName}).replaceAll(${JSON.stringify(extra.rewritePlaceholderUrl)}, \`\${typeof window !== 'undefined' ? window.location.origin : 'http://localhost'}\${${JSON.stringify(extra.fixturePath)}}\`)) }`;
+      v09Entries.push(rewrittenEntry);
+      v10Entries.push(rewrittenEntry);
+    } else {
+      v09Entries.push(`  '${extra.key}': { default: ${variableName} }`);
+      v10Entries.push(`  '${extra.key}': { default: ${variableName} }`);
+    }
   });
 
   const content = `/**

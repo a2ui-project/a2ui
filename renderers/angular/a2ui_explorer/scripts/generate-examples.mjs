@@ -68,6 +68,10 @@ const IFRAME_EXAMPLES = [
     filePath: '../../../catalogs/iframe/examples/srcdoc-tip-calculator.json',
     catalog: 'iframe',
   },
+  {
+    filePath: '../../../catalogs/iframe/examples/url-order-tracker.json',
+    catalog: 'iframe',
+  },
 ];
 
 function readExampleFile(filePath, catalog, version) {
@@ -176,9 +180,19 @@ import { Example, Example_08 } from '../types';
 
 export const EXAMPLES_V08: Example_08[] = JSON.parse(${JSON.stringify(JSON.stringify(examplesV08))});
 
-export const EXAMPLES_V09: Example[] = JSON.parse(${JSON.stringify(JSON.stringify(examplesV09))});
+export const EXAMPLES_V09: Example[] = JSON.parse(
+  ${JSON.stringify(JSON.stringify(examplesV09))}.replaceAll(
+    'https://example.com/a2ui-apps/order-tracker/',
+    \`\${typeof window !== 'undefined' ? window.location.origin : 'http://localhost'}/a2ui-fixtures/apps/order_tracker.html\`,
+  ),
+);
 
-export const EXAMPLES_V10: Example[] = JSON.parse(${JSON.stringify(JSON.stringify(examplesV10))});
+export const EXAMPLES_V10: Example[] = JSON.parse(
+  ${JSON.stringify(JSON.stringify(examplesV10))}.replaceAll(
+    'https://example.com/a2ui-apps/order-tracker/',
+    \`\${typeof window !== 'undefined' ? window.location.origin : 'http://localhost'}/a2ui-fixtures/apps/order_tracker.html\`,
+  ),
+);
 
 // Defaults to v0.9
 export const EXAMPLES: Example[] = EXAMPLES_V09;

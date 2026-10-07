@@ -19,6 +19,6 @@ import preset from '../../../eslint.preset.mjs';
 export default [
   ...preset,
   {
-    ignores: ['public/a2ui-sandbox/**', 'src/generated/**'],
+    ignores: ['public/a2ui-sandbox/**', 'public/a2ui-fixtures/**', 'src/generated/**'],
   },
 ];

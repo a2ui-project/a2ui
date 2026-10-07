@@ -35,6 +35,7 @@ The [examples](examples/) directory holds A2UI message sequences that validate a
 - [url-frame.json](examples/url-frame.json) loads an external application with `WebAppFrameUrl`, passing it static configuration and bound data.
 - [srcdoc-host-functions.json](examples/srcdoc-host-functions.json) formats a bound price by calling the basic catalog's `formatCurrency` function through `allowedFunctions`.
 - [srcdoc-tip-calculator.json](examples/srcdoc-tip-calculator.json) is a `WebAppFrameSrcdoc` tip calculator that reads the bill from bound data, writes the total back through `mutableData`, formats it with `formatCurrency` and reports the saved receipt as an action. `typescript/catalogs/iframe/tests/examples/` runs it end to end.
+- [url-order-tracker.json](examples/url-order-tracker.json) is a `WebAppFrameUrl` order tracker that reads the orders from bound data, writes a status summary back through `mutableData` and reports selected and delivered orders as actions. The `url` is a placeholder; `typescript/catalogs/iframe/tests/examples/` runs it end to end against `tests/fixtures/apps/order_tracker.html`.
 
 `specification/scripts/validate.py` validates these examples in CI.
 

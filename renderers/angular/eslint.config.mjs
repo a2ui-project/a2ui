@@ -19,7 +19,7 @@ import preset from '../../eslint.preset.mjs';
 export default [
   ...preset,
   {
-    ignores: ['**/public/a2ui-sandbox/**', '**/src/app/generated/**'],
+    ignores: ['**/public/a2ui-sandbox/**', '**/public/a2ui-fixtures/**', '**/src/app/generated/**'],
   },
   {
     files: ['src/core/**/*.ts', 'src/catalog/**/*.ts', 'src/*.ts'],
