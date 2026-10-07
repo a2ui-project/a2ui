@@ -62,6 +62,14 @@ export const KNOWN_FAILURES = new Map<string, string>([
     name,
     'the stream processor resolves catalogs per surface, not per component (#3030)',
   ]),
+  ...[
+    'test_v1_0_streaming_component_catalog_id_arrives_late',
+    'test_v1_0_streaming_catalog_id_split_across_chunks',
+    'test_v1_0_streaming_component_on_surface_catalog_waits_until_closed',
+  ].map((name): [string, string] => [
+    name,
+    'the stream processor emits a v1.0 component before its object closes (#3030)',
+  ]),
 ]);
 
 /**

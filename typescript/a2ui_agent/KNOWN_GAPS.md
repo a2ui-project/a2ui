@@ -20,6 +20,13 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** On a mixed-catalog surface, a component from another catalog can be held back for missing required properties it doesn't have, or have its child references read with the wrong map.
 - **Done looks like:** A `resolveCatalog(comp)` lookup picks the catalog per component, and `test_v1_0_streaming_multi_catalog_resolution` and `test_v1_0_streaming_component_without_catalog_uses_surface_catalog` from `conformance/agent/legacy/streaming_parser.yaml` pass and leave `KNOWN_FAILURES` in `tests/conformance/loader.ts`. Tracked in #3030.
 
+### Stream processor emits v1.0 components before they close
+
+- **What it is:** `DirectJsonStreamProcessorImpl` emits a component as soon as its required properties have arrived, healing partial strings, in every protocol version. From v1.0 a component may name its own `catalogId`, and the key can arrive after the type and properties, so the component has to wait until its object closes. Python's `DirectJsonStreamParser` does this for v1.0 and later, and Dart does it when `bufferIncompleteComponents` is set.
+- **Why it exists:** The buffering landed in Python and Dart first.
+- **What it risks:** A v1.0 component can be emitted and checked against its surface's catalog before a later `catalogId` names the catalog it belongs to, and renderers can redraw a component while its properties are still arriving.
+- **Done looks like:** The stream processor holds a v1.0 component back until its object closes and emits the closed components of a list while the next one arrives, so `test_v1_0_streaming_component_catalog_id_arrives_late`, `test_v1_0_streaming_catalog_id_split_across_chunks` and `test_v1_0_streaming_component_on_surface_catalog_waits_until_closed` from `conformance/agent/legacy/streaming_parser.yaml` pass and leave `KNOWN_FAILURES` in `tests/conformance/loader.ts`. Tracked in #3030.
+
 ### Streamed payloads are not validated against catalogs
 
 - **What it is:** With a `ValidationConfig`, `DirectJsonStreamProcessorImpl` checks each completed envelope against the protocol schema and `allowedMessages`, but not against the active catalogs. A component type or property the catalog doesn't define passes through.
