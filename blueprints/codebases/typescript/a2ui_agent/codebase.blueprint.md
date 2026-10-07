@@ -100,4 +100,3 @@ The Express lexer, parser, and visitor in `src/inference_formats/express/generat
   - Did an ignored token move from `-> skip` to a hidden channel? Recheck `getText()` callers.
   - Did `NUMBER` (for example gaining an exponent) or string delimiters change? Recheck literal parsing in both visitors and formatting in both decompilers.
   - Were both SDKs regenerated in the same change? The ATN parity test fails until they are.
-
