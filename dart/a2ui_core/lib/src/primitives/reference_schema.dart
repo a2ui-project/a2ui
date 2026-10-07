@@ -15,7 +15,7 @@
 import 'dart:collection';
 import 'dart:convert';
 
-import '../validation/common_types.g.dart';
+import 'common_types.g.dart';
 
 /// How a component property names its child components.
 sealed class RefKind {

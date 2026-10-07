@@ -18,11 +18,11 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:meta/meta.dart';
 
 import '../core/catalog.dart';
+import '../primitives/common_types.g.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/schema_resolution.dart';
 import '../primitives/semver.dart';
-import 'common_types.g.dart';
 import 'component_refs.dart';
 
 /// Verifies an item in an agent-to-renderer payload.

@@ -32,7 +32,7 @@ import 'dart:io';
 const String source = 'specification/v0_9/json/common_types.json';
 
 /// The file to write, relative to the package directory.
-const String output = 'lib/src/validation/common_types.g.dart';
+const String output = 'lib/src/primitives/common_types.g.dart';
 
 void main() {
   final String json = readSource();

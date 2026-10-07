@@ -39,6 +39,7 @@ export 'src/primitives/cancellation.dart';
 export 'src/primitives/errors.dart';
 // Event notifications for discrete lifecycle events.
 export 'src/primitives/event_notifier.dart';
+export 'src/primitives/expressions.dart';
 // Protocol versions and version compatibility.
 export 'src/primitives/protocol_version.dart';
 // Reactivity (re-exports preact_signals primitives).
@@ -46,9 +47,8 @@ export 'src/primitives/reactivity.dart';
 export 'src/primitives/resolved_binding.dart';
 export 'src/primitives/semver.dart';
 export 'src/primitives/uax31.dart';
+// Processing.
 export 'src/processing/basic_functions.dart';
-export 'src/processing/expressions.dart';
-// Processing & expressions.
 export 'src/processing/processor.dart';
 export 'src/rendering/binder.dart' show ChildNode, maxDynamicChildListSize;
 export 'src/resolution/component_node.dart'

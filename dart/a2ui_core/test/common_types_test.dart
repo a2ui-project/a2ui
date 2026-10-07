@@ -15,7 +15,7 @@
 import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_core/src/validation/common_types.g.dart';
+import 'package:a2ui_core/src/primitives/common_types.g.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
@@ -30,7 +30,7 @@ void main() {
       expect(
         commonTypesV0_9Json,
         specification,
-        reason: 'lib/src/validation/common_types.g.dart has drifted from the '
+        reason: 'lib/src/primitives/common_types.g.dart has drifted from the '
             'specification. Run `dart run tool/generate_common_types.dart`.',
       );
     });

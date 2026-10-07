@@ -26,8 +26,8 @@ import '../core/data_context.dart';
 import '../core/validation_result.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
+import '../primitives/expressions.dart';
 import '../primitives/reactivity.dart';
-import '../processing/expressions.dart';
 
 /// Opens [url] on behalf of the basic catalog's `openUrl` function.
 ///
