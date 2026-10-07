@@ -175,10 +175,7 @@ describe('Conformance Harness', () => {
         const expectedObj = expected as Record<string, unknown>;
         const configs = await Promise.all(
           ((testCase.catalogConfigs as Record<string, unknown>[]) || []).map(async cfg => {
-            return await createFileCatalogConfig(
-              cfg.path as string,
-              (testCase.modifiers as string[]) || [],
-            );
+            return await createFileCatalogConfig(cfg.path as string);
           }),
         );
         if (expectedObj.supportedCatalogIds) {

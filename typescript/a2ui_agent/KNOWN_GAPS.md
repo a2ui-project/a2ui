@@ -106,13 +106,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Forces a double cast (`as unknown as Catalog<ComponentApi, FunctionImplementation>[]`) in `processor.ts` when passing schema-only catalogs.
 - **Done looks like:** `MessageProcessor` relaxes its type constraint to allow omitting `FunctionImplementation` when no action handler is provided.
 
-### Local shim for a missing schema modifier
-
-- **What it is:** `RemoveStrictValidationTransformer` is shimmed in `tests/conformance/fixtures.ts`.
-- **Why it exists:** The conformance suite relies on the `remove_strict_validation` modifier, but `web_core` doesn't export common schema modifiers yet.
-- **What it risks:** A duplicate definition that might fall out of sync with future core updates. It is tagged `TODO(web_core)` and listed in the README shim table.
-- **Done looks like:** `web_core` exports an equivalent schema modifier, and the local shim is deleted.
-
 ### Catalog loader keeps a second copy of the common types map
 
 - **What it is:** `schema_loader.ts` resolves protocol `$ref`s through its own `COMMON_TYPE_SCHEMAS` table, a partial copy of the complete `CommonSchemas` map that `types/common-types.ts` already exports.

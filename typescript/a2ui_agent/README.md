@@ -39,13 +39,9 @@ both SDKs.
 
 ## Temporary shims
 
-| Symbol                              | Stands in for                          | Why                                                                                                                          | Remove when                                     |
-| :---------------------------------- | :------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------- |
-| `RemoveStrictValidationTransformer` | a `web_core` catalog schema modifier   | The conformance suite declares a `remove_strict_validation` modifier, but `web_core` exposes no common schema modifiers yet. | `web_core` exports an equivalent transformer.   |
-| `MessageProcessor` type cast        | A generic parameter constraint relaxer | `MessageProcessor` implicitly requires `Catalog<any, FunctionImplementation>` even without an action handler.                | `MessageProcessor` relaxes its type constraint. |
-
-Defined in `tests/conformance/fixtures.ts` rather than `src/`, so the shim audit covers both
-`src/` and `tests/`.
+| Symbol                       | Stands in for                          | Why                                                                                                           | Remove when                                     |
+| :--------------------------- | :------------------------------------- | :------------------------------------------------------------------------------------------------------------ | :---------------------------------------------- |
+| `MessageProcessor` type cast | A generic parameter constraint relaxer | `MessageProcessor` implicitly requires `Catalog<any, FunctionImplementation>` even without an action handler. | `MessageProcessor` relaxes its type constraint. |
 
 ## Known limitations
 
