@@ -77,17 +77,12 @@ typedef _CheckedBatch = ({
 ///
 /// Validation runs per message. Envelopes are checked as the payload is
 /// parsed, a surface's theme and catalog version when the surface is created,
-/// and each batch of components twice before any of it is applied: every
-/// component against its catalog's schema, then the surface the batch would
-/// leave behind (the components already there, with the batch applied on top)
-/// as one graph. [validationConfig] governs which graph checks run; see
-/// [ValidationConfig].
-///
-/// Graph checks run even under [ValidationConfig.none], which turns off only
-/// the schema checks: duplicate ids, cycles and depth always, and the root,
-/// references and reachability as [ValidationConfig.none]'s strict flags
-/// require. That is stricter than TypeScript, whose processor skips every
-/// check without a config, and matches Python.
+/// and each batch of components before any of it is applied: duplicate ids
+/// within the batch, every component against its catalog's schema, and, when
+/// the processor has a [validationConfig], the surface the batch would leave
+/// behind (the components already there, with the batch applied on top) as
+/// one graph. Without a config the graph is not checked, so a surface may
+/// arrive across several messages in any order; see [ValidationConfig].
 class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> groupModel;
   final List<Catalog<T, FunctionImplementation>> catalogs;
@@ -113,14 +108,16 @@ class MessageProcessor<T extends ComponentApi> {
   /// Pass an empty map to leave the shared types unchecked.
   final Map<String, Object?>? commonTypesSchema;
 
-  /// Which checks each message must pass.
+  /// Which checks each message must pass, or null, the default, for none of
+  /// the graph checks.
   ///
-  /// Defaults to [ValidationConfig.strict]: every `updateComponents` must
-  /// leave its surface a complete graph, with a root, references that resolve
-  /// and every component reachable from the root. A caller whose transport
-  /// delivers one surface across several messages relaxes the checks that span
-  /// them; see [ValidationConfig].
-  final ValidationConfig validationConfig;
+  /// With a config, every `updateComponents` must leave its surface a graph
+  /// the config's flags accept; [ValidationConfig.strict] requires a root,
+  /// references that resolve and every component reachable from the root,
+  /// which a surface delivered across several messages satisfies only once
+  /// the last of them has arrived. Without a config, duplicate ids within a
+  /// batch and the schemas of declared component types are still checked.
+  final ValidationConfig? validationConfig;
 
   /// One validator per catalog and protocol version, built on first use.
   final Map<(String, A2uiProtocolVersion),
@@ -132,13 +129,13 @@ class MessageProcessor<T extends ComponentApi> {
   MessageProcessor({
     required this.catalogs,
     this.defaultVersion,
-    this.validationConfig = ValidationConfig.strict,
+    this.validationConfig,
     this.commonTypesSchema,
     VersionAdapterRegistry? adapterRegistry,
     void Function(A2uiClientAction)? onAction,
   })  : adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
         groupModel = SurfaceGroupModel<T>() {
-    final A2uiProtocolVersion? target = validationConfig.targetVersion;
+    final A2uiProtocolVersion? target = validationConfig?.targetVersion;
     final A2uiProtocolVersion? defaultVersion = this.defaultVersion;
     if (target != null && defaultVersion != null && target != defaultVersion) {
       throw A2uiValidationError(
@@ -175,7 +172,9 @@ class MessageProcessor<T extends ComponentApi> {
           catalog: catalog,
           commonTypesSchema: commonTypesSchema,
           protocolVersion: version,
-          allowUnknownElements: validationConfig.allowUnknownElements,
+          // Without a config nothing is being validated against the graph,
+          // and an undeclared type is tolerated too.
+          allowUnknownElements: validationConfig?.allowUnknownElements ?? true,
         ),
       );
 
@@ -208,21 +207,22 @@ class MessageProcessor<T extends ComponentApi> {
   /// whole. Each message is then checked as it is applied, against the
   /// surface state the earlier messages left behind, and a message that fails
   /// leaves its surface as it was. For components that means each against the
-  /// catalog it belongs to, then the surface they would leave behind against
-  /// [validationConfig]: a payload that declares a parent in one
+  /// catalog it belongs to, then, under a [validationConfig], the surface they
+  /// would leave behind: a payload that declares a parent in one
   /// `updateComponents` and its child in a later one needs
-  /// [ValidationConfig.allowDanglingReferences], or both in one message.
+  /// [ValidationConfig.allowDanglingReferences], or both in one message, or
+  /// no config.
   ///
   /// Throws [A2uiValidationError] for a payload of any other shape, an
   /// envelope that is not a well-formed message of the version it declares, a
   /// version no adapter in [adapterRegistry] serves, a component that does not
   /// match its catalog, or a message [ValidationConfig.allowedMessages] does
   /// not list; [A2uiIntegrityError] for a message naming a surface that does
-  /// not exist, a missing root, a duplicate id, a reference to no component or
-  /// an unreachable component; [A2uiRecursionError] for a cycle or an
-  /// over-deep chain; and [A2uiCatalogError] for a catalog this processor does
-  /// not support, or one whose `protocolVersion` is missing or incompatible
-  /// with the message creating a surface.
+  /// not exist, a duplicate id, and under a config a missing root, a reference
+  /// to no component or an unreachable component; [A2uiRecursionError] under a
+  /// config for a cycle or an over-deep chain; and [A2uiCatalogError] for a
+  /// catalog this processor does not support, or one whose `protocolVersion`
+  /// is missing or incompatible with the message creating a surface.
   void processMessages(Object? payload) {
     final List<_RoutedMessage> routed = [
       for (final Object? item in _itemsOf(payload)) _route(item),
@@ -292,7 +292,7 @@ class MessageProcessor<T extends ComponentApi> {
   }
 
   void _apply(_RoutedMessage message) {
-    final List<String>? allowed = validationConfig.allowedMessages;
+    final List<String>? allowed = validationConfig?.allowedMessages;
     if (allowed != null) {
       for (final InternalOperation operation in message.operations) {
         if (!allowed.contains(operation.messageType)) {
@@ -305,8 +305,11 @@ class MessageProcessor<T extends ComponentApi> {
     }
 
     // Data-model paths and nested function calls, which need no surface state
-    // and so are checked for every message before it is applied.
-    checkPathsAndRecursion(message.json);
+    // and so are checked for every message before it is applied. Part of the
+    // validation a config turns on.
+    if (validationConfig != null) {
+      checkPathsAndRecursion(message.json);
+    }
 
     for (final InternalOperation operation in message.operations) {
       _execute(operation);
@@ -362,8 +365,7 @@ class MessageProcessor<T extends ComponentApi> {
 
     // The theme arrives once, with the surface, so it is checked here rather
     // than on every later message. v1.0 has no theme.
-    if (validationConfig.validateSchemas &&
-        !operation.version.isAtLeast(A2uiProtocolVersion.v1_0)) {
+    if (!operation.version.isAtLeast(A2uiProtocolVersion.v1_0)) {
       validatorFor(catalog, version: operation.version)
           .validateTheme(operation.theme);
     }
@@ -374,7 +376,7 @@ class MessageProcessor<T extends ComponentApi> {
       theme: operation.theme ?? {},
       sendDataModel: operation.sendDataModel,
       protocolVersion: operation.version.jsonValue,
-      rootId: validationConfig.rootId ?? 'root',
+      rootId: validationConfig?.rootId ?? 'root',
     );
 
     _CheckedBatch? batch;
@@ -490,6 +492,8 @@ class MessageProcessor<T extends ComponentApi> {
   /// A surface's graph spans every component on it, and from v1.0 those may
   /// come from several catalogs, so the reference fields are merged over all of
   /// them. The surface's own default wins a name two catalogs both declare.
+  /// Each catalog's fields come from its [Catalog.refMap], the map the node
+  /// resolver mounts children from.
   Map<String, ComponentRefFields> _refFieldsFor(
     String? surfaceCatalogId,
     Iterable<String?> componentCatalogIds,
@@ -535,8 +539,9 @@ class MessageProcessor<T extends ComponentApi> {
   /// Every component in the batch is resolved to a full entry and checked
   /// before any of them is applied, so a batch that is rejected leaves the
   /// surface exactly as it was. Then the surface this batch would leave
-  /// behind is checked as one graph: duplicate ids, the root, references that
-  /// resolve, cycles, depth and reachability, as [validationConfig] requires.
+  /// behind is checked as one graph: duplicate ids, then under a
+  /// [validationConfig] the root, references that resolve, cycles, depth and
+  /// reachability, as its flags require.
   _CheckedBatch _checkComponents(
     SurfaceModel<T> surface,
     List<Map<String, Object?>> components,
@@ -556,12 +561,17 @@ class MessageProcessor<T extends ComponentApi> {
           c['catalogId'] as String?,
       ],
     );
-    model.checkComponentsUpdate(
-      resolved,
-      validationConfig,
-      refFields,
-      defaultRootId: surface.rootId,
-    );
+    final ValidationConfig? config = validationConfig;
+    if (config == null) {
+      checkDuplicateComponentIds(resolved);
+    } else {
+      model.checkComponentsUpdate(
+        resolved,
+        config,
+        refFields,
+        defaultRootId: surface.rootId,
+      );
+    }
     return (resolved: resolved, refFields: refFields);
   }
 
@@ -671,9 +681,7 @@ class MessageProcessor<T extends ComponentApi> {
       catalogId,
       surface.catalog.id,
     );
-    if (validationConfig.validateSchemas) {
-      validatorFor(catalog, version: version).validateComponent(full);
-    }
+    validatorFor(catalog, version: version).validateComponent(full);
     return full;
   }
 

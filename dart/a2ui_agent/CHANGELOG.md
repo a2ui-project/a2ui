@@ -5,6 +5,13 @@
 - Payload validation builds its `MessageProcessor` with `defaultVersion`, and
   gives a catalog that declares no `protocolVersion` the v0.9 it validates
   against, now that `a2ui_core` rejects a catalog without one.
+- `A2uiRequestProcessor` checks each example as one render: a surface may
+  arrive across several `updateComponents` messages of the example, and must
+  have a root, resolved references and every component reachable from the
+  root once the whole example is applied. Undeclared component types,
+  duplicate ids, cycles and malformed data-model paths are still rejected per
+  message.
+
 - The Direct JSON message reader and the Express decompiler continue to
   reject a `createSurface` message without a `catalogId` with
   `A2uiValidationError`. The check moved into the agent SDK now that

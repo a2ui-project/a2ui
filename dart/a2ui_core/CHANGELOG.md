@@ -80,6 +80,7 @@
   that declare none. `catalogSchema` emits it and, from `1.0`, names
   functions under `@call` instead of `call`.
 - `SurfaceModel` adds `metadata`, from v1.0 `createSurface`.
+- Support non-ASCII data model keys in templates.
 - **Breaking:** `UpdateDataModelMessage` adds `hasValue` (defaulting to `true`) so `toJson()` emits `'value': null` for explicit null deletions while `fromJson()` distinguishes an omitted `value` from an explicit `null`.
 - **Breaking:** `SurfaceModel.dispatchAction` records action timestamps in UTC (`DateTime.now().toUtc()`) and `A2uiClientAction.toJson()` serializes timestamps in UTC (`timestamp.toUtc().toIso8601String()`) so serialized timestamps always end with `Z` per RFC 3339.
 - **Breaking:** `A2uiClientError` validates in its constructor (not only in debug assertions) that a `VALIDATION_FAILED` error provides a non-empty `path`, throwing `A2uiValidationError`.
@@ -100,22 +101,37 @@
   listeners.
 - Validate `DataBinding`, `FunctionCall`, `Action`, and `ChildListTemplate` fields during JSON deserialization (`A2uiValidationError`), preserve `reservedKeys` (`@path`/`@call`) and `catalogId` across `toJson` (the `@call` form omits `returnType`, which the v1.0 schema does not declare), default `FunctionCall.returnType` to `A2uiReturnType.any`, treat a non-list `checks` value as no rules (as web_core and the Python core do) and guard dynamic map casts against `TypeError`, and throw `A2uiStateError` from `ComponentContext.childContext` and `A2uiCatalogError` from `CatalogInvokerExtension.invoke`.
 - Add `isValidUax31Identifier` and `assertUax31Identifier` for UAX #31 identifier validation, `A2uiErrorDetail`, `cause` chaining on `A2uiError` subclasses, and `code`/`path`/`errors` on `A2uiValidationError`. `A2uiError` now takes `code` as a named parameter, and `A2uiValidationError` aligns its default code to `'VALIDATION_FAILED'`.
-- **Behavior change:** `MessageProcessor` checks the component graph on every
-  `updateComponents` message. It used to check completeness once per payload,
-  and only for the surfaces that payload created. Each batch is applied to a copy of the
-  surface's components first, and the result must pass the root, dangling
-  reference, cycle, depth and reachability checks `validationConfig` requires
-  before anything is committed. A surface streamed across several messages
-  needs `ValidationConfig.relaxed`, or the individual `allow*` flags.
-- **Behavior change:** `ValidationConfig.none` (`validateSchemas: false`) turns
-  off catalog schema checks only. Duplicate-id, cycle, depth, root, dangling
-  reference and reachability checks still run, with strict defaults. This is
-  stricter than the TypeScript SDK, which skips every check without a config,
-  and matches Python.
-- `ValidationConfig` adds `allowUnknownElements`, `validateSchemas`,
-  `targetVersion`, `allowedMessages`, `rootId`, `maxDepth` and the `none`
-  preset. `ValidationConfig.relaxed` now also sets
-  `allowUnknownElements`, matching TypeScript's `RELAXED_VALIDATION`.
+- Add `Catalog.refMap`, a cached `ComponentRefMap` of each component type's
+  child-reference properties. `MessageProcessor` graph validation and
+  `NodeResolver` both read it, so a property the validator checks is one the
+  resolver mounts. `ComponentRefMap`, `RefFields` and the `RefKind` types
+  (`SingleRef`, `ListRef`, `NestedRef`) are now exported.
+- Recognize v1.0 `common_types.json#/$defs/Child` (and `#/$defs/Child`) as a
+  single child reference, for dangling-reference and orphan checks and for
+  resolution.
+- **Behavior change:** `NodeResolver` now mounts an unmarked string `child`
+  and string-array `children`, which graph validation already checked.
+  Previously such a catalog validated but rendered its children as plain ids.
+- **Behavior change:** a dangling id inside a child list is reported with its
+  index (`children[2]` rather than `children`), and only an object with both a
+  string `componentId` and a string `path` is read as a `ChildList` template.
+- **Breaking:** `MessageProcessor.validationConfig` is nullable and defaults
+  to `null`. Without a config the processor still rejects duplicate ids
+  within an `updateComponents` batch and checks declared component types and
+  themes against their catalog schemas, accepts undeclared types, and skips
+  the root, dangling-reference, reachability, cycle, depth and data-model
+  path checks, so a surface may arrive across several messages in any order.
+  `ValidationConfig.strict` is the opt-in to those checks.
+- **Behavior change:** under a `ValidationConfig`, `MessageProcessor` checks
+  the component graph on every `updateComponents` message rather than once
+  per payload. Each batch is applied to a copy of the surface's components
+  first, and the result must pass the root, dangling-reference, cycle, depth
+  and reachability checks the config's flags require before anything is
+  committed. A surface streamed across several messages under a config needs
+  `ValidationConfig.relaxed` or the individual `allow*` flags.
+- `ValidationConfig` adds `allowUnknownElements`, `targetVersion`,
+  `allowedMessages`, `rootId` and `maxDepth`. `ValidationConfig.relaxed` now
+  also sets `allowUnknownElements`.
 - An `updateComponents` entry that omits `component` is checked against the
   existing component's type and catalog schema; its properties still replace
   the existing ones.

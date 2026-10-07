@@ -59,6 +59,8 @@ void main() {
       processor = MessageProcessor<ComponentApi>(
         catalogs: [namedCatalog('cat1', 'Alpha'), namedCatalog('cat2', 'Beta')],
         defaultVersion: A2uiProtocolVersion.v0_9,
+        // Strict, so that a type outside the surface's catalog is rejected.
+        validationConfig: ValidationConfig.strict,
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
@@ -528,22 +530,78 @@ void main() {
       );
     });
 
-    group('ValidationConfig', () {
-      test('none skips schema checks', () {
-        final MessageProcessor processor = processorWith(ValidationConfig.none);
+    group('without a ValidationConfig', () {
+      // The default. Passing no config is the opt-out from the graph checks;
+      // what is settled by the batch alone is still checked.
+      MessageProcessor unchecked() => MessageProcessor(
+            catalogs: [catalog],
+            defaultVersion: A2uiProtocolVersion.v0_9,
+          );
+
+      test('is the default', () {
+        expect(unchecked().validationConfig, isNull);
+      });
+
+      test('accepts a parent whose child arrives in a later message', () {
+        final MessageProcessor processor = unchecked();
         send(processor, [create()]);
         expect(
           () => send(processor, [
             update([
-              {'id': 'root', 'component': 'NoSuchType'},
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': ['later'],
+              },
             ]),
           ]),
           returnsNormally,
         );
+        expect(
+          () => send(processor, [
+            update([
+              {'id': 'later', 'component': 'Text', 'text': 'x'},
+            ]),
+          ]),
+          returnsNormally,
+        );
+        expect(componentsOf(processor).size, 2);
       });
 
-      test('none still rejects a cycle', () {
-        final MessageProcessor processor = processorWith(ValidationConfig.none);
+      test('accepts a parent re-sent with fewer children', () {
+        final MessageProcessor processor = unchecked();
+        send(processor, [
+          create(),
+          update([
+            {
+              'id': 'root',
+              'component': 'Column',
+              'children': ['a', 'b'],
+            },
+            {'id': 'a', 'component': 'Text', 'text': 'a'},
+            {'id': 'b', 'component': 'Text', 'text': 'b'},
+          ]),
+        ]);
+        expect(
+          () => send(processor, [
+            update([
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': ['a'],
+              },
+            ]),
+          ]),
+          returnsNormally,
+        );
+        expect(componentsOf(processor).get('root')!.properties['children'], [
+          'a',
+        ]);
+        expect(componentsOf(processor).get('b'), isNotNull);
+      });
+
+      test('accepts a cycle', () {
+        final MessageProcessor processor = unchecked();
         send(processor, [create()]);
         expect(
           () => send(processor, [
@@ -560,27 +618,71 @@ void main() {
               },
             ]),
           ]),
-          throwsA(isA<A2uiRecursionError>()),
+          returnsNormally,
         );
       });
 
-      test('none still rejects a dangling reference', () {
-        final MessageProcessor processor = processorWith(ValidationConfig.none);
+      test('still rejects a duplicate id within a batch', () {
+        final MessageProcessor processor = unchecked();
         send(processor, [create()]);
         expect(
           () => send(processor, [
             update([
-              {
-                'id': 'root',
-                'component': 'Column',
-                'children': ['missing'],
-              },
+              {'id': 'root', 'component': 'Text', 'text': 'x'},
+              {'id': 'root', 'component': 'Text', 'text': 'y'},
             ]),
           ]),
           throwsA(isA<A2uiIntegrityError>()),
         );
+        expect(componentsOf(processor).get('root'), isNull);
       });
 
+      test('still checks a known type against its schema', () {
+        final MessageProcessor processor = unchecked();
+        send(processor, [create()]);
+        expect(
+          () => send(processor, [
+            update([
+              {'id': 'root', 'component': 'Text', 'text': 42},
+            ]),
+          ]),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
+
+      test('accepts an undeclared type', () {
+        final MessageProcessor processor = unchecked();
+        send(processor, [create()]);
+        expect(
+          () => send(processor, [
+            update([
+              {'id': 'root', 'component': 'NoSuchType'},
+            ]),
+          ]),
+          returnsNormally,
+        );
+      });
+
+      test('accepts a malformed data-model path', () {
+        // The path check belongs to the validation phase a config turns on;
+        // see the strict case above.
+        final MessageProcessor processor = unchecked();
+        send(processor, [create()]);
+        expect(
+          () => send(processor, [
+            UpdateDataModelMessage(
+              version: 'v0.9',
+              surfaceId: 's1',
+              path: 'invalid path [0]',
+              value: 'data',
+            ),
+          ]),
+          returnsNormally,
+        );
+      });
+    });
+
+    group('ValidationConfig', () {
       test('allowUnknownElements accepts an undeclared type', () {
         final UpdateComponentsMessage unknown = update([
           {'id': 'root', 'component': 'NoSuchType'},
@@ -897,7 +999,9 @@ void main() {
         'then metadata', () {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [v10Catalog()],
-        validationConfig: ValidationConfig.none,
+        validationConfig: ValidationConfig.strict,
+        // This package embeds no v1.0 common types yet.
+        commonTypesSchema: const {},
       );
       final events = <String>[];
       final rootValues = <Object?>[];
@@ -972,7 +1076,9 @@ void main() {
     test('an inline createSurface whose components fail creates nothing', () {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [v10Catalog()],
-        validationConfig: ValidationConfig.none,
+        validationConfig: ValidationConfig.strict,
+        // This package embeds no v1.0 common types yet.
+        commonTypesSchema: const {},
       );
       expect(
         () => processor.processMessages({

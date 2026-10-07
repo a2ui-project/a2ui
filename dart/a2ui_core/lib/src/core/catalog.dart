@@ -16,6 +16,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
+import '../primitives/reference_schema.dart';
 import '../primitives/semver.dart';
 import '../validation/schema_resolution.dart';
 import 'contexts.dart';
@@ -151,6 +152,20 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   final Map<String, C> components;
   final Map<String, F> functions;
   final Schema? themeSchema;
+
+  /// Which properties of each component type reference other components.
+  ///
+  /// Graph validation and node resolution both read this map, so a child
+  /// reference the validator checks is one the resolver mounts. It is built
+  /// from [components] and [catalogSchema] on first access and then cached;
+  /// a catalog is not expected to change its components after that.
+  late final ComponentRefMap refMap = ComponentRefMap(
+    {
+      for (final MapEntry<String, C> entry in components.entries)
+        entry.key: entry.value.schema.value,
+    },
+    document: catalogSchema,
+  );
 
   Catalog({
     required this.id,

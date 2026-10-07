@@ -44,13 +44,9 @@ const Map<String, String> _v10ExpectedFailures = {
       'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_incremental_update_without_root':
       'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_invalid_binding_path_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_multi_surface_independent_roots':
       'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_multi_surface_missing_root_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_recursion_limit_function_call_depth_exceeded_error':
       'The v1.0 common types and validator rules are not embedded yet.',
   'test_v10_topology_circular_reference_error':
       'The v1.0 common types and validator rules are not embedded yet.',
@@ -205,6 +201,9 @@ void _runCase(Map<String, Object?> testCase) {
       version,
     ),
     commonTypesSchema: _commonTypesFor(testCase),
+    // The validator cases are about what a renderer rejects, so the graph
+    // checks are on, as in the other SDKs' harnesses.
+    validationConfig: ValidationConfig.strict,
   );
 
   for (var stepIndex = 0; stepIndex < steps.length; stepIndex++) {
