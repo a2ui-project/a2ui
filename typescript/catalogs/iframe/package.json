@@ -118,6 +118,8 @@
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
+        "tests/**",
+        "../../../catalogs/iframe/examples/*.json",
         "tsconfig.json",
         "tsconfig.test.json"
       ],
@@ -132,6 +134,8 @@
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
+        "tests/**",
+        "../../../catalogs/iframe/examples/*.json",
         "karma.conf.cjs",
         "tsconfig.test.json"
       ],
@@ -147,6 +151,7 @@
       "files": [
         "src/**/*.ts",
         "src/**/*.json",
+        "tests/**",
         "scripts/**",
         "*.mjs",
         "*.cjs",
