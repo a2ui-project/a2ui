@@ -28,11 +28,11 @@ import {readInboundMessage, TaskEvents, toA2aParts} from './a2a.js';
 import type {BasicCatalogs} from './catalogs.js';
 import type {A2uiFormat} from './config.js';
 import {loadExamples} from './examples.js';
-import {LruCache} from './lru_cache.js';
+import {LruCache} from './lru-cache.js';
 import type {ModelBackend, TurnInput} from './model.js';
-import {pickA2ui} from './pick_a2ui.js';
+import {pickA2ui} from './pick-a2ui.js';
 import {buildSystemPrompt, FALLBACK_TEXT, retryQuery} from './prompt.js';
-import {buildUserQuery} from './user_query.js';
+import {buildUserQuery} from './user-query.js';
 import {VERSIONS, type VersionProfile} from './versions.js';
 
 /** How many times a turn is tried: once, plus one retry after a validation failure, as in Python. */

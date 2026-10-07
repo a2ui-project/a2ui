@@ -21,7 +21,7 @@ import {
   A2uiCompilationValidationError,
   A2uiError,
 } from '../../src/errors.js';
-import type {ResponsePart} from '../../src/parser/response_part.js';
+import type {ResponsePart} from '../../src/parser/response-part.js';
 
 describe('A2uiCompilationError', () => {
   it('formats message with message only', () => {

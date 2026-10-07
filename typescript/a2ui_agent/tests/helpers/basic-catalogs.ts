@@ -24,7 +24,7 @@
 import * as path from 'path';
 import {fileURLToPath} from 'url';
 
-import {CatalogApi} from '../../src/internal/web_core.js';
+import {CatalogApi} from '../../src/internal/web-core.js';
 import {FileSystemCatalogProvider} from '../../src/index.js';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');

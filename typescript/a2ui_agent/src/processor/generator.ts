@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import {CatalogConfig} from './catalog_config.js';
-import {RendererCapabilities, AgentToRendererMessage} from '../internal/web_core.js';
+import {CatalogConfig} from './catalog-config.js';
+import {RendererCapabilities, AgentToRendererMessage} from '../internal/web-core.js';
 import {InferenceFormatFactory} from '../inference-format.js';
 import {A2uiRequestProcessor} from './processor.js';
-import {resolveCatalogs} from '../utils/catalog_resolver.js';
-import {DirectJsonFormatFactory} from '../inference_formats/direct_json/format.js';
+import {resolveCatalogs} from '../utils/catalog-resolver.js';
+import {DirectJsonFormatFactory} from '../inference-formats/direct-json/format.js';
 import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 
 /**

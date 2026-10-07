@@ -15,10 +15,11 @@
  */
 
 import * as fs from 'fs';
-import {CatalogConfig, InMemoryCatalogProvider} from '../../src/index.js';
 import * as path from 'path';
+
+import {CatalogConfig, InMemoryCatalogProvider} from '../../src/index.js';
 import {ProtocolVersion} from '../../src/types.js';
-import {toWireProtocolVersion} from '../../src/utils/protocol_version.js';
+import {toWireProtocolVersion} from '../../src/utils/protocol-version.js';
 import {CONFORMANCE_ROOT} from './loader.js';
 
 export async function createCatalogConfig(

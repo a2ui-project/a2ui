@@ -17,7 +17,7 @@
 import {describe, expect} from 'vitest';
 
 import {resolveCatalogs} from '../../src/index.js';
-import {RendererCapabilities} from '../../src/internal/web_core.js';
+import {RendererCapabilities} from '../../src/internal/web-core.js';
 import {loadCases} from './loader.js';
 import {
   CatalogRegistration,

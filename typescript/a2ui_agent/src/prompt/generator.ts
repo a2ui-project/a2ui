@@ -15,7 +15,7 @@
  */
 
 import {A2uiCatalogError} from '../errors.js';
-import {CatalogApi} from '../internal/web_core.js';
+import {CatalogApi} from '../internal/web-core.js';
 
 /**
  * Abstract base class for format-specific prompt generation.

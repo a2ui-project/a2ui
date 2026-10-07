@@ -23,7 +23,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {fileURLToPath} from 'url';
 
-import {Catalog, CatalogApi} from '../../src/internal/web_core.js';
+import {Catalog, CatalogApi} from '../../src/internal/web-core.js';
 import {registerCatalogDocument} from '../../src/utils/catalog-document.js';
 
 /** A catalog document, with the two maps tests most often reach into. */
