@@ -2315,6 +2315,7 @@ function validateDispatchActionTestCase(testCase) {
     scope,
     expectDispatched,
     expectDataModel,
+    expectDispatchedErrors,
     expectError,
     expect_error,
   } = testCase;
@@ -2327,6 +2328,8 @@ function validateDispatchActionTestCase(testCase) {
 
   const dispatched = [];
   surface.onAction.subscribe(evt => dispatched.push(evt));
+  const dispatchedErrors = [];
+  surface.onError.subscribe(err => dispatchedErrors.push(err));
 
   const ctx = new DataContext(surface, scope || '/');
 
@@ -2352,7 +2355,13 @@ function validateDispatchActionTestCase(testCase) {
       assert.strictEqual(actual.name, expectDispatched.name);
     }
     if ('context' in expectDispatched) {
-      assert.deepStrictEqual(actual.context, expectDispatched.context);
+      // A function call that failed resolves to `undefined` here (web_core's
+      // own convention for a failed expression), while the shared fixture
+      // writes the SDK-neutral `null`; normalize before comparing.
+      const actualContext = Object.fromEntries(
+        Object.entries(actual.context ?? {}).map(([k, v]) => [k, v === undefined ? null : v]),
+      );
+      assert.deepStrictEqual(actualContext, expectDispatched.context);
     }
     if ('userMessage' in expectDispatched) {
       assert.strictEqual(actual.userMessage, expectDispatched.userMessage);
@@ -2361,6 +2370,18 @@ function validateDispatchActionTestCase(testCase) {
 
   if (expectDataModel !== undefined) {
     assert.deepStrictEqual(model.get('/'), expectDataModel);
+  }
+
+  if (expectDispatchedErrors !== undefined) {
+    assert.strictEqual(
+      dispatchedErrors.length,
+      expectDispatchedErrors.length,
+      `Expected ${expectDispatchedErrors.length} dispatched error(s), got ${dispatchedErrors.length}`,
+    );
+    expectDispatchedErrors.forEach((expectedErr, i) => {
+      assert.strictEqual(dispatchedErrors[i].code, expectedErr.code);
+      assert.strictEqual(dispatchedErrors[i].surfaceId, surfaceId);
+    });
   }
 }
 
