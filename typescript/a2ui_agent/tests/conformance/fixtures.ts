@@ -92,12 +92,8 @@ export async function createFileCatalogConfig(
 }
 
 /**
- * TEMPORARY: RemoveStrictValidationTransformer
- * TODO(web_core) Implement common schema modifiers in web_core
- * Removal steps:
- * 1. Wait for @a2ui/web_core to export `RemoveStrictValidationTransformer`.
- * 2. Delete this class.
- * 3. Import `RemoveStrictValidationTransformer` from `../../src/internal/web_core.js`.
+ * Conformance test helper for the legacy `test_manager_with_modifiers` case in
+ * `conformance/agent/legacy/inference_format.yaml`. Remove when `agent/legacy/` is retired.
  */
 export class RemoveStrictValidationTransformer implements CatalogTransformer {
   transform(catalog: CatalogApi): CatalogApi {
