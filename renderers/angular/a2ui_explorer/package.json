@@ -38,6 +38,7 @@
         "copy-sandbox",
         "generate-examples",
         "../../../typescript/web_core:build",
+        "../../../typescript/catalogs/iframe:build",
         "../../../typescript/catalogs/mcp:build",
         "../../markdown/markdown-it:build",
         "../:build"
@@ -55,6 +56,7 @@
         "../../../specification/v0_8/json/catalogs/**/*.json",
         "../../../specification/v0_9/catalogs/**/*.json",
         "../../../catalogs/basic/v1/examples/*.json",
+        "../../../catalogs/iframe/examples/*.json",
         "../../../catalogs/mcp/v1/examples/*.json",
         "scripts/generate-examples.mjs"
       ],
@@ -92,6 +94,7 @@
   },
   "dependencies": {
     "@a2ui/angular": "workspace:*",
+    "@a2ui/catalog-iframe": "workspace:*",
     "@a2ui/catalog-mcp": "workspace:*",
     "@a2ui/markdown-it": "*",
     "@a2ui/web_core": "workspace:*",

@@ -38,7 +38,7 @@ import {AgentStubService} from './agent-stub.service';
 import {AgentStubV08Service} from './agent-stub-v08.service';
 import {AgentStubV09Service} from './agent-stub-v09.service';
 import {provideMarkdownRenderer, Surface as SurfaceV08} from '@a2ui/angular/v0_8';
-import {DemoCatalog, DemoCatalogV10, McpDemoCatalog} from './demo-catalog';
+import {DemoCatalog, DemoCatalogV10, IframeDemoCatalog, McpDemoCatalog} from './demo-catalog';
 import {A2uiClientAction, A2uiMessage} from '@a2ui/web_core/v0_9';
 import {ServerToClientMessage} from 'src/v0_8/types';
 import {A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version} from './types';
@@ -886,17 +886,19 @@ function getUseUniversalComponents(): boolean {
       useFactory: (
         catalog: AngularCatalog,
         catalogV10: DemoCatalogV10,
+        iframeDemoCatalog: IframeDemoCatalog,
         mcpDemoCatalog: McpDemoCatalog,
         dispatcher: ActionDispatcher,
         injectedUniversal: boolean,
       ) => ({
-        catalogs: [catalog, catalogV10, mcpDemoCatalog],
+        catalogs: [catalog, catalogV10, iframeDemoCatalog, mcpDemoCatalog],
         useUniversalComponents: getUseUniversalComponents() || injectedUniversal,
         actionHandler: (action: A2uiClientAction) => dispatcher.dispatch(action),
       }),
       deps: [
         AngularCatalog,
         DemoCatalogV10,
+        IframeDemoCatalog,
         McpDemoCatalog,
         ActionDispatcher,
         A2UI_USE_UNIVERSAL_COMPONENTS,

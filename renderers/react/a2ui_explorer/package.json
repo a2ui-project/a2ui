@@ -34,6 +34,7 @@
       "dependencies": [
         "../:build",
         "../../markdown/markdown-it:build",
+        "../../../typescript/catalogs/iframe:build",
         "../../../typescript/catalogs/mcp:build",
         "copy-sandbox",
         "generate-examples"
@@ -92,6 +93,7 @@
       "files": [
         "../../../specification/v0_9/catalogs/basic/examples/*.json",
         "../../../catalogs/basic/v1/examples/*.json",
+        "../../../catalogs/iframe/examples/*.json",
         "../../../catalogs/mcp/v1/examples/*.json",
         "scripts/generate-examples.mjs"
       ],
@@ -104,6 +106,7 @@
     }
   },
   "dependencies": {
+    "@a2ui/catalog-iframe": "workspace:*",
     "@a2ui/catalog-mcp": "workspace:*",
     "@a2ui/markdown-it": "workspace:*",
     "@a2ui/react": "workspace:*",

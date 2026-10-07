@@ -63,6 +63,13 @@ const MCP_EXAMPLES = [
   },
 ];
 
+const IFRAME_EXAMPLES = [
+  {
+    filePath: '../../../catalogs/iframe/examples/srcdoc-tip-calculator.json',
+    catalog: 'iframe',
+  },
+];
+
 function readExampleFile(filePath, catalog, version) {
   const file = path.basename(filePath);
   const content = fs.readFileSync(filePath, 'utf-8');
@@ -152,10 +159,12 @@ async function main() {
   const examplesV09 = [
     ...readExamples('../../../specification/v0_9/catalogs', catalogs, '0.9'),
     ...MCP_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '0.9')),
+    ...IFRAME_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '0.9')),
   ];
   const examplesV10 = [
     ...readExamples('../../../../catalogs/basic/v1/examples', catalogs, '1.0'),
     ...MCP_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '1.0')),
+    ...IFRAME_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '1.0')),
   ];
 
   // Generate the file now!
