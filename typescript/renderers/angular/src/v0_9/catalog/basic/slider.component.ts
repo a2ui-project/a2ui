@@ -45,7 +45,7 @@ import {BoundProperty} from '@a2ui/angular';
         type="range"
         [min]="min()"
         [max]="max()"
-        [attr.step]="stepAttr()"
+        [step]="stepAttr() ?? ''"
         [value]="value()"
         (input)="handleInput($event)"
         class="a2ui-slider"
