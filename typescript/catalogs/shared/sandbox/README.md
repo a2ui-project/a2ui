@@ -2,7 +2,7 @@
 
 The sandbox proxy that isolates untrusted web content for the frame components of the iframe catalog (`WebAppFrameUrl`, `WebAppFrameSrcdoc`) and the MCP catalog (`McpApp`), and the host-side helpers the bridges of both catalogs are built on.
 
-A frame component embeds a proxy page served from the host's own origin, without a `sandbox` attribute. The proxy creates the strictly sandboxed inner iframe the content runs in (`allow-scripts`, never `allow-same-origin`) and relays messages between the host and that inner frame. Keeping the untrusted content one level down avoids the `SecurityError` crashes that a sandboxed iframe placed directly in the host page causes in DevTools and browser extensions, while the inner frame stays isolated. The [MCP App specification](../../../../catalogs/mcp/v1/mcp_app_specification.md) defines the controls.
+A frame component embeds a proxy page served from the host's own origin, without a `sandbox` attribute. The proxy creates the strictly sandboxed inner iframe the content runs in (`allow-scripts`, never `allow-same-origin`) and relays messages between the host and that inner frame. Keeping the untrusted content one level down avoids the `SecurityError` crashes that a sandboxed iframe placed directly in the host page causes in DevTools and browser extensions, while the inner frame stays isolated. The [web app frame specification](../../../../catalogs/iframe/web_app_frame_specification.md) defines the controls.
 
 ## The proxy
 

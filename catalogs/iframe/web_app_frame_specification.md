@@ -1,4 +1,4 @@
-# A2UI WebApp Iframe Component Specification (v0.9)
+# A2UI WebApp Iframe Component Specification (v1.0)
 
 ## A Specification for Sandboxed, Rich Interactive Components in the Agent-to-UI Protocol
 
@@ -7,7 +7,7 @@ Status: In progress
 
 # Abstract
 
-This specification document defines the A2UI Iframe Component (v0.9) for the secure, sandboxed
+This specification document defines the A2UI Iframe Component (v1.0) for the secure, sandboxed
 rendering of rich interactive web applications and model-generated HTML content. This document
 serves two primary purposes:
 
@@ -35,7 +35,7 @@ renderer. While A2UI provides standard primitive components (e.g., `Text`, `Row`
 The **A2UI Iframe Component** bridges this gap. It defines a secure runtime environment inside a
 sandboxed proxy.
 
-In **A2UI v0.9**, the following new A2UI features can significantly increase the Iframe component's
+In **A2UI v1.0**, the following A2UI features can significantly increase the Iframe component's
 utility:
 
 - **Local Client-Side Function Calls:** Allowing isolated apps to trigger secure local custom
@@ -54,7 +54,7 @@ layers:
 1. **The WebAppFrame Runtime & Communication Contract:** A single, unified transport protocol that
    defines how _any_ application running inside an A2UI-based iframe communicates with the host. It
    covers JSON-RPC event messaging, local Two-Way Data Binding, and client-side function execution
-   to support A2UI v0.9 features.
+   to support A2UI v1.0 features.
 2. **Component Catalog Definitions & Rendering Setups:** Two separate frontend component
    definitions—**WebAppFrameUrl** and **WebAppFrameSrcdoc**—each with a tailored schema and unique
    sandbox/security configurations corresponding to their specific source type (external URL vs. raw
@@ -238,7 +238,7 @@ To avoid infinite update loops and redundant echoes, both sides should implement
 
 ### C. Local client-side function execution (`a2ui_function_call`)
 
-Dispatched when the embedded app wants to invoke a registered local v0.9 function.
+Dispatched when the embedded app wants to invoke a registered local v1.0 function.
 
 **Message schema**
 
@@ -358,7 +358,7 @@ formatting.
 # 4. Component catalog definition
 
 The two web frame components, _WebAppFrameUrl_ and _WebAppFrameSrcdoc_, shall be registered as
-distinct options in the A2UI v0.9 Component Catalog.
+distinct options in an A2UI v1.0 component catalog.
 
 ## 4.1. WebAppFrameUrl schema definition
 
@@ -788,4 +788,4 @@ When an embedded application requires legitimate access to capabilities (e.g., a
 
 - MCP Apps in A2UI (https://a2ui.org/guides/mcp-apps-in-a2ui/): The original A2UI iframe technical
   implementation in GitHub
-- What's new in A2UI v0.9: https://a2ui.org/specification/v0.9-evolution-guide/
+- What's new in A2UI v1.0: https://a2ui.org/specification/v1.0-evolution-guide/
