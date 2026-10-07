@@ -27,12 +27,10 @@ import glob
 from datetime import datetime
 
 # Add blueprints directory to path so we can import validate_blueprints
-sys.path.insert(
-    0,
-    os.path.abspath(
-        os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..")
-    ),
+repo_root = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..")
 )
+sys.path.insert(0, os.path.join(repo_root, "blueprints"))
 from validate_blueprints import parse_frontmatter
 
 
@@ -91,8 +89,8 @@ def main() -> None:
     report showing compliance statuses.
     """
     script_dir = os.path.dirname(os.path.realpath(__file__))
-    blueprints_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
-    workspace_root = os.path.abspath(os.path.join(blueprints_root, ".."))
+    workspace_root = os.path.abspath(os.path.join(script_dir, "..", "..", "..", ".."))
+    blueprints_root = os.path.join(workspace_root, "blueprints")
 
     # 1. Discover all codebase blueprints
     codebases_pattern = os.path.join(

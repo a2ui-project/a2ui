@@ -134,7 +134,7 @@ After making any code changes in `swift/`, run this verification sequence from t
 ## 6. Integration with repository skills
 
 - **Blueprint compliance**: When updating models or schemas, check compliance with
-  [`a2ui-blueprint-compliance`](../../../blueprints/skills/a2ui-blueprint-compliance/SKILL.md).
+  [`a2ui-blueprint-compliance`](../a2ui-blueprint-compliance/SKILL.md).
 - **Test quality**: Verify assertion strength and boundary cases with
   [`a2ui-test-quality-check`](../a2ui-test-quality-check/SKILL.md).
 - **Documentation sync**: Ensure documentation reflects code changes using

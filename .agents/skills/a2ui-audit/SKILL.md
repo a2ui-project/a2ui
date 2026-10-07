@@ -17,8 +17,8 @@ fix issues.
 ## **Instructions**
 
 1. **Audit Codebase Blueprint Compliance**:
-   - Execute `python3 blueprints/skills/a2ui-blueprint-compliance/scripts/check_compliance.py` to dynamically discover all 8 production codebases and generate the baseline Markdown status report.
-   - Run the sub-skill [`a2ui-blueprint-compliance`](../../../blueprints/skills/a2ui-blueprint-compliance/SKILL.md) to audit each discovered codebase for missing features or blueprint drift.
+   - Execute `python3 .agents/skills/a2ui-blueprint-compliance/scripts/check_compliance.py` to dynamically discover all 8 production codebases and generate the baseline Markdown status report.
+   - Run the sub-skill [`a2ui-blueprint-compliance`](../a2ui-blueprint-compliance/SKILL.md) to audit each discovered codebase for missing features or blueprint drift.
    - Save the compiled Markdown report to a temporary file in the workspace (e.g., `compliance_report.md`) under the header `## Codebase Blueprint Compliance Audit`.
 
 2. **Audit Code vs. Documentation Synchronization**:
@@ -112,7 +112,7 @@ When compiling `compliance_report.md`, use the following structure:
 
 ## **References**
 
-- Refer to the [`a2ui-blueprint-compliance`](../../../blueprints/skills/a2ui-blueprint-compliance/SKILL.md) skill for codebase blueprint checking.
+- Refer to the [`a2ui-blueprint-compliance`](../a2ui-blueprint-compliance/SKILL.md) skill for codebase blueprint checking.
 - Refer to the [`a2ui-doc-sync-check`](../a2ui-doc-sync-check/SKILL.md) skill for documentation sync checking.
 - Refer to the [`a2ui-test-quality-check`](../a2ui-test-quality-check/SKILL.md) skill for test quality and assertion checking.
 - Refer to the [`gh-reference`](./references/gh-reference.md) reference for GitHub CLI (`gh`) operations.
