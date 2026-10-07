@@ -20,10 +20,12 @@ Blueprints, and Codebase Blueprints. It ensures that all references are
 resolvable, file naming conventions are met, and fields follow requirements.
 """
 
+from __future__ import annotations
+
+import glob
 import os
 import re
 import sys
-import glob
 from typing import Any
 
 
@@ -146,7 +148,8 @@ def main() -> None:
     """
     blueprints_root = os.path.abspath(os.path.dirname(__file__))
     workspace_root = os.path.abspath(os.path.join(blueprints_root, '..'))
-    errors = []
+    errors: list[str] = []
+    warnings: list[str] = []
 
     # 1. Discover and validate Module Blueprints
     modules_dir = os.path.join(blueprints_root, 'modules')
@@ -290,9 +293,23 @@ def main() -> None:
 
     if os.path.exists(codebases_dir):
         for root, _, files in os.walk(codebases_dir):
-            if 'codebase.blueprint.md' in files:
-                full_path = os.path.join(root, 'codebase.blueprint.md')
+            for file in sorted(files):
+                full_path = os.path.join(root, file)
                 rel_path = os.path.relpath(full_path, blueprints_root)
+
+                if file != 'codebase.blueprint.md':
+                    warnings.append(
+                        f"Codebase directory contains extra file '{rel_path}'"
+                        ' (intermediate blueprints should be folded into'
+                        " 'codebase.blueprint.md' when complete)"
+                    )
+
+                if not re.match(r'^[a-z0-9_]+\.blueprint\.md$', file):
+                    errors.append(
+                        f"Codebase blueprint '{rel_path}': Filename does not follow"
+                        ' required <name>.blueprint.md snake_case format'
+                    )
+                    continue
 
                 data, err = parse_frontmatter(full_path)
                 if err or data is None:
@@ -368,6 +385,9 @@ def main() -> None:
         errors.append(f"Codebases directory '{codebases_dir}' does not exist")
 
     # Summary and Exit
+    for warn in warnings:
+        print(f'Warning: {warn}', file=sys.stderr)
+
     if errors:
         print(
             f'=== Blueprint Validation Failed with {len(errors)} error(s) ===',
