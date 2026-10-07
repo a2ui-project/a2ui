@@ -579,11 +579,6 @@ export class LocalGallery extends LitElement {
               <div class="app-brand">
                 <h1>A2UI Lit Explorer</h1>
               </div>
-              <div class="header-divider"></div>
-              <div class="example-info">
-                <h2>${activeItem?.title || 'No selection'}</h2>
-                <p class="subtitle">${activeItem?.description}</p>
-              </div>
             </div>
             <div class="agent-controls">
               <fieldset class="version-controls">
@@ -670,7 +665,10 @@ export class LocalGallery extends LitElement {
           aria-label="Inspector Panel"
         >
           <div class="inspector-pane-header">
-            <h4>Inspector</h4>
+            <div class="example-info">
+              <h2>${activeItem?.title || 'No selection'}</h2>
+              <p class="subtitle">${activeItem?.description}</p>
+            </div>
             <button
               class="icon-btn collapse-right-btn"
               @click=${() => this.toggleRightSidebar()}

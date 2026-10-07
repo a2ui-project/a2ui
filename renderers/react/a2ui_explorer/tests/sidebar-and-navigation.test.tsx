@@ -28,10 +28,11 @@ describe('React Explorer Sidebars & Navigation', () => {
     await cleanup();
   });
 
-  it('should render combined header with A2UI React Explorer title', () => {
+  it('should render combined header with A2UI React Explorer title and example info in right panel', () => {
     const brandTitle = container.querySelector('[class*="previewHeader"] h1');
     expect(brandTitle?.textContent).toBe('A2UI React Explorer');
     expect(container.querySelector('header')).toBeNull();
+    expect(container.querySelector('[class*="inspectorPaneHeader"] h2')?.textContent).toBeTruthy();
   });
 
   it('should toggle left sidebar collapse and expand', async () => {

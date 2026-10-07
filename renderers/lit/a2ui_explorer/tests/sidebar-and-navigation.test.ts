@@ -28,10 +28,13 @@ describe('Lit Explorer Sidebars & Navigation', () => {
     gallery?.remove();
   });
 
-  it('should render combined header with A2UI Lit Explorer title', () => {
+  it('should render combined header with A2UI Lit Explorer title and example info in right panel', () => {
     const brandTitle = gallery.shadowRoot?.querySelector('.preview-header h1');
     expect(brandTitle?.textContent).toBe('A2UI Lit Explorer');
     expect(gallery.shadowRoot?.querySelector('header')).toBeNull();
+    expect(
+      gallery.shadowRoot?.querySelector('.inspector-pane-header h2')?.textContent,
+    ).toBeTruthy();
   });
 
   it('should toggle left sidebar collapse and expand', async () => {

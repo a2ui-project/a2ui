@@ -182,11 +182,8 @@ export const appStyles = css`
     align-items: center;
   }
 
-  .header-divider {
-    width: 1px;
-    height: 28px;
-    background: #334155;
-    flex-shrink: 0;
+  .example-info {
+    min-width: 0;
   }
 
   .example-info h2 {
@@ -347,16 +344,9 @@ export const appStyles = css`
     border-bottom: 1px solid rgba(148, 163, 184, 0.1);
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
+    gap: 12px;
     flex-shrink: 0;
-  }
-
-  .inspector-pane-header h4 {
-    margin: 0;
-    font-size: 0.9rem;
-    color: #94a3b8;
-    text-transform: uppercase;
-    font-weight: 600;
   }
 
   .inspector-section {

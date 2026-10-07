@@ -142,11 +142,6 @@ function getUseUniversalComponents(): boolean {
             <div class="app-brand">
               <h1>A2UI Angular Explorer</h1>
             </div>
-            <div class="header-divider"></div>
-            <div *ngIf="selectedExample" class="title-details">
-              <h2>{{ selectedExample.name }}</h2>
-              <p class="subtitle">{{ selectedExample.description }}</p>
-            </div>
           </div>
           <div class="canvas-header-right agent-controls">
             <fieldset class="version-controls">
@@ -241,7 +236,10 @@ function getUseUniversalComponents(): boolean {
       <!-- Inspect Panel -->
       <div class="inspect-area" [class.collapsed]="isRightSidebarCollapsed">
         <div class="inspect-header">
-          <h4>Inspector</h4>
+          <div class="title-details">
+            <h2>{{ selectedExample?.name || 'No selection' }}</h2>
+            <p class="subtitle">{{ selectedExample?.description }}</p>
+          </div>
           <button
             class="icon-btn collapse-right-btn"
             (click)="toggleRightSidebar()"
@@ -544,12 +542,6 @@ function getUseUniversalComponents(): boolean {
         white-space: nowrap;
         color: #f8fafc;
       }
-      .header-divider {
-        width: 1px;
-        height: 28px;
-        background: #334155;
-        flex-shrink: 0;
-      }
       .canvas-header-right {
         display: flex;
         align-items: center;
@@ -643,7 +635,10 @@ function getUseUniversalComponents(): boolean {
         color: #94a3b8;
         cursor: not-allowed;
       }
-      .canvas-header h2 {
+      .title-details {
+        min-width: 0;
+      }
+      .title-details h2 {
         margin: 0;
         font-size: 1.05rem;
         color: #f8fafc;
@@ -702,18 +697,12 @@ function getUseUniversalComponents(): boolean {
       .inspect-header {
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
+        gap: 12px;
         padding: 12px 16px;
         background-color: #1e293b;
         border-bottom: 1px solid rgba(148, 163, 184, 0.1);
         flex-shrink: 0;
-      }
-      .inspect-header h4 {
-        margin: 0;
-        font-size: 0.9rem;
-        color: #94a3b8;
-        text-transform: uppercase;
-        font-weight: 600;
       }
       .inspect-section {
         flex: 1;

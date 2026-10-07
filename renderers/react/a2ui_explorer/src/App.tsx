@@ -624,11 +624,6 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
               <div className={styles.appBrand}>
                 <h1 className={styles.h1}>A2UI React Explorer</h1>
               </div>
-              <div className={styles.headerDivider} />
-              <div className={styles.exampleInfo}>
-                <h2>{selectedItem?.title || 'No selection'}</h2>
-                <p className={styles.subtitle}>{selectedItem?.description}</p>
-              </div>
             </div>
             <div className={styles.agentControls}>
               <fieldset className={styles.versionControls}>
@@ -743,7 +738,10 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
           aria-label="Inspector Panel"
         >
           <div className={styles.inspectorPaneHeader}>
-            <h4 className={styles.inspectorPaneTitle}>Inspector</h4>
+            <div className={styles.exampleInfo}>
+              <h2>{selectedItem?.title || 'No selection'}</h2>
+              <p className={styles.subtitle}>{selectedItem?.description}</p>
+            </div>
             <button
               className={`${styles.iconBtn} ${styles.collapseRightBtn}`}
               onClick={toggleRightSidebar}

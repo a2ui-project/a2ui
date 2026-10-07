@@ -50,13 +50,14 @@ describe('App', () => {
     expect(canvasFrame).toBeInstanceOf(HTMLElement);
   });
 
-  it('should render combined header title and sidebar header', () => {
+  it('should render combined header title, sidebar header, and example info in right panel', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.canvas-header h1')?.textContent).toBe('A2UI Angular Explorer');
     expect(compiled.querySelector('.sidebar-header h3')?.textContent).toContain('Examples');
+    expect(compiled.querySelector('.inspect-header h2')?.textContent).toBeTruthy();
   });
 
   it('should toggle left sidebar collapse and expand', () => {
