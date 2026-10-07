@@ -185,15 +185,15 @@
         title: "Dynamic Action"
         accessibility:
           label:
-            path: "/buttonLabel"
+            "@path": "/buttonLabel"
           hidden:
-            path: "/isButtonHidden"
+            "@path": "/isButtonHidden"
       dynamic_status:
         component: Text
         text: "Status"
         accessibility:
           hidden:
-            path: "/isStatusHidden"
+            "@path": "/isStatusHidden"
   assertions:
     axeCore:
       - "button-name"

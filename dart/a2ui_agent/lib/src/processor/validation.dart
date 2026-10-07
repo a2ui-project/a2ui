@@ -43,10 +43,27 @@ void validatePayloads(
   final renderer = MessageProcessor<ComponentApi>(
     catalogs: [for (final CatalogApi catalog in catalogs) _signed(catalog)],
     protocolVersion: A2uiProtocolVersion.v0_9,
+    // A surface may arrive across several messages of one payload, so the
+    // checks that span messages wait for the whole payload below. Undeclared
+    // types, duplicate ids, cycles, depth and paths are checked per message.
+    validationConfig: const ValidationConfig(
+      allowOrphanComponents: true,
+      allowDanglingReferences: true,
+      allowMissingRoot: true,
+    ),
   );
   try {
     for (final payload in payloads) {
       renderer.processMessages(AgentToRendererMessagePayload(payload));
+      // Each payload is one render: every surface it creates must be
+      // complete once the whole payload is applied.
+      for (final CreateSurfaceMessage message
+          in payload.whereType<CreateSurfaceMessage>()) {
+        renderer.groupModel
+            .getSurface(message.surfaceId)
+            ?.componentsModel
+            .validateTopology(ValidationConfig.strict);
+      }
     }
   } finally {
     renderer.groupModel.dispose();

@@ -14,19 +14,23 @@
 
 import 'package:json_schema_builder/json_schema_builder.dart';
 
+import '../core/catalog.dart';
 import '../primitives/reference_schema.dart';
 
 export '../primitives/reference_schema.dart'
     show ListRef, NestedRef, RefFields, RefKind, SingleRef;
 
 /// Classifies the child-reference properties of [schema], including
-/// structural `ChildList` shapes.
+/// structural `ChildList` shapes and the `child`/`children` name fallbacks.
 ///
 /// [commonTypes] is the `common_types.json` document used for external and
 /// fallback pointers; it defaults to the embedded v0.9 document.
 ///
-/// Classification is not cached by schema identity: local aliases can resolve
-/// differently when the same schema is used in different catalog documents.
+/// Uses the same classification as [Catalog.refMap], which is what the node
+/// resolver and graph validation read for a catalog's components. This entry
+/// point is for a schema outside a catalog, so nothing is cached: local
+/// aliases can resolve differently when the same schema is used in different
+/// catalog documents.
 RefFields extractRefFields(
   Schema schema, {
   Map<String, Object?> document = const {},

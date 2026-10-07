@@ -66,6 +66,124 @@ describe('BASIC_FUNCTIONS', () => {
   const dataModel = new DataModel({a: 10, b: 20});
   const context = createTestDataContext(dataModel, '/');
 
+  describe('Logical', () => {
+    it('and', () => {
+      assert.strictEqual(invoke('and', {values: [true, true]}, context), true);
+      assert.strictEqual(invoke('and', {values: [true, false]}, context), false);
+      assert.throws(() => invoke('and', {values: [true]}, context), A2uiExpressionError);
+      assert.throws(() => invoke('and', {}, context), A2uiExpressionError);
+    });
+    it('or', () => {
+      assert.strictEqual(invoke('or', {values: [false, true]}, context), true);
+      assert.strictEqual(invoke('or', {values: [false, false]}, context), false);
+      assert.throws(() => invoke('or', {values: [true]}, context), A2uiExpressionError);
+      assert.throws(() => invoke('or', {}, context), A2uiExpressionError);
+    });
+    it('not', () => {
+      assert.strictEqual(invoke('not', {value: false}, context), true);
+      assert.strictEqual(invoke('not', {value: true}, context), false);
+      assert.throws(() => invoke('not', {}, context), A2uiExpressionError);
+    });
+  });
+
+  describe('Validation', () => {
+    it('required', () => {
+      assert.strictEqual(invoke('required', {value: 'a'}, context), true);
+      assert.strictEqual(invoke('required', {value: ''}, context), false);
+      assert.strictEqual(invoke('required', {value: null}, context), false);
+      assert.throws(() => invoke('required', {}, context), A2uiExpressionError);
+    });
+
+    it('length', () => {
+      assert.strictEqual(invoke('length', {value: 'abc', min: 2}, context), true);
+      assert.strictEqual(invoke('length', {value: 'abc', max: 2}, context), false);
+      assert.throws(() => invoke('length', {}, context), A2uiExpressionError);
+    });
+
+    it('numeric', () => {
+      assert.strictEqual(invoke('numeric', {value: 10, min: 5, max: 15}, context), true);
+      assert.strictEqual(invoke('numeric', {value: 3, min: 5}, context), false);
+      assert.throws(() => invoke('numeric', {}, context), A2uiExpressionError);
+    });
+
+    it('email', () => {
+      assert.strictEqual(invoke('email', {value: 'test@example.com'}, context), true);
+      assert.strictEqual(invoke('email', {value: 'test.name@example.com'}, context), true);
+      assert.strictEqual(invoke('email', {value: 'test+label@example.com'}, context), true);
+      assert.strictEqual(invoke('email', {value: 'test@example-domain.com'}, context), true);
+
+      assert.strictEqual(invoke('email', {value: 'invalid'}, context), false);
+      assert.strictEqual(invoke('email', {value: 'test@test'}, context), false);
+      assert.strictEqual(invoke('email', {value: 'test@test.c'}, context), false);
+      assert.strictEqual(invoke('email', {value: 'test@.com'}, context), false);
+
+      assert.throws(() => invoke('email', {}, context), A2uiExpressionError);
+    });
+
+    it('regex', () => {
+      assert.strictEqual(invoke('regex', {value: 'abc', pattern: '^[a-z]+$'}, context), true);
+      assert.strictEqual(invoke('regex', {value: '123', pattern: '^[a-z]+$'}, context), false);
+    });
+
+    it('regex handles invalid pattern', () => {
+      assert.throws(
+        () => invoke('regex', {value: 'abc', pattern: '['}, context),
+        A2uiExpressionError,
+      );
+    });
+
+    it('regex blocks catastrophic backtracking (ReDoS) patterns with A2uiExpressionError', () => {
+      const redosPatterns = [
+        '(a+)+b',
+        '(a*)*b',
+        '([a-zA-Z]+)*$',
+        '(a|aa)+$',
+        '(a|a+)+$',
+        '(x+x+)+y',
+        '(\\d+)+',
+        '((a+)+)+',
+        '(a{1,}){2,}',
+        '(?:[0-9]+)+',
+      ];
+
+      for (const pattern of redosPatterns) {
+        assert.throws(
+          () => invoke('regex', {value: 'aaaaaaaaaaaaaaaaaaaa!', pattern}, context),
+          A2uiExpressionError,
+          `Expected pattern ${pattern} to be rejected as unsafe ReDoS`,
+        );
+      }
+    });
+
+    it('regex allows valid complex and standard safe patterns', () => {
+      const safePatterns = [
+        {
+          pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z]{2,}$',
+          val: 'test@example.com',
+          expected: true,
+        },
+        {pattern: '^\\d{5}(-\\d{4})?$', val: '12345-6789', expected: true},
+        {pattern: '^\\d{4}-\\d{2}-\\d{2}$', val: '2026-08-21', expected: true},
+        {pattern: '^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$', val: '#1a2b3c', expected: true},
+        {
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+          val: '123e4567-e89b-12d3-a456-426614174000',
+          expected: true,
+        },
+        {pattern: '^[a-z]+(,[a-z]+)*$', val: 'apple,banana,orange', expected: true},
+        {pattern: '^(\\d{1,3}\\.){3}\\d{1,3}$', val: '192.168.1.1', expected: true},
+      ];
+
+      for (const {pattern, val, expected} of safePatterns) {
+        assert.strictEqual(
+          invoke('regex', {value: val, pattern}, context),
+          expected,
+          `Expected pattern ${pattern} to evaluate safely`,
+        );
+      }
+    });
+  });
+
   describe('Formatting', () => {
     it('formatString (static literal)', (_, done) => {
       const result = invoke('formatString', {value: 'hello world'}, context) as Signal<string>;

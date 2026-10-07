@@ -280,7 +280,6 @@ void main() {
       processor = MessageProcessor<ComponentApi>(
         catalogs: [MinimalCatalog(), second],
         protocolVersion: A2uiProtocolVersion.v0_9,
-        validationConfig: ValidationConfig.none,
       );
       processor.processMessages(
         AgentToRendererMessagePayload.of(
