@@ -1,0 +1,132 @@
+{
+  "name": "Srcdoc tip calculator",
+  "description": "A WebAppFrameSrcdoc app that reads a bill from bound data, writes the total back for sibling basic components, formats it with the basic catalog's formatCurrency function and reports the saved receipt as an action.",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-iframe-tip-calculator",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-iframe-tip-calculator",
+        "value": {
+          "bill": {
+            "amount": 64,
+            "tipPercent": 18,
+            "total": 0,
+            "totalLabel": ""
+          }
+        }
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-iframe-tip-calculator",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["title", "amount_field", "tip_field", "tip_calculator", "total_view"],
+            "align": "stretch"
+          },
+          {
+            "id": "title",
+            "component": "Text",
+            "text": "## Tip calculator"
+          },
+          {
+            "id": "amount_field",
+            "component": "TextField",
+            "label": "Bill amount",
+            "value": {
+              "@path": "/bill/amount"
+            }
+          },
+          {
+            "id": "tip_field",
+            "component": "TextField",
+            "label": "Tip percent",
+            "value": {
+              "@path": "/bill/tipPercent"
+            }
+          },
+          {
+            "id": "tip_calculator",
+            "component": "WebAppFrameSrcdoc",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/iframe/catalog.json",
+            "height": 240,
+            "data": {
+              "paths": {
+                "amount": "/bill/amount",
+                "tipPercent": "/bill/tipPercent",
+                "total": "/bill/total",
+                "totalLabel": "/bill/totalLabel"
+              }
+            },
+            "mutableData": {
+              "total": {
+                "type": "number",
+                "minimum": 0
+              },
+              "totalLabel": {
+                "type": "string"
+              }
+            },
+            "allowedEvents": {
+              "receipt_saved": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "number"
+                  },
+                  "tipPercent": {
+                    "type": "number"
+                  },
+                  "total": {
+                    "type": "number"
+                  }
+                },
+                "required": ["amount", "tipPercent", "total"],
+                "additionalProperties": false
+              }
+            },
+            "allowedFunctions": {
+              "formatCurrency": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "number"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "decimals": {
+                    "type": "integer"
+                  }
+                },
+                "required": ["value", "currency"],
+                "additionalProperties": false
+              }
+            },
+            "htmlContent": "<!doctype html>\n<html>\n  <head>\n    <meta charset=\"utf-8\" />\n    <style>\n      body { font-family: sans-serif; margin: 16px; }\n      td { padding: 4px 16px 4px 0; }\n      td:last-child { text-align: right; }\n      .total td { border-top: 1px solid #999; font-weight: bold; }\n      button { margin-top: 12px; }\n    </style>\n  </head>\n  <body>\n    <table>\n      <tr><td>Bill</td><td id=\"amount\"></td></tr>\n      <tr><td>Tip (<span id=\"percent\"></span>%)</td><td id=\"tip\"></td></tr>\n      <tr class=\"total\"><td>Total</td><td id=\"total\">Waiting for the host...</td></tr>\n    </table>\n    <button id=\"save\" disabled>Save receipt</button>\n    <script>\n      var port = null;\n      var bill = { amount: 0, tipPercent: 0, total: 0 };\n      var nextCallId = 1;\n\n      function toNumber(value) {\n        var number = Number(value);\n        return isNaN(number) ? 0 : number;\n      }\n\n      function cents(value) {\n        return Math.round(value * 100) / 100;\n      }\n\n      function recalculate() {\n        var tip = cents(bill.amount * bill.tipPercent / 100);\n        bill.total = cents(bill.amount + tip);\n        document.getElementById('amount').textContent = bill.amount.toFixed(2);\n        document.getElementById('percent').textContent = bill.tipPercent;\n        document.getElementById('tip').textContent = tip.toFixed(2);\n        // \"total\" is listed in mutableData, so the host writes it back to /bill/total.\n        port.postMessage({ type: 'a2ui_data_model_change', key: 'total', value: bill.total });\n        // formatCurrency is listed in allowedFunctions, so the host evaluates it with the\n        // surface catalog and answers with a2ui_function_result.\n        port.postMessage({\n          type: 'a2ui_function_call',\n          call: 'formatCurrency',\n          callId: 'total-' + nextCallId++,\n          args: { value: bill.total, currency: 'USD', decimals: 2 }\n        });\n        port.postMessage({ type: 'a2ui_size_changed', height: document.body.scrollHeight + 32 });\n      }\n\n      function onPortMessage(event) {\n        var msg = event.data || {};\n        if (msg.type === 'a2ui_data_model_update' && (msg.key === 'amount' || msg.key === 'tipPercent')) {\n          bill[msg.key] = toNumber(msg.value);\n          recalculate();\n        } else if (msg.type === 'a2ui_function_result' && msg.status === 'success') {\n          document.getElementById('total').textContent = msg.result;\n          // \"totalLabel\" is mutable too, so the sibling Text component shows the same string.\n          port.postMessage({ type: 'a2ui_data_model_change', key: 'totalLabel', value: msg.result });\n        }\n      }\n\n      // Only the handshake travels over the ambient window channel. Everything after it uses\n      // the MessagePort transferred with a2ui_app_frame_init.\n      window.addEventListener('message', function (event) {\n        if (event.source !== window.parent) return;\n        var msg = event.data || {};\n        if (msg.type !== 'a2ui_app_frame_init' || !event.ports || !event.ports[0]) return;\n        port = event.ports[0];\n        port.onmessage = onPortMessage;\n        var initial = (msg.value && msg.value.initialData) || {};\n        bill.amount = toNumber(initial.amount);\n        bill.tipPercent = toNumber(initial.tipPercent);\n        document.getElementById('save').disabled = false;\n        recalculate();\n      });\n\n      document.getElementById('save').addEventListener('click', function () {\n        // \"receipt_saved\" is listed in allowedEvents, so the host forwards it to the agent.\n        port.postMessage({ type: 'a2ui_action', action: 'receipt_saved', data: bill });\n      });\n\n      window.parent.postMessage({ type: 'a2ui_app_frame_ready' }, '*');\n    </script>\n  </body>\n</html>\n"
+          },
+          {
+            "id": "total_view",
+            "component": "Text",
+            "text": {
+              "@call": "formatString",
+              "args": {
+                "value": "Total to pay: ${/bill/totalLabel}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

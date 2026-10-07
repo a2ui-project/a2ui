@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import example from '../../../../catalogs/iframe/examples/url-frame.json' with {type: 'json'};
+import urlFrameExample from '../../../../catalogs/iframe/examples/url-frame.json' with {type: 'json'};
+import tipCalculatorExample from '../../../../catalogs/iframe/examples/srcdoc-tip-calculator.json' with {type: 'json'};
 import {
   basicCatalog,
   isWebComponentImplementation,
@@ -49,19 +50,25 @@ describe('iframeCatalog', () => {
     }
   });
 
-  it('renders the frame of the catalog examples next to the basic catalog', () => {
+  it('renders the frames of the catalog examples next to the basic catalog', () => {
     const processor = new MessageProcessor<WebComponentImplementation>([
       basicCatalog,
       iframeCatalog,
     ]);
 
-    processor.processMessages(parseExampleMessages(example));
+    processor.processMessages(parseExampleMessages(urlFrameExample));
+    processor.processMessages(parseExampleMessages(tipCalculatorExample));
 
-    const surface = processor.model.getSurface('gallery-iframe-url-frame')!;
-    expect(surface.defaultCatalog).toBe(basicCatalog);
-    const frame = surface.componentsModel.get('order_tracker')!;
-    expect(frame.type).toBe('WebAppFrameUrl');
-    expect(frame.catalog).toBe(iframeCatalog);
-    surface.dispose();
+    const urlFrame = processor.model.getSurface('gallery-iframe-url-frame')!;
+    expect(urlFrame.defaultCatalog).toBe(basicCatalog);
+    const orderTracker = urlFrame.componentsModel.get('order_tracker')!;
+    expect(orderTracker.type).toBe('WebAppFrameUrl');
+    expect(orderTracker.catalog).toBe(iframeCatalog);
+    const tipCalculator = processor.model.getSurface('gallery-iframe-tip-calculator')!;
+    const calculator = tipCalculator.componentsModel.get('tip_calculator')!;
+    expect(calculator.type).toBe('WebAppFrameSrcdoc');
+    expect(calculator.catalog).toBe(iframeCatalog);
+    urlFrame.dispose();
+    tipCalculator.dispose();
   });
 });

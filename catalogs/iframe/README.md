@@ -34,6 +34,7 @@ The [examples](examples/) directory holds A2UI message sequences that validate a
 - [srcdoc-shared-counter.json](examples/srcdoc-shared-counter.json) shares a counter between a `WebAppFrameSrcdoc` app and sibling basic components through two-way data binding, and reports the saved count as an action.
 - [url-frame.json](examples/url-frame.json) loads an external application with `WebAppFrameUrl`, passing it static configuration and bound data.
 - [srcdoc-host-functions.json](examples/srcdoc-host-functions.json) formats a bound price by calling the basic catalog's `formatCurrency` function through `allowedFunctions`.
+- [srcdoc-tip-calculator.json](examples/srcdoc-tip-calculator.json) is a `WebAppFrameSrcdoc` tip calculator that reads the bill from bound data, writes the total back through `mutableData`, formats it with `formatCurrency` and reports the saved receipt as an action. `typescript/catalogs/iframe/tests/examples/` runs it end to end.
 
 `specification/scripts/validate.py` validates these examples in CI.
 
