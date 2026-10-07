@@ -53,7 +53,7 @@ The emitted protocol version is taken from the catalog. Because the v0.9 basic c
 
 ```ts
 const v09Catalog = await CatalogConfig.fromPath(
-  'specification/v0_9/json/basic_catalog.json',
+  'specification/v0_9/catalogs/basic/catalog.json',
   [],
   'v0.9',
   'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
