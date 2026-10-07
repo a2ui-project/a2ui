@@ -56,7 +56,7 @@ const specDest = path.join(publicDir, 'specification');
 fs.mkdirSync(specDest, {recursive: true});
 copyRecursive(path.join(repoRoot, 'specification'), specDest);
 
-// Copy basic & mcp catalogs under specification/v1_0/catalogs/
+// Copy basic, iframe, & mcp catalogs under specification/v1_0/catalogs/
 const basicCatalogDest = path.join(specDest, 'v1_0/catalogs/basic');
 fs.mkdirSync(basicCatalogDest, {recursive: true});
 copyRecursive(
@@ -66,6 +66,13 @@ copyRecursive(
 copyRecursive(
   path.join(repoRoot, 'catalogs/basic/v1/examples'),
   path.join(basicCatalogDest, 'examples'),
+);
+
+const iframeCatalogDest = path.join(specDest, 'v1_0/catalogs/iframe');
+fs.mkdirSync(iframeCatalogDest, {recursive: true});
+copyRecursive(
+  path.join(repoRoot, 'catalogs/iframe/catalog.json'),
+  path.join(iframeCatalogDest, 'catalog.json'),
 );
 
 const mcpCatalogDest = path.join(specDest, 'v1_0/catalogs/mcp');
