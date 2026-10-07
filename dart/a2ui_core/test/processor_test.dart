@@ -315,7 +315,7 @@ void main() {
 
       processor.getClientCapabilities(includeInlineCatalogs: true);
 
-      // _processRefs mutates maps in-place to replace REF: descriptions
+      // _processRefs mutates maps in-place to replace commonTypesRef metadata
       // with $ref pointers. If toJsonMap uses a shallow copy, the shared
       // CommonSchemas statics are corrupted.
       expect(

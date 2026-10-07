@@ -126,6 +126,23 @@ title = Card(Text("Nested"))
       );
     });
 
+    test('common properties accessibility and weight as kwargs', () {
+      expect(
+        components(
+          'root = Text("Hello", weight=2, accessibility={label: "Greeting"})',
+        ),
+        [
+          {
+            'id': 'root',
+            'component': 'Text',
+            'text': 'Hello',
+            'weight': 2,
+            'accessibility': {'label': 'Greeting'},
+          },
+        ],
+      );
+    });
+
     test('string literals', () {
       expect(
         components(r'''
@@ -313,14 +330,15 @@ surface("s1")
         snippet,
         contains(
           '• TextField(label, value?, variant? (static), '
-          'validationRegexp? (static), checks?)',
+          'validationRegexp? (static), accessibility? (static), '
+          'weight? (static), checks?)',
         ),
       );
       expect(
         snippet,
         contains(
           '• Button(child (component ID), variant? (static), action (action), '
-          'checks?)',
+          'accessibility? (static), weight? (static), checks?)',
         ),
       );
       expect(snippet, contains('• formatString(value)'));

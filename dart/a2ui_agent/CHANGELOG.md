@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Include common mixin properties (`accessibility`, `weight`) at the end of
+  Express component signatures (after component-specific properties) so
+  positional arguments map to component properties while supporting common
+  properties via keyword arguments; previously they were omitted.
 - `A2uiRequestProcessor` checks each example as one render: a surface may
   arrive across several `updateComponents` messages of the example, and must
   have a root, resolved references and every component reachable from the

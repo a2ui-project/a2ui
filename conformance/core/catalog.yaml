@@ -573,15 +573,19 @@
       Button:
         type: object
         properties:
+          id:
+            $ref: "#/$defs/ComponentId"
           component: {const: Button}
           label: {type: string}
-        required: [component, label]
+        required: [id, label, component]
       Card:
         type: object
         properties:
+          id:
+            $ref: "#/$defs/ComponentId"
           component: {const: Card}
           title: {type: string}
-        required: [component, title]
+        required: [id, title, component]
     functions:
       formatCurrency:
         type: object
@@ -627,15 +631,372 @@
       Text:
         type: object
         properties:
+          id:
+            $ref: "#/$defs/ComponentId"
           component: {const: Text}
           text: {type: string}
-        required: [component, text]
+        required: [id, text, component]
     $defs:
       anyComponent:
         oneOf:
           - $ref: "#/components/Text"
         discriminator:
           propertyName: "component"
+
+- name: test_v09_catalog_allof_envelope_flattening
+  description: Tests that a v0.9 Catalog document with allOf envelopes (ComponentCommon, CatalogComponentCommon, Checkable) flattens component properties and serializes a clean unified catalog schema.
+  action: catalog_schema
+  protocolVersion: "v0.9"
+  catalog:
+    catalogId: "https://a2ui.org/catalogs/v09/composed"
+    components:
+      Text:
+        type: object
+        allOf:
+          - $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+          - $ref: "#/$defs/CatalogComponentCommon"
+          - type: object
+            properties:
+              text:
+                $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+              variant:
+                type: string
+            required: [text]
+      Button:
+        type: object
+        allOf:
+          - $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+          - $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
+          - type: object
+            properties:
+              label:
+                $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+            required: [label]
+    functions:
+      formatNumber:
+        type: object
+        properties:
+          call: {const: formatNumber}
+          args:
+            type: object
+            properties:
+              value: {type: number}
+            required: [value]
+          returnType: {const: string}
+        required: [call, args]
+    $defs:
+      CatalogComponentCommon:
+        type: object
+        properties:
+          weight:
+            type: number
+            description: "Flex weight within parent container."
+  expect:
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    catalogId: "https://a2ui.org/catalogs/v09/composed"
+    components:
+      Text:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Text
+          accessibility:
+            $ref: "#/$defs/AccessibilityAttributes"
+            description: "Accessibility properties"
+          weight:
+            type: number
+            description: "Flex weight within parent container."
+          text:
+            $ref: "#/$defs/DynamicString"
+          variant:
+            type: string
+        required: [id, text, component]
+      Button:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Button
+          accessibility:
+            $ref: "#/$defs/AccessibilityAttributes"
+            description: "Accessibility properties"
+          checks:
+            type: array
+            description: "A list of checks to perform."
+            items:
+              $ref: "#/$defs/CheckRule"
+          label:
+            $ref: "#/$defs/DynamicString"
+        required: [id, label, component]
+    functions:
+      formatNumber:
+        type: object
+        properties:
+          call: {const: formatNumber}
+          args:
+            type: object
+            properties:
+              value: {type: number}
+            required: [value]
+          returnType: {const: string}
+        required: [call, args]
+        unevaluatedProperties: false
+    $defs:
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/Text"
+          - $ref: "#/components/Button"
+        discriminator:
+          propertyName: "component"
+      anyFunction:
+        oneOf:
+          - $ref: "#/functions/formatNumber"
+
+- name: test_v09_catalog_inlined_fixed_point_round_trip
+  description: Tests that reparsing and reserializing an inlined v0.9 catalog schema produces an identical document (fixed-point round trip).
+  action: catalog_schema
+  protocolVersion: "v0.9"
+  catalog:
+    catalogId: "https://a2ui.org/catalogs/v09/composed"
+    components:
+      Text:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Text
+          accessibility:
+            $ref: "#/$defs/AccessibilityAttributes"
+            description: "Accessibility properties"
+          weight:
+            type: number
+            description: "Flex weight within parent container."
+          text:
+            $ref: "#/$defs/DynamicString"
+          variant:
+            type: string
+        required: [id, text, component]
+      Button:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Button
+          accessibility:
+            $ref: "#/$defs/AccessibilityAttributes"
+            description: "Accessibility properties"
+          checks:
+            type: array
+            description: "A list of checks to perform."
+            items:
+              $ref: "#/$defs/CheckRule"
+          label:
+            $ref: "#/$defs/DynamicString"
+        required: [id, label, component]
+    functions:
+      formatNumber:
+        type: object
+        properties:
+          call: {const: formatNumber}
+          args:
+            type: object
+            properties:
+              value: {type: number}
+            required: [value]
+          returnType: {const: string}
+        required: [call, args]
+        unevaluatedProperties: false
+    $defs:
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/Text"
+          - $ref: "#/components/Button"
+        discriminator:
+          propertyName: "component"
+      anyFunction:
+        oneOf:
+          - $ref: "#/functions/formatNumber"
+  expect:
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    catalogId: "https://a2ui.org/catalogs/v09/composed"
+    components:
+      Text:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Text
+          accessibility:
+            $ref: "#/$defs/AccessibilityAttributes"
+            description: "Accessibility properties"
+          weight:
+            type: number
+            description: "Flex weight within parent container."
+          text:
+            $ref: "#/$defs/DynamicString"
+          variant:
+            type: string
+        required: [id, text, component]
+      Button:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Button
+          accessibility:
+            $ref: "#/$defs/AccessibilityAttributes"
+            description: "Accessibility properties"
+          checks:
+            type: array
+            description: "A list of checks to perform."
+            items:
+              $ref: "#/$defs/CheckRule"
+          label:
+            $ref: "#/$defs/DynamicString"
+        required: [id, label, component]
+    functions:
+      formatNumber:
+        type: object
+        properties:
+          call: {const: formatNumber}
+          args:
+            type: object
+            properties:
+              value: {type: number}
+            required: [value]
+          returnType: {const: string}
+        required: [call, args]
+        unevaluatedProperties: false
+    $defs:
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/Text"
+          - $ref: "#/components/Button"
+        discriminator:
+          propertyName: "component"
+      anyFunction:
+        oneOf:
+          - $ref: "#/functions/formatNumber"
+
+- name: test_v09_catalog_schema_bundles_common_types
+  description: Tests that serializing a catalog referencing protocol common types bundles standard definitions (DynamicString, ComponentId, etc.) into $defs.
+  action: catalog_schema
+  protocolVersion: "v0.9"
+  catalog:
+    catalogId: "https://a2ui.org/catalogs/v09/bundled"
+    components:
+      Text:
+        type: object
+        properties:
+          id:
+            $ref: "common_types.json#/$defs/ComponentId"
+          component:
+            const: Text
+          text:
+            $ref: "common_types.json#/$defs/DynamicString"
+        required: [id, text, component]
+    $defs:
+      theme:
+        type: object
+        properties:
+          primaryColor: {type: string}
+  expect:
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    catalogId: "https://a2ui.org/catalogs/v09/bundled"
+    components:
+      Text:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Text
+          text:
+            $ref: "#/$defs/DynamicString"
+        required: [id, text, component]
+    $defs:
+      theme:
+        type: object
+        properties:
+          primaryColor: {type: string}
+      anyComponent:
+        oneOf:
+          - $ref: "#/components/Text"
+        discriminator:
+          propertyName: "component"
+
+- name: test_v09_catalog_schema_preserves_protocol_version
+  description: Tests that catalog_schema preserves and emits protocolVersion when present in the catalog document.
+  action: catalog_schema
+  protocolVersion: "v0.9"
+  catalog:
+    catalogId: "https://a2ui.org/catalogs/v09/versioned"
+    protocolVersion: "v0.9.1"
+    components:
+      Text:
+        type: object
+        properties:
+          text:
+            $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+        required: [text]
+  expect:
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    catalogId: "https://a2ui.org/catalogs/v09/versioned"
+    protocolVersion: "v0.9.1"
+    components:
+      Text:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Text
+          text:
+            $ref: "#/$defs/DynamicString"
+        required: [id, text, component]
+
+- name: test_v09_catalog_schema_ref_node_hygiene
+  description: Tests that restored commonTypesRef nodes in catalog_schema output contain only $ref and description without leftover validation keywords.
+  action: catalog_schema
+  protocolVersion: "v0.9"
+  catalog:
+    catalogId: "https://a2ui.org/catalogs/v09/hygiene"
+    components:
+      Card:
+        type: object
+        allOf:
+          - $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+          - type: object
+            properties:
+              title:
+                $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"
+                description: "Title of the card."
+            required: [title]
+  expect:
+    $schema: "https://json-schema.org/draft/2020-12/schema"
+    catalogId: "https://a2ui.org/catalogs/v09/hygiene"
+    components:
+      Card:
+        type: object
+        properties:
+          id:
+            $ref: "#/$defs/ComponentId"
+          component:
+            const: Card
+          title:
+            $ref: "#/$defs/DynamicString"
+            description: "Title of the card."
+          accessibility:
+            $ref: "#/$defs/AccessibilityAttributes"
+            description: "Accessibility properties"
+        required: [id, title, component]
 
 - name: test_v10_catalog_schema_basic
   description: Tests serializing a v1.0 Catalog into JSON schema with protocolVersion and $defs.anyComponent.
