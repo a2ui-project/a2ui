@@ -17,7 +17,7 @@
 import path from 'path';
 
 import {FileSystemCatalogProvider} from '@a2ui/agent';
-import {type CatalogApi} from '@a2ui/web_core/catalog';
+import {type CatalogApi} from '@a2ui/web_core';
 
 import {getRepoRootDir} from './tools.js';
 import {VERSIONS, type VersionProfile} from './versions.js';

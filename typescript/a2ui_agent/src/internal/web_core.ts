@@ -22,27 +22,16 @@
  * separate package (e.g., @a2ui/a2ui_core), the migration requires touching only this file.
  */
 
-// ./catalog
-export {Catalog} from '@a2ui/web_core/catalog';
-export type {
-  CatalogApi,
-  CatalogInterface,
-  ComponentApi,
-  FunctionApi,
-  FunctionImplementation,
-} from '@a2ui/web_core/catalog';
-
-// ./v0_9
+// Core umbrella exports
 export {
-  CreateSurfaceMessageSchema as V09CreateSurfaceMessageSchema,
-  UpdateComponentsMessageSchema as V09UpdateComponentsMessageSchema,
-  UpdateDataModelMessageSchema as V09UpdateDataModelMessageSchema,
-  DeleteSurfaceMessageSchema as V09DeleteSurfaceMessageSchema,
-  V09_STANDARD_DEFS,
-} from '@a2ui/web_core/v0_9';
-
-// ./schema/v1_0
-export {
+  Catalog,
+  MessageProcessor,
+  validateRecursionAndPaths,
+  STRICT_VALIDATION,
+  getComponentReferences,
+  buildComponentRefMap,
+  V10_CHILD_REF_OPTIONS,
+  V10_STANDARD_DEFS,
   CreateSurfaceMessageSchema as V10CreateSurfaceMessageSchema,
   UpdateComponentsMessageSchema as V10UpdateComponentsMessageSchema,
   UpdateDataModelMessageSchema as V10UpdateDataModelMessageSchema,
@@ -52,40 +41,6 @@ export {
   AgentToRendererMessageSchema,
   RendererToAgentMessageSchema,
   V10RendererCapabilitiesSchema,
-} from '@a2ui/web_core/schema/v1_0';
-export {V10_STANDARD_DEFS} from '@a2ui/web_core/schema/v1_0/defs';
-import type {
-  AgentToRendererMessage,
-  RendererToAgentMessage,
-  V10RendererCapabilities,
-} from '@a2ui/web_core/schema/v1_0';
-export type {AgentToRendererMessage, RendererToAgentMessage, V10RendererCapabilities};
-
-/**
- * Version-neutral alias for renderer capabilities across protocol versions.
- */
-export type RendererCapabilities = V10RendererCapabilities;
-
-// ./validating
-export {
-  validateRecursionAndPaths,
-  STRICT_VALIDATION,
-  getComponentReferences,
-  buildComponentRefMap,
-  V10_CHILD_REF_OPTIONS,
-} from '@a2ui/web_core/validating';
-export type {ValidationConfig} from '@a2ui/web_core/validating';
-// Sourced from ./validating rather than ./catalog: catalog/index.ts re-exports only what
-// types.ts declares, and types.ts imports this type without re-exporting it, so it is not
-// reachable through the ./catalog subpath.
-export type {ComponentRefMap} from '@a2ui/web_core/validating';
-
-// ./processing
-export {MessageProcessor} from '@a2ui/web_core/processing';
-export type {MessageProcessorOptions} from '@a2ui/web_core/processing';
-
-// ./errors
-export {
   A2uiCatalogError,
   A2uiError,
   A2uiValidationError,
@@ -94,10 +49,30 @@ export {
   A2uiStateError,
   A2uiIntegrityError,
   A2uiRecursionError,
-} from '@a2ui/web_core/errors';
+  normalizeVersionString,
+} from '@a2ui/web_core';
 
-// ./adapters
-export type {ProtocolVersion} from '@a2ui/web_core/adapters';
+export type {
+  CatalogApi,
+  CatalogInterface,
+  ComponentApi,
+  FunctionApi,
+  FunctionImplementation,
+  ValidationConfig,
+  ComponentRefMap,
+  MessageProcessorOptions,
+  ProtocolVersion,
+  V10RendererCapabilities,
+  RendererCapabilities,
+  RendererToAgentMessage,
+  V10AgentToRendererMessage as AgentToRendererMessage,
+} from '@a2ui/web_core';
 
-// ./semver
-export {normalizeVersionString} from '@a2ui/web_core/semver';
+// ./v0_9
+export {
+  CreateSurfaceMessageSchema as V09CreateSurfaceMessageSchema,
+  UpdateComponentsMessageSchema as V09UpdateComponentsMessageSchema,
+  UpdateDataModelMessageSchema as V09UpdateDataModelMessageSchema,
+  DeleteSurfaceMessageSchema as V09DeleteSurfaceMessageSchema,
+  V09_STANDARD_DEFS,
+} from '@a2ui/web_core/v0_9';

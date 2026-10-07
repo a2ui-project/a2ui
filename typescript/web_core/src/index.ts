@@ -32,6 +32,19 @@ export * from './expressions/index.js';
 export * from './rpc/index.js';
 export * from './types/common-types.js';
 export * from './universal/index.js';
+export {V10_STANDARD_DEFS} from './v1_0/standard_defs.js';
+export {
+  AgentToRendererMessageSchema,
+  RendererToAgentMessageSchema,
+  CreateSurfaceMessageSchema,
+  UpdateComponentsMessageSchema,
+  UpdateDataModelMessageSchema,
+  DeleteSurfaceMessageSchema,
+  CallRendererFunctionMessageSchema,
+  AgentFunctionResponseMessageSchema,
+  V10RendererCapabilitiesSchema,
+  type V10RendererCapabilities,
+} from './v1_0/schema/index.js';
 export * from './errors.js';
 export * from './common/events.js';
 export * from './common/markdown.js';

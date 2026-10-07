@@ -18,7 +18,7 @@ import fs from 'fs';
 import path from 'path';
 
 import {type AgentToRendererMessage, ExpressDecompiler} from '@a2ui/agent';
-import {type CatalogApi} from '@a2ui/web_core/catalog';
+import {type CatalogApi} from '@a2ui/web_core';
 
 import type {A2uiFormat} from './config.js';
 import {getPackageRootDir} from './tools.js';
