@@ -52,6 +52,8 @@ import {
   validateEmail,
 } from '../../../common/basic_functions.js';
 
+export {isSafeRegex, type SafeRegexOptions} from './safe_regex.js';
+
 // Logical
 export const AndImplementation = createAndImplementation(AndApi);
 export const OrImplementation = createOrImplementation(OrApi);

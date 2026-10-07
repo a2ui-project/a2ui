@@ -232,6 +232,8 @@ class MessageProcessor<T extends ComponentApi> {
   /// A surface's graph spans every component on it, and from v1.0 those may
   /// come from several catalogs, so the reference fields are merged over all of
   /// them. The surface's own default wins a name two catalogs both declare.
+  /// Each catalog's fields come from its [Catalog.refMap], the map the node
+  /// resolver mounts children from.
   Map<String, ComponentRefFields> _refFieldsFor(
     String? surfaceCatalogId,
     Iterable<String?> componentCatalogIds,
@@ -246,10 +248,10 @@ class MessageProcessor<T extends ComponentApi> {
 
     final merged = <String, ComponentRefFields>{};
     for (final catalog in involved) {
-      validatorFor(catalog).componentRefFields.forEach(
-            (String type, ComponentRefFields fields) =>
-                merged.putIfAbsent(type, () => fields),
-          );
+      extractComponentRefFields(catalog).forEach(
+        (String type, ComponentRefFields fields) =>
+            merged.putIfAbsent(type, () => fields),
+      );
     }
     return merged;
   }
