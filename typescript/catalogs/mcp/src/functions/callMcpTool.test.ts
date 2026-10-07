@@ -766,6 +766,7 @@ describe('callMcpTool', () => {
 
       const surface = processor.model.getSurface('mcp-surface');
       assert.ok(surface);
+      assert.ok(surface.catalog);
 
       const result = await surface.catalog.invoker(
         'callMcpTool',

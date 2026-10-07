@@ -206,9 +206,8 @@ export class ComponentHostComponent {
       }
     });
 
-    // Resolve component from the component's owning catalog (or fallback to surface's default catalog)
-    const catalog =
-      (componentModel.catalog as AngularCatalog | undefined) ?? surface.defaultCatalog;
+    // Resolve component from the component's owning catalog.
+    const catalog = componentModel.catalog as AngularCatalog;
     const componentImpl = catalog.components.get(componentModel.type);
 
     if (!componentImpl) {

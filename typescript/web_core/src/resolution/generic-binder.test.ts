@@ -57,11 +57,11 @@ describe('GenericBinder Checkable Trait', () => {
       checks: CommonSchemas.Checkable.shape.checks,
     });
 
-    return {surface, schema};
+    return {catalog: mockCatalog, surface, schema};
   }
 
   it('should resolve checkable validation state reactively', async () => {
-    const {surface, schema} = setupSurfaceAndMocks();
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
     surface.dataModel.set('/val', '');
 
     const compModel = new ComponentModel(
@@ -79,7 +79,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         ],
       },
-      surface.defaultCatalog,
+      catalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -100,7 +100,7 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('should aggregate multiple validation rules correctly', async () => {
-    const {surface, schema} = setupSurfaceAndMocks();
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
     surface.dataModel.set('/val', '');
 
     const compModel = new ComponentModel(
@@ -125,7 +125,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         ],
       },
-      surface.defaultCatalog,
+      catalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -156,7 +156,7 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('should provide a default message if rule.message is missing', async () => {
-    const {surface, schema} = setupSurfaceAndMocks();
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
     surface.dataModel.set('/val', '');
 
     const compModel = new ComponentModel(
@@ -173,7 +173,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         ] as unknown as Array<{condition: unknown; message?: string}>,
       },
-      surface.defaultCatalog,
+      catalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -185,7 +185,7 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('should default to valid if checks array is empty', () => {
-    const {surface, schema} = setupSurfaceAndMocks();
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
 
     const compModel = new ComponentModel(
       'c4',
@@ -194,7 +194,7 @@ describe('GenericBinder Checkable Trait', () => {
         value: 'hello',
         checks: [],
       },
-      surface.defaultCatalog,
+      catalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -206,7 +206,7 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('should resolve ACTION binding and dispatch resolved payload', () => {
-    const {surface} = setupSurfaceAndMocks();
+    const {catalog, surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/user/name', 'Alice');
 
     const actionSchema = z.object({
@@ -226,7 +226,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         },
       },
-      surface.defaultCatalog,
+      catalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -259,7 +259,7 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('should return action dispatch promise settling after onAction listeners complete', async () => {
-    const {surface} = setupSurfaceAndMocks();
+    const {catalog, surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/user/name', 'Alice');
 
     const actionSchema = z.object({
@@ -279,7 +279,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         },
       },
-      surface.defaultCatalog,
+      catalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -302,7 +302,7 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('should resolve dynamic userMessage on direct name action and include it in dispatched action', () => {
-    const {surface} = setupSurfaceAndMocks();
+    const {catalog, surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/feedback', 'Great service!');
 
     const actionSchema = z.object({
@@ -318,7 +318,7 @@ describe('GenericBinder Checkable Trait', () => {
           userMessage: {path: '/feedback'},
         },
       },
-      surface.defaultCatalog,
+      catalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -373,7 +373,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         },
       },
-      surface.defaultCatalog,
+      mockCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -428,7 +428,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         },
       },
-      surface.defaultCatalog,
+      mockCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -481,7 +481,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         },
       },
-      surface.defaultCatalog,
+      mockCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -535,7 +535,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         },
       },
-      surface.defaultCatalog,
+      mockCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -557,7 +557,7 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('should resolve STRUCTURAL ChildList bindings and update dynamically', async () => {
-    const {surface} = setupSurfaceAndMocks();
+    const {catalog, surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/items', [{title: 'Item 1'}, {title: 'Item 2'}]);
 
     const structuralSchema = z.object({
@@ -573,7 +573,7 @@ describe('GenericBinder Checkable Trait', () => {
           path: '/items',
         },
       },
-      surface.defaultCatalog,
+      catalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -598,7 +598,7 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('should cap dynamic ChildList materialization to MAX_DYNAMIC_CHILD_LIST_SIZE (Issue #2387)', async () => {
-    const {surface} = setupSurfaceAndMocks();
+    const {catalog, surface} = setupSurfaceAndMocks();
     const largeList = Array.from({length: 12_000}, (_, i) => ({title: `Item ${i}`}));
     surface.dataModel.set('/largeItems', largeList);
 
@@ -615,7 +615,7 @@ describe('GenericBinder Checkable Trait', () => {
           path: '/largeItems',
         },
       },
-      surface.defaultCatalog,
+      catalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -643,7 +643,7 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('should generate dynamic setters and update data model', () => {
-    const {surface} = setupSurfaceAndMocks();
+    const {catalog, surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/fieldVal', 'initial');
 
     const dynamicSchema = z.object({
@@ -656,7 +656,7 @@ describe('GenericBinder Checkable Trait', () => {
       {
         value: {path: '/fieldVal'},
       },
-      surface.defaultCatalog,
+      catalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -674,7 +674,7 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('should handle subscription, component update rebuilding, and dispose', async () => {
-    const {surface, schema} = setupSurfaceAndMocks();
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
     surface.dataModel.set('/val', 'v1');
 
     const compModel = new ComponentModel(
@@ -683,7 +683,7 @@ describe('GenericBinder Checkable Trait', () => {
       {
         value: {path: '/val'},
       },
-      surface.defaultCatalog,
+      catalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -805,7 +805,7 @@ describe('GenericBinder Checkable Trait', () => {
 
   describe('Static behavior for unannotated schemas', () => {
     it('should pass unannotated properties through as static values without guessing bindings', () => {
-      const {surface} = setupSurfaceAndMocks();
+      const {catalog, surface} = setupSurfaceAndMocks();
 
       const unannotatedSchema = z.object({
         customProp: z.unknown(),
@@ -826,7 +826,7 @@ describe('GenericBinder Checkable Trait', () => {
             },
           },
         },
-        surface.defaultCatalog,
+        catalog,
       );
       surface.componentsModel.addComponent(compModel);
 
@@ -853,7 +853,7 @@ describe('GenericBinder Checkable Trait', () => {
         {
           details: {path: '/secret'},
         },
-        surfaceV10.defaultCatalog,
+        mockCatalogV10,
       );
       surfaceV10.componentsModel.addComponent(compV10);
       const contextV10 = new ComponentContext(surfaceV10, 'c1');
@@ -871,7 +871,7 @@ describe('GenericBinder Checkable Trait', () => {
         {
           details: {'@path': '/secret'},
         },
-        surfaceV09.defaultCatalog,
+        mockCatalogV09,
       );
       surfaceV09.componentsModel.addComponent(compV09);
       const contextV09 = new ComponentContext(surfaceV09, 'c2');
@@ -926,7 +926,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         ],
       },
-      surface.defaultCatalog,
+      mockCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -993,7 +993,7 @@ describe('GenericBinder Checkable Trait', () => {
           },
         ],
       },
-      surface.defaultCatalog,
+      mockCatalog,
     );
     surface.componentsModel.addComponent(compModel);
 
@@ -1025,7 +1025,7 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('should not treat primitive fields or unannotated condition arrays as CHECKABLE', () => {
-    const {surface} = setupSurfaceAndMocks();
+    const {catalog, surface} = setupSurfaceAndMocks();
 
     const schemaWithPrimitiveDesc = z.object({
       status: z.string().describe('The validation status of the transaction'),
@@ -1045,7 +1045,7 @@ describe('GenericBinder Checkable Trait', () => {
         label: 'Select all',
         unannotatedChecks: [{condition: 'some_expr'}],
       },
-      surface.defaultCatalog,
+      catalog,
     );
     surface.componentsModel.addComponent(compModel);
 

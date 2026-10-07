@@ -103,8 +103,9 @@ export class A2uiSurface extends LitElement {
 
     try {
       const rootContext = new ComponentContext(this.surface, 'root', '/');
-      const activeCatalog = (rootContext.componentModel.catalog ??
-        this.surface.defaultCatalog) as Catalog<LitComponentApi>;
+      // The root resolves against its own catalog, so a v1.0 surface without a
+      // default catalog still renders.
+      const activeCatalog = rootContext.componentModel.catalog as Catalog<LitComponentApi>;
       return renderA2uiNode(rootContext, activeCatalog);
     } catch (e) {
       console.error('Error creating root context:', e);

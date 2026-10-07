@@ -148,8 +148,6 @@ const CATALOG_SCHEMA_NOT_SPEC_SHAPED =
   'web_core has no basic catalog whose catalogSchema reproduces the spec catalog: catalogSchema' +
   " emits components flat instead of as 'allOf' over the common types, and the catalog's $id," +
   ' function descriptions and common types $defs differ';
-const V10_CATALOG_RESOLUTION_PENDING =
-  'web_core does not implement v1.0 catalog resolution yet; the stacked TypeScript PR does';
 const KNOWN_DIVERGENCES = new Map([
   [
     'core/catalog.yaml',
@@ -182,96 +180,14 @@ const KNOWN_DIVERGENCES = new Map([
         'test_v10_published_basic_catalog_rejects_function_call_extra_key',
         FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
       ],
-      [
-        'test_v10_published_basic_catalog_rejects_nested_call_bad_identifiers',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
     ]),
   ],
   [
     'core/message_processor_v1_0.yaml',
     new Map([
       [
-        'test_v10_component_without_catalog_id_on_surface_without_default_errors',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      [
-        'test_v10_function_call_naming_catalog_without_that_function_errors',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      [
-        'test_v10_function_call_naming_catalog_with_invalid_args_errors',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      ['test_v10_function_call_naming_unknown_catalog_errors', V10_CATALOG_RESOLUTION_PENDING],
-      ['test_v10_function_call_with_empty_catalog_id_errors', V10_CATALOG_RESOLUTION_PENDING],
-      [
-        'test_v10_function_call_without_catalog_id_uses_surface_default',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      [
-        'test_v10_function_call_without_catalog_id_on_surface_without_default_errors',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      [
-        'test_v10_component_update_without_catalog_id_on_surface_without_default_errors',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      [
-        'test_v10_nested_call_in_args_on_surface_without_default_errors',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      ['test_v10_call_in_index_args_is_checked', V10_CATALOG_RESOLUTION_PENDING],
-      [
-        'test_v10_call_in_index_args_on_surface_without_default_errors',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      [
-        'test_v10_call_in_list_without_catalog_id_uses_surface_default',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      [
-        'test_v10_call_without_catalog_id_on_surface_without_default_errors_without_strict_mode',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      [
-        'test_v10_call_naming_unknown_catalog_errors_without_strict_mode',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      [
-        'test_v10_call_naming_catalog_of_other_protocol_version_errors',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      [
-        'test_v10_component_without_catalog_id_errors_with_a_single_catalog',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      [
-        'test_v10_get_renderer_data_model_filters_by_surface_protocol_version',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      [
-        'test_v10_component_from_named_catalog_with_closed_schema_accepted',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      ['test_v10_function_call_with_empty_name_errors', V10_CATALOG_RESOLUTION_PENDING],
-      [
         'test_v10_create_surface_metadata_extension_key_must_be_identifier',
         'the v1.0 CreateSurface schema does not yet enforce UAX #31 identifier syntax on metadata.extensions keys',
-      ],
-    ]),
-  ],
-  [
-    'core/functions.yaml',
-    new Map([
-      [
-        'test_evaluate_function_v10_without_catalog_id_on_surface_without_default_errors',
-        V10_CATALOG_RESOLUTION_PENDING,
-      ],
-      ['test_evaluate_function_v10_unknown_catalog_id_errors', V10_CATALOG_RESOLUTION_PENDING],
-      [
-        'test_evaluate_function_v10_catalog_of_other_protocol_version_errors',
-        V10_CATALOG_RESOLUTION_PENDING,
       ],
     ]),
   ],
@@ -1131,17 +1047,23 @@ function validateValidateTestCase(testCase) {
  *
  * Feeds the case's messages through a processor, then asserts that
  * `getRendererDataModel` returns exactly what the suite expects. A case may
- * expect `null`, meaning no surface opted into data-model reporting.
+ * expect `null`, meaning no surface opted into data-model reporting. A case
+ * may give `steps` instead of `messages`, each step a separate batch, so that
+ * surfaces of different protocol versions can be created side by side.
  *
- * @param testCase Conformance case carrying `messages` and an `expect` payload.
+ * @param testCase Conformance case carrying `messages` or `steps` and an
+ *   `expect` payload.
  */
 function validateGetRendererDataModelTestCase(testCase) {
-  const {messages, args, expect} = testCase;
+  const {messages, steps, args, expect} = testCase;
   const processor = new MessageProcessor(getCatalogsForTestCase(testCase), undefined, {
     version: resolveProtocolVersion(testCase),
   });
   if (messages) {
     processor.processMessages(messages);
+  }
+  for (const step of steps ?? []) {
+    processor.processMessages(step.messages);
   }
 
   const actual = processor.getRendererDataModel(args?.version);
@@ -1858,8 +1780,15 @@ function getCatalogsForTestCase(testCase) {
         p.includes('basic/catalog.json') ||
         /(^|\/)catalogs\/basic\/v\d+\/catalog\.json$/.test(p)
       ) {
+        const pathVersion = /(^|\/)specification\/v0_8\//.test(p)
+          ? '0.8'
+          : /(^|\/)specification\/v0_9(_\d+)?\//.test(p)
+            ? '0.9'
+            : /(^|\/)catalogs\/basic\/v1\//.test(p)
+              ? '1.0'
+              : version;
         const baseBasic =
-          version === '1.0' ? v1_0Catalog : version === '0.8' ? v0_8Catalog : v0_9Catalog;
+          pathVersion === '1.0' ? v1_0Catalog : pathVersion === '0.8' ? v0_8Catalog : v0_9Catalog;
         const matchingBasic =
           baseBasic.id === cId
             ? baseBasic
@@ -2448,6 +2377,77 @@ function validateDispatchActionTestCase(testCase) {
   }
 }
 
+/**
+ * Evaluates an `evaluate_function` case that carries a `surface` block.
+ *
+ * The surface is created by a `createSurface` message, so the processor
+ * decides which catalogs it makes available, and the function is evaluated as
+ * a call on it. The call therefore goes through catalog resolution: from v1.0
+ * it runs in the catalog its own `catalogId` names, else in the surface
+ * default, else it fails.
+ *
+ * The data context reports a failing call on the surface instead of throwing,
+ * so the first reported error is rethrown, as an `A2uiCatalogError` for a
+ * `CATALOG_ERROR` and an `A2uiExpressionError` otherwise.
+ *
+ * @param testCase Conformance case with `surface`, `protocolVersion` and
+ *   `catalogPaths`, and optionally a call-level `catalogId`.
+ * @returns The resolved value.
+ * @throws The first error the surface reported while evaluating the call.
+ */
+function evaluateFunctionOnSurface(testCase) {
+  const {surface: surfaceSpec, catalogId, function: funcName, args = {}, dataModel} = testCase;
+  const version = resolveProtocolVersion(testCase);
+  const processor = new MessageProcessor(getCatalogsForTestCase(testCase), undefined, {version});
+  const createSurface = {surfaceId: 'main'};
+  if (surfaceSpec.catalogId !== undefined) createSurface.catalogId = surfaceSpec.catalogId;
+  processor.processMessages([{version, createSurface}]);
+  const surface = processor.getSurface('main');
+  if (dataModel !== undefined) surface.dataModel.set('/', dataModel);
+
+  const callKey = toCanonicalVersion(version) === '1.0' ? '@call' : 'call';
+  const call = {[callKey]: funcName, args};
+  if (catalogId !== undefined) call.catalogId = catalogId;
+
+  const reported = [];
+  const subscription = surface.onError.subscribe(err => reported.push(err));
+  let result;
+  try {
+    result = new DataContext(surface, '/').resolveDynamicValue(call);
+    result = isSignal(result) ? getValue(result) : result;
+  } finally {
+    subscription.unsubscribe();
+  }
+  if (reported.length > 0) {
+    const {code, message} = reported[0];
+    throw code === 'CATALOG_ERROR'
+      ? new A2uiCatalogError(message)
+      : new A2uiExpressionError(message, funcName);
+  }
+  return result;
+}
+
+/**
+ * Asserts that an error matches an `evaluate_function` case's `expectError`.
+ *
+ * @param err Thrown error.
+ * @param errorSpec Expected `category` and `message`, both optional.
+ * @returns `true` when the error matches, for use with `assert.throws`.
+ */
+function matchesEvaluateFunctionError(err, errorSpec) {
+  if (!matchesErrorCategory(err, errorSpec.category)) {
+    throw new Error(
+      `Expected error category '${errorSpec.category}', got '${err.constructor?.name || err.name}': ${err.message}`,
+    );
+  }
+  if (errorSpec.message && !err.message.includes(errorSpec.message)) {
+    throw new Error(
+      `Expected error message containing '${errorSpec.message}', got '${err.message}'`,
+    );
+  }
+  return true;
+}
+
 function validateEvaluateFunctionTestCase(testCase) {
   const {
     function: funcName,
@@ -2458,6 +2458,18 @@ function validateEvaluateFunctionTestCase(testCase) {
     expect_error,
   } = testCase;
   const errorSpec = expect_error || expectError;
+
+  if (testCase.surface) {
+    const evaluate = () => evaluateFunctionOnSurface(testCase);
+    if (errorSpec) {
+      assert.throws(evaluate, err => matchesEvaluateFunctionError(err, errorSpec));
+      return;
+    }
+    const result = evaluate();
+    const actualJson = result === undefined ? null : JSON.parse(JSON.stringify(result));
+    assert.deepStrictEqual(actualJson, expect);
+    return;
+  }
 
   const hasExplicitCatalogs = Boolean(
     testCase.catalog || testCase.catalogs || testCase.catalogPaths,

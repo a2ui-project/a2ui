@@ -257,7 +257,9 @@ function setupWithLitList() {
 }
 
 function add(surface: SurfaceModel, id: string, type: string, props: Record<string, unknown>) {
-  surface.componentsModel.addComponent(new ComponentModel(id, type, props, surface.defaultCatalog));
+  const catalog = surface.defaultCatalog;
+  if (!catalog) throw new Error('add() needs a surface with a default catalog');
+  surface.componentsModel.addComponent(new ComponentModel(id, type, props, catalog));
 }
 
 beforeEach(() => {

@@ -23,7 +23,7 @@ import {
   createComponentImplementation,
   type ReactCatalogComponent,
 } from '../src/index';
-import {Catalog, MessageProcessor} from '@a2ui/web_core';
+import {Catalog, ComponentModel, MessageProcessor, SurfaceModel} from '@a2ui/web_core';
 import {CommonSchemas} from '@a2ui/web_core/v1_0';
 import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 
@@ -439,5 +439,66 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
       const binderlessWrapper = getByTestId('custom-binderless-wrapper');
       expect(binderlessWrapper.textContent).toContain('Universal Child Inside Binderless React');
     });
+  });
+
+  it('renders a v1.0 surface with no default catalog whose root names its catalog', async () => {
+    const processor = new MessageProcessor([basicCatalog]);
+    processor.processMessages([
+      {version: 'v1.0', createSurface: {surfaceId: 'no-default'}},
+      {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 'no-default',
+          components: [
+            {id: 'root', component: 'Column', catalogId: V1_0_CATALOG_ID, children: ['t']},
+            {id: 't', component: 'Text', catalogId: V1_0_CATALOG_ID, text: 'Own catalog'},
+          ],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('no-default')!;
+    expect(surface.defaultCatalog).toBeUndefined();
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+    await waitFor(() => {
+      expect(container.querySelector('a2ui-basic-column')).not.toBeNull();
+      expect(container.textContent).toContain('Own catalog');
+    });
+  });
+
+  it('reports a component whose catalog lacks its type on a surface with no default catalog', async () => {
+    const surface = new SurfaceModel(
+      'no-catalog',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'v1.0',
+    );
+    const emptyCatalog = new Catalog('empty', '1.0', []);
+    surface.componentsModel.addComponent(
+      new ComponentModel('root', 'Text', {text: 'x'}, emptyCatalog),
+    );
+    const errors: unknown[] = [];
+    surface.onError.subscribe(e => {
+      errors.push(e);
+    });
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+
+    await waitFor(() =>
+      expect(errors).toEqual([
+        {
+          code: 'UNKNOWN_COMPONENT_TYPE',
+          message: "Component 'root' has type 'Text', which is not in catalog 'empty'.",
+          surfaceId: 'no-catalog',
+        },
+      ]),
+    );
+    expect(container.querySelector('a2ui-basic-text')).toBeNull();
   });
 });

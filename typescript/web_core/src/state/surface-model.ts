@@ -18,6 +18,23 @@ import {DataModel} from './data-model.js';
 import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from '../catalog/types.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {EventEmitter, EventSource} from '../common/events.js';
+import {toCanonicalVersion} from '../common/semver.js';
+import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
+
+/**
+ * Normalizes a protocol version to the `vMAJOR.MINOR` form used by messages.
+ *
+ * Catalogs declare `'1.0'` while messages carry `'v1.0'`; storing one form
+ * keeps comparisons by consumers simple. Unparseable versions are kept as is.
+ *
+ * @param version Protocol version to normalize.
+ * @returns The canonical version, or `undefined` when none was given.
+ */
+function canonicalProtocolVersion(version: string | undefined): string | undefined {
+  if (!version) return undefined;
+  const canonical = toCanonicalVersion(version);
+  return canonical ? `v${canonical}` : version;
+}
 
 /** Action payload emitted by a renderer component. */
 export interface ActionPayload {
@@ -119,11 +136,22 @@ export class SurfaceModel<
   readonly availableCatalogs: ReadonlyMap<string, Catalog<T, F>>;
 
   /**
+   * Protocol version this surface speaks.
+   *
+   * Defaults to the default catalog's version. A surface without a default
+   * catalog (allowed from v1.0) takes it from the `protocolVersion`
+   * constructor argument instead. Stored in the `vMAJOR.MINOR` form used by
+   * messages (for example `'v1.0'`), whichever form it was given in.
+   */
+  readonly protocolVersion: string | undefined;
+
+  /**
    * Initializes a new `SurfaceModel` instance.
    *
    * @param id Unique identifier for this surface.
    * @param defaultCatalog Catalog that resolves components and functions that
-   *   do not name a catalog explicitly.
+   *   do not name a catalog explicitly. From v1.0 a surface may have none, in
+   *   which case every component and function call must name its catalog.
    * @param availableCatalogs Every catalog a payload on this surface may select
    *   by `catalogId`, keyed by that identifier. The message processor populates
    *   it with the catalogs whose protocol version is compatible with the
@@ -133,14 +161,18 @@ export class SurfaceModel<
    * @param dataModel Optional custom DataModel instance. If provided, the SurfaceModel assumes
    *   full ownership of its lifecycle and will dispose it when dispose() is called.
    * @param rootId Identifier of the root component on this surface (defaults to `'root'`).
+   * @param metadata Optional surface-level metadata for vendor extensions.
+   * @param protocolVersion Protocol version of the surface. Defaults to the
+   *   default catalog's version; surfaces without a default catalog pass it
+   *   explicitly.
    */
   constructor(
     readonly id: string,
     /**
      * Catalog that resolves components and functions that do not name a
-     * catalog explicitly.
+     * catalog explicitly, or `undefined` when the surface names none.
      */
-    readonly defaultCatalog: Catalog<T, F>,
+    readonly defaultCatalog: Catalog<T, F> | undefined,
     availableCatalogs: ReadonlyMap<string, Catalog<T, F>> | null | undefined = new Map(),
     readonly theme: any = {},
     readonly sendDataModel: boolean = false,
@@ -149,7 +181,11 @@ export class SurfaceModel<
     readonly rootId: string = 'root',
     /** Optional surface-level metadata for vendor extensions. */
     readonly metadata?: Record<string, unknown>,
+    protocolVersion?: string,
   ) {
+    this.protocolVersion = canonicalProtocolVersion(
+      protocolVersion ?? defaultCatalog?.protocolVersion,
+    );
     if (
       availableCatalogs !== undefined &&
       availableCatalogs !== null &&
@@ -175,8 +211,28 @@ export class SurfaceModel<
    *   SDKs now that a surface can carry more than one catalog. This alias will
    *   be removed in a future release.
    */
-  get catalog(): Catalog<T, F> {
+  get catalog(): Catalog<T, F> | undefined {
     return this.defaultCatalog;
+  }
+
+  /**
+   * Resolves the catalog that an item on this surface uses.
+   *
+   * An item that names a catalog uses that entry of {@link availableCatalogs};
+   * one that names none uses the {@link defaultCatalog}. Both the message
+   * processor, when validating a payload, and `DataContext`, when running a
+   * function call, resolve catalogs through this method.
+   *
+   * @param catalogId Catalog the item names, or `undefined` when it names none.
+   * @param subject Description of the item for error messages, such as
+   *   `Function call 'formatDate'`.
+   * @returns The catalog the item resolves to.
+   * @throws {A2uiCatalogError} If the named catalog is not available on this
+   *   surface, or if the item names none and the surface has no default
+   *   catalog.
+   */
+  resolveCatalog(catalogId: string | undefined, subject = 'Item'): Catalog<T, F> {
+    return resolveSurfaceCatalog(this, catalogId, subject);
   }
 
   /**

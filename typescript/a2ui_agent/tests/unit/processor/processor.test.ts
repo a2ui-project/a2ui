@@ -17,6 +17,7 @@
 import {describe, test, expect} from 'vitest';
 import {A2uiRequestProcessor} from '../../../src/processor/processor.js';
 import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
+import {loadConformanceCatalog} from '../../helpers/conformance-catalogs.js';
 import {A2uiIntegrityError, A2uiValidationError} from '../../../src/errors.js';
 
 const basicCatalogV10 = loadBasicCatalog('v1.0');
@@ -91,5 +92,100 @@ describe('A2uiRequestProcessor', () => {
     expect(processor.promptSnippet).toContain(
       '---BEGIN greeting---\nexample text\n---END greeting---',
     );
+  });
+
+  describe('v1.0 catalog compliance', () => {
+    /** Wraps one root component in a v1.0 createSurface response on the basic catalog. */
+    function responseWithRoot(root: Record<string, unknown>): string {
+      const message = {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's',
+          catalogId: basicCatalogV10.id,
+          components: [{id: 'root', ...root}],
+        },
+      };
+      return `<a2ui-json>${JSON.stringify([message])}</a2ui-json>`;
+    }
+
+    /** Asserts that `fn` throws an `A2uiValidationError` whose message matches `pattern`. */
+    function expectValidationError(fn: () => unknown, pattern: RegExp): void {
+      let error: unknown;
+      try {
+        fn();
+      } catch (e) {
+        error = e;
+      }
+      expect(error).toBeInstanceOf(A2uiValidationError);
+      expect((error as Error).message).toMatch(pattern);
+    }
+
+    test('rejects a call to a function no catalog declares', () => {
+      const processor = new A2uiRequestProcessor([basicCatalogV10]);
+      const response = responseWithRoot({
+        component: 'Text',
+        text: {'@call': 'noSuchFn', args: {}},
+      });
+
+      expectValidationError(
+        () => processor.parseResponse(response),
+        /Unrecognized function 'noSuchFn'/,
+      );
+    });
+
+    test('rejects a call to an undefined @ system function', () => {
+      const processor = new A2uiRequestProcessor([basicCatalogV10]);
+      const response = responseWithRoot({
+        component: 'Text',
+        text: {'@call': '@foo', args: {}},
+      });
+
+      expectValidationError(
+        () => processor.parseResponse(response),
+        /Unrecognized function '@foo'/,
+      );
+    });
+
+    test('rejects a component type no catalog declares', () => {
+      const processor = new A2uiRequestProcessor([basicCatalogV10]);
+      const response = responseWithRoot({component: 'NoSuchWidget'});
+
+      expectValidationError(
+        () => processor.parseResponse(response),
+        /Unknown component type 'NoSuchWidget'/,
+      );
+    });
+
+    test('accepts a valid call to a function of another active catalog', () => {
+      const custom = loadConformanceCatalog('custom_catalog_v1_0.json');
+      const processor = new A2uiRequestProcessor([basicCatalogV10, custom]);
+      const response = responseWithRoot({
+        component: 'Text',
+        text: {'@call': 'percent', catalogId: custom.id, args: {value: 0.5}},
+      });
+
+      expect(() => processor.parseResponse(response)).not.toThrow();
+    });
+
+    test('checks a call to another active catalog against that catalog', () => {
+      const custom = loadConformanceCatalog('custom_catalog_v1_0.json');
+      const processor = new A2uiRequestProcessor([basicCatalogV10, custom]);
+      const response = responseWithRoot({
+        component: 'Text',
+        text: {'@call': 'percent', catalogId: custom.id, args: {value: 'half'}},
+      });
+
+      expectValidationError(
+        () => processor.parseResponse(response),
+        /Validation failed for function 'percent'/,
+      );
+    });
+
+    test('still accepts a response that updates only part of a surface', () => {
+      const processor = new A2uiRequestProcessor([basicCatalogV10]);
+      const response = responseWithRoot({component: 'Column', children: ['later']});
+
+      expect(() => processor.parseResponse(response)).not.toThrow();
+    });
   });
 });
