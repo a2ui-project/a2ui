@@ -29,7 +29,12 @@ import {
 } from './suite-helpers.js';
 
 /** Cases that run but do not pass yet, with the reason for each. */
-const KNOWN_FAILURES = new Map<string, string>([]);
+const KNOWN_FAILURES = new Map<string, string>([
+  [
+    'test_capabilities_without_the_catalogs_version_are_invalid',
+    'resolveCatalogs takes the capabilities entry for one version, not the version-keyed object',
+  ],
+]);
 
 describe('Conformance: catalog_resolution.yaml', () => {
   for (const testCase of loadCases([conformancePath('agent/catalog_resolution.yaml')])) {

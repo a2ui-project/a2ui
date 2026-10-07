@@ -28,29 +28,42 @@ import {catalogFromDocument} from '../processor/catalog_providers.js';
  * does not hold is ignored. Each inline catalog the renderer declares becomes an active
  * catalog of its own when the agent accepts inline catalogs, and is dropped otherwise.
  * Inline catalogs are not transformed, since transformers belong to a registration.
+ * Every inline catalog is built, so a malformed one is an error even when the agent does
+ * not accept inline catalogs.
  *
  * @param catalogs Registered catalog configurations supported by the agent.
  * @param rendererCapabilities Capabilities sent by the client renderer, or `undefined` when
  *     the request carried none. With no capabilities the renderer stated no preference, so
- *     every registered catalog is active.
+ *     every registered catalog is active, which is none when nothing is registered.
  * @param acceptsInlineCatalogs Whether the agent accepts inline catalogs from the client.
  * @returns Array of active CatalogApi instances.
- * @throws {A2uiCatalogError} If the agent has no catalogs, if an inline catalog cannot be
- *     built, or if negotiation leaves no active catalog.
+ * @throws {A2uiCatalogError} If capabilities are given and the agent has no catalogs, if
+ *     `inlineCatalogs` is not an array of valid catalogs, or if negotiation leaves no
+ *     active catalog.
  */
 export function resolveCatalogs(
   catalogs: CatalogConfig[],
   rendererCapabilities: RendererCapabilities | undefined,
   acceptsInlineCatalogs = false,
 ): CatalogApi[] {
-  if (catalogs.length === 0) {
-    throw new A2uiCatalogError('Agent has no configured catalogs');
-  }
-
   const agentCatalogs = catalogs.map(c => c.transformedCatalog);
   if (!rendererCapabilities) {
     return agentCatalogs;
   }
+  if (agentCatalogs.length === 0) {
+    throw new A2uiCatalogError('Agent has no configured catalogs');
+  }
+
+  const inlineDocuments: unknown = rendererCapabilities.inlineCatalogs ?? [];
+  if (!Array.isArray(inlineDocuments)) {
+    throw new A2uiCatalogError('inlineCatalogs in the renderer capabilities must be an array');
+  }
+  const inlineCatalogs = inlineDocuments.map(document => {
+    if (typeof document !== 'object' || document === null || Array.isArray(document)) {
+      throw new A2uiCatalogError('Each entry in inlineCatalogs must be a catalog object');
+    }
+    return catalogFromDocument(document as Record<string, unknown>, 'inline catalog');
+  });
 
   const active: CatalogApi[] = [];
   for (const id of rendererCapabilities.supportedCatalogIds ?? []) {
@@ -61,9 +74,7 @@ export function resolveCatalogs(
   }
 
   if (acceptsInlineCatalogs) {
-    for (const inlineSchema of rendererCapabilities.inlineCatalogs ?? []) {
-      active.push(catalogFromDocument(inlineSchema as Record<string, unknown>, 'inline catalog'));
-    }
+    active.push(...inlineCatalogs);
   }
 
   if (active.length === 0) {

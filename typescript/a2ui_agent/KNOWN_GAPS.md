@@ -27,6 +27,13 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Streaming callers can forward components a renderer's catalog can't render.
 - **Done looks like:** The stream processor validates completed messages against the catalog each component resolves to, for example through web_core's `MessageProcessor`, or streaming moves behind `A2uiRequestProcessor` and is validated there. Whether to do this is decided in #3030.
 
+### `resolveCatalogs` can't tell when capabilities omit the catalogs' version
+
+- **What it is:** `resolveCatalogs` and `A2uiGenerator.createProcessor` take the renderer capabilities entry for one protocol version, not the object keyed by version that the renderer sends. Python takes the keyed object, looks up the entry for the registered catalogs' version, and raises a validation error when it's missing.
+- **Why it exists:** The TypeScript SDK was written against v1.0 only, so callers unwrap the `v1.0` entry before calling in.
+- **What it risks:** A caller that unwraps the wrong key, or passes `undefined` because the key is missing, gets every registered catalog instead of an error.
+- **Done looks like:** The resolver takes the version-keyed capabilities, picks the entry for the catalogs' protocol version, and throws `A2uiValidationError` when there is none, so `test_capabilities_without_the_catalogs_version_are_invalid` in `conformance/agent/catalog_resolution.yaml` passes.
+
 ### State leakage across requests (Sharp edge)
 
 - **What it is:** `A2uiRequestProcessor` holds a single `MessageProcessor` that accrues state across every `parseResponse` call.
