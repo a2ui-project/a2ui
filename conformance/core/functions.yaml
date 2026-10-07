@@ -694,3 +694,149 @@
     url: "javascript:alert(1)"
   expectError:
     category: ExpressionError
+
+# ==============================================================================
+# Catalog routing of function calls (evaluate_function with a surface)
+# ==============================================================================
+# A case with a `surface` block evaluates the function as a call on a surface
+# rather than invoking its implementation directly, so the call goes through
+# catalog resolution: from v1.0 it runs in the catalog its own catalogId names,
+# else in the surface default catalog, else it fails. These cases use the
+# basic catalog's functions only. The conformance custom catalog declares no
+# formatString, which lets a case tell which catalog a call ran in. The
+# shape is described in conformance/README.md.
+#
+# @index has no case here: it is only defined inside a list template, which
+# evaluate_function cannot describe. The process_messages cases
+# test_v10_index_function_on_surface_without_default and
+# test_v10_call_in_index_args_on_surface_without_default_errors in
+# message_processor_v1_0.yaml cover it.
+
+- name: test_evaluate_function_v10_runs_in_named_catalog
+  description: >-
+    Verifies a v1.0 call that names a catalogId runs in that catalog rather than the surface default. The default is the conformance custom catalog, which declares no formatString; the call names the basic catalog, which does.
+  action: evaluate_function
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+    - "conformance/test_data/catalogs/custom_catalog_v1_0.json"
+  surface:
+    catalogId: "conformance/custom"
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "Hello"
+  expect: "Hello"
+
+- name: test_evaluate_function_v10_runs_in_named_catalog_on_surface_without_default
+  description: >-
+    Verifies a v1.0 call that names a catalogId runs on a surface that has no default catalog.
+  action: evaluate_function
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "Hello"
+  expect: "Hello"
+
+- name: test_evaluate_function_v10_runs_in_surface_default
+  description: >-
+    Verifies a v1.0 call that names no catalogId runs in the surface default catalog (the basic catalog), while the conformance custom catalog is also available on the surface.
+  action: evaluate_function
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+    - "conformance/test_data/catalogs/custom_catalog_v1_0.json"
+  surface:
+    catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  function: formatString
+  args:
+    value: "Hello"
+  expect: "Hello"
+
+- name: test_evaluate_function_v10_without_catalog_id_on_surface_without_default_errors
+  description: >-
+    Verifies a v1.0 call that names no catalogId fails with a CatalogError on a surface that has no default catalog, even though the only available catalog declares the function. There is no fallback to the available catalogs.
+  action: evaluate_function
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  args:
+    value: "Hello"
+  expectError:
+    category: CatalogError
+    message: "has no default catalogId"
+
+- name: test_evaluate_function_v10_unknown_catalog_id_errors
+  description: >-
+    Verifies a v1.0 call that names a catalogId the surface does not have fails with a CatalogError, rather than falling back to the surface default, which declares the function.
+  action: evaluate_function
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface:
+    catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  function: formatString
+  catalogId: "missing-catalog"
+  args:
+    value: "Hello"
+  expectError:
+    category: CatalogError
+    message: "Catalog not found: missing-catalog"
+
+- name: test_evaluate_function_v10_catalog_of_other_protocol_version_errors
+  description: >-
+    Verifies a v1.0 call that names the v0.9 basic catalog fails with a CatalogError. The client has that catalog, but a v1.0 surface only makes v1.0 catalogs available.
+  action: evaluate_function
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  surface:
+    catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+  args:
+    value: "Hello"
+  expectError:
+    category: CatalogError
+    message: "Catalog not found"
+
+- name: test_evaluate_function_v10_nested_call_does_not_inherit_catalog
+  description: >-
+    Verifies a call nested in the args of a v1.0 call resolves its catalog on its own. The outer call names the basic catalog; the inner call names no catalogId, and the surface has no default catalog, so the inner call fails with a CatalogError.
+  action: evaluate_function
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value:
+      "@call": formatString
+      args:
+        value: "hi"
+  expectError:
+    category: CatalogError
+    message: "has no default catalogId"
+
+- name: test_evaluate_function_v09_ignores_call_catalog_id
+  description: >-
+    Verifies a catalogId on a call is ignored before v1.0. On a v0.9 surface the call runs in the surface catalog, so naming a catalog the client does not have is not an error.
+  action: evaluate_function
+  protocolVersion: "v0.9"
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  surface:
+    catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+  function: formatString
+  catalogId: "missing-catalog"
+  args:
+    value: "Hello"
+  expect: "Hello"

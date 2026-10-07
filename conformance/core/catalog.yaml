@@ -1356,3 +1356,92 @@
             "@call": openUrl
             args: {url: "https://example.com"}
             bogus: 1
+
+- name: test_v10_published_basic_catalog_validates_nested_calls
+  description: >-
+    Tests that validating a component against the published v1.0 basic catalog alone checks every nested function call that names no catalogId, or names this catalog, against this catalog. That includes a call nested in another call's args, in @index's args, and in the args of a call that names another catalog. A call that names another catalog runs there, so this catalog cannot judge its function or args and accepts it; the message processor checks it against the catalog it resolves to.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
+  expect:
+    validComponents:
+      - id: t1
+        component: Text
+        text:
+          "@call": formatString
+          catalogId: other-catalog
+          args: {value: 3}
+      - id: t1b
+        component: Text
+        text:
+          "@call": shout
+          catalogId: other-catalog
+          args: {value: hi, loud: true}
+    invalidComponents:
+      - id: t5
+        component: Text
+        text:
+          "@call": notAFunction
+          catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+          args: {}
+      - id: t6
+        component: Text
+        text:
+          "@call": formatString
+          catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+          args: {value: hi, extra: 1}
+      - id: t7
+        component: Text
+        text:
+          "@call": shout
+          catalogId: other-catalog
+          args:
+            value:
+              "@call": notAFunction
+              args: {}
+      - id: t2
+        component: Text
+        text:
+          "@call": notAFunction
+          args: {}
+      - id: t3
+        component: Text
+        text:
+          "@call": formatString
+          args:
+            value:
+              "@call": notAFunction
+              args: {}
+      - id: t4
+        component: Text
+        text:
+          "@call": "@index"
+          args:
+            offset:
+              "@call": notAFunction
+              args: {}
+
+- name: test_v10_published_basic_catalog_rejects_nested_call_bad_identifiers
+  description: >-
+    Tests that validating a component against the published v1.0 basic catalog alone still rejects what it can judge without resolving a nested call's catalog: a function name that is not a valid identifier (even when the call names another catalog), an argument name that is not a valid identifier, and a call to @foo in the reserved @ namespace, where v1.0 defines only @index.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
+  expect:
+    invalidComponents:
+      - id: t1
+        component: Text
+        text:
+          "@call": not-a-function
+          catalogId: other-catalog
+      - id: t2
+        component: Text
+        text:
+          "@call": formatString
+          catalogId: other-catalog
+          args: {bad-arg: x}
+      - id: t3
+        component: Text
+        text:
+          "@call": "@foo"
+          catalogId: other-catalog

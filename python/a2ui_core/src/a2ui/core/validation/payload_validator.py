@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import copy
+import functools
 from typing import (
     Any,
     Final,
@@ -25,13 +26,14 @@ import jsonschema.exceptions
 from pydantic import BaseModel, ConfigDict, ValidationError
 import referencing.exceptions
 
-from ..catalog import system_functions_for
+from ..catalog import Catalog, is_system_function_name, system_functions_for
 from ..catalog.catalog import CatalogApi
-from ..common.semver import is_at_least_version
+from ..common.semver import is_at_least_version, to_protocol_version
 from ..common.uax31 import is_valid_uax31_identifier
 from ..exceptions import A2uiCatalogError, A2uiErrorDetail, A2uiValidationError
 from ..processing.format_pydantic_error import format_validation_error
 from ..schema import ProtocolVersion
+from ..schema.common_types_schema import get_common_types_catalog_defs
 from .schema_validator import SchemaValidator
 
 
@@ -96,6 +98,80 @@ def _is_unknown_property_error(err: jsonschema.exceptions.ValidationError) -> bo
     return not (isinstance(err.schema, dict) and "patternProperties" in err.schema)
 
 
+@functools.cache
+def _function_call_envelope(protocol_version: ProtocolVersion) -> dict[str, Any]:
+    """Returns the envelope-only `FunctionCall` def of a protocol version.
+
+    It checks `@call`, `args` and `catalogId` and rejects other keys, but not
+    which function is called or its args.
+    """
+    envelope: dict[str, Any] = get_common_types_catalog_defs(protocol_version)[
+        "FunctionCall"
+    ]
+    return envelope
+
+
+def rebase_function_error_details(
+    error: A2uiValidationError,
+    fn_name: str,
+    call_path: str,
+    fallback_code: str = "invalid_function_call",
+) -> list[A2uiErrorDetail]:
+    """Moves the details of a function call error to the call's location.
+
+    `PayloadValidator.validate_function` reports paths relative to the
+    function, as `functions.<name>` or `functions.<name>.<arg>...`. For a call
+    held in a component, those become `<call_path>` and
+    `<call_path>.args.<arg>...`, so the error says which component and
+    property hold the call.
+
+    Args:
+        error: The error raised for the call.
+        fn_name: The name of the called function.
+        call_path: The call's location, e.g. `components.t1.text`.
+        fallback_code: The code to use if the error has no details.
+
+    Returns:
+        The rebased error details.
+    """
+    fn_prefix = f"functions.{fn_name}"
+    details = error.details or [
+        A2uiErrorDetail(path=fn_prefix, code=fallback_code, message=str(error))
+    ]
+    rebased: list[A2uiErrorDetail] = []
+    for detail in details:
+        if detail.path == fn_prefix:
+            detail_path = call_path
+        elif detail.path.startswith(f"{fn_prefix}."):
+            detail_path = f"{call_path}.args{detail.path[len(fn_prefix):]}"
+        else:
+            detail_path = f"{call_path}.{detail.path}"
+        rebased.append(
+            A2uiErrorDetail(path=detail_path, code=detail.code, message=detail.message)
+        )
+    return rebased
+
+
+def nested_call_runs_in_catalog(
+    call_catalog_id: Any, catalog_id: str | None, *, catalog_is_default: bool
+) -> bool:
+    """Returns whether a v1.0 nested call runs in a component's catalog.
+
+    A call runs in the catalog it names, or else in the surface default
+    catalog. So a call that names none runs in the component's catalog only
+    when that catalog is the surface default.
+
+    Args:
+        call_catalog_id: The `catalogId` the call names, or None.
+        catalog_id: The ID of the component's catalog.
+        catalog_is_default: Whether the component's catalog is the surface
+            default catalog.
+    """
+    if call_catalog_id is None:
+        return catalog_is_default
+    return bool(call_catalog_id == catalog_id)
+
+
 class PayloadValidator:
     """Validates A2UI payloads against catalog JSON schema definitions."""
 
@@ -104,6 +180,12 @@ class PayloadValidator:
         catalog: CatalogApi,
         config: ValidationConfig | None = None,
     ) -> None:
+        """Initializes the validator.
+
+        Args:
+            catalog: The catalog that defines the components being validated.
+            config: Optional validation settings.
+        """
         self.catalog: CatalogApi = catalog
         self.config = config
 
@@ -213,7 +295,9 @@ class PayloadValidator:
                 f"No schema defined for component '{comp_type}' in catalog."
             )
 
-        self._validate_nested_functions(comp_id or "unknown", comp, "", errors)
+        self._validate_nested_functions(
+            comp_id or "unknown", comp.get("catalogId"), comp, "", errors
+        )
         if errors:
             summary = "\n".join(f"{detail.path}: {detail.message}" for detail in errors)
             raise A2uiValidationError(summary, details=errors)
@@ -272,6 +356,16 @@ class PayloadValidator:
                 full_schema["functions"] = base_schema["functions"]
             if "components" in base_schema and "components" not in full_schema:
                 full_schema["components"] = base_schema["components"]
+        ver = getattr(self.catalog, "protocol_version", None)
+        if ver and is_at_least_version(ver, ProtocolVersion.V1_0):
+            # The published v1.0 `FunctionCall` ties a call's function and args
+            # to this catalog's functions, whatever catalog the call names. A
+            # call runs in the catalog it names, or else the surface default,
+            # so only its envelope is checked here; `_validate_nested_functions`
+            # (and `MessageProcessor`) check it against the right catalog.
+            full_schema["$defs"]["FunctionCall"] = _function_call_envelope(
+                to_protocol_version(ver)
+            )
         try:
             validator = SchemaValidator(full_schema)
             props = dict(comp)
@@ -317,20 +411,46 @@ class PayloadValidator:
     def _validate_nested_functions(
         self,
         comp_id: str,
+        comp_catalog_id: Any,
         val: Any,
         path: str,
         errors: list[A2uiErrorDetail],
     ) -> None:
-        """Recursively validates nested function calls declared by this catalog.
+        """Recursively validates nested function calls.
 
-        A call that names a different `catalogId` is skipped here: this validator
-        is scoped to a single catalog, and the call is checked at resolution time
-        against the catalog that actually runs it.
+        From v1.0, a call to a reserved `@` system function (such as `@index`)
+        belongs to no catalog: it must not name a `catalogId`, and it is
+        checked against the system function definition. Any other call is
+        fully checked against this catalog when it runs here (see
+        `nested_call_runs_in_catalog`): when it names this catalog, or names no
+        `catalogId` in a component that names none either. A component with
+        no `catalogId` is taken to be in the surface default catalog, where
+        calls that name none run. Otherwise the call runs in a catalog this
+        validator can't see, so only its function and argument identifiers are
+        checked; `MessageProcessor` resolves such a call's catalog and checks
+        it there. An empty `catalogId` names a catalog too, and a non-string
+        `catalogId` is a type error.
+
+        Before v1.0, a call's `catalogId` is ignored, as it is at runtime, and
+        every call is checked against this catalog.
+
+        Errors are reported at the call's location in the component, e.g.
+        `components.t1.text.args.value`.
+
+        Args:
+            comp_id: The ID of the component being validated.
+            comp_catalog_id: The `catalogId` the component names, or None.
+            val: The value to walk.
+            path: The value's path in the component.
+            errors: Collects the errors found.
         """
         ver = getattr(self.catalog, "protocol_version", None)
-        is_v10 = bool(ver and is_at_least_version(ver, ProtocolVersion.V1_0))
+        at_least_v10 = bool(ver and is_at_least_version(ver, ProtocolVersion.V1_0))
         if isinstance(val, dict):
-            if is_v10:
+            call_path = (
+                f"components.{comp_id}.{path}" if path else f"components.{comp_id}"
+            )
+            if at_least_v10:
                 from ..resolution.data_context import validate_reserved_directives
 
                 try:
@@ -338,9 +458,7 @@ class PayloadValidator:
                 except A2uiValidationError as e:
                     errors.append(
                         A2uiErrorDetail(
-                            path=f"components.{comp_id}.{path}"
-                            if path
-                            else f"components.{comp_id}",
+                            path=call_path,
                             code=getattr(e, "code", "INVALID_RESERVED_KEY"),
                             message=str(e),
                         )
@@ -348,52 +466,113 @@ class PayloadValidator:
                 fn_name = val.get("@call")
             else:
                 fn_name = val.get("call") or val.get("function")
-            cat_id = val.get("catalogId")
-            targets_this_catalog = not cat_id or cat_id == getattr(
-                self.catalog, "catalog_id", None
-            )
             if fn_name and isinstance(fn_name, str):
-                fn_args = val.get("args")
-                if targets_this_catalog:
-                    try:
-                        self.validate_function(fn_name, fn_args)
-                    except A2uiValidationError as e:
-                        if e.details:
-                            errors.extend(e.details)
-                        else:
-                            errors.append(
-                                A2uiErrorDetail(
-                                    path=f"components.{comp_id}.{path}"
-                                    if path
-                                    else f"components.{comp_id}",
-                                    code="invalid_function_call",
-                                    message=str(e),
-                                )
-                            )
-                else:
-                    try:
-                        self._validate_function_identifiers(fn_name, fn_args)
-                    except A2uiValidationError as e:
-                        if e.details:
-                            errors.extend(e.details)
-                        else:
-                            errors.append(
-                                A2uiErrorDetail(
-                                    path=f"components.{comp_id}.{path}"
-                                    if path
-                                    else f"components.{comp_id}",
-                                    code="invalid_identifier",
-                                    message=str(e),
-                                )
-                            )
+                self._validate_nested_call(
+                    fn_name, val, call_path, comp_catalog_id, at_least_v10, ver, errors
+                )
             for k, v in val.items():
                 if k not in ("id", "component"):
                     child_path = f"{path}.{k}" if path else k
-                    self._validate_nested_functions(comp_id, v, child_path, errors)
+                    self._validate_nested_functions(
+                        comp_id, comp_catalog_id, v, child_path, errors
+                    )
         elif isinstance(val, list):
             for idx, item in enumerate(val):
                 child_path = f"{path}.{idx}"
-                self._validate_nested_functions(comp_id, item, child_path, errors)
+                self._validate_nested_functions(
+                    comp_id, comp_catalog_id, item, child_path, errors
+                )
+
+    def _validate_nested_call(
+        self,
+        fn_name: str,
+        call: dict[str, Any],
+        call_path: str,
+        comp_catalog_id: Any,
+        at_least_v10: bool,
+        protocol_version: Any,
+        errors: list[A2uiErrorDetail],
+    ) -> None:
+        """Validates one nested call; see `_validate_nested_functions`."""
+        fn_args = call.get("args")
+        if at_least_v10 and is_system_function_name(fn_name):
+            if "catalogId" in call:
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"{call_path}.catalogId",
+                        code="extra_field",
+                        message=(
+                            f"System function '{fn_name}' belongs to no catalog and"
+                            " must not name a catalogId"
+                        ),
+                    )
+                )
+            self._validate_system_function(
+                fn_name, fn_args, protocol_version, call_path, errors
+            )
+            return
+
+        if at_least_v10:
+            cat_id = call.get("catalogId")
+            if cat_id is not None and not isinstance(cat_id, str):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"{call_path}.catalogId",
+                        code="type_mismatch",
+                        message="'catalogId' must be a string",
+                    )
+                )
+                full_check = False
+            else:
+                full_check = nested_call_runs_in_catalog(
+                    cat_id,
+                    getattr(self.catalog, "catalog_id", None),
+                    catalog_is_default=comp_catalog_id is None,
+                )
+        else:
+            # Before v1.0 a call's catalogId is ignored: the call runs in the
+            # surface catalog, so it is checked against this catalog.
+            full_check = True
+
+        try:
+            if full_check:
+                self.validate_function(fn_name, fn_args)
+            else:
+                self._validate_function_identifiers(fn_name, fn_args)
+        except A2uiValidationError as e:
+            errors.extend(
+                rebase_function_error_details(
+                    e,
+                    fn_name,
+                    call_path,
+                    "invalid_function_call" if full_check else "invalid_identifier",
+                )
+            )
+
+    def _validate_system_function(
+        self,
+        fn_name: str,
+        fn_args: Any,
+        protocol_version: Any,
+        call_path: str,
+        errors: list[A2uiErrorDetail],
+    ) -> None:
+        """Validates a v1.0 call to a reserved `@` system function.
+
+        A system function belongs to no catalog, so the call is checked against
+        the system function definition and never goes through catalog
+        resolution. Its args are still walked by the caller.
+        """
+        try:
+            validate_system_function(
+                fn_name, fn_args, protocol_version, config=self.config
+            )
+        except A2uiValidationError as e:
+            errors.extend(
+                rebase_function_error_details(
+                    e, fn_name, call_path, "invalid_function_call"
+                )
+            )
 
     def _validate_function_identifiers(self, name: str, args: Any) -> None:
         """Validates function name and argument identifiers against UAX #31 for v1.0+."""
@@ -778,3 +957,25 @@ class PayloadValidator:
         if validator_name in ("type", "format", "pattern", "enum"):
             return "type_mismatch"
         return "invalid_value"
+
+
+def validate_system_function(
+    name: str,
+    args: dict[str, Any] | None,
+    protocol_version: ProtocolVersion | str,
+    config: ValidationConfig | None = None,
+) -> dict[str, Any]:
+    """Validates a call to a reserved `@` system function, such as `@index`.
+
+    A system function belongs to no catalog and is available across all of
+    them, so the call is checked against the system function definition of
+    `protocol_version` rather than against a resolved catalog.
+
+    Raises:
+        A2uiValidationError: If the function is unknown to the protocol
+            version or its arguments are invalid.
+    """
+    # An empty catalog declares no functions, so the lookup falls through to
+    # the system functions of its protocol version.
+    no_catalog = Catalog(catalog_id="", protocol_version=protocol_version)
+    return PayloadValidator(no_catalog, config=config).validate_function(name, args)

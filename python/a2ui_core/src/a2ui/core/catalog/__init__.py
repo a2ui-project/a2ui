@@ -51,6 +51,7 @@ from .system_functions import (
     IndexApi,
     IndexArgs,
     IndexImplementation,
+    is_system_function_name,
     system_functions_for,
 )
 
@@ -80,6 +81,7 @@ __all__ = [
     "get_common_types_schema_json",
     "get_common_types_schema_map",
     "inline_local_refs",
+    "is_system_function_name",
     "is_valid_uax31_identifier",
     "system_functions_for",
 ]
