@@ -22,22 +22,23 @@
   listeners.
 - Validate `DataBinding`, `FunctionCall`, `Action`, and `ChildListTemplate` fields during JSON deserialization (`A2uiValidationError`), preserve `reservedKeys` (`@path`/`@call`) and `catalogId` across `toJson` (the `@call` form omits `returnType`, which the v1.0 schema does not declare), default `FunctionCall.returnType` to `A2uiReturnType.any`, treat a non-list `checks` value as no rules (as web_core and the Python core do) and guard dynamic map casts against `TypeError`, and throw `A2uiStateError` from `ComponentContext.childContext` and `A2uiCatalogError` from `CatalogInvokerExtension.invoke`.
 - Add `isValidUax31Identifier` and `assertUax31Identifier` for UAX #31 identifier validation, `A2uiErrorDetail`, `cause` chaining on `A2uiError` subclasses, and `code`/`path`/`errors` on `A2uiValidationError`. `A2uiError` now takes `code` as a named parameter, and `A2uiValidationError` aligns its default code to `'VALIDATION_FAILED'`.
-- **Behavior change:** `MessageProcessor` checks the component graph on every
-  `updateComponents` message. It used to check completeness once per payload,
-  and only for the surfaces that payload created. Each batch is applied to a copy of the
-  surface's components first, and the result must pass the root, dangling
-  reference, cycle, depth and reachability checks `validationConfig` requires
-  before anything is committed. A surface streamed across several messages
-  needs `ValidationConfig.relaxed`, or the individual `allow*` flags.
-- **Behavior change:** `ValidationConfig.none` (`validateSchemas: false`) turns
-  off catalog schema checks only. Duplicate-id, cycle, depth, root, dangling
-  reference and reachability checks still run, with strict defaults. This is
-  stricter than the TypeScript SDK, which skips every check without a config,
-  and matches Python.
-- `ValidationConfig` adds `allowUnknownElements`, `validateSchemas`,
-  `targetVersion`, `allowedMessages`, `rootId`, `maxDepth` and the `none`
-  preset. `ValidationConfig.relaxed` now also sets
-  `allowUnknownElements`, matching TypeScript's `RELAXED_VALIDATION`.
+- **Breaking:** `MessageProcessor.validationConfig` is nullable and defaults
+  to `null`. Without a config the processor still rejects duplicate ids
+  within an `updateComponents` batch and checks declared component types and
+  themes against their catalog schemas, accepts undeclared types, and skips
+  the root, dangling-reference, reachability, cycle, depth and data-model
+  path checks, so a surface may arrive across several messages in any order.
+  `ValidationConfig.strict` is the opt-in to those checks.
+- **Behavior change:** under a `ValidationConfig`, `MessageProcessor` checks
+  the component graph on every `updateComponents` message rather than once
+  per payload. Each batch is applied to a copy of the surface's components
+  first, and the result must pass the root, dangling-reference, cycle, depth
+  and reachability checks the config's flags require before anything is
+  committed. A surface streamed across several messages under a config needs
+  `ValidationConfig.relaxed` or the individual `allow*` flags.
+- `ValidationConfig` adds `allowUnknownElements`, `targetVersion`,
+  `allowedMessages`, `rootId` and `maxDepth`. `ValidationConfig.relaxed` now
+  also sets `allowUnknownElements`.
 - An `updateComponents` entry that omits `component` is checked against the
   existing component's type and catalog schema; its properties still replace
   the existing ones.

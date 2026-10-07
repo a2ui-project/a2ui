@@ -55,17 +55,12 @@ import '../validation/validator.dart';
 ///
 /// Validation runs per message. Envelopes are checked as the payload is
 /// parsed, a surface's theme when the surface is created, and each
-/// `updateComponents` batch twice before any of it is applied: every component
-/// against its catalog's schema, then the surface the batch would leave behind
-/// (the components already there, with the batch applied on top) as one
-/// graph. [validationConfig] governs which graph checks run; see
-/// [ValidationConfig].
-///
-/// Graph checks run even under [ValidationConfig.none], which turns off only
-/// the schema checks: duplicate ids, cycles and depth always, and the root,
-/// references and reachability as [ValidationConfig.none]'s strict flags
-/// require. That is stricter than TypeScript, whose processor skips every
-/// check without a config, and matches Python.
+/// `updateComponents` batch before any of it is applied: duplicate ids within
+/// the batch, every component against its catalog's schema, and, when the
+/// processor has a [validationConfig], the surface the batch would leave
+/// behind (the components already there, with the batch applied on top) as
+/// one graph. Without a config the graph is not checked, so a surface may
+/// arrive across several messages in any order; see [ValidationConfig].
 class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> groupModel;
   final List<Catalog<T, FunctionImplementation>> catalogs;
@@ -85,14 +80,16 @@ class MessageProcessor<T extends ComponentApi> {
   /// types unchecked.
   final Map<String, Object?> commonTypesSchema;
 
-  /// Which checks each message must pass.
+  /// Which checks each message must pass, or null, the default, for none of
+  /// the graph checks.
   ///
-  /// Defaults to [ValidationConfig.strict]: every `updateComponents` must
-  /// leave its surface a complete graph, with a root, references that resolve
-  /// and every component reachable from the root. A caller whose transport
-  /// delivers one surface across several messages relaxes the checks that span
-  /// them; see [ValidationConfig].
-  final ValidationConfig validationConfig;
+  /// With a config, every `updateComponents` must leave its surface a graph
+  /// the config's flags accept; [ValidationConfig.strict] requires a root,
+  /// references that resolve and every component reachable from the root,
+  /// which a surface delivered across several messages satisfies only once
+  /// the last of them has arrived. Without a config, duplicate ids within a
+  /// batch and the schemas of declared component types are still checked.
+  final ValidationConfig? validationConfig;
 
   /// One validator per catalog, built on first use.
   final Map<String, PayloadValidator<T, FunctionImplementation>> _validators =
@@ -101,13 +98,13 @@ class MessageProcessor<T extends ComponentApi> {
   MessageProcessor({
     required this.catalogs,
     required this.protocolVersion,
-    this.validationConfig = ValidationConfig.strict,
+    this.validationConfig,
     Map<String, Object?>? commonTypesSchema,
     void Function(A2uiClientAction)? onAction,
   })  : commonTypesSchema = commonTypesSchema ??
             PayloadValidator.commonTypesFor(protocolVersion),
         groupModel = SurfaceGroupModel<T>() {
-    final A2uiProtocolVersion? target = validationConfig.targetVersion;
+    final A2uiProtocolVersion? target = validationConfig?.targetVersion;
     if (target != null && target != protocolVersion) {
       throw A2uiValidationError(
         "ValidationConfig.targetVersion is '${target.jsonValue}' but this "
@@ -139,7 +136,9 @@ class MessageProcessor<T extends ComponentApi> {
           catalog: catalog,
           commonTypesSchema: commonTypesSchema,
           protocolVersion: protocolVersion,
-          allowUnknownElements: validationConfig.allowUnknownElements,
+          // Without a config nothing is being validated against the graph,
+          // and an undeclared type is tolerated too.
+          allowUnknownElements: validationConfig?.allowUnknownElements ?? true,
         ),
       );
 
@@ -164,10 +163,11 @@ class MessageProcessor<T extends ComponentApi> {
   /// Each message is checked as it is applied, against the surface state the
   /// earlier messages left behind, and a message that fails leaves its surface
   /// as it was. For an `updateComponents` message that means its components
-  /// against the catalog each belongs to, then the surface it would leave
-  /// behind against [validationConfig]: a payload that declares a parent in
+  /// against the catalog each belongs to, then, under a [validationConfig],
+  /// the surface it would leave behind: a payload that declares a parent in
   /// one `updateComponents` and its child in a later one needs
-  /// [ValidationConfig.allowDanglingReferences], or both in one message.
+  /// [ValidationConfig.allowDanglingReferences], or both in one message, or
+  /// no config.
   ///
   /// A caller holding a raw payload parses it first, with
   /// `AgentToRendererMessagePayload.fromJson(payload, protocolVersion: ...)`.
@@ -176,11 +176,12 @@ class MessageProcessor<T extends ComponentApi> {
   /// to the surface, and so the catalog, it belongs to.
   ///
   /// Throws [A2uiIntegrityError] for a message naming a surface that does not
-  /// exist, a missing root, a duplicate id, a reference to no component or an
-  /// unreachable component; [A2uiRecursionError] for a cycle or an over-deep
-  /// chain; [A2uiCatalogError] for a catalog this processor does not support;
-  /// and [A2uiValidationError] for a component that does not match its
-  /// catalog or a message [ValidationConfig.allowedMessages] does not list.
+  /// exist, a duplicate id, and under a config a missing root, a reference to
+  /// no component or an unreachable component; [A2uiRecursionError] under a
+  /// config for a cycle or an over-deep chain; [A2uiCatalogError] for a
+  /// catalog this processor does not support; and [A2uiValidationError] for a
+  /// component that does not match its catalog or a message
+  /// [ValidationConfig.allowedMessages] does not list.
   void processMessages(AgentToRendererMessagePayload payload) {
     for (final AgentToRendererMessage message in payload.messages) {
       _processMessage(message);
@@ -254,7 +255,7 @@ class MessageProcessor<T extends ComponentApi> {
   }
 
   void _processMessage(AgentToRendererMessage message) {
-    final List<String>? allowed = validationConfig.allowedMessages;
+    final List<String>? allowed = validationConfig?.allowedMessages;
     if (allowed != null) {
       // Named by type rather than read from `toJson`, which would serialize
       // a whole component batch just to find its key.
@@ -274,14 +275,17 @@ class MessageProcessor<T extends ComponentApi> {
     }
 
     // Data-model paths and nested function calls, which need no surface state
-    // and so are checked for every message before it is applied.
-    final String rawVersion = message.version.isNotEmpty
-        ? message.version
-        : protocolVersion.jsonValue;
-    final String core =
-        rawVersion.startsWith('v') ? rawVersion.substring(1) : rawVersion;
-    final bool isV1 = (int.tryParse(core.split('.').first) ?? 0) >= 1;
-    checkPathsAndRecursion(message, v1: isV1);
+    // and so are checked for every message before it is applied. Part of the
+    // validation a config turns on.
+    if (validationConfig != null) {
+      final String rawVersion = message.version.isNotEmpty
+          ? message.version
+          : protocolVersion.jsonValue;
+      final String core =
+          rawVersion.startsWith('v') ? rawVersion.substring(1) : rawVersion;
+      final bool isV1 = (int.tryParse(core.split('.').first) ?? 0) >= 1;
+      checkPathsAndRecursion(message, v1: isV1);
+    }
 
     if (message is CreateSurfaceMessage) {
       _processCreateSurface(message);
@@ -309,9 +313,7 @@ class MessageProcessor<T extends ComponentApi> {
 
     // The theme arrives once, with the surface, so it is checked here rather
     // than on every later message.
-    if (validationConfig.validateSchemas) {
-      validatorFor(catalog).validateTheme(message.theme);
-    }
+    validatorFor(catalog).validateTheme(message.theme);
 
     final surface = SurfaceModel<T>(
       message.surfaceId,
@@ -319,7 +321,7 @@ class MessageProcessor<T extends ComponentApi> {
       theme: message.theme ?? {},
       sendDataModel: message.sendDataModel,
       protocolVersion: protocolVersion.jsonValue,
-      rootId: validationConfig.rootId ?? 'root',
+      rootId: validationConfig?.rootId ?? 'root',
     );
     groupModel.addSurface(surface);
   }
@@ -347,8 +349,8 @@ class MessageProcessor<T extends ComponentApi> {
     ];
 
     // The surface this batch would leave behind, as one graph: duplicate ids,
-    // the root, references that resolve, cycles, depth and reachability, as
-    // [validationConfig] requires.
+    // then under a config the root, references that resolve, cycles, depth
+    // and reachability, as its flags require.
     final Map<String, ComponentRefFields> refFields = _refFieldsFor(
       surface.catalog.id,
       [
@@ -357,12 +359,17 @@ class MessageProcessor<T extends ComponentApi> {
           c['catalogId'] as String?,
       ],
     );
-    model.checkComponentsUpdate(
-      resolved,
-      validationConfig,
-      refFields,
-      defaultRootId: surface.rootId,
-    );
+    final ValidationConfig? config = validationConfig;
+    if (config == null) {
+      checkDuplicateComponentIds(resolved);
+    } else {
+      model.checkComponentsUpdate(
+        resolved,
+        config,
+        refFields,
+        defaultRootId: surface.rootId,
+      );
+    }
 
     // Pass 2: mutation. Only reached when the whole batch is valid.
     model.refFields = refFields;
@@ -467,9 +474,7 @@ class MessageProcessor<T extends ComponentApi> {
       catalogId,
       surface.catalog.id,
     );
-    if (validationConfig.validateSchemas) {
-      validatorFor(catalog).validateComponent(full);
-    }
+    validatorFor(catalog).validateComponent(full);
     return full;
   }
 

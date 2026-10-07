@@ -76,6 +76,9 @@ void _runCase(Map<String, Object?> testCase) {
     catalogs: _catalogsFor(_documentsFor(testCase), allPayloads),
     protocolVersion: A2uiProtocolVersion.v0_9,
     commonTypesSchema: _commonTypesFor(testCase),
+    // The validator cases are about what a renderer rejects, so the graph
+    // checks are on, as in the other SDKs' harnesses.
+    validationConfig: ValidationConfig.strict,
   );
 
   for (var stepIndex = 0; stepIndex < steps.length; stepIndex++) {
