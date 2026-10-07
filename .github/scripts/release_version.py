@@ -294,10 +294,12 @@ def check_core_constraint(
     if satisfies(proposed_core_version, specifier):
         return None
     return (
-        f"{CORE.pypi_name} {proposed_core_version} falls outside the "
-        f"{CORE.pypi_name}{specifier} range that {AGENT.pypi_name} declares in "
-        f"{AGENT.pyproject_path}. Widen that pin in the same release, or choose "
-        "a different bump level."
+        f"{CORE.pypi_name} {proposed_core_version} falls outside the"
+        f" {CORE.pypi_name}{specifier} range that {AGENT.pypi_name} declares in"
+        f" {AGENT.pyproject_path}. Action needed: update the pin in"
+        f" {AGENT.pyproject_path} (e.g. to"
+        f" '{CORE.pypi_name}>={proposed_core_version},<...') and merge a PR to main"
+        " before dispatching the release."
     )
 
 
@@ -313,8 +315,8 @@ def check_environment(repo_root: str, is_custom_repo_root: bool = False) -> list
             if cwd_real != repo_real:
                 problems.append(
                     f"Current directory ({os.getcwd()}) is not the repository root"
-                    f" ({repo_root}). Release scripts must be executed from the"
-                    " repository root."
+                    f" ({repo_root}). Action needed: run 'cd {repo_root}' before"
+                    " executing release commands."
                 )
         except OSError:
             pass
@@ -337,15 +339,16 @@ def check_environment(repo_root: str, is_custom_repo_root: bool = False) -> list
         )
         if proc.returncode != 0 or not proc.stdout.strip():
             problems.append(
-                f"git config {key} is unset. Set your {desc} so changelog commits and"
-                " PRs pass CLA verification."
+                f"git config {key} is unset. Action needed: run 'git config {key}"
+                f' "<your-{desc}>"\' so changelog commits and PRs pass CLA'
+                " verification."
             )
 
     # 4. Check gh CLI installation and authentication.
     if not shutil.which("gh"):
         problems.append(
-            "'gh' (GitHub CLI) is not installed or not in PATH. Install gh to dispatch"
-            " workflows and manage release PRs."
+            "'gh' (GitHub CLI) is not installed or not in PATH. Action needed: install"
+            " gh to dispatch workflows and manage release PRs."
         )
     else:
         gh_proc = subprocess.run(
@@ -356,7 +359,8 @@ def check_environment(repo_root: str, is_custom_repo_root: bool = False) -> list
         )
         if gh_proc.returncode != 0:
             problems.append(
-                "'gh' is not authenticated. Run 'gh auth login' before releasing."
+                "'gh' is not authenticated. Action needed: run 'gh auth login' before"
+                " releasing."
             )
 
     # 5. Check for uncommitted changes in releasable package directories.
@@ -368,9 +372,9 @@ def check_environment(repo_root: str, is_custom_repo_root: bool = False) -> list
     )
     if status_proc.returncode == 0 and status_proc.stdout.strip():
         problems.append(
-            "Uncommitted changes detected in python/a2ui_core or python/a2ui_agent."
-            " Commit or stash them so the local preview matches what the workflow on"
-            " main will release."
+            "Uncommitted changes detected in python/a2ui_core or python/a2ui_agent. "
+            "Action needed: commit or stash them ('git commit' or 'git stash') so the "
+            "local preview matches what the workflow on main will release."
         )
 
     # 6. Check for outstanding release/changelog-* branches on origin or upstream.
@@ -389,8 +393,8 @@ def check_environment(repo_root: str, is_custom_repo_root: bool = False) -> list
             ]
             problems.append(
                 f"Outstanding changelog branch(es) found on {remote}:"
-                f" {', '.join(branches)}. The previous release changelog PR must be"
-                " merged before starting a new release."
+                f" {', '.join(branches)}. Action needed: open, review, and merge the"
+                " changelog PR for the previous release before starting a new release."
             )
             break
 
