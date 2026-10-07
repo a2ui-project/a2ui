@@ -60,7 +60,33 @@ const IFRAME_EXAMPLES = [
     filePath: '../../../../catalogs/iframe/examples/srcdoc-tip-calculator.json',
     catalog: 'iframe',
   },
+  {
+    filePath: '../../../../catalogs/iframe/examples/url-order-tracker.json',
+    catalog: 'iframe',
+    rewritePlaceholderUrl: 'https://example.com/a2ui-apps/order-tracker/',
+    fixturePath: '/a2ui-fixtures/apps/order_tracker.html',
+  },
 ];
+
+/**
+ * Stands in for the explorer origin in examples whose placeholder URL is rewritten to a served
+ * fixture. The generated module replaces it with `window.location.origin` at load time.
+ */
+const ORIGIN_TOKEN = '__A2UI_EXPLORER_ORIGIN__';
+
+/**
+ * Reads an iframe catalog example, pointing its placeholder URL at the served fixture when the
+ * entry declares one.
+ */
+function readIframeExample({filePath, catalog, rewritePlaceholderUrl, fixturePath}, version) {
+  const example = readExampleFile(filePath, catalog, version);
+  if (!rewritePlaceholderUrl || !fixturePath) {
+    return example;
+  }
+  return JSON.parse(
+    JSON.stringify(example).replaceAll(rewritePlaceholderUrl, `${ORIGIN_TOKEN}${fixturePath}`),
+  );
+}
 
 function readExampleFile(filePath, catalog, version) {
   const file = path.basename(filePath);
@@ -151,12 +177,12 @@ async function main() {
   const examplesV09 = [
     ...readExamples('../../../../specification/v0_9/catalogs', catalogs, '0.9'),
     ...MCP_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '0.9')),
-    ...IFRAME_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '0.9')),
+    ...IFRAME_EXAMPLES.map(example => readIframeExample(example, '0.9')),
   ];
   const examplesV10 = [
     ...readExamples('../../../../../catalogs/basic/v1/examples', catalogs, '1.0'),
     ...MCP_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '1.0')),
-    ...IFRAME_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '1.0')),
+    ...IFRAME_EXAMPLES.map(example => readIframeExample(example, '1.0')),
   ];
 
   // Generate the file now!
@@ -166,11 +192,17 @@ async function main() {
 
 import { Example, Example_08 } from '../types';
 
+const EXPLORER_ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+
 export const EXAMPLES_V08: Example_08[] = JSON.parse(${JSON.stringify(JSON.stringify(examplesV08))});
 
-export const EXAMPLES_V09: Example[] = JSON.parse(${JSON.stringify(JSON.stringify(examplesV09))});
+export const EXAMPLES_V09: Example[] = JSON.parse(
+  ${JSON.stringify(JSON.stringify(examplesV09))}.replaceAll(${JSON.stringify(ORIGIN_TOKEN)}, EXPLORER_ORIGIN),
+);
 
-export const EXAMPLES_V10: Example[] = JSON.parse(${JSON.stringify(JSON.stringify(examplesV10))});
+export const EXAMPLES_V10: Example[] = JSON.parse(
+  ${JSON.stringify(JSON.stringify(examplesV10))}.replaceAll(${JSON.stringify(ORIGIN_TOKEN)}, EXPLORER_ORIGIN),
+);
 
 // Defaults to v0.9
 export const EXAMPLES: Example[] = EXAMPLES_V09;
