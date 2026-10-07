@@ -44,8 +44,7 @@ const String basicCatalogV1_0Json = r'''
           "default": "body"
         },
         "weight": {
-          "type": "number",
-          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+          "$ref": "#/$defs/Weight"
         }
       },
       "required": ["component", "text"]
@@ -77,8 +76,7 @@ const String basicCatalogV1_0Json = r'''
           "default": "mediumFeature"
         },
         "weight": {
-          "type": "number",
-          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+          "$ref": "#/$defs/Weight"
         }
       },
       "required": ["component", "url"]
@@ -172,8 +170,7 @@ const String basicCatalogV1_0Json = r'''
           ]
         },
         "weight": {
-          "type": "number",
-          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+          "$ref": "#/$defs/Weight"
         }
       },
       "required": ["component", "name"]
@@ -193,8 +190,7 @@ const String basicCatalogV1_0Json = r'''
           "description": "The URL of the poster image to display before the video plays."
         },
         "weight": {
-          "type": "number",
-          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+          "$ref": "#/$defs/Weight"
         }
       },
       "required": ["component", "url"]
@@ -214,8 +210,7 @@ const String basicCatalogV1_0Json = r'''
           "$ref": "common_types.json#/$defs/DynamicString"
         },
         "weight": {
-          "type": "number",
-          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+          "$ref": "#/$defs/Weight"
         }
       },
       "required": ["component", "url"]
@@ -252,8 +247,7 @@ const String basicCatalogV1_0Json = r'''
           "default": "stretch"
         },
         "weight": {
-          "type": "number",
-          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+          "$ref": "#/$defs/Weight"
         }
       },
       "required": ["component", "children"]
@@ -290,8 +284,7 @@ const String basicCatalogV1_0Json = r'''
           "default": "stretch"
         },
         "weight": {
-          "type": "number",
-          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+          "$ref": "#/$defs/Weight"
         }
       },
       "required": ["component", "children"]
@@ -319,8 +312,7 @@ const String basicCatalogV1_0Json = r'''
           "default": "stretch"
         },
         "weight": {
-          "type": "number",
-          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+          "$ref": "#/$defs/Weight"
         }
       },
       "required": ["component", "children"]
@@ -336,8 +328,7 @@ const String basicCatalogV1_0Json = r'''
           "description": "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID."
         },
         "weight": {
-          "type": "number",
-          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+          "$ref": "#/$defs/Weight"
         }
       },
       "required": ["component", "child"]
@@ -369,8 +360,7 @@ const String basicCatalogV1_0Json = r'''
           }
         },
         "weight": {
-          "type": "number",
-          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+          "$ref": "#/$defs/Weight"
         }
       },
       "required": ["component", "tabs"]
@@ -390,8 +380,7 @@ const String basicCatalogV1_0Json = r'''
           "description": "The ID of the component to be displayed inside the modal."
         },
         "weight": {
-          "type": "number",
-          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+          "$ref": "#/$defs/Weight"
         }
       },
       "required": ["component", "trigger", "content"]
@@ -409,8 +398,7 @@ const String basicCatalogV1_0Json = r'''
           "default": "horizontal"
         },
         "weight": {
-          "type": "number",
-          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+          "$ref": "#/$defs/Weight"
         }
       },
       "required": ["component"]
@@ -441,8 +429,7 @@ const String basicCatalogV1_0Json = r'''
               "$ref": "common_types.json#/$defs/Action"
             },
             "weight": {
-              "type": "number",
-              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+              "$ref": "#/$defs/Weight"
             }
           },
           "required": ["component", "child", "action"]
@@ -480,8 +467,7 @@ const String basicCatalogV1_0Json = r'''
               "default": "shortText"
             },
             "weight": {
-              "type": "number",
-              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+              "$ref": "#/$defs/Weight"
             }
           },
           "required": ["component", "label"]
@@ -509,8 +495,7 @@ const String basicCatalogV1_0Json = r'''
               "description": "The current state of the checkbox (true for checked, false for unchecked)."
             },
             "weight": {
-              "type": "number",
-              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+              "$ref": "#/$defs/Weight"
             }
           },
           "required": ["component", "label", "value"]
@@ -575,8 +560,7 @@ const String basicCatalogV1_0Json = r'''
               "default": false
             },
             "weight": {
-              "type": "number",
-              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+              "$ref": "#/$defs/Weight"
             }
           },
           "required": ["component", "options", "value"]
@@ -618,8 +602,7 @@ const String basicCatalogV1_0Json = r'''
               "description": "The number of discrete divisions in the slider range. If specified, the slider will snap to discrete values."
             },
             "weight": {
-              "type": "number",
-              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+              "$ref": "#/$defs/Weight"
             }
           },
           "required": ["component", "value", "max"]
@@ -709,8 +692,7 @@ const String basicCatalogV1_0Json = r'''
               "description": "The text label for the input field."
             },
             "weight": {
-              "type": "number",
-              "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
+              "$ref": "#/$defs/Weight"
             }
           },
           "required": ["component", "value"]
@@ -1235,6 +1217,10 @@ const String basicCatalogV1_0Json = r'''
           "$ref": "#/functions/not"
         }
       ]
+    },
+    "Weight": {
+      "type": "number",
+      "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column."
     }
   }
 }

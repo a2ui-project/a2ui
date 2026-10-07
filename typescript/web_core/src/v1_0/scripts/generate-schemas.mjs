@@ -247,6 +247,30 @@ function generateCatalogDefinition({pureCommonNames, helperNames}) {
       );
     }
 
+    if (name === 'LeafDefinition') {
+      // json-schema-to-zod loses array "contains" and emits z.object({'allOf': z.array(z.any())})
+      // inside "not", which rejects any allOf rather than only allOf containing a component.const.
+      code = code.replace(
+        /z\.object\(\{\s*["']allOf["']:\s*z\.array\(z\.any\(\)\)\s*\}\)/,
+        `z.object({
+          'allOf': z.array(z.any()).refine(
+            arr =>
+              arr.some(
+                (item: any) =>
+                  item &&
+                  typeof item === 'object' &&
+                  item.properties &&
+                  typeof item.properties === 'object' &&
+                  item.properties.component &&
+                  typeof item.properties.component === 'object' &&
+                  'const' in item.properties.component,
+              ),
+            'Contains component schema',
+          ),
+        })`,
+      );
+    }
+
     code += `\nexport type ${name}Input = z.input<typeof ${name}Schema>;`;
     bodyCode += code + '\n\n';
   }

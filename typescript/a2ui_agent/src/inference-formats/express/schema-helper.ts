@@ -644,6 +644,40 @@ export class CatalogSchemaHelper {
   }
 
   /**
+   * Resolves local catalog `#/$defs/` references while preserving built-in common types.
+   */
+  resolveRef(schema: unknown, visited?: Set<string>): Record<string, unknown> | undefined {
+    if (!schema || typeof schema !== 'object') {
+      return schema as Record<string, unknown> | undefined;
+    }
+    const obj = schema as Record<string, unknown>;
+    if (typeof obj.$ref !== 'string' || !obj.$ref.startsWith('#/$defs/')) {
+      return obj;
+    }
+    const ref = obj.$ref;
+    const defKey = ref.slice(8);
+    if (defKey === 'anyComponent' || defKey === 'anyFunction' || this.lookupCommonDef(defKey)) {
+      return obj;
+    }
+    if (visited && visited.has(ref)) {
+      return obj;
+    }
+    const nextVisited = new Set(visited ?? []);
+    nextVisited.add(ref);
+    const target = this.resolveJsonPointer(this.catalog, ref);
+    if (target && typeof target === 'object') {
+      const merged: Record<string, unknown> = {...(target as Record<string, unknown>)};
+      for (const [k, v] of Object.entries(obj)) {
+        if (k !== '$ref') {
+          merged[k] = v;
+        }
+      }
+      return this.resolveRef(merged, nextVisited);
+    }
+    return obj;
+  }
+
+  /**
    * Crawls all sub-schemas of a component to retrieve a property's schema definition.
    */
   getPropertySchema(
@@ -680,7 +714,7 @@ export class CatalogSchemaHelper {
         if (subObj.properties && typeof subObj.properties === 'object') {
           const props = subObj.properties as Record<string, unknown>;
           if (propertyName in props) {
-            return props[propertyName] as Record<string, unknown>;
+            return this.resolveRef(props[propertyName]);
           }
         }
       }

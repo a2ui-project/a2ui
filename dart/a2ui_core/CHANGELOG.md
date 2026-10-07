@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Updated embedded `basicCatalogV1_0Json` in `catalog.g.dart` to reflect the v1.0
+  basic catalog schema factoring of `weight` into `#/$defs/Weight`.
+
 - Added `MessageProcessor.getRendererCapabilities(CapabilitiesOptions)`,
   which returns an `A2uiRendererCapabilities` with one entry per requested
   version and raises `A2uiValidationError` for an empty version list. Inline

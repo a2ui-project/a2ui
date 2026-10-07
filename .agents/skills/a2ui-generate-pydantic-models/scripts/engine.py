@@ -160,6 +160,8 @@ class PydanticCodegen:
         # In strict mode, the names that a local `#/$defs/` reference may
         # target; None accepts any name.
         self.known_local_refs: set[str] | None = None
+        # Optional mapping from local `$defs` schema name to Python symbol name.
+        self.local_def_symbols: dict[str, str] = {}
         # When set, the models keep what the specification says about a
         # property beyond its type, so their JSON schema matches it:
         # validation keywords such as `minimum` become field constraints,
@@ -249,7 +251,7 @@ class PydanticCodegen:
                 ):
                     return "CatalogDefinition"
                 if "common_types.json" in ref or ref.startswith("#/$defs/"):
-                    return ref_name
+                    return self.local_def_symbols.get(ref_name, ref_name)
                 elif ref.startswith("#/components/"):
                     return f"{ref_name}Component"
                 elif ref.startswith("#/"):

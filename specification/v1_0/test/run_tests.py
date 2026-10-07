@@ -392,6 +392,15 @@ def validate_catalogs_identifiers():
                     errors.append(f"Invalid function name: '{func_name}'")
                 check_schema_properties(func_def)
 
+        defs = catalog.get("$defs", {})
+        if isinstance(defs, dict):
+            for def_name, def_schema in defs.items():
+                if def_name in ("anyComponent", "anyFunction"):
+                    continue
+                if not def_name.isidentifier():
+                    errors.append(f"Invalid $defs name: '{def_name}'")
+                check_schema_properties(def_schema)
+
         if errors:
             failed += 1
             print(f"  [FAIL] {name}")
@@ -478,6 +487,12 @@ def validate_catalogs_ref_targets():
             elif ref.startswith("#/functions/"):
                 target = ref[len("#/functions/") :]
                 if not isinstance(functions, dict) or target not in functions:
+                    errors.append(f"Unknown local $ref target: '{ref}'")
+            elif ref.startswith("#/$defs/"):
+                target = ref[len("#/$defs/") :]
+                if target in ("anyComponent", "anyFunction"):
+                    errors.append(f"Disallowed $ref target: '{ref}'")
+                elif not isinstance(defs, dict) or target not in defs:
                     errors.append(f"Unknown local $ref target: '{ref}'")
             elif ref.startswith("common_types.json#/$defs/"):
                 target = ref[len("common_types.json#/$defs/") :]
