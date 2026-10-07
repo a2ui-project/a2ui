@@ -1455,6 +1455,72 @@ void main() {
       );
       expect(_catalogDefinitionErrors(out), isEmpty);
     });
+
+    test(
+        'inlines catalog definitions in resolvedComponentSchemas and restores catalogDefRef markers',
+        () {
+      final v10 = BasicCatalog.v1_0();
+      final textResolved = v10
+          .resolvedComponentSchema('Text')!
+          .value['properties']! as Map<String, Object?>;
+      expect(textResolved['weight'], {
+        'type': 'number',
+        'description': "The relative weight of this component within a Row or "
+            "Column. This is similar to the CSS 'flex-grow' property. Note: "
+            'this may ONLY be set when the component is a direct descendant '
+            'of a Row or Column.',
+      });
+
+      final custom = Catalog<ComponentApi, FunctionApi>(
+        id: 'https://example.com/catalog-def-marker',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        definitions: {
+          'Weight': {
+            'type': 'number',
+            'description': 'Custom weight definition.',
+          },
+        },
+        components: [
+          ComponentApi(
+            name: 'Box',
+            schema: Schema.fromMap({
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Box'},
+                'weight': {
+                  'type': 'number',
+                  'catalogDefRef': r'#/$defs/Weight',
+                },
+              },
+              'required': ['component'],
+            }),
+          ),
+        ],
+      );
+
+      final boxResolved = custom
+          .resolvedComponentSchema('Box')!
+          .value['properties']! as Map<String, Object?>;
+      expect(boxResolved['weight'], {'type': 'number'});
+
+      final Map<String, Object?> doc = custom.toJson();
+      final boxDocProps =
+          ((doc['components']! as Map)['Box']! as Map)['properties']! as Map;
+      expect(boxDocProps['weight'], {r'$ref': r'#/$defs/Weight'});
+      expect((doc[r'$defs']! as Map)['Weight'], {
+        'type': 'number',
+        'description': 'Custom weight definition.',
+      });
+
+      final Map<String, Object?> val = custom.validationSchema;
+      final boxValProps =
+          ((val['components']! as Map)['Box']! as Map)['properties']! as Map;
+      expect(boxValProps['weight'], {r'$ref': r'#/$defs/Weight'});
+      expect((val[r'$defs']! as Map)['Weight'], {
+        'type': 'number',
+        'description': 'Custom weight definition.',
+      });
+    });
   });
 
   group('Catalog.validationSchema', () {

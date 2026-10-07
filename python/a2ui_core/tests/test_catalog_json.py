@@ -532,8 +532,10 @@ def test_v10_basic_catalog_to_json_is_a_valid_unbundled_document() -> None:
     _catalog_definition_validator().validate(out)
     assert out["protocolVersion"] == "1.0"
     assert out["$schema"] == "https://json-schema.org/draft/2020-12/schema"
-    assert set(out["$defs"]) == {"anyComponent", "anyFunction"}
-    assert not [ref for ref in _refs(out) if ref.startswith("#/$defs/")]
+    assert set(out["$defs"]) == {"Weight", "anyComponent", "anyFunction"}
+    assert {ref for ref in _refs(out) if ref.startswith("#/$defs/")} == {
+        "#/$defs/Weight"
+    }
     assert "@index" not in out["functions"]
     for name, component in out["components"].items():
         assert "id" not in component.get("properties", {}), name
@@ -941,3 +943,31 @@ def test_validation_schema_flattens_mixins_and_preserves_extra_keywords() -> Non
     assert box["allOf"] == [{"oneOf": [{"required": ["a"]}, {"required": ["b"]}]}]
     assert "Weighted" not in catalog.validation_schema["$defs"]
     assert catalog.to_json() == document
+
+
+def test_catalog_def_inlined_in_memory_and_restored_in_json() -> None:
+    catalog = v1_0.BasicCatalog()
+    text_in_memory = catalog.resolved_component_schema("Text")
+    weight_branch = text_in_memory["properties"]["weight"]["anyOf"][0]
+    assert weight_branch["type"] == "number"
+    assert "$ref" not in weight_branch
+    assert weight_branch["x-a2ui-catalog-def"] == "Weight"
+
+    to_json_doc = catalog.to_json()
+    assert to_json_doc["components"]["Text"]["properties"]["weight"] == {
+        "$ref": "#/$defs/Weight"
+    }
+    assert to_json_doc["$defs"]["Weight"]["type"] == "number"
+
+    val_schema = catalog.validation_schema
+    assert val_schema["components"]["Text"]["properties"]["weight"] == {
+        "$ref": "#/$defs/Weight"
+    }
+    assert val_schema["$defs"]["Weight"]["type"] == "number"
+
+    parsed = Catalog.from_json(to_json_doc)
+    parsed_text = parsed.resolved_component_schema("Text")
+    assert parsed_text["properties"]["weight"]["type"] == "number"
+    assert "$ref" not in parsed_text["properties"]["weight"]
+    assert parsed.to_json() == to_json_doc
+    assert parsed.validation_schema == val_schema

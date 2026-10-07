@@ -73,6 +73,20 @@ def generate_basic_catalog_components(
         f"from {common_module_path} import (\n" + "\n".join(import_lines) + "\n)"
     )
 
+    names = []
+    defs = catalog_data.get("$defs", {})
+    custom_leaf_defs = {
+        k: v
+        for k, v in defs.items()
+        if k not in ("anyComponent", "anyFunction", "CatalogComponentCommon")
+        and k not in common_def_names
+        and isinstance(v, dict)
+    }
+    for def_name in custom_leaf_defs:
+        codegen.local_def_symbols[def_name] = to_pascal_case(def_name)
+    if custom_leaf_defs:
+        codegen.used_helpers.add("CatalogDef")
+
     comp_blocks = [
         (
             f"{FILE_HEADER}\n"
@@ -83,8 +97,28 @@ def generate_basic_catalog_components(
         ),
     ]
 
-    names = []
-    defs = catalog_data.get("$defs", {})
+    for def_name, def_spec in custom_leaf_defs.items():
+        py_sym = codegen.local_def_symbols[def_name]
+        base_py_type = codegen.map_json_type_to_python(def_name, def_spec)
+        field_kwargs: list[str] = []
+        if "description" in def_spec:
+            field_kwargs.append(
+                f"description={python_literal(def_spec['description'])}"
+            )
+        if "default" in def_spec:
+            field_kwargs.append(
+                "json_schema_extra={'default':"
+                f" {python_literal(def_spec['default'])}}}"
+            )
+        annotations = []
+        if field_kwargs:
+            annotations.append(f"Field({', '.join(field_kwargs)})")
+        annotations.append(f"CatalogDef({python_literal(def_name)})")
+        comp_blocks.append(
+            f"{py_sym} = Annotated[{base_py_type}, {', '.join(annotations)}]"
+        )
+        names.append(py_sym)
+
     has_catalog_common = "CatalogComponentCommon" in defs
     base_comp_class = (
         "CatalogComponentCommon" if has_catalog_common else "ComponentCommon"

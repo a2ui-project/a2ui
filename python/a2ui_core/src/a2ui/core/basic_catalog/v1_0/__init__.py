@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 from .components import (
+    Weight,
     SvgPath,
     TabItem,
     OptionItem,
@@ -160,6 +161,7 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
 
 
 __all__ = [
+    "Weight",
     "SvgPath",
     "TabItem",
     "OptionItem",

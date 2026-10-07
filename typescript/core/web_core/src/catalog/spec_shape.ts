@@ -381,7 +381,7 @@ export class SpecShaper {
     if (this.isV08) {
       // A v0.8 catalog document has no common types: the whole component is
       // written inline, without the properties the envelope declares.
-      result = this.toJson(schema);
+      result = this.toJson(schema, catalogDefs);
       const properties = result['properties'];
       if (isObject(properties)) {
         for (const key of ENVELOPE_PROPERTIES) delete properties[key];
@@ -402,7 +402,7 @@ export class SpecShaper {
       }
       const object = coreSchema(schema);
       const description = plainDescription(schema);
-      const own = this.objectSchema(object, annotation, key => !inherited.has(key));
+      const own = this.objectSchema(object, annotation, key => !inherited.has(key), catalogDefs);
       const properties = {component: {const: name}, ...(own['properties'] as JsonObject)};
       const required = ['component', ...((own['required'] as string[] | undefined) ?? [])];
       const inner: JsonObject = {type: 'object'};
@@ -449,8 +449,9 @@ export class SpecShaper {
       readonly requiresUserActivation?: boolean;
     },
     defs?: Readonly<Record<string, unknown>>,
+    catalogDefs?: Map<string, z.ZodTypeAny>,
   ): JsonObject {
-    const args = this.toJson(fn.schema);
+    const args = this.toJson(fn.schema, catalogDefs);
     const argsRequired = schemaRequiresArgs(args, defs);
     const result: JsonObject = {type: 'object'};
     if (fn.description) result['description'] = fn.description;
@@ -476,8 +477,8 @@ export class SpecShaper {
    *
    * @param schema The model.
    */
-  defSchema(schema: z.ZodTypeAny): JsonObject {
-    return this.toJson(schema);
+  defSchema(schema: z.ZodTypeAny, catalogDefs?: Map<string, z.ZodTypeAny>): JsonObject {
+    return this.toJson(schema, catalogDefs, true);
   }
 
   /** Returns the reference a component's definition makes to a mixin. */
@@ -521,21 +522,37 @@ export class SpecShaper {
    * Returns the JSON Schema a catalog document writes for a Zod schema.
    *
    * @param schema The schema.
+   * @param catalogDefs Optional map collecting referenced catalog `$defs` models.
+   * @param isDefRoot Whether `schema` is the root of a `$defs` entry being serialized.
    */
-  toJson(schema: z.ZodTypeAny): JsonObject {
+  toJson(
+    schema: z.ZodTypeAny,
+    catalogDefs?: Map<string, z.ZodTypeAny>,
+    isDefRoot = false,
+  ): JsonObject {
     const annotation = collectAnnotation(schema);
     const description = schemaDescription(schema);
     const defaultValue = schemaDefault(schema);
     let core: JsonObject;
     let ownDescription = description;
-    if (description !== undefined && description.startsWith('REF:')) {
+    if (
+      !isDefRoot &&
+      catalogDefs !== undefined &&
+      annotation.defName !== undefined &&
+      annotation.defModel !== undefined
+    ) {
+      catalogDefs.set(annotation.defName, annotation.defModel);
+      core = {$ref: `#/$defs/${annotation.defName}`};
+      const defDesc = schemaDescription(annotation.defModel);
+      ownDescription = description !== defDesc ? description : undefined;
+    } else if (description !== undefined && description.startsWith('REF:')) {
       const content = description.substring(4);
       const pipe = content.indexOf('|');
       const ref = pipe === -1 ? content : content.substring(0, pipe);
       ownDescription = pipe === -1 ? undefined : content.substring(pipe + 1);
       core = {$ref: this.refTarget(ref)};
     } else {
-      core = this.coreJson(coreSchema(schema), annotation);
+      core = this.coreJson(coreSchema(schema), annotation, catalogDefs);
     }
     if (annotation.keywords) Object.assign(core, copyJson(annotation.keywords));
     const result: JsonObject = annotation.allOf
@@ -595,11 +612,15 @@ export class SpecShaper {
   }
 
   /** Converts the core of a schema, below its wrappers. */
-  private coreJson(schema: z.ZodTypeAny, annotation: SpecAnnotation): JsonObject {
+  private coreJson(
+    schema: z.ZodTypeAny,
+    annotation: SpecAnnotation,
+    catalogDefs?: Map<string, z.ZodTypeAny>,
+  ): JsonObject {
     const def = defOf(schema);
     switch (def.typeName) {
       case 'ZodObject':
-        return this.objectSchema(schema as z.AnyZodObject, annotation, () => true);
+        return this.objectSchema(schema as z.AnyZodObject, annotation, () => true, catalogDefs);
       case 'ZodString':
         return stringSchema(def);
       case 'ZodNumber':
@@ -620,7 +641,7 @@ export class SpecShaper {
       case 'ZodArray': {
         const result: JsonObject = {
           type: 'array',
-          items: this.toJson(def['type'] as z.ZodTypeAny),
+          items: this.toJson(def['type'] as z.ZodTypeAny, catalogDefs),
         };
         const min = def['minLength'] as {value: number} | null;
         const max = def['maxLength'] as {value: number} | null;
@@ -635,7 +656,7 @@ export class SpecShaper {
         // unions, only when no value matches two branches, so that both
         // keywords accept the same values.
         const options = def['options'] as Iterable<z.ZodTypeAny>;
-        const branches = [...options].map(option => this.toJson(option));
+        const branches = [...options].map(option => this.toJson(option, catalogDefs));
         const resolve = (ref: string) => this.resolveStandardRef(ref);
         const disjoint = branches.every((branch, i) =>
           branches.slice(i + 1).every(other => provablyDisjoint(branch, other, resolve)),
@@ -645,10 +666,10 @@ export class SpecShaper {
       case 'ZodRecord':
         return {
           type: 'object',
-          additionalProperties: this.toJson(def['valueType'] as z.ZodTypeAny),
+          additionalProperties: this.toJson(def['valueType'] as z.ZodTypeAny, catalogDefs),
         };
       case 'ZodLazy':
-        return this.toJson((def['getter'] as () => z.ZodTypeAny)());
+        return this.toJson((def['getter'] as () => z.ZodTypeAny)(), catalogDefs);
       default:
         return fallbackJson(schema);
     }
@@ -662,15 +683,16 @@ export class SpecShaper {
     schema: z.ZodTypeAny,
     annotation: SpecAnnotation,
     keep: (key: string) => boolean,
+    catalogDefs?: Map<string, z.ZodTypeAny>,
   ): JsonObject {
     const def = defOf(schema);
-    if (def.typeName !== 'ZodObject') return this.toJson(schema);
+    if (def.typeName !== 'ZodObject') return this.toJson(schema, catalogDefs);
     const shape = (schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
     const properties: JsonObject = {};
     const required: string[] = [];
     for (const [key, value] of Object.entries(shape)) {
       if (!keep(key)) continue;
-      properties[key] = this.toJson(value);
+      properties[key] = this.toJson(value, catalogDefs);
       if (!value.isOptional()) required.push(key);
     }
     const result: JsonObject = {type: 'object', properties};
@@ -682,7 +704,10 @@ export class SpecShaper {
     const keyword =
       annotation.closure ?? (unknownKeys === 'strict' ? 'additionalProperties' : 'none');
     if (catchall && defOf(catchall).typeName !== 'ZodNever') {
-      result[keyword === 'none' ? 'additionalProperties' : keyword] = this.toJson(catchall);
+      result[keyword === 'none' ? 'additionalProperties' : keyword] = this.toJson(
+        catchall,
+        catalogDefs,
+      );
     } else if (keyword !== 'none') {
       result[keyword] = unknownKeys === 'passthrough';
     }

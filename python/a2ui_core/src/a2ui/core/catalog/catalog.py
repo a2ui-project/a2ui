@@ -356,6 +356,8 @@ def inline_local_refs(
     root_catalog: Mapping[str, Any],
     visited: set[str] | None = None,
     peers: Sequence[CatalogApi] = (),
+    *,
+    inline_local_defs: bool = True,
 ) -> Any:
     """Returns a schema node with its local and peer catalog references written inline.
 
@@ -373,6 +375,9 @@ def inline_local_refs(
         visited: The references being inlined, which callers leave out.
         peers: Optional peer catalogs for resolving cross-catalog `$ref`
             pointers.
+        inline_local_defs: Whether to inline `#/$defs/` references in
+            `root_catalog`. When `False`, `#/components/` and peer references
+            are still inlined, while local `#/$defs/` references are kept.
 
     Returns:
         A new node, whose leaf values are shared with `node` and
@@ -407,7 +412,9 @@ def inline_local_refs(
                         local_ref = f"#{fragment}"
             if local_ref is not None:
                 ref_name = local_ref.split("/")[-1]
-                if local_ref.startswith("#/$defs/") and ref_name in PRESERVED_TYPE_REFS:
+                if local_ref.startswith("#/$defs/") and (
+                    ref_name in PRESERVED_TYPE_REFS or not inline_local_defs
+                ):
                     return node
                 target_catalog = root_catalog
                 ref_path = local_ref
@@ -423,13 +430,27 @@ def inline_local_refs(
                 resolved_node = _query_json_pointer(target_catalog, ref_path)
                 if resolved_node is not None:
                     resolved_node = inline_local_refs(
-                        resolved_node, target_catalog, new_visited, peers=peers
+                        resolved_node,
+                        target_catalog,
+                        new_visited,
+                        peers=peers,
+                        inline_local_defs=(
+                            inline_local_defs
+                            if target_catalog is root_catalog
+                            else True
+                        ),
                     )
                     resolved_node = _strip_referenced_component_envelope(
                         resolved_node, ref_path
                     )
                     merged = {
-                        k: inline_local_refs(v, root_catalog, visited, peers=peers)
+                        k: inline_local_refs(
+                            v,
+                            root_catalog,
+                            visited,
+                            peers=peers,
+                            inline_local_defs=inline_local_defs,
+                        )
                         for k, v in node.items()
                         if k != "$ref"
                     }
@@ -454,13 +475,26 @@ def inline_local_refs(
                     return resolved_node
 
         return {
-            k: inline_local_refs(v, root_catalog, visited, peers=peers)
+            k: inline_local_refs(
+                v,
+                root_catalog,
+                visited,
+                peers=peers,
+                inline_local_defs=inline_local_defs,
+            )
             for k, v in node.items()
         }
 
     elif isinstance(node, list):
         return [
-            inline_local_refs(item, root_catalog, visited, peers=peers) for item in node
+            inline_local_refs(
+                item,
+                root_catalog,
+                visited,
+                peers=peers,
+                inline_local_defs=inline_local_defs,
+            )
+            for item in node
         ]
 
     return node
@@ -1295,6 +1329,7 @@ class Catalog(Generic[TComponent, TFunction]):
         self._cached_catalog_schema: dict[str, Any] | None = None
         self._cached_document: dict[str, Any] | None = None
         self._resolved: _ResolvedSchemas | None = None
+        self._resolved_keep_defs: _ResolvedSchemas | None = None
         self._component_ref_map: dict[str, ComponentRefSpec] | None = None
         self._peer_catalogs: tuple[CatalogApi, ...] = tuple(
             p for p in _peer_catalogs if p is not self
@@ -1354,6 +1389,7 @@ class Catalog(Generic[TComponent, TFunction]):
         linked._linked_from = origin
         linked._cached_catalog_schema = None
         linked._resolved = None
+        linked._resolved_keep_defs = None
         linked._component_ref_map = None
         return linked
 
@@ -1502,12 +1538,13 @@ class Catalog(Generic[TComponent, TFunction]):
     # Resolved schemas
     # ==========================================================================
 
-    def _resolved_schemas(self) -> _ResolvedSchemas:
+    def _resolved_schemas(self, *, inline_local_defs: bool = True) -> _ResolvedSchemas:
         """Returns the catalog's authored schemas with references resolved.
 
         Computed once per catalog.
         """
-        cached: _ResolvedSchemas | None = getattr(self, "_resolved", None)
+        cache_attr = "_resolved" if inline_local_defs else "_resolved_keep_defs"
+        cached: _ResolvedSchemas | None = getattr(self, cache_attr, None)
         if cached is not None:
             return cached
         own_defs = {
@@ -1542,7 +1579,10 @@ class Catalog(Generic[TComponent, TFunction]):
             return copy.deepcopy(
                 _normalize_external_schema_refs(
                     inline_local_refs(
-                        _normalize_external_schema_refs(node, peers), root, peers=peers
+                        _normalize_external_schema_refs(node, peers),
+                        root,
+                        peers=peers,
+                        inline_local_defs=inline_local_defs,
                     ),
                     peers,
                 )
@@ -1568,7 +1608,7 @@ class Catalog(Generic[TComponent, TFunction]):
             },
             theme=resolve(self.theme_schema) if authored_theme else self.theme_schema,
         )
-        self._resolved = resolved
+        setattr(self, cache_attr, resolved)
         return resolved
 
     def resolved_component_schema(self, name: str) -> Any:
@@ -1891,7 +1931,7 @@ class Catalog(Generic[TComponent, TFunction]):
             A2uiCatalogError: If the catalog's protocol version is unknown.
         """
         protocol_version = self._protocol_version_enum()
-        resolved = self._resolved_schemas()
+        resolved = self._resolved_schemas(inline_local_defs=False)
         schema: dict[str, Any] = {
             "$schema": _JSON_SCHEMA_DIALECT,
             "catalogId": self.catalog_id,

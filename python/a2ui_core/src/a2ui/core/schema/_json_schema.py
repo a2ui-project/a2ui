@@ -55,6 +55,12 @@ SPEC_TITLE_KEY: Final[str] = "x-a2ui-title"
 # model as a `$defs` entry; `inline_marked_defs` puts the object back inline.
 INLINE_DEF_MARKER: Final[str] = "x-a2ui-inline"
 
+# Marks an inlined property schema that corresponds to a catalog-local `$defs`
+# entry (e.g. `#/$defs/Weight`). The property schema stays freestanding in
+# `model_json_schema()`, while `SpecShaper` hoists the marked definition into
+# the catalog's `$defs` and replaces the node with `{"$ref": "#/$defs/<name>"}`.
+CATALOG_DEF_MARKER: Final[str] = "x-a2ui-catalog-def"
+
 # Leading keyword order of an inlined def, as the specification writes them.
 _INLINED_KEYWORD_ORDER: Final[tuple[str, ...]] = ("type", "description", "properties")
 
@@ -238,6 +244,20 @@ class KeepAnyOf:
     ) -> JsonSchemaValue:
         json_schema = handler(schema)
         json_schema[KEEP_ANY_OF_MARKER] = True
+        return json_schema
+
+
+class CatalogDef:
+    """Annotation marking a type alias that corresponds to a catalog-local `$defs` entry."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(schema)
+        json_schema[CATALOG_DEF_MARKER] = self.name
         return json_schema
 
 

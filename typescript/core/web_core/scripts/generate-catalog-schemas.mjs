@@ -211,6 +211,28 @@ function generateNode(schema, ctx, isRequired = true) {
     };
   }
 
+  // 1b. Schema-driven $ref resolution via catalog-local $defs
+  const localDefName =
+    typeof schema.$ref === 'string' && schema.$ref.startsWith('#/$defs/')
+      ? extractRefName(schema.$ref)
+      : null;
+  if (localDefName && ctx.catalogDefs && ctx.catalogDefs[localDefName]) {
+    if (ctx.referencedCatalogDefs) {
+      ctx.referencedCatalogDefs.add(localDefName);
+    }
+    if (ctx.commonTypesUri !== undefined) {
+      const modelName = defModelName(localDefName);
+      const code = desc ? `${modelName}.describe('${escapeStr(desc)}')` : modelName;
+      return {
+        code,
+        prediction: describe({$ref: `#/$defs/${localDefName}`}),
+      };
+    }
+    const inlined = {...ctx.catalogDefs[localDefName], ...schema};
+    delete inlined.$ref;
+    return generateNode(inlined, ctx, isRequired);
+  }
+
   // 2. OneOf / AnyOf unions
   const unionBranches = schema.oneOf || schema.anyOf;
   if (Array.isArray(unionBranches) && unionBranches.length > 0) {
@@ -279,7 +301,10 @@ function generateArrayNode(schema, ctx) {
   const items = schema.items;
   let item = {code: 'z.any()', prediction: {}};
   if (items) {
-    if (findReferencedDefName(items, ctx.commonDefs)) {
+    if (
+      findReferencedDefName(items, ctx.commonDefs) ||
+      (ctx.catalogDefs && findReferencedDefName(items, ctx.catalogDefs))
+    ) {
       item = annotatedNode(items, ctx);
     } else if (items.type === 'string' && !Array.isArray(items.enum)) {
       item = annotatedNode(items, ctx, {code: 'z.string()', prediction: {type: 'string'}});
@@ -444,9 +469,11 @@ export function generatePropertyZod(
   commonDefs,
   usedImports,
   commonTypesUri,
+  catalogDefs = {},
+  referencedCatalogDefs = undefined,
 ) {
   const isRequired = requiredList.includes(propName);
-  const ctx = {commonDefs, usedImports, commonTypesUri};
+  const ctx = {commonDefs, catalogDefs, referencedCatalogDefs, usedImports, commonTypesUri};
   const {code} = annotatedNode(propSchema, ctx, generateNode(propSchema, ctx, isRequired));
   return isRequired ? code : `${code}.optional()`;
 }
@@ -574,8 +601,14 @@ function defModelName(name) {
  * Generates a catalog definition's model: a `specDef()`-named Zod object.
  */
 function generateDefModel(name, schema, ctx) {
-  const node = generateObjectNode(schema, ctx, '    ');
-  const {code, prediction} = withModifiers(node.code, node.prediction, schema);
+  let code;
+  let prediction;
+  if (schema.type === 'object') {
+    const node = generateObjectNode(schema, ctx, '    ');
+    ({code, prediction} = withModifiers(node.code, node.prediction, schema));
+  } else {
+    ({code, prediction} = generateNode(schema, ctx));
+  }
   const annotation = annotationFor(schema, prediction);
   const extra = annotation ? `, ${literal(annotation)}` : '';
   return `export const ${defModelName(name)} = specDef('${name}', ${code}${extra});\n\n`;
@@ -586,6 +619,7 @@ function generateDefModel(name, schema, ctx) {
  */
 export function generateComponentsFile(version, catalogJson, commonDefs, options = {}) {
   const catalogDefs = catalogJson.$defs || {};
+  const referencedCatalogDefs = new Set();
   const usedImports = new Set();
   const discriminatorProp = catalogJson.discriminator?.propertyName || 'component';
   const idProp = 'id';
@@ -593,7 +627,7 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
   const typesImportPath = options.typesImportPath || '../../../catalog/types.js';
   const specImportPath = typesImportPath.replace(/types\.js$/, 'spec_annotations.js');
   const commonTypesUri = options.reproduceDocument ? commonTypesUriOf(catalogJson) : undefined;
-  const ctx = {commonDefs, usedImports, commonTypesUri};
+  const ctx = {commonDefs, catalogDefs, referencedCatalogDefs, usedImports, commonTypesUri};
   const reproduce = commonTypesUri !== undefined;
 
   const compNames = Object.keys(catalogJson.components || {});
@@ -652,6 +686,8 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
         commonDefs,
         usedImports,
         reproduce && ownKeys.has(propName) ? commonTypesUri : undefined,
+        catalogDefs,
+        referencedCatalogDefs,
       );
       bodyCode += `      '${propName}': ${zodCode},\n`;
       if (ownKeys.has(propName) && required.includes(propName)) ownRequired.push(propName);
@@ -678,10 +714,20 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
 
   let defsCode = '';
   if (reproduce) {
-    for (const name of mixinDefs) defsCode += generateDefModel(name, catalogDefs[name], ctx);
+    let mixinDefsCode = '';
+    for (const name of mixinDefs) mixinDefsCode += generateDefModel(name, catalogDefs[name], ctx);
+    for (const name of referencedCatalogDefs) {
+      if (!mixinDefs.has(name)) defsCode += generateDefModel(name, catalogDefs[name], ctx);
+    }
+    defsCode += mixinDefsCode;
     if (catalogDefs.theme) defsCode += generateDefModel('theme', catalogDefs.theme, ctx);
     for (const name of Object.keys(catalogDefs)) {
-      if (!COMPUTED_DEFS.has(name) && !mixinDefs.has(name) && name !== 'theme') {
+      if (
+        !COMPUTED_DEFS.has(name) &&
+        !mixinDefs.has(name) &&
+        !referencedCatalogDefs.has(name) &&
+        name !== 'theme'
+      ) {
         throw new Error(`The catalog definition '${name}' has no model.`);
       }
     }
