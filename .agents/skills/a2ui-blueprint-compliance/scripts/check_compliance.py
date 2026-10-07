@@ -88,8 +88,7 @@ def main() -> None:
     latest commit in the corresponding module blueprint, building a markdown
     report showing compliance statuses.
     """
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    workspace_root = os.path.abspath(os.path.join(script_dir, "..", "..", "..", ".."))
+    workspace_root = repo_root
     blueprints_root = os.path.join(workspace_root, "blueprints")
 
     # 1. Discover all codebase blueprints
