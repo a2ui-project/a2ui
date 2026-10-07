@@ -29,12 +29,12 @@ import {
   ResponsePart,
   resolveCatalogs,
 } from '../../src/index.js';
-import {STRICT_VALIDATION, V10RendererCapabilities} from '../../src/internal/web_core.js';
-import {DirectJsonParser} from '../../src/inference_formats/direct_json/parser.js';
-import {DirectJsonStreamProcessorImpl} from '../../src/inference_formats/direct_json/streaming.js';
+import {STRICT_VALIDATION, V10RendererCapabilities} from '../../src/internal/web-core.js';
+import {DirectJsonParser} from '../../src/inference-formats/direct-json/parser.js';
+import {DirectJsonStreamProcessorImpl} from '../../src/inference-formats/direct-json/streaming.js';
 
-import {parseAndFix} from '../../src/parser/payload_fixer.js';
-import {toWireProtocolVersion} from '../../src/utils/protocol_version.js';
+import {parseAndFix} from '../../src/parser/payload-fixer.js';
+import {toWireProtocolVersion} from '../../src/utils/protocol-version.js';
 import {loadBasicCatalog} from '../helpers/basic-catalogs.js';
 
 // Cases that name no catalog run against the v1.0 basic catalog.

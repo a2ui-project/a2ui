@@ -16,7 +16,7 @@
 
 /**
  * Shared helpers for the harnesses that run the agent suites written against the module
- * blueprint (`conformance/agent/*.yaml` and `conformance/agent/direct_json/*.yaml`).
+ * blueprint (`conformance/agent/*.yaml` and `conformance/agent/direct-json/*.yaml`).
  *
  * Those suites spell their keys in snake_case (`expect_error`, `catalog_id`), unlike the
  * legacy suites that `conformance.test.ts` runs.
@@ -25,7 +25,7 @@
 import * as path from 'path';
 import {expect, test} from 'vitest';
 
-import {CatalogApi} from '../../src/internal/web_core.js';
+import {CatalogApi} from '../../src/internal/web-core.js';
 import {
   A2uiCatalogError,
   A2uiValidationError,

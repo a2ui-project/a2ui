@@ -15,7 +15,7 @@
  */
 
 import {describe, it, expect} from 'vitest';
-import * as webCore from '../../src/internal/web_core.js';
+import * as webCore from '../../src/internal/web-core.js';
 import {ParseError, A2uiCatalogError, A2uiError} from '../../src/errors.js';
 
 describe('Foundations', () => {

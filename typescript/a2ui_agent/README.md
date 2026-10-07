@@ -6,7 +6,7 @@ This package targets the A2UI protocol **v0.9** and **v1.0**, and supports the *
 
 ## Regenerating the Express parser
 
-The Express lexer, parser, and visitor in `src/inference_formats/express/generated/` are
+The Express lexer, parser, and visitor in `src/inference-formats/express/generated/` are
 generated from the specification grammar at `specification/inference_formats/express/Express.g4`.
 The generated files are checked in, so building, testing, and using this package never runs the
 generator. Regenerate them only when the grammar changes.
@@ -24,12 +24,12 @@ yarn workspace @a2ui/agent generate:express
 ```
 
 This runs
-`antlr-ng -Dlanguage=TypeScript --generate-visitor --generate-listener false -o src/inference_formats/express/generated ../../specification/inference_formats/express/Express.g4`,
+`antlr-ng -Dlanguage=TypeScript --generate-visitor --generate-listener false -o src/inference-formats/express/generated ../../specification/inference_formats/express/Express.g4`,
 matching the Python SDK's options (a visitor and no listener).
 
 The Python SDK generates its parser with the official ANTLR 4.13.2 Java tool. The two SDKs parse
 identically because their serialized ATNs, the tables that drive every lexing and parsing
-decision, are identical. `tests/unit/inference_formats/express/generated_parser.test.ts` compares
+decision, are identical. `tests/unit/inference-formats/express/generated-parser.test.ts` compares
 both ATNs against Python's checked-in parser and fails if either SDK is regenerated from a
 different grammar. When the grammar changes, regenerate both SDKs in the same change.
 

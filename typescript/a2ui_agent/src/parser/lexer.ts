@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {RawResponsePart} from './response_part.js';
+import {RawResponsePart} from './response-part.js';
 
 export enum LexerState {
   NORMAL = 0, // Outside tag (conversational text)

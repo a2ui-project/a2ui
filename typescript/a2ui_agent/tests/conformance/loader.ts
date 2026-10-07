@@ -87,7 +87,7 @@ const SUPERSEDED = new Map<string, string>([
 const SUPERSEDED_ACTIONS = new Map<string, string>([
   [
     'generate_prompt',
-    'superseded by direct_json/prompt_generator.yaml, since the generator renders only the catalog snippet',
+    'superseded by direct-json/prompt_generator.yaml, since the generator renders only the catalog snippet',
   ],
 ]);
 

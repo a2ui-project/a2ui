@@ -18,9 +18,9 @@ import * as fs from 'fs';
 import {CatalogConfig, InMemoryCatalogProvider} from '../../src/index.js';
 import * as path from 'path';
 import {ProtocolVersion} from '../../src/types.js';
-import {CatalogTransformer} from '../../src/catalog_transformers/base.js';
-import {Catalog, CatalogApi} from '../../src/internal/web_core.js';
-import {toWireProtocolVersion} from '../../src/utils/protocol_version.js';
+import {CatalogTransformer} from '../../src/catalog-transformers/base.js';
+import {Catalog, CatalogApi} from '../../src/internal/web-core.js';
+import {toWireProtocolVersion} from '../../src/utils/protocol-version.js';
 import {CONFORMANCE_ROOT} from './loader.js';
 
 export async function createCatalogConfig(
@@ -97,7 +97,7 @@ export async function createFileCatalogConfig(
  * Removal steps:
  * 1. Wait for @a2ui/web_core to export `RemoveStrictValidationTransformer`.
  * 2. Delete this class.
- * 3. Import `RemoveStrictValidationTransformer` from `../../src/internal/web_core.js`.
+ * 3. Import `RemoveStrictValidationTransformer` from `../../src/internal/web-core.js`.
  */
 export class RemoveStrictValidationTransformer implements CatalogTransformer {
   transform(catalog: CatalogApi): CatalogApi {
