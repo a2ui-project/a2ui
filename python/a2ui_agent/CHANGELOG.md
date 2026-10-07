@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING**: Package dependency updated to require `a2ui-core>=0.3.0,<0.4.0`.
 - **BREAKING**: `DirectJsonParser`, `DirectJsonStreamParser` and
   `A2uiPartConverter` take a sequence of catalogs instead of one catalog, and
   expose them as `catalogs`. A parser holds every catalog the renderer supports
