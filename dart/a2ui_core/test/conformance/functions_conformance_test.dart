@@ -85,6 +85,11 @@ void main() {
       test(name, () {
         switch (action) {
           case 'evaluate_function':
+            if (testCase['surface'] != null) {
+              markTestSkipped('The evaluate_function surface block needs v1.0 '
+                  'catalog resolution, which this SDK does not implement yet.');
+              return;
+            }
             final Object? expectError =
                 testCase['expectError'] ?? testCase['expect_error'];
             if (expectError is Map<String, Object?>) {

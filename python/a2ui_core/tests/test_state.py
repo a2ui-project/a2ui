@@ -25,6 +25,7 @@ from a2ui.core.state import (
     SurfaceGroupModel,
 )
 from a2ui.core.exceptions import (
+    A2uiCatalogError,
     A2uiDataError,
     A2uiRecursionError,
     A2uiStateError,
@@ -524,6 +525,43 @@ def test_surface_model_initialization_and_catalogs():
     assert surface.catalog is cat
     assert cat.id in surface.available_catalogs
     assert surface.available_catalogs[cat.id] is cat
+
+
+def test_surface_model_resolve_catalog():
+    default = BasicCatalog("1.0")
+    other = BasicCatalog("0.9")
+    surface = SurfaceModel(
+        "s1", default_catalog=default, available_catalogs={other.id: other}
+    )
+
+    assert surface.resolve_catalog(None) is default
+    assert surface.resolve_catalog(default.id) is default
+    assert surface.resolve_catalog(other.id) is other
+    with pytest.raises(A2uiCatalogError, match="Catalog not found: missing"):
+        surface.resolve_catalog("missing")
+    # An empty catalogId names a catalog too; it does not mean the default.
+    with pytest.raises(A2uiCatalogError, match="^Catalog not found: $"):
+        surface.resolve_catalog("")
+
+
+def test_surface_model_resolve_catalog_without_default():
+    cat = BasicCatalog("1.0")
+    surface = SurfaceModel(
+        "s1",
+        default_catalog=None,
+        available_catalogs={cat.id: cat},
+        protocol_version="v1.0",
+    )
+
+    assert surface.resolve_catalog(cat.id) is cat
+    with pytest.raises(
+        A2uiCatalogError,
+        match=(
+            "^Function call 'f' names no catalogId and surface s1 has no default"
+            " catalogId.$"
+        ),
+    ):
+        surface.resolve_catalog(None, subject="Function call 'f'")
 
 
 def test_surface_model_dispatch_warning_and_error():
