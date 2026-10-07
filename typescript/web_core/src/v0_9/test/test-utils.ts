@@ -19,6 +19,9 @@ import {SurfaceModel} from '../../state/surface-model.js';
 import {Catalog, ComponentApi} from '../../catalog/types.js';
 import {ComponentModel} from '../../state/component-model.js';
 
+/** Empty catalog shared by test surfaces and their component models. */
+const TEST_CATALOG = new Catalog<ComponentApi>('test-catalog', '0.9', []);
+
 /**
  * Test double for `SurfaceModel` initialized with an empty catalog.
  */
@@ -29,7 +32,7 @@ export class TestSurfaceModel extends SurfaceModel<ComponentApi> {
    * @param actionHandler Optional action listener callback.
    */
   constructor(actionHandler: any = async () => {}) {
-    super('test', new Catalog('test-catalog', '0.9', []), new Map(), {});
+    super('test', TEST_CATALOG, new Map(), {});
     this.onAction.subscribe(actionHandler);
   }
 }
@@ -43,12 +46,7 @@ export class TestSurfaceModel extends SurfaceModel<ComponentApi> {
  */
 export function createTestContext(properties: any, actionHandler: any = async () => {}) {
   const surface = new TestSurfaceModel(actionHandler);
-  const component = new ComponentModel(
-    'test-id',
-    'TestComponent',
-    properties,
-    surface.defaultCatalog,
-  );
+  const component = new ComponentModel('test-id', 'TestComponent', properties, TEST_CATALOG);
   surface.componentsModel.addComponent(component);
 
   const context = new ComponentContext(surface, 'test-id', '/');

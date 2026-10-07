@@ -21,11 +21,28 @@ import {
   ComponentApi,
   FunctionImplementation,
   MessageProcessor,
+  type ValidationConfig,
 } from '../internal/web-core.js';
 import {InferenceFormatFactory, InferenceFormat} from '../inference-format.js';
 import {ResponsePart} from '../parser/response-part.js';
 import {DirectJsonFormatFactory} from '../inference-formats/direct-json/format.js';
 import {Parser} from '../parser/parser.js';
+
+/**
+ * Validation applied to model output in `parseResponse`.
+ *
+ * Every component type and function call must be declared by the catalog it
+ * resolves to (or be a reserved system function such as `@index`), so the
+ * agent rejects model output that the renderer could not run. Topology is not
+ * enforced: a response may legitimately update part of a surface, so a
+ * missing root, orphans and references to components sent later are allowed.
+ */
+const MODEL_OUTPUT_VALIDATION: ValidationConfig = Object.freeze({
+  allowUnknownElements: false,
+  allowMissingRoot: true,
+  allowOrphanComponents: true,
+  allowDanglingReferences: true,
+});
 
 /** Request-scoped facade over the negotiated catalogs, prompt, parser, and validation. */
 export class A2uiRequestProcessor {
@@ -50,6 +67,8 @@ export class A2uiRequestProcessor {
     // from the message's own `version` field.
     this._messageProcessor = new MessageProcessor(
       catalogs as unknown as Catalog<ComponentApi, FunctionImplementation>[],
+      undefined,
+      {validationConfig: MODEL_OUTPUT_VALIDATION},
     );
   }
 

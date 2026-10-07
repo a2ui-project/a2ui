@@ -19,6 +19,7 @@ import {z} from 'zod';
 import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';
 import {A2uiValidationError} from '../../errors.js';
 import {resolveContextIndex} from '../../resolution/data-context.js';
+import {DataBindingSchema, FunctionCallSchema} from '../schema/common-types.js';
 
 /**
  * System function definition for computing iteration indices in array contexts.
@@ -32,9 +33,14 @@ export const IndexApi = {
   returnType: 'number' as const,
   /** Scope of callers permitted to invoke this function. */
   allowedCallers: 'rendererOnly' as const,
-  /** Zod schema validating function arguments. */
+  /**
+   * Zod schema validating function arguments.
+   *
+   * `offset` is a DynamicNumber, so a payload may bind it to a path or a
+   * nested call. Once resolved, the value is coerced to a number.
+   */
   schema: z.object({
-    'offset': z.coerce.number().optional(),
+    'offset': z.union([DataBindingSchema, FunctionCallSchema, z.coerce.number()]).optional(),
   }),
 };
 

@@ -170,9 +170,9 @@ export class SurfaceComponentsModel {
     const comp = this.components.get(componentId);
     if (!comp) return [];
 
-    const refMap: ComponentRefMap = comp.catalog?.components.size
+    const refMap: ComponentRefMap = comp.catalog.components.size
       ? comp.catalog.componentRefMap
-      : (this.refMap ?? comp.catalog?.componentRefMap ?? {});
+      : (this.refMap ?? comp.catalog.componentRefMap);
     return Array.from(getComponentReferences(comp.componentTree, refMap));
   }
 

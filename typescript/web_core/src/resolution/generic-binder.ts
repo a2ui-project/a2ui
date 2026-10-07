@@ -638,11 +638,12 @@ export class GenericBinder<T> {
       return value;
     }
 
-    const isV10 = isAtLeastVersion(
-      this.context.dataContext.surface?.defaultCatalog?.protocolVersion,
+    const atLeastV10 = isAtLeastVersion(
+      this.context.dataContext.surface?.protocolVersion ??
+        this.context.dataContext.surface?.defaultCatalog?.protocolVersion,
       '1.0',
     );
-    const binding = isV10 ? {'@path': templatePath} : {path: templatePath};
+    const binding = atLeastV10 ? {'@path': templatePath} : {path: templatePath};
     const bound = this.context.dataContext.subscribeDynamicValue(binding, newVal => {
       const resolvedChildren = this.mapTemplateChildren(newVal, templateComponentId, templatePath);
       this.updateDeepValue(path, resolvedChildren);
@@ -762,11 +763,11 @@ export class GenericBinder<T> {
         result[setterName] = (newValue: unknown) => {
           if (rawPropValue && typeof rawPropValue === 'object') {
             const rawObj = rawPropValue as Record<string, unknown>;
-            const bindingKey = this.context.dataContext.isV10 ? '@path' : 'path';
+            const bindingKey = this.context.dataContext.atLeastV10 ? '@path' : 'path';
             const pathVal = rawObj[bindingKey];
             if (
               typeof pathVal === 'string' &&
-              (this.context.dataContext.isV10 || !('componentId' in rawObj))
+              (this.context.dataContext.atLeastV10 || !('componentId' in rawObj))
             ) {
               this.context.dataContext.set(pathVal, newValue);
             }

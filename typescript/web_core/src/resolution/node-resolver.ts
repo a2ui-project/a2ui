@@ -82,7 +82,6 @@ export class NodeResolver<
   readonly rootNode: Signal<ComponentNode<C> | undefined>;
 
   private readonly surface: SurfaceModel<C, F>;
-  private readonly catalog: Catalog<C, F>;
   private readonly rootId: string;
   private readonly records = new Map<MutableComponentNode, NodeRecord>();
   private readonly nodesByEdge = new Map<string, MutableComponentNode>();
@@ -98,18 +97,25 @@ export class NodeResolver<
   /**
    * Creates a new `NodeResolver` instance.
    *
+   * Each component resolves against the catalog its model was bound to, so a
+   * surface without a default catalog (allowed from v1.0) renders as long as
+   * its components name their catalogs.
+   *
    * @param surface Surface model to observe.
-   * @param catalog Catalog containing component schemas and function implementations.
+   * @param catalog The surface's default catalog. Defaults to
+   *   `surface.defaultCatalog`, which may be `undefined`.
    * @throws {A2uiStateError} If the catalog instance differs from the surface's catalog.
    */
-  constructor(surface: SurfaceModel<C, F>, catalog: Catalog<C, F>) {
+  constructor(
+    surface: SurfaceModel<C, F>,
+    catalog: Catalog<C, F> | undefined = surface.defaultCatalog,
+  ) {
     if ((catalog as unknown) !== (surface.defaultCatalog as unknown)) {
       throw new A2uiStateError(
         'NodeResolver requires the same catalog instance its surface was constructed with.',
       );
     }
     this.surface = surface;
-    this.catalog = catalog;
     this.rootId = surface.rootId ?? ROOT_COMPONENT_ID;
     this.rootNode = signal<ComponentNode<C> | undefined>(undefined);
 
@@ -310,9 +316,7 @@ export class NodeResolver<
       return record.node;
     }
 
-    const compCatalog =
-      (model.catalog?.components.size ? (model.catalog as Catalog<C, F>) : undefined) ??
-      this.catalog;
+    const compCatalog = this.catalogFor(model);
     const api = compCatalog.components.get(model.type);
     if (!api) {
       this.dispatchOnce(
@@ -374,6 +378,17 @@ export class NodeResolver<
     record.lastBinderProps = binder.snapshot;
     this.materialize(record);
     return record.node;
+  }
+
+  /**
+   * Returns the catalog a component model resolves against: the catalog it
+   * was bound to, never the surface's default catalog directly.
+   *
+   * @param model Component model to resolve.
+   * @returns The component model's catalog.
+   */
+  private catalogFor(model: ComponentModel): Catalog<C, F> {
+    return model.catalog as Catalog<C, F>;
   }
 
   private registerNode(
@@ -459,10 +474,7 @@ export class NodeResolver<
     }
     if (existing && !existing.disposed) {
       const model = this.surface.componentsModel.get(componentId);
-      const compCatalog =
-        (model?.catalog?.components.size ? (model.catalog as Catalog<C, F>) : undefined) ??
-        this.catalog;
-      const api = model ? compCatalog.components.get(model.type) : undefined;
+      const api = model ? this.catalogFor(model).components.get(model.type) : undefined;
       // A placeholder stays up to date only while its own state's
       // preconditions hold, so a pending node whose definition arrives with
       // an unknown type is replaced (once) by an unknown-type node, and
@@ -752,7 +764,7 @@ function wrapDynamicValues(
 ): unknown {
   switch (behavior.type) {
     case 'DYNAMIC': {
-      const bindingKey = dataContext.isV10 ? '@path' : 'path';
+      const bindingKey = dataContext.atLeastV10 ? '@path' : 'path';
       const rawRecord =
         raw && typeof raw === 'object' && !Array.isArray(raw)
           ? (raw as Record<string, unknown>)

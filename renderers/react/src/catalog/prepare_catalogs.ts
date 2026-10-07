@@ -45,6 +45,6 @@ function prepare(catalog: Catalog<ReactCatalogComponent>): void {
  * catalogs reach a surface through web_core, before React sees them.
  */
 export function prepareCatalogs(surface: SurfaceModel<ReactCatalogComponent>): void {
-  prepare(surface.defaultCatalog);
+  if (surface.defaultCatalog) prepare(surface.defaultCatalog);
   for (const catalog of surface.availableCatalogs.values()) prepare(catalog);
 }

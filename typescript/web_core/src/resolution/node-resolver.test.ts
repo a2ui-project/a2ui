@@ -93,7 +93,9 @@ function setup() {
 }
 
 function add(surface: SurfaceModel, id: string, type: string, props: Record<string, unknown>) {
-  surface.componentsModel.addComponent(new ComponentModel(id, type, props, surface.defaultCatalog));
+  const catalog = surface.defaultCatalog;
+  assert.ok(catalog, 'add() needs a surface with a default catalog');
+  surface.componentsModel.addComponent(new ComponentModel(id, type, props, catalog));
 }
 
 function props(node: ComponentNode): NodeProps {
@@ -1271,19 +1273,19 @@ describe('NodeResolver constructor checks and disposal', () => {
     assert.strictEqual(resolver.activeNodeCount, 0);
   });
 
-  it('resolves component models instantiated without a catalog or with empty catalog', () => {
-    const {surface, resolver} = setup();
-    // 1. Component without catalog (3-argument ComponentModel)
+  it("resolves a component against its own catalog, not the surface's default", () => {
+    const {catalog, surface, resolver} = setup();
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
     surface.componentsModel.addComponent(
-      new ComponentModel('root', 'Column', {children: ['child1', 'child2']}),
+      new ComponentModel('root', 'Column', {children: ['child1']}, catalog),
     );
-    // 2. Component with empty catalog
+    // The surface default declares Text, but this component's catalog doesn't.
     const emptyCat = new Catalog('empty', '0.9', []);
     surface.componentsModel.addComponent(
-      new ComponentModel('child1', 'Text', {text: 'Without Catalog'}),
-    );
-    surface.componentsModel.addComponent(
-      new ComponentModel('child2', 'Text', {text: 'Empty Catalog'}, emptyCat),
+      new ComponentModel('child1', 'Text', {text: 'Empty Catalog'}, emptyCat),
     );
 
     const root = getValue(resolver.rootNode);
@@ -1291,15 +1293,81 @@ describe('NodeResolver constructor checks and disposal', () => {
     assert.strictEqual(root.type, 'Column');
 
     const c1 = child(root, 'children', 0);
-    assert.ok(c1);
-    assert.strictEqual(c1.type, 'Text');
-    assert.strictEqual(bound(c1, 'text'), 'Without Catalog');
+    assert.strictEqual(c1.state, 'unknown-type');
+    assert.deepStrictEqual(errors, [
+      {
+        code: 'UNKNOWN_COMPONENT_TYPE',
+        message: "Component 'child1' has type 'Text', which is not in catalog 'empty'.",
+        surfaceId: 'surf-1',
+      },
+    ]);
 
-    const c2 = child(root, 'children', 1);
-    assert.ok(c2);
-    assert.strictEqual(c2.type, 'Text');
-    assert.strictEqual(bound(c2, 'text'), 'Empty Catalog');
+    resolver.dispose();
+  });
+});
 
+describe('NodeResolver on a surface without a default catalog', () => {
+  function setupNoDefault() {
+    const catalog = makeCatalog();
+    const surface = new SurfaceModel<ComponentApi>(
+      'no-default',
+      undefined,
+      new Map([[catalog.id, catalog]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'v1.0',
+    );
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
+    const resolver = new NodeResolver(surface);
+    return {catalog, surface, resolver, errors};
+  }
+
+  it('resolves each component against the catalog its model names', () => {
+    const {catalog, surface, resolver, errors} = setupNoDefault();
+    surface.componentsModel.addComponent(
+      new ComponentModel('root', 'Card', {child: 'text-1'}, catalog),
+    );
+    surface.componentsModel.addComponent(
+      new ComponentModel('text-1', 'Text', {text: 'Hi'}, catalog),
+    );
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(root.type, 'Card');
+    const text = child(root, 'child');
+    assert.strictEqual(text.type, 'Text');
+    assert.strictEqual(bound(text, 'text'), 'Hi');
+    assert.deepStrictEqual(errors, []);
+    resolver.dispose();
+  });
+
+  it('reports a component whose catalog lacks its type as an unknown type', () => {
+    const {catalog, surface, resolver, errors} = setupNoDefault();
+    surface.componentsModel.addComponent(
+      new ComponentModel('root', 'Card', {child: 'orphan'}, catalog),
+    );
+    const otherCatalog = new Catalog('other', '1.0', []);
+    surface.componentsModel.addComponent(
+      new ComponentModel('orphan', 'Text', {text: 'x'}, otherCatalog),
+    );
+
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    const orphan = child(root, 'child');
+    assert.strictEqual(orphan.state, 'unknown-type');
+    assert.deepStrictEqual(errors, [
+      {
+        code: 'UNKNOWN_COMPONENT_TYPE',
+        message: "Component 'orphan' has type 'Text', which is not in catalog 'other'.",
+        surfaceId: 'no-default',
+      },
+    ]);
     resolver.dispose();
   });
 });

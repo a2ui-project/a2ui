@@ -30,7 +30,7 @@ const catalog = new Catalog<ReactCatalogComponent>('markdown-bridge', '0.9', [Te
 
 function surfaceWith(id: string, text: string) {
   const surface = new SurfaceModel<ReactCatalogComponent>(id, catalog);
-  surface.componentsModel.addComponent(new ComponentModel('root', 'Text', {text}));
+  surface.componentsModel.addComponent(new ComponentModel('root', 'Text', {text}, catalog));
   return surface;
 }
 

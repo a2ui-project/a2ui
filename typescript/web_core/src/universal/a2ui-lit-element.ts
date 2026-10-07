@@ -227,8 +227,7 @@ export abstract class A2uiLitElement<
    * one element class is registered in the catalogs of several protocol
    * versions, and the props schema has to match the catalog the component
    * came from. That entry is the resolved node's implementation, or the
-   * component's entry in its own catalog (falling back to the surface's
-   * default catalog).
+   * component's entry in its own catalog.
    */
   private findCatalogApi(): Api | undefined {
     if (this.node?.impl) {
@@ -236,9 +235,8 @@ export abstract class A2uiLitElement<
     }
     const componentModel = this.context?.componentModel;
     if (!componentModel) return undefined;
-    const catalog = (componentModel.catalog ??
-      this.context.dataContext?.surface?.defaultCatalog) as Catalog<ComponentApi> | undefined;
-    return catalog?.components.get(componentModel.type) as Api | undefined;
+    const catalog = componentModel.catalog as Catalog<ComponentApi>;
+    return catalog.components.get(componentModel.type) as Api | undefined;
   }
 
   /**
@@ -288,8 +286,7 @@ export abstract class A2uiLitElement<
     }
 
     const childContext = new ComponentContext(surface, componentId, path);
-    const childCatalog = (childContext.componentModel.catalog ??
-      surface.defaultCatalog) as Catalog<WebComponentImplementation>;
+    const childCatalog: Catalog<WebComponentImplementation> = childContext.componentModel.catalog;
     return renderA2uiNode(childContext, childCatalog);
   }
 
