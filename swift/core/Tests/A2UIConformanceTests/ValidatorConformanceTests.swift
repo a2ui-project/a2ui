@@ -310,13 +310,10 @@ struct ValidatorConformanceTests {
     if let category = expected.category {
       switch category {
       case "ValidationError":
-        // The suites use `ValidationError` for every rejected payload, including the
-        // integrity and recursion failures that Swift reports with their own error types.
         #expect(
-          error is A2UIValidationError || error is A2UIIntegrityError
-            || error is A2UIRecursionError,
+          error is A2UIValidationError,
           """
-          [\(testName)] Expected a validation, integrity, or recursion error for category \
+          [\(testName)] Expected A2UIValidationError for category \
           '\(category)', got \(type(of: error))
           """
         )

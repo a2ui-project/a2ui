@@ -141,8 +141,10 @@ struct BasicCatalogConformanceTests {
     #expect(!testCases.isEmpty, "Should load test cases from index_function.yaml")
 
     for testCase in testCases {
+      let errorHandler = IndexConformanceErrorHandler()
       let processor = MessageProcessor(
         catalogs: BasicCatalog.allCatalogs,
+        actionHandler: errorHandler,
         validationConfig: ValidationConfig(targetVersion: "v1.0")
       )
 
@@ -150,21 +152,32 @@ struct BasicCatalogConformanceTests {
         guard let payload = step.payload else { continue }
 
         if let expectedError = step.expectError {
-          var caughtError: Error?
+          errorHandler.capturedErrors.removeAll()
+          var caughtErrorMessage: String?
           do {
             let messages = try ConformanceTestHelper.parsePayload(payload)
             processor.process(messages: messages)
           } catch {
-            caughtError = error
+            caughtErrorMessage = error.localizedDescription
           }
 
-          if let caughtError {
-            if let expectedMessage = expectedError.message {
-              #expect(
-                caughtError.localizedDescription.contains(expectedMessage)
-                  || "\(caughtError)".contains(expectedMessage)
-              )
-            }
+          let errorMessages =
+            errorHandler.capturedErrors.map { err -> String in
+              switch err {
+              case .validationFailed(let v): return v.message
+              case .generic(let g): return g.message
+              }
+            } + (caughtErrorMessage.map { [$0] } ?? [])
+
+          #expect(
+            !errorMessages.isEmpty,
+            "Expected error for \(testCase.name), but processing succeeded without error"
+          )
+          if let expectedMessage = expectedError.message {
+            #expect(
+              errorMessages.contains(where: { $0.contains(expectedMessage) }),
+              "Expected error containing '\(expectedMessage)' in \(testCase.name), got \(errorMessages)"
+            )
           }
         } else {
           let messages = try ConformanceTestHelper.parsePayload(payload)
@@ -240,5 +253,15 @@ struct BasicCatalogConformanceTests {
         }
       }
     }
+  }
+}
+
+private final class IndexConformanceErrorHandler: ActionHandling, @unchecked Sendable {
+  var capturedErrors: [RendererError] = []
+
+  func handle(action: ResolvedAction, from surfaceID: String) {}
+
+  func handle(error: RendererError, from surfaceID: String) {
+    capturedErrors.append(error)
   }
 }

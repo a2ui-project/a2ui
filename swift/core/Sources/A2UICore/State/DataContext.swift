@@ -87,13 +87,18 @@ public final class DataContext {
     )
   }
 
+  public nonisolated static func unescapeObjectKey(_ key: String) -> String {
+    key.hasPrefix("@@") ? String(key.dropFirst()) : key
+  }
+
   /// Resolves a dynamic value to its current literal `JSONValue`.
   ///
-  /// Only a top-level `path` or `call` object is a binding; any other value,
-  /// including containers with nested `path`/`call` keys, passes through
-  /// unchanged.
+  /// Recursively evaluates data bindings (`path` / `@path`), function calls
+  /// (`call` / `@call`), arrays, and nested plain objects.
   public func resolveDynamicValue(_ value: JSONValue) -> JSONValue {
     switch value {
+    case .array(let arr):
+      return .array(arr.map { resolveDynamicValue($0) })
     case .object(let dict):
       if isV10 {
         if let pathStr = dict["@path"]?.stringValue {
@@ -103,16 +108,12 @@ public final class DataContext {
           return evaluateFunctionCall(name: callName, dict: dict)
         }
 
-        if dict.keys.contains(where: { $0.hasPrefix("@@") }) {
-          var resultDict: OrderedDictionary<String, JSONValue> = [:]
-          for (k, v) in dict {
-            let unescapedKey = k.hasPrefix("@@") ? String(k.dropFirst()) : k
-            resultDict[unescapedKey] = v
-          }
-          return .object(resultDict)
+        var resultDict: OrderedDictionary<String, JSONValue> = [:]
+        for (k, v) in dict {
+          let unescapedKey = Self.unescapeObjectKey(k)
+          resultDict[unescapedKey] = resolveDynamicValue(v)
         }
-
-        return value
+        return .object(resultDict)
       } else {
         let allowAtPrefix = (protocolVersion == nil)
         if let pathStr =
@@ -127,16 +128,12 @@ public final class DataContext {
           return evaluateFunctionCall(name: callName, dict: dict)
         }
 
-        if allowAtPrefix, dict.keys.contains(where: { $0.hasPrefix("@@") }) {
-          var resultDict: OrderedDictionary<String, JSONValue> = [:]
-          for (k, v) in dict {
-            let unescapedKey = k.hasPrefix("@@") ? String(k.dropFirst()) : k
-            resultDict[unescapedKey] = v
-          }
-          return .object(resultDict)
+        var resultDict: OrderedDictionary<String, JSONValue> = [:]
+        for (k, v) in dict {
+          let unescapedKey = allowAtPrefix ? Self.unescapeObjectKey(k) : k
+          resultDict[unescapedKey] = resolveDynamicValue(v)
         }
-
-        return value
+        return .object(resultDict)
       }
     default:
       return value
@@ -161,17 +158,14 @@ public final class DataContext {
     var resolvedArgs: [String: JSONValue] = [:]
     if let argsObj = dict["args"]?.dictionaryValue {
       for (argKey, argVal) in argsObj {
-        if let arr = argVal.arrayValue {
-          resolvedArgs[argKey] = .array(arr.map { resolveDynamicValue($0) })
-        } else {
-          resolvedArgs[argKey] = resolveDynamicValue(argVal)
-        }
+        resolvedArgs[argKey] = resolveDynamicValue(argVal)
       }
     }
 
     do {
       return try function.evaluate(arguments: resolvedArgs, context: self)
     } catch {
+      functionHandler?.handleFunctionError(error, functionName: callName)
       return .null
     }
   }

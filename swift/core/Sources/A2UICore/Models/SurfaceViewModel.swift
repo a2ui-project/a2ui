@@ -189,4 +189,8 @@ extension SurfaceViewModel: FunctionHandler {
   public func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     nodeResolver.function(named: name, catalogID: catalogID)
   }
+
+  public func handleFunctionError(_ error: any Error, functionName: String) {
+    nodeResolver.handleFunctionError(error, functionName: functionName)
+  }
 }

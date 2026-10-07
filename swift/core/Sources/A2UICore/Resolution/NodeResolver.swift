@@ -35,10 +35,13 @@ public final class NodeResolver: Sendable {
   public let protocolVersion: String?
 
   public var isV10: Bool {
-    guard let version = protocolVersion else { return false }
-    let core = version.hasPrefix("v") ? String(version.dropFirst()) : version
-    guard let major = Int(core.split(separator: ".").first ?? "") else { return false }
-    return major >= 1
+    if let version = protocolVersion {
+      let core = version.hasPrefix("v") ? String(version.dropFirst()) : version
+      if let major = Int(core.split(separator: ".").first ?? "") {
+        return major >= 1
+      }
+    }
+    return catalog.isAtLeastV10
   }
 
   /// The primary default catalog associated with this resolver.
@@ -507,7 +510,7 @@ public final class NodeResolver: Sendable {
       dataModel: dataModel,
       path: basePath ?? "",
       functionHandler: self,
-      protocolVersion: protocolVersion,
+      protocolVersion: protocolVersion ?? catalog.protocolVersion,
       index: index
     )
     return context.resolveDynamicValue(value)
@@ -1014,5 +1017,18 @@ extension NodeResolver: FunctionHandler {
       }
     }
     return targetFunction
+  }
+
+  public func handleFunctionError(_ error: any Error, functionName: String) {
+    let version =
+      protocolVersion.flatMap(A2UIProtocolVersion.init(rawValue:))
+      ?? catalog.a2uiProtocolVersion
+      ?? (isV10 ? .v10 : .v09)
+    let rendererError = MessageErrorMapper().map(
+      error,
+      surfaceID: surfaceID,
+      version: version
+    )
+    actionHandler?.handle(error: rendererError, from: surfaceID)
   }
 }

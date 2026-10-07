@@ -595,4 +595,49 @@ struct AgentToRendererMessageTests {
     #expect(A2UIProtocolVersion.v091.isAtLeastV10 == false)
     #expect(A2UIProtocolVersion.v10.isAtLeastV10 == true)
   }
+
+  @Test func parseAllHandlesSingleArrayAndWrappedEnvelopesWithoutCatalog() throws {
+    let singlePayload: JSONValue = [
+      "version": "v1.0",
+      "deleteSurface": ["surfaceId": "s1"],
+    ]
+    let singleParsed = try AgentToRendererMessage.parseAll(singlePayload)
+    #expect(singleParsed.count == 1)
+    #expect(singleParsed.first?.surfaceID == "s1")
+
+    let arrayPayload: JSONValue = [
+      [
+        "version": "v1.0",
+        "createSurface": ["surfaceId": "s1", "catalogId": "basic"],
+      ],
+      [
+        "version": "v1.0",
+        "deleteSurface": ["surfaceId": "s1"],
+      ],
+    ]
+    let arrayParsed = try AgentToRendererMessage.parseAll(arrayPayload)
+    #expect(arrayParsed.count == 2)
+
+    let wrappedPayload: JSONValue = ["messages": arrayPayload]
+    let wrappedParsed = try AgentToRendererMessage.parseAll(wrappedPayload)
+    #expect(wrappedParsed == arrayParsed)
+
+    let invalidPayload: JSONValue = [
+      "version": "v1.0",
+      "createSurface": ["surfaceId": "s1", "catalogId": "basic"],
+      "deleteSurface": ["surfaceId": "s1"],
+    ]
+    #expect(throws: A2UIValidationError.self) {
+      try AgentToRendererMessage.parseAll(invalidPayload)
+    }
+  }
+
+  @Test func integrityAndRecursionErrorsSubclassValidationError() {
+    let integrity: any Error = A2UIIntegrityError("duplicate id")
+    let recursion: any Error = A2UIRecursionError("max depth")
+    #expect(integrity is A2UIValidationError)
+    #expect(recursion is A2UIValidationError)
+    #expect(integrity is A2UIIntegrityError)
+    #expect(recursion is A2UIRecursionError)
+  }
 }

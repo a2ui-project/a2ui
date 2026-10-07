@@ -113,7 +113,7 @@ struct StateEngineV10Tests {
         type: "Text",
         properties: [
           "text": .object([
-            "call": .string("@index"),
+            "@call": .string("@index"),
             "args": .object(["offset": .integer(1)]),
           ])
         ]
@@ -126,6 +126,7 @@ struct StateEngineV10Tests {
       componentsModel: componentsModel,
       dataModel: dataModel
     )
+    #expect(resolver.isV10 == true)
 
     let rootNode = try #require(resolver.resolveTree())
     let children = rootNode.children(for: "children")
@@ -186,7 +187,7 @@ struct StateEngineV10Tests {
         properties: [
           "checks": .array([
             .object([
-              "condition": .object(["path": .string("/formValidation")]),
+              "condition": .object(["@path": .string("/formValidation")]),
               "message": .string("Fallback message"),
             ])
           ])
@@ -200,6 +201,7 @@ struct StateEngineV10Tests {
       componentsModel: componentsModel,
       dataModel: dataModel
     )
+    #expect(resolver.isV10 == true)
 
     let rootNode = resolver.resolveTree()
     #expect(rootNode?.isValid == false)

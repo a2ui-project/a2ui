@@ -15,4 +15,9 @@
 @MainActor
 public protocol FunctionHandler: AnyObject, Sendable {
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)?
+  func handleFunctionError(_ error: any Error, functionName: String)
+}
+
+extension FunctionHandler {
+  public func handleFunctionError(_ error: any Error, functionName: String) {}
 }

@@ -602,9 +602,11 @@ public enum ConformanceTestHelper {
       return ConformanceExpectError(category: nil, code: nil, message: message, details: nil)
     }
     if let dictionary = errorObject as? [String: Any] {
-      let category = dictionary["category"] as? String
+      let category = (dictionary["category"] ?? dictionary["type"]) as? String
       let code = dictionary["code"] as? String
-      let message = dictionary["message"] as? String
+      let message =
+        (dictionary["message"] ?? dictionary["message_contains"] ?? dictionary["messageContains"])
+        as? String
       var details: [A2UIErrorDetail]?
       if let detailsArray = dictionary["details"] as? [[String: Any]] {
         details = detailsArray.compactMap { detailDictionary in

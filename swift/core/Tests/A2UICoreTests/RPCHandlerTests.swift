@@ -114,6 +114,31 @@ struct RPCHandlerTests {
     #expect(response.error?.code == "INVALID_FUNCTION_CALL")
   }
 
+  @Test func incomingCallAmbiguousCatalogsWithoutCatalogIdFails() async {
+    let handler = RPCHandler()
+    let echoFn = MockEchoFunction()
+    let basicCatalog = Catalog(id: "basic", components: [AnyComponentAPI](), functions: [echoFn])
+      .eraseToAnyCatalog()
+    let otherCatalog = Catalog(id: "other", components: [AnyComponentAPI](), functions: [echoFn])
+      .eraseToAnyCatalog()
+
+    let callPayload = CallFunctionPayload(call: "echo", args: ["message": .string("hi")])
+    let callMsg = CallRendererFunctionMessage(
+      functionCallID: "call_ambiguous",
+      callFunction: callPayload,
+      version: .v10
+    )
+
+    let response = await handler.handleIncomingCall(
+      callMsg,
+      catalogs: ["basic": basicCatalog, "other": otherCatalog]
+    )
+
+    #expect(response.functionCallID == "call_ambiguous")
+    #expect(response.value == nil)
+    #expect(response.error?.code == "INVALID_FUNCTION_CALL")
+  }
+
   @Test func outgoingCallSuccess() async throws {
     let handler = RPCHandler()
     let box = RPCBox<RendererToAgentMessage>()

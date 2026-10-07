@@ -45,23 +45,6 @@ public struct MessageErrorMapper: Sendable {
       )
     }
 
-    if let validationError = error as? A2UIValidationError {
-      let detail = validationError.details.first
-      let path = detail?.path ?? "/"
-      let formattedPath = formatErrorPath(path)
-      let code =
-        ValidationFailedError.Code(rawValue: detail?.code ?? "") ?? .validationFailed
-      return .validationFailed(
-        ValidationFailedError(
-          code: code,
-          surfaceID: surfaceID,
-          path: formattedPath,
-          message: detail?.message ?? validationError.message,
-          version: version
-        )
-      )
-    }
-
     if let integrityError = error as? A2UIIntegrityError {
       let detail = integrityError.details.first
       let code = detail?.code ?? "INTEGRITY_ERROR"
@@ -81,6 +64,23 @@ public struct MessageErrorMapper: Sendable {
           code: "RECURSION_LIMIT_EXCEEDED",
           surfaceID: surfaceID,
           message: recursionError.message,
+          version: version
+        )
+      )
+    }
+
+    if let validationError = error as? A2UIValidationError {
+      let detail = validationError.details.first
+      let path = detail?.path ?? "/"
+      let formattedPath = formatErrorPath(path)
+      let code =
+        ValidationFailedError.Code(rawValue: detail?.code ?? "") ?? .validationFailed
+      return .validationFailed(
+        ValidationFailedError(
+          code: code,
+          surfaceID: surfaceID,
+          path: formattedPath,
+          message: detail?.message ?? validationError.message,
           version: version
         )
       )

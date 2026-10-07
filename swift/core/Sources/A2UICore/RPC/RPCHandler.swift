@@ -77,10 +77,10 @@ public final class RPCHandler {
         )
       }
       resolvedCatalog = found
-    } else if catalogs.count == 1 {
+    } else if Set(catalogs.values.map(\.id)).count == 1 {
       resolvedCatalog = catalogs.values.first
     } else {
-      resolvedCatalog = lookupCatalog("basic")
+      resolvedCatalog = nil
     }
 
     guard let catalog = resolvedCatalog else {

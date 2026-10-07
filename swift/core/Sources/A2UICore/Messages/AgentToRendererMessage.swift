@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import Foundation
+import OrderedJSON
 
 /// A container message enclosing one of the supported incoming agent-to-renderer commands.
 ///
@@ -24,6 +25,76 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
   case deleteSurface(DeleteSurfaceMessage)
   case callRendererFunction(CallRendererFunctionMessage)
   case agentFunctionResponse(AgentFunctionResponseMessage)
+
+  /// Validates and parses a raw `JSONValue` envelope (single message object, array of messages,
+  /// or `{"messages": [...]}` wrapper) into an array of ``AgentToRendererMessage`` values without
+  /// requiring a ``Catalog`` or ``MessageProcessor``.
+  ///
+  /// - Parameters:
+  ///   - payload: The raw JSON payload to validate and parse.
+  ///   - protocolVersion: Optional explicit protocol version to enforce. When `nil`, the version
+  ///     is resolved from the payload's `"version"` field.
+  /// - Returns: The parsed array of ``AgentToRendererMessage`` instances.
+  /// - Throws: ``A2UIValidationError`` (or its subclasses) if the envelope is invalid.
+  public static func parseAll(
+    _ payload: JSONValue,
+    protocolVersion: A2UIProtocolVersion? = nil
+  ) throws -> [AgentToRendererMessage] {
+    if case .null = payload {
+      return []
+    }
+
+    let adapter: any VersionAdapter
+    if let protocolVersion {
+      adapter = VersionAdapterFactory.getAdapter(for: protocolVersion)
+    } else {
+      adapter = try VersionAdapterFactory.resolveFromPayload(payload)
+    }
+
+    _ = try adapter.extractOperations(from: payload)
+
+    let items: [JSONValue]
+    switch payload {
+    case .array(let array):
+      items = array
+    case .object(let dict):
+      if let messages = dict["messages"]?.arrayValue {
+        items = messages
+      } else {
+        items = [payload]
+      }
+    default:
+      items = []
+    }
+
+    let encoder = JSONEncoder()
+    let decoder = JSONDecoder()
+    return try items.map { item in
+      let data = try encoder.encode(item)
+      do {
+        return try decoder.decode(AgentToRendererMessage.self, from: data)
+      } catch let error as A2UIValidationError {
+        throw error
+      } catch {
+        throw A2UIValidationError(error.localizedDescription)
+      }
+    }
+  }
+
+  /// Validates and parses raw UTF-8 JSON `Data` into an array of ``AgentToRendererMessage``
+  /// values without requiring a ``Catalog`` or ``MessageProcessor``.
+  public static func parseAll(
+    from data: Data,
+    protocolVersion: A2UIProtocolVersion? = nil
+  ) throws -> [AgentToRendererMessage] {
+    let payload: JSONValue
+    do {
+      payload = try JSONDecoder().decode(JSONValue.self, from: data)
+    } catch {
+      throw A2UIValidationError(error.localizedDescription)
+    }
+    return try parseAll(payload, protocolVersion: protocolVersion)
+  }
 
   private enum CodingKeys: String, CodingKey {
     case version

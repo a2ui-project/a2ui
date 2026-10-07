@@ -402,7 +402,7 @@ public final class MessageProcessor: ObservableObject {
   }
 
   /// Processes a single version-neutral ``InternalOperation``.
-  public func process(operation: InternalOperation) {
+  internal func process(operation: InternalOperation) {
     do {
       try processOperation(operation)
     } catch {
@@ -414,7 +414,7 @@ public final class MessageProcessor: ObservableObject {
   }
 
   /// Processes an array of version-neutral ``InternalOperation`` values.
-  public func process(operations: [InternalOperation]) {
+  internal func process(operations: [InternalOperation]) {
     for operation in operations {
       process(operation: operation)
     }
