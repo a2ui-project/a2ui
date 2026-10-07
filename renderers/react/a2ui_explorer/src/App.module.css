@@ -79,7 +79,6 @@
   margin: 0;
   font-size: 1rem;
   color: #38bdf8;
-  font-weight: 600;
 }
 
 .navList {
@@ -92,11 +91,6 @@
   cursor: pointer;
   border-bottom: 1px solid rgba(148, 163, 184, 0.05);
   transition: background 0.2s;
-  border: none;
-  background: none;
-  width: 100%;
-  text-align: left;
-  color: inherit;
 }
 
 .navItem:hover {

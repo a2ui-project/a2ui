@@ -583,14 +583,14 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
             {demoItems.map(item => {
               const isActive = selectedExampleId === item.id;
               return (
-                <button
+                <div
                   key={item.id}
                   className={`${styles.navItem} ${isActive ? styles.active : ''}`}
                   onClick={() => selectExampleById(item.id)}
                 >
-                  <div className={styles.navTitle}>{item.title}</div>
-                  <div className={styles.navDesc}>{item.filename}</div>
-                </button>
+                  <h3 className={styles.navTitle}>{item.title}</h3>
+                  <p className={styles.navDesc}>{item.filename}</p>
+                </div>
               );
             })}
           </div>
