@@ -218,10 +218,20 @@ class ReferenceSchemaReader {
   ///
   /// `Child` is v1.0's name for a single child reference; its pointer suffix
   /// does not match `ChildList`, so the two cannot be confused.
+  ///
+  /// A template shape with no marker is only inferred, unless a sibling
+  /// branch is an array of marked ids, as in an inlined `ChildList`: that
+  /// branch identifies the property as a child list on its own.
   RefKind? referenceKind(List<Map<String, Object?>> schemas) {
     if (_marks(schemas, r'/$defs/ChildList')) return const ListRef();
     if (structuralChildLists && schemas.any(_isChildListShape)) {
-      return const ListRef(inferred: true);
+      final List<Map<String, Object?>> itemSchemas = this.schemas(
+        items(schemas),
+      );
+      return ListRef(
+        inferred: !_marks(itemSchemas, r'/$defs/ComponentId') &&
+            !_marks(itemSchemas, r'/$defs/Child'),
+      );
     }
     if (_marks(schemas, r'/$defs/ComponentId') ||
         _marks(schemas, r'/$defs/Child')) {

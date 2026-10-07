@@ -260,6 +260,38 @@ void main() {
       );
     });
 
+    for (final (label, itemRef) in <(String, Map<String, Object?>)>[
+      ('ComponentId', _single),
+      ('v1.0 Child', _child),
+    ]) {
+      test('an inlined ChildList with $label items is a validated list', () {
+        // The template branch alone is only a guess, but an array of marked
+        // ids in a sibling branch identifies the property as a child list,
+        // so graph validation checks it too.
+        _expectFields(
+          {
+            'properties': {
+              'children': {
+                'oneOf': [
+                  {'type': 'array', 'items': itemRef},
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'componentId': itemRef,
+                      'path': {'type': 'string'},
+                    },
+                    'required': ['componentId', 'path'],
+                    'additionalProperties': false,
+                  },
+                ],
+              },
+            },
+          },
+          list: {'children'},
+        );
+      });
+    }
+
     test(
         'graph validation does not infer references from an unmarked '
         'componentId-and-path object', () {
