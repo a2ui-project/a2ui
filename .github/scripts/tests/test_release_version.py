@@ -426,6 +426,21 @@ class CheckCommandTest(unittest.TestCase):
         self.assertIn("falls outside the a2ui-core>=0.2.0,<0.3.0 range", err)
         self.assertIn("Preflight checks passed for a2ui-agent-sdk 0.8.0", out)
 
+    def test_invalid_version_fails_gracefully(self):
+        code, out, err = self._run(["--package", "a2ui-core", "--version", "invalid"])
+        self.assertEqual(code, 1)
+        self.assertIn("invalid version 'invalid'", err)
+
+    def test_malformed_changelog_prefixes_path(self):
+        core_changelog = os.path.join(self.repo_root, rv.CORE.changelog_path)
+        with open(core_changelog, "w", encoding="utf-8") as handle:
+            handle.write("# Broken Changelog\n\nNo unreleased heading.\n")
+        code, out, err = self._run(["--package", "a2ui-core", "--version", "0.2.1"])
+        self.assertEqual(code, 1)
+        self.assertIn(
+            f"{rv.CORE.changelog_path}: changelog has no '## Unreleased' heading", err
+        )
+
 
 class CheckEnvironmentTest(unittest.TestCase):
 

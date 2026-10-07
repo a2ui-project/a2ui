@@ -581,30 +581,40 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         for pkg, ver in packages_to_check:
             problems = []
-            changelog_path = os.path.join(repo_root, pkg.changelog_path)
-            with open(changelog_path, encoding="utf-8") as handle:
+            if not ver:
+                problems.append("version is empty or None")
+            else:
                 try:
-                    if not read_unreleased(handle.read()):
-                        problems.append(
-                            f"{pkg.changelog_path} has an empty {UNRELEASED_HEADING}"
-                            " section, there is nothing to release."
-                        )
+                    parse_version(ver)
                 except ValueError as error:
-                    problems.append(str(error))
+                    problems.append(f"invalid version {ver!r}: {error}")
 
-            existing = versions_from_tags(pkg, list_tags(pkg, repo_root))
-            if ver in existing:
-                problems.append(
-                    f"{pkg.tag_for(ver)} already exists. Releasing it "
-                    "again would be rejected by PyPI."
-                )
+            if not problems:
+                changelog_path = os.path.join(repo_root, pkg.changelog_path)
+                with open(changelog_path, encoding="utf-8") as handle:
+                    try:
+                        if not read_unreleased(handle.read()):
+                            problems.append(
+                                f"{pkg.changelog_path} has an empty"
+                                f" {UNRELEASED_HEADING} section, there is nothing to"
+                                " release."
+                            )
+                    except ValueError as error:
+                        problems.append(f"{pkg.changelog_path}: {error}")
 
-            if pkg is CORE:
-                agent_pyproject = os.path.join(repo_root, AGENT.pyproject_path)
-                with open(agent_pyproject, encoding="utf-8") as handle:
-                    error = check_core_constraint(ver, handle.read())
-                if error:
-                    problems.append(error)
+                existing = versions_from_tags(pkg, list_tags(pkg, repo_root))
+                if ver in existing:
+                    problems.append(
+                        f"{pkg.tag_for(ver)} already exists. Releasing it "
+                        "again would be rejected by PyPI."
+                    )
+
+                if pkg is CORE:
+                    agent_pyproject = os.path.join(repo_root, AGENT.pyproject_path)
+                    with open(agent_pyproject, encoding="utf-8") as handle:
+                        error = check_core_constraint(ver, handle.read())
+                    if error:
+                        problems.append(error)
 
             if problems:
                 for problem in problems:
