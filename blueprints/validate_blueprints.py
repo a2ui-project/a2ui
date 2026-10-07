@@ -294,6 +294,8 @@ def main() -> None:
     if os.path.exists(codebases_dir):
         for root, _, files in os.walk(codebases_dir):
             for file in sorted(files):
+                if file.startswith('.'):
+                    continue
                 full_path = os.path.join(root, file)
                 rel_path = os.path.relpath(full_path, blueprints_root)
 

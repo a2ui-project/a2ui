@@ -27,7 +27,7 @@ The TypeScript implementation of the A2UI Agent SDK (`a2ui_agent`), published as
 
 Protocol versions are handled in a few fixed places, and adding a version means extending each of them:
 
-- All `@a2ui/web_core` imports, including the `v0_9` and `v1.0` subpaths, go through `src/internal/web_core.ts`. Code outside that file uses the version-neutral `RendererCapabilities` type.
+- All `@a2ui/web_core` imports, including the `v0_9` and `v1_0` subpaths, go through `src/internal/web_core.ts`. Code outside that file uses the version-neutral `RendererCapabilities` type.
 - The version stamped on emitted messages comes from the catalog's `protocolVersion`, not from a literal.
 - Envelope validation in `src/utils/envelope_validation.ts` selects the v0.9 or v1.0 message schemas from that version. v1.0 adds `callRendererFunction` and `agentFunctionResponse` to the four messages shared with v0.9.
 - `MessageProcessor` picks a version adapter for each message from the message's own `version` field, so the SDK does not configure a protocol version on the processor.
