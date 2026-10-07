@@ -16,21 +16,18 @@ import '../primitives/protocol_version.dart';
 
 /// Which checks `MessageProcessor` applies to each message.
 ///
-/// Every `updateComponents` message is checked against the surface it would
-/// leave behind: the components the surface already holds, with the batch
-/// applied on top. The flags here relax the graph checks a surface delivered
-/// across several messages may not satisfy yet: a root, references that
-/// resolve, and components reachable from the root.
+/// A processor given a config checks every `updateComponents` message against
+/// the surface it would leave behind: the components the surface already
+/// holds, with the batch applied on top. Self-references, cycles, over-deep
+/// chains and malformed data-model paths are always rejected under a config.
+/// The flags here relax the graph checks a surface delivered across several
+/// messages may not satisfy yet: a root, references that resolve, and
+/// components reachable from the root.
 ///
-/// Duplicate ids, self-references, cycles, over-deep chains and malformed
-/// data-model paths are always checked, because no later message can make
-/// them right. That holds even for [none], which turns off only catalog schema
-/// checks. TypeScript's `MessageProcessor` skips every check when it has no
-/// config; this SDK matches Python and keeps the graph checks.
-///
-/// [strict] is the default. The other SDKs spell these flags
-/// `allow_orphan_components`, `allow_dangling_references`, `allow_missing_root`
-/// and `allow_unknown_elements`, with the same defaults.
+/// A processor given no config, which is the default, skips those graph
+/// checks and the path check. It still rejects duplicate ids within a batch
+/// and checks declared component types against their catalog schemas, and it
+/// accepts undeclared types.
 class ValidationConfig {
   /// Creates a configuration. Every flag defaults to the strict setting.
   const ValidationConfig({
@@ -38,7 +35,6 @@ class ValidationConfig {
     this.allowDanglingReferences = false,
     this.allowMissingRoot = false,
     this.allowUnknownElements = false,
-    this.validateSchemas = true,
     this.targetVersion,
     this.allowedMessages,
     this.rootId,
@@ -68,13 +64,6 @@ class ValidationConfig {
   /// child references to the graph checks.
   final bool allowUnknownElements;
 
-  /// Whether components and themes are checked against their catalog's
-  /// schemas.
-  ///
-  /// When false, only the schema checks are skipped. The graph checks still
-  /// run, governed by the other flags.
-  final bool validateSchemas;
-
   /// The protocol version the processor must be built for, or null to accept
   /// whichever version it is built for.
   ///
@@ -95,13 +84,16 @@ class ValidationConfig {
   final int? maxDepth;
 
   /// Every check on: what a payload that renders a whole surface must pass.
+  ///
+  /// The opt-in to the graph checks; `MessageProcessor` runs without a config
+  /// by default.
   static const ValidationConfig strict = ValidationConfig();
 
   /// The graph checks that span messages off, and unknown component types
   /// allowed, for a surface delivered across several payloads.
   ///
   /// Schemas, duplicate ids, cycles and depth are still checked: those are not
-  /// waiting on anything. Matches TypeScript's `RELAXED_VALIDATION`.
+  /// waiting on anything.
   static const ValidationConfig relaxed = ValidationConfig(
     allowOrphanComponents: true,
     allowDanglingReferences: true,
@@ -109,19 +101,12 @@ class ValidationConfig {
     allowUnknownElements: true,
   );
 
-  /// Catalog schema checks off; the graph checks run as in [strict].
-  ///
-  /// For a caller that trusts its components' shapes, or has checked them
-  /// already, but still needs a surface it can render.
-  static const ValidationConfig none = ValidationConfig(validateSchemas: false);
-
   @override
   String toString() =>
       'ValidationConfig(allowOrphanComponents: $allowOrphanComponents, '
       'allowDanglingReferences: $allowDanglingReferences, '
       'allowMissingRoot: $allowMissingRoot, '
       'allowUnknownElements: $allowUnknownElements, '
-      'validateSchemas: $validateSchemas, '
       'targetVersion: ${targetVersion?.jsonValue}, '
       'allowedMessages: $allowedMessages, '
       'rootId: $rootId, '

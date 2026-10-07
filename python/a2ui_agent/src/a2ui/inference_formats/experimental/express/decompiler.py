@@ -97,6 +97,20 @@ def _decompile_string(val: str) -> str:
     return f'"{escaped}"'
 
 
+def _has_reserved_key(val: dict, name: str) -> bool:
+    """Checks for a reserved key under its v1.0 `@` name or its v0.9 plain name.
+
+    v1.0 writes data bindings and function calls as `@path` and `@call`. Reading
+    both spellings lets the decompiler accept messages of either version.
+    """
+    return f"@{name}" in val or name in val
+
+
+def _reserved_value(val: dict, name: str) -> Any:
+    """Returns a reserved key's value, preferring its v1.0 `@` name."""
+    return val.get(f"@{name}", val.get(name))
+
+
 class _ExpressDecompiler:
     """Converts standard A2UI wire JSON trees back into A2UI Express syntax.
 
@@ -183,7 +197,7 @@ class _ExpressDecompiler:
                 func_op = envelope_json.get(SurfaceOperation.CALL_FUNC)
             if not isinstance(func_op, dict):
                 func_op = {}
-            fn_name = func_op.get("call", "")
+            fn_name = _reserved_value(func_op, "call") or ""
             fn_args = func_op.get("args", {})
             args_list = []
             if fn_name in self.helper.functions:
@@ -282,7 +296,7 @@ class _ExpressDecompiler:
                         condition = rc.get("condition", {})
                         message = rc.get("message", "")
 
-                        check_name = condition.get("call")
+                        check_name = _reserved_value(condition, "call")
                         check_args = condition.get("args", {})
 
                         check_props = self.helper.get_function_properties(check_name)
@@ -365,15 +379,15 @@ class _ExpressDecompiler:
             A plain-text representation of the value.
         """
         if isinstance(val, dict):
-            if "path" in val:
+            if _has_reserved_key(val, "path"):
+                path_str = _reserved_value(val, "path")
                 if "componentId" in val:
                     path_repr = self._decompile_value(
-                        {"path": val["path"]}, comp_ids, False
+                        {"path": path_str}, comp_ids, False
                     )
                     comp_id_repr = val["componentId"]
                     return f"_template({path_repr}, {comp_id_repr})"
                 # Decompile path: prefixed by $
-                path_str = val["path"]
                 if path_str.startswith("/"):
                     return f"$/{path_str[1:]}"
                 return f"${path_str}"
@@ -400,7 +414,7 @@ class _ExpressDecompiler:
             if "functionCall" in val:
                 # Decompile local function action: FunctionName(args)
                 fn = val["functionCall"]
-                name = fn["call"]
+                name = _reserved_value(fn, "call")
                 args = fn.get("args", {})
 
                 fn_props = self.helper.get_function_properties(name)
@@ -417,9 +431,9 @@ class _ExpressDecompiler:
                     args_reprs.pop()
                 return f"{name}({', '.join(args_reprs)})"
 
-            if "call" in val:
+            if _has_reserved_key(val, "call"):
                 # Decompile dynamic functional expression: FunctionName(args)
-                name = val["call"]
+                name = _reserved_value(val, "call")
                 args = val.get("args", {})
                 if name in self.helper.functions:
                     fn_props = self.helper.get_function_properties(name)

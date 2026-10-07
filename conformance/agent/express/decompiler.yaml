@@ -86,7 +86,7 @@
           - id: "root"
             component: "Text"
             text:
-              path: "/title"
+              "@path": "/title"
         dataModel:
           title: "Hello"
   expect_contains:
@@ -200,7 +200,7 @@
             child: "label"
             action:
               functionCall:
-                call: "openUrl"
+                "@call": "openUrl"
                 args:
                   url: "https://example.com"
           - id: "label"
@@ -222,7 +222,7 @@
         functionCallId: "call_1"
         callFunction:
           catalogId: "conformance/simplified"
-          call: "openUrl"
+          "@call": "openUrl"
           args:
             url: "https://example.com"
   expect_contains:

@@ -16,6 +16,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
+import '../primitives/reference_schema.dart';
 import '../primitives/semver.dart';
 import '../validation/schema_resolution.dart';
 import 'contexts.dart';
@@ -156,6 +157,20 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   /// The component name the protocol reserves for the surface itself.
   static const String reservedComponentName = 'Surface';
+
+  /// Which properties of each component type reference other components.
+  ///
+  /// Graph validation and node resolution both read this map, so a child
+  /// reference the validator checks is one the resolver mounts. It is built
+  /// from [components] and [catalogSchema] on first access and then cached;
+  /// a catalog is not expected to change its components after that.
+  late final ComponentRefMap refMap = ComponentRefMap(
+    {
+      for (final MapEntry<String, C> entry in components.entries)
+        entry.key: entry.value.schema.value,
+    },
+    document: catalogSchema,
+  );
 
   /// Throws [A2uiCatalogError] when two components or two functions share a
   /// name, when a component is named [reservedComponentName], when a

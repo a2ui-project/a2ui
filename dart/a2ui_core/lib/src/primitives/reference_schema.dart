@@ -22,18 +22,28 @@ sealed class RefKind {
   const RefKind();
 }
 
-/// A single component id.
+/// A single component id, declared as `ComponentId` or v1.0 `Child`.
 final class SingleRef extends RefKind {
   const SingleRef();
 }
 
 /// A static id array or scoped `ChildList` template.
 final class ListRef extends RefKind {
-  const ListRef();
+  /// Whether the list was recognized only by an unmarked object schema with
+  /// `componentId` and `path` properties, rather than by a `ChildList`
+  /// marker or an array of ids.
+  ///
+  /// The resolver mounts such a list. Graph validation skips it, because a
+  /// schema that only resembles a template is not enough reason to reject a
+  /// whole batch.
+  final bool inferred;
+
+  const ListRef({this.inferred = false});
 }
 
 /// An array of objects with child-reference properties.
 final class NestedRef extends RefKind {
+  /// The item properties that reference components, by name.
   final Map<String, RefKind> fields;
 
   /// Whether an alternative item schema also accepts bare component ids.
@@ -48,7 +58,39 @@ final class NestedRef extends RefKind {
       };
 }
 
+/// The child-reference properties of one component type, by property name.
 typedef RefFields = Map<String, RefKind>;
+
+/// The child-reference properties of every component type in a catalog.
+///
+/// Graph validation and node resolution both read this map, so the
+/// properties a batch is checked against are the properties the resolver
+/// mounts. Each component schema is classified once, against the catalog
+/// document that contains it; see [ReferenceSchemaReader.fields].
+final class ComponentRefMap {
+  final Map<String, RefFields> _byType;
+
+  /// Classifies every schema in [componentSchemas], keyed by component type.
+  ///
+  /// Local pointers that a component schema does not define resolve against
+  /// [document].
+  ComponentRefMap(
+    Map<String, Map<String, Object?>> componentSchemas, {
+    Map<String, Object?> document = const {},
+  }) : _byType = Map.unmodifiable({
+          for (final MapEntry<String, Map<String, Object?>> entry
+              in componentSchemas.entries)
+            entry.key:
+                ReferenceSchemaReader(entry.value, document: document).fields(),
+        });
+
+  /// The reference properties of each component type, by type name.
+  Map<String, RefFields> get byType => _byType;
+
+  /// The reference properties of [type], empty for a type that references no
+  /// components or is not in the catalog.
+  RefFields fieldsFor(String type) => _byType[type] ?? const {};
+}
 
 /// Reads common-type references and schema structure without a renderer.
 ///
@@ -173,17 +215,38 @@ class ReferenceSchemaReader {
   }
 
   /// Identifies a single id or a complete child list, not arbitrary arrays.
+  ///
+  /// `Child` is v1.0's name for a single child reference; its pointer suffix
+  /// does not match `ChildList`, so the two cannot be confused.
+  ///
+  /// A template shape with no marker is only inferred, unless a sibling
+  /// branch is an array of marked ids, as in an inlined `ChildList`: that
+  /// branch identifies the property as a child list on its own.
   RefKind? referenceKind(List<Map<String, Object?>> schemas) {
-    if (_marks(schemas, r'/$defs/ChildList') ||
-        (structuralChildLists && schemas.any(_isChildListShape))) {
-      return const ListRef();
+    if (_marks(schemas, r'/$defs/ChildList')) return const ListRef();
+    if (structuralChildLists && schemas.any(_isChildListShape)) {
+      final List<Map<String, Object?>> itemSchemas = this.schemas(
+        items(schemas),
+      );
+      return ListRef(
+        inferred: !_marks(itemSchemas, r'/$defs/ComponentId') &&
+            !_marks(itemSchemas, r'/$defs/Child'),
+      );
     }
-    if (_marks(schemas, r'/$defs/ComponentId')) return const SingleRef();
+    if (_marks(schemas, r'/$defs/ComponentId') ||
+        _marks(schemas, r'/$defs/Child')) {
+      return const SingleRef();
+    }
     return null;
   }
 
   /// Classifies the supported component-reference positions. Self-describing
   /// top-level `id` and `component` properties are never references.
+  ///
+  /// Besides `ComponentId`, `Child` and `ChildList` markers, nested object
+  /// and array items, and structural templates, an unmarked string `child`
+  /// counts as a single reference and an unmarked string-array `children` as
+  /// a list, for ad-hoc schemas that carry no marker.
   RefFields fields() {
     final result = <String, RefKind>{};
     for (final MapEntry<String, Object?> entry in properties(
@@ -211,10 +274,47 @@ class ReferenceSchemaReader {
           includesIds: itemKind is SingleRef,
         );
       } else if (itemKind != null) {
-        result[entry.key] = const ListRef();
+        result[entry.key] = ListRef(
+          inferred: itemKind is ListRef && itemKind.inferred,
+        );
       }
     }
+    _addNamedFallbacks(result);
     return Map.unmodifiable(result);
+  }
+
+  /// Adds an unmarked string `child` as a single reference and an unmarked
+  /// string-array `children` as a list, unless [fields] already classifies
+  /// them.
+  void _addNamedFallbacks(Map<String, RefKind> fields) {
+    for (final Map<String, Object?> node in schemas(root)) {
+      final Object? properties = node['properties'];
+      if (properties is! Map) continue;
+      final Map<String, Object?>? child = _target(properties['child']);
+      if (!fields.containsKey('child') && child?['type'] == 'string') {
+        fields['child'] = const SingleRef();
+      }
+      final Map<String, Object?>? children = _target(properties['children']);
+      if (!fields.containsKey('children') &&
+          children?['type'] == 'array' &&
+          _target(children?['items'])?['type'] == 'string') {
+        fields['children'] = const ListRef();
+      }
+    }
+  }
+
+  /// Follows local `$ref`s from [schema] without entering combinator branches.
+  Map<String, Object?>? _target(Object? schema) {
+    final visited = HashSet<Object>.identity();
+    var current = schema;
+    while (current is Map && visited.add(current)) {
+      final Object? ref = current[r'$ref'];
+      if (ref is! String) return current.cast<String, Object?>();
+      final List<Map<String, Object?>> reached = schemas({r'$ref': ref});
+      if (reached.length < 2) return current.cast<String, Object?>();
+      current = reached[1];
+    }
+    return null;
   }
 }
 

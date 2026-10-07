@@ -491,10 +491,7 @@ class NodeResolver<T extends ComponentApi> {
       edgeKey: edgeKey,
       parent: parent,
       occurrence: occurrence,
-      refFields: extractRefFields(
-        schema,
-        document: catalog.catalogSchema,
-      ),
+      refFields: catalog.refMap.fieldsFor(model.type),
       componentModel: model,
     );
     final GenericBinder binder;
