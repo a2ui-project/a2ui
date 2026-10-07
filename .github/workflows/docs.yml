@@ -114,7 +114,10 @@ jobs:
           mkdir -p docs/public/specification/v1_0/catalogs/basic
           cp catalogs/basic/v1/catalog.json docs/public/specification/v1_0/catalogs/basic/
           cp -R catalogs/basic/v1/examples docs/public/specification/v1_0/catalogs/basic/
-          # The MCP catalog v1 targets protocol v1.0.
+          # The iframe and MCP catalogs target protocol v1.0.
+          mkdir -p docs/public/specification/v1_0/catalogs/iframe
+          cp catalogs/iframe/catalog.json docs/public/specification/v1_0/catalogs/iframe/
+          cp -R catalogs/iframe/examples docs/public/specification/v1_0/catalogs/iframe/
           mkdir -p docs/public/specification/v1_0/catalogs/mcp
           cp catalogs/mcp/v1/catalog.json docs/public/specification/v1_0/catalogs/mcp/
           cp -R catalogs/mcp/v1/examples docs/public/specification/v1_0/catalogs/mcp/
