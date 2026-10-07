@@ -5,8 +5,9 @@
 - The libraries under `src/` were rearranged so that `a2ui_core` has no import
   cycles: `DataContext` now lives in `src/core/data_context.dart`,
   `ComponentContext` in `src/core/component_context.dart`, `A2uiReturnType` in
-  `src/core/common.dart`, and schema reference expansion and
-  `ResolvedBinding`/`WritableBinding` in `src/primitives/`. Nothing is added to
+  `src/core/common.dart`, and schema reference expansion,
+  `ResolvedBinding`/`WritableBinding`, the expression parser and the generated
+  `common_types.json` copy in `src/primitives/`. Nothing is added to
   or removed from the public API; only `package:a2ui_core/src/...` paths change,
   so code importing `package:a2ui_core/a2ui_core.dart` is unaffected.
 - **Breaking:** `UpdateDataModelMessage` adds `hasValue` (defaulting to `true`) so `toJson()` emits `'value': null` for explicit null deletions while `fromJson()` distinguishes an omitted `value` from an explicit `null`.
