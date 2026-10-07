@@ -16,7 +16,8 @@ import copy
 
 import pytest
 
-from a2ui.core import Catalog
+from a2ui.core import A2uiIntegrityError, Catalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonStreamParser
 from a2ui.parser import ResponsePart
 from a2ui.parser.constants import (
@@ -373,3 +374,21 @@ def test_v09_nested_top_level_list(mock_catalog):
     assert len(messages) == 2
     assert messages[0]["createSurface"]["surfaceId"] == "s1"
     assert messages[1][MSG_TYPE_UPDATE_COMPONENTS]["components"][0]["text"] == "Nested"
+
+
+def test_validate_message_keeps_validation_error_subclass():
+    """An integrity failure keeps its type so stream consumers can tell it apart."""
+    parser = DirectJsonStreamParser(catalog=BasicCatalog("v0.9"))
+    message = {
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "s",
+            "components": [
+                {"id": "root", "component": "Text", "text": "a"},
+                {"id": "root", "component": "Text", "text": "b"},
+            ],
+        },
+    }
+
+    with pytest.raises(A2uiIntegrityError, match="Validation failed: Duplicate"):
+        parser._validate_message(message)

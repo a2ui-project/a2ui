@@ -273,16 +273,15 @@ class DirectJsonStreamParser:
         catalog, using `validate_payload`.
 
         Raises:
-            A2uiValidationError: If a renderer would reject the message.
+            A2uiValidationError: If a renderer would reject the message, or a
+                subclass such as `A2uiIntegrityError`, whose type is kept.
         """
         try:
             validate_payload([self._catalog], message)
         except A2uiRecursionError:
             raise
         except A2uiValidationError as e:
-            raise A2uiValidationError(
-                f"Validation failed: {e}", details=e.details
-            ) from e
+            raise type(e)(f"Validation failed: {e}", details=e.details) from e
 
     def _validate_components(
         self,

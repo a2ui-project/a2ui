@@ -64,7 +64,7 @@ class CatalogConfig:
 
     def __init__(
         self,
-        name: str = "basic",
+        name: str,
         provider: A2uiCatalogProvider | None = None,
         examples_path: str | None = None,
         *,
