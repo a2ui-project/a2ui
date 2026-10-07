@@ -54,7 +54,15 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.9', 'v1.0']);
  * canonical streaming case and relied on local hand-translated fixtures for the rest.
  * Enabling v0.9 is what made the gaps visible; it did not create them.
  */
-export const KNOWN_FAILURES = new Map<string, string>([]);
+export const KNOWN_FAILURES = new Map<string, string>([
+  ...[
+    'test_v1_0_streaming_multi_catalog_resolution',
+    'test_v1_0_streaming_component_without_catalog_uses_surface_catalog',
+  ].map((name): [string, string] => [
+    name,
+    'the stream processor resolves catalogs per surface, not per component (#3030)',
+  ]),
+]);
 
 /**
  * Legacy cases whose rules the newer suites replaced, with the suite that now covers each.

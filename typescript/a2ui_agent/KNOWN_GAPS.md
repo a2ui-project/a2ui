@@ -18,7 +18,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it is:** `DirectJsonStreamProcessorImpl` checks each component against the catalog its surface's `createSurface` names, or the first active catalog. It ignores a component's own `catalogId`, which v1.0 allows, so components from several catalogs on one surface are checked against the wrong catalog.
 - **Why it exists:** Python adds per-component resolution in #2967, which was still open when streaming landed. The TypeScript port waits for it so it can run that PR's conformance cases unchanged.
 - **What it risks:** On a mixed-catalog surface, a component from another catalog can be held back for missing required properties it doesn't have, or have its child references read with the wrong map.
-- **Done looks like:** A `resolveCatalog(comp)` lookup picks the catalog per component, and `test_v1_0_streaming_multi_catalog_resolution` and `test_v1_0_streaming_component_without_catalog_uses_surface_catalog` from `conformance/agent/legacy/streaming_parser.yaml` pass. Tracked in #3030.
+- **Done looks like:** A `resolveCatalog(comp)` lookup picks the catalog per component, and `test_v1_0_streaming_multi_catalog_resolution` and `test_v1_0_streaming_component_without_catalog_uses_surface_catalog` from `conformance/agent/legacy/streaming_parser.yaml` pass and leave `KNOWN_FAILURES` in `tests/conformance/loader.ts`. Tracked in #3030.
 
 ### Streamed payloads are not validated against catalogs
 
