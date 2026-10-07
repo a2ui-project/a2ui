@@ -18,6 +18,7 @@ import {Injectable} from '@angular/core';
 import {AngularCatalog, BASIC_COMPONENTS, BASIC_FUNCTIONS} from '@a2ui/angular/v0_9';
 import {BasicCatalogThemeSchema} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogBase as BasicCatalogBaseV10} from '@a2ui/angular';
+import {iframeCatalog} from '@a2ui/catalog-iframe';
 import {mcpCatalog} from '@a2ui/catalog-mcp';
 import {customSliderComponentDeclaration} from './custom-slider.component';
 import {customGridComponentDeclaration} from './custom-grid.component';
@@ -51,6 +52,25 @@ export class DemoCatalogV10 extends BasicCatalogBaseV10 {
     super({
       extraComponents: [customSliderComponentDeclaration, customGridComponentDeclaration],
     });
+  }
+}
+
+/**
+ * `iframeCatalog` as an `AngularCatalog`, which is what the renderer configuration takes. Its
+ * components are universal Web Components, so the renderer needs `useUniversalComponents: true`
+ * to render them.
+ */
+@Injectable({
+  providedIn: 'root',
+})
+export class IframeDemoCatalog extends AngularCatalog {
+  constructor() {
+    super(
+      iframeCatalog.id,
+      iframeCatalog.protocolVersion,
+      [...iframeCatalog.components.values()],
+      [...iframeCatalog.functions.values()],
+    );
   }
 }
 

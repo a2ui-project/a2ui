@@ -74,6 +74,10 @@ copyRecursive(
   path.join(repoRoot, 'catalogs/iframe/catalog.json'),
   path.join(iframeCatalogDest, 'catalog.json'),
 );
+copyRecursive(
+  path.join(repoRoot, 'catalogs/iframe/examples'),
+  path.join(iframeCatalogDest, 'examples'),
+);
 
 const mcpCatalogDest = path.join(specDest, 'v1_0/catalogs/mcp');
 fs.mkdirSync(mcpCatalogDest, {recursive: true});
