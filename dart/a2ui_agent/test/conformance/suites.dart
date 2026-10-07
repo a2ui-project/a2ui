@@ -98,11 +98,8 @@ List<CatalogApi> caseCatalogs(Map<String, Object?> args) => [
       catalogConfig(entry).transformedCatalog,
 ];
 
-bool _isVersionAtLeast1_0(Object? versionStr) {
-  if (versionStr is! String) return false;
-  final double? version = double.tryParse(versionStr.replaceFirst('v', ''));
-  return version != null && version >= 1.0;
-}
+bool _isVersionAtLeast1_0(Object? versionStr) =>
+    versionStr is String && compareVersions(versionStr, '1.0') >= 0;
 
 /// Whether a catalog the case names in `args` declares v1.0 or later before it
 /// is lowered, which turns on what this SDK does only for a v1.0+ agent.
