@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "A2UI MCP Catalog",
+  "description": "A2UI catalog for Model Context Protocol (MCP) integrations. It defines `callMcpTool` and data functions that transform tool results into data model updates, and the `McpApp` component that renders a sandboxed MCP App connected to the host through the MCP Apps bridge.",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+  "components": {
+    "McpApp": {
+      "type": "object",
+      "description": "Renders a sandboxed Model Context Protocol application using double-iframe isolation. The application talks to the host over the MCP Apps JSON-RPC bridge; tool calls it is allowed to make are dispatched as A2UI actions.",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ComponentCommon"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "component": {
+              "const": "McpApp"
+            },
+            "htmlContent": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "description": "The HTML content of the app, rendered via srcdoc inside the sandbox. A value prefixed with `url_encoded:` is decoded with decodeURIComponent before rendering."
+            },
+            "title": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "description": "The title of the app, used as the accessible title of the frame."
+            },
+            "allowedTools": {
+              "type": "array",
+              "description": "The names of the MCP tools the app is allowed to call. The host dispatches an authorized `tools/call` request as an A2UI action named after the tool, with the tool arguments as its context, and rejects any other tool call.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "allowedFunctions": {
+              "$ref": "#/$defs/AllowedFunctions"
+            },
+            "data": {
+              "$ref": "#/$defs/DataPaths"
+            },
+            "csp": {
+              "$ref": "#/$defs/McpAppCsp"
+            },
+            "permissions": {
+              "$ref": "#/$defs/McpAppPermissions"
+            }
+          },
+          "required": ["component", "htmlContent"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  },
+  "functions": {
+    "callMcpTool": {
+      "type": "object",
+      "description": "Invokes a tool on a connected Model Context Protocol (MCP) server and returns the result. Can be combined with `jmespath` and `updateDataModel` to update the surface data model from tool output.",
+      "returnType": "any",
+      "properties": {
+        "@call": {
+          "const": "callMcpTool"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "description": "The name of the MCP tool to execute."
+            },
+            "arguments": {
+              "type": "object",
+              "description": "The arguments to pass to the MCP tool.",
+              "additionalProperties": {
+                "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicValue"
+              }
+            },
+            "targetDataPath": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "description": "Optional JSON Pointer path on the surface data model where a resolved MCP App resource payload (`uri`, `htmlContent`, `csp`, `permissions`, `toolInput`, `toolResult`) is written."
+            }
+          },
+          "required": ["name"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"],
+      "unevaluatedProperties": false
+    },
+    "jmespath": {
+      "type": "object",
+      "description": "Evaluates a JMESPath expression against input data.",
+      "returnType": "any",
+      "properties": {
+        "@call": {
+          "const": "jmespath"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "expression": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "description": "A standard JMESPath expression evaluated against `data`."
+            },
+            "data": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicValue",
+              "description": "The input data to evaluate the expression against."
+            }
+          },
+          "required": ["expression", "data"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"],
+      "unevaluatedProperties": false
+    },
+    "split": {
+      "type": "object",
+      "description": "Splits a string or array of strings by a separator.",
+      "returnType": "any",
+      "properties": {
+        "@call": {
+          "const": "split"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicValue",
+              "description": "The string or array of strings to split."
+            },
+            "separator": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "description": "The delimiter string to split on. An empty string splits into individual characters."
+            }
+          },
+          "required": ["value", "separator"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"],
+      "unevaluatedProperties": false
+    },
+    "regexCapture": {
+      "type": "object",
+      "description": "Extracts capture groups from the first RE2 regular expression match.",
+      "returnType": "any",
+      "properties": {
+        "@call": {
+          "const": "regexCapture"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicValue",
+              "description": "The string or array of strings to match against."
+            },
+            "pattern": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "description": "An RE2 regular expression. Returns an array of capture groups from the first match, or null if there is no match. Unmatched optional groups return empty strings."
+            }
+          },
+          "required": ["value", "pattern"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"],
+      "unevaluatedProperties": false
+    },
+    "regexReplace": {
+      "type": "object",
+      "description": "Replaces all matches of an RE2 regular expression with literal text.",
+      "returnType": "any",
+      "properties": {
+        "@call": {
+          "const": "regexReplace"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicValue",
+              "description": "The string or array of strings to perform replacements on."
+            },
+            "pattern": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "description": "An RE2 regular expression matching substrings to replace."
+            },
+            "replacement": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString",
+              "description": "Literal replacement string. Capture group references like $1 are treated as literal text."
+            }
+          },
+          "required": ["value", "pattern", "replacement"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"],
+      "unevaluatedProperties": false
+    },
+    "updateDataModel": {
+      "type": "object",
+      "description": "Writes key-value pairs to the surface data model.",
+      "returnType": "any",
+      "properties": {
+        "@call": {
+          "const": "updateDataModel"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "updates": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicValue",
+              "description": "An object mapping data model paths to the values to write (e.g., {\"/entries\": [...], \"/title\": \"Home\"}). Paths starting with \"/\" are absolute; relative paths resolve against the current data context."
+            }
+          },
+          "required": ["updates"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["@call", "args"],
+      "unevaluatedProperties": false
+    }
+  },
+  "$defs": {
+    "JsonSchema": {
+      "type": "object",
+      "description": "A JSON Schema. The host validates the matching payload against it before acting on the message; an empty object accepts any value."
+    },
+    "AllowedFunctions": {
+      "type": "object",
+      "description": "A map of authorized host client function names to JSON Schemas describing their expected arguments. The host rejects a `ui/requests/function-call` request whose function is not listed or whose arguments fail validation. The functions must exist in the surface's catalog.",
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonSchema"
+      }
+    },
+    "DataPaths": {
+      "type": "object",
+      "description": "Data binding configuration for the component. Reserved keys `toolInput`, `toolResult`, and `modelContext` map to standard MCP Apps `ui/notifications/tool-input`, `ui/notifications/tool-result`, and `ui/update-model-context` messages.",
+      "properties": {
+        "paths": {
+          "type": "object",
+          "description": "A dictionary mapping custom state keys (or reserved keys `toolInput`, `toolResult`, `modelContext`) to distinct JSON Pointer paths in the data model. The host pushes a `ui/notifications/data-model-update` notification whenever a bound value changes and writes authorized `ui/notifications/data-model-change` notifications back to the path.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["paths"],
+      "additionalProperties": false
+    },
+    "McpAppCsp": {
+      "type": "object",
+      "description": "Per-resource Content Security Policy domain allowlists from `_meta.ui.csp`.",
+      "properties": {
+        "connectDomains": {
+          "type": "array",
+          "description": "Origins allowed in `connect-src` (fetch, XHR, WebSocket).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resourceDomains": {
+          "type": "array",
+          "description": "Origins allowed for scripts, styles, images, fonts, and media.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "frameDomains": {
+          "type": "array",
+          "description": "Origins allowed for nested iframes (`frame-src`).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "baseUriDomains": {
+          "type": "array",
+          "description": "Origins allowed for document `base-uri`.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "McpAppPermissions": {
+      "type": "object",
+      "description": "Browser capability permissions delegated to the inner sandboxed iframe from `_meta.ui.permissions`.",
+      "properties": {
+        "camera": {
+          "type": ["boolean", "object"],
+          "description": "Delegates `camera` access via the iframe `allow` attribute."
+        },
+        "microphone": {
+          "type": ["boolean", "object"],
+          "description": "Delegates `microphone` access via the iframe `allow` attribute."
+        },
+        "geolocation": {
+          "type": ["boolean", "object"],
+          "description": "Delegates `geolocation` access via the iframe `allow` attribute."
+        },
+        "clipboardWrite": {
+          "type": ["boolean", "object"],
+          "description": "Delegates `clipboard-write` access via the iframe `allow` attribute."
+        }
+      },
+      "additionalProperties": false
+    },
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/McpApp"
+        }
+      ]
+    },
+    "anyFunction": {
+      "oneOf": [
+        {
+          "$ref": "#/functions/callMcpTool"
+        },
+        {
+          "$ref": "#/functions/jmespath"
+        },
+        {
+          "$ref": "#/functions/split"
+        },
+        {
+          "$ref": "#/functions/regexCapture"
+        },
+        {
+          "$ref": "#/functions/regexReplace"
+        },
+        {
+          "$ref": "#/functions/updateDataModel"
+        }
+      ]
+    }
+  }
+}
