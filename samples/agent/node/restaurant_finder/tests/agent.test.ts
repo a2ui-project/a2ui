@@ -81,7 +81,7 @@ describe.each(FORMATS)('a reply without A2UI (%s)', format => {
   let catalogs: BasicCatalogs;
 
   beforeAll(async () => {
-    catalogs = await loadBasicCatalogs();
+    catalogs = loadBasicCatalogs();
   });
 
   it('is retried with the validation error', async () => {
@@ -157,7 +157,7 @@ describe('a streamed Direct JSON reply that fails validation', () => {
   let catalogs: BasicCatalogs;
 
   beforeAll(async () => {
-    catalogs = await loadBasicCatalogs();
+    catalogs = loadBasicCatalogs();
   });
 
   it('is retried from a clean stream, and the retry sends its whole UI', async () => {

@@ -103,12 +103,9 @@ export interface CatalogProvider {
   /**
    * Loads and returns a catalog.
    *
-   * Returns a promise, unlike the blueprint's synchronous `load()`, because the
-   * filesystem provider uses `fs.promises`.
-   *
-   * @returns A promise resolving to the catalog instance.
+   * @returns The catalog instance.
    */
-  load(): Promise<CatalogApi>;
+  load(): CatalogApi;
 }
 
 /**
@@ -133,14 +130,14 @@ export class FileSystemCatalogProvider implements CatalogProvider {
   /**
    * Reads the catalog JSON file and returns a Catalog instance.
    *
-   * @returns A promise resolving to the catalog instance.
+   * @returns The catalog instance.
    * @throws {A2uiCatalogError} If the file cannot be read or parsed, if the id or version
    *     conflicts with the document, or if nothing states an id or a version.
    */
-  async load(): Promise<CatalogApi> {
+  load(): CatalogApi {
     let content: string;
     try {
-      content = await fs.promises.readFile(this.path, 'utf8');
+      content = fs.readFileSync(this.path, 'utf8');
     } catch (e: unknown) {
       throw new A2uiCatalogError(
         `Failed to read catalog file at ${this.path}: ${(e as Error).message}`,
@@ -182,11 +179,11 @@ export class InMemoryCatalogProvider implements CatalogProvider {
   /**
    * Constructs and returns a Catalog instance from the raw schema dictionary.
    *
-   * @returns A promise resolving to the catalog instance.
+   * @returns The catalog instance.
    * @throws {A2uiCatalogError} If the schema is invalid, if the id or version conflicts
    *     with it, or if nothing states an id or a version.
    */
-  async load(): Promise<CatalogApi> {
+  load(): CatalogApi {
     return catalogFromDocument(
       this.catalog,
       'in-memory schema',

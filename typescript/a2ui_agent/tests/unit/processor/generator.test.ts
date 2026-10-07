@@ -21,7 +21,7 @@ import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 import {A2uiCatalogError, A2uiValidationError} from '../../../src/errors.js';
 import {V10RendererCapabilities} from '../../../src/internal/web-core.js';
 
-const basicCatalogV10 = await loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('v1.0');
 
 describe('A2uiGenerator', () => {
   const mockCapabilities: V10RendererCapabilities = {

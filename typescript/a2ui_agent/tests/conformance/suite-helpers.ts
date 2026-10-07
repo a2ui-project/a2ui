@@ -68,26 +68,20 @@ export function errorClassFor(testCase: LoadedCase): new (...args: never[]) => E
 }
 
 /** Loads the registrations a case lists into catalog configs, with their transformers. */
-export async function loadRegistrations(
-  registrations: CatalogRegistration[],
-): Promise<CatalogConfig[]> {
-  return Promise.all(
-    registrations.map(async registration => {
-      const catalog = await new FileSystemCatalogProvider(
-        conformancePath(registration.catalog),
-      ).load();
-      const transformers: CatalogTransformer[] = [];
-      for (const transformer of registration.transformers ?? []) {
-        if (transformer.component_pruning) {
-          transformers.push(new ComponentPruningTransformer(transformer.component_pruning));
-        }
-        if (transformer.function_pruning) {
-          transformers.push(new FunctionPruningTransformer(transformer.function_pruning));
-        }
+export function loadRegistrations(registrations: CatalogRegistration[]): CatalogConfig[] {
+  return registrations.map(registration => {
+    const catalog = new FileSystemCatalogProvider(conformancePath(registration.catalog)).load();
+    const transformers: CatalogTransformer[] = [];
+    for (const transformer of registration.transformers ?? []) {
+      if (transformer.component_pruning) {
+        transformers.push(new ComponentPruningTransformer(transformer.component_pruning));
       }
-      return new CatalogConfig(catalog, transformers);
-    }),
-  );
+      if (transformer.function_pruning) {
+        transformers.push(new FunctionPruningTransformer(transformer.function_pruning));
+      }
+    }
+    return new CatalogConfig(catalog, transformers);
+  });
 }
 
 /** Asserts a catalog declares exactly the named components and, if given, functions. */
@@ -113,7 +107,7 @@ export function expectCatalogContents(
 export function registerCase(
   testCase: LoadedCase,
   knownFailures: ReadonlyMap<string, string>,
-  run: () => Promise<void>,
+  run: () => void | Promise<void>,
 ): void {
   const title = `${testCase.action} · ${testCase.name}`;
   const knownFailure = knownFailures.get(testCase.name);

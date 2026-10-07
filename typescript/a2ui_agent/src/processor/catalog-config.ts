@@ -64,16 +64,16 @@ export class CatalogConfig {
    * @param transformers Optional list of catalog transformers.
    * @param protocolVersion Protocol version to use when the document states none.
    * @param catalogId Catalog id to use when the document states none.
-   * @returns A promise resolving to a CatalogConfig instance.
+   * @returns A CatalogConfig instance.
    */
-  static async fromPath(
+  static fromPath(
     catalogPath: string,
     transformers?: CatalogTransformer[],
     protocolVersion?: ProtocolVersion,
     catalogId?: string,
-  ): Promise<CatalogConfig> {
+  ): CatalogConfig {
     const provider = new FileSystemCatalogProvider(catalogPath, protocolVersion, catalogId);
-    const catalog = await provider.load();
+    const catalog = provider.load();
     return new CatalogConfig(catalog, transformers);
   }
 }

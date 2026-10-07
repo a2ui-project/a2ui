@@ -28,8 +28,8 @@ import {
   FunctionPruningTransformer,
 } from '../../../src/catalog-transformers/pruning.js';
 
-const basicCatalogV10 = await loadBasicCatalog('v1.0');
-const basicCatalogV09 = await loadBasicCatalog('v0.9');
+const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV09 = loadBasicCatalog('v0.9');
 
 describe('catalog document registry', () => {
   it('registers and retrieves catalog source JSON document', () => {

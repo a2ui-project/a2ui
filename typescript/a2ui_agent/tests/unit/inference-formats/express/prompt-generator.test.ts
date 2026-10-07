@@ -29,8 +29,8 @@ import {compileSurfaces, surface, text} from '../../../helpers/express.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressPromptGenerator} from '../../../../src/inference-formats/express/prompt-generator.js';
 
-const basicCatalogV10 = await loadBasicCatalog('v1.0');
-const basicCatalogV09 = await loadBasicCatalog('v0.9');
+const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV09 = loadBasicCatalog('v0.9');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

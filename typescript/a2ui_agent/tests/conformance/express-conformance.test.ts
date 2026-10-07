@@ -135,9 +135,7 @@ async function getParser(args: Record<string, unknown> = {}): Promise<ExpressPar
     catalogPaths.push(DEFAULT_CATALOG);
   }
 
-  const catalogs = await Promise.all(
-    catalogPaths.map(async p => (await createFileCatalogConfig(p)).catalog),
-  );
+  const catalogs = catalogPaths.map(p => createFileCatalogConfig(p).catalog);
 
   return new ExpressParser(catalogs, CONFORMANCE_SURFACE_ID, 'v1.0');
 }

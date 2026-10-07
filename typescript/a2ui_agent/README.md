@@ -17,7 +17,7 @@ import {
 } from '@a2ui/agent';
 
 // 1. Load catalogs and build the generator once at startup.
-const componentCatalog = await CatalogConfig.fromPath('path/to/catalog.json');
+const componentCatalog = CatalogConfig.fromPath('path/to/catalog.json');
 const generator = new A2uiGenerator(
   [componentCatalog],
   undefined,
@@ -52,7 +52,7 @@ The SDK bundles no catalogs. Load catalog JSON documents with `CatalogConfig.fro
 The emitted protocol version is taken from the catalog. Because the v0.9 basic catalog JSON document omits both `protocolVersion` and `catalogId`, pass them explicitly when loading it:
 
 ```ts
-const v09Catalog = await CatalogConfig.fromPath(
+const v09Catalog = CatalogConfig.fromPath(
   'specification/v0_9/catalogs/basic/catalog.json',
   [],
   'v0.9',

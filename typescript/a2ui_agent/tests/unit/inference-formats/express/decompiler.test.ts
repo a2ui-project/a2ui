@@ -27,7 +27,7 @@ import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 
 const catalogInfo: Record<string, {catalog: CatalogApi; version: string}> = {
-  basic_v0_9: {catalog: await loadBasicCatalog('v0.9'), version: 'v0.9'},
+  basic_v0_9: {catalog: loadBasicCatalog('v0.9'), version: 'v0.9'},
   forms: {catalog: loadConformanceCatalog('forms_catalog_v1_0.json'), version: 'v1.0'},
   simplified: {catalog: loadConformanceCatalog('simplified_catalog_v1_0.json'), version: 'v1.0'},
 };

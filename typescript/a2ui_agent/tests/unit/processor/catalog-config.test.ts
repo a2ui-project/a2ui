@@ -14,17 +14,14 @@
  * limitations under the License.
  */
 
-import {describe, it, expect, vi, afterEach} from 'vitest';
-import * as fs from 'fs';
-import {CatalogConfig} from '../../../src/processor/catalog-config.js';
+import {describe, expect, it} from 'vitest';
+
 import {CatalogTransformer} from '../../../src/catalog-transformers/base.js';
 import {Catalog} from '../../../src/internal/web-core.js';
+import {CatalogConfig} from '../../../src/processor/catalog-config.js';
+import {conformancePath} from '../../conformance/suite-helpers.js';
 
 describe('CatalogConfig', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   const baseCatalog = new Catalog('base', 'v1.0', [], []);
 
   it('transformedCatalog applies transformers in order', () => {
@@ -66,16 +63,11 @@ describe('CatalogConfig', () => {
     expect(callCount).toBe(1);
   });
 
-  it('fromPath loads catalog and creates config', async () => {
-    const validSchemaStr = JSON.stringify({
-      catalogId: 'fs_catalog',
-      components: {},
-      functions: {},
-    });
-    vi.spyOn(fs.promises, 'readFile').mockResolvedValue(validSchemaStr);
-
-    const config = await CatalogConfig.fromPath('dummy.json', undefined, 'v1.0');
-    expect(config.catalog.id).toBe('fs_catalog');
+  it('fromPath loads catalog and creates config', () => {
+    const config = CatalogConfig.fromPath(
+      conformancePath('test_data/catalogs/simplified_catalog_v1_0.json'),
+    );
+    expect(config.catalog.id).toBe('conformance/simplified');
     expect(config.catalog.protocolVersion).toBe('v1.0');
     expect(config.transformedCatalog).toBe(config.catalog);
   });

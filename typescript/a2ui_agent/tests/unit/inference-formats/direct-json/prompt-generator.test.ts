@@ -20,7 +20,7 @@ import {describe, it, expect} from 'vitest';
 import {DirectJsonPromptGenerator} from '../../../../src/inference-formats/direct-json/prompt-generator.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 
-const basicCatalogV10 = await loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('v1.0');
 
 describe('DirectJsonPromptGenerator', () => {
   const catalog = basicCatalogV10;

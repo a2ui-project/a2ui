@@ -31,7 +31,7 @@ import {
 } from '../../../../src/inference-formats/express/errors.js';
 import {RawResponsePart} from '../../../../src/parser/response-part.js';
 
-const basicCatalogV10 = await loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('v1.0');
 
 describe('ExpressParser', () => {
   const catalog = basicCatalogV10;

@@ -34,8 +34,8 @@ import {
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 
-const basicCatalogV10 = await loadBasicCatalog('v1.0');
-const basicCatalogV09 = await loadBasicCatalog('v0.9');
+const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV09 = loadBasicCatalog('v0.9');
 const basicCatalogs = {'v1.0': basicCatalogV10, 'v0.9': basicCatalogV09};
 
 const __filename = fileURLToPath(import.meta.url);
@@ -477,7 +477,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
     });
 
     it('reads v0.9.1 schemas with the v0.9 common types', async () => {
-      const catalogV091 = await loadBasicCatalog('v0.9.1');
+      const catalogV091 = loadBasicCatalog('v0.9.1');
       const helper = new CatalogSchemaHelper(catalogV091, 'v0.9.1');
       const helperV09 = new CatalogSchemaHelper(basicCatalogV09, 'v0.9');
       expect(helper.commonTypes).toEqual(helperV09.commonTypes);

@@ -21,7 +21,7 @@ import {DirectJsonFormatFactory} from '../../../../src/inference-formats/direct-
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {ParseError} from '../../../../src/errors.js';
 
-const basicCatalogV10 = await loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('v1.0');
 
 describe('DirectJsonParser', () => {
   const catalog = basicCatalogV10;
@@ -99,7 +99,7 @@ describe('DirectJsonParser', () => {
   });
 
   it('gets every active catalog from the format', async () => {
-    const catalogs = [catalog, await loadBasicCatalog('v0.9')];
+    const catalogs = [catalog, loadBasicCatalog('v0.9')];
     const parser = new DirectJsonFormatFactory().createFormat(catalogs).createParser();
     expect((parser as DirectJsonParser).catalogs).toEqual(catalogs);
   });

@@ -38,9 +38,9 @@ import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 
-const basicCatalogV10 = await loadBasicCatalog('v1.0');
-const basicCatalogV09 = await loadBasicCatalog('v0.9');
-const basicCatalogV091 = await loadBasicCatalog('v0.9.1');
+const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV09 = loadBasicCatalog('v0.9');
+const basicCatalogV091 = loadBasicCatalog('v0.9.1');
 
 describe('ExpressCompiler', () => {
   const simplifiedCatalog = loadConformanceCatalog('simplified_catalog_v1_0.json');
