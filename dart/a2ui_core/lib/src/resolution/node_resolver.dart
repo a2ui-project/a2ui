@@ -32,7 +32,6 @@ import 'ref_fields.dart';
 
 final _log = Logger('a2ui_core.resolution');
 
-const String _rootComponentId = 'root';
 const String _rootDataPath = '/';
 // Structured slots and parent identity keep payload delimiters out of keys.
 typedef _ChildSlot = (String, int?, String?);
@@ -168,7 +167,7 @@ class NodeResolver<T extends ComponentApi> {
     _surface.componentsModel.onDeleted.addListener(_onDeletedListener);
 
     _runUpdate(() {
-      if (_surface.componentsModel.get(_rootComponentId) != null) {
+      if (_surface.componentsModel.get(_surface.rootId) != null) {
         _buildRoot();
       }
     });
@@ -322,7 +321,7 @@ class NodeResolver<T extends ComponentApi> {
       return;
     }
     final MutableComponentNode<T> node = _createNode(
-      _rootComponentId,
+      _surface.rootId,
       _rootDataPath,
       _rootEdgeKey,
       null,
@@ -341,7 +340,7 @@ class NodeResolver<T extends ComponentApi> {
     if (_surface.componentsModel.get(component.id) == null) {
       return;
     }
-    if (component.id == _rootComponentId) {
+    if (component.id == _surface.rootId) {
       _buildRoot();
     }
     final Set<MutableComponentNode<T>>? waiting = _pendingParents.remove(
@@ -389,7 +388,7 @@ class NodeResolver<T extends ComponentApi> {
         _disposeNode(oldRoot);
         // A destruction listener may already have rebuilt the root. Reconcile
         // current model state and do not overwrite that listener's root.
-        if (_surface.componentsModel.get(_rootComponentId) != null) {
+        if (_surface.componentsModel.get(_surface.rootId) != null) {
           _buildRoot();
         }
       }
@@ -472,10 +471,7 @@ class NodeResolver<T extends ComponentApi> {
       edgeKey: edgeKey,
       parent: parent,
       occurrence: occurrence,
-      refFields: extractRefFields(
-        schema,
-        document: _surface.catalog.catalogSchema,
-      ),
+      refFields: _surface.catalog.refMap.fieldsFor(model.type),
       componentModel: model,
     );
     final GenericBinder binder;

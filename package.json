@@ -11,6 +11,7 @@
     "renderers/lit/*",
     "renderers/markdown/*",
     "renderers/react/*",
+    "samples/agent/node/*",
     "samples/client/angular",
     "samples/client/angular/projects/*",
     "samples/client/lit",

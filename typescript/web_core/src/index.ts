@@ -34,3 +34,4 @@ export * from './common/markdown.js';
 export * from './common/semver.js';
 export * from './common/uax31.js';
 export * from './spec_versions.js';
+export {isSafeRegex, type SafeRegexOptions} from './v0_9/basic_catalog/functions/safe_regex.js';

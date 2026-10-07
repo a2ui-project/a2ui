@@ -239,7 +239,7 @@ class ExpressionParser {
 
     while (!scanner.isAtEnd) {
       final String c = scanner.peek();
-      if (_isAlnum(c) || c == '/' || c == '.' || c == '_' || c == '-') {
+      if (_isIdContinue(c) || c == '/' || c == '.' || c == '-') {
         scanner.advance();
       } else if (c == '~') {
         final String next = scanner.peek(1);
@@ -293,8 +293,7 @@ class ExpressionParser {
 
   String _scanIdentifier(_Scanner scanner) {
     final int start = scanner.pos;
-    while (!scanner.isAtEnd &&
-        (_isAlnum(scanner.peek()) || scanner.peek() == '_')) {
+    while (!scanner.isAtEnd && _isIdContinue(scanner.peek())) {
       scanner.advance();
     }
     return scanner.input.substring(start, scanner.pos);
@@ -407,6 +406,16 @@ class ExpressionParser {
   }
 }
 
+final RegExp _xidContinueRegex = RegExp(r'^\p{XID_Continue}$', unicode: true);
+
+bool _isIdContinue(String char) {
+  if (char.runes.length != 1) {
+    return false;
+  }
+
+  return _xidContinueRegex.hasMatch(char);
+}
+
 class _Scanner {
   final String input;
   int pos = 0;
@@ -415,14 +424,26 @@ class _Scanner {
 
   bool get isAtEnd => pos >= input.length;
 
+  // Unicode-safe peek: Returns a full String representation of the code point,
+  // correctly handling surrogate pairs.
   String peek([int offset = 0]) {
-    if (pos + offset >= input.length) return '';
-    return input[pos + offset];
+    final int targetPos = pos + offset;
+    if (targetPos >= input.length) return '';
+
+    final int endPos =
+        targetPos + 2 <= input.length ? targetPos + 2 : input.length;
+
+    // Safely extract the full 32-bit code point
+    final int codePoint = input.substring(targetPos, endPos).runes.first;
+
+    // Convert it back to a valid String
+    return String.fromCharCode(codePoint);
   }
 
-  String advance([int count = 1]) {
+  String advance([int? count]) {
+    final int step = count ?? (peek().isEmpty ? 1 : peek().length);
     final int start = math.min(pos, input.length);
-    final int end = math.min(pos + count, input.length);
+    final int end = math.min(pos + step, input.length);
     pos = end;
     return input.substring(start, end);
   }
@@ -442,7 +463,7 @@ class _Scanner {
   bool matchesKeyword(String keyword) {
     if (input.startsWith(keyword, pos)) {
       final String next = peek(keyword.length);
-      if (next.isEmpty || !_isWordChar(next.codeUnitAt(0))) {
+      if (next.isEmpty || !_isIdContinue(next)) {
         advance(keyword.length);
         return true;
       }
@@ -458,13 +479,6 @@ class _Scanner {
 
   String substring(int start, [int? end]) {
     return input.substring(start, end);
-  }
-
-  static bool _isWordChar(int u) {
-    return (u >= 0x30 && u <= 0x39) || // 0-9
-        (u >= 0x41 && u <= 0x5A) || // A-Z
-        (u >= 0x61 && u <= 0x7A) || // a-z
-        u == 0x5F; // _
   }
 
   static bool _isWhitespace(int u) {

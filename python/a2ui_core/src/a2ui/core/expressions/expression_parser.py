@@ -15,6 +15,7 @@
 import math
 import re
 from typing import Any, Final
+import regex
 
 from a2ui.core.exceptions import A2uiExpressionError
 
@@ -30,6 +31,16 @@ MAX_EXPRESSION_PARTS: Final[int] = 1_000
 _NUMBER_LITERAL: Final[re.Pattern[str]] = re.compile(
     r"^[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"
 )
+
+# Compiled pattern matching exactly one XID_Continue character
+XID_CONTINUE_PATTERN = regex.compile(r"^\p{XID_Continue}$")
+
+
+def _is_id_continue(char: str) -> bool:
+    """Returns True if character belongs to Unicode UAX #31 XID_Continue."""
+    if not char or len(char) != 1:
+        return False
+    return bool(XID_CONTINUE_PATTERN.match(char))
 
 
 class Scanner:
@@ -66,7 +77,7 @@ class Scanner:
     def matches_keyword(self, keyword: str) -> bool:
         if self.input.startswith(keyword, self.pos):
             next_char = self.peek(len(keyword))
-            if not re.match(r"[a-zA-Z0-9_]", next_char):
+            if not _is_id_continue(next_char):
                 self.advance(len(keyword))
                 return True
         return False
@@ -219,7 +230,7 @@ class ExpressionParser:
         start = scanner.pos
         while not scanner.is_at_end():
             c = scanner.peek()
-            if self.is_alnum(c) or c in ("/", ".", "_", "-"):
+            if _is_id_continue(c) or c in ("/", ".", "-"):
                 scanner.advance()
             else:
                 break
@@ -259,9 +270,7 @@ class ExpressionParser:
 
     def scan_identifier(self, scanner: Scanner) -> str:
         start = scanner.pos
-        while not scanner.is_at_end() and (
-            self.is_alnum(scanner.peek()) or scanner.peek() == "_"
-        ):
+        while not scanner.is_at_end() and _is_id_continue(scanner.peek()):
             scanner.advance()
         return scanner.input[start : scanner.pos]
 
@@ -336,7 +345,7 @@ class ExpressionParser:
             scanner.advance()
 
     def is_alnum(self, c: str) -> bool:
-        return ("a" <= c <= "z") or ("A" <= c <= "Z") or ("0" <= c <= "9")
+        return _is_id_continue(c)
 
     def is_digit(self, c: str) -> bool:
         return "0" <= c <= "9"

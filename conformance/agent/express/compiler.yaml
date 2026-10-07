@@ -279,7 +279,7 @@
           - id: "itemRow"
             component: "Text"
             text:
-              path: "label"
+              "@path": "label"
 
 - name: test_compile_express_absolute_data_binding_path
   description: A path argument binds the property to the data model rather than setting a literal.
@@ -297,7 +297,7 @@
           - id: "root"
             component: "Text"
             text:
-              path: "/user/name"
+              "@path": "/user/name"
 
 - name: test_compile_express_nested_function_call
   description: A catalog function called in a property slot compiles to that function call, which is how text is interpolated.
@@ -315,7 +315,7 @@
           - id: "root"
             component: "Text"
             text:
-              call: "formatString"
+              "@call": "formatString"
               args:
                 value: "Hello, ${/user/name}"
 
@@ -336,13 +336,13 @@
             component: "TextField"
             label: "Email"
             value:
-              path: "/email"
+              "@path": "/email"
             checks:
               - condition:
-                  call: "required"
+                  "@call": "required"
                   args:
                     value:
-                      path: "/email"
+                      "@path": "/email"
                 message: "Email is required"
 
 - name: test_compile_express_validation_expression_with_an_argument
@@ -362,13 +362,13 @@
             component: "TextField"
             label: "Zip"
             value:
-              path: "/zip"
+              "@path": "/zip"
             checks:
               - condition:
-                  call: "regex"
+                  "@call": "regex"
                   args:
                     value:
-                      path: "/zip"
+                      "@path": "/zip"
                     pattern: "^[0-9]{5}$"
                 message: "Must be five digits"
 
@@ -442,7 +442,7 @@
           - id: "root"
             component: "Text"
             text:
-              path: "/title"
+              "@path": "/title"
         dataModel:
           title: "Hello"
 
@@ -570,7 +570,7 @@
         functionCallId: "call_1"
         callFunction:
           catalogId: "conformance/simplified"
-          call: "openUrl"
+          "@call": "openUrl"
           args:
             url: "https://example.com"
 
@@ -594,7 +594,7 @@
             child: "label"
             action:
               functionCall:
-                call: "openUrl"
+                "@call": "openUrl"
                 args:
                   url: "https://example.com"
           - id: "label"
@@ -795,7 +795,7 @@
           - id: "nameRow"
             component: "Text"
             text:
-              path: ""
+              "@path": ""
 
 - name: test_compile_express_several_checks_in_one_list
   description: A check list holds more than one rule, each compiled against the component's own bound value. The single-rule cases above would also pass an implementation that kept only the first.
@@ -814,19 +814,19 @@
             component: "TextField"
             label: "Zip"
             value:
-              path: "/zip"
+              "@path": "/zip"
             checks:
               - condition:
-                  call: "required"
+                  "@call": "required"
                   args:
                     value:
-                      path: "/zip"
+                      "@path": "/zip"
                 message: "Zip is required"
               - condition:
-                  call: "regex"
+                  "@call": "regex"
                   args:
                     value:
-                      path: "/zip"
+                      "@path": "/zip"
                     pattern: "^[0-9]{5}$"
                 message: "Must be five digits"
 
@@ -847,13 +847,13 @@
             component: "TextField"
             label: "Email"
             value:
-              path: "/email"
+              "@path": "/email"
             checks:
               - condition:
-                  call: "required"
+                  "@call": "required"
                   args:
                     value:
-                      path: "/email"
+                      "@path": "/email"
   expect_present:
     - "/0/createSurface/components/0/checks/0/message"
 

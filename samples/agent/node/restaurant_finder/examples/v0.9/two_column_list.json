@@ -1,0 +1,228 @@
+[
+  {
+    "version": "v0.9",
+    "createSurface": {
+      "surfaceId": "default",
+      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+      "theme": {
+        "primaryColor": "#FF0000",
+        "font": "Roboto"
+      }
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateComponents": {
+      "surfaceId": "default",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["title_heading", "restaurant_list"]
+        },
+        {
+          "id": "title_heading",
+          "component": "Text",
+          "variant": "h1",
+          "text": {
+            "path": "/title"
+          }
+        },
+        {
+          "id": "restaurant_list",
+          "component": "List",
+          "direction": "vertical",
+          "children": {
+            "componentId": "row_template",
+            "path": "/items"
+          }
+        },
+        {
+          "id": "row_template",
+          "component": "Row",
+          "children": ["card_template_left", "card_template_right"]
+        },
+        {
+          "id": "card_template_left",
+          "component": "Card",
+          "child": "card_layout_left"
+        },
+        {
+          "id": "card_layout_left",
+          "component": "Column",
+          "children": ["template_image_left", "card_details_left"]
+        },
+        {
+          "id": "template_image_left",
+          "component": "Image",
+          "variant": "mediumFeature",
+          "url": {
+            "path": "0/imageUrl"
+          }
+        },
+        {
+          "id": "card_details_left",
+          "component": "Column",
+          "children": [
+            "template_name_left",
+            "template_rating_left",
+            "template_detail_left",
+            "template_book_button_left"
+          ]
+        },
+        {
+          "id": "template_name_left",
+          "component": "Text",
+          "variant": "h3",
+          "text": {
+            "path": "0/name"
+          }
+        },
+        {
+          "id": "template_rating_left",
+          "component": "Text",
+          "text": {
+            "path": "0/rating"
+          }
+        },
+        {
+          "id": "template_detail_left",
+          "component": "Text",
+          "text": {
+            "path": "0/detail"
+          }
+        },
+        {
+          "id": "template_book_button_left",
+          "component": "Button",
+          "child": "book_now_text_left",
+          "action": {
+            "event": {
+              "name": "book_restaurant",
+              "context": {
+                "restaurantName": {
+                  "path": "0/name"
+                },
+                "imageUrl": {
+                  "path": "0/imageUrl"
+                },
+                "address": {
+                  "path": "0/address"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "book_now_text_left",
+          "component": "Text",
+          "text": "Book Now"
+        },
+        {
+          "id": "card_template_right",
+          "component": "Card",
+          "child": "card_layout_right"
+        },
+        {
+          "id": "card_layout_right",
+          "component": "Column",
+          "children": ["template_image_right", "card_details_right"]
+        },
+        {
+          "id": "template_image_right",
+          "component": "Image",
+          "variant": "mediumFeature",
+          "url": {
+            "path": "1/imageUrl"
+          }
+        },
+        {
+          "id": "card_details_right",
+          "component": "Column",
+          "children": [
+            "template_name_right",
+            "template_rating_right",
+            "template_detail_right",
+            "template_book_button_right"
+          ]
+        },
+        {
+          "id": "template_name_right",
+          "component": "Text",
+          "variant": "h3",
+          "text": {
+            "path": "1/name"
+          }
+        },
+        {
+          "id": "template_rating_right",
+          "component": "Text",
+          "text": {
+            "path": "1/rating"
+          }
+        },
+        {
+          "id": "template_detail_right",
+          "component": "Text",
+          "text": {
+            "path": "1/detail"
+          }
+        },
+        {
+          "id": "template_book_button_right",
+          "component": "Button",
+          "child": "book_now_text_right",
+          "action": {
+            "event": {
+              "name": "book_restaurant",
+              "context": {
+                "restaurantName": {
+                  "path": "1/name"
+                },
+                "imageUrl": {
+                  "path": "1/imageUrl"
+                },
+                "address": {
+                  "path": "1/address"
+                }
+              }
+            }
+          }
+        },
+        {
+          "id": "book_now_text_right",
+          "component": "Text",
+          "text": "Book Now"
+        }
+      ]
+    }
+  },
+  {
+    "version": "v0.9",
+    "updateDataModel": {
+      "surfaceId": "default",
+      "path": "/",
+      "value": {
+        "title": "Top Restaurants",
+        "items": [
+          [
+            {
+              "name": "The Fancy Place",
+              "rating": 4.8,
+              "detail": "Fine dining experience",
+              "imageUrl": "https://picsum.photos/200/300?random=1",
+              "address": "123 Luxury Ave, Food City"
+            },
+            {
+              "name": "Quick Bites",
+              "rating": 4.2,
+              "detail": "Casual and fast",
+              "imageUrl": "https://picsum.photos/200/300?random=2",
+              "address": "456 Fast Lane, Quick Town"
+            }
+          ]
+        ]
+      }
+    }
+  }
+]

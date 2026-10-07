@@ -12,25 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Which graph checks a surface must pass once a payload has been applied.
+import '../primitives/protocol_version.dart';
+
+/// Which checks `MessageProcessor` applies to each message.
 ///
-/// The three checks here are the ones a partially delivered surface cannot
-/// satisfy: a surface still arriving has no root yet, references targets that
-/// have not landed, and holds components nothing points at. A caller that
-/// receives a whole render in one payload leaves them all on; one that streams
-/// a surface across several payloads turns off the ones its transport breaks.
+/// A processor given a config checks every `updateComponents` message against
+/// the surface it would leave behind: the components the surface already
+/// holds, with the batch applied on top. Self-references, cycles, over-deep
+/// chains and malformed data-model paths are always rejected under a config.
+/// The flags here relax the graph checks a surface delivered across several
+/// messages may not satisfy yet: a root, references that resolve, and
+/// components reachable from the root.
 ///
-/// Everything else `MessageProcessor` checks is unconditional, because no
-/// further message can make it right: a component against its catalog's
-/// schema, a duplicate id, a self-reference, a cycle, an over-deep chain, and
-/// a malformed data-model path.
-///
-/// [strict] is the default. The other SDKs spell these
-/// `allow_orphan_components`, `allow_dangling_references` and
-/// `allow_missing_root`, with the same defaults; `targetVersion` is not among
-/// them here because a processor is built for one `A2uiProtocolVersion`
-/// already.
+/// A processor given no config, which is the default, skips those graph
+/// checks and the path check. It still rejects duplicate ids within a batch
+/// and checks declared component types against their catalog schemas, and it
+/// accepts undeclared types.
 class ValidationConfig {
+  /// Creates a configuration. Every flag defaults to the strict setting.
+  const ValidationConfig({
+    this.allowOrphanComponents = false,
+    this.allowDanglingReferences = false,
+    this.allowMissingRoot = false,
+    this.allowUnknownElements = false,
+    this.targetVersion,
+    this.allowedMessages,
+    this.rootId,
+    this.maxDepth,
+  });
+
   /// Whether a surface may hold a component unreachable from its root.
   ///
   /// v0.9 has no way to remove a component, so a placeholder swapped out by
@@ -42,31 +52,63 @@ class ValidationConfig {
   /// Whether a component may reference a component the surface does not hold.
   final bool allowDanglingReferences;
 
-  /// Whether a surface may hold components but no component with id `root`.
+  /// Whether a surface may hold components but none with the root id.
+  ///
+  /// A surface without a root has no single entry point, so reachability is
+  /// not checked either.
   final bool allowMissingRoot;
 
-  const ValidationConfig({
-    this.allowOrphanComponents = false,
-    this.allowDanglingReferences = false,
-    this.allowMissingRoot = false,
-  });
+  /// Whether a component may name a type its catalog does not declare.
+  ///
+  /// Such a component is accepted without a schema check, and contributes no
+  /// child references to the graph checks.
+  final bool allowUnknownElements;
+
+  /// The protocol version the processor must be built for, or null to accept
+  /// whichever version it is built for.
+  ///
+  /// `MessageProcessor` throws `A2uiValidationError` on construction when this
+  /// is set and differs from its `protocolVersion`.
+  final A2uiProtocolVersion? targetVersion;
+
+  /// The message names a payload may contain, such as `createSurface` or
+  /// `updateComponents`, or null to allow every message.
+  final List<String>? allowedMessages;
+
+  /// The id of the component a surface is rooted at, or null for the
+  /// surface's own root id, which is `root` unless set otherwise.
+  final String? rootId;
+
+  /// The deepest component chain a surface may declare, or null for the
+  /// default of 50.
+  final int? maxDepth;
 
   /// Every check on: what a payload that renders a whole surface must pass.
+  ///
+  /// The opt-in to the graph checks; `MessageProcessor` runs without a config
+  /// by default.
   static const ValidationConfig strict = ValidationConfig();
 
-  /// Every check off, for a surface delivered across several payloads.
+  /// The graph checks that span messages off, and unknown component types
+  /// allowed, for a surface delivered across several payloads.
   ///
-  /// Schema, duplicate ids, cycles and depth are still checked: those are not
+  /// Schemas, duplicate ids, cycles and depth are still checked: those are not
   /// waiting on anything.
   static const ValidationConfig relaxed = ValidationConfig(
     allowOrphanComponents: true,
     allowDanglingReferences: true,
     allowMissingRoot: true,
+    allowUnknownElements: true,
   );
 
   @override
   String toString() =>
       'ValidationConfig(allowOrphanComponents: $allowOrphanComponents, '
       'allowDanglingReferences: $allowDanglingReferences, '
-      'allowMissingRoot: $allowMissingRoot)';
+      'allowMissingRoot: $allowMissingRoot, '
+      'allowUnknownElements: $allowUnknownElements, '
+      'targetVersion: ${targetVersion?.jsonValue}, '
+      'allowedMessages: $allowedMessages, '
+      'rootId: $rootId, '
+      'maxDepth: $maxDepth)';
 }
