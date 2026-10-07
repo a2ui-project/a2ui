@@ -40,11 +40,18 @@ export async function loadExample(
   // registered in the browser's customElements registry at test run-time.
   await import('../../src/local-gallery');
 
+  try {
+    localStorage.clear();
+    window.history.replaceState(null, '', window.location.pathname);
+  } catch {
+    // Ignore in restricted environments
+  }
+
   const gallery = document.createElement('local-gallery') as LocalGallery;
   document.body.appendChild(gallery);
   await gallery.updateComplete;
 
-  if (version !== '0.9') {
+  if (gallery.specVersion !== version) {
     gallery.setSpecVersion(version);
     await gallery.updateComplete;
   }

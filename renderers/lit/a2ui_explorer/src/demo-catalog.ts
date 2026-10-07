@@ -28,4 +28,5 @@ export const demoCatalog = new Catalog(
   '0.9',
   [...basicCatalog.components.values(), customSliderComponent, customGridComponent],
   BASIC_FUNCTIONS,
+  basicCatalog.themeSchema,
 );

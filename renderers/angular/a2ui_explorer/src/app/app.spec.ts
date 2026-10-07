@@ -22,6 +22,12 @@ describe('App', () => {
   beforeEach(async () => {
     if (typeof window !== 'undefined') {
       window.location.hash = '';
+      try {
+        localStorage.clear();
+        window.history.replaceState(null, '', window.location.pathname);
+      } catch {
+        // Ignore in restricted environments
+      }
     }
     if (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -44,12 +50,13 @@ describe('App', () => {
     expect(canvasFrame).toBeInstanceOf(HTMLElement);
   });
 
-  it('should render title', () => {
+  it('should render combined header title and sidebar header', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h3')?.textContent).toContain('A2UI Examples');
+    expect(compiled.querySelector('.canvas-header h1')?.textContent).toBe('A2UI Angular Explorer');
+    expect(compiled.querySelector('.sidebar-header h3')?.textContent).toContain('Examples');
   });
 
   it('should toggle left sidebar collapse and expand', () => {
@@ -142,7 +149,7 @@ describe('App', () => {
     expect(activeAfter).toEqual(activeBefore);
   });
 
-  it('should load v1.0 examples when A2UI_VERSION is provided as Version.V1_0', async () => {
+  it('should load v1.0 examples when A2UI_VERSION is provided as Version.V1_0 and switch versions in-place', async () => {
     if (typeof window !== 'undefined') {
       window.location.hash = '';
     }
@@ -157,9 +164,16 @@ describe('App', () => {
     fixture.detectChanges();
 
     const compiled = fixture.nativeElement as HTMLElement;
-    const select = compiled.querySelector('#version') as HTMLSelectElement;
-    expect(select.value).toBe(Version.V1_0);
+    const activeBtn = compiled.querySelector('.version-btn.active') as HTMLButtonElement;
+    expect(activeBtn?.textContent?.trim()).toBe('v1.0');
     const items = compiled.querySelectorAll('.example-list li');
     expect(items.length).toBeGreaterThan(0);
+
+    const v09Btn = compiled.querySelector('.version-btn[data-version="0.9"]') as HTMLButtonElement;
+    v09Btn.click();
+    fixture.detectChanges();
+
+    const updatedActiveBtn = compiled.querySelector('.version-btn.active') as HTMLButtonElement;
+    expect(updatedActiveBtn?.textContent?.trim()).toBe('v0.9');
   });
 });

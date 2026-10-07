@@ -22,6 +22,7 @@ import {
   OnDestroy,
   effect,
   signal,
+  computed,
   HostListener,
   ElementRef,
   InjectionToken,
@@ -38,8 +39,10 @@ import {AgentStubV08Service} from './agent-stub-v08.service';
 import {AgentStubV09Service} from './agent-stub-v09.service';
 import {provideMarkdownRenderer, Surface as SurfaceV08} from '@a2ui/angular/v0_8';
 import {DemoCatalog, DemoCatalogV10} from './demo-catalog';
-import {A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {A2uiClientAction, A2uiMessage} from '@a2ui/web_core/v0_9';
+import {ServerToClientMessage} from 'src/v0_8/types';
 import {A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version} from './types';
+import {EXAMPLES_V08, EXAMPLES_V09, EXAMPLES_V10} from './generated/examples-bundle';
 import {ActionDispatcher} from './action-dispatcher.service';
 import {Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08} from '@a2ui/angular/v0_8';
 
@@ -64,7 +67,7 @@ function getUseUniversalComponents(): boolean {
 }
 
 /**
- * Main dashboard component for A2UI v0.9 / v1.0 Angular Renderer.
+ * Main dashboard component for A2UI v0.8 / v0.9 / v1.0 Angular Renderer.
  * It provides a sidebar of examples, a canvas for rendering,
  * and inspector tools for state auditing.
  */
@@ -77,16 +80,8 @@ function getUseUniversalComponents(): boolean {
       <!-- Sidebar Navigation -->
       <div class="sidebar" [class.collapsed]="isLeftSidebarCollapsed">
         <div class="sidebar-header">
-          <h3>A2UI Examples</h3>
+          <h3>Examples</h3>
           <div class="header-actions">
-            <div class="version-selector">
-              <label for="version">Ver:</label>
-              <select id="version" (change)="onVersionChange($event)">
-                <option [value]="Version.V1_0" [selected]="version === Version.V1_0">1.0</option>
-                <option [value]="Version.V0_9" [selected]="version === Version.V0_9">0.9</option>
-                <option [value]="Version.V0_8" [selected]="version === Version.V0_8">0.8</option>
-              </select>
-            </div>
             <button
               class="icon-btn collapse-left-btn"
               (click)="toggleLeftSidebar()"
@@ -115,7 +110,7 @@ function getUseUniversalComponents(): boolean {
             [class.active]="ex === selectedExample"
           >
             <div class="ex-name">{{ ex.name }}</div>
-            <div class="ex-desc">{{ ex.description }}</div>
+            <div class="ex-desc">{{ ex.filename || ex.description }}</div>
           </li>
         </ul>
       </div>
@@ -144,12 +139,64 @@ function getUseUniversalComponents(): boolean {
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
             </button>
+            <div class="app-brand">
+              <h1>A2UI Angular Explorer</h1>
+            </div>
+            <div class="header-divider"></div>
             <div *ngIf="selectedExample" class="title-details">
               <h2>{{ selectedExample.name }}</h2>
               <p class="subtitle">{{ selectedExample.description }}</p>
             </div>
           </div>
-          <div class="canvas-header-right">
+          <div class="canvas-header-right agent-controls">
+            <fieldset class="version-controls">
+              <legend>Spec version</legend>
+              <div class="version-selector" role="group" aria-label="Specification version">
+                <button
+                  class="version-btn"
+                  [class.active]="version === Version.V0_8"
+                  data-version="0.8"
+                  (click)="setVersion(Version.V0_8)"
+                >
+                  v0.8
+                </button>
+                <button
+                  class="version-btn"
+                  [class.active]="version === Version.V0_9"
+                  data-version="0.9"
+                  (click)="setVersion(Version.V0_9)"
+                >
+                  v0.9
+                </button>
+                <button
+                  class="version-btn"
+                  [class.active]="version === Version.V1_0"
+                  data-version="1.0"
+                  (click)="setVersion(Version.V1_0)"
+                >
+                  v1.0
+                </button>
+              </div>
+            </fieldset>
+            <fieldset class="message-controls">
+              <legend>Messages: {{ processedMessageCount }} / {{ totalMessageCount }}</legend>
+              <button (click)="resetSurface()">Reset</button>
+              <button (click)="advanceMessages(false)" [disabled]="!canAdvance">+1 Message</button>
+              <button (click)="advanceMessages(true)" [disabled]="!canAdvance">All Messages</button>
+            </fieldset>
+            <fieldset *ngIf="version !== Version.V0_8" class="theme-controls">
+              <legend>Primary color</legend>
+              <div class="color-input-group">
+                <input
+                  type="color"
+                  [value]="primaryColor || '#1177ee'"
+                  (input)="onColorInput($event)"
+                  class="color-input"
+                  aria-label="Primary color"
+                />
+                <button (click)="clearColor()" class="clear-color-btn">Clear</button>
+              </div>
+            </fieldset>
             <button
               *ngIf="isRightSidebarCollapsed"
               class="icon-btn expand-right-btn"
@@ -173,19 +220,20 @@ function getUseUniversalComponents(): boolean {
           </div>
         </div>
         <div class="canvas-frame">
-          <div
-            *ngIf="surfaceId()"
-            class="rendered-content"
-            [class.protocol-version-08]="version === Version.V0_8"
-          >
-            <a2ui-v09-surface
-              *ngIf="version === Version.V0_9 || version === Version.V1_0"
-              [surfaceId]="surfaceId()"
-            ></a2ui-v09-surface>
-            <a2ui-surface *ngIf="version === Version.V0_8" [surfaceId]="surfaceId()"></a2ui-surface>
-          </div>
-          <div *ngIf="!surfaceId()" class="empty-canvas">
-            Select an example from the sidebar to view.
+          <div class="rendered-content" [class.protocol-version-08]="version === Version.V0_8">
+            <ng-container *ngIf="surfaceId()">
+              <a2ui-v09-surface
+                *ngIf="version === Version.V0_9 || version === Version.V1_0"
+                [surfaceId]="surfaceId()"
+              ></a2ui-v09-surface>
+              <a2ui-surface
+                *ngIf="version === Version.V0_8"
+                [surfaceId]="surfaceId()"
+              ></a2ui-surface>
+            </ng-container>
+            <div *ngIf="!surfaceId()" class="empty-canvas">
+              Surface not initialized. Click '+1 Message' to begin.
+            </div>
           </div>
         </div>
       </div>
@@ -257,6 +305,7 @@ function getUseUniversalComponents(): boolean {
               (input)="onSurfaceMessageChange($event)"
               (blur)="onSurfaceMessageBlur()"
               (focus)="onSurfaceMessageFocus()"
+              aria-label="Create Surface Message JSON"
             ></textarea>
           </div>
         </div>
@@ -304,6 +353,7 @@ function getUseUniversalComponents(): boolean {
               (input)="onDataModelChange($event)"
               (blur)="onDataModelBlur()"
               (focus)="onDataModelFocus()"
+              aria-label="Data Model JSON"
             ></textarea>
           </div>
         </div>
@@ -334,7 +384,7 @@ function getUseUniversalComponents(): boolean {
                   <polyline points="9 18 15 12 9 6"></polyline>
                 </svg>
               </span>
-              <h4>Events Log</h4>
+              <h4>Action Logs</h4>
             </div>
             <div>
               <button class="clear-btn" (click)="clearEventsLog(); $event.stopPropagation()">
@@ -350,7 +400,7 @@ function getUseUniversalComponents(): boolean {
               </div>
               <pre class="log-details">{{ ev.action | json }}</pre>
             </div>
-            <div *ngIf="eventsLog.length === 0" class="empty-state">No events recorded.</div>
+            <div *ngIf="eventsLog.length === 0" class="empty-state">No actions logged...</div>
           </div>
         </div>
       </div>
@@ -361,43 +411,44 @@ function getUseUniversalComponents(): boolean {
       .dashboard {
         display: flex;
         height: 100vh;
-        font-family: 'Inter', system-ui, sans-serif;
-        background-color: #121212;
-        color: #e0e0e0;
+        width: 100vw;
+        font-family: system-ui, sans-serif;
+        background-color: #0f172a;
+        color: #f1f5f9;
         overflow: hidden;
       }
 
       /* Sidebar */
       .sidebar {
-        width: 260px;
-        min-width: 260px;
-        background-color: #1e1e1e;
-        border-right: 1px solid #333;
+        width: 250px;
+        background-color: #1e293b;
+        border-right: 1px solid rgba(148, 163, 184, 0.1);
         display: flex;
         flex-direction: column;
+        overflow: hidden;
         transition:
-          width 0.2s ease,
-          min-width 0.2s ease;
+          width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+          min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        flex-shrink: 0;
       }
       .sidebar.collapsed {
-        width: 0;
-        min-width: 0;
+        width: 0 !important;
+        min-width: 0 !important;
         border-right: none;
-        overflow: hidden;
-        display: none;
+        visibility: hidden;
       }
       .sidebar-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0 12px 0 16px;
-        height: 56px;
-        border-bottom: 1px solid #334155;
+        padding: 12px 16px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.1);
         background-color: #1e293b;
+        flex-shrink: 0;
       }
       .sidebar-header h3 {
         margin: 0;
-        color: #4dabf7;
+        color: #38bdf8;
         font-size: 1rem;
       }
       .header-actions {
@@ -405,32 +456,9 @@ function getUseUniversalComponents(): boolean {
         align-items: center;
         gap: 6px;
       }
-      .version-selector {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-      }
-      .version-selector label {
-        font-size: 0.75rem;
-        color: #94a3b8;
-      }
-      .version-selector select {
-        background-color: #0f172a;
-        color: #f8fafc;
-        border: 1px solid #334155;
-        border-radius: 4px;
-        padding: 2px 4px;
-        font-size: 0.75rem;
-        cursor: pointer;
-        outline: none;
-        transition: border-color 0.2s;
-      }
-      .version-selector select:focus {
-        border-color: #3b82f6;
-      }
       .icon-btn {
         background: transparent;
-        border: 1px solid #334155;
+        border: 1px solid rgba(148, 163, 184, 0.2);
         border-radius: 4px;
         color: #94a3b8;
         cursor: pointer;
@@ -449,9 +477,6 @@ function getUseUniversalComponents(): boolean {
       .icon-btn svg {
         display: block;
       }
-      .expand-btn {
-        padding: 6px;
-      }
       .example-list {
         list-style: none;
         padding: 0;
@@ -460,28 +485,30 @@ function getUseUniversalComponents(): boolean {
         overflow-y: auto;
       }
       .example-list li {
-        padding: 12px 16px;
-        border-bottom: 1px solid #2a2a2a;
+        padding: 16px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.05);
         cursor: pointer;
-        transition: background-color 0.2s;
+        transition: background 0.2s;
       }
       .example-list li:hover {
-        background-color: #2c2c2c;
+        background: rgba(255, 255, 255, 0.05);
       }
       .example-list li.active {
-        background-color: #334155;
-        border-left: 4px solid #3b82f6;
-        padding-left: 12px;
+        background: rgba(56, 189, 248, 0.1);
+        border-left: 4px solid #38bdf8;
       }
       .ex-name {
         font-weight: 500;
-        color: #f8fafc;
+        color: #f1f5f9;
         font-size: 0.95rem;
+        margin-bottom: 4px;
       }
       .ex-desc {
-        font-size: 0.75rem;
+        font-size: 0.8rem;
         color: #94a3b8;
-        margin-top: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       /* Canvas Area */
@@ -497,28 +524,133 @@ function getUseUniversalComponents(): boolean {
         flex-direction: row;
         justify-content: space-between;
         align-items: center;
-        padding: 0 16px;
-        height: 56px;
+        padding: 12px 16px;
         background-color: #1e293b;
-        border-bottom: 1px solid #334155;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        gap: 12px;
+        flex-shrink: 0;
+        flex-wrap: wrap;
       }
       .canvas-header-left {
         display: flex;
         align-items: center;
         gap: 12px;
+        min-width: 0;
+      }
+      .app-brand h1 {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 700;
+        white-space: nowrap;
+        color: #f8fafc;
+      }
+      .header-divider {
+        width: 1px;
+        height: 28px;
+        background: #334155;
+        flex-shrink: 0;
       }
       .canvas-header-right {
         display: flex;
         align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .agent-controls fieldset {
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 8px;
+        padding: 4px 8px 6px;
+        margin: 0;
+      }
+      .agent-controls legend {
+        font-size: 0.75rem;
+        color: #94a3b8;
+        padding: 0 4px;
+      }
+      .version-controls {
+        display: flex;
+        align-items: center;
+      }
+      .version-selector {
+        display: flex;
+        gap: 4px;
+      }
+      .version-btn {
+        background: transparent;
+        color: #94a3b8;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .version-btn:hover {
+        color: #f1f5f9;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .version-btn.active {
+        background: #38bdf8;
+        color: #0f172a;
+      }
+      .message-controls {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        font-size: 0.85rem;
+        color: #94a3b8;
+      }
+      .theme-controls {
+        font-size: 0.85rem;
+        color: #94a3b8;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      .color-input-group {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .color-input {
+        border: none;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        cursor: pointer;
+        background: none;
+      }
+      .message-controls button,
+      .clear-color-btn {
+        background: #38bdf8;
+        color: #0f172a;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .message-controls button:hover,
+      .clear-color-btn:hover {
+        background: #7dd3fc;
+      }
+      .message-controls button:disabled,
+      .clear-color-btn:disabled {
+        background: #475569;
+        color: #94a3b8;
+        cursor: not-allowed;
       }
       .canvas-header h2 {
         margin: 0;
-        font-size: 1.1rem;
+        font-size: 1.05rem;
         color: #f8fafc;
       }
       .subtitle {
         margin: 2px 0 0;
-        font-size: 0.75rem;
+        font-size: 0.8rem;
         color: #94a3b8;
       }
       .canvas-frame {
@@ -531,10 +663,10 @@ function getUseUniversalComponents(): boolean {
       }
       .rendered-content {
         width: 100%;
-        max-width: 800px;
-        background-color: var(--a2ui-color-surface, #ffffff);
+        max-width: 600px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(148, 163, 184, 0.2);
         border-radius: 8px;
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
         padding: 24px;
       }
       .rendered-content.protocol-version-08 {
@@ -543,69 +675,60 @@ function getUseUniversalComponents(): boolean {
         color: #e0e0e0;
       }
       .empty-canvas {
-        align-self: center;
-        margin: 0 auto;
+        text-align: center;
         color: #64748b;
-        font-style: italic;
       }
 
       /* Inspect Panel */
       .inspect-area {
-        width: 380px;
-        min-width: 380px;
-        background-color: #0f172a;
-        border-left: 1px solid #1e293b;
+        width: 400px;
+        background-color: #020617;
+        border-left: 1px solid rgba(148, 163, 184, 0.1);
         display: flex;
         flex-direction: column;
         height: 100%;
         overflow: hidden;
         transition:
-          width 0.2s ease,
-          min-width 0.2s ease;
+          width 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+          min-width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        flex-shrink: 0;
       }
       .inspect-area.collapsed {
-        width: 0;
-        min-width: 0;
+        width: 0 !important;
+        min-width: 0 !important;
         border-left: none;
-        overflow: hidden;
-        display: none;
+        visibility: hidden;
       }
       .inspect-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0 12px 0 16px;
-        height: 56px;
+        padding: 12px 16px;
         background-color: #1e293b;
-        border-bottom: 1px solid #334155;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        flex-shrink: 0;
       }
       .inspect-header h4 {
         margin: 0;
-        font-size: 1rem;
-        color: #f8fafc;
-        font-weight: 500;
+        font-size: 0.9rem;
+        color: #94a3b8;
+        text-transform: uppercase;
+        font-weight: 600;
       }
       .inspect-section {
-        flex: 0 1 auto;
+        flex: 1;
         display: flex;
         flex-direction: column;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.1);
         overflow: hidden;
         min-height: 0;
       }
       .inspect-section.folded {
         flex: 0 0 auto;
       }
-      .data-section,
-      .surface-section {
-        border-bottom: 1px solid #1e293b;
-        flex: 0 0 auto;
-        max-height: 800px;
-        display: flex;
-        flex-direction: column;
-      }
       textarea {
         width: 100%;
-        height: 150px;
+        flex: 1;
         min-height: 100px;
         box-sizing: border-box;
         background-color: #0c111b;
@@ -622,10 +745,10 @@ function getUseUniversalComponents(): boolean {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0 16px;
-        height: 56px;
+        padding: 10px 16px;
         background-color: #1e293b;
-        border-bottom: 1px solid #334155;
+        user-select: none;
+        flex-shrink: 0;
       }
       .header-left {
         display: flex;
@@ -644,7 +767,8 @@ function getUseUniversalComponents(): boolean {
       }
       .section-header h4 {
         margin: 0;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
+        font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: #94a3b8;
@@ -655,6 +779,8 @@ function getUseUniversalComponents(): boolean {
         padding: 12px;
         font-family: 'JetBrains Mono', 'Fira Code', monospace;
         font-size: 0.75rem;
+        display: flex;
+        flex-direction: column;
       }
 
       .badge {
@@ -678,11 +804,10 @@ function getUseUniversalComponents(): boolean {
         background-color: #7f1d1d;
         border: 1px solid #b91c1c;
         border-radius: 6px;
-        padding: 10px 14px;
+        padding: 8px 12px;
         display: flex;
         align-items: center;
         gap: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         box-sizing: border-box;
       }
       .error-icon {
@@ -709,14 +834,14 @@ function getUseUniversalComponents(): boolean {
         word-break: break-all;
         color: #a7f3d0;
         background-color: #0c111b;
-        padding: 12px;
+        padding: 8px;
         border-radius: 4px;
         border: 1px solid #1e293b;
         line-height: 1.4;
       }
       .log-item {
-        margin-bottom: 16px;
-        padding-bottom: 12px;
+        margin-bottom: 12px;
+        padding-bottom: 10px;
         border-bottom: 1px solid #1e293b;
       }
       .log-header {
@@ -727,7 +852,7 @@ function getUseUniversalComponents(): boolean {
         margin-bottom: 6px;
       }
       .log-time {
-        color: #3b82f6;
+        color: #38bdf8;
         font-weight: 500;
       }
       .log-type {
@@ -737,7 +862,7 @@ function getUseUniversalComponents(): boolean {
         border-radius: 2px;
       }
       .log-details {
-        background-color: #020617;
+        background-color: #0c111b;
         border-color: #1e293b;
         color: #94a3b8;
         font-size: 0.7rem;
@@ -745,7 +870,7 @@ function getUseUniversalComponents(): boolean {
       .empty-state {
         text-align: center;
         color: #475569;
-        margin-top: 40px;
+        margin-top: 24px;
         font-style: italic;
       }
     `,
@@ -785,20 +910,44 @@ function getUseUniversalComponents(): boolean {
 export class DemoComponent implements OnInit, OnDestroy {
   readonly Version = Version;
   private rendererService = inject(A2uiRendererService);
-  private agentStub = inject(AgentStubService);
+  private agentStubV09 = inject(AgentStubV09Service);
+  private agentStubV08 = inject(AgentStubV08Service);
   private cdr = inject(ChangeDetectorRef);
 
-  readonly version: Version = inject(A2UI_VERSION);
-  readonly examples: Array<A2uiExample> = inject(A2UI_EXAMPLES);
+  private activeVersion = signal<Version>(inject(A2UI_VERSION));
+  get version(): Version {
+    return this.activeVersion();
+  }
+  set version(v: Version) {
+    this.activeVersion.set(v);
+  }
+
+  examples: Array<A2uiExample> = inject(A2UI_EXAMPLES);
   selectedExample: A2uiExample | undefined = undefined;
-  readonly surfaceId = this.agentStub.surfaceId;
-  inspectTab: 'data' | 'events' = 'data';
+
+  private get activeStub(): AgentStubService {
+    return this.activeVersion() === Version.V0_8 ? this.agentStubV08 : this.agentStubV09;
+  }
+
+  readonly surfaceId = computed(() => this.activeStub.surfaceId());
+
+  processedMessageCount = 0;
+  primaryColor = '#1177ee';
+  private customMessages: Array<A2uiMessage | ServerToClientMessage> | null = null;
+
+  get totalMessageCount(): number {
+    return this.getActiveMessages().length;
+  }
+
+  get canAdvance(): boolean {
+    return this.processedMessageCount < this.totalMessageCount;
+  }
 
   get eventsLog() {
-    return this.agentStub.eventsLog();
+    return this.activeStub.eventsLog();
   }
   clearEventsLog() {
-    this.agentStub.eventsLog.set([]);
+    this.activeStub.eventsLog.set([]);
   }
   currentCreateSurfaceMessageJson: string = '';
   messageError: string | null = null;
@@ -811,7 +960,7 @@ export class DemoComponent implements OnInit, OnDestroy {
       if (this.jsonInputFocused()) {
         return;
       }
-      const data = this.agentStub.dataModel();
+      const data = this.activeStub.dataModel();
       this.currentDataModelJson = JSON.stringify(data, null, 2);
       this.cdr.detectChanges();
     });
@@ -820,7 +969,7 @@ export class DemoComponent implements OnInit, OnDestroy {
       if (this.jsonInputFocused()) {
         return;
       }
-      const msg = this.agentStub.currentCreateSurfaceMessage();
+      const msg = this.activeStub.currentCreateSurfaceMessage();
       this.currentCreateSurfaceMessageJson = msg ? JSON.stringify(msg, null, 2) : '';
       this.cdr.detectChanges();
     });
@@ -935,27 +1084,141 @@ export class DemoComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Reloads the page with the selected version.
+   * Switches the active specification version in-place without a full page reload.
    */
-  onVersionChange(event: Event) {
-    const select = event.target as HTMLSelectElement;
-    const newVersion = select.value;
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('version', newVersion);
-      window.location.href = url.toString();
+  setVersion(newVersion: Version) {
+    if (this.version === newVersion) return;
+    const prevFilename = this.selectedExample?.filename;
+    const prevName = this.selectedExample?.name;
+
+    this.activeStub.resetSurface(
+      this.getActiveMessages() as A2uiMessage[] | ServerToClientMessage[],
+    );
+    this.version = newVersion;
+    this.examples =
+      newVersion === Version.V1_0
+        ? EXAMPLES_V10
+        : newVersion === Version.V0_9
+          ? EXAMPLES_V09
+          : EXAMPLES_V08;
+
+    const matched =
+      this.examples.find(
+        ex => (prevFilename && ex.filename === prevFilename) || ex.name === prevName,
+      ) ?? this.examples[0];
+    if (matched) {
+      this.selectExample(matched);
     }
+    this.syncUrl();
+  }
+
+  private syncUrl() {
+    if (typeof window === 'undefined' || !window.history?.replaceState) return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('version', this.version);
+      if (this.selectedExample) {
+        url.hash = this.slugify(this.selectedExample.name);
+      }
+      window.history.replaceState(null, '', url.toString());
+    } catch {
+      // Ignore URL update errors in test environments
+    }
+  }
+
+  private getActiveMessages(): Array<A2uiMessage | ServerToClientMessage> {
+    if (this.customMessages) {
+      return this.customMessages;
+    }
+    return (this.selectedExample?.messages ?? []) as Array<A2uiMessage | ServerToClientMessage>;
+  }
+
+  private applyPrimaryColor(
+    messages: Array<A2uiMessage | ServerToClientMessage>,
+  ): Array<A2uiMessage | ServerToClientMessage> {
+    if (!this.primaryColor || this.version !== Version.V0_9) {
+      return messages;
+    }
+    return messages.map(msg => {
+      if (
+        'createSurface' in msg &&
+        (msg as {version?: string}).version !== 'v1.0' &&
+        msg.createSurface
+      ) {
+        return {
+          ...msg,
+          createSurface: {
+            ...msg.createSurface,
+            theme: {
+              ...msg.createSurface.theme,
+              primaryColor: this.primaryColor,
+            },
+          },
+        };
+      }
+      return msg;
+    });
   }
 
   selectExample(example: A2uiExample) {
     this.selectedExample = example;
+    this.customMessages = null;
+    this.messageError = null;
+    this.dataModelError = null;
     if (typeof window !== 'undefined') {
       window.location.hash = this.slugify(example.name);
     }
 
-    this.agentStub.initializeDemo(example.messages);
+    const activeMessages = this.applyPrimaryColor(
+      example.messages as Array<A2uiMessage | ServerToClientMessage>,
+    );
+    this.processedMessageCount = activeMessages.length;
+    this.activeStub.initializeDemo(activeMessages as A2uiMessage[] | ServerToClientMessage[]);
     this.cdr.detectChanges();
     this.scrollToActiveExample();
+  }
+
+  resetSurface() {
+    this.processedMessageCount = 0;
+    this.activeStub.resetSurface(
+      this.getActiveMessages() as A2uiMessage[] | ServerToClientMessage[],
+    );
+    this.cdr.detectChanges();
+  }
+
+  advanceMessages(all: boolean) {
+    const messages = this.getActiveMessages();
+    if (messages.length === 0) return;
+
+    const toProcess = all
+      ? messages.slice(this.processedMessageCount)
+      : messages.slice(this.processedMessageCount, this.processedMessageCount + 1);
+    if (toProcess.length === 0) return;
+
+    const modifiedToProcess = this.applyPrimaryColor(toProcess);
+    this.activeStub.processIncrementalMessages(
+      modifiedToProcess as A2uiMessage[] | ServerToClientMessage[],
+    );
+    this.processedMessageCount += toProcess.length;
+    this.cdr.detectChanges();
+  }
+
+  onColorInput(event: Event) {
+    const input = event.target as HTMLInputElement;
+    this.primaryColor = input.value;
+    this.reloadActiveExample();
+  }
+
+  clearColor() {
+    this.primaryColor = '';
+    this.reloadActiveExample();
+  }
+
+  private reloadActiveExample() {
+    const messages = this.applyPrimaryColor(this.getActiveMessages());
+    this.processedMessageCount = messages.length;
+    this.activeStub.initializeDemo(messages as A2uiMessage[] | ServerToClientMessage[]);
+    this.cdr.detectChanges();
   }
 
   private scrollToActiveExample() {
@@ -987,12 +1250,14 @@ export class DemoComponent implements OnInit, OnDestroy {
 
       if (!('createSurface' in parsed) || !this.selectedExample) return;
 
-      const updatedMessages = this.selectedExample.messages.map(m =>
+      const updatedMessages = this.getActiveMessages().map(m =>
         'createSurface' in m ? parsed : m,
       );
+      this.customMessages = updatedMessages;
+      this.processedMessageCount = updatedMessages.length;
 
       // Re-initialize the demo with the updated messages
-      this.agentStub.initializeDemo(updatedMessages);
+      this.activeStub.initializeDemo(updatedMessages as A2uiMessage[] | ServerToClientMessage[]);
       this.cdr.detectChanges();
     } catch (e) {
       this.messageError = e instanceof Error ? e.message : 'Invalid JSON';
@@ -1059,7 +1324,12 @@ export class DemoComponent implements OnInit, OnDestroy {
   private selectExampleFromUrl(): void {
     const hash = window.location.hash.substring(1) || '';
     const example: A2uiExample | undefined =
-      this.examples.find(ex => this.slugify(ex.name) === hash) || this.examples[0];
+      this.examples.find(
+        ex =>
+          this.slugify(ex.name) === hash ||
+          ex.filename === hash ||
+          ex.filename?.replace('.json', '') === hash,
+      ) || this.examples[0];
     if (!example) return;
     this.selectExample(example);
   }
