@@ -13,9 +13,40 @@
 // limitations under the License.
 
 import '../primitives/errors.dart';
-import 'catalog.dart';
+import 'validation_result.dart';
 
-export 'catalog.dart' show A2uiReturnType;
+/// The type of value a function returns.
+enum A2uiReturnType {
+  string,
+  number,
+  boolean,
+  array,
+  object,
+
+  /// A structured [ValidationResult] (`{valid, message?, code?, severity?}`).
+  ///
+  /// Defined by protocol 1.0 catalog definitions. The v0.9 wire schemas do not
+  /// accept it, so a catalog whose effective protocol version is below 1.0
+  /// must not declare it; a v0.9 renderer's validator rejects messages that
+  /// carry it.
+  validationResult,
+  any,
+  void_;
+
+  /// The JSON value used in the A2UI protocol.
+  String get jsonValue => this == void_ ? 'void' : name;
+
+  /// Parses from the JSON string representation, falling back to [any] for
+  /// unrecognized or extension return types (such as a name a future protocol
+  /// version adds).
+  static A2uiReturnType fromJson(String value) {
+    if (value == 'void') return void_;
+    for (final A2uiReturnType candidate in values) {
+      if (candidate.name == value) return candidate;
+    }
+    return any;
+  }
+}
 
 /// A JSON Pointer path to a value in the data model.
 class DataBinding {

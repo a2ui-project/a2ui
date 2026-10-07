@@ -10,6 +10,10 @@
 
 ## 0.0.1-wip005
 
+- `resolveCatalogs` moved from `src/utils/catalog_resolver.dart` to
+  `src/processor/catalog_resolver.dart`, removing the `utils` to `processor`
+  import cycle. The `src/utils/` directory is gone. The symbol is unchanged and
+  still exported from `package:a2ui_agent/a2ui_agent.dart`.
 - Catalogs are typed `CatalogApi`, the new name of `a2ui_core`'s
   `SchemaCatalog`.
 - Implemented the rest of the agent SDK blueprint API for protocol v0.9:

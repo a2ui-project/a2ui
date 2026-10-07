@@ -17,13 +17,14 @@ import 'package:json_schema_builder/json_schema_builder.dart'
     hide ValidationResult;
 
 import '../core/common.dart';
+import '../core/component_context.dart';
 import '../core/component_model.dart';
-import '../core/contexts.dart';
+import '../core/data_context.dart';
 import '../core/messages.dart';
 import '../core/validation_result.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
-import '../resolution/resolved_binding.dart';
+import '../primitives/resolved_binding.dart';
 
 /// Represents the intended runtime behavior of a property parsed from
 /// its schema.

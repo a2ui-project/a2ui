@@ -14,7 +14,7 @@
 
 import 'dart:math' as math;
 
-import '../primitives/errors.dart';
+import 'errors.dart';
 
 /// An optional sign, a mantissa, and an optional exponent (`e` or `E`, an
 /// optional sign, digits).

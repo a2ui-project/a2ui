@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import 'package:a2ui_core/src/primitives/errors.dart';
-import 'package:a2ui_core/src/processing/expressions.dart';
+import 'package:a2ui_core/src/primitives/expressions.dart';
 import 'package:test/test.dart';
 
 void main() {

@@ -20,8 +20,8 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:logging/logging.dart';
 
 import '../core/catalog.dart';
+import '../core/component_context.dart';
 import '../core/component_model.dart';
-import '../core/contexts.dart';
 import '../core/messages.dart';
 import '../core/surface_model.dart';
 import '../primitives/errors.dart';

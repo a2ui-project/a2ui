@@ -45,29 +45,17 @@ Protocol version coverage is per implementation rather than a property of this b
 
 ```mermaid
 graph TD
-    Processing["Processing Layer<br/>(a2ui.core.processing)"]
-    Rpc["RPC Layer<br/>(a2ui.core.rpc)"]
-    Validation["Validation Layer<br/>(a2ui.core.validation)"]
-    State["State Layer<br/>(a2ui.core.state)"]
-    Catalog["Catalog Layer<br/>(a2ui.core.catalog)"]
-    Resolution["Resolution Layer<br/>(a2ui.core.resolution)"]
-    Schema["Schema Layer<br/>(a2ui.core.schema)"]
-    Exceptions["Common & Exceptions<br/>(a2ui.core.exceptions)"]
-
-    Processing --> Rpc
-    Processing --> Validation
-    Processing --> State
-    Processing --> Catalog
-    Rpc --> Catalog
-    Rpc --> Schema
-    Rpc --> Exceptions
-    Validation --> Catalog
-    Validation --> Schema
-    State --> Exceptions
-    Catalog --> Schema
-    Catalog --> Exceptions
-    Resolution --> State
-    Resolution --> Exceptions
+    processing --> core
+    processing --> primitives
+    processing --> validation
+    resolution --> core
+    resolution --> primitives
+    resolution --> rendering
+    rendering --> core
+    rendering --> primitives
+    validation --> core
+    validation --> primitives
+    core --> primitives
 ```
 
 ### B. Runtime Object Architecture & Consumer Binding
@@ -123,7 +111,7 @@ graph TD
     Renderer -->|Binds to surface state| SM
     Agent -->|Evaluates UI tree| SGM
     MP -->|Resolves catalogs from| CAT
-    SM -.->|Holds reference to| CAT
+    SM -->|Holds reference to| CAT
     NR_R -->|Resolves widgets via| CAT
     NR_A -->|Resolves widgets via| CAT
 ```
@@ -132,72 +120,50 @@ graph TD
 
 ## 2. Directory & Package Structure
 
-The core modular components are organized within the `a2ui.core` namespace. Public interfaces are exposed cleanly across the package layers:
+The core modular components are organized within the `a2ui.core` namespace. Public interfaces are exposed cleanly across the package layers. Packages, and the items inside each package, are listed so that every entry depends only on entries below it:
 
 ```text
 a2ui/core/
-├── exceptions                      # Root exception hierarchy & RPC error codes
-├── common/                         # Shared primitives with no layer dependencies
-│   ├── events                      # EventSource / listener plumbing
-│   └── semver                      # Protocol version comparison
-├── expressions/                    # Protocol-version-agnostic expression parser
-├── basic_catalog/                  # Bundled default components and functions
-│   ├── v0_8/                       # Conforms to spec v0.8
-│   ├── v0_9/                       # Conforms to spec v0.9, v0.9.1
-│   ├── v1_0/                       # Conforms to spec v1.0
-│   └── locale_formatting           # CLDR locale rules Babel does not implement
-├── catalog/                        # Catalog declarations
-│   ├── catalog                     # Catalog base class & inlining
-│   ├── components                  # Component declarations & API
-│   ├── functions                   # Function declarations & implementations
-│   └── system_functions            # Runtime-supplied '@' functions, shared by all versions
-├── state/                          # Reactive Layout State Models
-│   ├── component_model             # Component property structures
-│   ├── data_model                  # Value dictionary binding paths
-│   ├── surface_model               # Single UI surface container
-│   ├── surface_components_model    # Inlined graph topology & integrity checks
-│   └── surface_group_model         # Collection of active surfaces
 ├── processing/                     # Mutation processing engine
-│   ├── message_processor           # Single MessageProcessor entrypoint
-│   ├── operations                  # InternalOperation union (version-neutral vocabulary)
-│   └── adapters/                   # Spec Version Adapters
-│       ├── base                    # VersionAdapter interface & ProtocolVersion enum
-│       ├── factory                 # VersionAdapterFactory (hardcoded adapter resolution)
-│       ├── v0_8                    # v0.8 adapter
-│       ├── v0_9                    # v0.9 adapter
-│       └── v1_0                    # v1.0 adapter
-├── rpc/                            # Bidirectional Remote Procedure Call engine
-│   └── rpc_handler                 # RpcHandler isolating RPC lifecycle, timeout, & callbacks
+│   ├── processor                   # Single MessageProcessor entrypoint
+│   └── basic_functions             # Built-in operator implementations
+├── resolution/                     # View tree resolution engine
+│   ├── node_resolver               # Protocol-version-agnostic node resolution
+│   ├── component_node              # Living node in view hierarchy (Signal props)
+│   └── ref_fields                  # Classifies a schema's child-reference properties
+├── rendering/                      # Schema-driven property binding
+│   └── binder                      # GenericBinder, behaviour scraping, child lists
 ├── validation/                     # Layout validation layer
 │   ├── validator                   # Core PayloadValidator class
-│   └── catalog_schema_validator    # JSON schema catalog validator
-├── resolution/                     # View Tree Resolution & Rendering Engine
-│   ├── component_node              # Living node in view hierarchy (Signal props)
-│   ├── component_context           # Per-component resolution scope
-│   ├── node_resolver               # Protocol-version-agnostic node resolution
-│   ├── generic_binder              # Schema-driven property binding
-│   └── data_context                # Path binding & function evaluator (Internal)
-└── schema/                         # Autogenerated protocol models
-    ├── v0_8/                       # Models for spec v0.8
-    │   ├── common_types
-    │   ├── agent_to_renderer
-    │   ├── renderer_to_agent
-    │   └── renderer_capabilities
-    ├── v0_9/                       # Models for spec v0.9 and v0.9.1
-    │   ├── common_types
-    │   ├── agent_to_renderer
-    │   ├── renderer_to_agent
-    │   └── renderer_capabilities
-    └── v1_0/                       # Models for spec v1.0
-        ├── common_types
-        ├── agent_to_renderer
-        ├── renderer_to_agent
-        └── renderer_capabilities
+│   ├── component_graph             # Graph topology & integrity checks
+│   ├── validation_config           # Which graph checks a surface must pass
+│   └── component_refs              # Which properties reference other components
+├── core/                           # Protocol models, catalogs and reactive layout state
+│   ├── component_context           # Per-component rendering scope (deprecated)
+│   ├── surface_group_model         # Collection of active surfaces
+│   ├── surface_model               # Single UI surface container
+│   ├── renderer_capabilities       # Catalogs a renderer can render per protocol version
+│   ├── minimal_catalog             # Bundled default components and operators
+│   ├── catalog                     # Catalog base class, component & function declarations
+│   ├── data_context                # Path binding & function evaluator
+│   ├── data_model                  # Value dictionary binding paths
+│   ├── component_model             # Component property structures
+│   ├── messages                    # Agent-to-renderer & renderer-to-agent envelopes
+│   ├── common_schemas              # Shared JSON Schema fragments
+│   └── common                      # Shared protocol value types, incl. A2uiReturnType
+└── primitives/                     # Layer 0: shared building blocks, importing nothing above
+    ├── cancellation                # Cancellation signalling for long-running functions
+    ├── common_types                # Autogenerated protocol type models
+    ├── data_path                   # JSON Pointer (RFC 6901) parsing & validation
+    ├── event_notifier              # EventSource / listener plumbing
+    ├── expressions                 # Protocol-version-agnostic expression parser
+    ├── protocol_version            # Protocol version comparison & gating
+    ├── reactivity                  # Signal primitives, re-exported for renderers
+    ├── reference_schema            # How a property names its child components
+    ├── resolved_binding            # Property value snapshots (ResolvedBinding / WritableBinding)
+    ├── schema_resolution           # Subschema `$ref` expansion, shared by catalog and validation
+    └── errors                      # Root exception hierarchy
 ```
-
-Layout rules hold across every implementation:
-
-- **Package names are normative.** The validation package is `validation` and the resolution package is `resolution`. Naming them `validating` or `rendering` is a deviation, since `rendering` in particular suggests UI work that this layer does not do.
 
 ---
 
@@ -262,6 +228,7 @@ When authoring component or function schemas, developers import primitives (`Dyn
 
 - **Subschema References & Wire Emission**: In v1.0+, component schemas emit or retain relative pointers (`"$ref": "common_types.json#/$defs/<TypeName>"`).
 - **Forward Compatibility**: While breaking changes between v0.9 and v1.0 prevent v0.9 catalogs from running against v1.0 runtimes, using unversioned relative references in v1.0 catalogs allows them to potentially resolve against future compatible protocol versions without modifying catalog type paths.
+- **Shared Expansion**: Expanding those references is `primitives/schema_resolution`, not a catalog-private helper. Both the catalog layer (parsing a catalog document) and the validation layer (checking a payload against it) consume the same expansion, so it sits below both.
 
 ```typescript
 import {DynamicString, Action, ChildList} from '@a2ui/core/v1_0';
@@ -890,7 +857,7 @@ The matrix below details the specific validation checks, their responsible compo
 | :----------------------- | :------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------ | :-------------------- |
 | **Protocol Envelope**    | Single update type per message (`createSurface`, `updateComponents`, etc.)                        | `AgentToRendererMessage.parseAll()` (static, no catalog needed)           | `A2uiValidationError` |
 | **Protocol Envelope**    | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                             | `AgentToRendererMessage.parseAll()` (static, no catalog needed)           | `A2uiValidationError` |
-| **Identifier Syntax**    | Component, property, and function names comply with UAX #31 identifier syntax                     | `PayloadValidator` (`common/uax31`)                                       | `A2uiValidationError` |
+| **Identifier Syntax**    | Component, property, and function names comply with UAX #31 identifier syntax                     | `PayloadValidator` (`primitives/uax31`)                                   | `A2uiValidationError` |
 | **Schema Referencing**   | In-memory `$ref` resolution against relative paths (`common_types.json`) without disk or network  | `PayloadValidator` (`referencing.Registry` / `Ajv`)                       | `A2uiValidationError` |
 | **Surface Lifecycle**    | Surface non-existence on `createSurface` (no duplicates)                                          | `MessageProcessor.processCreateSurface()` (`SurfaceGroupModel`)           | `A2uiIntegrityError`  |
 | **Surface Lifecycle**    | Surface existence on `updateComponents`, `updateDataModel`, `deleteSurface`                       | `MessageProcessor.processUpdateComponents()` / `processUpdateDataModel()` | `A2uiIntegrityError`  |
@@ -1287,6 +1254,14 @@ class DataModel {
 ### F. Resolution Layer (`a2ui.core.resolution`)
 
 Transient objects created on-demand during rendering to solve "scope" and binding resolution.
+
+Everything in this layer is transient by definition, which fixes where it may live: a
+rendering context is created per node per render pass, while `state/surface_model` is a
+long-lived reactive container that outlives any view tree. Rendering constructs therefore
+belong here and never inside a state model. `ComponentContext`, the per-component rendering
+context some implementations still carry, is **deprecated**: it is superseded by
+`component_node` plus `node_resolver`, and while it survives it belongs in `resolution/`
+(or a renderer-side module), not in `state/surface_model`.
 
 ```typescript
 class DataContext {
