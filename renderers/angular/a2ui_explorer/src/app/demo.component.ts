@@ -1248,7 +1248,15 @@ export class DemoComponent implements OnInit, OnDestroy {
       const parsed = JSON.parse(newValue);
       this.messageError = null;
 
-      if (!('createSurface' in parsed) || !this.selectedExample) return;
+      if (
+        !parsed ||
+        typeof parsed !== 'object' ||
+        Array.isArray(parsed) ||
+        !('createSurface' in parsed) ||
+        !this.selectedExample
+      ) {
+        return;
+      }
 
       const updatedMessages = this.getActiveMessages().map(m =>
         'createSurface' in m ? parsed : m,

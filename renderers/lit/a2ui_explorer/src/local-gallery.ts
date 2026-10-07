@@ -151,7 +151,9 @@ export class LocalGallery extends LitElement {
   private findExampleIndex(key: string): number {
     return this.demoItems.findIndex(
       item =>
-        item.filename === key || item.filename.replace('.json', '') === key || item.id === key,
+        item.filename === key ||
+        (item.filename ?? '').replace('.json', '') === key ||
+        item.id === key,
     );
   }
 
@@ -161,7 +163,7 @@ export class LocalGallery extends LitElement {
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('version', this.specVersion);
-      if (activeItem) {
+      if (activeItem?.filename) {
         url.hash = activeItem.filename.replace('.json', '');
       }
       window.history.replaceState(null, '', url.toString());

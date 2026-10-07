@@ -144,7 +144,7 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
           item =>
             item.id === rawHash ||
             item.filename === rawHash ||
-            item.filename.replace('.json', '') === rawHash,
+            (item.filename ?? '').replace('.json', '') === rawHash,
         );
         if (matched) {
           return matched.id;
@@ -212,7 +212,7 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('version', selectedVersion === 'v1.0' ? '1.0' : '0.9');
-      if (selectedItem) {
+      if (selectedItem?.filename) {
         url.hash = selectedItem.filename.replace('.json', '');
       }
       window.history.replaceState(null, '', url.toString());
@@ -230,7 +230,7 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
         item =>
           item.id === rawHash ||
           item.filename === rawHash ||
-          item.filename.replace('.json', '') === rawHash,
+          (item.filename ?? '').replace('.json', '') === rawHash,
       );
       if (matched && matched.id !== selectedExampleId) {
         selectExampleById(matched.id);
