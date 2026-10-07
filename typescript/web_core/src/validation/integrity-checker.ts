@@ -214,16 +214,16 @@ function traverseRecursionAndPaths(item: unknown, globalDepth: number, funcDepth
 
   if (typeof item === 'object' && item !== null) {
     const obj = item as Record<string, unknown>;
-    if ('path' in obj && typeof obj.path === 'string') {
-      const path = obj.path;
-      if (!RELAXED_PATH_PATTERN.test(path)) {
+    // v1.0 binds data with `@path`; earlier versions and templates use `path`.
+    for (const path of [obj.path, obj['@path']]) {
+      if (typeof path === 'string' && !RELAXED_PATH_PATTERN.test(path)) {
         throw new A2uiValidationError(`Invalid path syntax: '${path}'`);
       }
     }
 
     const isFunctionCallWrapper =
       'functionCall' in obj && typeof obj.functionCall === 'object' && obj.functionCall !== null;
-    const isBareFunctionCall = 'call' in obj && 'args' in obj;
+    const isBareFunctionCall = ('call' in obj || '@call' in obj) && 'args' in obj;
 
     if (isFunctionCallWrapper) {
       if (funcDepth >= MAX_FUNC_CALL_DEPTH) {

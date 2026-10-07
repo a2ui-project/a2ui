@@ -598,6 +598,8 @@ void main() {
         rendererCatalog(namedCatalogDocument(id, component));
 
     /// A processor supporting [ids], each with one component named after it.
+    // Strict, so that a type the catalog does not declare is rejected rather
+    // than tolerated as it is without a config.
     MessageProcessor<ComponentApi> over(List<String> ids) =>
         MessageProcessor<ComponentApi>(
           catalogs: [
@@ -605,6 +607,7 @@ void main() {
               namedCatalog(id, id == 'cat1' ? 'Alpha' : 'Beta'),
           ],
           protocolVersion: A2uiProtocolVersion.v0_9,
+          validationConfig: ValidationConfig.strict,
         );
 
     /// A processor over [ids] already holding surface `s1`, created against

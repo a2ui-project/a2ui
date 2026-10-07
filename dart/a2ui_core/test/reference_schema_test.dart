@@ -265,6 +265,38 @@ void main() {
       );
     });
 
+    for (final (label, itemRef) in <(String, Map<String, Object?>)>[
+      ('ComponentId', _single),
+      ('v1.0 Child', _child),
+    ]) {
+      test('an inlined ChildList with $label items is a validated list', () {
+        // The template branch alone is only a guess, but an array of marked
+        // ids in a sibling branch identifies the property as a child list,
+        // so graph validation checks it too.
+        _expectFields(
+          {
+            'properties': {
+              'children': {
+                'oneOf': [
+                  {'type': 'array', 'items': itemRef},
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'componentId': itemRef,
+                      'path': {'type': 'string'},
+                    },
+                    'required': ['componentId', 'path'],
+                    'additionalProperties': false,
+                  },
+                ],
+              },
+            },
+          },
+          list: {'children'},
+        );
+      });
+    }
+
     test(
         'graph validation does not infer references from an unmarked '
         'componentId-and-path object', () {
@@ -737,6 +769,192 @@ void main() {
     });
   });
 
+  group('one reference map for validation and resolution', () {
+    MessageProcessor<ComponentApi> processorFor(
+      Catalog<ComponentApi, FunctionImplementation> catalog,
+    ) {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [catalog],
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        // Strict, so that a dangling reference is rejected: these cases are
+        // about the validator and the resolver reading one reference map.
+        validationConfig: ValidationConfig.strict,
+      );
+      addTearDown(processor.groupModel.dispose);
+      return processor;
+    }
+
+    // Creating the surface in the same payload makes the processor check the
+    // component graph before applying it.
+    AgentToRendererMessagePayload createAndUpdate(
+      String catalogId,
+      List<Map<String, Object?>> components,
+    ) =>
+        AgentToRendererMessage.parseAll([
+          {
+            'version': 'v0.9',
+            'createSurface': {'surfaceId': 's', 'catalogId': catalogId},
+          },
+          {
+            'version': 'v0.9',
+            'updateComponents': {'surfaceId': 's', 'components': components},
+          },
+        ], protocolVersion: A2uiProtocolVersion.v0_9);
+
+    Matcher danglingAt(String id, String field) => throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("'$id' in field '$field'"),
+          ),
+        );
+
+    Map<String, Object?> renderedRootProps(
+      Catalog<ComponentApi, FunctionImplementation> catalog,
+      List<Map<String, Object?>> components,
+    ) {
+      final MessageProcessor<ComponentApi> processor = processorFor(catalog);
+      processor.processMessages(createAndUpdate(catalog.id, components));
+      final resolver = NodeResolver<ComponentApi>(
+        processor.groupModel.getSurface('s')!,
+      );
+      addTearDown(resolver.dispose);
+      return resolver.rootNode.peek()!.props.peek();
+    }
+
+    test('a v1.0 Child slot is checked for dangling ids and mounted', () {
+      final Catalog<ComponentApi, FunctionImplementation> catalog =
+          _wireCatalog({
+        'properties': {'child': _child},
+      });
+      expect(
+        () => processorFor(catalog).processMessages(
+          createAndUpdate(catalog.id, [
+            {'id': 'root', 'component': 'Parent', 'child': 'missing'},
+          ]),
+        ),
+        danglingAt('missing', 'child'),
+      );
+      final Map<String, Object?> props = renderedRootProps(catalog, [
+        {'id': 'root', 'component': 'Parent', 'child': 'leaf'},
+        {'id': 'leaf', 'component': 'Leaf'},
+      ]);
+      expect((props['child']! as ComponentNode).componentId, 'leaf');
+    });
+
+    test('child and children name fallbacks validate and render alike', () {
+      final Map<String, Object?> schema = {
+        'properties': {
+          'child': {'type': 'string'},
+          'children': {
+            'type': 'array',
+            'items': {'type': 'string'},
+          },
+        },
+      };
+      _expectFields(schema, single: {'child'}, list: {'children'});
+
+      final Catalog<ComponentApi, FunctionImplementation> catalog =
+          _wireCatalog(schema);
+      expect(
+        () => processorFor(catalog).processMessages(
+          createAndUpdate(catalog.id, [
+            {
+              'id': 'root',
+              'component': 'Parent',
+              'children': ['leaf', 'missing'],
+            },
+            {'id': 'leaf', 'component': 'Leaf'},
+          ]),
+        ),
+        danglingAt('missing', 'children[1]'),
+      );
+      final Map<String, Object?> props = renderedRootProps(catalog, [
+        {
+          'id': 'root',
+          'component': 'Parent',
+          'child': 'a',
+          'children': ['b'],
+        },
+        {'id': 'a', 'component': 'Leaf'},
+        {'id': 'b', 'component': 'Leaf'},
+      ]);
+      expect((props['child']! as ComponentNode).componentId, 'a');
+      expect(
+        (props['children']! as List).cast<ComponentNode>().map(
+              (n) => n.componentId,
+            ),
+        ['b'],
+      );
+    });
+
+    test('a dangling list entry reports its index', () {
+      final ComponentRefFields fields = extractComponentRefFields(
+        _catalog({
+          'properties': {'children': _list},
+        }),
+      )['Parent']!;
+      expect(
+        componentReferences({
+          'children': ['a', 'b', 'missing'],
+        }, fields)
+            .map((r) => r.field),
+        ['children[0]', 'children[1]', 'children[2]'],
+      );
+
+      final Catalog<ComponentApi, FunctionImplementation> catalog =
+          _wireCatalog({
+        'properties': {'children': _list},
+      });
+      expect(
+        () => processorFor(catalog).processMessages(
+          createAndUpdate(catalog.id, [
+            {
+              'id': 'root',
+              'component': 'Parent',
+              'children': ['a', 'b', 'missing'],
+            },
+            {'id': 'a', 'component': 'Leaf'},
+            {'id': 'b', 'component': 'Leaf'},
+          ]),
+        ),
+        danglingAt('missing', 'children[2]'),
+      );
+    });
+
+    test('only a componentId-and-path object is a template', () {
+      final ComponentRefFields fields = extractComponentRefFields(
+        _catalog({
+          'properties': {'children': _list},
+        }),
+      )['Parent']!;
+      List<String> ids(Object? children) => [
+            for (final ComponentReference reference in componentReferences({
+              'children': children,
+            }, fields))
+              reference.id,
+          ];
+
+      expect(ids({'componentId': 'row'}), isEmpty);
+      expect(ids({'componentId': 'row', 'path': 3}), isEmpty);
+      expect(ids({'componentId': 'row', 'path': '/items'}), ['row']);
+    });
+
+    test('Catalog.refMap is cached and drives both consumers', () {
+      final Catalog<ComponentApi, FunctionImplementation> catalog = _catalog({
+        'properties': {'child': _child, 'children': _list},
+      });
+      expect(identical(catalog.refMap, catalog.refMap), isTrue);
+      expect(catalog.refMap.fieldsFor('Parent').keys, {'child', 'children'});
+      expect(catalog.refMap.fieldsFor('Leaf'), isEmpty);
+      expect(catalog.refMap.fieldsFor('Unknown'), isEmpty);
+      final ComponentRefFields validation =
+          extractComponentRefFields(catalog)['Parent']!;
+      expect(validation.single, {'child'});
+      expect(validation.list, {'children'});
+    });
+  });
+
   group('wire-backed catalog mounting', () {
     for (final keyword in ['anyOf', 'oneOf']) {
       test(
@@ -836,6 +1054,7 @@ void main() {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
         protocolVersion: A2uiProtocolVersion.v0_9,
+        validationConfig: const ValidationConfig(allowDanglingReferences: true),
       );
       processor.processMessages(
         AgentToRendererMessagePayload.of(
@@ -862,9 +1081,9 @@ void main() {
       }
 
       surface.dataModel.set('/items', ['a', 'b']);
-      // The processor checks references only for surfaces the payload creates,
-      // so this update is applied and the resolver reports the template items
-      // as pending until a later payload delivers the component.
+      // The processor allows dangling references, so this update is applied
+      // and the resolver reports the template items as pending until a later
+      // payload delivers the component.
       process([
         {
           'id': 'root',

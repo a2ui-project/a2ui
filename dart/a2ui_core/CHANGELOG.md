@@ -35,8 +35,7 @@
   checked when `DataContext` evaluates a call). For v1.0 catalogs, a call to a
   function the catalog does not declare passes with its arguments unchecked,
   because a renderer forwards it to the agent; below v1.0 it is rejected
-  unless `ValidationConfig.allowUnknownElements`. This deliberately differs
-  from the TypeScript and Python SDKs, which reject unknown functions.
+  unless `ValidationConfig.allowUnknownElements`.
 - **Behavior change:** v1.0 catalogs require UAX #31 identifiers for component
   ids, component and property names, function names and argument names, and
   reject objects with unrecognized single-`@` keys (code
@@ -54,6 +53,7 @@
   `@call` shapes.
 - Validation errors carry JSON Pointer `path`s and per-error `errors` details;
   a dangling reference reports `/components/<index>/children/<n>`.
+- Support non-ASCII data model keys in templates.
 - **Breaking:** `UpdateDataModelMessage` adds `hasValue` (defaulting to `true`) so `toJson()` emits `'value': null` for explicit null deletions while `fromJson()` distinguishes an omitted `value` from an explicit `null`.
 - **Breaking:** `SurfaceModel.dispatchAction` records action timestamps in UTC (`DateTime.now().toUtc()`) and `A2uiClientAction.toJson()` serializes timestamps in UTC (`timestamp.toUtc().toIso8601String()`) so serialized timestamps always end with `Z` per RFC 3339.
 - **Breaking:** `A2uiClientError` validates in its constructor (not only in debug assertions) that a `VALIDATION_FAILED` error provides a non-empty `path`, throwing `A2uiValidationError`.
@@ -95,6 +95,34 @@
 - **Behavior change:** a dangling id inside a child list is reported with its
   index (`children[2]` rather than `children`), and only an object with both a
   string `componentId` and a string `path` is read as a `ChildList` template.
+- **Breaking:** `MessageProcessor.validationConfig` is nullable and defaults
+  to `null`. Without a config the processor still rejects duplicate ids
+  within an `updateComponents` batch and checks declared component types and
+  themes against their catalog schemas, accepts undeclared types, and skips
+  the root, dangling-reference, reachability, cycle, depth and data-model
+  path checks, so a surface may arrive across several messages in any order.
+  `ValidationConfig.strict` is the opt-in to those checks.
+- **Behavior change:** under a `ValidationConfig`, `MessageProcessor` checks
+  the component graph on every `updateComponents` message rather than once
+  per payload. Each batch is applied to a copy of the surface's components
+  first, and the result must pass the root, dangling-reference, cycle, depth
+  and reachability checks the config's flags require before anything is
+  committed. A surface streamed across several messages under a config needs
+  `ValidationConfig.relaxed` or the individual `allow*` flags.
+- `ValidationConfig` adds `allowUnknownElements`, `targetVersion`,
+  `allowedMessages`, `rootId` and `maxDepth`. `ValidationConfig.relaxed` now
+  also sets `allowUnknownElements`.
+- An `updateComponents` entry that omits `component` is checked against the
+  existing component's type and catalog schema; its properties still replace
+  the existing ones.
+- `ComponentModel` adds `catalog` (the component's `catalogId`) and `metadata`,
+  and `properties` no longer holds `catalogId` or `metadata`. A component whose
+  `catalogId` changes is recreated, as for a change of type.
+- `SurfaceModel` adds `rootId`, defaulting to `root` or to
+  `ValidationConfig.rootId`, and `NodeResolver` roots the tree at it.
+- `SurfaceComponentsModel` adds `getAll()`, `has()`, `size`, `entries`, `keys`,
+  `values`, `getChildIds()`, `validateTopology()`, `detectCycles()`,
+  `validateReferences()` and `validateComponentsUpdate()`.
 - Added `ValidationResult` and `A2uiReturnType.validationResult` for structured
   client-side validation outcomes (`valid`, `message`, `code`, `severity`), and
   exposed `validationResults` alongside `isValid` and `validationErrors` on
@@ -198,6 +226,9 @@
   - `openUrl` accepts only absolute `http`, `https`, `mailto` and `tel` URLs
     and passes them to an `OpenUrlCallback`. Without a callback it throws,
     which a binder reports as `EXECUTION_ERROR`.
+  - The embedded v1.0 document matches `catalogs/basic/v1/catalog.json`,
+    whose instruction examples write bindings and calls as `@path` and
+    `@call`.
 - `FormatStringFunction` now delegates to the basic catalog's `formatString`:
   it coerces a non-string `value` instead of throwing, renders integral
   doubles without `.0`, and resolves template bindings and calls on a v1.0

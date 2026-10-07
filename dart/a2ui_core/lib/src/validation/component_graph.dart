@@ -18,8 +18,10 @@ import '../core/catalog.dart';
 import '../core/messages.dart';
 import '../primitives/errors.dart';
 import 'component_refs.dart';
+import 'validation_config.dart';
 
-/// The id every surface's component tree is rooted at in v0.9.
+/// The id every surface's component tree is rooted at unless a
+/// `ValidationConfig.rootId` or `SurfaceModel.rootId` says otherwise.
 const String _rootComponentId = 'root';
 
 /// The deepest component chain a surface may declare.
@@ -159,22 +161,10 @@ final RegExp _pathPattern = RegExp(
   r'^(?:(?:\/(?:[^~\/]|~[01])*)*|(?:[^~\/]|~[01])+(?:\/(?:[^~\/]|~[01])*)*)$',
 );
 
-/// Checks component ids and references within one surface.
+/// Rejects a batch of components that names the same id twice.
 ///
-/// [knownIds] names components the caller knows the surface already holds, so
-/// an incremental update may reference them. A caller that cannot know passes
-/// null, and reference checking is skipped rather than guessed at; a full
-/// render passes an empty set, so every reference must be satisfied by
-/// [components] itself.
-///
-/// Throws [A2uiIntegrityError] for duplicate ids, a missing root, or a
-/// reference to a component that does not exist.
-void checkComponentIntegrity(
-  List<Map<String, Object?>> components,
-  Map<String, ComponentRefFields> refFields, {
-  required bool requireRoot,
-  required Set<String>? knownIds,
-}) {
+/// Throws [A2uiIntegrityError] for the first id that repeats.
+void checkDuplicateComponentIds(Iterable<Map<String, Object?>> components) {
   final ids = <String>{};
   for (final component in components) {
     final Object? id = component['id'];
@@ -186,57 +176,32 @@ void checkComponentIntegrity(
       );
     }
   }
-
-  if (knownIds == null) return;
-
-  if (requireRoot && !ids.contains(_rootComponentId)) {
-    throw A2uiIntegrityError(
-      "Missing root component: No component has id='$_rootComponentId'",
-    );
-  }
-
-  for (var index = 0; index < components.length; index++) {
-    final Map<String, Object?> component = components[index];
-    final String owner = component['id'] as String? ?? 'Unknown';
-    for (final ComponentReference reference in _referencesOf(
-      component,
-      refFields,
-    )) {
-      if (!ids.contains(reference.id) && !knownIds.contains(reference.id)) {
-        throw A2uiIntegrityError(
-          "Component '$owner' references non-existent component "
-          "'${reference.id}' in field '${reference.field}'",
-          componentIds: [owner, reference.id],
-          path: '/components/$index${referencePointer(reference.field)}',
-        );
-      }
-    }
-  }
 }
 
-/// Walks the component graph from the root, checking what it reaches.
+/// Walks a surface's component graph for self-references, cycles and
+/// over-deep chains, and returns the ids reachable from [rootId].
+///
+/// [ids] is every component on the surface and [referencesOf] the child
+/// references each one holds. A reference to an id outside [ids] is skipped,
+/// since dangling references are a separate check.
+///
+/// When [allowMissingRoot] is true every component is a starting point, and
+/// the result holds every id. Otherwise the walk starts at [rootId], and the
+/// components it does not reach are then walked on their own, so a cycle among
+/// unreachable components is still found.
 ///
 /// Throws [A2uiRecursionError] for a self-reference, a cycle, or a chain
-/// deeper than [maxComponentDepth], and [A2uiIntegrityError] for a component
-/// unreachable from the root when [allowOrphans] is false.
-void checkComponentTopology(
-  List<Map<String, Object?>> components,
-  Map<String, ComponentRefFields> refFields, {
-  required bool requireRoot,
-  required bool allowOrphans,
+/// deeper than [maxDepth], which defaults to [maxComponentDepth].
+Set<String> detectComponentCycles(
+  Set<String> ids,
+  Iterable<ComponentReference> Function(String id) referencesOf, {
+  required String rootId,
+  bool allowMissingRoot = false,
+  int? maxDepth,
 }) {
-  final adjacency = <String, List<String>>{};
-  final ids = <String>{};
-
-  for (final component in components) {
-    final Object? id = component['id'];
-    if (id is! String) continue;
-    ids.add(id);
-    final List<String> edges = adjacency.putIfAbsent(id, () => <String>[]);
-    for (final ComponentReference reference in _referencesOf(
-      component,
-      refFields,
-    )) {
+  final int limit = maxDepth ?? maxComponentDepth;
+  for (final id in ids) {
+    for (final ComponentReference reference in referencesOf(id)) {
       if (reference.id == id) {
         throw A2uiRecursionError(
           "Self-reference detected: Component '$id' references itself in "
@@ -244,7 +209,6 @@ void checkComponentTopology(
           cycle: [id],
         );
       }
-      edges.add(reference.id);
     }
   }
 
@@ -252,44 +216,98 @@ void checkComponentTopology(
   final onStack = <String>{};
 
   void visit(String id, int depth) {
-    if (depth > maxComponentDepth) {
+    if (depth > limit) {
       throw A2uiRecursionError(
-        'Global recursion limit exceeded: logical depth > $maxComponentDepth',
+        'Global recursion limit exceeded: logical depth > $limit',
         cycle: onStack.toList(),
       );
     }
     visited.add(id);
     onStack.add(id);
-    for (final String next in adjacency[id] ?? const <String>[]) {
-      if (!visited.contains(next)) {
-        visit(next, depth + 1);
-      } else if (onStack.contains(next)) {
+    for (final ComponentReference reference in referencesOf(id)) {
+      final String next = reference.id;
+      if (!ids.contains(next)) continue;
+      if (onStack.contains(next)) {
         throw A2uiRecursionError(
           "Circular reference detected involving component '$next'",
           cycle: [...onStack, next],
         );
       }
+      if (!visited.contains(next)) visit(next, depth + 1);
     }
     onStack.remove(id);
   }
 
-  if (!requireRoot) {
-    // Without a root there is no single entry point, so every component is
-    // its own starting point. Cycles still have to be found.
-    for (final String id in ids.toList()..sort()) {
+  final List<String> sorted = ids.toList()..sort();
+  if (allowMissingRoot) {
+    for (final id in sorted) {
       if (!visited.contains(id)) visit(id, 0);
     }
-    return;
+    return visited;
   }
 
-  if (ids.contains(_rootComponentId)) visit(_rootComponentId, 0);
+  if (ids.contains(rootId)) visit(rootId, 0);
+  final reachable = Set<String>.of(visited);
+  for (final id in sorted) {
+    if (!visited.contains(id)) visit(id, 0);
+  }
+  return reachable;
+}
 
-  if (!allowOrphans) {
-    final List<String> orphans = (ids.difference(visited).toList())..sort();
+/// Checks a surface's component graph against [config].
+///
+/// In order: the root, unless [ValidationConfig.allowMissingRoot]; references
+/// that resolve, unless [ValidationConfig.allowDanglingReferences];
+/// self-references, cycles and depth, always; and components reachable from
+/// the root, unless [ValidationConfig.allowOrphanComponents] or
+/// [ValidationConfig.allowMissingRoot]. The root is [ValidationConfig.rootId],
+/// or [defaultRootId] when that is null. An empty surface passes.
+///
+/// Throws [A2uiIntegrityError] for a missing root, a dangling reference or an
+/// unreachable component, and [A2uiRecursionError] for a self-reference, a
+/// cycle or an over-deep chain.
+void checkComponentGraph(
+  Set<String> ids,
+  Iterable<ComponentReference> Function(String id) referencesOf,
+  ValidationConfig config, {
+  String defaultRootId = 'root',
+}) {
+  if (ids.isEmpty) return;
+  final String rootId = config.rootId ?? defaultRootId;
+
+  if (!config.allowMissingRoot && !ids.contains(rootId)) {
+    throw A2uiIntegrityError(
+      "Missing root component: No component has id='$rootId'",
+    );
+  }
+
+  if (!config.allowDanglingReferences) {
+    for (final String id in ids.toList()..sort()) {
+      for (final ComponentReference reference in referencesOf(id)) {
+        if (!ids.contains(reference.id)) {
+          throw A2uiIntegrityError(
+            "Component '$id' references non-existent component "
+            "'${reference.id}' in field '${reference.field}'",
+            componentIds: [id, reference.id],
+          );
+        }
+      }
+    }
+  }
+
+  final Set<String> reachable = detectComponentCycles(
+    ids,
+    referencesOf,
+    rootId: rootId,
+    allowMissingRoot: config.allowMissingRoot,
+    maxDepth: config.maxDepth,
+  );
+
+  if (!config.allowOrphanComponents && !config.allowMissingRoot) {
+    final List<String> orphans = ids.difference(reachable).toList()..sort();
     if (orphans.isNotEmpty) {
       throw A2uiIntegrityError(
-        "Component '${orphans.first}' is not reachable from "
-        "'$_rootComponentId'",
+        "Component '${orphans.first}' is not reachable from '$rootId'",
         componentIds: orphans,
       );
     }

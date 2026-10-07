@@ -14,13 +14,10 @@
  * limitations under the License.
  */
 
-import {describe, it} from 'node:test';
-import * as assert from 'node:assert';
+import {defineConfig} from 'vitest/config';
 
-import {AgentSdk} from '../src/index.js';
-
-describe('Sanity Check', () => {
-  it('exports AgentSdk from the package entry point', () => {
-    assert.strictEqual(AgentSdk, 'Coming soon');
-  });
+export default defineConfig({
+  test: {
+    include: ['tests/**/*.test.ts'],
+  },
 });

@@ -14,12 +14,14 @@
 
 import 'package:a2ui_core/src/core/catalog.dart';
 import 'package:a2ui_core/src/core/common_schemas.dart';
+import 'package:a2ui_core/src/core/component_model.dart';
 import 'package:a2ui_core/src/core/messages.dart';
 import 'package:a2ui_core/src/core/minimal_catalog.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/primitives/errors.dart';
 import 'package:a2ui_core/src/primitives/protocol_version.dart';
 import 'package:a2ui_core/src/processing/processor.dart';
+import 'package:a2ui_core/src/resolution/node_resolver.dart';
 import 'package:a2ui_core/src/validation/validation_config.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
@@ -54,6 +56,8 @@ void main() {
       processor = MessageProcessor<ComponentApi>(
         catalogs: [namedCatalog('cat1', 'Alpha'), namedCatalog('cat2', 'Beta')],
         protocolVersion: A2uiProtocolVersion.v0_9,
+        // Strict, so that a type outside the surface's catalog is rejected.
+        validationConfig: ValidationConfig.strict,
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
@@ -350,6 +354,495 @@ void main() {
           processor.groupModel.getSurface('s1');
       expect(surface?.componentsModel.get('root'), isNotNull);
       expect(surface?.componentsModel.get('second'), isNotNull);
+    });
+  });
+
+  group('MessageProcessor per-update integrity', () {
+    late MinimalCatalog catalog;
+
+    setUp(() => catalog = MinimalCatalog());
+
+    MessageProcessor processorWith([
+      ValidationConfig config = ValidationConfig.strict,
+    ]) =>
+        MessageProcessor(
+          catalogs: [catalog],
+          protocolVersion: A2uiProtocolVersion.v0_9,
+          validationConfig: config,
+        );
+
+    void send(MessageProcessor processor, List<AgentToRendererMessage> m) =>
+        processor.processMessages(AgentToRendererMessagePayload(m));
+
+    CreateSurfaceMessage create() => CreateSurfaceMessage(
+          version: 'v0.9',
+          surfaceId: 's1',
+          catalogId: catalog.id,
+        );
+
+    UpdateComponentsMessage update(List<Map<String, Object?>> components) =>
+        UpdateComponentsMessage(
+          version: 'v0.9',
+          surfaceId: 's1',
+          components: components,
+        );
+
+    SurfaceComponentsModel componentsOf(MessageProcessor processor) =>
+        processor.groupModel.getSurface('s1')!.componentsModel;
+
+    test('checks completeness on each update, not once per payload', () {
+      final MessageProcessor processor = processorWith();
+      send(processor, [create()]);
+
+      expect(
+        () => send(processor, [
+          update([
+            {
+              'id': 'root',
+              'component': 'Column',
+              'children': ['missing'],
+            },
+          ]),
+        ]),
+        throwsA(isA<A2uiIntegrityError>()),
+      );
+      expect(componentsOf(processor).get('root'), isNull);
+    });
+
+    test('rejects an update that orphans a component', () {
+      List<AgentToRendererMessage> initial() => [
+            create(),
+            update([
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': ['a'],
+              },
+              {'id': 'a', 'component': 'Text', 'text': 'x'},
+            ]),
+          ];
+      final UpdateComponentsMessage orphaning = update([
+        {'id': 'root', 'component': 'Column', 'children': <String>[]},
+      ]);
+
+      final MessageProcessor strict = processorWith();
+      send(strict, initial());
+      expect(
+        () => send(strict, [orphaning]),
+        throwsA(isA<A2uiIntegrityError>()),
+      );
+
+      final MessageProcessor lenient = processorWith(
+        const ValidationConfig(allowOrphanComponents: true),
+      );
+      send(lenient, initial());
+      expect(() => send(lenient, [orphaning]), returnsNormally);
+    });
+
+    test('validates a partial update against the existing type', () {
+      final MessageProcessor processor = processorWith();
+      send(processor, [
+        create(),
+        update([
+          {'id': 'root', 'component': 'Text', 'text': 'x'},
+        ]),
+      ]);
+
+      expect(
+        () => send(processor, [
+          update([
+            {'id': 'root', 'text': 42},
+          ]),
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(componentsOf(processor).get('root')!.properties, {'text': 'x'});
+
+      send(processor, [
+        update([
+          {'id': 'root', 'text': 'y'},
+        ]),
+      ]);
+      final ComponentModel root = componentsOf(processor).get('root')!;
+      expect(root.type, 'Text');
+      expect(root.properties, {'text': 'y'});
+    });
+
+    test('deleteSurface for an unknown surface is a no-op', () {
+      final MessageProcessor<ComponentApi> processor = processorWith();
+      send(processor, [
+        DeleteSurfaceMessage(version: 'v0.9', surfaceId: 'nope'),
+      ]);
+      expect(processor.groupModel.getSurface('nope'), isNull);
+    });
+
+    test('checks path syntax before looking up the surface', () {
+      // The payload names a surface nobody created, and the malformed path is
+      // what is reported.
+      expect(
+        () => send(processorWith(), [
+          UpdateDataModelMessage(
+            version: 'v0.9',
+            surfaceId: 's1',
+            path: '/a~2',
+            value: 'x',
+          ),
+        ]),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('Invalid path syntax'),
+          ),
+        ),
+      );
+    });
+
+    test('an update to a missing surface is an integrity error', () {
+      // The payload of conformance `test_v10_invalid_json_pointer_path_error`.
+      // Its path is a valid relative path under v0.9's pattern, so the missing
+      // surface is what is reported. `A2uiIntegrityError` is still in the
+      // `ValidationError` category the case expects.
+      expect(
+        () => send(processorWith(), [
+          UpdateDataModelMessage(
+            version: 'v0.9',
+            surfaceId: 's1',
+            path: 'invalid path [0]',
+            value: 'data',
+          ),
+        ]),
+        throwsA(isA<A2uiIntegrityError>()),
+      );
+    });
+
+    group('without a ValidationConfig', () {
+      // The default. Passing no config is the opt-out from the graph checks;
+      // what is settled by the batch alone is still checked.
+      MessageProcessor unchecked() => MessageProcessor(
+            catalogs: [catalog],
+            protocolVersion: A2uiProtocolVersion.v0_9,
+          );
+
+      test('is the default', () {
+        expect(unchecked().validationConfig, isNull);
+      });
+
+      test('accepts a parent whose child arrives in a later message', () {
+        final MessageProcessor processor = unchecked();
+        send(processor, [create()]);
+        expect(
+          () => send(processor, [
+            update([
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': ['later'],
+              },
+            ]),
+          ]),
+          returnsNormally,
+        );
+        expect(
+          () => send(processor, [
+            update([
+              {'id': 'later', 'component': 'Text', 'text': 'x'},
+            ]),
+          ]),
+          returnsNormally,
+        );
+        expect(componentsOf(processor).size, 2);
+      });
+
+      test('accepts a parent re-sent with fewer children', () {
+        final MessageProcessor processor = unchecked();
+        send(processor, [
+          create(),
+          update([
+            {
+              'id': 'root',
+              'component': 'Column',
+              'children': ['a', 'b'],
+            },
+            {'id': 'a', 'component': 'Text', 'text': 'a'},
+            {'id': 'b', 'component': 'Text', 'text': 'b'},
+          ]),
+        ]);
+        expect(
+          () => send(processor, [
+            update([
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': ['a'],
+              },
+            ]),
+          ]),
+          returnsNormally,
+        );
+        expect(componentsOf(processor).get('root')!.properties['children'], [
+          'a',
+        ]);
+        expect(componentsOf(processor).get('b'), isNotNull);
+      });
+
+      test('accepts a cycle', () {
+        final MessageProcessor processor = unchecked();
+        send(processor, [create()]);
+        expect(
+          () => send(processor, [
+            update([
+              {
+                'id': 'root',
+                'component': 'Column',
+                'children': ['a'],
+              },
+              {
+                'id': 'a',
+                'component': 'Column',
+                'children': ['root'],
+              },
+            ]),
+          ]),
+          returnsNormally,
+        );
+      });
+
+      test('still rejects a duplicate id within a batch', () {
+        final MessageProcessor processor = unchecked();
+        send(processor, [create()]);
+        expect(
+          () => send(processor, [
+            update([
+              {'id': 'root', 'component': 'Text', 'text': 'x'},
+              {'id': 'root', 'component': 'Text', 'text': 'y'},
+            ]),
+          ]),
+          throwsA(isA<A2uiIntegrityError>()),
+        );
+        expect(componentsOf(processor).get('root'), isNull);
+      });
+
+      test('still checks a known type against its schema', () {
+        final MessageProcessor processor = unchecked();
+        send(processor, [create()]);
+        expect(
+          () => send(processor, [
+            update([
+              {'id': 'root', 'component': 'Text', 'text': 42},
+            ]),
+          ]),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
+
+      test('accepts an undeclared type', () {
+        final MessageProcessor processor = unchecked();
+        send(processor, [create()]);
+        expect(
+          () => send(processor, [
+            update([
+              {'id': 'root', 'component': 'NoSuchType'},
+            ]),
+          ]),
+          returnsNormally,
+        );
+      });
+
+      test('accepts a malformed data-model path', () {
+        // The path check belongs to the validation phase a config turns on;
+        // see the strict case above.
+        final MessageProcessor processor = unchecked();
+        send(processor, [create()]);
+        expect(
+          () => send(processor, [
+            UpdateDataModelMessage(
+              version: 'v0.9',
+              surfaceId: 's1',
+              path: 'invalid path [0]',
+              value: 'data',
+            ),
+          ]),
+          returnsNormally,
+        );
+      });
+    });
+
+    group('ValidationConfig', () {
+      test('allowUnknownElements accepts an undeclared type', () {
+        final UpdateComponentsMessage unknown = update([
+          {'id': 'root', 'component': 'NoSuchType'},
+        ]);
+
+        final MessageProcessor strict = processorWith();
+        send(strict, [create()]);
+        expect(
+          () => send(strict, [unknown]),
+          throwsA(isA<A2uiValidationError>()),
+        );
+
+        final MessageProcessor lenient = processorWith(
+          const ValidationConfig(allowUnknownElements: true),
+        );
+        send(lenient, [create()]);
+        expect(() => send(lenient, [unknown]), returnsNormally);
+      });
+
+      test('allowedMessages rejects an unlisted message', () {
+        final MessageProcessor processor = processorWith(
+          const ValidationConfig(allowedMessages: ['createSurface']),
+        );
+        send(processor, [create()]);
+        expect(
+          () => send(processor, [
+            UpdateDataModelMessage(
+              version: 'v0.9',
+              surfaceId: 's1',
+              path: '/a',
+              value: 1,
+            ),
+          ]),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
+
+      test('rootId names the component the surface is rooted at', () {
+        const config = ValidationConfig(rootId: 'main');
+
+        final MessageProcessor accepted = processorWith(config);
+        send(accepted, [
+          create(),
+          update([
+            {'id': 'main', 'component': 'Text', 'text': 'hi'},
+          ]),
+        ]);
+        expect(accepted.groupModel.getSurface('s1')!.rootId, 'main');
+
+        final MessageProcessor rejected = processorWith(config);
+        send(rejected, [create()]);
+        expect(
+          () => send(rejected, [
+            update([
+              {'id': 'root', 'component': 'Text', 'text': 'hi'},
+            ]),
+          ]),
+          throwsA(isA<A2uiIntegrityError>()),
+        );
+      });
+    });
+
+    test('NodeResolver roots the tree at the surface rootId', () {
+      final surface = SurfaceModel<ComponentApi>(
+        's1',
+        catalog: catalog,
+        rootId: 'main',
+      );
+      final resolver = NodeResolver<ComponentApi>(surface);
+      addTearDown(() {
+        resolver.dispose();
+        surface.dispose();
+      });
+
+      surface.componentsModel.addComponent(
+        ComponentModel('root', 'Text', {'text': 'not the root'}),
+      );
+      expect(resolver.rootNode.value, isNull);
+
+      surface.componentsModel.addComponent(
+        ComponentModel('main', 'Text', {'text': 'hi'}),
+      );
+      expect(resolver.rootNode.value?.componentId, 'main');
+    });
+  });
+
+  group('MessageProcessor component envelope', () {
+    Catalog<ComponentApi, FunctionImplementation> alphaCatalog(String id) =>
+        Catalog<ComponentApi, FunctionImplementation>(
+          id: id,
+          components: [
+            ComponentApi(
+              name: 'Alpha',
+              schema: Schema.object(
+                properties: {'a': Schema.string()},
+                required: ['a'],
+              ),
+            ),
+          ],
+        );
+
+    late MessageProcessor<ComponentApi> processor;
+
+    setUp(() {
+      processor = MessageProcessor<ComponentApi>(
+        catalogs: [alphaCatalog('cat1'), alphaCatalog('cat2')],
+        protocolVersion: A2uiProtocolVersion.v0_9,
+      );
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(
+            version: 'v0.9',
+            surfaceId: 's1',
+            catalogId: 'cat1',
+          ),
+        ]),
+      );
+    });
+
+    void update(Map<String, Object?> component) => processor.processMessages(
+          AgentToRendererMessagePayload([
+            UpdateComponentsMessage(
+              version: 'v0.9',
+              surfaceId: 's1',
+              components: [component],
+            ),
+          ]),
+        );
+
+    SurfaceComponentsModel components() =>
+        processor.groupModel.getSurface('s1')!.componentsModel;
+
+    test('keeps catalogId and metadata out of properties', () {
+      update({
+        'id': 'root',
+        'component': 'Alpha',
+        'a': 'x',
+        'catalogId': 'cat2',
+        'metadata': {'k': 'v'},
+      });
+
+      final ComponentModel root = components().get('root')!;
+      expect(root.properties, {'a': 'x'});
+      expect(root.catalog, 'cat2');
+      expect(root.metadata, {'k': 'v'});
+      expect(root.toJson(), {
+        'id': 'root',
+        'component': 'Alpha',
+        'catalogId': 'cat2',
+        'metadata': {'k': 'v'},
+        'a': 'x',
+      });
+    });
+
+    test('recreates a component whose catalogId changes', () {
+      update({'id': 'root', 'component': 'Alpha', 'a': 'x'});
+      final events = <String>[];
+      components().onDeleted.addListener((id) => events.add('deleted:$id'));
+      components().onCreated.addListener((c) => events.add('created:${c.id}'));
+
+      update({
+        'id': 'root',
+        'component': 'Alpha',
+        'a': 'y',
+        'catalogId': 'cat2',
+      });
+      expect(events, ['deleted:root', 'created:root']);
+      expect(components().get('root')!.catalog, 'cat2');
+
+      // A partial update inherits the catalog rather than changing it.
+      update({'id': 'root', 'a': 'z'});
+      expect(events, ['deleted:root', 'created:root']);
+      expect(components().get('root')!.catalog, 'cat2');
+      expect(components().get('root')!.properties, {'a': 'z'});
     });
   });
 }
