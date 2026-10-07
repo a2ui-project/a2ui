@@ -282,7 +282,7 @@ Useful JMESPath idioms:
 
 ## The `McpApp` component
 
-`McpApp` renders an [MCP App](https://github.com/modelcontextprotocol/ext-apps) in a surface. The app is an HTML document the agent sends in the component's `htmlContent`; it runs in a sandboxed inner frame behind a proxy page served from the host's origin (see [Sandbox asset](#sandbox-asset)) and talks to the host with the MCP Apps JSON-RPC protocol over `postMessage`, using `AppBridge` from `@modelcontextprotocol/ext-apps` on the host side. An app written with the MCP Apps App SDK works as it is.
+`McpApp` renders an [MCP App](https://github.com/modelcontextprotocol/ext-apps) in a surface. The app is an HTML document the agent sends in the component's `htmlContent`; it runs in a sandboxed inner frame behind a proxy page served from the host's origin (see [Sandbox asset](#sandbox-asset)) and talks to the host with the MCP Apps JSON-RPC protocol over `postMessage`, using `AppBridge` from `@modelcontextprotocol/ext-apps` on the host side. An app written with the MCP Apps App SDK works as it is; the [catalog examples](../../../catalogs/mcp/v1/examples) show the raw protocol.
 
 ### Registration
 
@@ -295,7 +295,7 @@ import {mcpCatalog} from '@a2ui/catalog-mcp';
 const processor = new MessageProcessor([basicCatalog, mcpCatalog]);
 ```
 
-A surface resolves components through its default catalog (the `catalogId` of `createSurface`), and a component can name another registered catalog with its own `catalogId`. A payload that shows an app next to basic components creates the surface with the basic catalog id and marks the `McpApp` component:
+A surface resolves components through its default catalog (the `catalogId` of `createSurface`), and a component can name another registered catalog with its own `catalogId`. A payload that shows an app next to basic components creates the surface with the basic catalog id and marks the `McpApp` component, as the [order summary example](../../../catalogs/mcp/v1/examples/mcp-app-order-summary.json) does:
 
 ```json
 {

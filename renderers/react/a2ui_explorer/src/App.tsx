@@ -17,10 +17,12 @@
 import {useState, useEffect, useCallback, useRef} from 'react';
 import {MessageProcessor, type A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {A2uiSurface, MarkdownContext, type ReactCatalogComponent} from '@a2ui/react';
+import {mcpCatalog} from '@a2ui/catalog-mcp';
 import {basicCatalog as basicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
 import {demoCatalog} from './demo-catalog';
 import {getDemoItems, type DemoItem} from './examples';
 import {renderMarkdown} from '@a2ui/markdown-it';
+import {handleMcpToolAction, observeMcpApps} from './mcp';
 import styles from './App.module.css';
 
 const demoItemsV09 = getDemoItems('v0.9');
@@ -292,6 +294,10 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
     onActionRef.current = onAction;
   }, [onAction]);
 
+  useEffect(() => {
+    return observeMcpApps(() => (typeof document !== 'undefined' ? document.body : null));
+  }, []);
+
   // Handle keyboard shortcuts ('j' and 'k')
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -341,7 +347,7 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
 
   const createFreshProcessor = useCallback(() => {
     const newProcessor = new MessageProcessor<ReactCatalogComponent>(
-      [demoCatalog, basicCatalogV10],
+      [demoCatalog, basicCatalogV10, mcpCatalog],
       async (action: A2uiClientAction) => {
         setLogs(l => [
           {
@@ -351,6 +357,7 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
           },
           ...l,
         ]);
+        void handleMcpToolAction(action, newProcessor);
         if (onActionRef.current) {
           onActionRef.current(action);
         }

@@ -18,10 +18,24 @@
     "clean": "wireit"
   },
   "wireit": {
+    "copy-sandbox": {
+      "command": "rm -rf public/a2ui-sandbox && mkdir -p public && cp -R ../../../typescript/catalogs/mcp/dist/sandbox public/a2ui-sandbox",
+      "dependencies": [
+        "../../../typescript/catalogs/mcp:build"
+      ],
+      "files": [
+        "../../../typescript/catalogs/mcp/dist/sandbox/**"
+      ],
+      "output": [
+        "public/a2ui-sandbox/**"
+      ]
+    },
     "_build-deps": {
       "dependencies": [
         "../:build",
         "../../markdown/markdown-it:build",
+        "../../../typescript/catalogs/mcp:build",
+        "copy-sandbox",
         "generate-examples"
       ]
     },
@@ -78,6 +92,7 @@
       "files": [
         "../../../specification/v0_9/catalogs/basic/examples/*.json",
         "../../../catalogs/basic/v1/examples/*.json",
+        "../../../catalogs/mcp/v1/examples/*.json",
         "scripts/generate-examples.mjs"
       ],
       "output": [
@@ -85,10 +100,11 @@
       ]
     },
     "clean": {
-      "command": "rm -rf dist .tsbuildinfo .wireit src/generated"
+      "command": "rm -rf dist .tsbuildinfo .wireit src/generated public/a2ui-sandbox"
     }
   },
   "dependencies": {
+    "@a2ui/catalog-mcp": "workspace:*",
     "@a2ui/markdown-it": "workspace:*",
     "@a2ui/react": "workspace:*",
     "@a2ui/web_core": "workspace:*",

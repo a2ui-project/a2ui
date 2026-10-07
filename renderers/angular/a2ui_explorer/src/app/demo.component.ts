@@ -38,13 +38,14 @@ import {AgentStubService} from './agent-stub.service';
 import {AgentStubV08Service} from './agent-stub-v08.service';
 import {AgentStubV09Service} from './agent-stub-v09.service';
 import {provideMarkdownRenderer, Surface as SurfaceV08} from '@a2ui/angular/v0_8';
-import {DemoCatalog, DemoCatalogV10} from './demo-catalog';
+import {DemoCatalog, DemoCatalogV10, McpDemoCatalog} from './demo-catalog';
 import {A2uiClientAction, A2uiMessage} from '@a2ui/web_core/v0_9';
 import {ServerToClientMessage} from 'src/v0_8/types';
 import {A2uiExample, A2UI_VERSION, A2UI_EXAMPLES, Version} from './types';
 import {EXAMPLES_V08, EXAMPLES_V09, EXAMPLES_V10} from './generated/examples-bundle';
 import {ActionDispatcher} from './action-dispatcher.service';
 import {Catalog as CatalogV08, DEFAULT_CATALOG as DEFAULT_CATALOG_V08} from '@a2ui/angular/v0_8';
+import {observeMcpApps} from './mcp';
 
 /**
  * Dependency injection token for enabling universal components in the explorer (used by tests only).
@@ -885,14 +886,21 @@ function getUseUniversalComponents(): boolean {
       useFactory: (
         catalog: AngularCatalog,
         catalogV10: DemoCatalogV10,
+        mcpDemoCatalog: McpDemoCatalog,
         dispatcher: ActionDispatcher,
         injectedUniversal: boolean,
       ) => ({
-        catalogs: [catalog, catalogV10],
+        catalogs: [catalog, catalogV10, mcpDemoCatalog],
         useUniversalComponents: getUseUniversalComponents() || injectedUniversal,
         actionHandler: (action: A2uiClientAction) => dispatcher.dispatch(action),
       }),
-      deps: [AngularCatalog, DemoCatalogV10, ActionDispatcher, A2UI_USE_UNIVERSAL_COMPONENTS],
+      deps: [
+        AngularCatalog,
+        DemoCatalogV10,
+        McpDemoCatalog,
+        ActionDispatcher,
+        A2UI_USE_UNIVERSAL_COMPONENTS,
+      ],
     },
   ],
 })
@@ -1063,12 +1071,15 @@ export class DemoComponent implements OnInit, OnDestroy {
     this.selectExample(this.examples[prevIndex]);
   }
 
+  private stopMcpResizeObserver?: () => void;
+
   ngOnInit(): void {
     this.isDataModelFolded = this.getLocalStorage('isDataModelFolded') === 'true';
     this.isSurfaceMessageFolded = this.getLocalStorage('isSurfaceMessageFolded') === 'true';
     this.isEventsLogFolded = this.getLocalStorage('isEventsLogFolded') === 'true';
     this.isLeftSidebarCollapsed = this.getLocalStorage('isLeftSidebarCollapsed') === 'true';
     this.isRightSidebarCollapsed = this.getLocalStorage('isRightSidebarCollapsed') === 'true';
+    this.stopMcpResizeObserver = observeMcpApps(() => this.elementRef.nativeElement);
     this.selectExampleFromUrl();
   }
 
@@ -1309,7 +1320,10 @@ export class DemoComponent implements OnInit, OnDestroy {
     }
   }
 
-  ngOnDestroy(): void {}
+  ngOnDestroy(): void {
+    this.stopMcpResizeObserver?.();
+    this.stopMcpResizeObserver = undefined;
+  }
 
   private slugify(text: string): string {
     return text

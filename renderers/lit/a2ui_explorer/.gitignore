@@ -1,4 +1,5 @@
 node_modules
 dist
 public/specs
+public/a2ui-sandbox
 src/generated/

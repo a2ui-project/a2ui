@@ -5,9 +5,10 @@
   "description": "A2UI Lit Explorer",
   "type": "module",
   "scripts": {
+    "copy-sandbox": "wireit",
     "generate-examples": "node scripts/generate-examples.mjs",
     "generate:examples": "wireit",
-    "dev": "yarn generate-examples && vite",
+    "dev": "yarn copy-sandbox && yarn generate-examples && vite",
     "build": "wireit",
     "test": "wireit",
     "test:vite-compilation": "wireit",
@@ -26,10 +27,23 @@
       "files": [
         "scripts/generate-examples.mjs",
         "../../../specification/v0_9/catalogs/basic/examples/*.json",
-        "../../../catalogs/basic/v1/examples/*.json"
+        "../../../catalogs/basic/v1/examples/*.json",
+        "../../../catalogs/mcp/v1/examples/*.json"
       ],
       "output": [
         "src/generated/examples-list.ts"
+      ]
+    },
+    "copy-sandbox": {
+      "command": "rm -rf public/a2ui-sandbox && mkdir -p public && cp -R ../../../typescript/catalogs/mcp/dist/sandbox public/a2ui-sandbox",
+      "dependencies": [
+        "../../../typescript/catalogs/mcp:build"
+      ],
+      "files": [
+        "../../../typescript/catalogs/mcp/dist/sandbox/**"
+      ],
+      "output": [
+        "public/a2ui-sandbox/**"
       ]
     },
     "build": {
@@ -37,8 +51,10 @@
       "dependencies": [
         "generate:examples",
         "../../../typescript/web_core:build",
+        "../../../typescript/catalogs/mcp:build",
         "../../markdown/markdown-it:build",
-        "../:build"
+        "../:build",
+        "copy-sandbox"
       ]
     },
     "test": {
@@ -46,6 +62,12 @@
       "dependencies": [
         "build",
         "test:vite-compilation"
+      ],
+      "files": [
+        "src/**/*",
+        "tests/**/*",
+        "karma.conf.cjs",
+        "tsconfig.json"
       ]
     },
     "test:vite-compilation": {
@@ -60,10 +82,11 @@
       ]
     },
     "clean": {
-      "command": "rm -rf dist .tsbuildinfo .wireit"
+      "command": "rm -rf dist .tsbuildinfo .wireit public/a2ui-sandbox"
     }
   },
   "dependencies": {
+    "@a2ui/catalog-mcp": "workspace:*",
     "@a2ui/lit": "workspace:*",
     "@a2ui/markdown-it": "workspace:*",
     "@a2ui/web_core": "workspace:*",
