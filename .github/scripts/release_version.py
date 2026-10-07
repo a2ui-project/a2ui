@@ -31,8 +31,19 @@ import datetime
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+
+if sys.version_info < (3, 11):
+    sys.exit(
+        "error: release_version.py requires Python 3.11+ (found Python"
+        f" {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}).\nOn"
+        " macOS, avoid Apple's default /usr/bin/python3 (3.9) and invoke using"
+        " /Library/GoogleCorpSupport/bin/python3 or run inside an active virtual"
+        " environment."
+    )
+
 import tomllib
 from typing import Iterable, Sequence
 
@@ -290,6 +301,67 @@ def check_core_constraint(
     )
 
 
+def check_environment(repo_root: str, is_custom_repo_root: bool = False) -> list[str]:
+    """Validates developer environment prerequisites before dispatching a release."""
+    problems = []
+
+    # 1. Check working directory is repository root.
+    if not is_custom_repo_root:
+        try:
+            cwd_real = os.path.realpath(os.getcwd())
+            repo_real = os.path.realpath(repo_root)
+            if cwd_real != repo_real:
+                problems.append(
+                    f"Current directory ({os.getcwd()}) is not the repository root"
+                    f" ({repo_root}). Release scripts must be executed from the"
+                    " repository root."
+                )
+        except OSError:
+            pass
+
+    # 2. Check repo structure contains expected Python SDK packages.
+    for pkg in (CORE, AGENT):
+        pyproject = os.path.join(repo_root, pkg.pyproject_path)
+        if not os.path.isfile(pyproject):
+            problems.append(
+                f"Missing expected package file {pkg.pyproject_path} in {repo_root}."
+            )
+
+    # 3. Check git user identity for CLA verification.
+    for key, desc in (("user.name", "author name"), ("user.email", "author email")):
+        proc = subprocess.run(
+            ["git", "config", key],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0 or not proc.stdout.strip():
+            problems.append(
+                f"git config {key} is unset. Set your {desc} so changelog commits and"
+                " PRs pass CLA verification."
+            )
+
+    # 4. Check gh CLI installation and authentication.
+    if not shutil.which("gh"):
+        problems.append(
+            "'gh' (GitHub CLI) is not installed or not in PATH. Install gh to dispatch"
+            " workflows and manage release PRs."
+        )
+    else:
+        gh_proc = subprocess.run(
+            ["gh", "auth", "status"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+        )
+        if gh_proc.returncode != 0:
+            problems.append(
+                "'gh' is not authenticated. Run 'gh auth login' before releasing."
+            )
+
+    return problems
+
+
 def build_plan(selection: str, bump: BumpLevel, repo_root: str) -> list[dict[str, str]]:
     """Returns the packages to release, with their new versions and notes.
 
@@ -381,6 +453,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         choices=VALID_BUMPS,
         help="Bump level to compute version from tags",
     )
+    check.add_argument(
+        "--skip-env-checks",
+        action="store_true",
+        help="Skip checking local developer environment (pwd, gh auth, git identity)",
+    )
 
     plan = subparsers.add_parser(
         "plan", help="Emit the release plan as JSON", parents=[common]
@@ -402,6 +479,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "check":
+        all_problems = []
+
+        if not os.environ.get("GITHUB_ACTIONS") and not args.skip_env_checks:
+            env_problems = check_environment(
+                repo_root, is_custom_repo_root=hasattr(args, "repo_root")
+            )
+            if env_problems:
+                for problem in env_problems:
+                    print(f"error: {problem}", file=sys.stderr)
+                all_problems.extend(env_problems)
+
         if args.package == "both":
             if not args.bump:
                 print(
@@ -436,7 +524,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             v = args.version or bump_version(current_version(pkg, repo_root), args.bump)
             packages_to_check = [(pkg, v)]
 
-        all_problems = []
         for pkg, ver in packages_to_check:
             problems = []
             changelog_path = os.path.join(repo_root, pkg.changelog_path)

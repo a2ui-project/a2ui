@@ -62,8 +62,12 @@ by hand to perform a release. If the workflow cannot do it, fix the workflow.
 
 ### Environment Prerequisites
 
-- **Python Interpreter**: Python 3.11+ is required to execute `.github/scripts/release_version.py` locally because it relies on standard library `tomllib`. On macOS, Apple's default `/usr/bin/python3` is 3.9; use `/Library/GoogleCorpSupport/bin/python3` or an active virtual environment (`uv run python3`).
-- **Git Identity**: Ensure `git config user.name` and `git config user.email` are configured in your environment so that the changelog commit and pull request created during the release pass CLA verification.
+Before proceeding, ensure your local environment satisfies the following prerequisites (automatically validated locally by `release_version.py check`):
+
+1. **Working Directory**: All release commands and scripts must be run directly from the root of the A2UI repository (`a2ui/`).
+2. **Python Interpreter**: Python 3.11+ is required to execute `.github/scripts/release_version.py` locally because it relies on standard library `tomllib`. On macOS, Apple's default `/usr/bin/python3` is 3.9; use `/Library/GoogleCorpSupport/bin/python3` or an active virtual environment (`uv run python3`).
+3. **GitHub CLI (`gh`)**: `gh` must be installed and authenticated (`gh auth status`) with maintainer permissions on `a2ui-project/a2ui` to dispatch workflows, monitor runs, and open release PRs.
+4. **Git Identity**: `git config user.name` and `git config user.email` must be configured in your environment so that the changelog commit and pull request created during the release pass CLA verification.
 
 ---
 

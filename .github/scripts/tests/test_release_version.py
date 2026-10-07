@@ -23,6 +23,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -376,13 +377,16 @@ class CheckCommandTest(unittest.TestCase):
             with open(path, "w", encoding="utf-8") as handle:
                 handle.write("# Changelog\n\n## Unreleased\n\n- Something new.\n")
 
-        agent_pyproject = os.path.join(self.repo_root, rv.AGENT.pyproject_path)
-        os.makedirs(os.path.dirname(agent_pyproject), exist_ok=True)
-        with open(agent_pyproject, "w", encoding="utf-8") as handle:
-            handle.write(
-                '[project]\nname = "a2ui-agent-sdk"\ndependencies = [\n'
-                '  "a2ui-core>=0.2.0,<0.3.0",\n]\n'
-            )
+            pyproject = os.path.join(self.repo_root, pkg.pyproject_path)
+            os.makedirs(os.path.dirname(pyproject), exist_ok=True)
+            with open(pyproject, "w", encoding="utf-8") as handle:
+                if pkg is rv.CORE:
+                    handle.write('[project]\nname = "a2ui-core"\n')
+                else:
+                    handle.write(
+                        '[project]\nname = "a2ui-agent-sdk"\ndependencies = [\n'
+                        '  "a2ui-core>=0.2.0,<0.3.0",\n]\n'
+                    )
 
     def tearDown(self):
         self.temp_dir.cleanup()
@@ -390,7 +394,9 @@ class CheckCommandTest(unittest.TestCase):
     def _run(self, args: list[str]) -> tuple[int, str, str]:
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = rv.main(["check", *args, "--repo-root", self.repo_root])
+            code = rv.main(
+                ["check", *args, "--skip-env-checks", "--repo-root", self.repo_root]
+            )
         return code, out.getvalue(), err.getvalue()
 
     def test_single_package_with_version_success(self):
@@ -419,6 +425,56 @@ class CheckCommandTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("falls outside the a2ui-core>=0.2.0,<0.3.0 range", err)
         self.assertIn("Preflight checks passed for a2ui-agent-sdk 0.8.0", out)
+
+
+class CheckEnvironmentTest(unittest.TestCase):
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.repo_root = self.temp_dir.name
+        subprocess.run(
+            ["git", "init", "-b", "main"],
+            cwd=self.repo_root,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"], cwd=self.repo_root, check=True
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@test.local"],
+            cwd=self.repo_root,
+            check=True,
+        )
+        for pkg in (rv.CORE, rv.AGENT):
+            pyproject = os.path.join(self.repo_root, pkg.pyproject_path)
+            os.makedirs(os.path.dirname(pyproject), exist_ok=True)
+            with open(pyproject, "w", encoding="utf-8") as handle:
+                handle.write("[project]\n")
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_environment_check_detects_git_identity_unset(self):
+        with mock.patch("subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=["git", "config", "user.name"],
+                returncode=1,
+                stdout="",
+                stderr="",
+            )
+            problems = rv.check_environment(self.repo_root, is_custom_repo_root=True)
+            self.assertTrue(any("user.name" in p for p in problems))
+
+    def test_environment_check_detects_missing_package_file(self):
+        os.remove(os.path.join(self.repo_root, rv.CORE.pyproject_path))
+        problems = rv.check_environment(self.repo_root, is_custom_repo_root=True)
+        self.assertTrue(any("Missing expected package file" in p for p in problems))
+
+    def test_environment_check_detects_cwd_mismatch(self):
+        # Current working directory is not self.repo_root
+        problems = rv.check_environment(self.repo_root, is_custom_repo_root=False)
+        self.assertTrue(any("not the repository root" in p for p in problems))
 
 
 if __name__ == "__main__":
