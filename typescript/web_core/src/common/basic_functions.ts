@@ -27,6 +27,9 @@ import {createFunctionImplementation, FunctionImplementation} from '../catalog/t
 import {A2uiExpressionError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {isAtLeastVersion} from './semver.js';
+import {isSafeRegex} from '../v0_9/basic_catalog/functions/safe_regex.js';
+
+export {isSafeRegex, type SafeRegexOptions} from '../v0_9/basic_catalog/functions/safe_regex.js';
 
 /**
  * Default BCP 47 locale used when a catalog is built without an explicit one.
@@ -108,6 +111,12 @@ export function validateRequired(val: unknown): ValidationResult {
 
 /** Validates that a string value matches a regular expression pattern. */
 export function validateRegex(val: unknown, pattern: string): ValidationResult {
+  if (!isSafeRegex(pattern)) {
+    throw new A2uiExpressionError(
+      `Unsafe regex pattern (catastrophic backtracking risk): ${pattern}`,
+      'regex',
+    );
+  }
   try {
     const isValid = new RegExp(pattern).test(String(val ?? ''));
     return {

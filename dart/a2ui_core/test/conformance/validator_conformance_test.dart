@@ -201,6 +201,9 @@ void _runCase(Map<String, Object?> testCase) {
       version,
     ),
     commonTypesSchema: _commonTypesFor(testCase),
+    // The validator cases are about what a renderer rejects, so the graph
+    // checks are on, as in the other SDKs' harnesses.
+    validationConfig: ValidationConfig.strict,
   );
 
   for (var stepIndex = 0; stepIndex < steps.length; stepIndex++) {

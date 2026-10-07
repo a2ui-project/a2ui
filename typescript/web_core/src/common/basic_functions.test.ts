@@ -59,6 +59,9 @@ describe('Common Basic Functions', () => {
     it('validateRegex', () => {
       assert.strictEqual(validateRegex('abc', '^[a-z]+$').valid, true);
       assert.strictEqual(validateRegex('123', '^[a-z]+$').valid, false);
+      assert.throws(() => validateRegex('aaaaaaaaaaaa!', '(a+)+b'), {
+        name: 'A2uiExpressionError',
+      });
     });
 
     it('validateLength', () => {

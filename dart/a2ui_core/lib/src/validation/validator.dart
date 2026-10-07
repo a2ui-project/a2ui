@@ -91,9 +91,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// declare, without checking it against any schema.
   final bool allowUnknownElements;
 
-  /// Child-referencing properties of [catalog], derived on first use.
-  Map<String, ComponentRefFields>? _refFields;
-
   /// [catalog]'s component schemas with their `$ref`s inlined, on first use.
   Map<String, Schema>? _resolvedComponents;
 
@@ -288,10 +285,11 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// Graph checks span a whole surface, and from v1.0 a surface may hold
   /// components from several catalogs, so the walk itself belongs to
   /// `MessageProcessor`, which merges this map across the catalogs a surface
-  /// draws on. Derived on first use and cached.
+  /// draws on. Derived from [Catalog.refMap], the map the node resolver
+  /// mounts children from.
   @internal
   Map<String, ComponentRefFields> get componentRefFields =>
-      _refFields ??= extractComponentRefFields(catalog);
+      extractComponentRefFields(catalog);
 
   Map<String, Schema> get _resolvedComponentSchemas => _resolvedComponents ??= {
         for (final MapEntry<String, C> entry in catalog.components.entries)
