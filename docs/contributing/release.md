@@ -129,7 +129,9 @@ when a proposed `a2ui-core` version falls outside the range that
 `a2ui-agent-sdk` pins it to. That last one means a `a2ui-core` minor bump needs
 the pin in
 [a2ui_agent/pyproject.toml](../../python/a2ui_agent/pyproject.toml)
-widened in the same release.
+widened in a pull request that is merged to `main` before the release is
+dispatched. The workflow releases `main` as it is and cannot change the pin
+during the run.
 
 Releasing both packages together publishes `a2ui-core` first, because
 `a2ui-agent-sdk` depends on it.

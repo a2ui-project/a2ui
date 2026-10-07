@@ -37,15 +37,14 @@ import sys
 
 if sys.version_info < (3, 11):
     sys.exit(
-        "error: release_version.py requires Python 3.11+ (found Python"
-        f" {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}).\nOn"
-        " macOS, avoid Apple's default /usr/bin/python3 (3.9) and invoke using"
-        " /Library/GoogleCorpSupport/bin/python3 or run inside an active virtual"
-        " environment."
+        "error: release_version.py requires Python 3.11+ for tomllib (found Python"
+        f" {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro})."
+        " Action needed: run it with a Python 3.11+ interpreter, for example"
+        " 'uv run python .github/scripts/release_version.py ...'."
     )
 
 import tomllib
-from typing import Iterable, Sequence
+from typing import Callable, Iterable, Sequence
 
 BumpLevel = str
 VALID_BUMPS = ("major", "minor", "patch")
@@ -303,139 +302,254 @@ def check_core_constraint(
     )
 
 
-def check_environment(repo_root: str, is_custom_repo_root: bool = False) -> list[str]:
-    """Validates developer environment prerequisites before dispatching a release."""
-    problems = []
+CANONICAL_REPO = "a2ui-project/a2ui"
+RELEASE_BRANCH = "main"
+RELEASE_PATHS = ("python/a2ui_core", "python/a2ui_agent")
 
-    # 1. Check working directory is repository root.
-    if not is_custom_repo_root:
-        try:
-            cwd_real = os.path.realpath(os.getcwd())
-            repo_real = os.path.realpath(repo_root)
-            if cwd_real != repo_real:
-                problems.append(
-                    f"Current directory ({os.getcwd()}) is not the repository root"
-                    f" ({repo_root}). Action needed: run 'cd {repo_root}' before"
-                    " executing release commands."
-                )
-        except OSError:
-            pass
+# Matches the owner/repo at the end of a remote URL in any of its usual forms:
+# git@github.com:a2ui-project/a2ui.git, https://github.com/a2ui-project/a2ui,
+# or a local path ending in a2ui-project/a2ui.git.
+_CANONICAL_REMOTE_RE = re.compile(
+    r"[:/]" + re.escape(CANONICAL_REPO) + r"(?:\.git)?/?$", re.IGNORECASE
+)
 
-    # 2. Check repo structure contains expected Python SDK packages.
-    for pkg in (CORE, AGENT):
-        pyproject = os.path.join(repo_root, pkg.pyproject_path)
-        if not os.path.isfile(pyproject):
-            problems.append(
-                f"Missing expected package file {pkg.pyproject_path} in {repo_root}."
-            )
+Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
-    # 3. Check git user identity for CLA verification.
-    for key, desc in (("user.name", "author name"), ("user.email", "author email")):
-        proc = subprocess.run(
-            ["git", "config", key],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
+
+class NotInRepositoryError(Exception):
+    """Raised when the script is not run from inside an a2ui checkout."""
+
+
+@dataclasses.dataclass
+class EnvironmentReport:
+    """Outcome of the local environment checks.
+
+    `errors` block the release, `warnings` are printed but do not, and `fatal`
+    means the checkout is not an a2ui repository at all, so the package checks
+    that read its files must not run.
+    """
+
+    errors: list[str] = dataclasses.field(default_factory=list)
+    warnings: list[str] = dataclasses.field(default_factory=list)
+    fatal: bool = False
+    remote: str | None = None
+
+
+def _run(
+    run: Runner, args: Sequence[str], cwd: str
+) -> "subprocess.CompletedProcess[str]":
+    return run(list(args), cwd=cwd, capture_output=True, text=True)
+
+
+def find_canonical_remote(repo_root: str, run: Runner = subprocess.run) -> str | None:
+    """Returns the name of the remote that points at a2ui-project/a2ui.
+
+    Contributors name it differently (`origin` in a direct clone, `upstream`
+    beside a fork), so it is found by URL rather than by name.
+    """
+    proc = _run(run, ["git", "remote", "-v"], repo_root)
+    if proc.returncode != 0:
+        return None
+    for line in proc.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and _CANONICAL_REMOTE_RE.search(parts[1]):
+            return parts[0]
+    return None
+
+
+def check_environment(
+    repo_root: str,
+    *,
+    cwd: str | None = None,
+    run: Runner = subprocess.run,
+    which: Callable[[str], str | None] = shutil.which,
+) -> EnvironmentReport:
+    """Validates the local prerequisites for dispatching a release.
+
+    The release itself runs in GitHub Actions against the canonical `main`, so
+    these checks make sure the local preview describes that same tree and that
+    the tools the release steps need are ready.
+    """
+    report = EnvironmentReport()
+
+    # 1. The checkout must be an a2ui repository. Every later check, and the
+    #    package checks that read changelogs and pyproject files, rely on it.
+    missing = [
+        pkg.pyproject_path
+        for pkg in (CORE, AGENT)
+        if not os.path.isfile(os.path.join(repo_root, pkg.pyproject_path))
+    ]
+    if missing:
+        report.errors.append(
+            f"{repo_root} is not an a2ui checkout (missing {', '.join(missing)})."
+            f" Action needed: cd into your clone of {CANONICAL_REPO} and run the"
+            " command again."
         )
+        report.fatal = True
+        return report
+
+    # 2. The script resolves the repository root itself, so running it from a
+    #    subdirectory works. It is only worth a note, because the commands in
+    #    the release skill use paths relative to the root.
+    if cwd is not None and os.path.realpath(cwd) != os.path.realpath(repo_root):
+        report.warnings.append(
+            f"running from {cwd}, not the repository root {repo_root}. The checks"
+            " use the repository root, but the release skill's commands expect to"
+            f" run from it: cd {repo_root}"
+        )
+
+    # 3. Git identity, which the workflow uses to author the changelog commit.
+    for key, placeholder in (
+        ("user.name", "Your Name"),
+        ("user.email", "you@example.com"),
+    ):
+        proc = _run(run, ["git", "config", key], repo_root)
         if proc.returncode != 0 or not proc.stdout.strip():
-            problems.append(
-                f"git config {key} is unset. Action needed: run 'git config {key}"
-                f' "<your-{desc}>"\' so changelog commits and PRs pass CLA'
-                " verification."
+            report.errors.append(
+                f"git config {key} is unset. Action needed: run"
+                f" 'git config {key} \"{placeholder}\"' so the changelog commit and"
+                " pull request pass CLA verification."
             )
 
-    # 4. Check gh CLI installation and authentication.
-    if not shutil.which("gh"):
-        problems.append(
-            "'gh' (GitHub CLI) is not installed or not in PATH. Action needed: install"
-            " gh to dispatch workflows and manage release PRs."
+    # 4. GitHub CLI, which dispatches and watches the workflow and opens the
+    #    changelog pull request.
+    if not which("gh"):
+        report.errors.append(
+            "'gh' (GitHub CLI) is not installed or not on PATH. Action needed:"
+            " install it from https://cli.github.com and run 'gh auth login'."
         )
     else:
-        gh_proc = subprocess.run(
-            ["gh", "auth", "status"],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
+        auth = _run(
+            run, ["gh", "auth", "status", "--hostname", "github.com"], repo_root
         )
-        if gh_proc.returncode != 0:
-            problems.append(
-                "'gh' is not authenticated. Action needed: run 'gh auth login' before"
-                " releasing."
+        if auth.returncode != 0:
+            report.errors.append(
+                "'gh' is not authenticated with github.com. Action needed: run"
+                " 'gh auth login --hostname github.com'."
             )
-
-    # 5. Check for uncommitted changes in releasable package directories.
-    status_proc = subprocess.run(
-        ["git", "status", "--porcelain", "python/a2ui_core", "python/a2ui_agent"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-    )
-    if status_proc.returncode == 0 and status_proc.stdout.strip():
-        problems.append(
-            "Uncommitted changes detected in python/a2ui_core or python/a2ui_agent. "
-            "Action needed: commit or stash them ('git commit' or 'git stash') so the "
-            "local preview matches what the workflow on main will release."
-        )
-
-    # 6. Check for outstanding release/changelog-* branches on origin or upstream.
-    for remote in ("origin", "upstream"):
-        ls_proc = subprocess.run(
-            ["git", "ls-remote", "--heads", remote, "release/changelog-*"],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-        )
-        if ls_proc.returncode == 0 and ls_proc.stdout.strip():
-            branches = [
-                line.split()[-1].removeprefix("refs/heads/")
-                for line in ls_proc.stdout.splitlines()
-                if line.strip()
-            ]
-            problems.append(
-                f"Outstanding changelog branch(es) found on {remote}:"
-                f" {', '.join(branches)}. Action needed: open, review, and merge the"
-                " changelog PR for the previous release before starting a new release."
+        else:
+            perm = _run(
+                run,
+                ["gh", "api", f"repos/{CANONICAL_REPO}", "--jq", ".permissions.push"],
+                repo_root,
             )
-            break
-
-    # 7. Check if local branch is behind origin/main (warn if behind).
-    rev_proc = subprocess.run(
-        ["git", "rev-list", "--count", "HEAD..origin/main"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-    )
-    if rev_proc.returncode == 0:
-        try:
-            behind_count = int(rev_proc.stdout.strip())
-            if behind_count > 0:
-                print(
-                    f"warning: local branch is behind origin/main by {behind_count}"
-                    " commit(s). Consider running 'git pull' or 'git fetch origin main"
-                    " --tags' to ensure your local preview is current.",
-                    file=sys.stderr,
+            if perm.returncode != 0:
+                report.warnings.append(
+                    f"could not read your permissions on {CANONICAL_REPO} with 'gh"
+                    " api'. Dispatching the workflow needs write access."
                 )
-        except ValueError:
-            pass
+            elif perm.stdout.strip() != "true":
+                report.errors.append(
+                    f"your GitHub account has no write access to {CANONICAL_REPO}."
+                    " Action needed: ask a maintainer to dispatch the release, or"
+                    " to grant you access."
+                )
 
-    return problems
+    # 5. Uncommitted edits to tracked files in the released packages. Untracked
+    #    files (local virtualenvs, scratch files) do not affect the release.
+    status = _run(
+        run,
+        ["git", "status", "--porcelain", "--untracked-files=no", "--", *RELEASE_PATHS],
+        repo_root,
+    )
+    if status.returncode == 0 and status.stdout.strip():
+        report.errors.append(
+            f"uncommitted changes in {' or '.join(RELEASE_PATHS)}. Action needed:"
+            " commit or stash them ('git stash'). The workflow releases the"
+            f" canonical {RELEASE_BRANCH}, not your working tree."
+        )
+
+    # 6. The remote that points at the canonical repository.
+    remote = find_canonical_remote(repo_root, run)
+    report.remote = remote
+    if remote is None:
+        report.errors.append(
+            f"no git remote points at {CANONICAL_REPO}. Action needed: run 'git"
+            f" remote add upstream https://github.com/{CANONICAL_REPO}.git'."
+        )
+        return report
+
+    # 7. Refresh the remote branch and tags, so the comparison below and the
+    #    tag-derived versions are current rather than as old as the last fetch.
+    fetch = _run(
+        run, ["git", "fetch", "--quiet", "--tags", remote, RELEASE_BRANCH], repo_root
+    )
+    if fetch.returncode != 0:
+        report.errors.append(
+            f"could not fetch {remote}/{RELEASE_BRANCH}: {fetch.stderr.strip()}."
+            " Action needed: check your network and access to the remote, then"
+            " run the command again."
+        )
+        return report
+
+    # 8. The released packages must match the canonical main exactly. The
+    #    workflow builds from there, so a local commit that is not merged yet
+    #    (say, a widened dependency pin) would pass here and fail there.
+    diff = _run(
+        run,
+        ["git", "diff", "--quiet", f"{remote}/{RELEASE_BRANCH}", "--", *RELEASE_PATHS],
+        repo_root,
+    )
+    if diff.returncode == 1:
+        report.errors.append(
+            f"{' and '.join(RELEASE_PATHS)} differ from {remote}/{RELEASE_BRANCH},"
+            " which is what the workflow releases. Action needed: merge any"
+            f" pending changes to {RELEASE_BRANCH} through a pull request, then run"
+            f" 'git checkout {RELEASE_BRANCH} && git pull {remote} {RELEASE_BRANCH}'."
+        )
+    elif diff.returncode != 0:
+        report.errors.append(
+            f"could not compare against {remote}/{RELEASE_BRANCH}:"
+            f" {diff.stderr.strip()}. Action needed: run 'git fetch {remote}"
+            f" {RELEASE_BRANCH} --tags'."
+        )
+
+    # 9. A changelog branch left by the previous release means its entries are
+    #    still under `## Unreleased` and would be released twice.
+    heads = _run(
+        run, ["git", "ls-remote", "--heads", remote, "release/changelog-*"], repo_root
+    )
+    if heads.returncode != 0:
+        report.errors.append(
+            f"could not list release/changelog-* branches on {remote}:"
+            f" {heads.stderr.strip()}. Action needed: check your network and"
+            " access to the remote, then run the command again."
+        )
+    elif heads.stdout.strip():
+        branches = [
+            line.split()[-1].removeprefix("refs/heads/")
+            for line in heads.stdout.splitlines()
+            if line.strip()
+        ]
+        report.errors.append(
+            f"changelog branch(es) from a previous release are still on {remote}:"
+            f" {', '.join(branches)}. Action needed: open, review and merge that"
+            " changelog pull request before starting a new release."
+        )
+
+    return report
 
 
-def build_plan(selection: str, bump: BumpLevel, repo_root: str) -> list[dict[str, str]]:
-    """Returns the packages to release, with their new versions and notes.
+def target_versions(
+    selection: str, bump: BumpLevel, repo_root: str
+) -> list[tuple[Package, str]]:
+    """Returns each selected package with the version a bump would release.
 
     a2ui-core is always ordered before a2ui-agent-sdk. When both are released
     together the agent-sdk depends on the core version going out in the same
     run, so the core artifact has to be staged and published first.
     """
-    if selection == "both":
-        selected = [CORE, AGENT]
-    else:
-        selected = [PACKAGES[selection]]
+    selected = [CORE, AGENT] if selection == "both" else [PACKAGES[selection]]
+    return [
+        (package, bump_version(current_version(package, repo_root), bump))
+        for package in selected
+    ]
 
+
+def build_plan(selection: str, bump: BumpLevel, repo_root: str) -> list[dict[str, str]]:
+    """Returns the packages to release, with their new versions and notes."""
     plan = []
-    for package in selected:
-        version = bump_version(current_version(package, repo_root), bump)
+    for package, version in target_versions(selection, bump, repo_root):
         changelog = os.path.join(repo_root, package.changelog_path)
         with open(changelog, encoding="utf-8") as handle:
             notes = read_unreleased(handle.read())
@@ -450,7 +564,13 @@ def build_plan(selection: str, bump: BumpLevel, repo_root: str) -> list[dict[str
 
 
 def _repo_root() -> str:
-    return _git(["rev-parse", "--show-toplevel"], os.getcwd()).strip()
+    try:
+        return _git(["rev-parse", "--show-toplevel"], os.getcwd()).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError) as error:
+        raise NotInRepositoryError(
+            f"{os.getcwd()} is not inside a git checkout. Action needed: cd into"
+            f" your clone of {CANONICAL_REPO} and run the command again."
+        ) from error
 
 
 def _emit(name: str, value: str) -> None:
@@ -515,7 +635,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     check.add_argument(
         "--skip-env-checks",
         action="store_true",
-        help="Skip checking local developer environment (pwd, gh auth, git identity)",
+        help=(
+            "Skip the local environment checks (a2ui checkout, git identity, gh"
+            " auth and write access, sync with the canonical main, pending"
+            " changelog branches). They are always skipped in GitHub Actions."
+        ),
     )
 
     plan = subparsers.add_parser(
@@ -526,7 +650,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan.add_argument("--output", default=None)
 
     args = parser.parse_args(argv)
-    repo_root = getattr(args, "repo_root", None) or _repo_root()
+    custom_root = getattr(args, "repo_root", None)
+    try:
+        repo_root = custom_root or _repo_root()
+    except NotInRepositoryError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
 
     if args.command == "plan":
         entries = build_plan(args.package, args.bump, repo_root)
@@ -538,50 +667,44 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "check":
+        # Usage errors come first, so a typo is reported without waiting on
+        # the network calls the environment checks make.
+        if args.package == "both" and args.version:
+            print(
+                "error: --version cannot be used with --package both, because"
+                " each package has its own version. Use --bump instead.",
+                file=sys.stderr,
+            )
+            return 2
+        if args.version and args.bump:
+            print(
+                "error: specify either --version or --bump, not both", file=sys.stderr
+            )
+            return 2
+        if not args.version and not args.bump:
+            print("error: either --version or --bump is required", file=sys.stderr)
+            return 2
+
         all_problems = []
 
         if not os.environ.get("GITHUB_ACTIONS") and not args.skip_env_checks:
-            env_problems = check_environment(
-                repo_root, is_custom_repo_root=hasattr(args, "repo_root")
+            # With an explicit --repo-root the caller chose the checkout, so
+            # where they run from is irrelevant.
+            report = check_environment(
+                repo_root, cwd=None if custom_root else os.getcwd()
             )
-            if env_problems:
-                for problem in env_problems:
-                    print(f"error: {problem}", file=sys.stderr)
-                all_problems.extend(env_problems)
+            for warning in report.warnings:
+                print(f"warning: {warning}", file=sys.stderr)
+            for problem in report.errors:
+                print(f"error: {problem}", file=sys.stderr)
+            if report.fatal:
+                return 1
+            all_problems.extend(report.errors)
 
-        if args.package == "both":
-            if not args.bump:
-                print(
-                    "error: --bump is required when --package is 'both'",
-                    file=sys.stderr,
-                )
-                return 2
-            if args.version:
-                print(
-                    "error: --version cannot be specified when --package is 'both'",
-                    file=sys.stderr,
-                )
-                return 2
-            packages_to_check = [
-                (CORE, bump_version(current_version(CORE, repo_root), args.bump)),
-                (AGENT, bump_version(current_version(AGENT, repo_root), args.bump)),
-            ]
+        if args.bump:
+            packages_to_check = target_versions(args.package, args.bump, repo_root)
         else:
-            pkg = PACKAGES[args.package]
-            if args.version and args.bump:
-                print(
-                    "error: specify either --version or --bump, not both",
-                    file=sys.stderr,
-                )
-                return 2
-            if not args.version and not args.bump:
-                print(
-                    "error: either --version or --bump is required",
-                    file=sys.stderr,
-                )
-                return 2
-            v = args.version or bump_version(current_version(pkg, repo_root), args.bump)
-            packages_to_check = [(pkg, v)]
+            packages_to_check = [(PACKAGES[args.package], args.version)]
 
         for pkg, ver in packages_to_check:
             problems = []

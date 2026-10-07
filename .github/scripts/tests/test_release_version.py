@@ -418,7 +418,58 @@ class CheckCommandTest(unittest.TestCase):
     def test_both_packages_without_bump_errors(self):
         code, _, err = self._run(["--package", "both"])
         self.assertEqual(code, 2)
-        self.assertIn("--bump is required when --package is 'both'", err)
+        self.assertIn("either --version or --bump is required", err)
+
+    def test_both_packages_with_version_errors(self):
+        code, _, err = self._run(["--package", "both", "--version", "0.2.1"])
+        self.assertEqual(code, 2)
+        self.assertIn("--version cannot be used with --package both", err)
+
+    def test_version_and_bump_together_errors(self):
+        code, _, err = self._run(
+            ["--package", "a2ui-core", "--version", "0.2.1", "--bump", "patch"]
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("specify either --version or --bump, not both", err)
+
+    def test_neither_version_nor_bump_errors(self):
+        code, _, err = self._run(["--package", "a2ui-core"])
+        self.assertEqual(code, 2)
+        self.assertIn("either --version or --bump is required", err)
+
+    def test_usage_errors_are_reported_before_environment_checks(self):
+        out, err = io.StringIO(), io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}),
+            mock.patch.object(rv, "check_environment") as env_check,
+            contextlib.redirect_stdout(out),
+            contextlib.redirect_stderr(err),
+        ):
+            code = rv.main(
+                ["check", "--package", "a2ui-core", "--repo-root", self.repo_root]
+            )
+        self.assertEqual(code, 2)
+        env_check.assert_not_called()
+
+    def test_environment_checks_are_skipped_in_github_actions(self):
+        out, err = io.StringIO(), io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}),
+            mock.patch.object(rv, "check_environment") as env_check,
+            contextlib.redirect_stdout(out),
+            contextlib.redirect_stderr(err),
+        ):
+            code = rv.main([
+                "check",
+                "--package",
+                "a2ui-core",
+                "--version",
+                "0.2.1",
+                "--repo-root",
+                self.repo_root,
+            ])
+        self.assertEqual(code, 0)
+        env_check.assert_not_called()
 
     def test_both_packages_with_minor_bump_catches_pin_violation(self):
         code, out, err = self._run(["--package", "both", "--bump", "minor"])
@@ -443,83 +494,204 @@ class CheckCommandTest(unittest.TestCase):
 
 
 class CheckEnvironmentTest(unittest.TestCase):
+    """Runs the environment checks against a real clone of a local remote.
+
+    The remote lives at <tmp>/a2ui-project/a2ui.git so its URL looks like the
+    canonical repository. Git runs for real; `gh` is faked, so the tests need
+    no network or GitHub login.
+    """
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.repo_root = self.temp_dir.name
-        subprocess.run(
-            ["git", "init", "-b", "main"],
-            cwd=self.repo_root,
-            check=True,
-            capture_output=True,
-        )
-        subprocess.run(
-            ["git", "config", "user.name", "Test"], cwd=self.repo_root, check=True
-        )
-        subprocess.run(
-            ["git", "config", "user.email", "test@test.local"],
-            cwd=self.repo_root,
-            check=True,
-        )
+        base = self.temp_dir.name
+        self.remote_url = os.path.join(base, "a2ui-project", "a2ui.git")
+        self.repo_root = os.path.join(base, "work")
+        os.makedirs(self.repo_root)
+        self._git(base, "init", "--bare", "-b", "main", self.remote_url)
+        self._git(self.repo_root, "init", "-b", "main")
+        self._git(self.repo_root, "config", "user.name", "Test")
+        self._git(self.repo_root, "config", "user.email", "test@test.local")
         for pkg in (rv.CORE, rv.AGENT):
-            pyproject = os.path.join(self.repo_root, pkg.pyproject_path)
-            os.makedirs(os.path.dirname(pyproject), exist_ok=True)
-            with open(pyproject, "w", encoding="utf-8") as handle:
-                handle.write("[project]\n")
+            self._write(pkg.pyproject_path, "[project]\n")
+        self._git(self.repo_root, "add", ".")
+        self._git(self.repo_root, "commit", "-m", "Initial")
+        self._git(self.repo_root, "remote", "add", "origin", self.remote_url)
+        self._git(self.repo_root, "push", "origin", "main")
+
+        self.gh_installed = True
+        self.gh_auth_rc = 0
+        self.gh_push = "true"
+        self.fail_ls_remote = False
+        self.git_identity_unset = False
 
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    def test_environment_check_detects_git_identity_unset(self):
-        with mock.patch("subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=["git", "config", "user.name"],
-                returncode=1,
-                stdout="",
-                stderr="",
-            )
-            problems = rv.check_environment(self.repo_root, is_custom_repo_root=True)
-            self.assertTrue(any("user.name" in p for p in problems))
+    @staticmethod
+    def _git(cwd, *args):
+        subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
 
-    def test_environment_check_detects_missing_package_file(self):
+    def _write(self, relative_path, content):
+        path = os.path.join(self.repo_root, relative_path)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(content)
+
+    def _fake_run(self, cmd, **kwargs):
+        def result(returncode=0, stdout="", stderr=""):
+            return subprocess.CompletedProcess(cmd, returncode, stdout, stderr)
+
+        if cmd[0] == "gh":
+            if cmd[1] == "auth":
+                return result(self.gh_auth_rc)
+            if cmd[1] == "api":
+                return result(stdout=self.gh_push + "\n")
+            raise AssertionError(f"unexpected gh call {cmd}")
+        if self.git_identity_unset and cmd[:2] == ["git", "config"]:
+            return result(1)
+        if self.fail_ls_remote and "ls-remote" in cmd:
+            return result(128, stderr="fatal: unable to access remote")
+        return subprocess.run(cmd, **kwargs)
+
+    def _check(self, cwd=None):
+        return rv.check_environment(
+            self.repo_root,
+            cwd=cwd,
+            run=self._fake_run,
+            which=lambda name: f"/usr/bin/{name}" if self.gh_installed else None,
+        )
+
+    def test_clean_checkout_in_sync_with_main_passes(self):
+        report = self._check(cwd=self.repo_root)
+        self.assertEqual(report.errors, [])
+        self.assertEqual(report.warnings, [])
+        self.assertEqual(report.remote, "origin")
+
+    def test_not_an_a2ui_checkout_is_fatal(self):
         os.remove(os.path.join(self.repo_root, rv.CORE.pyproject_path))
-        problems = rv.check_environment(self.repo_root, is_custom_repo_root=True)
-        self.assertTrue(any("Missing expected package file" in p for p in problems))
+        report = self._check()
+        self.assertTrue(report.fatal)
+        self.assertEqual(len(report.errors), 1)
+        self.assertIn("is not an a2ui checkout", report.errors[0])
+        self.assertIn("Action needed", report.errors[0])
 
-    def test_environment_check_detects_cwd_mismatch(self):
-        # Current working directory is not self.repo_root
-        problems = rv.check_environment(self.repo_root, is_custom_repo_root=False)
-        self.assertTrue(any("not the repository root" in p for p in problems))
+    def test_running_from_a_subdirectory_only_warns(self):
+        subdir = os.path.join(self.repo_root, "python")
+        report = self._check(cwd=subdir)
+        self.assertEqual(report.errors, [])
+        self.assertEqual(len(report.warnings), 1)
+        self.assertIn("not the repository root", report.warnings[0])
 
-    def test_environment_check_detects_uncommitted_changes(self):
-        core_changelog = os.path.join(self.repo_root, rv.CORE.changelog_path)
-        os.makedirs(os.path.dirname(core_changelog), exist_ok=True)
-        with open(core_changelog, "w", encoding="utf-8") as handle:
-            handle.write("# Uncommitted change\n")
-        problems = rv.check_environment(self.repo_root, is_custom_repo_root=True)
-        self.assertTrue(any("Uncommitted changes detected" in p for p in problems))
+    def test_unset_git_identity_is_an_error(self):
+        self.git_identity_unset = True
+        report = self._check()
+        self.assertTrue(any("git config user.name" in e for e in report.errors))
+        self.assertTrue(any("git config user.email" in e for e in report.errors))
 
-    def test_environment_check_detects_outstanding_changelog_branch(self):
-        with mock.patch("subprocess.run") as mock_run:
+    def test_missing_gh_is_an_error(self):
+        self.gh_installed = False
+        report = self._check()
+        self.assertTrue(any("is not installed" in e for e in report.errors))
 
-            def side_effect(cmd, **kwargs):
-                if "ls-remote" in cmd:
-                    return subprocess.CompletedProcess(
-                        args=cmd,
-                        returncode=0,
-                        stdout="abc1234\trefs/heads/release/changelog-20261007\n",
-                        stderr="",
-                    )
-                return subprocess.CompletedProcess(
-                    args=cmd,
-                    returncode=0,
-                    stdout="test",
-                    stderr="",
-                )
+    def test_unauthenticated_gh_is_an_error(self):
+        self.gh_auth_rc = 1
+        report = self._check()
+        self.assertTrue(any("not authenticated" in e for e in report.errors))
 
-            mock_run.side_effect = side_effect
-            problems = rv.check_environment(self.repo_root, is_custom_repo_root=True)
-            self.assertTrue(any("Outstanding changelog branch" in p for p in problems))
+    def test_no_write_access_is_an_error(self):
+        self.gh_push = "false"
+        report = self._check()
+        self.assertTrue(any("no write access" in e for e in report.errors))
+
+    def test_uncommitted_change_to_a_tracked_file_is_an_error(self):
+        self._write(rv.CORE.pyproject_path, "[project]\nname = 'edited'\n")
+        report = self._check()
+        self.assertTrue(any("uncommitted changes" in e for e in report.errors))
+
+    def test_untracked_files_are_ignored(self):
+        self._write("python/a2ui_core/.venv/marker", "")
+        report = self._check()
+        self.assertEqual(report.errors, [])
+
+    def test_local_commit_not_on_main_is_an_error(self):
+        self._write(rv.AGENT.pyproject_path, "[project]\ndependencies = []\n")
+        self._git(self.repo_root, "commit", "-am", "Widen the pin locally")
+        report = self._check()
+        self.assertEqual(len(report.errors), 1)
+        self.assertIn("differ from origin/main", report.errors[0])
+
+    def test_changes_outside_the_packages_are_ignored(self):
+        self._write("docs/notes.md", "local notes\n")
+        self._git(self.repo_root, "add", ".")
+        self._git(self.repo_root, "commit", "-m", "Unrelated local commit")
+        report = self._check()
+        self.assertEqual(report.errors, [])
+
+    def test_canonical_remote_is_found_by_url_not_name(self):
+        self._git(self.repo_root, "remote", "rename", "origin", "upstream")
+        self._git(
+            self.repo_root,
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/someone/a2ui.git",
+        )
+        report = self._check()
+        self.assertEqual(report.remote, "upstream")
+        self.assertEqual(report.errors, [])
+
+    def test_missing_canonical_remote_is_an_error(self):
+        self._git(self.repo_root, "remote", "remove", "origin")
+        report = self._check()
+        self.assertIsNone(report.remote)
+        self.assertTrue(any("no git remote points at" in e for e in report.errors))
+
+    def test_outstanding_changelog_branch_is_an_error(self):
+        self._git(self.repo_root, "push", "origin", "main:release/changelog-20261007")
+        report = self._check()
+        self.assertEqual(len(report.errors), 1)
+        self.assertIn("release/changelog-20261007", report.errors[0])
+
+    def test_failing_to_list_remote_branches_is_an_error(self):
+        self.fail_ls_remote = True
+        report = self._check()
+        self.assertTrue(
+            any("could not list release/changelog-*" in e for e in report.errors)
+        )
+
+
+class CheckCommandEnvironmentTest(unittest.TestCase):
+    """How `check` reports environment problems, without the network."""
+
+    def _main(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        with (
+            mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}),
+            contextlib.redirect_stdout(out),
+            contextlib.redirect_stderr(err),
+        ):
+            code = rv.main(argv)
+        return code, out.getvalue(), err.getvalue()
+
+    def test_outside_a_git_checkout_fails_without_a_traceback(self):
+        not_a_repo = subprocess.CalledProcessError(128, ["git", "rev-parse"])
+        with mock.patch.object(rv, "_git", side_effect=not_a_repo):
+            code, _, err = self._main(
+                ["check", "--package", "a2ui-core", "--bump", "patch"]
+            )
+        self.assertEqual(code, 1)
+        self.assertIn("is not inside a git checkout", err)
+        self.assertNotIn("Traceback", err)
+
+    def test_other_repository_stops_before_package_checks(self):
+        with tempfile.TemporaryDirectory() as other:
+            subprocess.run(["git", "init"], cwd=other, check=True, capture_output=True)
+            code, out, err = self._main(
+                ["check", "--package", "both", "--bump", "patch", "--repo-root", other]
+            )
+        self.assertEqual(code, 1)
+        self.assertIn("is not an a2ui checkout", err)
+        self.assertEqual(out, "")
 
 
 if __name__ == "__main__":

@@ -62,12 +62,29 @@ by hand to perform a release. If the workflow cannot do it, fix the workflow.
 
 ### Environment Prerequisites
 
-Before proceeding, ensure your local environment satisfies the following prerequisites (automatically validated locally by `release_version.py check`):
+`release_version.py check` validates these locally and stops with an
+`Action needed:` message for each one that fails. They are skipped in GitHub
+Actions, where they do not apply.
 
-1. **Working Directory**: All release commands and scripts must be run directly from the root of the A2UI repository (`a2ui/`).
-2. **Python Interpreter**: Python 3.11+ is required to execute `.github/scripts/release_version.py` locally because it relies on standard library `tomllib`. On macOS, Apple's default `/usr/bin/python3` is 3.9; use `/Library/GoogleCorpSupport/bin/python3` or an active virtual environment (`uv run python3`).
-3. **GitHub CLI (`gh`)**: `gh` must be installed and authenticated (`gh auth status`) with maintainer permissions on `a2ui-project/a2ui` to dispatch workflows, monitor runs, and open release PRs.
-4. **Git Identity**: `git config user.name` and `git config user.email` must be configured in your environment so that the changelog commit and pull request created during the release pass CLA verification.
+1. **An a2ui checkout.** Run from your clone of `a2ui-project/a2ui`. The script
+   finds the repository root itself, so a subdirectory works (it warns), but
+   the commands below use paths relative to the root.
+2. **Python 3.11+.** The script reads `pyproject.toml` with the standard
+   library `tomllib`. If your system `python3` is older, run it through the
+   project toolchain instead: `uv run python .github/scripts/release_version.py
+...`.
+3. **GitHub CLI (`gh`)**, installed, authenticated with `github.com`, and with
+   write access to `a2ui-project/a2ui`. It dispatches and watches the workflow
+   and opens the changelog pull request.
+4. **Git identity.** `git config user.name` and `git config user.email` must be
+   set, so the changelog commit and pull request pass CLA verification.
+5. **A remote that points at `a2ui-project/a2ui`.** It may be called `origin`
+   in a direct clone or `upstream` beside a fork; the script finds it by URL.
+   The commands below call it `${REMOTE}`:
+
+   ```bash
+   REMOTE=$(git remote -v | awk '/a2ui-project\/a2ui(\.git)? \(fetch\)/ {print $1; exit}')
+   ```
 
 ---
 
@@ -81,7 +98,7 @@ Fetch first. Versions are derived from tags, so every number below is wrong if
 the checkout is behind:
 
 ```bash
-git fetch origin main --tags
+git fetch "${REMOTE}" main --tags
 ```
 
 ```bash
@@ -109,8 +126,9 @@ different answers:
 > plan builds, then preflight rejects the empty package and the run fails
 > several minutes in. The check above costs a second.
 
-**Choose the bump.** Read the entries: fixes only means `patch`, new features
-mean `minor`, a breaking change means `major`. Preview the result with `plan`,
+**Choose the bump.** Read the entries. Fixes only means `patch` and new
+features mean `minor`. A breaking change means `minor` while the package is
+below 1.0, and `major` from 1.0 on. Preview the result with `plan`,
 which returns exactly what the workflow will compute — version, tag and release
 notes for every selected package:
 
@@ -133,10 +151,13 @@ python3 .github/scripts/release_version.py plan --package "${PACKAGE}" --bump "$
 >   going out, since `a2ui-agent-sdk` depends on it.
 
 > [!IMPORTANT]
-> **Pre-Release Code Prerequisite: `a2ui-core` Dependency Pin**
-> Under SemVer for pre-1.0 packages, breaking changes (`**BREAKING**`) require a **minor** version bump.
-> Whenever `a2ui-core` has a **minor or major** bump, inspect `python/a2ui_agent/pyproject.toml`.
-> If `a2ui-core`'s proposed version falls outside the `a2ui-core>=...` range declared by `a2ui-agent-sdk`, **a separate PR updating the pin must be merged to `main` before triggering the release workflow**. The release workflow dispatches against `refs/heads/main` and cannot modify package configs on the fly.
+> **A minor or major `a2ui-core` bump may need a pin change first.**
+> `a2ui-agent-sdk` declares a range such as `a2ui-core>=0.3.0,<0.4.0` in
+> [a2ui_agent/pyproject.toml](../../../python/a2ui_agent/pyproject.toml). If
+> the proposed `a2ui-core` version falls outside it, widen the pin in its own
+> pull request and **merge it to `main` before dispatching**. The workflow
+> releases `main` as it is and cannot change package files during the run.
+> Step 2 rejects the release until this is done.
 
 Put the proposal to the maintainer with `ask_question`, showing the pending
 entries and the resulting versions, and let them correct it.
@@ -148,36 +169,26 @@ entries and the resulting versions, and let them correct it.
 These checks cost seconds and catch the failures that are expensive to hit
 mid-run. Run all of them before dispatching anything.
 
-**1. No outstanding changelog branch from a previous release.** This is the one
-the workflow cannot detect. Until the last release's changelog lands, the
-entries are still under `## Unreleased`, and this release would repeat them in
-its notes.
+**1. The environment and the checkout.** `check` runs these for you (see
+Environment Prerequisites); this is what it looks for and why:
 
-```bash
-git ls-remote --heads origin 'release/changelog-*'
-```
+- **No outstanding changelog branch** from a previous release on `${REMOTE}`.
+  Until the last release's changelog lands, its entries are still under
+  `## Unreleased`, and this release would repeat them. It checks the branch,
+  not the pull request, because the release stops at the branch and there may
+  be no pull request yet. The repository deletes branches on merge, so no
+  branch means the last changelog landed. If one is found, get that change
+  merged (open the pull request if nobody has), then start over from Step 1,
+  because the pending entries will have changed.
+- **The released packages match `${REMOTE}/main`.** The workflow builds from
+  `main`, so `python/a2ui_core` and `python/a2ui_agent` must be identical to it.
+  Uncommitted edits, or a local commit that is not merged yet (a widened pin,
+  say), would make the local preview describe a release that is not the one
+  that will go out. Other paths in the checkout do not matter.
 
-Check the branch, not the pull request: the release stops at the branch, so
-there may be no pull request yet. The repository deletes branches on merge, so
-empty output means the last changelog landed.
+If it reports either, stop and say what was found.
 
-Any output means stop. Get that change merged first — open the pull request if
-nobody has — then start over from Step 1, because the pending entries will have
-changed.
-
-**2. The checkout is clean and matches the remote.** Step 1 already fetched. The
-concern here is local edits: the workflow reads the changelogs and tags from
-`main`, so an uncommitted changelog change makes the local preview describe a
-release that is not the one that will go out.
-
-```bash
-git status --short --branch
-```
-
-Uncommitted changes under `python/*/CHANGELOG.md`, or a branch behind
-`origin/main`, mean stop and say what was found.
-
-**3. The repository's own preflight passes.** This is the same check the workflow runs, so a failure here is a failure there:
+**2. The repository's own preflight passes.** This is the same check the workflow runs, so a failure here is a failure there:
 
 ```bash
 # Check using bump level (supports 'both', 'a2ui-core', or 'a2ui-agent-sdk'):
@@ -192,11 +203,8 @@ It rejects an empty `## Unreleased`, a version that already has a tag, and an
 is passed with `--bump`, it evaluates both packages and their cross-dependency
 pin compatibility in a single step.
 
-> [!IMPORTANT]
-> If preflight reports that `a2ui-core` falls outside the `a2ui-agent-sdk` pin,
-> stop immediately. This requires widening the `a2ui-core>=...` pin in
-> [a2ui_agent/pyproject.toml](../../../python/a2ui_agent/pyproject.toml) via a reviewed
-> PR merged to `main` before the release can proceed.
+If preflight reports that `a2ui-core` falls outside the `a2ui-agent-sdk` pin,
+stop: see the pin note in Step 1.
 
 ---
 
@@ -327,7 +335,7 @@ A release is not done when the workflow goes green.
    where". Open it yourself:
 
    ```bash
-   BRANCH=$(git ls-remote --heads origin 'release/changelog-*' \
+   BRANCH=$(git ls-remote --heads "${REMOTE}" 'release/changelog-*' \
      | sed 's#.*refs/heads/##')
    gh pr create --repo a2ui-project/a2ui --base main --head "$BRANCH" \
      --title "chore(release): changelog for ${RELEASED}" \
