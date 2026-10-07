@@ -25,7 +25,11 @@ import {
   type FunctionImplementation,
 } from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
-import {DATA_FUNCTIONS} from '../index.js';
+import {JmespathImplementation} from './jmespath.js';
+import {RegexCaptureImplementation} from './regexCapture.js';
+import {RegexReplaceImplementation} from './regexReplace.js';
+import {SplitImplementation} from './split.js';
+import {UpdateDataModelImplementation} from './updateDataModel.js';
 
 const AsyncSourceImplementation: FunctionImplementation = createFunctionImplementation(
   {
@@ -43,7 +47,14 @@ const catalog = new Catalog<any>(
   'https://a2ui.org/test/updateDataModel',
   '0.9',
   [],
-  [...DATA_FUNCTIONS, AsyncSourceImplementation],
+  [
+    JmespathImplementation,
+    SplitImplementation,
+    RegexCaptureImplementation,
+    RegexReplaceImplementation,
+    UpdateDataModelImplementation,
+    AsyncSourceImplementation,
+  ],
 );
 
 const createTestDataContext = (

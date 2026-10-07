@@ -1,2 +1,9 @@
-# Copied from catalogs/mcp/catalog.json by scripts/copy-catalog.js
+# Copied from catalogs/mcp/v1/catalog.json by the copy-catalog build step
 src/catalog.json
+# Copied from typescript/catalogs/shared by the copy-shared build step
+src/shared/
+# Bundled from tests/fixtures/apps by scripts/build-test-fixtures.mjs
+tests/fixtures/generated/
+dist/
+.wireit/
+*.tsbuildinfo

@@ -25,7 +25,15 @@
 import {Context, basicCatalog} from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>.
 import {renderMarkdown} from '@a2ui/markdown-it';
-import {createMcpCatalogFunctions} from '@a2ui/catalog-mcp';
+import {
+  CallMcpToolImplementation,
+  configureMcpCatalog,
+  JmespathImplementation,
+  RegexCaptureImplementation,
+  RegexReplaceImplementation,
+  SplitImplementation,
+  UpdateDataModelImplementation,
+} from '@a2ui/catalog-mcp';
 import {Catalog, MessageProcessor, type A2uiMessage, type SurfaceModel} from '@a2ui/web_core/v0_9';
 import {provide} from '@lit/context';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
@@ -58,14 +66,22 @@ export class A2uiFilesystemApp extends LitElement {
 
   constructor() {
     super();
-    const catalogs: Array<Catalog<any>> = [];
-    this.processor = new MessageProcessor<any>(catalogs);
-    catalogs.push(
+    this.processor = new MessageProcessor<any>([
       new Catalog<any>(CATALOG_ID, Array.from(basicCatalog.components.values()), [
         ...Array.from(basicCatalog.functions.values()),
-        ...createMcpCatalogFunctions(() => this.mcpClient, this.processor),
+        CallMcpToolImplementation,
+        JmespathImplementation,
+        SplitImplementation,
+        RegexCaptureImplementation,
+        RegexReplaceImplementation,
+        UpdateDataModelImplementation,
       ]),
-    );
+    ]);
+    configureMcpCatalog({
+      getMcpClientForTool: () => this.mcpClient,
+      processor: this.processor,
+      defaultVersion: 'v0.9',
+    });
 
     this.processor.onSurfaceCreated(surface => {
       this.surface = surface;

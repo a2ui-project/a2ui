@@ -21,7 +21,15 @@ import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>
 import {provide} from '@lit/context';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {Catalog, DataContext, DataModel, MessageProcessor} from '@a2ui/web_core/v0_9';
-import {createMcpCatalogFunctions} from '@a2ui/catalog-mcp';
+import {
+  CallMcpToolImplementation,
+  configureMcpCatalog,
+  JmespathImplementation,
+  RegexCaptureImplementation,
+  RegexReplaceImplementation,
+  SplitImplementation,
+  UpdateDataModelImplementation,
+} from '@a2ui/catalog-mcp';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {SSEClientTransport} from '@modelcontextprotocol/sdk/client/sse.js';
 
@@ -79,18 +87,25 @@ export class A2uiRecipeApp extends LitElement {
   constructor() {
     super();
 
-    // Initialize MessageProcessor before creating catalog functions that reference it.
-    const catalogs: Catalog<any>[] = [];
-    this.processor = new MessageProcessor<any>(catalogs);
     this.catalog = new Catalog<any>(
       BASIC_WITH_MCP_CATALOG_ID,
       Array.from(basicCatalog.components.values()),
       [
         ...Array.from(basicCatalog.functions.values()),
-        ...createMcpCatalogFunctions(this.getMcpClientForTool, this.processor),
+        CallMcpToolImplementation,
+        JmespathImplementation,
+        SplitImplementation,
+        RegexCaptureImplementation,
+        RegexReplaceImplementation,
+        UpdateDataModelImplementation,
       ],
     );
-    catalogs.push(this.catalog);
+    this.processor = new MessageProcessor<any>([this.catalog]);
+    configureMcpCatalog({
+      getMcpClientForTool: this.getMcpClientForTool,
+      processor: this.processor,
+      defaultVersion: 'v0.9',
+    });
 
     this.processor.onSurfaceCreated(surface => {
       this.requestUpdate();
