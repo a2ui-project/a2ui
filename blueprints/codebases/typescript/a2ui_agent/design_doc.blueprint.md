@@ -35,13 +35,13 @@ The SDK reuses `@a2ui/web_core` rather than redefining catalog or schema types. 
 module blueprint refers to this dependency as `a2ui_core`; in TypeScript, that role is
 currently played by `web_core`.
 
-| Subpath                     | What we use                                                                                                                              |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `@a2ui/web_core/catalog`    | `Catalog`, `CatalogApi`, `CatalogInterface`, `ComponentApi`, `FunctionApi`                                                               |
-| `@a2ui/web_core/schema/v1_0`| `AgentToRendererMessage`, `AgentToRendererMessageSchema`, `RendererToAgentMessage`, `V10RendererCapabilities`, `V10_STANDARD_DEFS`       |
-| `@a2ui/web_core/validating` | `validateRecursionAndPaths`, `STRICT_VALIDATION`, `getComponentReferences`, `buildComponentRefMap`, `V10_CHILD_REF_OPTIONS`              |
-| `@a2ui/web_core/processing` | `MessageProcessor` (see section 6)                                                                                                       |
-| `@a2ui/web_core/errors`     | `A2uiError`, `A2uiValidationError`, `A2uiIntegrityError`, `A2uiRecursionError`, `A2uiStateError`, `A2uiDataError`, `A2uiExpressionError` |
+| Subpath                      | What we use                                                                                                                              |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `@a2ui/web_core/catalog`     | `Catalog`, `CatalogApi`, `CatalogInterface`, `ComponentApi`, `FunctionApi`                                                               |
+| `@a2ui/web_core/schema/v1_0` | `AgentToRendererMessage`, `AgentToRendererMessageSchema`, `RendererToAgentMessage`, `V10RendererCapabilities`, `V10_STANDARD_DEFS`       |
+| `@a2ui/web_core/validating`  | `validateRecursionAndPaths`, `STRICT_VALIDATION`, `getComponentReferences`, `buildComponentRefMap`, `V10_CHILD_REF_OPTIONS`              |
+| `@a2ui/web_core/processing`  | `MessageProcessor` (see section 6)                                                                                                       |
+| `@a2ui/web_core/errors`      | `A2uiError`, `A2uiValidationError`, `A2uiIntegrityError`, `A2uiRecursionError`, `A2uiStateError`, `A2uiDataError`, `A2uiExpressionError` |
 
 `RendererToAgentMessage` types the inbound direction — user events and callbacks coming
 back from a renderer. This SDK does not process those; it types them so an agent can
