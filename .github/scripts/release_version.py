@@ -372,8 +372,18 @@ def check_environment(
     """
     report = EnvironmentReport()
 
-    # 1. The checkout must be an a2ui repository. Every later check, and the
-    #    package checks that read changelogs and pyproject files, rely on it.
+    # 1. The checkout must be a git repository containing the a2ui packages.
+    #    Every later check, and the package checks that read tags, changelogs
+    #    and pyproject files, rely on it.
+    inside_git = _run(run, ["git", "rev-parse", "--is-inside-work-tree"], repo_root)
+    if inside_git.returncode != 0:
+        report.errors.append(
+            f"{repo_root} is not inside a git checkout. Action needed: cd into"
+            f" your clone of {CANONICAL_REPO} and run the command again."
+        )
+        report.fatal = True
+        return report
+
     missing = [
         pkg.pyproject_path
         for pkg in (CORE, AGENT)
@@ -482,12 +492,21 @@ def check_environment(
         )
         return report
 
-    # 8. The released packages must match the canonical main exactly. The
-    #    workflow builds from there, so a local commit that is not merged yet
+    # 8. Committed changes in the released packages must match the canonical
+    #    main. (Uncommitted working-tree edits are already reported by check 5.)
+    #    The workflow builds from main, so a local commit that is not merged yet
     #    (say, a widened dependency pin) would pass here and fail there.
     diff = _run(
         run,
-        ["git", "diff", "--quiet", f"{remote}/{RELEASE_BRANCH}", "--", *RELEASE_PATHS],
+        [
+            "git",
+            "diff",
+            "--quiet",
+            f"{remote}/{RELEASE_BRANCH}",
+            "HEAD",
+            "--",
+            *RELEASE_PATHS,
+        ],
         repo_root,
     )
     if diff.returncode == 1:
@@ -563,12 +582,13 @@ def build_plan(selection: str, bump: BumpLevel, repo_root: str) -> list[dict[str
     return plan
 
 
-def _repo_root() -> str:
+def _repo_root(path: str | None = None) -> str:
+    target = path or os.getcwd()
     try:
-        return _git(["rev-parse", "--show-toplevel"], os.getcwd()).strip()
-    except (subprocess.CalledProcessError, FileNotFoundError) as error:
+        return _git(["rev-parse", "--show-toplevel"], target).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError) as error:
         raise NotInRepositoryError(
-            f"{os.getcwd()} is not inside a git checkout. Action needed: cd into"
+            f"{target} is not inside a git checkout. Action needed: cd into"
             f" your clone of {CANONICAL_REPO} and run the command again."
         ) from error
 
@@ -651,11 +671,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     custom_root = getattr(args, "repo_root", None)
-    try:
-        repo_root = custom_root or _repo_root()
-    except NotInRepositoryError as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
+    # Pure file/string subcommands (`tag`, `notes`, `cut-changelog`) do not run
+    # git, so an explicit --repo-root can point at a plain directory in tests.
+    if custom_root and args.command in ("tag", "notes", "cut-changelog"):
+        repo_root = custom_root
+    else:
+        try:
+            repo_root = _repo_root(custom_root)
+        except NotInRepositoryError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
 
     if args.command == "plan":
         entries = build_plan(args.package, args.bump, repo_root)

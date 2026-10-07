@@ -606,7 +606,8 @@ class CheckEnvironmentTest(unittest.TestCase):
     def test_uncommitted_change_to_a_tracked_file_is_an_error(self):
         self._write(rv.CORE.pyproject_path, "[project]\nname = 'edited'\n")
         report = self._check()
-        self.assertTrue(any("uncommitted changes" in e for e in report.errors))
+        self.assertEqual(len(report.errors), 1)
+        self.assertIn("uncommitted changes", report.errors[0])
 
     def test_untracked_files_are_ignored(self):
         self._write("python/a2ui_core/.venv/marker", "")
@@ -682,6 +683,22 @@ class CheckCommandEnvironmentTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("is not inside a git checkout", err)
         self.assertNotIn("Traceback", err)
+
+    def test_repo_root_outside_a_git_checkout_fails_without_a_traceback(self):
+        with tempfile.TemporaryDirectory() as plain_dir:
+            code, out, err = self._main([
+                "check",
+                "--package",
+                "both",
+                "--bump",
+                "patch",
+                "--repo-root",
+                plain_dir,
+            ])
+        self.assertEqual(code, 1)
+        self.assertIn("is not inside a git checkout", err)
+        self.assertNotIn("Traceback", err)
+        self.assertEqual(out, "")
 
     def test_other_repository_stops_before_package_checks(self):
         with tempfile.TemporaryDirectory() as other:
