@@ -552,6 +552,9 @@ void main() {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
         protocolVersion: A2uiProtocolVersion.v0_9,
+        // Strict, so that a dangling reference is rejected: these cases are
+        // about the validator and the resolver reading one reference map.
+        validationConfig: ValidationConfig.strict,
       );
       addTearDown(processor.groupModel.dispose);
       return processor;
