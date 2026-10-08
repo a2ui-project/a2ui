@@ -908,6 +908,22 @@ def test_prompt_generator_multi_catalog_rules() -> None:
     assert "- (secOnly :limit)" in instructions
 
 
+def test_v0_9_prompt_rules_forbid_call_function() -> None:
+    cat_v09 = Catalog.from_json(
+        {"catalogId": PRI, "components": {}}, protocol_version="v0.9"
+    )
+    generator_v09 = AtomFormat([cat_v09]).prompt_generator
+    rules_v09 = generator_v09.generate_base_rules()
+    assert "callFunction" not in rules_v09
+
+    cat_v10 = Catalog.from_json(
+        {"catalogId": PRI, "components": {}}, protocol_version="v1.0"
+    )
+    generator_v10 = AtomFormat([cat_v10]).prompt_generator
+    rules_v10 = generator_v10.generate_base_rules()
+    assert "callFunction" in rules_v10
+
+
 def test_catalogs_property_returns_a_copy() -> None:
     fmt = AtomFormat([_primary()])
     fmt.catalogs.append(_secondary())

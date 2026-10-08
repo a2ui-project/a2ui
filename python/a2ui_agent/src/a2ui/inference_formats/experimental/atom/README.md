@@ -61,7 +61,9 @@ For v0.9 and v0.9.1 catalogs, a surface compiles to `createSurface`, `updateComp
 
 ### Multiple Catalogs
 
-With more than one catalog, the first is the default. A surface uses the default catalog unless its header names another with `:catalogId`. Components and function calls without `:catalogId` resolve against the surface's catalog; in v1.0, `:catalogId "c"` on a component or function call takes it from another catalog. A function that the surface catalog does not define, used inside a component from another catalog, resolves against that component's catalog and the compiled call names it.
+With several active catalogs (A2UI v1.0 and later), `createSurface` omits `catalogId` and the surface has no default catalog. Specifying `:catalogId` in a `(surface ...)` or `(updateComponents ...)` header is not permitted.
+
+Instead, components and function calls without `:catalogId` are looked up by name across all active catalogs. A component or function expression needs an explicit `:catalogId "catalog_id"` argument only when its name is defined in more than one catalog.
 
 ---
 

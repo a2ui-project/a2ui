@@ -22,6 +22,7 @@ import re
 from typing import Any, Literal, TYPE_CHECKING
 
 from a2ui.core import A2uiValidationError, CatalogApi
+from a2ui.core.common import is_at_least_version
 from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
@@ -165,9 +166,25 @@ class AtomPromptGenerator(PromptGenerator):
     def _default_helper(self) -> CatalogSchemaHelper | None:
         return next(iter(self.schema_helpers.values()), None)
 
+    def _at_least_v10(self) -> bool:
+        if not self.catalogs:
+            return True
+        return is_at_least_version(self.catalogs[0].protocol_version, "1.0")
+
     def generate_base_rules(self) -> str:
-        """Returns core syntax rules for A2UI Atom."""
-        return ATOM_RULES + self._generate_multi_catalog_rules()
+        """Returns core syntax rules for A2UI Atom.
+
+        Standalone function calls (`callRendererFunction`) exist from protocol
+        v1.0 on, so the rule for them is omitted for earlier catalogs.
+        """
+        rules = ATOM_RULES
+        if not self._at_least_v10():
+            rules = "".join(
+                line
+                for line in rules.splitlines(keepends=True)
+                if "Call a client function:" not in line
+            )
+        return rules + self._generate_multi_catalog_rules()
 
     def _generate_multi_catalog_rules(self) -> str:
         """Explains how components and functions find their catalog.
