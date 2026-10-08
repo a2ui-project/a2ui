@@ -15,7 +15,7 @@
   resolved raises `A2uiCatalogError`, as a component does, even without a
   validation config. Argument errors from these checks are reported together
   with the component schema errors of the same update, in one
-  `A2uiValidationError`.
+  `A2uiValidationError`, which reports a detail found by both checks once.
 - (v1_0) `PayloadValidator` fully checks a nested call when it runs in the
   validator's catalog: when it names that catalog, or names no `catalogId` in
   a component that names none either. Any other call runs in a catalog the
@@ -49,7 +49,15 @@
   on a nested call is a `type_mismatch` error.
 - (v1_0) Reserved `@` system functions such as `@index` need no catalog: they
   are validated and run without catalog resolution, on any surface. A system
-  function call that names a `catalogId` is rejected (`extra_field`).
+  function call that names a `catalogId` is rejected (`extra_field`), and
+  `DataContext` reports it as an `EXPRESSION_ERROR` instead of running it.
+- (v1_0) A nested call with an empty `@call` name is rejected as an invalid
+  identifier instead of being skipped.
+- (v1_0) `catalogId` and `metadata` are component envelope keys, like `id` and
+  `component`: `PayloadValidator` leaves them out when a component's JSON
+  schema or Pydantic model doesn't declare them, so a closed schema accepts a
+  component that names its catalog. A `catalogId` left out this way must
+  still be a string.
 - **BREAKING** (v1_0): Every component in `updateComponents` must name its
   `component` type, as the specification requires; an update of an existing
   component that leaves it out is rejected.

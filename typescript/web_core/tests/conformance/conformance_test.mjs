@@ -251,6 +251,11 @@ const KNOWN_DIVERGENCES = new Map([
         V10_CATALOG_RESOLUTION_PENDING,
       ],
       [
+        'test_v10_component_from_named_catalog_with_closed_schema_accepted',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      ['test_v10_function_call_with_empty_name_errors', V10_CATALOG_RESOLUTION_PENDING],
+      [
         'test_v10_create_surface_metadata_extension_key_must_be_identifier',
         'the v1.0 CreateSurface schema does not yet enforce UAX #31 identifier syntax on metadata.extensions keys',
       ],

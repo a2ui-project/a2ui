@@ -121,6 +121,38 @@ def _version_label(version: ProtocolVersion | str) -> str:
         return str(version)
 
 
+def _merge_validation_errors(
+    first: A2uiValidationError, second: A2uiValidationError
+) -> A2uiValidationError:
+    """Combines two validation errors without repeating a detail.
+
+    Both passes over an update can report the same detail (path, code and
+    message), such as a bad identifier in a call that runs in another
+    catalog. Such a detail is kept once, where it first appears. When
+    `second` repeats some of `first`'s details, its message is rebuilt from
+    the details it adds, and left out if it adds none.
+    """
+    seen: set[tuple[str, str, str]] = set()
+    details: list[A2uiErrorDetail] = []
+    added: list[A2uiErrorDetail] = []
+    for idx, detail in enumerate([*first.details, *second.details]):
+        key = (detail.path, detail.code, detail.message)
+        if key in seen:
+            continue
+        seen.add(key)
+        details.append(detail)
+        if idx >= len(first.details):
+            added.append(detail)
+    if len(added) == len(second.details):
+        message = f"{first}\n{second}"
+    elif added:
+        lines = "\n".join(f"{detail.path}: {detail.message}" for detail in added)
+        message = f"{first}\nValidation failed for component:\n{lines}"
+    else:
+        message = str(first)
+    return A2uiValidationError(message, details=details)
+
+
 class MessageProcessor:
     """Core processor for handling A2UI messages, updating state, and executing operations."""
 
@@ -727,10 +759,7 @@ class MessageProcessor:
                 # A different kind of failure (e.g. integrity); the nested-call
                 # errors come first, as they are found first.
                 raise nested_error from None
-            raise A2uiValidationError(
-                f"{nested_error}\n{e}",
-                details=[*nested_error.details, *e.details],
-            ) from None
+            raise _merge_validation_errors(nested_error, e) from None
         if nested_error is not None:
             raise nested_error
 

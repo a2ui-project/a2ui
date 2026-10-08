@@ -549,6 +549,36 @@ def test_data_context_index_function_on_surface_without_default_catalog():
     assert value == 3
 
 
+@pytest.mark.parametrize("catalog_id", ["any-id", "", None, 5])
+def test_data_context_system_function_naming_catalog_is_expression_error(
+    catalog_id: Any,
+):
+    """A v1.0 system call that names a catalog, with any value, is not run."""
+    errors: list[dict[str, Any]] = []
+    surface = SurfaceModel("s1", BasicCatalog("1.0"))
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    ctx = DataContext(surface, path="/items/2")
+
+    value = ctx.resolve_dynamic_value({"@call": "@index", "catalogId": catalog_id})
+
+    assert value is None
+    assert len(errors) == 1
+    assert errors[0]["code"] == "EXPRESSION_ERROR"
+    assert errors[0]["expression"] == "@index"
+    assert "must not name a catalogId" in errors[0]["message"]
+
+
+def test_data_context_system_function_without_catalog_id_still_runs():
+    """Only a present catalogId key makes a system call malformed."""
+    errors: list[dict[str, Any]] = []
+    surface = SurfaceModel("s1", BasicCatalog("1.0"))
+    surface.on_error.subscribe(lambda err: errors.append(err))
+    ctx = DataContext(surface, path="/items/2")
+
+    assert ctx.resolve_dynamic_value({"@call": "@index"}) == 2
+    assert errors == []
+
+
 def test_surface_model_protocol_version():
     """The protocol version defaults to the default catalog's, else is explicit."""
     from a2ui.core.basic_catalog import v1_0

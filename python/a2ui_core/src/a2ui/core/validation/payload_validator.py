@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import copy
 import functools
 from typing import (
@@ -96,6 +97,29 @@ def _is_unknown_property_error(err: jsonschema.exceptions.ValidationError) -> bo
     if err.validator not in ("additionalProperties", "unevaluatedProperties"):
         return False
     return not (isinstance(err.schema, dict) and "patternProperties" in err.schema)
+
+
+# Component keys that belong to the component message rather than to the
+# component's own properties.
+_BASE_COMPONENT_ENVELOPE_KEYS: Final[tuple[str, ...]] = ("id", "component")
+# From v1.0 the spec's `ComponentCommon` also lets every component name its
+# catalog and carry extension metadata.
+_V10_COMPONENT_ENVELOPE_KEYS: Final[tuple[str, ...]] = (
+    *_BASE_COMPONENT_ENVELOPE_KEYS,
+    "catalogId",
+    "metadata",
+)
+
+
+def _component_envelope_keys(protocol_version: Any) -> tuple[str, ...]:
+    """Returns the component envelope keys of a protocol version.
+
+    A component schema that doesn't declare an envelope key is validated
+    without it.
+    """
+    if protocol_version and is_at_least_version(protocol_version, ProtocolVersion.V1_0):
+        return _V10_COMPONENT_ENVELOPE_KEYS
+    return _BASE_COMPONENT_ENVELOPE_KEYS
 
 
 @functools.cache
@@ -310,9 +334,34 @@ class PayloadValidator:
         allow_unknown: bool,
         errors: list[A2uiErrorDetail],
     ) -> None:
-        """Validates a component payload against a Pydantic BaseModel schema."""
+        """Validates a component payload against a Pydantic BaseModel schema.
+
+        From v1.0, the `catalogId` and `metadata` envelope keys are left out
+        when the model has no field for them. `id` and `component` are passed
+        through as before.
+        """
+        props = dict(comp)
+        ver = getattr(self.catalog, "protocol_version", None)
+        declared: set[str] = set()
+        for field_name, field in model_cls.model_fields.items():
+            declared.add(field_name)
+            if field.alias:
+                declared.add(field.alias)
+            if isinstance(field.validation_alias, str):
+                declared.add(field.validation_alias)
+        self._strip_envelope_keys(
+            props,
+            tuple(
+                k
+                for k in _component_envelope_keys(ver)
+                if k not in _BASE_COMPONENT_ENVELOPE_KEYS
+            ),
+            lambda key: key in declared,
+            comp_id,
+            errors,
+        )
         try:
-            model_cls.model_validate(comp)
+            model_cls.model_validate(props)
         except ValidationError as e:
             component_errors = format_validation_error(
                 e,
@@ -321,6 +370,41 @@ class PayloadValidator:
                 match_jsonschema_missing_path=True,
             )
             errors.extend(component_errors)
+
+    @staticmethod
+    def _strip_envelope_keys(
+        props: dict[str, Any],
+        keys: tuple[str, ...],
+        is_declared: Callable[[str], bool],
+        comp_id: str | None,
+        errors: list[A2uiErrorDetail],
+    ) -> None:
+        """Removes the envelope keys a component schema doesn't declare.
+
+        Envelope keys (see `_component_envelope_keys`) belong to the component
+        message, not to the component's own properties, so a schema that
+        doesn't declare one must not see it. A `catalogId` that is removed is
+        still checked to be a string, since the schema can't check it.
+
+        Args:
+            props: The component's keys, modified in place.
+            keys: The envelope keys to consider.
+            is_declared: Returns whether the schema declares or requires a key.
+            comp_id: The ID of the component being validated.
+            errors: Collects the errors found.
+        """
+        for key in keys:
+            if key not in props or is_declared(key):
+                continue
+            value = props.pop(key)
+            if key == "catalogId" and not isinstance(value, str):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"components.{comp_id or 'unknown'}.catalogId",
+                        code="type_mismatch",
+                        message="'catalogId' must be a string",
+                    )
+                )
 
     def _validate_dict_component(
         self,
@@ -374,16 +458,14 @@ class PayloadValidator:
                 if isinstance(validator.schema, dict)
                 else []
             )
-            if (
-                not _schema_has_property(validator.schema, "id")
-                and "id" not in req_fields
-            ):
-                props.pop("id", None)
-            if (
-                not _schema_has_property(validator.schema, "component")
-                and "component" not in req_fields
-            ):
-                props.pop("component", None)
+            self._strip_envelope_keys(
+                props,
+                _component_envelope_keys(ver),
+                lambda key: _schema_has_property(validator.schema, key)
+                or key in req_fields,
+                comp_id,
+                errors,
+            )
             schema_errors = sorted(validator.iter_errors(props), key=lambda e: e.path)
             for err in schema_errors:
                 err_code = self._map_json_schema_error_code(err.validator)
@@ -466,7 +548,9 @@ class PayloadValidator:
                 fn_name = val.get("@call")
             else:
                 fn_name = val.get("call") or val.get("function")
-            if fn_name and isinstance(fn_name, str):
+            # From v1.0 any string name is checked, so an empty one is
+            # reported as an invalid identifier rather than skipped.
+            if isinstance(fn_name, str) and (at_least_v10 or fn_name):
                 self._validate_nested_call(
                     fn_name, val, call_path, comp_catalog_id, at_least_v10, ver, errors
                 )
