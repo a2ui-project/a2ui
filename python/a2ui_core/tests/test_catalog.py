@@ -29,7 +29,7 @@ from a2ui.core.catalog import (
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import ProtocolVersion
 from a2ui.core.exceptions import A2uiCatalogError, A2uiValidationError
-from a2ui.core.validation import PayloadValidator
+from a2ui.core.validation import PayloadValidator, ValidationConfig
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.basic_catalog.v1_0 import BasicCatalog as BasicCatalogV1_0
 from a2ui.core.schema.v0_9.constants import PROTOCOL_VERSION
@@ -618,6 +618,32 @@ def test_v10_call_with_empty_name_is_rejected():
     assert _v10_nested_call_error_details(
         val, {"@call": "", "catalogId": "https://other.example/c"}
     ) == [("components.b1.onSearch", "invalid_identifier")]
+
+
+def test_v10_calls_in_unknown_component_type_are_still_checked():
+    # Allowing an unknown component type leaves its properties unchecked, but
+    # the function calls in them still run, so they are checked as usual.
+    val = PayloadValidator(
+        catalog=_v10_nested_call_catalog(),
+        config=ValidationConfig(allow_unknown_elements=True),
+    )
+
+    def details(call: dict[str, Any]) -> list[tuple[str, str]]:
+        try:
+            val.validate_component({"id": "w1", "component": "Widget", "prop": call})
+        except A2uiValidationError as e:
+            return [(d.path, d.code) for d in e.details]
+        return []
+
+    assert not details({"@call": "doSearch", "args": {"query": "test"}})
+    assert not details({"@call": "@index"})
+    assert details({"@call": "@index", "catalogId": "https://a2ui.org/x"}) == [
+        ("components.w1.prop.catalogId", "extra_field")
+    ]
+    assert details({"@call": "doSearch", "args": {"query": 12345}}) == [
+        ("components.w1.prop.args.query", "type_mismatch")
+    ]
+    assert details({"@call": "doSearch", "args": {"bad-arg": "x"}})
 
 
 def test_v10_component_naming_a_catalog_leaves_its_catalogless_calls_unjudged():
