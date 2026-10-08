@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      https://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,25 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: a2ui_monorepo
-publish_to: none
-license: BSD-3-Clause
+name: a2ui_explorer
+description: The gallery app of the A2UI Flutter renderer.
+publish_to: "none"
 
 environment:
   sdk: ">=3.10.0 <4.0.0"
-  flutter: ">=3.35.7 <4.0.0"
+  flutter: ">=3.38.0"
 
-workspace:
-  - samples/client/flutter/restaurant_finder/app
-  - samples/client/flutter/restaurant_finder/e2e_test
-  - dart/a2ui_agent
-  - dart/a2ui_agent/e2e_test
-  - dart/a2ui_core
-  - dart/a2ui_cli
-  - dart/a2ui_flutter
-  - dart/a2ui_flutter/a2ui_explorer
+resolution: workspace
+
+dependencies:
+  a2ui_core:
+    path: ../../a2ui_core
+  a2ui_flutter:
+    path: ..
+  flutter:
+    sdk: flutter
+  flutter_markdown_plus: ^1.0.7
+  json_schema_builder: ^0.1.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
 
 flutter:
   uses-material-design: true
-dev_dependencies:
-  lints: ^6.1.0
