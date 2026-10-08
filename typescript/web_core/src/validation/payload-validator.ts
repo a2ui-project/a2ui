@@ -268,14 +268,29 @@ export class PayloadValidator {
   }
 
   /**
-   * Asserts that a function name and all its argument keys satisfy UAX #31 identifier syntax.
+   * Asserts that a v1.0 call's envelope is well formed without consulting its
+   * catalog: the function name and all argument keys satisfy UAX #31
+   * identifier syntax, and `args`, when present, is an object.
    *
    * @param name Function name to check.
    * @param args Function arguments object whose keys are checked.
-   * @throws {A2uiValidationError} If the function name or any argument key is not a valid UAX #31 identifier.
+   * @throws {A2uiValidationError} If the function name or any argument key is
+   *   not a valid UAX #31 identifier, or `args` is not an object.
    */
   private assertFunctionIdentifiers(name: string, args: unknown): void {
     this.assertIdentifier(name, `Function name '${name}' must be a valid UAX #31 identifier`);
+    // The call envelope types `args` as an object, whatever catalog the call
+    // runs in.
+    if (
+      this.enforceIdentifiers &&
+      args !== undefined &&
+      args !== null &&
+      (typeof args !== 'object' || Array.isArray(args))
+    ) {
+      throw new A2uiValidationError(
+        `Validation failed for function '${name}': Expected object, received ${Array.isArray(args) ? 'array' : typeof args}`,
+      );
+    }
     if (args && typeof args === 'object' && !Array.isArray(args)) {
       const keys = Object.keys(args);
       if (keys.length > MAX_FUNCTION_CALL_ARGS) {
