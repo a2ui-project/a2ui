@@ -433,5 +433,5 @@ Consult existing implementations for concrete language mechanics:
 | [`renderers/react`](../../renderers/react)     | React     | Direct `SurfaceModel` dependency, `NodeResolver` surface, schema-typed props inference, hook-based signal bridging. |
 | [`renderers/angular`](../../renderers/angular) | Angular   | `SurfaceModel` integration, Angular Signals, dependency-injected catalog resolution.                                |
 | [`renderers/lit`](../../renderers/lit)         | Lit       | Custom element dispatch over shared web core.                                                                       |
-| [`dart/a2ui_flutter`](../../dart/a2ui_flutter) | Flutter   | Planned Flutter adapter based on the Node API in the Dart `a2ui_core`.                                              |
+| [`dart/a2ui_flutter`](../../dart/a2ui_flutter) | Flutter   | `NodeResolver` from the Dart `a2ui_core`, `StatefulWidget` signal bridging, `InheritedWidget` surface lookup.       |
 | [`swift/swiftui`](../../swift/swiftui)         | SwiftUI   | SwiftUI `View` integration, `@Environment` propagation, `Binding<T>` bridging.                                      |
