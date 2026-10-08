@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.8.0 (2026-10-08)
+
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.3.0,<0.4.0`.
 - **BREAKING**: `remove_strict_validation` and the `schema_modifiers`
   parameter of `CatalogConfig.to_catalog` are removed. Catalog schemas are

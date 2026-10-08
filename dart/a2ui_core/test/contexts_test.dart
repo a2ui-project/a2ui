@@ -220,7 +220,7 @@ void main() {
     late List<A2uiClientError> clientErrors;
 
     setUp(() {
-      surface = SurfaceModel('surf-1', catalog: MinimalCatalog());
+      surface = SurfaceModel('surf-1', defaultCatalog: MinimalCatalog());
       component = ComponentModel('root', 'Text', {});
       clientErrors = [];
       surface.onError.addListener(clientErrors.add);
@@ -714,7 +714,7 @@ void main() {
     late ComponentModel component;
 
     setUp(() {
-      surface = SurfaceModel('surf-err', catalog: MinimalCatalog());
+      surface = SurfaceModel('surf-err', defaultCatalog: MinimalCatalog());
       component = ComponentModel('root', 'Column', {});
       surface.componentsModel.addComponent(component);
       surface.componentsModel.addComponent(ComponentModel('child', 'Text', {}));
@@ -748,16 +748,16 @@ void main() {
         'function', () {
       final componentContext = ComponentContext(surface, component);
       expect(
-        () => surface.catalog.invoke(
+        () => surface.defaultCatalog!.invoke(
           'unknownFn',
-          const {},
+          const <String, dynamic>{},
           componentContext.dataContext,
         ),
         throwsA(
           isA<A2uiCatalogError>().having(
             (e) => e.catalogId,
             'catalogId',
-            surface.catalog.id,
+            surface.defaultCatalog!.id,
           ),
         ),
       );

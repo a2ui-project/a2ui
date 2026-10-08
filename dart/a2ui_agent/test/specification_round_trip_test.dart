@@ -128,7 +128,7 @@ Map<String, Object?> _render(
 ) {
   final renderer = MessageProcessor<ComponentApi>(
     catalogs: [_rendererCatalog(catalog)],
-    protocolVersion: A2uiProtocolVersion.v0_9,
+    defaultVersion: A2uiProtocolVersion.v0_9,
     // Some examples replace a placeholder and leave it unreachable.
     validationConfig: ValidationConfig.relaxed,
   );
@@ -138,7 +138,7 @@ Map<String, Object?> _render(
     for (final SurfaceModel<ComponentApi> surface
         in renderer.groupModel.allSurfaces)
       surface.id: {
-        'catalog': surface.catalog.id,
+        'catalog': surface.defaultCatalog?.id,
         'components': {
           for (final ComponentModel component in surface.componentsModel.all)
             component.id: component.toJson(),
@@ -154,6 +154,7 @@ Catalog<ComponentApi, FunctionImplementation> _rendererCatalog(
   CatalogApi catalog,
 ) => Catalog<ComponentApi, FunctionImplementation>(
   id: catalog.id,
+  protocolVersion: catalog.protocolVersion ?? 'v0.9',
   components: catalog.components.values.toList(),
   functions: catalog.functions.values.map(_Signature.new).toList(),
   themeSchema: catalog.themeSchema,

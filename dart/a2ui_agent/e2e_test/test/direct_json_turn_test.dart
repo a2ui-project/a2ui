@@ -92,7 +92,7 @@ void main() {
       // for the end.
       final renderer = MessageProcessor<ComponentApi>(
         catalogs: [rendererCatalog(catalog)],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
         validationConfig: ValidationConfig.relaxed,
       );
       addTearDown(renderer.groupModel.dispose);

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
 import 'catalog.dart';
 import 'messages.dart';
@@ -36,9 +37,14 @@ class SurfaceGroupModel<T extends ComponentApi> {
   EventListenable<A2uiClientAction> get onAction => _onAction;
 
   /// Adds a surface to the group.
+  ///
+  /// Throws [A2uiStateError] when the group already holds a surface with the
+  /// same id.
   void addSurface(SurfaceModel<T> surface) {
     if (_surfaces.containsKey(surface.id)) {
-      return;
+      throw A2uiStateError(
+        "Surface '${surface.id}' already exists in this group.",
+      );
     }
     _surfaces[surface.id] = surface;
     void forwarder(A2uiClientAction action) {

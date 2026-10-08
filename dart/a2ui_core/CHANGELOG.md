@@ -2,6 +2,79 @@
 
 ## Unreleased
 
+- **Breaking:** `MessageProcessor` routes each message through the
+  `VersionAdapter` for the version it declares, so one processor holds v0.9,
+  v0.9.1 and v1.0 surfaces side by side. The required `protocolVersion`
+  parameter and field are replaced by an optional `defaultVersion`, and
+  `commonTypesSchema` is nullable: null uses the copy this package publishes
+  for each message's version. `validatorFor` takes a required `version`.
+- **Breaking:** `processMessages`, `process` and the new
+  `processMessagesAsync` take `Object?`: raw decoded JSON (a lone envelope, a
+  list of envelopes or the `{messages: [...]}` wrapper) or parsed messages
+  (`AgentToRendererMessagePayload`, one `AgentToRendererMessage`, or a list of
+  them). Every message is parsed before any is applied.
+- **Behavior change:** `createSurface` raises `A2uiCatalogError` when its
+  catalog declares a `protocolVersion` incompatible with the message's
+  version. A catalog that declares none is pre-v1.0: accepted by a v0.9 or
+  v0.9.1 message and rejected by a v1.0 one. `MinimalCatalog` declares `v0.9`.
+- **Behavior change:** a v1.0 `createSurface` writes its inline `dataModel` as
+  one root write, then applies its inline `components` (checked as one batch
+  before the surface is added, so a batch that fails creates nothing).
+  Without a `catalogId` it creates a surface with no default catalog; there
+  is no fallback to the processor's catalogs. A v0.9 `createSurface` without
+  a `catalogId` is rejected, as the v0.9 schema requires one.
+- `SurfaceModel.protocolVersion` is the version of the message that created
+  the surface, so `DataContext.isV10` follows each surface's own version.
+- New `InternalOperation` (`CreateSurfaceOp`, `UpdateComponentsOp`,
+  `UpdateDataModelOp`, `DeleteSurfaceOp`, `CallRendererFunctionOp`,
+  `AgentFunctionResponseOp`), `VersionAdapter`, `V0_9Adapter` (v0.9 and
+  v0.9.1), `V1_0Adapter`, and `VersionAdapterRegistry`, which
+  `MessageProcessor` takes as `adapterRegistry`.
+- `Catalog` adds `protocolVersion`, read from the document by
+  `Catalog.fromJson`, which takes a `protocolVersion` fallback for documents
+  that declare none. `catalogSchema` emits it and, from `1.0`, names
+  functions under `@call` instead of `call`.
+- `SurfaceModel` adds `metadata`, from v1.0 `createSurface`.
+- **Breaking:** `SurfaceModel.catalog` is replaced by a nullable
+  `defaultCatalog`, and the constructor's `catalog:` argument by
+  `defaultCatalog:`. `SurfaceModel` adds `availableCatalogs`, `metadata`,
+  `onWarning`/`dispatchWarning` (with the new `A2uiWarning`), and
+  `resolveCatalog(catalogId)`, which resolves an item's own `catalogId`, then
+  the default, and otherwise throws `A2uiCatalogError`. There is no fallback to
+  a sole catalog. A catalog whose `protocolVersion` is incompatible with the
+  surface's throws `A2uiCatalogError` at construction. A catalog without a
+  `protocolVersion` is pre-v1.0: a v0.9 or v0.9.1 surface accepts it and a
+  v1.0 or later surface rejects it.
+- **Behavior change:** `NodeResolver`, `GenericBinder` and `DataContext`
+  resolve components and function calls through `surface.resolveCatalog`, so a
+  component or function call naming another catalog's `catalogId` renders or
+  runs with that catalog. `FunctionCall` adds `catalogId`, and `DataContext`
+  adds `invokerForCatalog`.
+- **Behavior change:** `MessageProcessor` gives each surface the processor
+  catalogs compatible with its protocol version as `availableCatalogs`, and
+  `createSurface` without a `catalogId` creates a surface with no default
+  catalog instead of throwing. A component that names no catalog on such a
+  surface throws `A2uiCatalogError`, even when the processor supports one
+  catalog. `createSurface` metadata is kept on `SurfaceModel.metadata`.
+- **Behavior change:** `SurfaceGroupModel.addSurface` throws `A2uiStateError`
+  for a surface id it already holds, instead of ignoring the new surface.
+- **Behavior change:** `Catalog` throws `A2uiCatalogError` for two components
+  or two functions with one name, for a component named `Surface`, for a
+  function name starting with `@`, and for a function declaring
+  `returnType: 'validationResult'` when the catalog's effective
+  `protocolVersion` is below `1.0` (an omitted `protocolVersion` defaults to
+  `'0.9'`).
+- **Behavior change:** `Catalog.invoke` checks arguments against the
+  function's argument schema and throws `A2uiExpressionError` on a mismatch
+  before the function runs. Parameters that reference `common_types.json` or
+  a definition the catalog bundles are checked against the referenced
+  definition. Null arguments, such as bindings to missing data, are not
+  checked.
+- `SurfaceModel.dispatchAction` copies the action's `catalogId` onto
+  `A2uiClientAction.catalogId`.
+- `Catalog` adds `protocolVersion` and `instructions`, read by
+  `Catalog.fromJson` and written by `catalogSchema`. `catalogSchema` requires
+  `args` only for functions with required parameters.
 - **Breaking:** `Catalog.fromJson` inlines and flattens `allOf` component envelopes (`ComponentCommon`, `CatalogComponentCommon`, `Checkable`), maps `accessibility` and `checks` mixins, omits envelope keys (`id`, `component`, `catalogId`) from `ComponentApi.schema`, and replaces `REF:` description prefixes in `CommonSchemas` with `commonTypesRef` metadata.
 - Adds `Catalog.protocolVersion`, `FunctionApi.description`, and `FunctionImplementation.description`, and updates `Catalog.catalogSchema` to rebuild component envelopes, emit `anyComponent.discriminator` and function `description`, and restore `common_types.json#/$defs/...` references.
 - Allows the `catalogId` envelope property during component validation in `PayloadValidator`.
@@ -103,7 +176,8 @@
   `A2uiRendererCapabilities.forVersion` falls back to a compatible declared
   version in the same way.
 - Added `isCatalogVersionCompatible` and `compareVersions`, matching the
-  TypeScript and Python SDKs.
+  TypeScript and Python SDKs. `isCatalogVersionCompatible` accepts a null
+  catalog version, which is compatible with versions below 1.0 only.
 - Added the v1.0 messages `CallRendererFunctionMessage`,
   `AgentFunctionResponseMessage`, `CallAgentFunctionMessage` and
   `RendererFunctionResponseMessage`, with `A2uiFunctionResponse` and
@@ -124,6 +198,28 @@
   against the specification's envelope schemas.
 - `PayloadValidator.commonTypesFor` throws for v1.0, whose common types this
   package does not embed yet.
+- Added `ValidationResult` and `A2uiReturnType.validationResult` for structured
+  client-side validation outcomes (`valid`, `message`, `code`, `severity`), and
+  exposed `validationResults` alongside `isValid` and `validationErrors` on
+  resolved component properties. `A2uiReturnType.validationResult` is an
+  API-level value; the v0.9 `CommonSchemas.functionCall` wire schema still
+  accepts only the seven v0.9 return types. `ValidationResult.validityOf`
+  exposes the rule the binder uses to read a check result's validity.
+- Fixed `checks` evaluation in `GenericBinder`:
+  - Rules evaluate once during initial binding without a duplicate object-branch
+    pass.
+  - `_subscribe` skips invoking its reactive callback during the initial
+    synchronous pass so rebuilds do not write into stale property maps.
+  - Non-map rule entries emit a `VALIDATION_FAILED` client error on the surface
+    instead of throwing a `TypeError`.
+  - Checkable properties are classified from schema markers or `CheckRule` item
+    structure rather than matching the property name `'checks'`.
+- `ReferenceSchemaReader` resolves external `common_types.json#/$defs/...`
+  pointers against the `common_types.json` document the caller supplies (the
+  embedded v0.9 document by default) so catalogs loaded via `Catalog.fromJson`
+  classify `Checkable`, `DynamicValue`, `Action`, and `ChildList` properties
+  identically to code-constructed catalogs. `extractRefFields` forwards the
+  same optional `commonTypes` document.
 - Harden `ExpressionParser` to clamp scanner bounds at EOF, reject unclosed
   string literals and trailing backslashes with `A2uiExpressionError`, accept
   `@`-prefixed function names (such as `${@index()}` and
@@ -161,28 +257,6 @@
 - Added a conformance runner for `conformance/core/functions.yaml`. Its
   `validate` cases are skipped until basic-catalog components and v1.0
   message processing land.
-- Added `ValidationResult` and `A2uiReturnType.validationResult` for structured
-  client-side validation outcomes (`valid`, `message`, `code`, `severity`), and
-  exposed `validationResults` alongside `isValid` and `validationErrors` on
-  resolved component properties. `A2uiReturnType.validationResult` is an
-  API-level value; the v0.9 `CommonSchemas.functionCall` wire schema still
-  accepts only the seven v0.9 return types. `ValidationResult.validityOf`
-  exposes the rule the binder uses to read a check result's validity.
-- Fixed `checks` evaluation in `GenericBinder`:
-  - Rules evaluate once during initial binding without a duplicate object-branch
-    pass.
-  - `_subscribe` skips invoking its reactive callback during the initial
-    synchronous pass so rebuilds do not write into stale property maps.
-  - Non-map rule entries emit a `VALIDATION_FAILED` client error on the surface
-    instead of throwing a `TypeError`.
-  - Checkable properties are classified from schema markers or `CheckRule` item
-    structure rather than matching the property name `'checks'`.
-- `ReferenceSchemaReader` resolves external `common_types.json#/$defs/...`
-  pointers against the `common_types.json` document the caller supplies (the
-  embedded v0.9 document by default) so catalogs loaded via `Catalog.fromJson`
-  classify `Checkable`, `DynamicValue`, `Action`, and `ChildList` properties
-  identically to code-constructed catalogs. `extractRefFields` forwards the
-  same optional `commonTypes` document.
 - Add `DataContext.isDataBinding`, `DataContext.isFunctionCall`, `DataContext.bindingFor`, and `DataContext.adaptExpressionPart` for protocol-version-aware binding and function-call detection; adapt `FormatStringFunction` parser AST nodes (`@path`/`@call`) in v1.0 mode, pre-build function argument signals outside `computed` in `DataContext.resolveListenable`, skip binding/call validation inside `updateDataModel.value` in `checkPathsAndRecursion`, and report unrecognized or invalid action payloads on `SurfaceModel.onError` with code `INVALID_ACTION`.
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.

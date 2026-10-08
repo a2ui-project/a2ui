@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Payload validation builds its `MessageProcessor` with `defaultVersion`.
+- Validation forwards `catalog.protocolVersion` when constructing its
+  signature-only `Catalog` for `MessageProcessor`.
 - Include common mixin properties (`accessibility`, `weight`) at the end of
   Express component signatures (after component-specific properties) so
   positional arguments map to component properties while supporting common

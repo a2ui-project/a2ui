@@ -103,6 +103,7 @@ class _Opaque {
 Catalog<ComponentApi, FunctionImplementation> makeCatalog() {
   return Catalog<ComponentApi, FunctionImplementation>(
     id: 'node-test-catalog',
+    protocolVersion: 'v0.9',
     components: [
       _TestComponentApi(
         'Text',
@@ -153,7 +154,7 @@ typedef TestSetup = ({
 
 TestSetup setup() {
   final Catalog<ComponentApi, FunctionImplementation> catalog = makeCatalog();
-  final surface = SurfaceModel<ComponentApi>('surf-1', catalog: catalog);
+  final surface = SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
   final resolver = NodeResolver<ComponentApi>(surface);
   return (catalog: catalog, surface: surface, resolver: resolver);
 }
@@ -161,6 +162,7 @@ TestSetup setup() {
 TestSetup setupPair() {
   final catalog = Catalog<ComponentApi, FunctionImplementation>(
     id: 'pair-catalog',
+    protocolVersion: 'v0.9',
     components: [
       ComponentApi(
         name: 'Pair',
@@ -174,7 +176,7 @@ TestSetup setupPair() {
     ],
     functions: [],
   );
-  final surface = SurfaceModel<ComponentApi>('surf-1', catalog: catalog);
+  final surface = SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
   final resolver = NodeResolver<ComponentApi>(surface);
   addTearDown(() {
     resolver.dispose();
@@ -241,7 +243,7 @@ ProcessorSetup setupProcessor([
       catalog ?? makeCatalog();
   final processor = MessageProcessor<ComponentApi>(
     catalogs: [effectiveCatalog],
-    protocolVersion: A2uiProtocolVersion.v0_9,
+    defaultVersion: A2uiProtocolVersion.v0_9,
     validationConfig: validationConfig,
   );
   processor.processMessages(
@@ -332,6 +334,7 @@ void processorContractTests() {
     test('a validated wire reference mounts its child without a marker', () {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'wire-ref-test',
+        protocolVersion: 'v0.9',
         components: [
           ...makeCatalog().components.values.where((api) => api.name != 'Card'),
           ComponentApi(
@@ -374,6 +377,7 @@ void processorContractTests() {
         // surfaces as a node state instead of a rejected batch.
         final catalog = Catalog<ComponentApi, FunctionImplementation>(
           id: 'structural-test',
+          protocolVersion: 'v0.9',
           components: [
             ComponentApi(
               name: 'Column',
@@ -428,6 +432,7 @@ void unresolvedReferenceTests() {
       );
       return Catalog(
         id: 'nested-reference-test',
+        protocolVersion: 'v0.9',
         components: [
           ...makeCatalog().components.values,
           ComponentApi(
@@ -449,7 +454,8 @@ void unresolvedReferenceTests() {
     TestSetup nestedSetup() {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           nestedCatalog();
-      final surface = SurfaceModel<ComponentApi>('nested', catalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('nested', defaultCatalog: catalog);
       final resolver = NodeResolver<ComponentApi>(surface);
       addTearDown(() {
         resolver.dispose();
@@ -792,6 +798,7 @@ void snapshotOwnershipTests() {
       () {
         final catalog = Catalog<ComponentApi, FunctionImplementation>(
           id: 'snapshot-test',
+          protocolVersion: 'v0.9',
           components: [
             ComponentApi(
               name: 'Literal',
@@ -801,7 +808,7 @@ void snapshotOwnershipTests() {
         );
         final surface = SurfaceModel<ComponentApi>(
           'snapshot',
-          catalog: catalog,
+          defaultCatalog: catalog,
         );
         final resolver = NodeResolver<ComponentApi>(surface);
         addTearDown(() {
@@ -1116,6 +1123,7 @@ void main() {
       () {
         final catalog = Catalog<ComponentApi, FunctionImplementation>(
           id: 'edge-test',
+          protocolVersion: 'v0.9',
           components: [
             ...makeCatalog().components.values,
             ComponentApi(
@@ -1129,7 +1137,8 @@ void main() {
             ),
           ],
         );
-        final surface = SurfaceModel<ComponentApi>('surf-1', catalog: catalog);
+        final surface =
+            SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
         final NodeResolver<ComponentApi> resolver = NodeResolver(surface);
         addTearDown(() {
           resolver.dispose();
@@ -1155,6 +1164,7 @@ void main() {
     test('resolves plain arrays of marked component ids', () {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'plain-list-test',
+        protocolVersion: 'v0.9',
         components: [
           ...makeCatalog().components.values,
           ComponentApi(
@@ -1167,7 +1177,8 @@ void main() {
           ),
         ],
       );
-      final surface = SurfaceModel<ComponentApi>('surf-1', catalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       final NodeResolver<ComponentApi> resolver = NodeResolver(surface);
       addTearDown(() {
         resolver.dispose();
@@ -1188,7 +1199,8 @@ void main() {
     test('ignores a root removed before its creation event is handled', () {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           makeCatalog();
-      final surface = SurfaceModel<ComponentApi>('surf-1', catalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       var removedOnce = false;
       surface.componentsModel.onCreated.addListener((component) {
         if (component.id == 'root' && !removedOnce) {
@@ -1214,7 +1226,8 @@ void main() {
     test('re-arms a pending child removed during its creation event', () {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           makeCatalog();
-      final surface = SurfaceModel<ComponentApi>('surf-1', catalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       var removedOnce = false;
       surface.componentsModel.onCreated.addListener((component) {
         if (component.id == 'child' && !removedOnce) {
@@ -1350,7 +1363,8 @@ void main() {
         'and rebuilds it after deletion and re-send', () {
       final Catalog<ComponentApi, FunctionImplementation> catalog =
           makeCatalog();
-      final surface = SurfaceModel<ComponentApi>('surf-1', catalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       add(surface, 'root', 'Text', {'text': 'early'});
       final resolver = NodeResolver<ComponentApi>(surface);
       final ComponentNode? initial = resolver.rootNode.value;
@@ -1575,6 +1589,7 @@ void main() {
     test('escapes sibling instance ids that mimic template scopes', () {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'scoped-id-test',
+        protocolVersion: 'v0.9',
         components: [
           ...makeCatalog().components.values,
           _TestComponentApi(
@@ -1588,7 +1603,8 @@ void main() {
           ),
         ],
       );
-      final surface = SurfaceModel<ComponentApi>('surf-1', catalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       final resolver = NodeResolver<ComponentApi>(surface);
       addTearDown(() {
         resolver.dispose();
@@ -2325,6 +2341,7 @@ void main() {
       final ping = _PingFunction();
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'function-action-catalog',
+        protocolVersion: 'v0.9',
         components: [
           _TestComponentApi(
             'Button',
@@ -2338,7 +2355,8 @@ void main() {
         ],
         functions: [ping],
       );
-      final surface = SurfaceModel<ComponentApi>('surf-1', catalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       final resolver = NodeResolver<ComponentApi>(surface);
       final actions = <A2uiClientAction>[];
       final errors = <A2uiClientError>[];
@@ -2403,10 +2421,12 @@ void main() {
         'reactively', () {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'join-catalog',
+        protocolVersion: 'v0.9',
         components: makeCatalog().components.values.toList(),
         functions: [_JoinFunction()],
       );
-      final surface = SurfaceModel<ComponentApi>('surf-1', catalog: catalog);
+      final surface =
+          SurfaceModel<ComponentApi>('surf-1', defaultCatalog: catalog);
       final resolver = NodeResolver<ComponentApi>(surface);
       addTearDown(() {
         resolver.dispose();
