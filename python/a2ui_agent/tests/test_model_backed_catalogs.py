@@ -31,7 +31,7 @@ from a2ui.inference_formats.experimental.express import ExpressCompiler, Express
 
 _FORMATS: dict[str, Callable[[CatalogApi], Any]] = {
     "atom": AtomFormat,
-    "elemental": ElementalFormat,
+    "elemental": lambda catalog: ElementalFormat([catalog]),
     "express": lambda catalog: ExpressFormat(
         [catalog], version=catalog.protocol_version
     ),

@@ -17,13 +17,14 @@
 import glob
 import json
 import os
+
 import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats._shared import to_message_dicts, to_message_models
-from a2ui.inference_formats.experimental.express.format import ExpressFormat
-from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
-from a2ui.inference_formats.experimental.atom.format import AtomFormat
+from a2ui.inference_formats import to_message_dicts, to_message_models
+from a2ui.inference_formats.experimental.atom import AtomFormat
+from a2ui.inference_formats.experimental.elemental import ElementalFormat
+from a2ui.inference_formats.experimental.express import ExpressFormat
 
 
 def _find_specification_example_files():
@@ -116,7 +117,7 @@ class TestSpecificationRoundtripAllFormats:
         # Load standard basic catalog containing all specification components
         self.catalog = BasicCatalog("0.9")
         self.express_fmt = ExpressFormat([self.catalog])
-        self.elemental_fmt = ElementalFormat(catalog=self.catalog)
+        self.elemental_fmt = ElementalFormat([self.catalog])
         self.atom_fmt = AtomFormat(catalog=self.catalog)
 
     @pytest.mark.parametrize(
@@ -155,7 +156,7 @@ class TestSpecificationRoundtripAllFormats:
         if not all_components:
             pytest.skip(f"No components in {os.path.basename(json_file)}")
 
-        surface_payload = {
+        surface_payload_dict = {
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": surface_id,
@@ -163,13 +164,13 @@ class TestSpecificationRoundtripAllFormats:
                 "components": all_components,
             },
         }
-        surface_models = to_message_models(surface_payload)
+        surface_payload = to_message_models(surface_payload_dict)
 
         processed = 0
 
         # 1. Test Express Format Roundtrip
         try:
-            express_dsl = self.express_fmt.parser.decompile(surface_models)
+            express_dsl = self.express_fmt.parser.decompile(surface_payload)
             if express_dsl:
                 recompiled = self.express_fmt.parser.compile(express_dsl)
                 _assert_recompiled_matches_payload(
@@ -193,7 +194,7 @@ class TestSpecificationRoundtripAllFormats:
 
         # 3. Test Atom Format Roundtrip
         try:
-            atom_sexpr = self.atom_fmt.parser.decompile(surface_payload)
+            atom_sexpr = self.atom_fmt.parser.decompile(surface_payload_dict)
             if atom_sexpr:
                 recompiled = self.atom_fmt.parser.compile(atom_sexpr)
                 _assert_recompiled_matches_payload(

@@ -67,7 +67,7 @@ def _get_strategy(
     elif format_name == "elemental":
         from a2ui.inference_formats.experimental.elemental import ElementalFormat
 
-        return ElementalFormat(catalog=catalog, surface_id=surface_id)
+        return ElementalFormat([catalog], surface_id=surface_id)
     elif format_name == "atom":
         from a2ui.inference_formats.experimental.atom import AtomFormat
 

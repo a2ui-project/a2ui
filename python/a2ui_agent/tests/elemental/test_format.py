@@ -17,13 +17,9 @@
 import json
 import os
 import unittest
-from unittest.mock import MagicMock
-from a2ui.core import Catalog
-from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
-from a2ui.inference_formats.experimental.elemental.prompt_generator import (
-    ElementalPromptGenerator,
-)
 
+from a2ui.core import A2uiCatalogError, Catalog
+from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.schema.utils import find_repo_root, get_spec_dir
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
@@ -39,17 +35,10 @@ class TestElementalFormat(unittest.TestCase):
             catalog_dict = json.load(f)
         self.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
 
-    def test_ensure_catalog_error(self):
-        """Verifies that accessing parser or prompt_generator raises ValueError when catalog is missing."""
-        fmt_no_catalog = ElementalFormat(catalog=None)
-
-        with self.assertRaises(ValueError) as ctx:
-            _ = fmt_no_catalog.parser
-        self.assertIn("Catalog is required", str(ctx.exception))
-
-        with self.assertRaises(ValueError) as ctx:
-            _ = fmt_no_catalog.prompt_generator
-        self.assertIn("Catalog is required", str(ctx.exception))
+    def test_format_without_catalog_is_an_error(self):
+        """Verifies that a format needs at least one catalog."""
+        with self.assertRaisesRegex(A2uiCatalogError, "At least one catalog"):
+            ElementalFormat([])
 
 
 if __name__ == "__main__":

@@ -78,10 +78,11 @@ def test_compile_snippet(format_name: str, snippet: str) -> str:
         parser = ExpressParser([cat])
         res = to_message_dicts(parser.compile(snippet))
     elif fmt_lower == "elemental":
+        from a2ui.inference_formats import to_message_dicts
         from a2ui.inference_formats.experimental.elemental import ElementalParser
 
-        parser = ElementalParser(catalog=cat)
-        res = parser.compile(snippet)
+        parser = ElementalParser([cat])
+        res = to_message_dicts(parser.compile(snippet))
     else:
         raise ValueError(
             f"Unsupported format strategy for compilation: '{format_name}'"
@@ -130,10 +131,11 @@ def test_decompile_payload(format_name: str, json_str_or_dict: Any) -> str:
         parser = ExpressParser([cat])
         return parser.decompile(to_message_models(payload))
     elif fmt_lower == "elemental":
+        from a2ui.inference_formats import to_message_models
         from a2ui.inference_formats.experimental.elemental import ElementalParser
 
-        parser = ElementalParser(catalog=cat)
-        return parser.decompile(payload)
+        parser = ElementalParser([cat])
+        return parser.decompile(to_message_models(payload))
     else:
         raise ValueError(
             f"Unsupported format strategy for decompilation: '{format_name}'"
@@ -172,7 +174,7 @@ def test_parse_ast(format_name: str, snippet: str) -> str:
     elif fmt_lower == "elemental":
         from a2ui.inference_formats.experimental.elemental import ElementalParser
 
-        parser = ElementalParser(catalog=cat)
+        parser = ElementalParser([cat])
         parts = parser.unwrap(snippet)
         return str([str(p) for p in parts])
     else:

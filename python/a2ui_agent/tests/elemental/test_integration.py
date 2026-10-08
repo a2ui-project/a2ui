@@ -15,10 +15,11 @@
 """End-to-end integration and round-trip verification tests for A2UI Elemental Parser."""
 
 import unittest
+
 from a2ui.core import Catalog
-from a2ui.schema.constants import VERSION_0_9
-from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
-from a2ui.parser.errors import A2uiCompilationError
+from a2ui.inference_formats.experimental.elemental import ElementalParser
+from a2ui.parser import A2uiCompilationError
+from a2ui.schema import VERSION_0_9
 
 
 class TestElementalIntegration(unittest.TestCase):
@@ -62,12 +63,21 @@ class TestElementalIntegration(unittest.TestCase):
             "</a2ui>"
         )
 
-        parts = ElementalParser(self.catalog).parse_response(content)
+        parts = ElementalParser([self.catalog]).parse_response(content)
         self.assertEqual(len(parts), 1)
         self.assertEqual(parts[0].text, "Here is the UI:")
         self.assertIsNotNone(parts[0].a2ui_json)
 
-        compiled_components = parts[0].a2ui_json[0]["createSurface"]["components"]
+        # A v0.9 catalog makes a new surface compile to `createSurface`
+        # followed by `updateComponents`, both stamped with version v0.9.
+        messages = parts[0].a2ui_json
+        self.assertEqual([m["version"] for m in messages], ["v0.9", "v0.9"])
+        self.assertEqual(
+            messages[0]["createSurface"],
+            {"surfaceId": "welcome", "catalogId": "https://a2ui.org/test_catalog"},
+        )
+        self.assertEqual(messages[1]["updateComponents"]["surfaceId"], "welcome")
+        compiled_components = messages[1]["updateComponents"]["components"]
         self.assertEqual(len(compiled_components), 2)
         self.assertEqual(compiled_components[0]["id"], "comp_1")
         self.assertEqual(compiled_components[1]["id"], "comp_2")
@@ -86,14 +96,16 @@ class TestElementalIntegration(unittest.TestCase):
             "</a2ui>"
         )
 
-        parts = ElementalParser(self.catalog).parse_response(content)
+        parts = ElementalParser([self.catalog]).parse_response(content)
         self.assertEqual(len(parts), 1)
         self.assertEqual(parts[0].text, "Here is the UI:")
         self.assertIsNotNone(parts[0].a2ui_json)
 
         create_surface = parts[0].a2ui_json[0]["createSurface"]
         self.assertEqual(create_surface["surfaceId"], "my-custom-surface-id")
-        self.assertEqual(len(create_surface["components"]), 2)
+        update_components = parts[0].a2ui_json[1]["updateComponents"]
+        self.assertEqual(update_components["surfaceId"], "my-custom-surface-id")
+        self.assertEqual(len(update_components["components"]), 2)
 
     def test_elemental_parser_unclosed_tag_parsing(self):
         """Verify parser unclosed tag auto-closing and compilation with is_final=False."""
@@ -102,12 +114,12 @@ class TestElementalIntegration(unittest.TestCase):
             '      <ui-Text text="Hello"'
         )
 
-        parts = ElementalParser(self.catalog).parse_response(truncated_response)
+        parts = ElementalParser([self.catalog]).parse_response(truncated_response)
         self.assertEqual(len(parts), 1)
         self.assertEqual(parts[0].text, "Conversational preamble:")
         self.assertIsNotNone(parts[0].a2ui_json)
 
-        compiled_components = parts[0].a2ui_json[0]["createSurface"]["components"]
+        compiled_components = parts[0].a2ui_json[1]["updateComponents"]["components"]
         # Column and Text should both be parsed. Text is closed gracefully.
         self.assertEqual(len(compiled_components), 2)
         self.assertEqual(compiled_components[0]["id"], "comp_1")
@@ -127,7 +139,7 @@ class TestElementalIntegration(unittest.TestCase):
         )
 
         with self.assertRaises(A2uiCompilationError) as ctx:
-            ElementalParser(self.catalog).parse_response(invalid_response)
+            ElementalParser([self.catalog]).parse_response(invalid_response)
 
         exc = ctx.exception
         self.assertEqual(len(exc.partial_results), 0)
@@ -150,7 +162,7 @@ class TestElementalIntegration(unittest.TestCase):
         )
 
         with self.assertRaises(A2uiCompilationError) as ctx:
-            ElementalParser(self.catalog).parse_response(multi_response)
+            ElementalParser([self.catalog]).parse_response(multi_response)
 
         exc_multi = ctx.exception
         self.assertEqual(len(exc_multi.partial_results), 1)
