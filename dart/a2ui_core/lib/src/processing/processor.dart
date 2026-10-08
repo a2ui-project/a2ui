@@ -301,11 +301,10 @@ class MessageProcessor<T extends ComponentApi> {
       defaultCatalog: catalog,
       availableCatalogs: [
         for (final Catalog<T, FunctionImplementation> candidate in catalogs)
-          if (candidate.protocolVersion == null ||
-              isCatalogVersionCompatible(
-                candidate.protocolVersion!,
-                protocolVersion.jsonValue,
-              ))
+          if (isCatalogVersionCompatible(
+            candidate.protocolVersion,
+            protocolVersion.jsonValue,
+          ))
             candidate,
       ],
       theme: message.theme ?? {},

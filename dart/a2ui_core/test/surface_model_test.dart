@@ -261,6 +261,49 @@ void main() {
       expect(surface.availableCatalogs.keys, unorderedEquals(['a', 'b', 'c']));
     });
 
+    test('accepts an unversioned catalog on a pre-v1.0 surface', () {
+      final surface = SurfaceModel<ComponentApi>(
+        's1',
+        protocolVersion: 'v0.9.1',
+        defaultCatalog: catalogNamed('a'),
+        availableCatalogs: [catalogNamed('b')],
+      );
+
+      expect(surface.availableCatalogs.keys, unorderedEquals(['a', 'b']));
+    });
+
+    test('rejects an unversioned catalog on a v1.0 surface', () {
+      expect(
+        () => SurfaceModel<ComponentApi>(
+          's1',
+          protocolVersion: 'v1.0',
+          defaultCatalog: catalogNamed('basic', protocolVersion: 'v1.0'),
+          availableCatalogs: [catalogNamed('legacy')],
+        ),
+        throwsA(
+          catalogError(
+            'Protocol version mismatch: cannot mix unversioned catalog '
+            "'legacy' with surface version v1.0.",
+            catalogId: 'legacy',
+          ),
+        ),
+      );
+      expect(
+        () => SurfaceModel<ComponentApi>(
+          's1',
+          protocolVersion: 'v1.0',
+          defaultCatalog: catalogNamed('legacy'),
+        ),
+        throwsA(
+          catalogError(
+            'Protocol version mismatch: cannot mix unversioned catalog '
+            "'legacy' with surface version v1.0.",
+            catalogId: 'legacy',
+          ),
+        ),
+      );
+    });
+
     test('rejects two different available catalogs with one id', () {
       expect(
         () => SurfaceModel<ComponentApi>(

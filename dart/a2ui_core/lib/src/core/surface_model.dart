@@ -144,11 +144,13 @@ class SurfaceModel<T extends ComponentApi> {
       }
       final String? catalogVersion = catalog.protocolVersion;
       if (protocolVersion != null &&
-          catalogVersion != null &&
           !isCatalogVersionCompatible(catalogVersion, protocolVersion)) {
+        final described = catalogVersion == null
+            ? "unversioned catalog '${catalog.id}'"
+            : "catalog '${catalog.id}' ($catalogVersion)";
         throw A2uiCatalogError(
-          "Protocol version mismatch: cannot mix catalog '${catalog.id}' "
-          '($catalogVersion) with surface version $protocolVersion.',
+          'Protocol version mismatch: cannot mix $described with surface '
+          'version $protocolVersion.',
           catalogId: catalog.id,
         );
       }

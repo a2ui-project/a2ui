@@ -151,7 +151,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   ///
   /// A surface accepts only catalogs whose version is compatible with its
   /// own (see [isCatalogVersionCompatible]). Null means unversioned, which
-  /// every surface accepts.
+  /// predates the field and so is pre-v1.0: a v0.9 or v0.9.1 surface accepts
+  /// the catalog, and a v1.0 or later surface rejects it.
   final String? protocolVersion;
 
   /// Markdown design guidelines for this catalog, which agents add to the

@@ -111,6 +111,58 @@ void main() {
     });
   });
 
+  group('MessageProcessor available catalogs', () {
+    Catalog<ComponentApi, FunctionImplementation> catalogNamed(
+      String id, {
+      String? protocolVersion,
+    }) =>
+        Catalog<ComponentApi, FunctionImplementation>(
+          id: id,
+          components: const [],
+          protocolVersion: protocolVersion,
+        );
+
+    Map<String, Catalog<ComponentApi, FunctionImplementation>> availableFor(
+      A2uiProtocolVersion version, {
+      required String catalogId,
+    }) {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [
+          catalogNamed('modern', protocolVersion: 'v1.0'),
+          catalogNamed('legacy'),
+        ],
+        protocolVersion: version,
+        // This package embeds no v1.0 common types; the surface's catalog
+        // set, not schema checking, is the subject here.
+        commonTypesSchema: const {},
+      );
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(
+            version: version.jsonValue,
+            surfaceId: 's1',
+            catalogId: catalogId,
+          ),
+        ]),
+      );
+      return processor.groupModel.getSurface('s1')!.availableCatalogs;
+    }
+
+    test('a v1.0 surface excludes unversioned catalogs', () {
+      expect(
+        availableFor(A2uiProtocolVersion.v1_0, catalogId: 'modern').keys,
+        ['modern'],
+      );
+    });
+
+    test('a v0.9 surface includes unversioned catalogs', () {
+      expect(
+        availableFor(A2uiProtocolVersion.v0_9, catalogId: 'legacy').keys,
+        ['legacy'],
+      );
+    });
+  });
+
   group('MessageProcessor', () {
     late MinimalCatalog catalog;
     late MessageProcessor processor;

@@ -9,7 +9,9 @@
   `resolveCatalog(catalogId)`, which resolves an item's own `catalogId`, then
   the default, and otherwise throws `A2uiCatalogError`. There is no fallback to
   a sole catalog. A catalog whose `protocolVersion` is incompatible with the
-  surface's throws `A2uiCatalogError` at construction.
+  surface's throws `A2uiCatalogError` at construction. A catalog without a
+  `protocolVersion` is pre-v1.0: a v0.9 or v0.9.1 surface accepts it and a
+  v1.0 or later surface rejects it.
 - **Behavior change:** `NodeResolver`, `GenericBinder` and `DataContext`
   resolve components and function calls through `surface.resolveCatalog`, so a
   component or function call naming another catalog's `catalogId` renders or
@@ -31,8 +33,10 @@
   `'0.9'`).
 - **Behavior change:** `Catalog.invoke` checks arguments against the
   function's argument schema and throws `A2uiExpressionError` on a mismatch
-  before the function runs. Null arguments, such as bindings to missing data,
-  are not checked.
+  before the function runs. Parameters that reference `common_types.json` or
+  a definition the catalog bundles are checked against the referenced
+  definition. Null arguments, such as bindings to missing data, are not
+  checked.
 - `SurfaceModel.dispatchAction` copies the action's `catalogId` onto
   `A2uiClientAction.catalogId`.
 - `Catalog` adds `protocolVersion` and `instructions`, read by
@@ -139,7 +143,8 @@
   `A2uiRendererCapabilities.forVersion` falls back to a compatible declared
   version in the same way.
 - Added `isCatalogVersionCompatible` and `compareVersions`, matching the
-  TypeScript and Python SDKs.
+  TypeScript and Python SDKs. `isCatalogVersionCompatible` accepts a null
+  catalog version, which is compatible with versions below 1.0 only.
 - Added the v1.0 messages `CallRendererFunctionMessage`,
   `AgentFunctionResponseMessage`, `CallAgentFunctionMessage` and
   `RendererFunctionResponseMessage`, with `A2uiFunctionResponse` and

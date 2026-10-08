@@ -716,7 +716,7 @@ void main() {
       () {
         final v1Surface = SurfaceModel<ComponentApi>(
           's-v1',
-          defaultCatalog: catalog,
+          defaultCatalog: catalog.copyWith(protocolVersion: 'v1.0'),
           protocolVersion: 'v1.0',
         );
         addTearDown(v1Surface.dispose);
@@ -767,6 +767,7 @@ void main() {
           protocolVersion: 'v1.0',
           defaultCatalog: Catalog<ComponentApi, FunctionImplementation>(
             id: 'test-v1',
+            protocolVersion: 'v1.0',
             components: [MinimalButtonApi()],
             functions: [
               _SpyFunction('spy', (args) {
@@ -851,7 +852,7 @@ void main() {
     test('v1.0 ChildListTemplate expands items using bindingFor', () {
       final v1Surface = SurfaceModel<ComponentApi>(
         's-v1-tpl',
-        defaultCatalog: catalog,
+        defaultCatalog: catalog.copyWith(protocolVersion: 'v1.0'),
         protocolVersion: 'v1.0',
       );
       addTearDown(v1Surface.dispose);

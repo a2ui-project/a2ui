@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+
 import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
+import '../validation/common_types.g.dart';
 import '../validation/schema_resolution.dart';
 import 'catalog.dart';
 import 'common.dart';
@@ -537,6 +540,14 @@ class ComponentContext {
   }
 }
 
+/// Resolved function argument schemas, per catalog and then per function.
+final Expando<Map<FunctionImplementation, Map<String, Object?>>>
+    _resolvedArgumentSchemas = Expando();
+
+/// The `common_types.json` this package embeds, decoded once.
+final Map<String, Object?> _embeddedCommonTypes =
+    jsonDecode(commonTypesV0_9Json) as Map<String, Object?>;
+
 extension CatalogInvokerExtension
     on Catalog<ComponentApi, FunctionImplementation> {
   /// Invokes a catalog function by name with the given arguments.
@@ -565,7 +576,23 @@ extension CatalogInvokerExtension
     return fn.execute(args, context);
   }
 
-  static List<ValidationError> _argumentErrors(
+  /// The argument schema of [fn] with its references resolved, so that a
+  /// parameter typed by `common_types.json` or by a definition this catalog
+  /// bundles is checked rather than left unconstrained.
+  ///
+  /// Resolved once per catalog and function: invoke runs on the reactive
+  /// path, where resolving on every call would be noticeable.
+  Map<String, Object?> _resolvedArgumentSchema(FunctionImplementation fn) {
+    final Map<FunctionImplementation, Map<String, Object?>> byFunction =
+        _resolvedArgumentSchemas[this] ??= Map.identity();
+    return byFunction[fn] ??= resolveSchemaRefs(
+      fn.argumentSchema.value,
+      catalogSchema,
+      commonTypes: _embeddedCommonTypes,
+    );
+  }
+
+  List<ValidationError> _argumentErrors(
     FunctionImplementation fn,
     Map<String, dynamic> args,
   ) {
@@ -573,10 +600,7 @@ extension CatalogInvokerExtension
       for (final MapEntry<String, dynamic> entry in args.entries)
         if (entry.value == null) entry.key,
     };
-    final Map<String, Object?> schema = resolveSchemaRefs(
-      fn.argumentSchema.value,
-      const {},
-    );
+    final Map<String, Object?> schema = _resolvedArgumentSchema(fn);
     if (unresolved.isEmpty) return Schema.fromMap(schema).validateSync(args);
     final Object? required = schema['required'];
     return Schema.fromMap({

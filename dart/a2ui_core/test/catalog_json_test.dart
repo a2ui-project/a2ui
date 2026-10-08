@@ -393,6 +393,49 @@ void main() {
       // A null argument is unresolved data, which the function handles.
       expect(catalog.invoke('echo', {'value': null}, context), isNull);
     });
+
+    group('invoke resolves argument schema references', () {
+      final context = DataContext(DataModel(), (_, __, ___) => null, '/');
+
+      Catalog<ComponentApi, FunctionImplementation> catalogWith(String ref) =>
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: 'c',
+            components: const [],
+            functions: [
+              _EchoFunction(
+                argumentSchema: Schema.fromMap({
+                  'type': 'object',
+                  'properties': {
+                    'value': {r'$ref': ref},
+                  },
+                  'required': ['value'],
+                }),
+              ),
+            ],
+          );
+
+      test('to the shared common types', () {
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            catalogWith(r'common_types.json#/$defs/DynamicNumber');
+
+        expect(catalog.invoke('echo', {'value': 3}, context), 3);
+        expect(
+          () => catalog.invoke('echo', {'value': 'abc'}, context),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+
+      test('to definitions the catalog document bundles', () {
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            catalogWith(r'#/$defs/DynamicNumber');
+
+        expect(catalog.invoke('echo', {'value': 3}, context), 3);
+        expect(
+          () => catalog.invoke('echo', {'value': 'abc'}, context),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+    });
   });
 
   group('Catalog code-defined', () {
@@ -437,15 +480,17 @@ void main() {
   });
 }
 
-/// Returns its `value` argument, which its schema requires to be a string.
+/// Returns its `value` argument, which its schema requires to be a string
+/// unless another [argumentSchema] is given.
 class _EchoFunction extends FunctionImplementation {
-  _EchoFunction()
+  _EchoFunction({Schema? argumentSchema})
       : super(
           name: 'echo',
-          argumentSchema: Schema.object(
-            properties: {'value': Schema.string()},
-            required: ['value'],
-          ),
+          argumentSchema: argumentSchema ??
+              Schema.object(
+                properties: {'value': Schema.string()},
+                required: ['value'],
+              ),
         );
 
   @override
