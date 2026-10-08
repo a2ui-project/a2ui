@@ -31,8 +31,9 @@ export 'function_support.dart' show OpenUrlCallback;
 /// functions `and`, `or` and `not`. Their argument schemas and return types
 /// are read from an embedded copy of that document
 /// (`specification/v0_9/catalogs/basic/catalog.json` and
-/// `catalogs/basic/v1/catalog.json`), so they cannot drift from it. It has
-/// no components yet.
+/// `catalogs/basic/v1/catalog.json`), so they cannot drift from it. The
+/// catalogs have no components. [v0_9Api] returns the v0.9 document with its
+/// components.
 ///
 /// Formatting follows the BCP 47 `locale` tag, `en-US` by default; an
 /// unknown tag falls back to `en-US`. `openUrl` passes validated URLs to
@@ -46,6 +47,9 @@ abstract final class BasicCatalog {
   /// The id of the v1.0 basic catalog.
   static const String v1_0Id =
       'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+
+  /// The published v0.9 basic catalog's components and function signatures.
+  static CatalogApi v0_9Api() => publishedBasicCatalogV0_9();
 
   /// The v0.9 basic catalog, whose validation rules return `bool`.
   static Catalog<ComponentApi, FunctionImplementation> v0_9({

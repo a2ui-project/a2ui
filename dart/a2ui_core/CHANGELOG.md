@@ -75,6 +75,8 @@
 - `Catalog` adds `protocolVersion` and `instructions`, read by
   `Catalog.fromJson` and written by `catalogSchema`. `catalogSchema` requires
   `args` only for functions with required parameters.
+- Added `BasicCatalog.v0_9Api()`, the published v0.9 basic catalog document's
+  components and function signatures, parsed with `Catalog.fromJson`.
 - **Breaking:** `Catalog.fromJson` inlines and flattens `allOf` component envelopes (`ComponentCommon`, `CatalogComponentCommon`, `Checkable`), maps `accessibility` and `checks` mixins, omits envelope keys (`id`, `component`, `catalogId`) from `ComponentApi.schema`, and replaces `REF:` description prefixes in `CommonSchemas` with `commonTypesRef` metadata.
 - Adds `Catalog.protocolVersion`, `FunctionApi.description`, and `FunctionImplementation.description`, and updates `Catalog.catalogSchema` to rebuild component envelopes, emit `anyComponent.discriminator` and function `description`, and restore `common_types.json#/$defs/...` references.
 - Allows the `catalogId` envelope property during component validation in `PayloadValidator`.

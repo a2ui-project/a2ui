@@ -92,6 +92,39 @@ void main() {
       expect(v10.components, isEmpty);
     });
 
+    // Renderers build their basic catalog from this API, so a component the
+    // parse dropped would be missing there without an error. A specification
+    // change that adds one fails here, as a reminder to implement it.
+    test('v0.9 API has the published components and functions', () {
+      final CatalogApi api = BasicCatalog.v0_9Api();
+
+      expect(
+        api.id,
+        'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+      );
+      expect(api.components.keys.toSet(), {
+        'Text',
+        'Image',
+        'Icon',
+        'Video',
+        'AudioPlayer',
+        'Row',
+        'Column',
+        'List',
+        'Card',
+        'Tabs',
+        'Modal',
+        'Divider',
+        'Button',
+        'TextField',
+        'CheckBox',
+        'ChoicePicker',
+        'Slider',
+        'DateTimeInput',
+      });
+      expect(api.functions.keys.toSet(), _functionNames);
+    });
+
     test('validators return booleans in v0.9 and results in v1.0', () {
       for (final name in ['required', 'regex', 'length', 'numeric', 'email']) {
         expect(v09.functions[name]!.returnType, A2uiReturnType.boolean);
