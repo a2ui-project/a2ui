@@ -177,7 +177,7 @@ def test_supports_streaming_property(test_catalog):
     assert direct_json_fmt.parser.supports_streaming is True
 
     # 2. ExpressFormat parser does not support streaming
-    express_fmt = ExpressFormat(catalog=test_catalog)
+    express_fmt = ExpressFormat([test_catalog])
     assert express_fmt.supports_streaming is False
     assert express_fmt.parser.supports_streaming is False
 
@@ -188,7 +188,7 @@ def test_supports_streaming_property(test_catalog):
 
 
 def test_process_chunk_raises_not_implemented(test_catalog):
-    express_parser = ExpressParser(test_catalog)
+    express_parser = ExpressParser([test_catalog])
     with pytest.raises(NotImplementedError) as exc_info:
         express_parser.process_chunk("chunk")
     assert "Streaming is not supported by ExpressParser" in str(exc_info.value)
@@ -216,7 +216,7 @@ def test_decompiler_delegation(test_catalog):
     assert "main" in direct_decompile
 
     # Verify Express Parser Decompile
-    express_fmt = ExpressFormat(catalog=test_catalog)
+    express_fmt = ExpressFormat([test_catalog])
     expr_parser = express_fmt.parser
     envelope = {
         "version": "v1.0",

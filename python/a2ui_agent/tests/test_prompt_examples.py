@@ -18,12 +18,14 @@ import re
 import pytest
 
 from a2ui.core import Catalog
+from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.experimental.atom.compiler import AtomCompiler
 from a2ui.inference_formats.experimental.atom.format import AtomFormat
 from a2ui.inference_formats.experimental.atom.prompt_generator import ATOM_RULES
-from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.format import ExpressFormat
-from a2ui.inference_formats.experimental.express.prompt_generator import EXPRESS_RULES
+from a2ui.inference_formats.experimental.express import (
+    ExpressCompiler,
+    ExpressFormat,
+)
 
 
 def _extract_a2ui_examples(rules_text: str) -> list[str]:
@@ -159,21 +161,23 @@ class TestPromptExamplesValidity:
 
     def test_express_prompt_generator_examples(self):
         """Verifies Express format examples parse cleanly."""
-        examples = _extract_a2ui_examples(EXPRESS_RULES)
-        compiler = ExpressCompiler(catalog=self.catalog)
+        rules = ExpressFormat([self.catalog]).prompt_generator.generate_base_rules()
+        examples = _extract_a2ui_examples(rules)
+        compiler = ExpressCompiler([self.catalog])
         for i, example in enumerate(examples):
             try:
                 clean_ex = example.strip()
                 if clean_ex.startswith("```"):
                     clean_ex = re.sub(r"^```[a-z]*\n?", "", clean_ex)
                     clean_ex = re.sub(r"\n?```$", "", clean_ex)
-                parsed = compiler.compile(clean_ex)
+                raw_parsed = compiler.compile(clean_ex)
                 assert isinstance(
-                    parsed, list
+                    raw_parsed, list
                 ), f"Express Example {i+1} returned non-list payload"
                 assert (
-                    len(parsed) > 0
+                    len(raw_parsed) > 0
                 ), f"Express Example {i+1} returned empty message list"
+                parsed = to_message_dicts(raw_parsed)
                 components = []
                 for msg in parsed:
                     assert isinstance(

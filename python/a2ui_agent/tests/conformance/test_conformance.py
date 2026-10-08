@@ -469,7 +469,7 @@ def test_schema_manager_conformance(name, test_case):
         core_cat = BasicCatalog(protocol_ver)
 
         if fmt_name == "express":
-            parser = ExpressParser(core_cat, surface_id="main", version=protocol_ver)
+            parser = ExpressParser([core_cat], surface_id="main", version=protocol_ver)
         elif fmt_name == "elemental":
             parser = ElementalParser(core_cat)
         elif fmt_name == "atom":
@@ -566,6 +566,17 @@ KNOWN_GAPS = {
         "the text before a block is attached to the same part as the payload"
         " rather than being a part of its own"
     ),
+    **{
+        name: (
+            "the text before a block is attached to the same part as the"
+            " payload rather than being a part of its own"
+        )
+        for name in (
+            "test_express_parse_response_mixed_catalogs",
+            "test_processor_parses_a_response_within_the_active_catalogs",
+            "test_processor_parses_multi_catalog_express_response",
+        )
+    },
     # `wrap` is `wrap_decompiled_blocks` here and takes raw payload strings
     # rather than parts, so it always writes a tagged block and can neither
     # write a text part nor leave the tags off.
@@ -624,36 +635,6 @@ KNOWN_GAPS = {
         "parse_response takes no `wrapped` argument, so a response the case"
         " declares unwrapped cannot be handed to the compiler whole"
     ),
-    # Express reserved keys (#3006). v1.0 writes a data binding as `@path` and
-    # a function call as `@call`, and the compiler still writes `path` and
-    # `call`. The decompiler reads both, so the decompile cases fail only on
-    # their round trip back through the compiler.
-    **{
-        name: (
-            "the compiler writes v1.0 data bindings and function calls with"
-            " `path` and `call` rather than `@path` and `@call` (#3006)"
-        )
-        for name in (
-            "test_compile_express_template_children",
-            "test_compile_express_absolute_data_binding_path",
-            "test_compile_express_nested_function_call",
-            "test_compile_express_validation_expression",
-            "test_compile_express_validation_expression_with_an_argument",
-            "test_compile_express_data_model_assignment",
-            "test_compile_express_standalone_function_call",
-            "test_compile_express_function_call_action",
-            "test_compile_express_bare_path_is_the_whole_bound_value",
-            "test_compile_express_several_checks_in_one_list",
-            "test_compile_express_check_without_a_message_still_carries_one",
-            "test_decompile_express_data_model",
-            "test_decompile_express_function_call_action",
-            "test_decompile_express_renderer_function_call",
-        )
-    },
-    "test_compile_express_surface_targeting_names_a_catalog": (
-        "the Express compiler resolves against one catalog and does not yet"
-        " take a list of catalogs"
-    ),
 }
 
 
@@ -664,6 +645,28 @@ KNOWN_GAPS.update({
         "allowed_messages prunes the top-level message union, but the"
         " DeleteSurfaceMessage definition stays in the embedded schema's"
         " $defs"
+    ),
+    **{
+        name: (
+            "the Express grammar rules describe surface(), updateSurface()"
+            " and deleteSurface() whatever allowed_messages names"
+        )
+        for name in (
+            "test_express_snippet_describes_only_the_allowed_envelopes",
+            "test_express_snippet_describes_only_deletion_when_only_deletion_is_allowed",
+            "test_express_snippet_describes_data_statements_when_only_data_is_allowed",
+        )
+    },
+    # Request processor. This SDK negotiates with `resolve_catalogs`,
+    # which has its own rule for a request without capabilities.
+    "test_absent_capabilities_is_an_error": (
+        "resolve_catalogs treats absent renderer capabilities as activating"
+        " every registered catalog rather than raising CatalogError"
+    ),
+    "test_example_using_an_unknown_component_fails_at_creation": (
+        "examples are rendered into the prompt without being validated"
+        " against the active catalogs, so an example using an inactive"
+        " component is not an error"
     ),
 })
 
@@ -742,7 +745,7 @@ def make_parser(args):
 def _format_for(format_name, catalogs, examples_path=None):
     if format_name == "express":
         return ExpressFormat(
-            catalog=catalogs[0],
+            catalogs=catalogs,
             examples_path=examples_path,
             surface_id=CONFORMANCE_SURFACE_ID,
             version=_protocol_version(catalogs),
@@ -851,6 +854,8 @@ def test_compiler_conformance(name, test_case):
         return
 
     raw_compiled = parser.compile(payload)
+    assert isinstance(raw_compiled, list)
+    assert all(hasattr(m, "model_dump") for m in raw_compiled)
     compiled = to_message_dicts(raw_compiled)
 
     if "expect_present" in test_case:
@@ -872,10 +877,7 @@ def test_decompiler_conformance(name, test_case):
     parser = make_parser(test_case["args"])
     messages = test_case["messages"]
 
-    if test_case["args"]["format"] == "direct_json":
-        notation = parser.decompile(to_message_models(messages))
-    else:
-        notation = parser.decompile(messages if len(messages) > 1 else messages[0])
+    notation = parser.decompile(to_message_models(messages))
 
     for fragment in test_case.get("expect_contains", []):
         assert fragment in notation, f"{fragment!r} not in {notation!r}"
@@ -963,7 +965,13 @@ def test_response_parser_conformance(name, test_case):
         raise ValueError(f"Unknown response parser action: {action}")
 
 
-# --- Multi-Catalog Formats Conformance ---
+# --- Multi-Catalog Formats Conformance (Express, Elemental, Atom, Direct JSON) ---
+#
+# The compile cases list components in the order the reference compiler emits
+# them, but component order inside a message carries no meaning: renderers
+# resolve components by id. Elemental and Atom emit a parent after or before
+# its children depending on how the tree was walked, so the harness compares
+# the components of each message as a set keyed by id.
 
 cases_multi_catalog = get_marked_conformance_cases(
     "agent/multi_catalog_formats.yaml",
@@ -1105,6 +1113,9 @@ def run_format_case(test_case, tmp_path):
             expect.get("prompt_snippet_absent", []),
         )
 
+    elif action == "create_processor":
+        run_create_processor_case(test_case, tmp_path)
+
     else:
         raise ValueError(f"Unknown format case action: {action}")
 
@@ -1118,4 +1129,93 @@ cases_prompt_generator = get_marked_conformance_cases(
 
 @pytest.mark.parametrize("name, test_case", cases_prompt_generator)
 def test_prompt_generator_conformance(name, test_case, tmp_path):
+    run_format_case(test_case, tmp_path)
+
+
+# --- Request Processor Conformance ---
+#
+# This SDK has no generator or request processor object. What the suite calls
+# `create_processor` is the sequence an agent runs by hand: `resolve_catalogs`
+# negotiates the registered CatalogConfigs against the renderer's capabilities,
+# the format (or the case's `format_override`) is built from the active
+# catalogs, and its prompt snippet is rendered, which is also where examples
+# are checked against the active catalogs. The registered configs play the
+# generator's part for `generator_catalogs_unchanged`.
+
+cases_request_processor = get_marked_conformance_cases(
+    "agent/request_processor.yaml",
+)
+
+
+def _describe_configs(configs):
+    """What a set of registered configs holds, to compare across a negotiation."""
+    described = []
+    for config in configs:
+        catalog = config.to_catalog()
+        described.append(
+            (catalog.catalog_id, sorted(catalog.components), sorted(catalog.functions))
+        )
+    return described
+
+
+def _expect_catalog(catalog, expected):
+    """Checks a catalog against a case's expectations. Name lists are exhaustive."""
+    if "catalog_id" in expected:
+        assert catalog.catalog_id == expected["catalog_id"]
+    if "components" in expected:
+        assert sorted(catalog.components) == sorted(set(expected["components"]))
+    if "functions" in expected:
+        assert sorted(catalog.functions) == sorted(set(expected["functions"]))
+
+
+def run_create_processor_case(test_case, tmp_path):
+    args = test_case["args"]
+    configs = [catalog_config_from_document(entry) for entry in args["catalogs"]]
+    before = _describe_configs(configs)
+    format_name = args.get("format_override") or args.get("format", "direct_json")
+
+    def create():
+        active = resolve_catalogs(configs, args.get("renderer_capabilities"))
+        fmt = make_format(
+            args, tmp_path=tmp_path, catalogs=active, format_name=format_name
+        )
+        snippet = fmt.prompt_generator.generate(
+            role_description="Role",
+            include_schema=True,
+            include_examples=bool(args.get("examples")),
+        )
+        return active, fmt, snippet
+
+    if "expect_error" in test_case:
+        with assert_raises(test_case["expect_error"]):
+            create()
+        return
+
+    active, fmt, snippet = create()
+    expect = test_case.get("expect", {})
+    if "active_catalog_ids" in expect:
+        assert [c.catalog_id for c in active] == expect["active_catalog_ids"]
+    for catalog, expected in zip(active, expect.get("catalogs", [])):
+        _expect_catalog(catalog, expected)
+    _expect_snippet(
+        snippet,
+        expect.get("prompt_snippet_contains", []),
+        expect.get("prompt_snippet_absent", []),
+    )
+    if expect.get("generator_catalogs_unchanged"):
+        assert _describe_configs(configs) == before
+
+    parse = test_case.get("then_parse")
+    if parse is not None:
+        if "expect_error" in parse:
+            with assert_raises(parse["expect_error"]):
+                fmt.parser.parse_response(parse["input"])
+        else:
+            assert_parts_match(
+                fmt.parser.parse_response(parse["input"]), parse["expect"]
+            )
+
+
+@pytest.mark.parametrize("name, test_case", cases_request_processor)
+def test_request_processor_conformance(name, test_case, tmp_path):
     run_format_case(test_case, tmp_path)

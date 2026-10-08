@@ -72,10 +72,11 @@ def test_compile_snippet(format_name: str, snippet: str) -> str:
     elif fmt_lower in ("direct_json", "transport", "direct"):
         res = json.loads(snippet) if isinstance(snippet, str) else snippet
     elif fmt_lower == "express":
+        from a2ui.inference_formats import to_message_dicts
         from a2ui.inference_formats.experimental.express import ExpressParser
 
-        parser = ExpressParser(catalog=cat)
-        res = parser.compile(snippet)
+        parser = ExpressParser([cat])
+        res = to_message_dicts(parser.compile(snippet))
     elif fmt_lower == "elemental":
         from a2ui.inference_formats.experimental.elemental import ElementalParser
 
@@ -105,7 +106,7 @@ def test_decompile_payload(format_name: str, json_str_or_dict: Any) -> str:
     cat = _load_basic_catalog()
     fmt_lower = format_name.lower()
 
-    payload: dict[str, Any]
+    payload: dict[str, Any] | list[dict[str, Any]]
     if isinstance(json_str_or_dict, str):
         if os.path.isfile(json_str_or_dict):
             with open(json_str_or_dict, "r", encoding="utf-8") as f:
@@ -123,10 +124,11 @@ def test_decompile_payload(format_name: str, json_str_or_dict: Any) -> str:
     elif fmt_lower in ("direct_json", "transport", "direct"):
         return json.dumps(payload, indent=2)
     elif fmt_lower == "express":
+        from a2ui.inference_formats import to_message_models
         from a2ui.inference_formats.experimental.express import ExpressParser
 
-        parser = ExpressParser(catalog=cat)
-        return parser.decompile(payload)
+        parser = ExpressParser([cat])
+        return parser.decompile(to_message_models(payload))
     elif fmt_lower == "elemental":
         from a2ui.inference_formats.experimental.elemental import ElementalParser
 
@@ -164,7 +166,7 @@ def test_parse_ast(format_name: str, snippet: str) -> str:
     elif fmt_lower == "express":
         from a2ui.inference_formats.experimental.express import ExpressParser
 
-        parser = ExpressParser(catalog=cat)
+        parser = ExpressParser([cat])
         parts = parser.unwrap(snippet)
         return str([str(p) for p in parts])
     elif fmt_lower == "elemental":

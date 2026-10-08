@@ -374,7 +374,9 @@ def test_macro_parser_parse_response():
     expander = MacroExpander([UserInfoCard])
     inference_cat = expander.transform_to_inference_catalog(cat)
 
-    fmt = ExpressFormat(catalog=inference_cat, surface_id="test_surf", version="v0.9.1")
+    fmt = ExpressFormat(
+        catalogs=[inference_cat], surface_id="test_surf", version="v0.9.1"
+    )
 
     llm_output = (
         "Here is the requested user profile card:\n"

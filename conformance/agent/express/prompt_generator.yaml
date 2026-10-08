@@ -122,6 +122,32 @@
     - "openUrl"
     - "percent"
 
+- name: test_express_snippet_with_two_catalogs_and_pruning
+  description: When multiple catalogs are active and transformed, each catalog section reflects its own component and function pruning rules.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Text"]
+          - function_pruning: ["formatString"]
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Chart"]
+  expect_contains:
+    - "conformance/simplified"
+    - "conformance/custom"
+    - "Text("
+    - "formatString"
+    - "Chart("
+    - "percent"
+  expect_absent:
+    - "Button("
+    - "Card("
+    - "openUrl"
+    - "Gauge("
+
 # --- Examples ---
 
 - name: test_express_snippet_renders_supplied_examples
@@ -136,6 +162,22 @@
   expect_contains:
     - 'surface("s1")'
     - 'root = Text("Hello")'
+
+- name: test_express_snippet_renders_multi_catalog_examples
+  description: Examples spanning multiple active catalogs decompile using each example surface's respective catalog schema.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    examples:
+      - "test_data/examples/greeting_surface.json"
+      - "test_data/examples/chart_series.json"
+  expect_contains:
+    - 'surface("s1")'
+    - 'root = Text("Hello")'
+    - "root = Chart([1, 2, 3])"
 
 - name: test_express_snippet_without_examples_carries_no_example
   description: The same catalog without examples carries none of the example payload. The whole statement is asserted absent rather than the bare name, since the signature block legitimately carries `Text(`.

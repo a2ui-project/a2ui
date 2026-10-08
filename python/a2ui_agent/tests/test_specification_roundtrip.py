@@ -20,6 +20,7 @@ import os
 import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.inference_formats._shared import to_message_dicts, to_message_models
 from a2ui.inference_formats.experimental.express.format import ExpressFormat
 from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
 from a2ui.inference_formats.experimental.atom.format import AtomFormat
@@ -56,7 +57,12 @@ def _assert_recompiled_matches_payload(
     recompiled, expected_surface_id, expected_components
 ):
     assert recompiled, "Recompiled payload must not be empty"
-    messages = recompiled if isinstance(recompiled, list) else [recompiled]
+    raw_messages = recompiled if isinstance(recompiled, list) else [recompiled]
+    messages = (
+        raw_messages
+        if all(isinstance(m, dict) for m in raw_messages)
+        else to_message_dicts(raw_messages)
+    )
     recompiled_components = []
     found_surface_id = None
     for msg in messages:
@@ -109,7 +115,7 @@ class TestSpecificationRoundtripAllFormats:
     def setup_catalog(self):
         # Load standard basic catalog containing all specification components
         self.catalog = BasicCatalog("0.9")
-        self.express_fmt = ExpressFormat(catalog=self.catalog)
+        self.express_fmt = ExpressFormat([self.catalog])
         self.elemental_fmt = ElementalFormat(catalog=self.catalog)
         self.atom_fmt = AtomFormat(catalog=self.catalog)
 
@@ -153,15 +159,17 @@ class TestSpecificationRoundtripAllFormats:
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": surface_id,
+                "catalogId": self.catalog.catalog_id,
                 "components": all_components,
             },
         }
+        surface_models = to_message_models(surface_payload)
 
         processed = 0
 
         # 1. Test Express Format Roundtrip
         try:
-            express_dsl = self.express_fmt.parser.decompile(surface_payload)
+            express_dsl = self.express_fmt.parser.decompile(surface_models)
             if express_dsl:
                 recompiled = self.express_fmt.parser.compile(express_dsl)
                 _assert_recompiled_matches_payload(

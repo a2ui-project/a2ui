@@ -12,14 +12,423 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Multi-catalog and mixed-catalog conformance across inference formats.
+# Multi-catalog and mixed-catalog conformance across inference formats
+# (Express and Direct JSON).
 #
 # This suite verifies that compilers, decompilers, response parsers, prompt
-# generators, and format factories resolve per-component and per-function
-# `catalogId` overrides across active catalogs.
+# generators, and format factories omit `createSurface.catalogId` when multiple
+# catalogs are active, stamp `catalogId` on every compiled component and
+# function call, resolve unique names across active catalogs, and require
+# explicit `catalogId` overrides for shared names.
 
 # =============================================================================
-# Direct JSON Format: Per-Component & Per-Function catalogId Overrides
+# 1. Express Format: Mixed-Catalog Compilation, Decompilation, Parsing & Prompts
+# =============================================================================
+
+- name: test_express_compile_single_catalog_create_surface_has_catalog_id
+  description: With a single active catalog, createSurface defines catalogId and compiled components omit redundant per-item catalogId fields.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Text("Quarterly Revenue")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Quarterly Revenue"
+
+- name: test_express_compile_component_catalog_override
+  description: With multiple active catalogs, createSurface omits catalogId and each component resolves its catalog by name or explicit catalogId override and carries catalogId in the compiled output.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Column([title, chart])
+    title = Text("Quarterly Revenue")
+    chart = Chart([10, 20, 30], "Q1-Q3", catalogId="conformance/custom")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Column"
+            catalogId: "conformance/simplified"
+            children: ["title", "chart"]
+          - id: "title"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text: "Quarterly Revenue"
+          - id: "chart"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [10, 20, 30]
+            caption: "Q1-Q3"
+
+- name: test_express_compile_same_component_name_in_two_catalogs
+  description: Two catalogs that declare a component with the same name but different property schemas resolve each component's positional arguments according to its explicit catalogId override.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - catalogId: "conformance/cat_a"
+        protocolVersion: "v1.0"
+        components:
+          Column:
+            type: object
+            properties:
+              component: {const: "Column"}
+              children: {$ref: "common.json#/$defs/ChildList"}
+            required: ["component", "children"]
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              label: {$ref: "common.json#/$defs/DynamicString"}
+            required: ["component", "label"]
+      - catalogId: "conformance/cat_b"
+        protocolVersion: "v1.0"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              count: {$ref: "common.json#/$defs/DynamicNumber"}
+              unit: {$ref: "common.json#/$defs/DynamicString"}
+            required: ["component", "count"]
+  input: |
+    surface("s1")
+    root = Column([b1, b2])
+    b1 = Badge("Active", catalogId="conformance/cat_a")
+    b2 = Badge(42, "items", catalogId="conformance/cat_b")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Column"
+            catalogId: "conformance/cat_a"
+            children: ["b1", "b2"]
+          - id: "b1"
+            component: "Badge"
+            catalogId: "conformance/cat_a"
+            label: "Active"
+          - id: "b2"
+            component: "Badge"
+            catalogId: "conformance/cat_b"
+            count: 42
+            unit: "items"
+
+- name: test_express_compile_function_catalog_override_in_expression_and_action
+  description: Function calls inside property expressions resolve their parameter names from the overridden catalogId and preserve catalogId on the compiled call.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Chart([1, 2], formatString("Total: ${/total}", catalogId="conformance/simplified"))
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [1, 2]
+            caption:
+              "@call": "formatString"
+              catalogId: "conformance/simplified"
+              args:
+                value: "Total: ${/total}"
+
+- name: test_express_compile_standalone_function_catalog_override
+  description: A standalone function call with an explicit catalogId keyword argument resolves against that catalog and sets catalogId on callRendererFunction.callFunction.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    percent(75, catalogId="conformance/custom")
+  expect:
+    - version: "v1.0"
+      callRendererFunction:
+        functionCallId: "call_1"
+        callFunction:
+          catalogId: "conformance/custom"
+          "@call": "percent"
+          args:
+            value: 75
+
+- name: test_express_compile_unknown_component_catalog_override_fails
+  description: A component with a catalogId override naming an unregistered catalog fails validation.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Text("Hello", catalogId="conformance/unknown")
+  expect_error:
+    category: ValidationError
+
+- name: test_express_compile_component_not_in_overridden_catalog_fails
+  description: A component with a catalogId override naming a registered catalog that does not declare that component fails validation.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Chart([1, 2], "Q1", catalogId="conformance/simplified")
+  expect_error:
+    category: ValidationError
+
+- name: test_express_compile_unknown_function_catalog_override_fails
+  description: A function call with a catalogId override naming a catalog that does not declare that function fails validation.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Text(percent(50, catalogId="conformance/simplified"))
+  expect_error:
+    category: ValidationError
+
+- name: test_express_decompile_mixed_catalog_components_and_functions
+  description: Decompiling a multi-catalog surface where each component and function name is unique across the active catalogs omits redundant catalogId arguments and round-trips cleanly.
+  action: decompile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Column"
+            catalogId: "conformance/simplified"
+            children: ["title", "chart"]
+          - id: "title"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text: "Metrics"
+          - id: "chart"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [10, 20]
+            caption:
+              "@call": "formatString"
+              catalogId: "conformance/simplified"
+              args:
+                value: "Total"
+  expect_contains:
+    - 'surface("s1")'
+    - 'chart = Chart([10, 20], formatString("Total"))'
+  expect_absent:
+    - 'catalogId="conformance/simplified"'
+    - 'catalogId="conformance/custom"'
+  expect_round_trip: true
+
+- name: test_express_decompile_omits_redundant_catalog_id
+  description: Decompiling a component whose name is unique across active catalogs omits the redundant catalogId keyword argument.
+  action: decompile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text: "Hello"
+  expect_contains:
+    - 'root = Text("Hello")'
+  expect_absent:
+    - "catalogId="
+
+- name: test_express_compile_unannotated_call_in_overridden_component_uses_surface_catalog
+  description: A function call without a catalogId keyword resolves by name across the active catalogs and stamps the defining catalog's catalogId on the compiled call.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Chart([1, 2], formatString("Total"), catalogId="conformance/custom")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [1, 2]
+            caption:
+              "@call": "formatString"
+              catalogId: "conformance/simplified"
+              args:
+                value: "Total"
+
+- name: test_express_compile_unannotated_call_not_in_surface_catalog_fails
+  description: A surface statement that names a catalog when multiple catalogs are active fails validation.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1", "conformance/custom")
+    root = Chart([1, 2], "Q1")
+  expect_error:
+    category: ValidationError
+
+- name: test_express_decompile_function_catalog_differs_from_surface
+  description: Decompiling a component whose name is defined in two active catalogs keeps the catalogId keyword argument so that recompiling resolves the right catalog.
+  action: decompile
+  args:
+    format: express
+    catalogs:
+      - catalogId: "conformance/cat_a"
+        protocolVersion: "v1.0"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              label: {$ref: "common.json#/$defs/DynamicString"}
+            required: ["component", "label"]
+      - catalogId: "conformance/cat_b"
+        protocolVersion: "v1.0"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              count: {$ref: "common.json#/$defs/DynamicNumber"}
+            required: ["component", "count"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Badge"
+            catalogId: "conformance/cat_b"
+            count: 42
+  expect_contains:
+    - 'surface("s1")'
+    - 'root = Badge(42, catalogId="conformance/cat_b")'
+  expect_round_trip: true
+
+- name: test_express_create_format_rejects_duplicate_catalog_ids
+  description: Binding two catalogs that share a catalogId fails, because a catalogId override could not say which of the two it names.
+  action: create_format
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_error:
+    category: CatalogError
+
+- name: test_express_compile_catalog_override_rejected_below_v1_0
+  description: Per-component catalogId overrides need v1.0, whose schemas allow catalogId on a component. Under v0.9 only createSurface carries a catalogId, so an override keyword fails validation instead of being written into a message the v0.9 schema rejects.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - catalogId: "conformance/v09_a"
+        protocolVersion: "v0.9"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              label: {type: string}
+            required: ["component", "label"]
+  input: |
+    surface("s1")
+    root = Badge("New", catalogId="conformance/v09_a")
+  expect_error:
+    category: ValidationError
+    message: "catalogId"
+
+- name: test_express_parse_response_mixed_catalogs
+  description: Parsing a wrapped Express response containing mixed-catalog components returns the conversational text and the compiled mixed-catalog surface message.
+  action: parse_response
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    Here is your report.<a2ui>
+    surface("s1")
+    root = Column([header, chart])
+    header = Text("Revenue")
+    chart = Chart([5, 10], "H1", catalogId="conformance/custom")
+    </a2ui>
+  expect:
+    - text: "Here is your report."
+    - a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component: "Column"
+                catalogId: "conformance/simplified"
+                children: ["header", "chart"]
+              - id: "header"
+                component: "Text"
+                catalogId: "conformance/simplified"
+                text: "Revenue"
+              - id: "chart"
+                component: "Chart"
+                catalogId: "conformance/custom"
+                values: [5, 10]
+                caption: "H1"
+
+# =============================================================================
+# 2. Direct JSON Format: Per-Component & Per-Function catalogId Overrides
 # =============================================================================
 
 - name: test_direct_json_compile_single_catalog_create_surface_has_catalog_id
