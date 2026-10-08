@@ -181,6 +181,42 @@ describe('PayloadValidator', () => {
       }
     });
 
+    it('rejects an empty function name instead of skipping the call', () => {
+      const validator = new PayloadValidator(cat);
+      const emptyName = /Function name '' must be a valid UAX #31 identifier/;
+      for (const call of [
+        {'@call': ''},
+        {'@call': '', catalogId: 'https://example.com/other'},
+        {'@call': 'upper', args: {value: {'@call': ''}}},
+      ]) {
+        assertValidationError(() => validator.validateComponent(textWith(call)), emptyName);
+      }
+    });
+
+    it('skips a call with an empty name below v1.0', () => {
+      const v09 = new Catalog('https://example.com/v09', '0.9', [
+        {name: 'Text', schema: z.object({text: z.any()})},
+      ]);
+      const validator = new PayloadValidator(v09, STRICT_VALIDATION);
+      assert.doesNotThrow(() => validator.validateComponent(textWith({call: '', args: {}})));
+    });
+
+    it('leaves catalogId and metadata out of a closed component schema', () => {
+      const closed = new Catalog(CATALOG_ID, '1.0', [
+        {name: 'Tag', schema: z.object({label: z.string()}).strict()},
+      ]);
+      const validator = new PayloadValidator(closed, STRICT_VALIDATION);
+      assert.doesNotThrow(() =>
+        validator.validateComponent({
+          id: 'root',
+          component: 'Tag',
+          catalogId: CATALOG_ID,
+          metadata: {note: 'x'},
+          label: 'Hello',
+        }),
+      );
+    });
+
     it('walks nested objects whose keys are named id or component', () => {
       const validator = new PayloadValidator(cat, STRICT_VALIDATION);
 
