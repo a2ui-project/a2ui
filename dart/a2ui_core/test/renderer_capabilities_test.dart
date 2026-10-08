@@ -244,7 +244,7 @@ void main() {
               themeSchema: themeSchema,
             ),
           ],
-          protocolVersion: A2uiProtocolVersion.v0_9,
+          defaultVersion: A2uiProtocolVersion.v0_9,
         );
 
     Map<String, Object?> inlineCatalog(
@@ -516,7 +516,7 @@ void main() {
       );
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
       );
       const options = CapabilitiesOptions(
         versions: [A2uiProtocolVersion.v1_0],
@@ -599,7 +599,7 @@ void main() {
             components: [ComponentApi(name: 'Plain', schema: Schema.object())],
           ),
         ],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
       );
       final Map<String, Object?> emitted = processor
           .getRendererCapabilities(

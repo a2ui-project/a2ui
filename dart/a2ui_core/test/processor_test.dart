@@ -24,6 +24,7 @@ import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/primitives/errors.dart';
 import 'package:a2ui_core/src/primitives/protocol_version.dart';
 import 'package:a2ui_core/src/primitives/reactivity.dart';
+import 'package:a2ui_core/src/primitives/semver.dart';
 import 'package:a2ui_core/src/processing/processor.dart';
 import 'package:a2ui_core/src/resolution/node_resolver.dart';
 import 'package:a2ui_core/src/validation/validation_config.dart';
@@ -443,15 +444,24 @@ void main() {
 
     group('getRendererDataModel', () {
       late MessageProcessor<ComponentApi> dataProcessor;
-      final dataCatalog = Catalog<ComponentApi, FunctionImplementation>(
-        id: 'cat1',
+      final v09Catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'cat-v09',
+        protocolVersion: 'v0.9',
+        components: [ComponentApi(name: 'Alpha', schema: Schema.object())],
+      );
+      final v10Catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'cat-v10',
+        protocolVersion: 'v1.0',
         components: [ComponentApi(name: 'Alpha', schema: Schema.object())],
       );
 
       void addSurface(String id, String? version, {bool send = true}) {
+        final catalog = version != null && compareVersions(version, 'v1.0') >= 0
+            ? v10Catalog
+            : v09Catalog;
         final surface = SurfaceModel<ComponentApi>(
           id,
-          catalog: dataCatalog,
+          defaultCatalog: catalog,
           sendDataModel: send,
           protocolVersion: version,
         );
@@ -461,8 +471,8 @@ void main() {
 
       setUp(() {
         dataProcessor = MessageProcessor<ComponentApi>(
-          catalogs: [dataCatalog],
-          protocolVersion: A2uiProtocolVersion.v0_9,
+          catalogs: [v09Catalog, v10Catalog],
+          defaultVersion: A2uiProtocolVersion.v0_9,
         );
       });
 
