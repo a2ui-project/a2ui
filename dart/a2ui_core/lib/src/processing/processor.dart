@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
 import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../core/catalog.dart';
+import '../core/common.dart';
 import '../core/component_model.dart';
 import '../core/messages.dart';
 import '../core/surface_group_model.dart';
@@ -22,6 +25,7 @@ import '../core/surface_model.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/semver.dart';
+import '../rpc/rpc_handler.dart';
 import '../validation/component_graph.dart';
 import '../validation/component_refs.dart';
 import '../validation/validation_config.dart';
@@ -126,6 +130,22 @@ class MessageProcessor<T extends ComponentApi> {
   /// Each catalog's child-reference fields, by catalog id, built on first use.
   final Map<String, Map<String, ComponentRefFields>> _refFields = {};
 
+  /// The RPC layer: it answers the `callRendererFunction` messages this
+  /// processor receives, settles its `agentFunctionResponse`s, and sends the
+  /// `callAgentFunction`s made through [callAgentFunction] or by a surface's
+  /// fallback for a function no catalog implements.
+  late final RpcHandler rpc = RpcHandler(
+    catalogs: catalogs,
+    outboundListener: _outboundListener,
+    defaultTimeout: _defaultTimeout,
+  );
+
+  final OutboundMessageListener? _outboundListener;
+  final Duration _defaultTimeout;
+
+  /// [outboundListener] receives every message the RPC layer sends to the
+  /// agent, and [defaultTimeout] bounds how long [callAgentFunction] waits
+  /// for an answer; see [RpcHandler].
   MessageProcessor({
     required this.catalogs,
     this.defaultVersion,
@@ -133,8 +153,12 @@ class MessageProcessor<T extends ComponentApi> {
     this.commonTypesSchema,
     VersionAdapterRegistry? adapterRegistry,
     void Function(A2uiClientAction)? onAction,
+    OutboundMessageListener? outboundListener,
+    Duration defaultTimeout = const Duration(seconds: 30),
   })  : adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
-        groupModel = SurfaceGroupModel<T>() {
+        groupModel = SurfaceGroupModel<T>(),
+        _outboundListener = outboundListener,
+        _defaultTimeout = defaultTimeout {
     final A2uiProtocolVersion? target = validationConfig?.targetVersion;
     final A2uiProtocolVersion? defaultVersion = this.defaultVersion;
     if (target != null && defaultVersion != null && target != defaultVersion) {
@@ -223,22 +247,59 @@ class MessageProcessor<T extends ComponentApi> {
   /// config for a cycle or an over-deep chain; and [A2uiCatalogError] for a
   /// catalog this processor does not support, or one whose `protocolVersion`
   /// is missing or incompatible with the message creating a surface.
-  void processMessages(Object? payload) {
+  ///
+  /// A `callRendererFunction` is answered through [rpc] after this returns;
+  /// [isUserActivated] tells it whether the payload is being handled within
+  /// a user activation, which a function that requires one needs. Use
+  /// [processMessagesAsync] to wait for the answer.
+  void processMessages(Object? payload, {bool isUserActivated = false}) {
     final List<_RoutedMessage> routed = [
       for (final Object? item in _itemsOf(payload)) _route(item),
     ];
     for (final message in routed) {
-      _apply(message);
+      for (final Future<void>? work in _apply(message, isUserActivated)) {
+        // Never fails: handleCallRendererFunction answers errors instead.
+        if (work != null) unawaited(work);
+      }
     }
   }
 
   /// [processMessages], for messages whose operations complete
   /// asynchronously.
   ///
-  /// No operation completes asynchronously yet, so this completes once
-  /// [processMessages] returns, and fails with what it throws.
-  Future<void> processMessagesAsync(Object? payload) async =>
-      processMessages(payload);
+  /// Completes once every `callRendererFunction` in [payload] has been run
+  /// and its `rendererFunctionResponse` emitted; the other operations are
+  /// applied as [processMessages] applies them, and a failure of theirs fails
+  /// the returned future.
+  Future<void> processMessagesAsync(
+    Object? payload, {
+    bool isUserActivated = false,
+  }) async {
+    final List<_RoutedMessage> routed = [
+      for (final Object? item in _itemsOf(payload)) _route(item),
+    ];
+    for (final message in routed) {
+      for (final Future<void>? work in _apply(message, isUserActivated)) {
+        if (work != null) await work;
+      }
+    }
+  }
+
+  /// Sends [call] to the agent on behalf of [surfaceId] and completes with
+  /// its result. The same as `rpc.callAgentFunction`, which needs no setup
+  /// this processor would otherwise do first.
+  Future<Object?> callAgentFunction(
+    String surfaceId,
+    FunctionCall call, {
+    CallOptions? options,
+  }) =>
+      rpc.callAgentFunction(surfaceId, call, options: options);
+
+  /// Disposes the RPC layer, failing its pending calls, and every surface.
+  void dispose() {
+    rpc.dispose();
+    groupModel.dispose();
+  }
 
   /// Alias for [processMessages] for cross-SDK ergonomics.
   void process(Object? payload) => processMessages(payload);
@@ -291,7 +352,9 @@ class MessageProcessor<T extends ComponentApi> {
     }
   }
 
-  void _apply(_RoutedMessage message) {
+  /// Applies [message]'s operations in order and returns, for each, the
+  /// asynchronous work it started, or null for one that completed in place.
+  List<Future<void>?> _apply(_RoutedMessage message, bool isUserActivated) {
     final List<String>? allowed = validationConfig?.allowedMessages;
     if (allowed != null) {
       for (final InternalOperation operation in message.operations) {
@@ -311,12 +374,13 @@ class MessageProcessor<T extends ComponentApi> {
       checkPathsAndRecursion(message.json);
     }
 
-    for (final InternalOperation operation in message.operations) {
-      _execute(operation);
-    }
+    return [
+      for (final InternalOperation operation in message.operations)
+        _execute(operation, isUserActivated),
+    ];
   }
 
-  void _execute(InternalOperation operation) {
+  Future<void>? _execute(InternalOperation operation, bool isUserActivated) {
     switch (operation) {
       case CreateSurfaceOp():
         _createSurface(operation);
@@ -331,11 +395,55 @@ class MessageProcessor<T extends ComponentApi> {
         // and the TypeScript and Python SDKs.
         groupModel.deleteSurface(operation.surfaceId);
       case CallRendererFunctionOp():
+        return _callRendererFunction(operation, isUserActivated);
       case AgentFunctionResponseOp():
-        // Function calls across the wire are answered by an RPC layer, which
-        // this processor does not have; the operations change no surface.
-        break;
+        rpc.handleAgentFunctionResponse(
+          AgentFunctionResponseMessage(
+            version: operation.version.jsonValue,
+            response: operation.response,
+          ),
+        );
     }
+    return null;
+  }
+
+  /// Hands a `callRendererFunction` to [rpc], against the first surface whose
+  /// default catalog is the catalog the call names, else the first surface
+  /// that holds the catalog, else the first surface, else no surface at all,
+  /// in which case the function runs headless.
+  Future<void> _callRendererFunction(
+    CallRendererFunctionOp operation,
+    bool isUserActivated,
+  ) {
+    final Object? catalogId = operation.callFunction['catalogId'];
+    SurfaceModel<T>? target;
+    if (catalogId is String) {
+      for (final SurfaceModel<T> surface in groupModel.allSurfaces) {
+        if (surface.defaultCatalog?.id == catalogId) {
+          target = surface;
+          break;
+        }
+      }
+    }
+    if (target == null) {
+      for (final SurfaceModel<T> surface in groupModel.allSurfaces) {
+        target ??= surface;
+        if (catalogId is String &&
+            surface.availableCatalogs.containsKey(catalogId)) {
+          target = surface;
+          break;
+        }
+      }
+    }
+    return rpc.handleCallRendererFunction(
+      CallRendererFunctionMessage(
+        version: operation.version.jsonValue,
+        functionCallId: operation.functionCallId,
+        callFunction: operation.callFunction,
+      ),
+      surface: target,
+      context: ExecutionContext(isUserActivated: isUserActivated),
+    );
   }
 
   /// The envelope fields of a component message, which a [ComponentModel]
@@ -387,6 +495,8 @@ class MessageProcessor<T extends ComponentApi> {
       protocolVersion: operation.version.jsonValue,
       rootId: validationConfig?.rootId ?? 'root',
       metadata: operation.metadata,
+      callAgentFunction: (call) =>
+          rpc.callAgentFunction(operation.surfaceId, call),
     );
 
     _CheckedBatch? batch;
