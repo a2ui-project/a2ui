@@ -320,7 +320,9 @@ export class PayloadValidator {
     const rawName = this.enforceIdentifiers
       ? record['@call']
       : (record['call'] ?? record['function']);
-    if (typeof rawName === 'string' && rawName.length > 0) {
+    // From v1.0 any string name is checked, so an empty one is reported as an
+    // invalid identifier rather than skipped.
+    if (typeof rawName === 'string' && (this.enforceIdentifiers || rawName.length > 0)) {
       const rawArgs = record['args'];
       const argsDict = (rawArgs !== undefined ? rawArgs : {}) as Record<string, unknown>;
 

@@ -948,6 +948,45 @@ describe('DataContext', () => {
       assert.deepStrictEqual(errors, []);
     });
 
+    it('reports a system function call naming a catalogId as EXPRESSION_ERROR', () => {
+      const primary = makeCatalog('cat-primary', 'from-primary');
+      const surface = new SurfaceModel(
+        'with-default',
+        primary,
+        new Map([[primary.id, primary]]),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'v1.0',
+      );
+      const errors: any[] = [];
+      surface.onError.subscribe(err => {
+        errors.push(err);
+      });
+      surface.dataModel.set('/items', ['a', 'b', 'c']);
+      const ctx = new DataContext(surface, '/items/2');
+      // Any catalogId value names a catalog, even the surface default's.
+      for (const catalogId of [primary.id, '', undefined, 7]) {
+        errors.length = 0;
+        const index = {'@call': '@index', args: {}, catalogId} as any;
+
+        assert.strictEqual(ctx.resolveDynamicValue(index), undefined);
+        const sub = ctx.subscribeDynamicValue(index, () => {});
+        assert.strictEqual(sub.value, undefined);
+        sub.unsubscribe();
+        assert.strictEqual(errors.length, 2);
+        for (const err of errors) {
+          assert.strictEqual(err.code, 'EXPRESSION_ERROR');
+          assert.match(
+            err.message,
+            /System function '@index' belongs to no catalog and must not name a catalogId/,
+          );
+        }
+      }
+    });
+
     it('reports an unavailable named catalog through the surface error channel', () => {
       const primary = makeCatalog('cat-primary', 'from-primary');
       const surface = makeSurface(primary, [primary]);

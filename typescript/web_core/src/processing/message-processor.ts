@@ -924,7 +924,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
       const record = node as Record<string, unknown>;
       const name = record['@call'];
-      if (typeof name === 'string' && name && !name.startsWith('@')) {
+      // An empty name is not skipped: `validateFunction` rejects it as an
+      // invalid identifier.
+      if (typeof name === 'string' && !name.startsWith('@')) {
         // Any string, the empty string included, names a catalog, exactly as
         // `DataContext` resolves the call at runtime.
         const rawCatalogId = record['catalogId'];

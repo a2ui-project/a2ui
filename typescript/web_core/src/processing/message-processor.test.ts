@@ -1285,6 +1285,70 @@ describe('MessageProcessor', () => {
           );
         }
       });
+
+      it('rejects a call with an empty name', () => {
+        const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
+        // `Widget` is unknown to the catalog, so only the nested-call pass sees
+        // its call.
+        for (const component of ['Text', 'Widget']) {
+          const proc = new MessageProcessor<ComponentApi>([base]);
+          assert.throws(
+            () => processRoot(proc, {id: 'root', component, text: {'@call': ''}}),
+            (err: unknown) =>
+              err instanceof A2uiValidationError &&
+              /Function name '' must be a valid UAX #31 identifier/.test(err.message),
+            component,
+          );
+        }
+      });
+
+      it('accepts a closed component schema in a named catalog', () => {
+        const tagApi = {name: 'Tag', schema: z.object({label: z.string()}).strict()};
+        const closed = new Catalog<ComponentApi>('closed', '1.0', [tagApi]);
+        const proc = new MessageProcessor<ComponentApi>([closed], undefined, {
+          validationConfig: STRICT_VALIDATION,
+        });
+        proc.processMessages([
+          {version: 'v1.0', createSurface: {surfaceId: 's'}},
+          {
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's',
+              components: [
+                {id: 'root', component: 'Tag', catalogId: 'closed', label: 'Hello'} as any,
+              ],
+            },
+          },
+        ]);
+        assert.strictEqual(proc.model.getSurface('s')?.componentsModel.get('root')?.type, 'Tag');
+      });
+
+      it('rejects a non-string catalogId on a component', () => {
+        const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
+        for (const catalogId of [7, null, {}]) {
+          const proc = new MessageProcessor<ComponentApi>([base]);
+          assert.throws(
+            () => processRoot(proc, {id: 'root', component: 'Text', catalogId, text: 'x'}),
+            A2uiValidationError,
+            String(catalogId),
+          );
+        }
+      });
+
+      it('reports a bad argument name in a call to another catalog once', () => {
+        const proc = newProcessor();
+        assert.throws(
+          () =>
+            processRoot(proc, {
+              id: 'root',
+              component: 'Text',
+              text: {'@call': 'lower', catalogId: 'custom', args: {'1bad': 'v'}},
+            }),
+          (err: unknown) =>
+            err instanceof A2uiValidationError &&
+            err.message.split("Function argument '1bad'").length === 2,
+        );
+      });
     });
 
     it('reports component and function catalog faults with the same messages', () => {

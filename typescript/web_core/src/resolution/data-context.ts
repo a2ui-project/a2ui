@@ -564,7 +564,7 @@ export class DataContext {
     const callName = (call['@call'] ?? call.call)!;
     // Resolve before validating: the arguments must be checked against the
     // catalog that will actually run the call, not the surface default.
-    const targetCatalog = this.resolveCallCatalog(callName, call.catalogId);
+    const targetCatalog = this.resolveCallCatalog(callName, call);
     if (!targetCatalog) {
       return undefined as V;
     }
@@ -726,7 +726,7 @@ export class DataContext {
       const callName = (call['@call'] ?? call.call)!;
       // Resolve before validating: the arguments must be checked against the
       // catalog that will actually run the call, not the surface default.
-      const targetCatalog = this.resolveCallCatalog(callName, call.catalogId);
+      const targetCatalog = this.resolveCallCatalog(callName, call);
       if (!targetCatalog) {
         return signal(undefined as unknown as V);
       }
@@ -908,15 +908,30 @@ export class DataContext {
    *
    * @param name Name of the function being called.
    * @param catalogId Identifier of the catalog named by the call, if specified.
+   * @param namesCatalog Whether the call carries a `catalogId` key, whatever
+   *   its value.
    * @returns The resolved Catalog instance, or the surface default catalog if omitted.
+   * @throws {A2uiExpressionError} If, from v1.0, a call to a reserved `@`
+   *   system function names a catalog: such a function belongs to no catalog,
+   *   so the call is a malformed expression.
    * @throws {A2uiCatalogError} If the call names a catalog ID that cannot be
    *   resolved on this surface, or names none on a surface without a default
    *   catalog. This is reported as a catalog fault rather than a missing
    *   function, since the function may exist in a catalog that is not
    *   available here.
    */
-  private resolveFunctionCatalog(name: string, catalogId?: string): Catalog<any> {
+  private resolveFunctionCatalog(
+    name: string,
+    catalogId: string | undefined,
+    namesCatalog: boolean,
+  ): Catalog<any> {
     if (this.atLeastV10 && name.startsWith('@')) {
+      if (namesCatalog) {
+        throw new A2uiExpressionError(
+          `System function '${name}' belongs to no catalog and must not name a catalogId.`,
+          name,
+        );
+      }
       return getSystemFunctionCatalog();
     }
     if (!this.surface) {
@@ -933,15 +948,17 @@ export class DataContext {
 
   /**
    * Resolves the catalog a function call runs in, dispatching a
-   * `CATALOG_ERROR` to the surface when it cannot be resolved.
+   * `CATALOG_ERROR` to the surface when it cannot be resolved, and an
+   * `EXPRESSION_ERROR` for any other failure, such as a system function call
+   * that names a catalog.
    *
    * @param name Name of the function being called.
-   * @param catalogId Identifier of the catalog named by the call, if specified.
+   * @param call The function call, whose `catalogId` selects the catalog.
    * @returns The resolved Catalog instance, or `undefined` if resolution failed.
    */
-  private resolveCallCatalog(name: string, catalogId?: string): Catalog<any> | undefined {
+  private resolveCallCatalog(name: string, call: FunctionCall): Catalog<any> | undefined {
     try {
-      return this.resolveFunctionCatalog(name, catalogId);
+      return this.resolveFunctionCatalog(name, call.catalogId, 'catalogId' in call);
     } catch (e: unknown) {
       // A call whose catalog can't be resolved is a catalog fault, not a
       // broken expression: the function may exist in a catalog this surface
