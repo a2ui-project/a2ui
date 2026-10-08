@@ -220,7 +220,7 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
   },
   'DynamicBoolean': {
     'description':
-      'A boolean value that can be a literal, a path, or a function call returning a boolean.',
+      "A boolean value that can be a literal, a path, or a function call returning a boolean or a validation result object (coerced to its 'valid' boolean).",
     'oneOf': [
       {
         'type': 'boolean',

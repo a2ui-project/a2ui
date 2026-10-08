@@ -95,9 +95,9 @@ export type DynamicString = z.infer<typeof DynamicStringSchema>;
 export const DynamicBooleanSchema = z
   .union([z.boolean(), DataBindingSchema, FunctionCallSchema])
   .describe(
-    'REF:common_types.json#/$defs/DynamicBoolean|A boolean value that can be a literal, a path, or a function call returning a boolean.',
+    "REF:common_types.json#/$defs/DynamicBoolean|A boolean value that can be a literal, a path, or a function call returning a boolean or a validation result object (coerced to its \\'valid\\' boolean).",
   );
-/** REF:common_types.json#/$defs/DynamicBoolean|A boolean value that can be a literal, a path, or a function call returning a boolean. */
+/** REF:common_types.json#/$defs/DynamicBoolean|A boolean value that can be a literal, a path, or a function call returning a boolean or a validation result object (coerced to its \'valid\' boolean). */
 export type DynamicBoolean = z.infer<typeof DynamicBooleanSchema>;
 
 export const AccessibilityAttributesSchema = z

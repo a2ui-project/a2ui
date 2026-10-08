@@ -201,7 +201,7 @@ export const OpenUrlApi = {
 };
 
 /**
- * Performs a logical AND operation on a list of boolean values or validation results (using each result's 'valid' boolean).
+ * Performs a logical AND operation on a list of boolean values.
  */
 export const AndApi = {
   name: 'and' as const,
@@ -210,12 +210,12 @@ export const AndApi = {
     'values': z
       .array(DynamicBooleanSchema)
       .min(2)
-      .describe('The list of boolean values or validation results to evaluate.'),
+      .describe('The list of boolean values to evaluate.'),
   }),
 };
 
 /**
- * Performs a logical OR operation on a list of boolean values or validation results (using each result's 'valid' boolean).
+ * Performs a logical OR operation on a list of boolean values.
  */
 export const OrApi = {
   name: 'or' as const,
@@ -224,19 +224,19 @@ export const OrApi = {
     'values': z
       .array(DynamicBooleanSchema)
       .min(2)
-      .describe('The list of boolean values or validation results to evaluate.'),
+      .describe('The list of boolean values to evaluate.'),
   }),
 };
 
 /**
- * Performs a logical NOT operation on a boolean value or validation result (negating its 'valid' boolean).
+ * Performs a logical NOT operation on a boolean value.
  */
 export const NotApi = {
   name: 'not' as const,
   returnType: 'boolean' as const,
   schema: z.object({
     'value': DynamicBooleanSchema.describe(
-      'REF:#/$defs/DynamicBoolean|The boolean value or validation result to negate.',
+      'REF:#/$defs/DynamicBoolean|The boolean value to negate.',
     ),
   }),
 };

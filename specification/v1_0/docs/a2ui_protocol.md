@@ -125,7 +125,7 @@ A2UI v1.0 is defined by three interacting JSON schemas.
 
 The [`common_types.json`] schema defines reusable primitives used throughout the protocol.
 
-- **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `DataBinding` (`{"@path": "..."}` using [JSON Pointer]), or a `FunctionCall` (`{"@call": "...", "args": {...}}`).
+- **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `DataBinding` (`{"@path": "..."}` using [JSON Pointer]), or a `FunctionCall` (`{"@call": "...", "args": {...}}`). When a `DynamicBoolean` resolves to a `ValidationResult` object (an object with a boolean `valid` property), it is coerced to `result.valid`.
 - **`ChildList`**: Defines how containers hold children. It supports:
   - `array`: A static array of `ComponentId` component references.
   - `object`: A template for generating children from a list in the data model (requires a template `componentId` and a JSON Pointer `path` string; note that `path` here is a plain string property on the template object, not a `DataBinding` `{"@path": "..."}` object).
@@ -1083,14 +1083,14 @@ Validation functions (declared with `"returnType": "validationResult"`) or data 
 
 Because `ValidationResult` permits additional unconstrained properties, validation functions and specialized components can extend the object with custom domain-specific metadata (such as suggested fix values, field paths, or retry parameters).
 
-#### Boolean Coercion and Logical Combinators (`and`, `or`, `not`)
+#### `DynamicBoolean` and `CheckRule` Coercion
 
-To allow standard validation functions (`required`, `email`, `regex`, `length`, `numeric`, which return `ValidationResult`) to compose with boolean expressions and logical combinators (`and`, `or`, `not`, which return `boolean`), renderers apply two coercion rules:
+To allow validation functions (`required`, `email`, `regex`, `length`, `numeric`, which return `ValidationResult`) to compose with boolean properties and functions accepting `DynamicBoolean` arguments (such as `and`, `or`, and `not`, which return `boolean`), renderers apply two coercion rules:
 
-1. **`ValidationResult` → `boolean` in logical combinators (`and`, `or`, `not`)**:
-   - Argument validation against `DynamicBoolean` occurs on the written wire payload (which accepts any `FunctionCall` or `DataBinding`) before nested expressions are evaluated.
-   - At runtime, if an operand in `values` (for `and` / `or`) or `value` (for `not`) evaluates to a `ValidationResult` object (an object with a boolean `valid` property), the combinator extracts `operand.valid` as its boolean truth value.
-   - `and`, `or`, and `not` return a primitive `boolean`. They do not merge `code`, `message`, or `severity` from nested `ValidationResult` operands; when used as a `CheckRule.condition`, the enclosing `CheckRule.message` provides the user-facing message when the combinator returns `false`.
+1. **`ValidationResult` → `boolean` in `DynamicBoolean`**:
+   - Schema validation of a `DynamicBoolean` occurs on the written wire payload (which accepts a literal `boolean`, any `DataBinding`, or any `FunctionCall`) before nested expressions are evaluated.
+   - At runtime, whenever a `DynamicBoolean` (such as an argument to `and`, `or`, `not`, or a boolean component property) evaluates to a `ValidationResult` object (an object with a boolean `valid` property), the renderer extracts `result.valid` as its boolean value.
+   - Functions with `DynamicBoolean` arguments (including `and`, `or`, and `not`) therefore receive and return plain booleans. When a boolean combinator is used as a `CheckRule.condition`, the enclosing `CheckRule.message` provides the user-facing error message when the combinator returns `false`.
 2. **`boolean` → `ValidationResult` in `CheckRule.condition`**:
    - When a `CheckRule.condition` evaluates to `true`, the renderer coerces it to `{"valid": true}`.
    - When a `CheckRule.condition` evaluates to `false`, the renderer coerces it to `{"valid": false, "message": <CheckRule.message>, "severity": "error"}`.

@@ -1035,7 +1035,7 @@
     },
     "and": {
       "type": "object",
-      "description": "Performs a logical AND operation on a list of boolean values or validation results (using each result's 'valid' boolean).",
+      "description": "Performs a logical AND operation on a list of boolean values.",
       "returnType": "boolean",
       "properties": {
         "@call": {
@@ -1046,7 +1046,7 @@
           "properties": {
             "values": {
               "type": "array",
-              "description": "The list of boolean values or validation results to evaluate.",
+              "description": "The list of boolean values to evaluate.",
               "items": {
                 "$ref": "common_types.json#/$defs/DynamicBoolean"
               },
@@ -1061,7 +1061,7 @@
     },
     "or": {
       "type": "object",
-      "description": "Performs a logical OR operation on a list of boolean values or validation results (using each result's 'valid' boolean).",
+      "description": "Performs a logical OR operation on a list of boolean values.",
       "returnType": "boolean",
       "properties": {
         "@call": {
@@ -1072,7 +1072,7 @@
           "properties": {
             "values": {
               "type": "array",
-              "description": "The list of boolean values or validation results to evaluate.",
+              "description": "The list of boolean values to evaluate.",
               "items": {
                 "$ref": "common_types.json#/$defs/DynamicBoolean"
               },
@@ -1087,7 +1087,7 @@
     },
     "not": {
       "type": "object",
-      "description": "Performs a logical NOT operation on a boolean value or validation result (negating its 'valid' boolean).",
+      "description": "Performs a logical NOT operation on a boolean value.",
       "returnType": "boolean",
       "properties": {
         "@call": {
@@ -1098,7 +1098,7 @@
           "properties": {
             "value": {
               "$ref": "common_types.json#/$defs/DynamicBoolean",
-              "description": "The boolean value or validation result to negate."
+              "description": "The boolean value to negate."
             }
           },
           "required": ["value"],
