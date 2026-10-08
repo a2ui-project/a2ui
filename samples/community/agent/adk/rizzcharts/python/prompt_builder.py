@@ -17,58 +17,46 @@
 # pylint: disable=g-importing-member, line-too-long
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig, VERSION_0_9
+from a2ui.processor import CatalogConfig
+from a2ui.schema import VERSION_0_9, load_examples
 from agent import ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
 
 
 if __name__ == "__main__":
     version = VERSION_0_9
     rizzcharts_catalog = CatalogConfig.from_path(
-        name="rizzcharts",
         catalog_path=f"../catalog_schemas/{version}/rizzcharts_catalog_definition.json",
-    ).to_catalog(protocol_version=version)
-    basic_catalog = CatalogConfig.from_catalog(
-        "basic", BasicCatalog(version)
-    ).to_catalog(protocol_version=version)
-    inference_format = DirectJsonFormat(
-        [rizzcharts_catalog, basic_catalog],
-        examples_path=f"../examples/rizzcharts_catalog/{version}",
-    )
+        protocol_version=version,
+    ).transformed_catalog
+    basic_catalog = CatalogConfig(BasicCatalog(version)).transformed_catalog
+    inference_format = DirectJsonFormat([rizzcharts_catalog, basic_catalog])
 
     # Generate prompt for rizzcharts catalog
     print("Building prompt and validating rizzcharts examples...")
-    system_prompt = inference_format.generate_system_prompt(
-        role_description=ROLE_DESCRIPTION,
-        workflow_description=WORKFLOW_DESCRIPTION,
-        ui_description=UI_DESCRIPTION,
-        include_schema=True,
-        include_examples=True,
-        validate_examples=True,
+    rizzcharts_examples = load_examples(
+        inference_format.catalogs,
+        f"../examples/rizzcharts_catalog/{version}",
+        validate=True,
     )
-
-    output = system_prompt
+    prompt_parts = [
+        ROLE_DESCRIPTION,
+        f"## Workflow Description:\n{WORKFLOW_DESCRIPTION}",
+        f"## UI Description:\n{UI_DESCRIPTION}",
+        inference_format.prompt_generator.generate(),
+    ]
+    if rizzcharts_examples:
+        prompt_parts.append(f"### Examples:\n{rizzcharts_examples}")
+    output = "\n\n".join(prompt_parts)
 
     # Also validate standard catalog examples
     print("Validating standard catalog examples...")
-    # We can trigger this with a format that reads the standard catalog examples
-    std_format = DirectJsonFormat(
+    std_examples = load_examples(
         [basic_catalog, rizzcharts_catalog],
-        examples_path=f"../examples/standard_catalog/{version}",
+        f"../examples/standard_catalog/{version}",
+        validate=True,
     )
-    std_prompt = std_format.generate_system_prompt(
-        role_description=ROLE_DESCRIPTION,
-        workflow_description=WORKFLOW_DESCRIPTION,
-        ui_description=UI_DESCRIPTION,
-        include_schema=False,
-        include_examples=True,
-        validate_examples=True,
-    )
-
-    if std_prompt:
-        output += "\n\n### Standard Catalog Examples:\n"
-        # Find the start of examples in std_prompt
-        if "### Examples:" in std_prompt:
-            output += std_prompt.split("### Examples:")[1]
+    if std_examples:
+        output += f"\n\n### Standard Catalog Examples:\n{std_examples}"
 
     print(output)
 

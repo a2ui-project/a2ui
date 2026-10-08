@@ -14,7 +14,10 @@
 
 import asyncio
 import json
+import multiprocessing
+from multiprocessing.connection import Connection
 import re
+import traceback
 from typing import Any
 
 from inspect_ai.model import (
@@ -96,11 +99,13 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
             "generation_rules"
         ) or state.metadata.get("workflow_description", "")
 
-        a2ui_prompt = strategy.prompt_generator.generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
-            include_schema=True,
-        )
+        prompt_parts = []
+        if role_description:
+            prompt_parts.append(role_description)
+        if workflow_description:
+            prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
+        prompt_parts.append(strategy.prompt_generator.generate())
+        a2ui_prompt = "\n\n".join(prompt_parts)
 
         domain_prompt = state.metadata.get("system_prompt", "").strip()
         if domain_prompt:
@@ -115,9 +120,6 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
         return state
 
     return solve
-
-
-import multiprocessing
 
 
 def _parse_and_validate_in_process(
@@ -138,6 +140,7 @@ def _parse_and_validate_in_process(
     )
     catalogs = strategy.catalogs
 
+    from a2ui.inference_formats import to_message_dicts
     from a2ui.parser import A2uiPart, TextPart
 
     parts = strategy.create_parser().parse_response(completion)
@@ -147,12 +150,7 @@ def _parse_and_validate_in_process(
         if isinstance(p, TextPart):
             serialized_parts.append({"text": p.text, "a2ui_json": None})
         elif isinstance(p, A2uiPart):
-            msgs = [
-                m.model_dump(by_alias=True, exclude_none=True)
-                if hasattr(m, "model_dump")
-                else m
-                for m in p.a2ui
-            ]
+            msgs = to_message_dicts(p.a2ui)
             serialized_parts.append({"text": "", "a2ui_json": msgs})
             compiled_jsons.extend(msgs)
 
@@ -168,16 +166,13 @@ def _parse_and_validate_in_process(
     return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}
 
 
-import traceback
-
-
 def _process_target_wrapper(
     format_name: str,
     version: str,
     resolved_catalog_path: str,
     surface_id: str,
     completion: str,
-    conn: Any,
+    conn: Connection,
 ):
     try:
         res = _parse_and_validate_in_process(

@@ -23,11 +23,10 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 import json
 import re
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
     build_catalog_helpers,
@@ -36,10 +35,6 @@ from a2ui.inference_formats._shared import (
     surface_catalog_id,
 )
 from a2ui.prompt import PromptGenerator
-from a2ui.schema import load_examples
-
-if TYPE_CHECKING:
-    from .format import ExpressFormat
 
 # Envelope keys of the messages a JSON example may hold to be decompiled.
 _EXAMPLE_MESSAGE_KEYS = (
@@ -268,47 +263,25 @@ class ExpressPromptGenerator(PromptGenerator):
 
     def __init__(
         self,
-        catalogs: Sequence[CatalogApi] | "ExpressFormat",
+        catalogs: Sequence[CatalogApi],
         examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
         allowed_messages: Sequence[str] | None = None,
         *,
-        examples_path: str | None = None,
         version: str | None = None,
     ):
-        from .format import ExpressFormat as _ExpFormat
         from .decompiler import ExpressDecompiler
         from a2ui.inference_formats._shared import (
             catalogs_protocol_version,
             check_mixed_catalogs,
         )
 
-        if isinstance(catalogs, _ExpFormat):
-            self._format: ExpressFormat | None = catalogs
-            self._catalogs = list(catalogs.catalogs)
-            self._examples = (
-                [list(t) for t in examples]
-                if examples is not None
-                else catalogs.examples
-            )
-            self._allowed_messages = (
-                list(allowed_messages)
-                if allowed_messages is not None
-                else catalogs.allowed_messages
-            )
-            self._examples_path = examples_path or catalogs.examples_path
-            self._version = version or catalogs.version
-        else:
-            self._format = None
-            checked = check_mixed_catalogs(catalogs)
-            self._catalogs = list(checked)
-            self._examples = (
-                [list(t) for t in examples] if examples is not None else None
-            )
-            self._allowed_messages = (
-                list(allowed_messages) if allowed_messages is not None else None
-            )
-            self._examples_path = examples_path
-            self._version = version or catalogs_protocol_version(checked)
+        checked = check_mixed_catalogs(catalogs)
+        self._catalogs = list(checked)
+        self._examples = [list(t) for t in examples] if examples is not None else None
+        self._allowed_messages = (
+            list(allowed_messages) if allowed_messages is not None else None
+        )
+        self._version = version or catalogs_protocol_version(checked)
         self._helpers = build_catalog_helpers(self._catalogs)
         self._decompiler = ExpressDecompiler(self._catalogs)
 
@@ -373,32 +346,25 @@ class ExpressPromptGenerator(PromptGenerator):
     def generate_examples(
         self, catalog: Any | None = None, validate: bool = False
     ) -> str:
-        """Loads and formats few-shot Express DSL examples."""
+        """Formats few-shot Express DSL examples."""
+        if not self._examples:
+            return ""
         active_catalogs = list(self.catalogs)
         if catalog is not None:
             active_catalogs = [
                 catalog,
                 *(c for c in active_catalogs if c is not catalog),
             ]
-        if self._examples:
-            from a2ui.inference_formats._shared import to_message_dicts
-            from a2ui.utils import validate_payload
+        from a2ui.inference_formats._shared import to_message_dicts
+        from a2ui.utils import validate_payload
 
-            blocks = []
-            for turn in self._examples:
-                if validate:
-                    validate_payload(active_catalogs, to_message_dicts(turn))
-                dsl = self.decompile(turn)
-                blocks.append(self.wrap_decompiled_blocks([dsl]))
-            return "\n\n".join(blocks)
-        if not active_catalogs or not self._examples_path:
-            return ""
-        raw_examples = load_examples(
-            active_catalogs, self._examples_path, validate=validate
-        )
-        if not raw_examples:
-            return ""
-        return self.transform_examples(raw_examples)
+        blocks = []
+        for turn in self._examples:
+            if validate:
+                validate_payload(active_catalogs, to_message_dicts(turn))
+            dsl = self.decompile(turn)
+            blocks.append(self.wrap_decompiled_blocks([dsl]))
+        return "\n\n".join(blocks)
 
     def _generate_component_signatures(
         self, helper: CatalogSchemaHelper | None = None
@@ -689,44 +655,20 @@ class ExpressPromptGenerator(PromptGenerator):
             flags=re.DOTALL,
         )
 
-    def generate(
-        self,
-        role_description: str = "",
-        workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = True,
-        include_examples: bool = True,
-        validate_examples: bool = False,
-    ) -> str:
-        """Assembles the complete system instruction block for the LLM."""
-        del client_ui_capabilities, allowed_components
+    def generate(self) -> str:
+        """Assembles the prompt snippet for A2UI Express."""
         parts: list[str] = []
 
-        if role_description:
-            parts.append(role_description)
-
-        rules = self.generate_base_rules(allowed_messages=allowed_messages)
-        if workflow_description:
-            rules = (
-                f"{rules}\n\n{workflow_description}" if rules else workflow_description
-            )
+        rules = self.generate_base_rules()
         if rules:
             parts.append(f"## Workflow Description:\n{rules}")
 
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
+        catalog_inst = self.generate_catalog_instructions(include_schema=True)
+        if catalog_inst:
+            parts.append(catalog_inst)
 
-        if include_schema:
-            catalog_inst = self.generate_catalog_instructions(include_schema=True)
-            if catalog_inst:
-                parts.append(catalog_inst)
-
-        if include_examples:
-            examples = self.generate_examples(validate=validate_examples)
-            if examples:
-                parts.append(f"### Examples:\n{examples}")
+        examples = self.generate_examples()
+        if examples:
+            parts.append(f"### Examples:\n{examples}")
 
         return "\n\n".join(parts)

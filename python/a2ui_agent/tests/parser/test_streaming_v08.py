@@ -12,26 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for DirectJsonParser streaming with v0.8 catalogs."""
-
-from __future__ import annotations
-
 import copy
 
 import pytest
 
-from a2ui.core import A2uiValidationError, Catalog
-from a2ui.inference_formats.direct_json import DirectJsonParser
-from a2ui.parser import ResponsePart
+from a2ui.core import Catalog
+from a2ui.inference_formats import to_message_dicts
+from a2ui.inference_formats.direct_json import DirectJsonStreamParser
+from a2ui.parser import (
+    A2uiPart,
+    MSG_TYPE_BEGIN_RENDERING,
+    MSG_TYPE_SURFACE_UPDATE,
+    TextPart,
+)
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
     CATALOG_COMPONENTS_KEY,
     VERSION_0_8,
 )
-
-MSG_TYPE_BEGIN_RENDERING = "beginRendering"
-MSG_TYPE_SURFACE_UPDATE = "surfaceUpdate"
 
 
 @pytest.fixture
@@ -117,13 +116,13 @@ def mock_catalog():
 
 def _normalize_messages(messages):
     """Sorts components in messages for stable comparison."""
-    from a2ui.inference_formats._shared import to_message_dicts
-
+    # Support ResponsePart list by extracting a2ui
     res = []
     for m in messages:
-        if isinstance(m, ResponsePart):
-            if m.a2ui:
-                res.extend(to_message_dicts(m.a2ui))
+        if isinstance(m, A2uiPart):
+            res.extend(to_message_dicts(m.a2ui))
+        elif isinstance(m, TextPart):
+            continue
         else:
             res.append(copy.deepcopy(m))
 
@@ -135,15 +134,97 @@ def _normalize_messages(messages):
     return res
 
 
-def test_v08_surface_update_validates_envelope(mock_catalog):
-    """Tests that a complete v0.8 surfaceUpdate validates its message envelope."""
-    parser = DirectJsonParser(catalogs=[mock_catalog])
+def assertResponseContainsMessages(response, expected_messages):
+    """Asserts that the response parts contain the expected messages."""
+    assert _normalize_messages(response) == _normalize_messages(expected_messages)
+
+
+def assertResponseContainsNoA2UI(response):
+    assert not any(isinstance(p, A2uiPart) for p in response)
+
+
+def assertResponseContainsText(response, expected_text):
+    """Asserts that the response parts contain the expected text."""
+    assert any(
+        (p.text if isinstance(p, TextPart) else p) == expected_text for p in response
+    )
+
+
+def test_add_msg_type_deduplication(mock_catalog):
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
+    parser.add_msg_type(MSG_TYPE_SURFACE_UPDATE)
+    parser.add_msg_type(MSG_TYPE_SURFACE_UPDATE)
+    assert parser.msg_types == [MSG_TYPE_SURFACE_UPDATE]
+
+    parser.add_msg_type(MSG_TYPE_BEGIN_RENDERING)
+    assert parser.msg_types == [MSG_TYPE_SURFACE_UPDATE, MSG_TYPE_BEGIN_RENDERING]
+    parser.add_msg_type(MSG_TYPE_SURFACE_UPDATE)
+    assert parser.msg_types == [MSG_TYPE_SURFACE_UPDATE, MSG_TYPE_BEGIN_RENDERING]
+
+
+def test_streaming_msg_type_deduplication(mock_catalog):
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
+    # 1. Send partial chunk that triggers sniffing
+    chunk1 = A2UI_OPEN_TAG + '[{"surfaceUpdate": {"surfaceId": "s1", "components": ['
+    parser.process_chunk(chunk1)
+
+    # Sniffing should have added surfaceUpdate
+    assert MSG_TYPE_SURFACE_UPDATE in parser.msg_types
+    assert parser.msg_types.count(MSG_TYPE_SURFACE_UPDATE) == 1
+
+    # 2. Send the rest, which triggers handle_complete_object
+    chunk2 = (
+        '{"id": "root", "component": {"Text": {"text": "hi"}}}]}]'
+        f" {A2UI_CLOSE_TAG}"
+    )
+    parser.process_chunk(chunk2)
+
+    # After completion, msg_types is reset
+    assert parser.msg_types == []
+
+
+def test_v08_path_heuristic_adds_slash(mock_catalog):
+    """Tests that v0.8 adds a leading slash to relative paths."""
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
+
+    # 1. Send beginRendering first to avoid buffering
     chunk_br = (
         A2UI_OPEN_TAG
         + '[{"beginRendering": {"surfaceId": "s1", "root": "root"}}]'
         + A2UI_CLOSE_TAG
     )
-    list(parser.parse_chunk(chunk_br))
+    list(parser.process_chunk(chunk_br))
+
+    # 2. Send surfaceUpdate with a relative path
+    chunk_su = (
+        A2UI_OPEN_TAG
+        + '[{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root",'
+        ' "component": {"Text": {"text": {"path": "some/relative/path"}}}}]}}]'
+        + A2UI_CLOSE_TAG
+    )
+
+    messages = []
+    for part in parser.process_chunk(chunk_su):
+        if isinstance(part, A2uiPart):
+            messages.extend(to_message_dicts(part.a2ui))
+
+    # The path should have been prefixed with a slash
+    assert len(messages) > 0
+    comp = messages[0][MSG_TYPE_SURFACE_UPDATE]["components"][0]
+    assert comp["component"]["Text"]["text"]["path"] == "/some/relative/path"
+
+
+def test_v08_surface_update_validates_envelope(mock_catalog):
+    """Tests that a complete v0.8 surfaceUpdate validates its message envelope."""
+    from a2ui.core import A2uiValidationError
+
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
+    chunk_br = (
+        A2UI_OPEN_TAG
+        + '[{"beginRendering": {"surfaceId": "s1", "root": "root"}}]'
+        + A2UI_CLOSE_TAG
+    )
+    list(parser.process_chunk(chunk_br))
 
     chunk_su = (
         A2UI_OPEN_TAG
@@ -152,12 +233,16 @@ def test_v08_surface_update_validates_envelope(mock_catalog):
         + A2UI_CLOSE_TAG
     )
     with pytest.raises(A2uiValidationError):
-        list(parser.parse_chunk(chunk_su))
+        list(parser.process_chunk(chunk_su))
 
 
 def test_v08_deleted_surface_can_be_recreated(mock_catalog):
-    """A beginRendering and surfaceUpdate after deleteSurface recreate the surface."""
-    parser = DirectJsonParser(catalogs=[mock_catalog])
+    """A surfaceUpdate and beginRendering after deleteSurface recreate the surface.
+
+    v0.8 has no createSurface, so the first message for a deleted surface ID
+    that isn't another deleteSurface starts the surface over.
+    """
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
     chunks = [
         A2UI_OPEN_TAG + "[",
         '{"beginRendering": {"surfaceId": "s1", "root": "root"}}, ',
@@ -166,16 +251,15 @@ def test_v08_deleted_surface_can_be_recreated(mock_catalog):
             ' "component": {"Text": {"text": {"literalString": "First"}}}}]}}, '
         ),
         '{"deleteSurface": {"surfaceId": "s1"}}, ',
-        '{"beginRendering": {"surfaceId": "s1", "root": "root"}}, ',
         (
             '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root",'
-            ' "component": {"Text": {"text": {"literalString": "Recreated"}}}}]}}]'
-            + A2UI_CLOSE_TAG
+            ' "component": {"Text": {"text": {"literalString": "Recreated"}}}}]}}, '
         ),
+        '{"beginRendering": {"surfaceId": "s1", "root": "root"}}]' + A2UI_CLOSE_TAG,
     ]
     response = []
     for chunk in chunks:
-        response.extend(parser.parse_chunk(chunk))
+        response.extend(parser.process_chunk(chunk))
 
     messages = _normalize_messages(response)
     assert [m for m in messages if MSG_TYPE_BEGIN_RENDERING in m] == [

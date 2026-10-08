@@ -262,7 +262,6 @@ def _format_for(
     format_name,
     catalogs,
     examples=None,
-    examples_path=None,
     allowed_messages=None,
     progressive_keys=None,
 ):
@@ -270,7 +269,6 @@ def _format_for(
         return ExpressFormat(
             catalogs=catalogs,
             examples=examples,
-            examples_path=examples_path,
             allowed_messages=allowed_messages,
             surface_id=CONFORMANCE_SURFACE_ID,
             version=_protocol_version(catalogs),
@@ -279,7 +277,6 @@ def _format_for(
         return ElementalFormat(
             catalogs=catalogs,
             examples=examples,
-            examples_path=examples_path,
             allowed_messages=allowed_messages,
             surface_id=CONFORMANCE_SURFACE_ID,
         )
@@ -287,7 +284,6 @@ def _format_for(
         return AtomFormat(
             catalogs=catalogs,
             examples=examples,
-            examples_path=examples_path,
             allowed_messages=allowed_messages,
             surface_id=CONFORMANCE_SURFACE_ID,
         )
@@ -298,7 +294,6 @@ def _format_for(
         return DirectJsonFormat(
             catalogs=catalogs,
             examples=examples,
-            examples_path=examples_path,
             allowed_messages=allowed_messages,
             **kwargs,
         )
@@ -308,7 +303,7 @@ def _format_for(
 def stage_examples(examples, tmp_path):
     """Copies a case's example files into a directory and loads them."""
     if not examples or tmp_path is None:
-        return None, None
+        return None
     examples_dir = str(tmp_path / "examples")
     os.makedirs(examples_dir, exist_ok=True)
     loaded = []
@@ -318,7 +313,7 @@ def stage_examples(examples, tmp_path):
         with open(src, "rb") as rf, open(dst, "wb") as wf:
             wf.write(rf.read())
         loaded.append(to_message_models(load_json_file(ex_rel)))
-    return loaded, examples_dir
+    return loaded
 
 
 def make_format(args, tmp_path=None, catalogs=None, format_name=None):
@@ -334,12 +329,11 @@ def make_format(args, tmp_path=None, catalogs=None, format_name=None):
     if not catalogs:
         raise A2uiCatalogError("At least one active catalog is required.")
 
-    loaded_examples, examples_dir = stage_examples(args.get("examples", []), tmp_path)
+    loaded_examples = stage_examples(args.get("examples", []), tmp_path)
     return _format_for(
         format_name or args["format"],
         catalogs,
         examples=loaded_examples,
-        examples_path=examples_dir,
         allowed_messages=args.get("allowed_messages"),
         progressive_keys=args.get("progressive_keys"),
     )

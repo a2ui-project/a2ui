@@ -34,6 +34,7 @@ from a2ui.core import (
     MessageProcessorOptions,
     STRICT_VALIDATION,
 )
+from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.parser import A2uiPart
 from a2ui.processor import CatalogConfig
@@ -87,12 +88,7 @@ def a2ui_scorer(version: str) -> Scorer:
             all_messages = []
             for part in parts:
                 if isinstance(part, A2uiPart):
-                    for msg in part.a2ui:
-                        all_messages.append(
-                            msg.model_dump(by_alias=True, exclude_none=True)
-                            if hasattr(msg, "model_dump")
-                            else msg
-                        )
+                    all_messages.extend(to_message_dicts(part.a2ui))
 
             if not all_messages:
                 return Score(

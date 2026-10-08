@@ -20,9 +20,14 @@ from collections.abc import Iterable
 from enum import Enum
 import re
 
-from a2ui.parser.response_part import RawA2uiPart
-from a2ui.parser.response_part import RawResponsePart
-from a2ui.parser.response_part import TextPart
+from .response_part import RawA2uiPart
+from .response_part import RawResponsePart
+from .response_part import TextPart
+
+__all__ = [
+    "BlockLexer",
+    "LexerState",
+]
 
 
 class LexerState(Enum):
@@ -44,7 +49,7 @@ class BlockLexer:
     def __init__(
         self,
         open_tag: str | re.Pattern[str] = "<a2ui>",
-        close_tag: str | re.Pattern[str] = "</a2ui>",
+        close_tag: str | re.Pattern[str] | None = None,
         string_delimiters: Iterable[str] | None = None,
         single_line_comments: set[str] | None = None,
     ):
@@ -54,22 +59,29 @@ class BlockLexer:
             open_tag: Either the literal open tag string or a pre-compiled regex
               pattern.
             close_tag: Either the literal close tag string or a pre-compiled regex
-              pattern.
+              pattern. When omitted, defaults to the matching closing tag for
+              `open_tag` (or `</a2ui>` if `open_tag` is a regex pattern).
             string_delimiters: Character set representing string bounds.
             single_line_comments: Character set representing single-line comment
               markers.
         """
         if isinstance(open_tag, str):
-            tag_name = open_tag.strip("<>")
+            open_tag_name = open_tag.strip("<>")
             self.open_tag_pattern = re.compile(
-                rf"<{tag_name}(?:\s[^>]*)?>", re.IGNORECASE
+                rf"<{open_tag_name}(?:\s[^>]*)?>", re.IGNORECASE
             )
+            if close_tag is None:
+                close_tag = f"</{open_tag_name}>"
         else:
             self.open_tag_pattern = open_tag
+            if close_tag is None:
+                close_tag = "</a2ui>"
 
         if isinstance(close_tag, str):
-            tag_name = close_tag.strip("<>/")
-            self.close_tag_pattern = re.compile(rf"</{tag_name}\s*>", re.IGNORECASE)
+            close_tag_name = close_tag.strip("<>/")
+            self.close_tag_pattern = re.compile(
+                rf"</{close_tag_name}\s*>", re.IGNORECASE
+            )
         else:
             self.close_tag_pattern = close_tag
 

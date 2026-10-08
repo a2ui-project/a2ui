@@ -23,6 +23,7 @@ from .direct_json import DirectJsonFormat
 from .direct_json import DirectJsonFormatFactory
 from .direct_json import DirectJsonParser
 from .direct_json import DirectJsonPromptGenerator
+from .direct_json import DirectJsonStreamParser
 from .experimental.atom import AtomFormat
 from .experimental.atom import AtomFormatFactory
 from .experimental.atom import AtomParser
@@ -46,6 +47,7 @@ __all__ = [
     "DirectJsonFormatFactory",
     "DirectJsonParser",
     "DirectJsonPromptGenerator",
+    "DirectJsonStreamParser",
     "ElementalFormat",
     "ElementalFormatFactory",
     "ElementalParser",

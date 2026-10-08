@@ -14,10 +14,8 @@
 
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import (
-    CatalogConfig,
-    VERSION_0_9,
-)
+from a2ui.processor import CatalogConfig
+from a2ui.schema import VERSION_0_9
 
 ROLE_DESCRIPTION = (
     "You are a helpful restaurant finding assistant. Your final output MUST be an A2UI"
@@ -56,6 +54,8 @@ def get_text_prompt() -> str:
 
 
 if __name__ == "__main__":
+    from a2ui.schema import load_examples
+
     # Example of how to use the Direct JSON format to generate a system prompt
     # In your actual application, you would call this from your main agent logic.
 
@@ -63,18 +63,19 @@ if __name__ == "__main__":
     # For a different agent (e.g., a flight booker), you would pass in
     # different examples but use the same `get_ui_prompt` function.
     version = VERSION_0_9
-    catalog = CatalogConfig.from_catalog("basic", BasicCatalog(version)).to_catalog(
-        protocol_version=version
+    catalog = CatalogConfig(BasicCatalog(version)).transformed_catalog
+    direct_json_format = DirectJsonFormat([catalog])
+    examples = load_examples(
+        direct_json_format.catalogs, f"examples/{version}", validate=True
     )
-    restaurant_prompt = DirectJsonFormat(
-        [catalog], examples_path=f"examples/{version}"
-    ).generate_system_prompt(
-        role_description=ROLE_DESCRIPTION,
-        ui_description=UI_DESCRIPTION,
-        include_schema=True,
-        include_examples=True,
-        validate_examples=True,
-    )
+    prompt_parts = [
+        ROLE_DESCRIPTION,
+        f"## UI Description:\n{UI_DESCRIPTION}",
+        direct_json_format.prompt_generator.generate(),
+    ]
+    if examples:
+        prompt_parts.append(f"### Examples:\n{examples}")
+    restaurant_prompt = "\n\n".join(prompt_parts)
 
     print(restaurant_prompt)
 

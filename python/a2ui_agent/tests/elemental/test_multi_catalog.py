@@ -798,7 +798,7 @@ def test_multi_catalog_prompt_rules() -> None:
     assert f"## Catalog `{PRI}`\n" in instructions
     assert f"## Catalog `{SEC}`" in instructions
 
-    prompt = fmt.prompt_generator.generate("Role", include_schema=True)
+    prompt = fmt.prompt_generator.generate()
     assert "[CATALOG_ID]" not in prompt
 
 

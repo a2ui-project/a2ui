@@ -756,7 +756,7 @@ def test_multi_catalog_prompt_rules_explain_catalog_selection() -> None:
     assert f"- Function `sharedFn`: `{PRIMARY}`, `{SECONDARY}`" in rules
     assert "`secOnly`" not in rules
 
-    prompt = gen.generate(role_description="Agent")
+    prompt = gen.generate()
     assert "## Multiple Catalogs" in prompt
     instructions = gen.generate_catalog_instructions()
     assert f"# Catalog `{PRIMARY}`\n" in instructions

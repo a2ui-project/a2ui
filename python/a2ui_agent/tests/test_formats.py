@@ -66,22 +66,14 @@ def test_schema_strategy_prompt_generation(test_catalog):
     )
 
     direct_json_format = DirectJsonFormat(catalogs)
-    prompt = direct_json_format.prompt_generator.generate(
-        role_description="You are a helpful assistant.",
-        workflow_description="Please adhere to constraints.",
-        include_schema=True,
-    )
-    assert "You are a helpful assistant." in prompt
-    assert "Please adhere to constraints." in prompt
+    prompt = direct_json_format.prompt_generator.generate()
     assert "### Catalog Schema:" in prompt
 
 
 def test_schema_strategy_prompt_shows_the_protocol_schemas_once(test_catalog):
     direct_json_format = DirectJsonFormat([test_catalog, BasicCatalog(VERSION_0_9)])
 
-    prompt = direct_json_format.prompt_generator.generate(
-        role_description="You are a helpful assistant.", include_schema=True
-    )
+    prompt = direct_json_format.prompt_generator.generate()
     instructions = direct_json_format.prompt_generator.generate_catalog_instructions()
 
     for text in (prompt, instructions):
@@ -254,10 +246,10 @@ def test_decompiler_delegation(test_catalog):
 
     class DummyPromptGenerator(PromptGenerator):
 
-        def generate(self, *args, **kwargs):
-            return super().generate(*args, **kwargs)
+        def generate(self):
+            return super().generate()
 
-    assert DummyPromptGenerator().generate("role") == "role"
+    assert DummyPromptGenerator().generate() == ""
 
     # Verify invalid catalog_id check
     from a2ui.core import A2uiCatalogError
@@ -284,12 +276,13 @@ def test_direct_json_prompt_describes_every_catalog():
     ]
     direct_json_format = DirectJsonFormat(catalogs)
 
-    prompt = direct_json_format.prompt_generator.generate("Role", include_schema=True)
+    prompt = direct_json_format.prompt_generator.generate()
 
     assert '"catalogId":"a"' in prompt
     assert '"catalogId":"b"' in prompt
     assert direct_json_format.catalogs == list(catalogs)
     assert direct_json_format.create_parser().catalogs == list(catalogs)
+    assert direct_json_format.create_stream_parser().catalogs == list(catalogs)
 
 
 def test_direct_json_format_passes_all_catalogs_to_v1_0_parsers():
@@ -303,6 +296,7 @@ def test_direct_json_format_passes_all_catalogs_to_v1_0_parsers():
 
     assert direct_json_format.catalogs == list(catalogs)
     assert direct_json_format.create_parser().catalogs == list(catalogs)
+    assert direct_json_format.create_stream_parser().catalogs == list(catalogs)
 
 
 _CUT_TEXT_CHUNK = (
@@ -322,13 +316,18 @@ def test_direct_json_format_progressive_keys_reach_its_parsers(
 ):
     catalog = BasicCatalog("0.9")
     direct_json_format = DirectJsonFormat([catalog], progressive_keys=progressive_keys)
-    parser = direct_json_format.create_parser()
 
-    parts = parser.parse_chunk(_CUT_TEXT_CHUNK % catalog.catalog_id)
-
-    messages = [
-        message.model_dump(by_alias=True, exclude_none=True)
-        for part in parts
-        for message in part.a2ui or []
-    ]
-    assert any("updateComponents" in message for message in messages) == healed
+    for parts in (
+        direct_json_format.create_parser().parse_chunk(
+            _CUT_TEXT_CHUNK % catalog.catalog_id
+        ),
+        direct_json_format.create_stream_parser().process_chunk(
+            _CUT_TEXT_CHUNK % catalog.catalog_id
+        ),
+    ):
+        messages = [
+            message.model_dump(by_alias=True, exclude_none=True)
+            for part in parts
+            for message in getattr(part, "a2ui", None) or []
+        ]
+        assert any("updateComponents" in message for message in messages) == healed

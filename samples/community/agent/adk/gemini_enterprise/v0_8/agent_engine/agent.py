@@ -30,11 +30,11 @@ from a2ui.a2a import (
 )
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.parser import parse_response
+from a2ui.parser import A2uiPart
+from a2ui.processor import CatalogConfig
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
-    CatalogConfig,
     VERSION_0_8,
 )
 from a2ui.utils import validate_payload
@@ -71,7 +71,10 @@ class ContactAgent:
         for version in [VERSION_0_8]:
             inference_format = self._build_inference_format(version)
             self._inference_formats[version] = inference_format
-            agent = self._build_llm_agent(inference_format)
+            examples_path = os.path.join(
+                os.path.dirname(__file__), f"examples/{version}"
+            )
+            agent = self._build_llm_agent(inference_format, examples_path=examples_path)
             self._ui_runners[version] = self._build_runner(agent)
 
         self._agent_card = self._build_agent_card()
@@ -82,15 +85,8 @@ class ContactAgent:
 
     def _build_inference_format(self, version: str) -> DirectJsonFormat:
         # Gemini Enerprise only supports VERSION_0_8 for now.
-        catalog = CatalogConfig.from_catalog("basic", BasicCatalog(version)).to_catalog(
-            protocol_version=version
-        )
-        return DirectJsonFormat(
-            [catalog],
-            examples_path=os.path.join(
-                os.path.dirname(__file__), f"examples/{version}"
-            ),
-        )
+        catalog = CatalogConfig(BasicCatalog(version)).transformed_catalog
+        return DirectJsonFormat([catalog])
 
     def _build_agent_card(self) -> AgentCard:
         """Builds the AgentCard for this agent, describing its capabilities and skills."""
@@ -149,22 +145,28 @@ class ContactAgent:
         return "Looking up contact information..."
 
     def _build_llm_agent(
-        self, inference_format: DirectJsonFormat | None = None
+        self,
+        inference_format: DirectJsonFormat | None = None,
+        examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
+        from a2ui.schema import load_examples
 
-        instruction = (
-            inference_format.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                workflow_description=WORKFLOW_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_schema=True,
-                include_examples=True,
-                validate_examples=True,
+        if inference_format:
+            prompt_parts = [
+                ROLE_DESCRIPTION,
+                f"## Workflow Description:\n{WORKFLOW_DESCRIPTION}",
+                f"## UI Description:\n{UI_DESCRIPTION}",
+                inference_format.prompt_generator.generate(),
+            ]
+            examples = load_examples(
+                inference_format.catalogs, examples_path, validate=True
             )
-            if inference_format
-            else get_text_prompt()
-        )
+            if examples:
+                prompt_parts.append(f"### Examples:\n{examples}")
+            instruction = "\n\n".join(prompt_parts)
+        else:
+            instruction = get_text_prompt()
 
         return LlmAgent(
             model=os.getenv("MODEL", "gemini-2.5-flash"),
@@ -307,13 +309,15 @@ class ContactAgent:
                     f" {attempt})... ---"
                 )
                 try:
-                    response_parts = parse_response(final_response_content)
+                    response_parts = inference_format.create_parser().parse_response(
+                        final_response_content
+                    )
 
                     for part in response_parts:
-                        if not part.a2ui_json:
+                        if not isinstance(part, A2uiPart):
                             continue
 
-                        parsed_json_data = part.a2ui_json
+                        parsed_json_data = part.a2ui
 
                         # Handle the "no results found" or empty JSON case
                         if parsed_json_data == []:

@@ -12,22 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for DirectJsonParser streaming with v0.9 catalogs."""
-
-from __future__ import annotations
+import copy
 
 import pytest
 
-from a2ui.core import A2uiValidationError, Catalog
+from a2ui.core import A2uiIntegrityError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonParser
+from a2ui.inference_formats import to_message_dicts
+from a2ui.inference_formats.direct_json import DirectJsonStreamParser
+from a2ui.parser import (
+    A2uiPart,
+    MSG_TYPE_CREATE_SURFACE,
+    MSG_TYPE_UPDATE_COMPONENTS,
+    TextPart,
+)
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
+    CATALOG_COMPONENTS_KEY,
     VERSION_0_9,
 )
-
-MSG_TYPE_UPDATE_COMPONENTS = "updateComponents"
 
 
 @pytest.fixture
@@ -86,6 +90,58 @@ def mock_catalog():
                 },
                 "required": ["component", "children"],
             },
+            "AudioPlayer": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {"$ref": "#/$defs/CatalogComponentCommon"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "AudioPlayer"},
+                            "url": {"$ref": "common_types.json#/$defs/DynamicString"},
+                            "description": {
+                                "$ref": "common_types.json#/$defs/DynamicString"
+                            },
+                        },
+                        "required": ["component", "url"],
+                    },
+                ],
+            },
+            "List": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {"$ref": "#/$defs/CatalogComponentCommon"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "List"},
+                            "children": {"$ref": "common_types.json#/$defs/ChildList"},
+                            "direction": {
+                                "type": "string",
+                                "enum": ["vertical", "horizontal"],
+                            },
+                        },
+                        "required": ["component", "children"],
+                    },
+                ],
+            },
+            "Row": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {"$ref": "#/$defs/CatalogComponentCommon"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Row"},
+                            "children": {"$ref": "common_types.json#/$defs/ChildList"},
+                        },
+                        "required": ["component", "children"],
+                    },
+                ],
+            },
         },
         "$defs": {
             "CatalogComponentCommon": {
@@ -98,6 +154,9 @@ def mock_catalog():
                     {"$ref": "#/components/Card"},
                     {"$ref": "#/components/Text"},
                     {"$ref": "#/components/Column"},
+                    {"$ref": "#/components/AudioPlayer"},
+                    {"$ref": "#/components/List"},
+                    {"$ref": "#/components/Row"},
                 ],
                 "discriminator": {"propertyName": "component"},
             },
@@ -110,59 +169,143 @@ def mock_catalog():
     )
 
 
-def _dump_messages(parts):
-    messages = []
-    for part in parts:
-        if part.a2ui:
-            for msg in part.a2ui:
-                messages.append(msg.model_dump(by_alias=True, exclude_none=True))
-    return messages
+def _normalize_messages(messages):
+    """Sorts components in messages for stable comparison."""
+    # Support ResponsePart list by extracting a2ui
+    res = []
+    for m in messages:
+        if isinstance(m, A2uiPart):
+            res.extend(to_message_dicts(m.a2ui))
+        elif isinstance(m, TextPart):
+            continue
+        else:
+            res.append(copy.deepcopy(m))
+
+    for msg in res:
+        if MSG_TYPE_UPDATE_COMPONENTS in msg:
+            payload = msg[MSG_TYPE_UPDATE_COMPONENTS]
+            if CATALOG_COMPONENTS_KEY in payload:
+                payload[CATALOG_COMPONENTS_KEY].sort(key=lambda x: x.get("id", ""))
+    return res
+
+
+def assertResponseContainsMessages(response, expected_messages):
+    """Asserts that the response parts contain the expected messages."""
+    assert _normalize_messages(response) == _normalize_messages(expected_messages)
+
+
+def assertResponseContainsNoA2UI(response):
+    assert not any(isinstance(p, A2uiPart) for p in response)
+
+
+def assertResponseContainsText(response, expected_text):
+    """Asserts that the response parts contain the expected text."""
+    assert any(
+        (p.text if isinstance(p, TextPart) else p) == expected_text for p in response
+    )
+
+
+def test_add_msg_type_deduplication(mock_catalog):
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
+    parser.add_msg_type(MSG_TYPE_UPDATE_COMPONENTS)
+    parser.add_msg_type(MSG_TYPE_UPDATE_COMPONENTS)
+    assert parser.msg_types == [MSG_TYPE_UPDATE_COMPONENTS]
+
+    parser.add_msg_type(MSG_TYPE_CREATE_SURFACE)
+    assert parser.msg_types == [MSG_TYPE_UPDATE_COMPONENTS, MSG_TYPE_CREATE_SURFACE]
+    parser.add_msg_type(MSG_TYPE_UPDATE_COMPONENTS)
+    assert parser.msg_types == [MSG_TYPE_UPDATE_COMPONENTS, MSG_TYPE_CREATE_SURFACE]
+
+
+def test_streaming_msg_type_deduplication(mock_catalog):
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
+    # 1. Send partial chunk that triggers sniffing
+    chunk1 = (
+        A2UI_OPEN_TAG
+        + '[{"version": "v0.9", "updateComponents": {"surfaceId": "s1",'
+        ' "components": [{"id": "root", "component": "Text", "text": "Hello"}'
+    )
+    parser.process_chunk(chunk1)
+
+    assert MSG_TYPE_UPDATE_COMPONENTS in parser.msg_types
+    assert parser.msg_types.count(MSG_TYPE_UPDATE_COMPONENTS) == 1
+
+    # 2. Send the rest, which triggers handle_complete_object
+    chunk2 = (
+        f', {{"id": "c1", "component": "Text", "text": "hi"}}]}}}} {A2UI_CLOSE_TAG}'
+    )
+    parser.process_chunk(chunk2)
+
+    # After completion, msg_types is reset
+    assert not parser.msg_types
 
 
 def test_v09_path_heuristic_relative_path(mock_catalog):
     """Tests that v0.9 allows relative paths (no leading slash)."""
-    parser = DirectJsonParser(catalogs=[mock_catalog])
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
 
-    chunk = (
+    # 1. Create surface
+    chunk_cs = (
         A2UI_OPEN_TAG
         + '[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId":'
-        ' "test_catalog"}}, '
-        + '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":'
+        ' "test_catalog"}}]'
+        + A2UI_CLOSE_TAG
+    )
+    list(parser.process_chunk(chunk_cs))
+
+    # 2. Update components with a relative path
+    chunk_uc = (
+        A2UI_OPEN_TAG
+        + '[{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":'
         ' [{"id": "root", "component": "Text", "text": {"path":'
         ' "some/relative/path"}}]}}]'
         + A2UI_CLOSE_TAG
     )
 
-    messages = _dump_messages(parser.parse_chunk(chunk))
+    messages = []
+    for part in parser.process_chunk(chunk_uc):
+        if isinstance(part, A2uiPart):
+            messages.extend(to_message_dicts(part.a2ui))
 
-    assert len(messages) == 2
-    comp = messages[1][MSG_TYPE_UPDATE_COMPONENTS]["components"][0]
+    assert len(messages) > 0
+    comp = messages[0][MSG_TYPE_UPDATE_COMPONENTS]["components"][0]
     assert comp["text"]["path"] == "some/relative/path"
 
 
 def test_v09_path_heuristic_absolute_path(mock_catalog):
     """Tests that v0.9 still supports absolute paths (leading slash)."""
-    parser = DirectJsonParser(catalogs=[mock_catalog])
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
 
-    chunk = (
+    # 1. Create surface
+    chunk_cs = (
         A2UI_OPEN_TAG
         + '[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId":'
-        ' "test_catalog"}}, '
-        + '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":'
+        ' "test_catalog"}}]'
+        + A2UI_CLOSE_TAG
+    )
+    list(parser.process_chunk(chunk_cs))
+
+    # 2. Update components with an absolute path
+    chunk_uc = (
+        A2UI_OPEN_TAG
+        + '[{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":'
         ' [{"id": "root", "component": "Text", "text": {"path": "/absolute/path"}}]}}]'
         + A2UI_CLOSE_TAG
     )
 
-    messages = _dump_messages(parser.parse_chunk(chunk))
+    messages = []
+    for part in parser.process_chunk(chunk_uc):
+        if isinstance(part, A2uiPart):
+            messages.extend(to_message_dicts(part.a2ui))
 
-    assert len(messages) == 2
-    comp = messages[1][MSG_TYPE_UPDATE_COMPONENTS]["components"][0]
+    assert len(messages) > 0
+    comp = messages[0][MSG_TYPE_UPDATE_COMPONENTS]["components"][0]
     assert comp["text"]["path"] == "/absolute/path"
 
 
 def test_v09_single_top_level_object(mock_catalog):
     """Tests that v0.9 supports a single top-level object without array wrapping."""
-    parser = DirectJsonParser(catalogs=[mock_catalog])
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
 
     chunk = (
         A2UI_OPEN_TAG
@@ -170,24 +313,81 @@ def test_v09_single_top_level_object(mock_catalog):
         ' "test_catalog"}}'
         + A2UI_CLOSE_TAG
     )
-    messages = _dump_messages(parser.parse_chunk(chunk))
+    messages = []
+    for part in parser.process_chunk(chunk):
+        if isinstance(part, A2uiPart):
+            messages.extend(to_message_dicts(part.a2ui))
 
     assert len(messages) == 1
     assert messages[0]["createSurface"]["surfaceId"] == "s1"
 
 
-def test_v09_duplicate_component_ids_rejected():
-    """Duplicate component IDs in the same updateComponents payload are rejected."""
-    parser = DirectJsonParser(catalogs=[BasicCatalog("v0.9")])
-    basic_id = BasicCatalog("v0.9").catalog_id
+def test_v09_multiple_top_level_objects(mock_catalog):
+    """Tests that v0.9 supports multiple consecutive top-level objects without array wrapping."""
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
+
     chunk = (
         A2UI_OPEN_TAG
-        + '[{"version": "v0.9", "createSurface": {"surfaceId": "s", "catalogId":'
-        f' "{basic_id}"}}}}, '
-        + '{"version": "v0.9", "updateComponents": {"surfaceId": "s", "components":'
-        ' [{"id": "root", "component": "Text", "text": "a"},'
-        ' {"id": "root", "component": "Text", "text": "b"}]}}]'
+        + '{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId":'
+        ' "test_catalog"}}\n'
+        + '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":'
+        ' [{"id": "root", "component": "Text", "text": "Hello"}]}}'
         + A2UI_CLOSE_TAG
     )
-    with pytest.raises(A2uiValidationError):
-        parser.parse_chunk(chunk)
+    messages = []
+    for part in parser.process_chunk(chunk):
+        if isinstance(part, A2uiPart):
+            messages.extend(to_message_dicts(part.a2ui))
+
+    assert len(messages) == 2
+    assert messages[0]["createSurface"]["surfaceId"] == "s1"
+    assert messages[1][MSG_TYPE_UPDATE_COMPONENTS]["components"][0]["text"] == "Hello"
+
+
+def test_v09_leaf_component_child_fields_not_heuristic(mock_catalog):
+    """Tests that components with no child fields defined in reference_map do not use heuristics."""
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
+    child_fields = parser._get_child_fields_for_obj(
+        {"component": "Text", "id": "t1", "text": "Hello world", "customProp": "Value"}
+    )
+    assert child_fields == set()
+
+
+def test_v09_nested_top_level_list(mock_catalog):
+    """Tests that nested lists of messages yield all messages instead of dropping them."""
+    parser = DirectJsonStreamParser(catalogs=[mock_catalog])
+
+    chunk = (
+        A2UI_OPEN_TAG
+        + '[[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId":'
+        ' "test_catalog"}}, '
+        + '{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components":'
+        ' [{"id": "root", "component": "Text", "text": "Nested"}]}}]]'
+        + A2UI_CLOSE_TAG
+    )
+    messages = []
+    for part in parser.process_chunk(chunk):
+        if isinstance(part, A2uiPart):
+            messages.extend(to_message_dicts(part.a2ui))
+
+    assert len(messages) == 2
+    assert messages[0]["createSurface"]["surfaceId"] == "s1"
+    assert messages[1][MSG_TYPE_UPDATE_COMPONENTS]["components"][0]["text"] == "Nested"
+
+
+def test_validate_message_keeps_validation_error_subclass():
+    """An integrity failure keeps its type so stream consumers can tell it apart."""
+    parser = DirectJsonStreamParser(catalogs=[BasicCatalog("v0.9")])
+    message = {
+        "version": "v0.9",
+        "updateComponents": {
+            "surfaceId": "s",
+            "components": [
+                {"id": "root", "component": "Text", "text": "a"},
+                {"id": "root", "component": "Text", "text": "b"},
+            ],
+        },
+    }
+
+    with pytest.raises(A2uiIntegrityError, match="Validation failed: Duplicate"):
+        parser._validate_message(message)

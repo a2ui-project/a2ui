@@ -29,11 +29,11 @@ from a2a.types import (
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.a2a import parse_response_to_parts, stream_response_to_parts
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.parser import parse_response
+from a2ui.parser import A2uiPart
+from a2ui.processor import CatalogConfig
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
-    CatalogConfig,
     VERSION_0_9,
 )
 from a2ui.utils import validate_payload
@@ -84,7 +84,9 @@ class A2uiDemoAgent:
 
         self._inference_format: DirectJsonFormat = self._build_inference_format()
         self._ui_runner: Runner = self._build_runner(
-            self._build_llm_agent(self._inference_format)
+            self._build_llm_agent(
+                self._inference_format, examples_path=f"examples/{A2UI_VERSION}"
+            )
         )
         self._parsers = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
@@ -97,10 +99,10 @@ class A2uiDemoAgent:
 
     def _build_inference_format(self) -> DirectJsonFormat:
         catalog = CatalogConfig.from_path(
-            name=COMPOSITE_CATALOG_NAME,
             catalog_path=COMPOSITE_CATALOG_PATH,
-        ).to_catalog(protocol_version=A2UI_VERSION)
-        return DirectJsonFormat([catalog], examples_path=f"examples/{A2UI_VERSION}")
+            protocol_version=A2UI_VERSION,
+        ).transformed_catalog
+        return DirectJsonFormat([catalog])
 
     def _build_agent_card(self) -> AgentCard:
         ext = get_a2ui_agent_extension(
@@ -175,23 +177,30 @@ class A2uiDemoAgent:
         return "Building an A2UI demo for you..."
 
     def _build_llm_agent(
-        self, inference_format: DirectJsonFormat | None = None
+        self,
+        inference_format: DirectJsonFormat | None = None,
+        examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the A2UI demo agent."""
+        from a2ui.schema import load_examples
+
         model_env = os.getenv("MODEL") or "gemini-2.5-flash"
         model_name = model_env.split("/")[-1]
 
-        instruction = (
-            inference_format.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_schema=True,
-                include_examples=True,
-                validate_examples=True,
+        if inference_format:
+            prompt_parts = [
+                ROLE_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+                inference_format.prompt_generator.generate(),
+            ]
+            examples = load_examples(
+                inference_format.catalogs, examples_path, validate=True
             )
-            if inference_format
-            else get_text_prompt()
-        )
+            if examples:
+                prompt_parts.append(f"### Examples:\n{examples}")
+            instruction = "\n\n".join(prompt_parts)
+        else:
+            instruction = get_text_prompt()
 
         return LlmAgent(
             model=Gemini(model=model_name),
@@ -318,7 +327,7 @@ class A2uiDemoAgent:
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = inference_format.create_stream_parser()
+                    self._parsers[session_id] = inference_format.create_parser()
                     if len(self._parsers) > self._max_parsers:
                         self._parsers.popitem(last=False)
 
@@ -350,13 +359,15 @@ class A2uiDemoAgent:
                     f" {attempt})... ---"
                 )
                 try:
-                    response_parts = parse_response(final_response_content)
+                    response_parts = inference_format.create_parser().parse_response(
+                        final_response_content
+                    )
 
                     for part in response_parts:
-                        if not part.a2ui_json:
+                        if not isinstance(part, A2uiPart):
                             continue
 
-                        parsed_json_data = part.a2ui_json
+                        parsed_json_data = part.a2ui
 
                         # --- Validation Steps ---
                         # Check the payload against the selected catalog. This

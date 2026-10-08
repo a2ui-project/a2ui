@@ -882,12 +882,7 @@ def test_parser_wraps_errors(basic: CatalogApi) -> None:
 
 
 def test_prompt_generator_single_catalog(basic: CatalogApi) -> None:
-    prompt = AtomFormat([basic]).prompt_generator.generate(
-        role_description="You are a helpful UI generator.",
-        workflow_description="Follow standard A2UI guidelines.",
-    )
-    assert "You are a helpful UI generator." in prompt
-    assert "Follow standard A2UI guidelines." in prompt
+    prompt = AtomFormat([basic]).prompt_generator.generate()
     assert "A2UI Atom S-Expression notation" in prompt
     assert "Component Catalog Signatures" in prompt
     assert "- (Card" in prompt
@@ -931,13 +926,18 @@ def test_catalogs_property_returns_a_copy() -> None:
     assert [c.catalog_id for c in fmt.catalogs] == [PRI]
 
 
-def test_prompt_examples_are_decompiled(tmp_path, basic: CatalogApi) -> None:
-    (tmp_path / "example.json").write_text(
-        '[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId":'
-        f' "{basic.catalog_id}", "components": [{{"id": "root", "component":'
-        ' "Text", "text": "Hi"}]}}]'
-    )
-    generator = AtomFormat([basic], examples_path=str(tmp_path)).prompt_generator
+def test_prompt_examples_are_decompiled(basic: CatalogApi) -> None:
+    payload = [{
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "catalogId": basic.catalog_id,
+            "components": [{"id": "root", "component": "Text", "text": "Hi"}],
+        },
+    }]
+    generator = AtomFormat(
+        [basic], examples=[to_message_models(payload)]
+    ).prompt_generator
     examples = generator.generate_examples()
     assert '(Text :text "Hi")' in examples
     assert "<a2ui>" in examples

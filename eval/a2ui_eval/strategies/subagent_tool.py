@@ -34,6 +34,7 @@ from inspect_ai.solver import (
 from inspect_ai.tool import Tool, tool
 from inspect_ai.util import store
 
+from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.parser import A2uiPart
 from a2ui.processor import CatalogConfig
@@ -64,11 +65,13 @@ def a2ui_specialist() -> Tool:
         role_description = store().get("role_description")
         workflow_description = store().get("workflow_description")
 
-        system_content = direct_json_format.prompt_generator.generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
-            include_schema=True,
-        )
+        prompt_parts = []
+        if role_description:
+            prompt_parts.append(role_description)
+        if workflow_description:
+            prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
+        prompt_parts.append(direct_json_format.prompt_generator.generate())
+        system_content = "\n\n".join(prompt_parts)
 
         messages: list[ChatMessage] = [
             ChatMessageSystem(content=system_content),
@@ -87,12 +90,7 @@ def a2ui_specialist() -> Tool:
                 all_messages = []
                 for part in parts:
                     if isinstance(part, A2uiPart):
-                        for msg in part.a2ui:
-                            all_messages.append(
-                                msg.model_dump(by_alias=True, exclude_none=True)
-                                if hasattr(msg, "model_dump")
-                                else msg
-                            )
+                        all_messages.extend(to_message_dicts(part.a2ui))
                 payload = json.dumps(all_messages, indent=2)
                 store().set(PAYLOAD_STORE_KEY, payload)
                 return "Success: The UI has been generated and saved out-of-band."

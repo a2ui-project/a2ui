@@ -19,14 +19,13 @@ definitions and instruction blocks for on-device models.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 import json
 import re
-from typing import Any, Literal, TYPE_CHECKING
+from typing import Any, Literal
 
 from a2ui.core import CatalogApi
 from a2ui.core.common import is_at_least_version
-from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
     build_catalog_helpers,
@@ -36,13 +35,9 @@ from a2ui.inference_formats._shared import (
     surface_catalog_id,
 )
 from a2ui.prompt import PromptGenerator
-from a2ui.schema import load_examples
 
 from .compiler import UPDATE_ATTR
 from .parser import ElementalParser
-
-if TYPE_CHECKING:
-    from .format import ElementalFormat
 
 ELEMENTAL_RULES = r"""# A2UI Elemental Output Contract
 
@@ -135,42 +130,20 @@ class ElementalPromptGenerator(PromptGenerator):
 
     def __init__(
         self,
-        catalogs: Sequence[CatalogApi] | "ElementalFormat",
+        catalogs: Sequence[CatalogApi],
         examples: Sequence[Sequence[Any]] | None = None,
         allowed_messages: Sequence[str] | None = None,
         *,
-        examples_path: str | None = None,
         surface_id: str = "main",
     ):
-        from .format import ElementalFormat as _ElemFormat
         from a2ui.inference_formats._shared import check_mixed_catalogs
 
-        if isinstance(catalogs, _ElemFormat):
-            self._format: ElementalFormat | None = catalogs
-            self._catalogs = list(catalogs.catalogs)
-            self._examples = (
-                [list(t) for t in examples]
-                if examples is not None
-                else catalogs.examples
-            )
-            self._allowed_messages = (
-                list(allowed_messages)
-                if allowed_messages is not None
-                else catalogs.allowed_messages
-            )
-            self._examples_path = examples_path or catalogs.examples_path
-            self._surface_id = catalogs.surface_id
-        else:
-            self._format = None
-            self._catalogs = list(check_mixed_catalogs(catalogs))
-            self._examples = (
-                [list(t) for t in examples] if examples is not None else None
-            )
-            self._allowed_messages = (
-                list(allowed_messages) if allowed_messages is not None else None
-            )
-            self._examples_path = examples_path
-            self._surface_id = surface_id
+        self._catalogs = list(check_mixed_catalogs(catalogs))
+        self._examples = [list(t) for t in examples] if examples is not None else None
+        self._allowed_messages = (
+            list(allowed_messages) if allowed_messages is not None else None
+        )
+        self._surface_id = surface_id
         self.helpers: dict[str, CatalogSchemaHelper] = build_catalog_helpers(
             self._catalogs
         )
@@ -335,33 +308,26 @@ class ElementalPromptGenerator(PromptGenerator):
         catalog: Any | None = None,
         validate: bool = False,
     ) -> str:
-        """Loads and formats few-shot Elemental examples."""
+        """Formats few-shot Elemental examples."""
+        if not self._examples:
+            return ""
         active_catalogs = list(self.catalogs)
         if catalog is not None:
             active_catalogs = [
                 catalog,
                 *(c for c in active_catalogs if c is not catalog),
             ]
-        if self._examples:
-            from a2ui.inference_formats._shared import to_message_dicts
-            from a2ui.utils import validate_payload
+        from a2ui.inference_formats._shared import to_message_dicts
+        from a2ui.utils import validate_payload
 
-            parser = self._get_parser()
-            blocks = []
-            for turn in self._examples:
-                if validate:
-                    validate_payload(active_catalogs, to_message_dicts(turn))
-                decompiled = parser.decompile_blocks(turn)
-                blocks.append(parser.wrap_decompiled_blocks(decompiled))
-            return "\n\n".join(blocks)
-        if not active_catalogs or not self._examples_path:
-            return ""
-        raw_examples = load_examples(
-            active_catalogs, self._examples_path, validate=validate
-        )
-        if not raw_examples:
-            return ""
-        return self.transform_examples(raw_examples)
+        parser = self._get_parser()
+        blocks = []
+        for turn in self._examples:
+            if validate:
+                validate_payload(active_catalogs, to_message_dicts(turn))
+            decompiled = parser.decompile_blocks(turn)
+            blocks.append(parser.wrap_decompiled_blocks(decompiled))
+        return "\n\n".join(blocks)
 
     def _map_schema_to_ts_type(
         self, component_name: str, prop_name: str, prop_schema: Any
@@ -669,51 +635,19 @@ class ElementalPromptGenerator(PromptGenerator):
             flags=re.DOTALL,
         )
 
-    def generate(
-        self,
-        role_description: str = "",
-        workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = True,
-        include_examples: bool = True,
-        validate_examples: bool = False,
-    ) -> str:
-        """Assembles the complete system instruction block for the LLM.
-
-        Args:
-            role_description: Description of the agent's role.
-            workflow_description: Optional description of the task workflow.
-            ui_description: Optional UI context or rules.
-            client_ui_capabilities: Optional client UI capability details.
-            allowed_components: Optional list of component tags the LLM may use.
-            allowed_messages: Optional list of A2UI message types allowed.
-            include_schema: Whether to include component schemas in the prompt.
-            include_examples: Whether to include few-shot examples.
-            validate_examples: Whether to validate few-shot examples on generation.
-
-        Returns:
-            The complete system prompt string explaining A2UI Elemental and its catalog.
-        """
-        parts = [role_description] if role_description else []
+    def generate(self) -> str:
+        """Assembles the prompt snippet explaining A2UI Elemental and its catalog."""
+        parts: list[str] = []
 
         rules = self.generate_base_rules()
-        if workflow_description:
-            rules += f"\n\n{workflow_description}"
         parts.append(f"## Workflow Description:\n{rules}")
 
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
-
-        if include_schema and self.helpers:
+        if self.helpers:
             parts.append(self.generate_catalog_instructions(include_schema=True))
 
-        if include_examples:
-            formatted_examples = self.generate_examples(validate=validate_examples)
-            if formatted_examples:
-                parts.append(f"### Examples:\n{formatted_examples}")
+        formatted_examples = self.generate_examples()
+        if formatted_examples:
+            parts.append(f"### Examples:\n{formatted_examples}")
 
         return "\n\n".join(parts)
 

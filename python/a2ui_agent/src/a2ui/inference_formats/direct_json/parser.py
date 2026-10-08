@@ -27,6 +27,7 @@ from a2ui.core.common import is_at_least_version
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats._shared import check_catalogs
+from a2ui.inference_formats._shared import to_message_dicts
 from a2ui.inference_formats._shared import to_message_models
 from a2ui.parser import A2uiPart
 from a2ui.parser import Parser
@@ -34,7 +35,6 @@ from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
 from a2ui.parser import ResponsePart
 from a2ui.parser import TextPart
-from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS
 from a2ui.utils import validate_payload
 
 from .decompiler import DirectJsonDecompiler
@@ -76,7 +76,7 @@ class DirectJsonParser(Parser):
     @property
     def catalogs(self) -> list[CatalogApi]:
         """The active catalogs in priority order."""
-        return self._catalogs
+        return list(self._catalogs)
 
     @property
     def progressive_keys(self) -> frozenset[str]:
@@ -275,9 +275,7 @@ class DirectJsonParser(Parser):
     ) -> None:
         changed: list[AgentToRendererMessage] = []
         for i, msg in enumerate(messages):
-            encoded = json.dumps(
-                msg.model_dump(by_alias=True, exclude_none=True), sort_keys=True
-            )
+            encoded = json.dumps(to_message_dicts([msg])[0], sort_keys=True)
             if i < len(self._emitted_json):
                 if self._emitted_json[i] == encoded:
                     continue

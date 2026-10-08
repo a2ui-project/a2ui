@@ -89,12 +89,3 @@ def test_direct_json_parser_methods():
         '<a2ui-json>\n{"beginRendering": {"surfaceId": "s1", "root":'
         ' "c1"}}\n</a2ui-json>'
     )
-
-
-def test_generate_with_client_capabilities_is_an_error():
-    direct_json_format = DirectJsonFormat([BasicCatalog(VERSION_0_9)])
-
-    with pytest.raises(A2uiCatalogError, match="resolve_catalogs"):
-        direct_json_format.prompt_generator.generate(
-            "Role", client_ui_capabilities={"v0.9": {"supportedCatalogIds": []}}
-        )

@@ -174,7 +174,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         from a2ui.inference_formats.experimental.express import ExpressFormat
 
         fmt = ExpressFormat([core_catalog])
-        prompt = fmt.prompt_generator.generate(role_description="", include_schema=True)
+        prompt = fmt.prompt_generator.generate()
         self.assertIn("TextField(", prompt)
 
         # Parser

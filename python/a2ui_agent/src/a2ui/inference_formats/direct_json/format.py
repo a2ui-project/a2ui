@@ -26,6 +26,7 @@ from a2ui.inference_format import InferenceFormatFactory
 from a2ui.inference_formats._shared import check_catalogs
 from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 from a2ui.inference_formats.direct_json.prompt_generator import DirectJsonPromptGenerator
+from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 
 
 class DirectJsonFormat(InferenceFormat):
@@ -37,15 +38,14 @@ class DirectJsonFormat(InferenceFormat):
         examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
         allowed_messages: Sequence[str] | None = None,
         progressive_keys: Collection[str] = frozenset(),
-        *,
-        examples_path: str | None = None,
     ):
         self._catalogs = check_catalogs(catalogs)
-        self._examples = [list(turn) for turn in examples] if examples else None
+        self._examples = (
+            [list(turn) for turn in examples] if examples is not None else None
+        )
         self._allowed_messages = (
             list(allowed_messages) if allowed_messages is not None else None
         )
-        self._examples_path = examples_path
         self._progressive_keys = frozenset(progressive_keys)
         self._prompt_generator: DirectJsonPromptGenerator | None = None
 
@@ -53,12 +53,23 @@ class DirectJsonFormat(InferenceFormat):
     def prompt_generator(self) -> DirectJsonPromptGenerator:
         """The prompt generator instance configured for this Direct JSON format."""
         if self._prompt_generator is None:
-            self._prompt_generator = DirectJsonPromptGenerator(self)
+            self._prompt_generator = DirectJsonPromptGenerator(
+                self._catalogs,
+                examples=self._examples,
+                allowed_messages=self._allowed_messages,
+            )
         return self._prompt_generator
 
     def create_parser(self) -> DirectJsonParser:
         """Creates a new parser instance configured for this Direct JSON format."""
         return DirectJsonParser(
+            self._catalogs,
+            progressive_keys=self._progressive_keys,
+        )
+
+    def create_stream_parser(self) -> DirectJsonStreamParser:
+        """Creates a streaming parser configured by this format."""
+        return DirectJsonStreamParser(
             self._catalogs,
             progressive_keys=self._progressive_keys,
         )
@@ -76,7 +87,7 @@ class DirectJsonFormat(InferenceFormat):
     @property
     def examples(self) -> list[list[AgentToRendererMessage]] | None:
         """The configured few-shot example turns, if any."""
-        return [list(t) for t in self._examples] if self._examples else None
+        return [list(t) for t in self._examples] if self._examples is not None else None
 
     @property
     def allowed_messages(self) -> list[str] | None:
@@ -89,11 +100,6 @@ class DirectJsonFormat(InferenceFormat):
     def progressive_keys(self) -> frozenset[str]:
         """The progressive string property keys healed while streaming."""
         return self._progressive_keys
-
-    @property
-    def examples_path(self) -> str | None:
-        """The directory or glob pattern of few-shot example files, if any."""
-        return self._examples_path
 
 
 class DirectJsonFormatFactory(InferenceFormatFactory):

@@ -41,15 +41,15 @@ class AtomFormat(InferenceFormat):
         examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
         allowed_messages: Sequence[str] | None = None,
         surface_id: str = "main",
-        examples_path: str | None = None,
     ):
         self._catalogs = check_mixed_catalogs(catalogs)
-        self._examples = [list(turn) for turn in examples] if examples else None
+        self._examples = (
+            [list(turn) for turn in examples] if examples is not None else None
+        )
         self._allowed_messages = (
             list(allowed_messages) if allowed_messages is not None else None
         )
         self.surface_id = surface_id
-        self.examples_path = examples_path
         self._prompt_generator: AtomPromptGenerator | None = None
 
     @property
@@ -60,7 +60,7 @@ class AtomFormat(InferenceFormat):
     @property
     def examples(self) -> list[list[AgentToRendererMessage]] | None:
         """The configured few-shot example turns, if any."""
-        return [list(t) for t in self._examples] if self._examples else None
+        return [list(t) for t in self._examples] if self._examples is not None else None
 
     @property
     def allowed_messages(self) -> list[str] | None:
@@ -73,7 +73,11 @@ class AtomFormat(InferenceFormat):
     def prompt_generator(self) -> AtomPromptGenerator:
         """The prompt generator instance configured for Atom format."""
         if self._prompt_generator is None:
-            self._prompt_generator = AtomPromptGenerator(self)
+            self._prompt_generator = AtomPromptGenerator(
+                self._catalogs,
+                examples=self._examples,
+                allowed_messages=self._allowed_messages,
+            )
         return self._prompt_generator
 
     def create_parser(self) -> AtomParser:

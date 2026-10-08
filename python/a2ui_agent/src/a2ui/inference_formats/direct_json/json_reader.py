@@ -282,6 +282,31 @@ class _Reader:
                     code = int(hex_str, 16)
                 except ValueError:
                     self._fail("invalid unicode escape")
+                if 0xD800 <= code <= 0xDBFF:
+                    if self._i + 12 > n:
+                        if (
+                            self._partial
+                            and self.text[self._i + 6 : n] == "\\u"[: n - (self._i + 6)]
+                            or (
+                                self._partial
+                                and self._i + 8 <= n
+                                and self.text[self._i + 6 : self._i + 8] == "\\u"
+                            )
+                        ):
+                            self._i = n
+                            continue
+                    if (
+                        self._i + 12 <= n
+                        and self.text[self._i + 6 : self._i + 8] == "\\u"
+                    ):
+                        low_hex = self.text[self._i + 8 : self._i + 12]
+                        try:
+                            low = int(low_hex, 16)
+                        except ValueError:
+                            self._fail("invalid unicode escape")
+                        if 0xDC00 <= low <= 0xDFFF:
+                            code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
+                            self._i += 6
                 buf.append(chr(code))
                 self._i += 4
             else:

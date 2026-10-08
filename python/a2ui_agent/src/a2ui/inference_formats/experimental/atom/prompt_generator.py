@@ -16,14 +16,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 import json
 import re
-from typing import Any, Literal, TYPE_CHECKING
+from typing import Any, Literal
 
 from a2ui.core import A2uiValidationError, CatalogApi
 from a2ui.core.common import is_at_least_version
-from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
     build_catalog_helpers,
@@ -33,12 +32,8 @@ from a2ui.inference_formats._shared import (
     surface_catalog_id,
 )
 from a2ui.prompt import PromptGenerator
-from a2ui.schema import load_examples
 
 from .decompiler import AtomDecompiler
-
-if TYPE_CHECKING:
-    from .format import AtomFormat
 
 # Top-level keys that mark a JSON object as an A2UI message.
 _EXAMPLE_MESSAGE_KEYS = (
@@ -141,47 +136,20 @@ class AtomPromptGenerator(PromptGenerator):
 
     def __init__(
         self,
-        catalogs: Sequence[CatalogApi] | "AtomFormat",
+        catalogs: Sequence[CatalogApi],
         examples: Sequence[Sequence[Any]] | None = None,
         allowed_messages: Sequence[str] | None = None,
-        *,
-        examples_path: str | None = None,
     ):
-        from .format import AtomFormat as _AtmFormat
         from a2ui.inference_formats._shared import check_mixed_catalogs
 
-        if isinstance(catalogs, _AtmFormat):
-            self._format: AtomFormat | None = catalogs
-            self._catalogs = list(catalogs.catalogs)
-            self._examples = (
-                [list(t) for t in examples]
-                if examples is not None
-                else catalogs.examples
-            )
-            self._allowed_messages = (
-                list(allowed_messages)
-                if allowed_messages is not None
-                else catalogs.allowed_messages
-            )
-            self._examples_path = examples_path or catalogs.examples_path
-        else:
-            self._format = None
-            self._catalogs = list(check_mixed_catalogs(catalogs))
-            self._examples = (
-                [list(t) for t in examples] if examples is not None else None
-            )
-            self._allowed_messages = (
-                list(allowed_messages) if allowed_messages is not None else None
-            )
-            self._examples_path = examples_path
+        self._catalogs = list(check_mixed_catalogs(catalogs))
+        self._examples = [list(t) for t in examples] if examples is not None else None
+        self._allowed_messages = (
+            list(allowed_messages) if allowed_messages is not None else None
+        )
         self.schema_helpers: dict[str, CatalogSchemaHelper] = build_catalog_helpers(
             self._catalogs
         )
-
-    @property
-    def format(self) -> "AtomFormat | None":
-        """The AtomFormat strategy instance this generator belongs to."""
-        return self._format
 
     @property
     def catalogs(self) -> list[CatalogApi]:
@@ -322,33 +290,26 @@ class AtomPromptGenerator(PromptGenerator):
         catalog: CatalogApi | None = None,
         validate: bool = False,
     ) -> str:
-        """Loads and formats few-shot Atom examples."""
+        """Formats few-shot Atom examples."""
+        if not self._examples:
+            return ""
         active_catalogs = list(self.catalogs)
         if catalog is not None:
             active_catalogs = [
                 catalog,
                 *(c for c in active_catalogs if c is not catalog),
             ]
-        if self._examples:
-            from a2ui.inference_formats._shared import to_message_dicts
-            from a2ui.utils import validate_payload
+        from a2ui.inference_formats._shared import to_message_dicts
+        from a2ui.utils import validate_payload
 
-            decompiler = AtomDecompiler(self.catalogs)
-            blocks = []
-            for turn in self._examples:
-                if validate:
-                    validate_payload(active_catalogs, to_message_dicts(turn))
-                dsl = decompiler.decompile(turn)
-                blocks.append(decompiler.wrap_decompiled_blocks([dsl]))
-            return "\n\n".join(blocks)
-        if not active_catalogs or not self._examples_path:
-            return ""
-        raw_examples = load_examples(
-            active_catalogs, self._examples_path, validate=validate
-        )
-        if not raw_examples:
-            return ""
-        return self.transform_examples(raw_examples)
+        decompiler = AtomDecompiler(self.catalogs)
+        blocks = []
+        for turn in self._examples:
+            if validate:
+                validate_payload(active_catalogs, to_message_dicts(turn))
+            dsl = decompiler.decompile(turn)
+            blocks.append(decompiler.wrap_decompiled_blocks([dsl]))
+        return "\n\n".join(blocks)
 
     def _decompile_example_json(self, json_content: str) -> str | None:
         """Decompiles one JSON example block into a sentinel-wrapped Atom block.
@@ -414,52 +375,18 @@ class AtomPromptGenerator(PromptGenerator):
             flags=re.DOTALL,
         )
 
-    def generate(
-        self,
-        role_description: str = "",
-        workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = True,
-        include_examples: bool = True,
-        validate_examples: bool = False,
-    ) -> str:
-        """Generates a complete system prompt configured for Atom S-expression UI generation.
+    def generate(self) -> str:
+        """Generates the prompt snippet for Atom S-expression UI generation."""
+        parts = [f"## Instructions:\n{self.generate_base_rules()}"]
 
-        Args:
-            role_description: The system role description text.
-            workflow_description: Additional workflow guidance text.
-            ui_description: Target UI requirement details.
-            client_ui_capabilities: Optional client UI capabilities specification.
-            allowed_components: Optional list of allowed component names.
-            allowed_messages: Optional list of allowed message types.
-            include_schema: Whether to include component and function catalog signatures.
-            include_examples: Whether to include prompt examples.
-            validate_examples: Whether to validate prompt examples.
-
-        Returns:
-            The complete system prompt string.
-        """
-        parts = []
-        if role_description:
-            parts.append(role_description)
-
-        rules = self.generate_base_rules()
-        if workflow_description:
-            rules += f"\n\n{workflow_description}"
-        parts.append(f"## Instructions:\n{rules}")
-
-        if include_schema and self.schema_helpers:
+        if self.schema_helpers:
             instructions = self.generate_catalog_instructions(include_schema=True)
             if instructions:
                 parts.append(instructions)
 
-        if include_examples:
-            formatted_examples = self.generate_examples(validate=validate_examples)
-            if formatted_examples:
-                parts.append(f"### Examples:\n{formatted_examples}")
+        formatted_examples = self.generate_examples()
+        if formatted_examples:
+            parts.append(f"### Examples:\n{formatted_examples}")
 
         return "\n\n".join(parts)
 

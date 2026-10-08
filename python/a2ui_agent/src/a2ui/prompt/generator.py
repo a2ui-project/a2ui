@@ -17,11 +17,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
-from collections.abc import Sequence
 from typing import Any
-
-from a2ui.core.schema.v0_9 import V09Capabilities
 
 __all__ = [
     "PromptGenerator",
@@ -52,44 +48,20 @@ class PromptGenerator(ABC):
         return ""
 
     @abstractmethod
-    def generate(
-        self,
-        role_description: str = "",
-        workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = True,
-        include_examples: bool = True,
-        validate_examples: bool = False,
-    ) -> str:
-        """Generates the complete system prompt instruction string for the format."""
-        del client_ui_capabilities, allowed_components, allowed_messages
+    def generate(self) -> str:
+        """Generates the format and catalog prompt snippet."""
         parts: list[str] = []
 
-        if role_description:
-            parts.append(role_description)
-
         rules = self.generate_base_rules()
-        if workflow_description:
-            rules = (
-                f"{rules}\n\n{workflow_description}" if rules else workflow_description
-            )
         if rules:
             parts.append(f"## Workflow Description:\n{rules}")
 
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
+        catalog_inst = self.generate_catalog_instructions(include_schema=True)
+        if catalog_inst:
+            parts.append(catalog_inst)
 
-        if include_schema:
-            catalog_inst = self.generate_catalog_instructions(include_schema=True)
-            if catalog_inst:
-                parts.append(catalog_inst)
-
-        if include_examples:
-            examples = self.generate_examples(validate=validate_examples)
-            if examples:
-                parts.append(f"### Examples:\n{examples}")
+        examples = self.generate_examples()
+        if examples:
+            parts.append(f"### Examples:\n{examples}")
 
         return "\n\n".join(parts)
