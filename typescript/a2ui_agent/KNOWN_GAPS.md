@@ -27,6 +27,13 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** A v1.0 component can be emitted and checked against its surface's catalog before a later `catalogId` names the catalog it belongs to, and renderers can redraw a component while its properties are still arriving.
 - **Done looks like:** The stream processor holds a v1.0 component back until its object closes and emits the closed components of a list while the next one arrives, so `test_v1_0_streaming_component_catalog_id_arrives_late`, `test_v1_0_streaming_catalog_id_split_across_chunks` and `test_v1_0_streaming_component_on_surface_catalog_waits_until_closed` from `conformance/agent/legacy/streaming_parser.yaml` pass and leave `KNOWN_FAILURES` in `tests/conformance/loader.ts`. Tracked in #3030.
 
+### Express multi-catalog resolution still uses surface-level catalogId
+
+- **What it is:** With multiple active catalogs, Python's Express compiler omits `createSurface.catalogId`, resolves un-annotated components and function calls by name across active catalogs, and stamps `catalogId` on each compiled component and function call (#3031). The TypeScript Express compiler and decompiler still resolve a surface-level catalog from `surface("id", "cat")` or the first catalog.
+- **Why it exists:** Python updated its multi-catalog Express resolution in #3031, and the TypeScript compiler and decompiler have not followed yet.
+- **What it risks:** Multi-catalog Express compilation and decompilation differ between Python and TypeScript until ported.
+- **Done looks like:** The TypeScript Express compiler and decompiler implement name-based multi-catalog resolution and omit `createSurface.catalogId` when multiple catalogs are active, so `test_compile_express_surface_targeting_names_a_catalog` and `test_decompile_express_two_surfaces_in_two_catalogs` pass and leave `KNOWN_FAILURES` in `tests/conformance/express_conformance.test.ts`.
+
 ### Streamed payloads are not validated against catalogs
 
 - **What it is:** With a `ValidationConfig`, `DirectJsonStreamProcessorImpl` checks each completed envelope against the protocol schema and `allowedMessages`, but not against the active catalogs. A component type or property the catalog doesn't define passes through.
@@ -219,19 +226,25 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Express grammar rules name basic-catalog components
 
-- **What it is:** The fixed Express rules that head every Express prompt in Python (`EXPRESS_RULES` in `prompt_generator.py`) name catalog-specific things. Rule 15's example is `root = Card(...)`, the dates rule mentions `DateTimeInput`, rule 11 uses `itemTemplate = Image($url)`, and rule 14 refers to parameters named `action`. With a catalog that has no `Card`, the prompt still shows one. Python fails `test_express_snippet_omits_a_pruned_component` for this reason (though Python's harness doesn't run that suite, so the failure is not visible there).
+- **What it is:** The fixed Express rules that head every Express prompt in Python (`EXPRESS_RULES` in `prompt_generator.py`) name catalog-specific things: the dates rule mentions `DateTimeInput`, rule 11 uses `itemTemplate = Image($url)`, and rule 14 refers to parameters named `action`. Rule 15's example now uses `root = ComponentA(...)`, as this port does, so Python passes `test_express_snippet_omits_a_pruned_component`.
 - **TypeScript:** The rules have been rewritten to be catalog-agnostic (using generic placeholder components such as `ComponentA(...)` and generic descriptions for date-time properties and action parameters). TypeScript now passes `test_express_snippet_omits_a_pruned_component`.
-- **Contradiction in conformance suite:** The conformance suite contradicts itself: the skill golden `conformance/test_data/skills/express_base_rules.txt` still contains `Card(...)`, which the pruning conformance case `test_express_snippet_omits_a_pruned_component` forbids. The TypeScript unit test comparing base rules against `express_base_rules.txt` was adapted in favor of following the pruning case. Upstream needs to regenerate the golden when Python changes its rules.
+- **Golden:** The skill golden `conformance/test_data/skills/express_base_rules.txt` was regenerated with `root = ComponentA(...)`. The TypeScript unit test comparing base rules against it still substitutes the three remaining catalog-specific phrases.
 - **Why it exists in Python:** The rules text was written against the basic catalog.
 - **What it risks:** The model may be told to use components or properties that the negotiated catalog does not have. This conflicts with the repository rule that inference formats stay catalog-agnostic.
 - **Done looks like:** Upstream Python rewrites its rules to be catalog-agnostic and regenerates the `express_base_rules.txt` golden.
 
-### Python's Express decompiles a check without a condition as `?None`
+### Express decompiles a check without a condition as `?None`
 
-- **What it is:** When the prompt generator rewrites catalog examples as Express, a check rule written as `{"call": "required"}` without the `condition` wrapper decompiles to `?None`. The v1.0 basic catalog has one such example, so the golden `express_catalog_instructions.txt` contains `?None` (line 197), and the port produces the same.
-- **Why it exists:** Python's decompiler reads `rc.get("condition", {}).get("call")` and formats the missing value as `None`.
-- **What it risks:** The model is shown an example that does not compile.
-- **Done looks like:** The catalog example is corrected, or Python's decompiler handles a bare call, and the golden is regenerated.
+- **What it is:** When the prompt generator rewrites catalog examples as Express, a check rule written as `{"call": "required"}` without the `condition` wrapper decompiles to `?None`. Python writes it as `?required` (#3031). The v1.0 basic catalog example now uses a valid `CheckRule` with a `condition`, so the `express_catalog_instructions.txt` golden no longer exercises this path and the unit test compares against it unchanged.
+- **Why it exists:** The port reproduced Python's earlier decompiler, which read `rc.get("condition", {}).get("call")` and formatted the missing value as `None`.
+- **What it risks:** A custom catalog whose examples use the bare form shows the model an example that does not compile.
+- **Done looks like:** The decompiler handles a bare call as Python does.
+
+### Express decompiler has no `updateSurface` statement
+
+- **What it is:** Python's Express decompiler writes an `updateComponents` or `updateDataModel` under an `updateSurface("id")` statement, and writes an `updateDataModel` as one assignment of its value to its path (`$/ = {...}`), and Python's base rules describe this as rule 16 (#3031). This port writes updates under `surface("id")`, splits a data model update into leaf assignments, and its base rules stop at rule 15.
+- **What it risks:** Decompiled update examples recompile as creates, and a data model update that replaces a map recompiles as several updates.
+- **Done looks like:** The decompiler and base rules follow Python, so `test_decompile_express_update_components`, `test_decompile_express_update_data_model`, `test_decompile_express_nested_data_model_update_is_one_assignment` and `test_decompile_express_update_on_non_default_surface_round_trips` leave `KNOWN_FAILURES` in `tests/conformance/express_conformance.test.ts`, and the base rules unit test no longer strips rule 16 from the golden.
 
 ### Python's Express ignores common properties defined inside a v0.9 catalog
 

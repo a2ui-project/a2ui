@@ -14,8 +14,14 @@
 
 """Parser utilities to extract and compile A2UI Express DSL from LLM responses."""
 
-from typing import Any, Type
+from collections.abc import Sequence
+from typing import Type
+
+from google.adk.utils.feature_decorator import experimental
+
 from a2ui.core import CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats._shared import check_dsl_catalogs
 from a2ui.parser import (
     A2uiCompilationError,
     A2uiCompilationParseError,
@@ -23,10 +29,10 @@ from a2ui.parser import (
     Parser,
     ResponsePart,
 )
-from google.adk.utils.feature_decorator import experimental
-from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
+from a2ui.schema.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
+
 from .compiler import ExpressCompiler
-from .decompiler import _ExpressDecompiler
+from .decompiler import ExpressDecompiler
 from .errors import ExpressParseError, ExpressValidationError
 
 
@@ -58,20 +64,30 @@ class ExpressParser(Parser):
 
     def __init__(
         self,
-        catalog: CatalogApi,
+        catalogs: Sequence[CatalogApi],
         surface_id: str = "main",
-        version: str = "v1.0",
+        version: str | None = None,
     ):
-        """Initializes the Express parser with a catalog schema and target version.
+        """Initializes the Express parser with one or more catalogs and target version.
 
         Args:
-            catalog: Catalog instance.
+            catalogs: A sequence of catalogs.
             surface_id: Surface identifier for compiled messages.
             version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
+                Defaults to the version that the catalogs target.
         """
-        self.catalog = catalog
+        self._catalogs = check_dsl_catalogs(catalogs)
         self.surface_id = surface_id
         self.version = version
+
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the catalogs the parser holds, in the order it received them."""
+        return list(self._catalogs)
+
+    @catalogs.setter
+    def catalogs(self, value: Sequence[CatalogApi]) -> None:
+        self._catalogs = check_dsl_catalogs(value)
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         """Checks whether the given content string contains A2UI Express sentinel tags.
@@ -104,9 +120,9 @@ class ExpressParser(Parser):
 
     def compile(
         self, format_content: str, *, is_final: bool = True
-    ) -> list[dict[str, Any]]:
+    ) -> list[AgentToRendererMessage]:
         """Compiles raw Express DSL to structured A2UI messages."""
-        compiler = ExpressCompiler(self.catalog, version=self.version)
+        compiler = ExpressCompiler(self._catalogs, version=self.version)
         try:
             return compiler.compile(
                 format_content, surface_id=self.surface_id, is_final=is_final
@@ -131,10 +147,10 @@ class ExpressParser(Parser):
                 details=details,
             ) from e
 
-    def decompile(self, val: dict[str, Any] | list[dict[str, Any]]) -> str:
-        """Decompiles a structured A2UI payload into this format's raw notation."""
-        return _ExpressDecompiler(self.catalog).decompile(val)
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
+        """Decompiles structured A2UI payload messages into this format's raw notation."""
+        return ExpressDecompiler(self._catalogs).decompile(a2ui_payload)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
-        return _ExpressDecompiler(self.catalog).wrap_decompiled_blocks(blocks)
+        return ExpressDecompiler(self._catalogs).wrap_decompiled_blocks(blocks)

@@ -14,17 +14,82 @@
 
 """Decompilation engine for A2UI Express.
 
-Reconstructs standard A2UI v1.0 JSON envelopes back into A2UI Express DSL code,
+Writes A2UI messages (v0.9, v0.9.1 or v1.0) back into A2UI Express DSL code,
 tailored for prompt tokens compression.
 """
 
+from collections.abc import Sequence
 import re
-from typing import Any
-from a2ui.core import CatalogApi
+from typing import Any, Literal
 
-from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
-from .schema_helper import CatalogSchemaHelper
+from a2ui.core import CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats._shared import (
+    CatalogSchemaHelper,
+    CoalescedMessage,
+    build_catalog_helpers,
+    catalogs_defining,
+    check_dsl_catalogs,
+    coalesce_surface_messages,
+    surface_catalog_id,
+)
+from a2ui.schema.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
+
 from .constants import SurfaceOperation
+from .errors import ExpressValidationError
+
+_DEFAULT_SURFACE_ID = "default_surface"
+_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+_NON_IDENTIFIER_CHARS_RE = re.compile(r"[^a-zA-Z0-9_]")
+# Words that lex as something other than a variable name.
+_RESERVED_WORDS = frozenset({"_", "true", "false", "null"})
+
+
+def _is_variable_name(name: str) -> bool:
+    """Checks whether a component ID can be written as an Express variable."""
+    return bool(_IDENTIFIER_RE.match(name)) and name not in _RESERVED_WORDS
+
+
+def _assign_variable_names(component_ids: Sequence[str]) -> dict[str, str]:
+    """Maps each component ID to the variable name it is written under.
+
+    An ID that is a valid variable name is its own variable name. Any other
+    ID, such as `content-grid`, gets a derived name (`content_grid`) that no
+    other ID or variable of the block uses, and the component is written with
+    an `id="content-grid"` argument so that it compiles back to its ID.
+    """
+    names = {cid: cid for cid in component_ids if _is_variable_name(cid)}
+    taken = set(names.values())
+    for cid in component_ids:
+        if cid in names:
+            continue
+        base = _NON_IDENTIFIER_CHARS_RE.sub("_", cid)
+        if not base or not _is_variable_name(base):
+            base = f"_{base}"
+        name, suffix = base, 2
+        while name in taken:
+            name, suffix = f"{base}_{suffix}", suffix + 1
+        names[cid] = name
+        taken.add(name)
+    return names
+
+
+def _decompile_reference(component_id: Any, var_names: dict[str, str]) -> str:
+    """Writes a reference to a component by ID.
+
+    A component defined in the same block is referenced by its variable name.
+    A component defined elsewhere, such as in an earlier turn, is referenced
+    by a bare name when its ID is a valid variable name that the block does
+    not define, which the compiler reads back as that ID, and by a quoted ID
+    otherwise.
+    """
+    if not isinstance(component_id, str):
+        return _decompile_string(str(component_id))
+    if component_id in var_names:
+        return var_names[component_id]
+    if _is_variable_name(component_id) and component_id not in var_names.values():
+        return component_id
+    return _decompile_string(component_id)
 
 
 def _flatten_data_model(data_dict: dict) -> list[tuple[str, Any]]:
@@ -96,6 +161,18 @@ def _decompile_string(val: str) -> str:
     return f'"{escaped}"'
 
 
+def _decompile_key(key: str) -> str:
+    """Writes a map key bare when it is an identifier, and quoted otherwise."""
+    return key if _IDENTIFIER_RE.match(key) else _decompile_string(key)
+
+
+def _decompile_path(path_str: str) -> str:
+    """Writes a JSON Pointer data path as an Express path (`/a/b` -> `$/a/b`)."""
+    if path_str.startswith("/"):
+        return f"$/{path_str[1:]}"
+    return f"${path_str}"
+
+
 def _has_reserved_key(val: dict, name: str) -> bool:
     """Checks for a reserved key under its v1.0 `@` name or its v0.9 plain name.
 
@@ -110,26 +187,136 @@ def _reserved_value(val: dict, name: str) -> Any:
     return val.get(f"@{name}", val.get(name))
 
 
-class _ExpressDecompiler:
+def _is_renderer_call(envelope_json: dict[str, Any]) -> bool:
+    """Checks whether a message is a renderer function call."""
+    return (
+        "callRendererFunction" in envelope_json
+        or SurfaceOperation.CALL_FUNC in envelope_json
+    )
+
+
+def _strip_trailing_placeholders(args: list[str]) -> list[str]:
+    while args and args[-1] == "_":
+        args.pop()
+    return args
+
+
+class ExpressDecompiler:
     """Converts standard A2UI wire JSON trees back into A2UI Express syntax.
 
     Identifies component definitions, event trigger actions, validation logic rules,
     and dynamic child templates, maps them positional-wise, and outputs plain text.
 
+    A component or function call without a `catalogId` belongs to its
+    surface's catalog, as the protocol specifies. With a single catalog that is
+    the catalog, and nothing names it. With several catalogs a `surface` line
+    never names a catalog, and a component or call is written with a
+    `catalogId=` argument only when looking its name up across the catalogs
+    would not find its actual catalog, that is when several catalogs define
+    the name.
+
     Attributes:
-        helper: A CatalogSchemaHelper loaded with the target catalog schema.
+        helpers: Mapping of catalog IDs to CatalogSchemaHelper instances.
     """
 
     def __init__(
         self,
-        catalog: CatalogApi,
+        catalogs: Sequence[CatalogApi],
     ):
-        """Initializes the decompiler with the specified catalog.
+        """Initializes the decompiler with one or more catalogs.
 
         Args:
-            catalog: A Catalog instance.
+            catalogs: A sequence of Catalog instances.
+
+        Raises:
+            A2uiCatalogError: If `check_dsl_catalogs` rejects the catalogs.
         """
-        self.helper = CatalogSchemaHelper(catalog)
+        self._catalogs = check_dsl_catalogs(catalogs)
+        self.helpers = build_catalog_helpers(self._catalogs)
+        # The single catalog's ID, or None when several catalogs are active.
+        self._sole_catalog_id = surface_catalog_id(self._catalogs)
+
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the catalogs, in the order the decompiler received them."""
+        return list(self._catalogs)
+
+    def _helper_for(self, catalog_id: str) -> CatalogSchemaHelper:
+        """Returns the helper of an active catalog.
+
+        Raises:
+            ExpressValidationError: If no active catalog has that ID.
+        """
+        helper = self.helpers.get(catalog_id)
+        if helper is None:
+            raise ExpressValidationError(
+                f"Unknown catalog '{catalog_id}'. Available catalogs:"
+                f" {list(self.helpers.keys())}"
+            )
+        return helper
+
+    def _surface_catalog(self, catalog_id: str | None) -> str | None:
+        """Returns the catalog of a surface that the payload names.
+
+        With a single catalog, a surface's catalog is that catalog, and a
+        payload that names another fails.
+
+        Args:
+            catalog_id: The surface's `createSurface` catalogId, or None when
+                the payload names none.
+
+        Raises:
+            ExpressValidationError: If there is a single catalog and
+                `catalog_id` names another.
+        """
+        if self._sole_catalog_id is None:
+            return catalog_id
+        if catalog_id is not None:
+            self._helper_for(catalog_id)
+        return self._sole_catalog_id
+
+    def _resolve(
+        self,
+        kind: Literal["component", "function"],
+        name: str,
+        catalog_id: str | None,
+        surface_cat_id: str | None,
+        label: str,
+    ) -> tuple[CatalogSchemaHelper, str | None]:
+        """Finds a component's or call's actual catalog, and whether to name it.
+
+        Args:
+            kind: Whether `name` is a component or a function.
+            name: The component or function name.
+            catalog_id: The `catalogId` on the component or call, if any.
+            surface_cat_id: The catalog of its surface, if it has one.
+            label: What `name` is, such as "component", for errors.
+
+        Returns:
+            The helper of the actual catalog, and the `catalogId` to write: the
+            actual catalog when several catalogs are active and a lookup by
+            name would not find exactly that catalog, else None.
+
+        Raises:
+            ExpressValidationError: If the component or call has no catalog,
+                names an unknown catalog, or its catalog does not define it.
+        """
+        actual = catalog_id or surface_cat_id
+        if actual is None:
+            raise ExpressValidationError(
+                f"{label.capitalize()} '{name}' names no catalogId, and its"
+                " surface has no catalog."
+            )
+        helper = self._helper_for(actual)
+        defined = helper.components if kind == "component" else helper.functions
+        if name not in defined:
+            raise ExpressValidationError(
+                f"Unknown {label} '{name}' not defined in catalog '{actual}'."
+            )
+        if self._sole_catalog_id is not None:
+            return helper, None
+        found = catalogs_defining(self.helpers, kind, name)
+        return helper, None if found == [actual] else actual
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps individual decompiled A2UI Express DSL blocks within sentinel tags.
@@ -145,234 +332,349 @@ class _ExpressDecompiler:
 
     def decompile(
         self,
-        envelope_json: dict[str, Any] | list[dict[str, Any]],
+        a2ui_payload: Sequence[AgentToRendererMessage],
         use_keyword_args: bool = False,
     ) -> str:
-        """Decompiles standard A2UI wire JSON into clean A2UI Express lines.
+        """Decompiles structured A2UI payload messages into clean A2UI Express lines.
+
+        The payload is first coalesced (see `coalesce_surface_messages`). Each
+        `createSurface`, `updateComponents` or `updateDataModel` becomes a
+        `surface(...)` block, and deletes and renderer function calls become
+        statements of their own, all in payload order.
 
         Args:
-            envelope_json: Standard A2UI wire JSON envelope dict or list of message dicts.
+            a2ui_payload: Sequence of AgentToRendererMessage objects.
             use_keyword_args: Whether to format component arguments as keyword parameters (e.g., param=value).
 
         Returns:
             The decompiled A2UI Express DSL string.
+
+        Raises:
+            ExpressValidationError: If a message names a catalog, component or
+                function that the active catalogs do not declare.
         """
-        if isinstance(envelope_json, list):
-            return "\n".join(
-                self.decompile(item, use_keyword_args=use_keyword_args)
-                for item in envelope_json
-                if item
-            )
-        # Handle deleteSurface action
+        blocks = []
+        call_count = 0
+        for idx, item in enumerate(coalesce_surface_messages(a2ui_payload)):
+            if not item.message:
+                continue
+            if _is_renderer_call(item.message):
+                call_count += 1
+                block = self._decompile_renderer_call(item.message, call_count)
+            else:
+                block = self._decompile_item(
+                    item, use_keyword_args=use_keyword_args, is_first=idx == 0
+                )
+            if block:
+                blocks.append(block)
+        return "\n".join(blocks)
+
+    def _surface_header(self, surface_id: str) -> str:
+        """Writes a `surface` line, which names no catalog."""
+        return f"surface({_decompile_string(surface_id)})"
+
+    def _decompile_item(
+        self,
+        item: CoalescedMessage,
+        *,
+        use_keyword_args: bool,
+        is_first: bool,
+    ) -> str:
+        envelope_json = item.message
+
         if SurfaceOperation.DELETE in envelope_json:
-            surf_op = envelope_json[SurfaceOperation.DELETE]
-            surface_id = surf_op.get("surfaceId", "")
-            return f'deleteSurface("{surface_id}")'
+            surface_id = envelope_json[SurfaceOperation.DELETE].get("surfaceId", "")
+            return f"deleteSurface({_decompile_string(surface_id)})"
 
-        # Handle updateDataModel action
-        if SurfaceOperation.UPDATE_DATA in envelope_json:
-            val_op = envelope_json[SurfaceOperation.UPDATE_DATA]
-            surface_id = val_op.get("surfaceId", "")
-            data_val = val_op.get("value", {})
-            dsl_lines = []
-            if surface_id and surface_id != "default_surface":
-                dsl_lines.append(f'surface("{surface_id}")')
-            if data_val:
-                for path, val in sorted(_flatten_data_model(data_val)):
-                    val_str = self._decompile_value(val, set(), False)
-                    dsl_lines.append(f"${path} = {val_str}")
-            dsl_body = "\n".join(dsl_lines)
-            return dsl_body
-
-        # Handle callFunction or callRendererFunction action
-        if (
-            "callRendererFunction" in envelope_json
-            or SurfaceOperation.CALL_FUNC in envelope_json
-        ):
-            func_op = envelope_json.get("callRendererFunction")
-            if isinstance(func_op, dict) and "callFunction" in func_op:
-                func_op = func_op["callFunction"]
-            else:
-                func_op = envelope_json.get(SurfaceOperation.CALL_FUNC)
-            if not isinstance(func_op, dict):
-                func_op = {}
-            fn_name = _reserved_value(func_op, "call") or ""
-            fn_args = func_op.get("args", {})
-            args_list = []
-            if fn_name in self.helper.functions:
-                fn_props = self.helper.get_function_properties(fn_name)
-                if isinstance(fn_args, dict):
-                    for prop_name in fn_props:
-                        if prop_name in fn_args:
-                            val_str = self._decompile_value(
-                                fn_args[prop_name], set(), False
-                            )
-                            args_list.append(val_str)
-                        else:
-                            args_list.append("_")
-                elif isinstance(fn_args, list):
-                    for idx, prop_name in enumerate(fn_props):
-                        if idx < len(fn_args):
-                            val_str = self._decompile_value(fn_args[idx], set(), False)
-                            args_list.append(val_str)
-                        else:
-                            args_list.append("_")
-                else:
-                    pass
-            else:
-                if isinstance(fn_args, dict):
-                    for v in fn_args.values():
-                        val_str = self._decompile_value(v, set(), False)
-                        args_list.append(val_str)
-                elif isinstance(fn_args, list):
-                    for v in fn_args:
-                        val_str = self._decompile_value(v, set(), False)
-                        args_list.append(val_str)
-            while args_list and args_list[-1] == "_":
-                args_list.pop()
-            args_str = ", ".join(args_list)
-            return f"{fn_name}({args_str})"
+        if item.is_update:
+            return self._decompile_update(
+                item, use_keyword_args=use_keyword_args, is_first=is_first
+            )
 
         create_surface = envelope_json.get(SurfaceOperation.CREATE, {})
-        if not create_surface and SurfaceOperation.UPDATE_COMPONENTS in envelope_json:
-            create_surface = envelope_json[SurfaceOperation.UPDATE_COMPONENTS]
+        surface_id = create_surface.get("surfaceId", "") or _DEFAULT_SURFACE_ID
+        catalog_id = self._surface_catalog(
+            create_surface.get("catalogId") or item.surface_catalog_id
+        )
 
-        surface_id = create_surface.get("surfaceId", "")
-        catalog_id = create_surface.get("catalogId", "")
-        components = create_surface.get("components", [])
-        data_model = create_surface.get("dataModel", {})
-
-        catalog = self.helper.catalog if self.helper else None
-        default_catalog_id = "https://a2ui.org/catalog.json"
-        if isinstance(catalog, dict):
-            default_catalog_id = catalog.get("catalogId") or default_catalog_id
-        elif catalog and hasattr(catalog, "catalog_id"):
-            default_catalog_id = catalog.catalog_id or default_catalog_id
-        elif (
-            self.helper
-            and hasattr(self.helper, "catalog_model")
-            and getattr(self.helper.catalog_model, "catalog_id", None)
-        ):
-            default_catalog_id = (
-                self.helper.catalog_model.catalog_id or default_catalog_id
-            )
-
+        send_data_model = create_surface.get("sendDataModel")
         dsl_lines = []
-        if surface_id and surface_id != "default_surface":
-            if catalog_id and catalog_id != default_catalog_id:
-                dsl_lines.append(f'surface("{surface_id}", catalogId="{catalog_id}")')
-            else:
-                dsl_lines.append(f'surface("{surface_id}")')
+        if not (
+            is_first and surface_id == _DEFAULT_SURFACE_ID and send_data_model is None
+        ):
+            header = self._surface_header(surface_id)
+            if send_data_model is not None:
+                flag = "true" if send_data_model else "false"
+                header = f"{header[:-1]}, sendDataModel={flag})"
+            dsl_lines.append(header)
 
-        # Index components by ID for hierarchy mapping
-        comp_ids = {c["id"] for c in components}
+        components = create_surface.get("components", [])
 
-        # Decompile dataModel paths first
+        data_model = create_surface.get("dataModel", {})
         if data_model:
             for path, val in sorted(_flatten_data_model(data_model)):
-                val_str = self._decompile_value(val, comp_ids)
+                val_str = self._decompile_value(val, {}, False, catalog_id)
                 dsl_lines.append(f"${path} = {val_str}")
 
+        dsl_lines.extend(
+            self._decompile_components(components, catalog_id, use_keyword_args)
+        )
+        return "\n".join(dsl_lines)
+
+    def _decompile_update(
+        self, item: CoalescedMessage, *, use_keyword_args: bool, is_first: bool
+    ) -> str:
+        """Writes an incremental update as a `surface(...)` block.
+
+        Components without a `catalogId` belong to the surface's catalog when
+        the payload created the surface (or there is a single catalog).
+        """
+        op = item.operation
+        body = item.message[op]
+        surface_id = body.get("surfaceId", "") or _DEFAULT_SURFACE_ID
+        catalog_id = self._surface_catalog(item.surface_catalog_id)
+        dsl_lines = []
+        if not (is_first and surface_id == _DEFAULT_SURFACE_ID):
+            dsl_lines.append(self._surface_header(surface_id))
+
+        if op == SurfaceOperation.UPDATE_COMPONENTS:
+            dsl_lines.extend(
+                self._decompile_components(
+                    body.get("components", []), catalog_id, use_keyword_args
+                )
+            )
+        else:
+            raw_path = body.get("path") or "/"
+            value = body.get("value")
+            if raw_path == "/" and isinstance(value, dict) and value:
+                for rel_path, val in sorted(_flatten_data_model(value)):
+                    val_str = self._decompile_value(val, {}, False, catalog_id)
+                    dsl_lines.append(f"${rel_path} = {val_str}")
+            else:
+                val_str = self._decompile_value(value, {}, False, catalog_id)
+                dsl_lines.append(f"{_decompile_path(raw_path)} = {val_str}")
+        return "\n".join(dsl_lines)
+
+    def _decompile_renderer_call(
+        self, envelope_json: dict[str, Any], call_index: int
+    ) -> str:
+        """Writes a renderer function call as a standalone call statement.
+
+        The call's `catalogId` is written out only when several catalogs are
+        active and a lookup by name would not find that catalog. The
+        `functionCallId` is written as a `functionCallId=` argument unless it
+        is `call_<n>` for the n-th call of the payload, which is the ID the
+        compiler generates.
+
+        Args:
+            envelope_json: The `callRendererFunction` message.
+            call_index: The 1-based position of the call among the payload's
+                renderer function calls.
+        """
+        renderer_call = envelope_json.get("callRendererFunction")
+        function_call_id = None
+        if isinstance(renderer_call, dict) and "callFunction" in renderer_call:
+            func_op = renderer_call["callFunction"]
+            function_call_id = renderer_call.get("functionCallId")
+        else:
+            func_op = envelope_json.get(SurfaceOperation.CALL_FUNC)
+        if not isinstance(func_op, dict):
+            func_op = {}
+        call_repr = self._decompile_call(func_op, {}, self._sole_catalog_id)
+        if function_call_id and function_call_id != f"call_{call_index}":
+            id_arg = f"functionCallId={_decompile_string(function_call_id)}"
+            separator = "" if call_repr.endswith("()") else ", "
+            call_repr = f"{call_repr[:-1]}{separator}{id_arg})"
+        return call_repr
+
+    def _decompile_components(
+        self,
+        components: list[dict[str, Any]],
+        surface_cat_id: str | None,
+        use_keyword_args: bool,
+    ) -> list[str]:
+        var_names = _assign_variable_names([c["id"] for c in components])
+        dsl_lines = []
         for c in components:
             comp_id = c["id"]
+            var_name = var_names[comp_id]
             comp_name = c["component"]
-            if comp_name not in self.helper.components:
-                continue
+            comp_helper, write_cat_id = self._resolve(
+                "component",
+                comp_name,
+                c.get("catalogId"),
+                surface_cat_id,
+                "component",
+            )
 
-            properties = self.helper.get_component_properties(comp_name)
+            properties = comp_helper.get_component_properties(comp_name)
             args_reprs = []
 
             for prop_name in properties:
                 if prop_name == "checks":
-                    # Decompile checks
                     checks_val = c.get("checks", [])
                     if not checks_val:
                         args_reprs.append("_")
                         continue
-
-                    compiled_checks_list = []
-                    for rc in checks_val:
-                        condition = rc.get("condition", {})
-                        message = rc.get("message", "")
-
-                        check_name = _reserved_value(condition, "call")
-                        check_args = condition.get("args", {})
-
-                        check_props = self.helper.get_function_properties(check_name)
-                        explicit_args_reprs = []
-
-                        # If first property is value (implicitly bound), skip it
-                        start_idx = 0
-                        if check_props and check_props[0] == "value":
-                            start_idx = 1
-
-                        for idx in range(start_idx, len(check_props)):
-                            p = check_props[idx]
-                            if p in check_args:
-                                explicit_args_reprs.append(
-                                    self._decompile_value(check_args[p], comp_ids)
-                                )
-
-                        if (
-                            check_name
-                            and message
-                            and message != f"{check_name.capitalize()} check failed"
-                        ):
-                            explicit_args_reprs.append(_decompile_string(message))
-
-                        if explicit_args_reprs:
-                            compiled_checks_list.append(
-                                f"?{check_name}({', '.join(explicit_args_reprs)})"
-                            )
-                        else:
-                            compiled_checks_list.append(f"?{check_name}")
-
-                    if len(compiled_checks_list) == 1:
-                        args_reprs.append(compiled_checks_list[0])
+                    check_reprs = [
+                        self._decompile_check(rc, c, var_names, surface_cat_id)
+                        for rc in checks_val
+                    ]
+                    if len(check_reprs) == 1:
+                        args_reprs.append(check_reprs[0])
                     else:
-                        args_reprs.append(f"[{', '.join(compiled_checks_list)}]")
+                        args_reprs.append(f"[{', '.join(check_reprs)}]")
                     continue
 
-                # Map other regular properties
                 if prop_name in c:
-                    val = c[prop_name]
-                    p_schema = self.helper.get_property_schema(comp_name, prop_name)
-                    is_prop_ref = _is_component_reference_property(p_schema)
-                    val_str = self._decompile_value(val, comp_ids, is_prop_ref)
+                    p_schema = comp_helper.get_property_schema(comp_name, prop_name)
+                    val_str = self._decompile_value(
+                        c[prop_name],
+                        var_names,
+                        _is_component_reference_property(p_schema),
+                        surface_cat_id,
+                    )
                     if use_keyword_args:
                         args_reprs.append(f"{prop_name}={val_str}")
                     else:
                         args_reprs.append(val_str)
-                else:
-                    if not use_keyword_args:
-                        # Only append "_" if there is a subsequent regular property that has a value
-                        idx = properties.index(prop_name)
-                        has_subsequent_val = False
-                        for p in properties[idx + 1 :]:
-                            if p != "checks" and p in c:
-                                has_subsequent_val = True
-                                break
-                        if has_subsequent_val:
-                            args_reprs.append("_")
+                elif not use_keyword_args:
+                    # Only append "_" if a later regular property has a value
+                    idx = properties.index(prop_name)
+                    if any(p != "checks" and p in c for p in properties[idx + 1 :]):
+                        args_reprs.append("_")
 
-            # Strip trailing optional skipped arguments for readability
-            while args_reprs and args_reprs[-1] == "_":
-                args_reprs.pop()
+            _strip_trailing_placeholders(args_reprs)
 
-            dsl_lines.append(f"{comp_id} = {comp_name}({', '.join(args_reprs)})")
+            if write_cat_id is not None:
+                args_reprs.append(f"catalogId={_decompile_string(write_cat_id)}")
+            if var_name != comp_id:
+                args_reprs.append(f"id={_decompile_string(comp_id)}")
 
-        dsl_body = "\n".join(dsl_lines)
-        return dsl_body
+            dsl_lines.append(f"{var_name} = {comp_name}({', '.join(args_reprs)})")
+        return dsl_lines
+
+    def _decompile_check(
+        self,
+        rule: dict[str, Any],
+        component: dict[str, Any],
+        var_names: dict[str, str],
+        surface_cat_id: str | None,
+    ) -> str:
+        """Writes a check rule as `?name(args..., message, {catalogId: ...})`.
+
+        The compiler passes the component's bound `value` as the first `value`
+        parameter of a check, so that argument is left implicit when it is the
+        component's own binding. A message other than the compiler's default is
+        written after every parameter slot, which is where the compiler reads
+        it back from.
+        """
+        # A rule written as a bare function call, without the `condition`
+        # wrapper, is read as its own condition.
+        if "condition" not in rule and _has_reserved_key(rule, "call"):
+            rule = {"condition": rule}
+        condition = rule.get("condition", {})
+        if not isinstance(condition, dict) or not _has_reserved_key(condition, "call"):
+            raise ExpressValidationError(
+                "Express cannot write a check whose condition is not a function"
+                f" call: {condition!r}"
+            )
+        check_name = _reserved_value(condition, "call")
+        check_args = condition.get("args", {}) or {}
+        chk_helper, write_cat_id = self._resolve(
+            "function",
+            check_name,
+            condition.get("catalogId"),
+            surface_cat_id,
+            "check function",
+        )
+        check_props = chk_helper.get_function_properties(check_name)
+
+        component_value = component.get("value")
+        start_idx = 0
+        if (
+            check_props
+            and check_props[0] == "value"
+            and isinstance(component_value, dict)
+            and _has_reserved_key(component_value, "path")
+            and check_args.get("value") == component_value
+        ):
+            start_idx = 1
+
+        args_reprs = []
+        for p in check_props[start_idx:]:
+            if p in check_args:
+                args_reprs.append(
+                    self._decompile_value(
+                        check_args[p], var_names, False, surface_cat_id
+                    )
+                )
+            else:
+                args_reprs.append("_")
+
+        message = rule.get("message", "")
+        if message and message != f"{check_name.capitalize()} check failed":
+            args_reprs.append(_decompile_string(message))
+        else:
+            _strip_trailing_placeholders(args_reprs)
+
+        if write_cat_id is not None:
+            args_reprs.append(f"{{catalogId: {_decompile_string(write_cat_id)}}}")
+
+        if args_reprs:
+            return f"?{check_name}({', '.join(args_reprs)})"
+        return f"?{check_name}"
+
+    def _decompile_call(
+        self,
+        fn: dict[str, Any],
+        var_names: dict[str, str],
+        surface_cat_id: str | None,
+    ) -> str:
+        """Writes a function call as `name(args..., catalogId=...)`."""
+        name = _reserved_value(fn, "call") or ""
+        args = fn.get("args", {}) or {}
+        fn_helper, write_cat_id = self._resolve(
+            "function", name, fn.get("catalogId"), surface_cat_id, "function"
+        )
+
+        fn_props = fn_helper.get_function_properties(name)
+        args_reprs = []
+        for idx, p in enumerate(fn_props):
+            if isinstance(args, dict):
+                present, arg_val = p in args, args.get(p)
+            else:
+                present = idx < len(args)
+                arg_val = args[idx] if present else None
+            if present:
+                args_reprs.append(
+                    self._decompile_value(arg_val, var_names, False, surface_cat_id)
+                )
+            else:
+                args_reprs.append("_")
+        _strip_trailing_placeholders(args_reprs)
+
+        if write_cat_id is not None:
+            args_reprs.append(f"catalogId={_decompile_string(write_cat_id)}")
+        return f"{name}({', '.join(args_reprs)})"
 
     def _decompile_value(
-        self, val: Any, comp_ids: set[str], is_ref: bool = False
+        self,
+        val: Any,
+        var_names: dict[str, str],
+        is_ref: bool,
+        surface_cat_id: str | None,
     ) -> str:
         """Decompiles a single value node back to A2UI Express notation.
 
         Args:
             val: The JSON-serialized property value structure.
-            comp_ids: A set of all component IDs registered in the surface context.
+            var_names: Maps the ID of each component defined in the same
+                block to the variable name it is written under.
             is_ref: Whether this value is a component reference.
+            surface_cat_id: The catalog of the surface, which every call
+                without a `catalogId` belongs to, or None when the surface has
+                no catalog.
 
         Returns:
             A plain-text representation of the value.
@@ -381,107 +683,51 @@ class _ExpressDecompiler:
             if _has_reserved_key(val, "path"):
                 path_str = _reserved_value(val, "path")
                 if "componentId" in val:
-                    path_repr = self._decompile_value(
-                        {"path": path_str}, comp_ids, False
-                    )
-                    comp_id_repr = val["componentId"]
-                    return f"_template({path_repr}, {comp_id_repr})"
-                # Decompile path: prefixed by $
-                if path_str.startswith("/"):
-                    return f"$/{path_str[1:]}"
-                return f"${path_str}"
+                    comp_id_repr = _decompile_reference(val["componentId"], var_names)
+                    return f"_template({_decompile_path(path_str)}, {comp_id_repr})"
+                return _decompile_path(path_str)
 
             if "event" in val:
-                # Decompile server event: Event("name", context)
                 evt = val["event"]
-                name = evt.get("name", "")
+                name = _decompile_string(evt.get("name", ""))
                 ctx = evt.get("context", {})
-                ctx_reprs = []
-                for k, v in ctx.items():
-                    k_repr = (
-                        k
-                        if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", k)
-                        else _decompile_string(k)
-                    )
-                    ctx_reprs.append(
-                        f"{k_repr}: {self._decompile_value(v, comp_ids, False)}"
-                    )
-                if ctx_reprs:
-                    return f'Event("{name}", {{{", ".join(ctx_reprs)}}})'
-                return f'Event("{name}")'
+                ctx_reprs = [
+                    f"{_decompile_key(k)}:"
+                    f" {self._decompile_value(v, var_names, False, surface_cat_id)}"
+                    for k, v in ctx.items()
+                ]
+                # An empty context is written out so that it compiles back.
+                if "context" in evt:
+                    return f"Event({name}, {{{', '.join(ctx_reprs)}}})"
+                return f"Event({name})"
 
             if "functionCall" in val:
-                # Decompile local function action: FunctionName(args)
-                fn = val["functionCall"]
-                name = _reserved_value(fn, "call")
-                args = fn.get("args", {})
-
-                fn_props = self.helper.get_function_properties(name)
-                args_reprs = []
-                for p in fn_props:
-                    if p in args:
-                        args_reprs.append(
-                            self._decompile_value(args[p], comp_ids, False)
-                        )
-                    else:
-                        args_reprs.append("_")
-
-                while args_reprs and args_reprs[-1] == "_":
-                    args_reprs.pop()
-                return f"{name}({', '.join(args_reprs)})"
+                return self._decompile_call(
+                    val["functionCall"], var_names, surface_cat_id
+                )
 
             if _has_reserved_key(val, "call"):
-                # Decompile dynamic functional expression: FunctionName(args)
-                name = _reserved_value(val, "call")
-                args = val.get("args", {})
-                if name in self.helper.functions:
-                    fn_props = self.helper.get_function_properties(name)
-                    args_reprs = []
-                    for p in fn_props:
-                        if isinstance(args, dict) and p in args:
-                            args_reprs.append(
-                                self._decompile_value(args[p], comp_ids, False)
-                            )
-                        else:
-                            args_reprs.append("_")
-                else:
-                    args_reprs = []
-                    if isinstance(args, list):
-                        for v in args:
-                            args_reprs.append(self._decompile_value(v, comp_ids, False))
-                    elif isinstance(args, dict):
-                        for v in args.values():
-                            args_reprs.append(self._decompile_value(v, comp_ids, False))
+                return self._decompile_call(val, var_names, surface_cat_id)
 
-                while args_reprs and args_reprs[-1] == "_":
-                    args_reprs.pop()
-                return f"{name}({', '.join(args_reprs)})"
-
-            # General dict
             items_reprs = []
             for k, v in val.items():
                 item_is_ref = is_ref or k in ("child", "componentId")
-                k_repr = (
-                    k
-                    if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", k)
-                    else _decompile_string(k)
+                v_repr = self._decompile_value(
+                    v, var_names, item_is_ref, surface_cat_id
                 )
-                items_reprs.append(
-                    f"{k_repr}: {self._decompile_value(v, comp_ids, item_is_ref)}"
-                )
+                items_reprs.append(f"{_decompile_key(k)}: {v_repr}")
             return f"{{{', '.join(items_reprs)}}}"
 
         if isinstance(val, list):
-            # Decompile array
-            list_reprs = [self._decompile_value(item, comp_ids, is_ref) for item in val]
+            list_reprs = [
+                self._decompile_value(item, var_names, is_ref, surface_cat_id)
+                for item in val
+            ]
             return f"[{', '.join(list_reprs)}]"
 
         if isinstance(val, str):
-            # If it matches a component ID reference, keep it as a variable identifier
-            # (if it is a structural variable name)
-            if is_ref and val in comp_ids:
-                return val
-            # Otherwise quote as string literal
+            if is_ref:
+                return _decompile_reference(val, var_names)
             return _decompile_string(val)
 
         if isinstance(val, bool):

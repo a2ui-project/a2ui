@@ -62,7 +62,7 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 15. Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
     surface("dashboard-surface-1")
-    root = Card(...)
+    root = ComponentA(...)
 
 ## Positional Component Signatures
 
@@ -260,7 +260,7 @@ $/form/rep = "John Doe"
 $/form/value = 1500.0
 root = Column([repField, valueField])
 repField = TextField("Representative", $/form/rep, "Enter name")
-valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?None)
+valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required("Deal value is required."))
 </a2ui>
 ```
 

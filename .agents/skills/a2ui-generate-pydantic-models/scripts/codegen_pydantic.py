@@ -567,7 +567,7 @@ class A2uiProtocolVersion(str, Enum):
 
 ProtocolVersion = A2uiProtocolVersion
 
-
+{legacy_reexports}
 # Multi-version envelope unions (v1.0+ primary terminology)
 AgentToRendererMessage = {agent_union_str}
 
@@ -613,8 +613,7 @@ ClientToServerMessagePayload = RendererToAgentMessagePayload
 {primary_action}
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction
-
-{legacy_reexports}{schema_helpers_section}"""
+{schema_helpers_section}"""
     with open(os.path.join(o_root, "schema/__init__.py"), "w", encoding="utf-8") as f:
         f.write(content)
 

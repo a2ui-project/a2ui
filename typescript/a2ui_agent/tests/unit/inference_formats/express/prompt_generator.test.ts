@@ -38,8 +38,9 @@ const __dirname = path.dirname(__filename);
 describe('ExpressPromptGenerator', () => {
   describe('1. Golden files byte-for-byte check', () => {
     it('generateBaseRules() matches express_base_rules.txt except for its catalog-specific names', () => {
-      // The golden still names basic-catalog components, which the conformance pruning case
-      // forbids (see KNOWN_GAPS.md). Everything except these substitutions must match it.
+      // The golden still names some basic-catalog things, and carries Python's rule 16
+      // (`updateSurface`), which this port has not followed yet (see KNOWN_GAPS.md).
+      // Everything except these substitutions must match it.
       const goldenPath = path.resolve(
         __dirname,
         '../../../../../../conformance/test_data/skills/express_base_rules.txt',
@@ -51,7 +52,6 @@ describe('ExpressPromptGenerator', () => {
           "Parameters named 'action' (or annotated in component signatures)",
           'Action parameters (or parameters annotated in component signatures)',
         ],
-        ['root = Card(...)', 'root = ComponentA(...)'],
       ];
       let expected = fs.readFileSync(goldenPath, 'utf8');
       for (const [from, to] of substitutions) {
@@ -67,7 +67,7 @@ describe('ExpressPromptGenerator', () => {
       expect(actual).not.toContain('DateTimeInput');
     });
 
-    it('generateCatalogInstructions() for the v1.0 basic catalog matches express_catalog_instructions.txt BYTE FOR BYTE', () => {
+    it('generateCatalogInstructions() for the v1.0 basic catalog matches express_catalog_instructions.txt', () => {
       const goldenPath = path.resolve(
         __dirname,
         '../../../../../../conformance/test_data/skills/express_catalog_instructions.txt',
