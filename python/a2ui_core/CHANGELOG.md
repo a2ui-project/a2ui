@@ -22,7 +22,9 @@
   validator can't see, so only its function and argument identifiers are
   checked; `MessageProcessor` checks it against the catalog it resolves to.
   `SurfaceComponentsModel.validate_components_update` applies the same rule,
-  using whether each component's catalog is the surface default.
+  using whether each component's catalog is the surface default. Nested calls
+  are checked even in a component whose type the catalog doesn't define and
+  the validation config allows (`allow_unknown_elements`).
 - **BREAKING**: `DataContext.is_v10` is renamed to `DataContext.at_least_v10`, since it is true for v1.0 and every later version.
 - **BREAKING**: `DataContext` reports a function call whose catalog can't be resolved on the surface error channel with code `CATALOG_ERROR` instead of `EXPRESSION_ERROR`. Other evaluation failures, including a function missing from its resolved catalog, keep `EXPRESSION_ERROR`.
 - (v1_0) `MessageProcessor` rejects a component whose `catalogId` is not a string with `A2uiValidationError`, as it does for a function call, instead of failing to find the catalog.

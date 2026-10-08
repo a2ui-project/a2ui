@@ -922,6 +922,43 @@ def test_v10_component_naming_default_catalog_checks_catalogless_calls_once():
     assert codes.count(("components.root.text", "unrecognized_function")) == 1
 
 
+def test_v10_calls_in_unknown_component_type_are_checked_by_processor():
+    # With unknown component types allowed, component validation can't check
+    # the component's properties, but it still checks the calls in them, so
+    # the calls the processor leaves to it are not skipped.
+    from a2ui.core.basic_catalog import BasicCatalog
+    from a2ui.core.validation import ValidationConfig
+
+    basic = Catalog.from_json(
+        BasicCatalog("1.0").catalog_schema, protocol_version="1.0"
+    )
+    processor = MessageProcessor(
+        catalogs=[basic],
+        options=MessageProcessorOptions(
+            validation_config=ValidationConfig(allow_unknown_elements=True)
+        ),
+    )
+    processor.process_messages([{
+        "version": "v1.0",
+        "createSurface": {"surfaceId": "s", "catalogId": basic.catalog_id},
+    }])
+
+    def details(call: dict[str, Any]) -> list[tuple[str, str]]:
+        try:
+            _v10_update(processor, {"id": "root", "component": "Widget", "text": call})
+        except A2uiValidationError as e:
+            return [(d.path, d.code) for d in e.details]
+        return []
+
+    assert not details({"@call": "formatString", "args": {"value": "hi"}})
+    assert details({"@call": "@index", "catalogId": basic.catalog_id}) == [
+        ("components.root.text.catalogId", "extra_field")
+    ]
+    assert details({"@call": "formatString"}) == [
+        ("components.root.text", "missing_field")
+    ]
+
+
 def test_v10_index_call_naming_a_catalog_is_rejected_by_processor():
     processor, basic_id = _v10_generated_basic_and_custom_processor()
 

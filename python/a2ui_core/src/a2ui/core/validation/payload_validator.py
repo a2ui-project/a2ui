@@ -286,6 +286,13 @@ class PayloadValidator:
                         message=f"Unrecognized component type '{comp_type}'",
                     )
                 )
+            # The component's properties can't be checked without its schema,
+            # but the function calls in them still run, so they are checked
+            # all the same. `MessageProcessor` relies on this for the calls
+            # it leaves to component validation.
+            self._validate_nested_functions(
+                comp_id or "unknown", comp.get("catalogId"), comp, "", errors
+            )
             if errors:
                 summary = "\n".join(
                     f"{detail.path}: {detail.message}" for detail in errors
