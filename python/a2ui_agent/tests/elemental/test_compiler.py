@@ -26,6 +26,9 @@ from a2ui.inference_formats.experimental.elemental.compiler import (
     _get_enum_values,
     _escape_nested_script_tags,
 )
+from a2ui.inference_formats import (
+    to_message_dicts,
+)
 
 from a2ui.schema.utils import find_repo_root, get_spec_dir
 
@@ -42,34 +45,87 @@ class TestElementalCompiler(unittest.TestCase):
         self.catalog_path = CATALOG_PATH
         with open(self.catalog_path, "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
+        self.catalog_dict = catalog_dict
         self.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
-        self.compiler = ElementalCompiler(self.catalog)
+        self.compiler = ElementalCompiler([self.catalog])
+
+    def _compile_dict(self, html_input: str, **kwargs):
+        """Compiles a block and merges its messages into one dict by operation.
+
+        The v0.9.1 catalog makes a new surface compile to `createSurface`,
+        `updateComponents` and, with data, `updateDataModel`, all with the
+        catalog's protocol version.
+        """
+        messages = self.compiler.compile(html_input, **kwargs)
+        self.assertIsInstance(messages, list)
+        self.assertTrue(messages)
+        self.assertTrue(all(hasattr(m, "model_dump") for m in messages))
+        merged: dict = {}
+        for message in to_message_dicts(messages):
+            self.assertEqual(message.pop("version"), "v0.9.1")
+            for op, body in message.items():
+                self.assertNotIn(op, merged)
+                merged[op] = body
+        return {"version": "v0.9.1", **merged}
 
     def test_compile_delete_surface(self):
         html_input = '<ui-delete-surface surface-id="dashboard-surface-1" />'
-        result = self.compiler.compile(html_input)
+        result = self._compile_dict(html_input)
         expected = {
-            "version": "v1.0",
+            "version": "v0.9.1",
             "deleteSurface": {"surfaceId": "dashboard-surface-1"},
         }
         self.assertEqual(result, expected)
 
     def test_compile_call_function(self):
+        catalog_v1 = Catalog.from_json(self.catalog_dict, protocol_version="1.0")
+        compiler_v1 = ElementalCompiler([catalog_v1])
         html_input = (
-            '<ui-call-function id="call_1" name="openUrl" url="https://example.com"'
+            '<ui-call-function id="call_1" name="openUrl" url="https://example.com" />'
+        )
+        result = to_message_dicts(compiler_v1.compile(html_input))
+        expected = [{
+            "version": "v1.0",
+            "callRendererFunction": {
+                "functionCallId": "call_1",
+                "callFunction": {
+                    "catalogId": catalog_v1.catalog_id,
+                    "@call": "openUrl",
+                    "args": {"url": "https://example.com"},
+                },
+            },
+        }]
+        self.assertEqual(result, expected)
+
+    def test_compile_call_function_rejects_undeclared_argument(self):
+        catalog_v1 = Catalog.from_json(self.catalog_dict, protocol_version="1.0")
+        compiler_v1 = ElementalCompiler([catalog_v1])
+        html_input = (
+            '<ui-call-function name="openUrl" url="https://example.com"'
             ' want-response="{true}" />'
         )
-        result = self.compiler.compile(html_input)
-        expected = {
-            "version": "v1.0",
-            "functionCallId": "call_1",
-            "wantResponse": True,
-            "callFunction": {
-                "call": "openUrl",
-                "args": {"url": "https://example.com"},
-            },
-        }
-        self.assertEqual(result, expected)
+        with self.assertRaisesRegex(
+            ValueError,
+            r"'openUrl'.*does not accept the argument\(s\) \['wantResponse'\]",
+        ):
+            compiler_v1.compile(html_input)
+
+        # The `args` script slot is checked too.
+        html_slot = (
+            '<ui-call-function name="openUrl">'
+            '<script type="application/json" slot="args">'
+            '{"url": "https://example.com", "target": "_blank"}</script>'
+            "</ui-call-function>"
+        )
+        with self.assertRaisesRegex(ValueError, r"\['target'\]"):
+            compiler_v1.compile(html_slot)
+
+    def test_compile_call_function_requires_v1(self):
+        html_input = (
+            '<ui-call-function id="call_1" name="openUrl" url="https://example.com" />'
+        )
+        with self.assertRaisesRegex(ValueError, "requires protocol v1.0"):
+            self.compiler.compile(html_input)
 
     def test_compile_update_data_model(self):
         html_input = (
@@ -82,9 +138,9 @@ class TestElementalCompiler(unittest.TestCase):
             "  </script>\n"
             "</body>"
         )
-        result = self.compiler.compile(html_input)
+        result = self._compile_dict(html_input)
         expected = {
-            "version": "v1.0",
+            "version": "v0.9.1",
             "updateDataModel": {
                 "surfaceId": "my-surf",
                 "path": "/",
@@ -96,7 +152,7 @@ class TestElementalCompiler(unittest.TestCase):
     def test_compile_create_surface_basic(self):
         html_input = (
             '<body id="test-surf">\n'
-            '  <link rel="catalog" href="https://a2ui.org/catalog.json">\n'
+            f'  <link rel="catalog" href="{self.catalog.catalog_id}">\n'
             '  <script type="application/json">\n'
             "    {\n"
             '      "title": "Hello World"\n'
@@ -107,14 +163,25 @@ class TestElementalCompiler(unittest.TestCase):
             "  </ui-card>\n"
             "</body>"
         )
-        result = self.compiler.compile(html_input)
-        self.assertEqual(result["version"], "v1.0")
+        messages = to_message_dicts(self.compiler.compile(html_input))
+        # v0.9.1 splits a new surface into three messages, in this order.
+        self.assertEqual(
+            [next(k for k in m if k != "version") for m in messages],
+            ["createSurface", "updateComponents", "updateDataModel"],
+        )
+        self.assertEqual({m["version"] for m in messages}, {"v0.9.1"})
+        result = self._compile_dict(html_input)
         create_op = result["createSurface"]
-        self.assertEqual(create_op["surfaceId"], "test-surf")
-        self.assertEqual(create_op["catalogId"], "https://a2ui.org/catalog.json")
-        self.assertEqual(create_op["dataModel"], {"title": "Hello World"})
+        self.assertEqual(
+            create_op, {"surfaceId": "test-surf", "catalogId": self.catalog.catalog_id}
+        )
+        self.assertEqual(
+            result["updateDataModel"],
+            {"surfaceId": "test-surf", "path": "/", "value": {"title": "Hello World"}},
+        )
+        self.assertEqual(result["updateComponents"]["surfaceId"], "test-surf")
 
-        components = create_op["components"]
+        components = result["updateComponents"]["components"]
         self.assertEqual(len(components), 2)
 
         comp_text = components[0]
@@ -136,8 +203,8 @@ class TestElementalCompiler(unittest.TestCase):
             "  <ui-choice-picker id=\"picker_1\" options=\"{['Red', 'Blue']}\" />\n"
             "</body>"
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
         self.assertEqual(len(components), 1)
         picker = components[0]
         self.assertEqual(
@@ -162,8 +229,8 @@ class TestElementalCompiler(unittest.TestCase):
             "  </ui-choice-picker>\n"
             "</body>"
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
         self.assertEqual(len(components), 1)
         picker = components[0]
         self.assertEqual(
@@ -182,8 +249,8 @@ class TestElementalCompiler(unittest.TestCase):
             "  </ui-button>\n"
             "</body>"
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
         self.assertEqual(len(components), 2)
         btn = components[1]
         self.assertEqual(btn["id"], "btn_1")
@@ -203,8 +270,8 @@ class TestElementalCompiler(unittest.TestCase):
             '<body id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
             ' checks="{[required()]}" />\n</body>'
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
         self.assertEqual(len(components), 1)
         text_field = components[0]
         self.assertEqual(text_field["id"], "input_1")
@@ -225,8 +292,8 @@ class TestElementalCompiler(unittest.TestCase):
             '<body id="test-surf">\n  <ui-text-field id="input_1" value="{$/dob}"'
             " checks=\"{[required(message: 'DOB is required')]}\" />\n</body>"
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
         text_field = components[0]
         self.assertEqual(
             text_field["checks"],
@@ -245,8 +312,8 @@ class TestElementalCompiler(unittest.TestCase):
             " checks=\"{[{condition: required(message: 'DOB is required')}]}\""
             " />\n</body>"
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
         text_field = components[0]
         self.assertEqual(
             text_field["checks"],
@@ -277,8 +344,8 @@ class TestElementalCompiler(unittest.TestCase):
             "  </ui-list>\n"
             "</body>"
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
         self.assertEqual(len(components), 2)
         item_text = components[0]
         lst = components[1]
@@ -303,9 +370,9 @@ class TestElementalCompiler(unittest.TestCase):
             '    }\n  </script>\n  <ui-text id="text1" text="{$/embedded_html}"'
             " />\n</body>"
         )
-        result = self.compiler.compile(html_input)
+        result = self._compile_dict(html_input)
         self.assertEqual(
-            result["createSurface"]["dataModel"]["embedded_html"],
+            result["updateDataModel"]["value"]["embedded_html"],
             "<html><a2ui><body><script>console.log('hello');</script></body></a2ui></html>",
         )
 
@@ -340,8 +407,8 @@ class TestElementalCompiler(unittest.TestCase):
             "  </ui-column>\n"
             "</body>"
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
         col = components[1]
         self.assertEqual(col["align"], "center")
 
@@ -370,8 +437,8 @@ class TestElementalCompiler(unittest.TestCase):
             "  </ui-card>\n"
             "</body>"
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
         # We should have 4 components: text_1, text_2, col_1, card_1
         self.assertEqual(len(components), 4)
 
@@ -397,8 +464,8 @@ class TestElementalCompiler(unittest.TestCase):
             "  </ui-modal>\n"
             "</body>"
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
 
         # Verify that trigger and content are correctly slotted as IDs on the Modal component
         modal = next(c for c in components if c["id"] == "delete_modal")
@@ -414,8 +481,8 @@ class TestElementalCompiler(unittest.TestCase):
             "  </ui-row>\n"
             "</body>"
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
         row = components[1]
         self.assertEqual(row["justify"], "spaceBetween")
 
@@ -425,8 +492,8 @@ class TestElementalCompiler(unittest.TestCase):
             '  <ui-image id="img_1" url="{$/product/thumbs[0]}" />\n'
             "</body>"
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
         img = components[0]
         self.assertEqual(img["url"], {"path": "/product/thumbs/0"})
 
@@ -438,8 +505,8 @@ class TestElementalCompiler(unittest.TestCase):
             "  </ui-button>\n"
             "</body>"
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
         btn = next(c for c in components if c["id"] == "btn_1")
         self.assertIn("action", btn)
         self.assertEqual(
@@ -462,15 +529,16 @@ class TestElementalCompiler(unittest.TestCase):
             "  </ui-list>\n"
             "</body>"
         )
-        result = self.compiler.compile(html_input)
-        components = result["createSurface"]["components"]
+        result = self._compile_dict(html_input)
+        components = result["updateComponents"]["components"]
         lst = next(c for c in components if c["id"] == "lst_1")
         self.assertEqual(lst["children"], {"path": "/items", "componentId": "txt_1"})
 
     def test_resolve_action_property_name_case_insensitive_multiple(self):
-        original_get_property_schema = self.compiler.helper.get_property_schema
+        helper = next(iter(self.compiler.helpers.values()))
+        original_get_property_schema = helper.get_property_schema
         try:
-            self.compiler.helper.get_property_schema = lambda comp, prop: (
+            helper.get_property_schema = lambda comp, prop: (
                 {"type": "object", "$ref": "#/definitions/Action"}
                 if prop in ["onSubmit", "onClick"]
                 else None
@@ -478,23 +546,23 @@ class TestElementalCompiler(unittest.TestCase):
 
             # 1. Exact match onSubmit
             res1 = self.compiler._resolve_action_property_name(
-                "onSubmit", "TestComponent", ["onSubmit", "onClick"]
+                "onSubmit", "TestComponent", ["onSubmit", "onClick"], helper
             )
             self.assertEqual(res1, "onSubmit")
 
             # 2. Case-insensitive onClick vs onClick
             res2 = self.compiler._resolve_action_property_name(
-                "onclick", "TestComponent", ["onSubmit", "onClick"]
+                "onclick", "TestComponent", ["onSubmit", "onClick"], helper
             )
             self.assertEqual(res2, "onClick")
 
             # 3. Exact match onClick
             res3 = self.compiler._resolve_action_property_name(
-                "onClick", "TestComponent", ["onSubmit", "onClick"]
+                "onClick", "TestComponent", ["onSubmit", "onClick"], helper
             )
             self.assertEqual(res3, "onClick")
         finally:
-            self.compiler.helper.get_property_schema = original_get_property_schema
+            helper.get_property_schema = original_get_property_schema
 
     def test_is_action_property_edge_cases(self):
         # 1. Non-dict input
@@ -550,8 +618,8 @@ class TestElementalCompiler(unittest.TestCase):
             '<body><ui-button id="b1" onclick="{Event(\'click_evt\', {id:'
             ' 123})}">Click</ui-button></body>'
         )
-        result_dict = self.compiler.compile(html_dict_event)
-        comps = result_dict["createSurface"]["components"]
+        result_dict = self._compile_dict(html_dict_event)
+        comps = result_dict["updateComponents"]["components"]
         btn = next(c for c in comps if c["id"] == "b1")
         self.assertEqual(
             btn["action"], {"event": {"name": "click_evt", "context": {"id": 123}}}
@@ -562,8 +630,8 @@ class TestElementalCompiler(unittest.TestCase):
             '<body><ui-text id="t1" text="{formatDate(user.created, \'YYYY-MM-DD\')}"'
             " /></body>"
         )
-        result_fn = self.compiler.compile(html_fn)
-        comps_fn = result_fn["createSurface"]["components"]
+        result_fn = self._compile_dict(html_fn)
+        comps_fn = result_fn["updateComponents"]["components"]
         txt = next(c for c in comps_fn if c["id"] == "t1")
         self.assertIn("text", txt)
 
@@ -572,8 +640,8 @@ class TestElementalCompiler(unittest.TestCase):
             '<body><ui-button id="b2"'
             " onclick=\"{openUrl('https://a2ui.org')}\">Link</ui-button></body>"
         )
-        result_act_fn = self.compiler.compile(html_act_fn)
-        comps_act = result_act_fn["createSurface"]["components"]
+        result_act_fn = self._compile_dict(html_act_fn)
+        comps_act = result_act_fn["updateComponents"]["components"]
         btn2 = next(c for c in comps_act if c["id"] == "b2")
         self.assertEqual(btn2["action"]["functionCall"]["call"], "openUrl")
 
@@ -582,8 +650,8 @@ class TestElementalCompiler(unittest.TestCase):
             '<body><ui-button id="b3"'
             " on-click=\"event('submit')\">Submit</ui-button></body>"
         )
-        result_on = self.compiler.compile(html_on)
-        comps_on = result_on["createSurface"]["components"]
+        result_on = self._compile_dict(html_on)
+        comps_on = result_on["updateComponents"]["components"]
         btn3 = next(c for c in comps_on if c["id"] == "b3")
 
     def test_expression_parser_object_literals(self):
@@ -622,8 +690,8 @@ class TestElementalCompiler(unittest.TestCase):
             '<body><ui-card id="c1"><ui-button id="b1"'
             ' slot="child">B1</ui-button></ui-card></body>'
         )
-        res = self.compiler.compile(html_array_slot)
-        comps = res["createSurface"]["components"]
+        res = self._compile_dict(html_array_slot)
+        comps = res["updateComponents"]["components"]
         card = next(c for c in comps if c["id"] == "c1")
         self.assertEqual(card.get("child"), "b1")
 
@@ -655,9 +723,9 @@ class TestElementalCompiler(unittest.TestCase):
         s_oneof = {"oneOf": [{"$ref": "#/definitions/ComponentId"}]}
         self.assertTrue(_is_component_reference_property(s_oneof))
 
-        # 2. is_final=False streaming compilation
+        # 2. A leaf component closed by the body end tag
         html_stream = '<body><ui-button id="b1" text="Click" /></body>'
-        res_stream = self.compiler.compile(html_stream, is_final=False)
+        res_stream = self._compile_dict(html_stream)
         self.assertIn("createSurface", res_stream)
 
         # 3. dataModel script in body
@@ -665,8 +733,8 @@ class TestElementalCompiler(unittest.TestCase):
             '<body><script type="application/json">{"user": "Alice"}</script><ui-text'
             ' id="t1" text="Hi" /></body>'
         )
-        res_dm = self.compiler.compile(html_dm)
-        self.assertEqual(res_dm["createSurface"]["dataModel"], {"user": "Alice"})
+        res_dm = self._compile_dict(html_dm)
+        self.assertEqual(res_dm["updateDataModel"]["value"], {"user": "Alice"})
 
     def test_compiler_checks_transformation(self):
         """Test transformation of validation checks in elemental compiler."""
@@ -674,8 +742,8 @@ class TestElementalCompiler(unittest.TestCase):
             '<body><ui-text-field id="tf1" value="hello" checks="{[required(\'Field'
             " required'), {condition: min(5), message: 'Too short'}]}\" /></body>"
         )
-        res = self.compiler.compile(html_checks)
-        comps = res["createSurface"]["components"]
+        res = self._compile_dict(html_checks)
+        comps = res["updateComponents"]["components"]
         tf = next(c for c in comps if c["id"] == "tf1")
         self.assertEqual(len(tf["checks"]), 2)
         self.assertIn("condition", tf["checks"][0])
@@ -705,31 +773,37 @@ class TestElementalCompiler(unittest.TestCase):
             "<body>"
             '<ui-card id="c1" path="{items}">'
             '<template><ui-text id="t1" text="item" /></template>'
-            '<script type="application/json" slot="action">{"event": "click"}</script>'
+            '<script type="application/json" slot="action">{"event":'
+            ' {"name": "click"}}</script>'
             "</ui-card>"
             "</body>"
         )
-        res1 = self.compiler.compile(html_tmpl_script)
-        comps1 = res1["createSurface"]["components"]
+        res1 = self._compile_dict(html_tmpl_script)
+        comps1 = res1["updateComponents"]["components"]
         card = next(c for c in comps1 if c["id"] == "c1")
-        self.assertEqual(card["action"], {"event": "click"})
+        self.assertEqual(card["action"], {"event": {"name": "click"}})
 
         # 2. Raw action string without outer braces
         html_raw_act = '<body><ui-button id="b2" action="Event(\'press\')" /></body>'
-        res2 = self.compiler.compile(html_raw_act)
-        comps2 = res2["createSurface"]["components"]
+        res2 = self._compile_dict(html_raw_act)
+        comps2 = res2["updateComponents"]["components"]
         btn = next(c for c in comps2 if c["id"] == "b2")
         self.assertEqual(btn["action"], "Event('press')")
 
     def test_resolve_action_property_name_direct(self):
         """Test _resolve_action_property_name with various on-handler casing variations."""
         props = ["action", "click", "on_press"]
+        helper = self.compiler.helpers[self.catalog.catalog_id]
         self.assertEqual(
-            self.compiler._resolve_action_property_name("on-click", "Button", props),
+            self.compiler._resolve_action_property_name(
+                "on-click", "Button", props, helper
+            ),
             "on-click",
         )
         self.assertEqual(
-            self.compiler._resolve_action_property_name("onclick", "Button", props),
+            self.compiler._resolve_action_property_name(
+                "onclick", "Button", props, helper
+            ),
             "action",
         )
 
@@ -741,8 +815,8 @@ class TestElementalCompiler(unittest.TestCase):
             '  <ui-check-box id="input_2" value="false" label="Disagree" />\n'
             "</body>"
         )
-        res = self.compiler.compile(html_coercion)
-        comps = res["createSurface"]["components"]
+        res = self._compile_dict(html_coercion)
+        comps = res["updateComponents"]["components"]
         cb1 = next(c for c in comps if c["id"] == "input_1")
         cb2 = next(c for c in comps if c["id"] == "input_2")
         self.assertEqual(cb1["value"], True)

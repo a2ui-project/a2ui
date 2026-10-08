@@ -408,7 +408,296 @@
                 caption: "H1"
 
 # =============================================================================
-# 2. Direct JSON Format: Per-Component & Per-Function catalogId Overrides
+# 2. Elemental Format: Mixed-Catalog Compilation, Decompilation, Parsing & Prompts
+# =============================================================================
+
+- name: test_elemental_compile_surface_and_component_catalog_override
+  description: With multiple active catalogs, an Elemental surface omits catalogId on createSurface while each component resolves its catalog by name or explicit catalog-id attribute and carries catalogId in the compiled output.
+  action: compile
+  args:
+    format: elemental
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    <body id="s1">
+      <ui-column id="root">
+        <ui-text id="title" text="Quarterly Revenue" />
+        <ui-chart id="chart" catalog-id="conformance/custom" values="{[10, 20, 30]}" caption="Q1-Q3" />
+      </ui-column>
+    </body>
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "title"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text: "Quarterly Revenue"
+          - id: "chart"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [10, 20, 30]
+            caption: "Q1-Q3"
+          - id: "root"
+            component: "Column"
+            catalogId: "conformance/simplified"
+            children: ["title", "chart"]
+
+- name: test_elemental_compile_second_surface_catalog_via_link
+  description: An Elemental surface with a <link rel="catalog" href="conformance/custom"> tag fails validation when multiple catalogs are active.
+  action: compile
+  args:
+    format: elemental
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    <body id="s2">
+      <link rel="catalog" href="conformance/custom">
+      <ui-chart id="root" values="{[1, 2, 3]}" caption="Series" />
+    </body>
+  expect_error:
+    category: ValidationError
+
+- name: test_elemental_compile_function_catalog_override
+  description: An Elemental attribute expression calling a function with catalogId resolves the function from that catalog and preserves catalogId in the compiled call.
+  action: compile
+  args:
+    format: elemental
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    <body id="s1">
+      <ui-chart id="root" values="{[1, 2]}" caption="{formatString(value: 'Total', catalogId: 'conformance/simplified')}" />
+    </body>
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [1, 2]
+            caption:
+              "@call": "formatString"
+              catalogId: "conformance/simplified"
+              args:
+                value: "Total"
+
+- name: test_elemental_compile_unknown_component_catalog_override_fails
+  description: An Elemental element whose catalog-id names a catalog that does not declare that component fails validation.
+  action: compile
+  args:
+    format: elemental
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    <body id="s1">
+      <ui-chart id="root" catalog-id="conformance/simplified" values="{[1, 2]}" />
+    </body>
+  expect_error:
+    category: ValidationError
+
+- name: test_elemental_compile_unknown_function_catalog_override_fails
+  description: An Elemental function call whose catalogId names a catalog that does not declare that function fails validation.
+  action: compile
+  args:
+    format: elemental
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    <body id="s1">
+      <ui-text id="root" text="{percent(value: 50, catalogId: 'conformance/simplified')}" />
+    </body>
+  expect_error:
+    category: ValidationError
+
+- name: test_elemental_decompile_mixed_catalog_components_and_functions
+  description: Decompiling a multi-catalog surface where each component and function name is unique across the active catalogs into Elemental HTML omits redundant catalog-id attributes and round-trips cleanly.
+  action: decompile
+  args:
+    format: elemental
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "title"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text: "Metrics"
+          - id: "chart"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [10, 20]
+            caption:
+              "@call": "formatString"
+              catalogId: "conformance/simplified"
+              args:
+                value: "Total"
+          - id: "root"
+            component: "Column"
+            catalogId: "conformance/simplified"
+            children: ["title", "chart"]
+  expect_contains:
+    - '<body id="s1">'
+    - "<ui-chart id=\"chart\" values=\"{[10, 20]}\" caption=\"{formatString(value: 'Total')}\" />"
+  expect_absent:
+    - "catalogId: 'conformance/simplified'"
+    - 'catalog-id="conformance/simplified"'
+    - 'catalog-id="conformance/custom"'
+  expect_round_trip: true
+
+- name: test_elemental_decompile_omits_redundant_catalog_id
+  description: Decompiling a component whose name is unique across active catalogs omits the redundant catalog-id attribute in Elemental HTML.
+  action: decompile
+  args:
+    format: elemental
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text: "Hello"
+  expect_contains:
+    - '<ui-text id="root" text="Hello" />'
+  expect_absent:
+    - "catalog-id="
+
+- name: test_elemental_decompile_function_catalog_differs_from_surface
+  description: Decompiling a component whose name is defined in two active catalogs into Elemental HTML keeps the catalog-id attribute and round-trips back to the original messages.
+  action: decompile
+  args:
+    format: elemental
+    catalogs:
+      - catalogId: "conformance/cat_a"
+        protocolVersion: "v1.0"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              label: {$ref: "common.json#/$defs/DynamicString"}
+            required: ["component", "label"]
+      - catalogId: "conformance/cat_b"
+        protocolVersion: "v1.0"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              count: {$ref: "common.json#/$defs/DynamicNumber"}
+            required: ["component", "count"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Badge"
+            catalogId: "conformance/cat_b"
+            count: 42
+  expect_contains:
+    - 'catalog-id="conformance/cat_b"'
+  expect_round_trip: true
+
+- name: test_elemental_parse_response_mixed_catalogs
+  description: Parsing a wrapped Elemental response containing mixed-catalog components returns the conversational text and the compiled surface message.
+  action: parse_response
+  args:
+    format: elemental
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    Here is the Elemental dashboard.<a2ui>
+    <body id="s1">
+      <ui-column id="root">
+        <ui-text id="header" text="Revenue" />
+        <ui-chart id="chart" catalog-id="conformance/custom" values="{[5, 10]}" caption="H1" />
+      </ui-column>
+    </body>
+    </a2ui>
+  expect:
+    - text: "Here is the Elemental dashboard."
+    - a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            components:
+              - id: "header"
+                component: "Text"
+                catalogId: "conformance/simplified"
+                text: "Revenue"
+              - id: "chart"
+                component: "Chart"
+                catalogId: "conformance/custom"
+                values: [5, 10]
+                caption: "H1"
+              - id: "root"
+                component: "Column"
+                catalogId: "conformance/simplified"
+                children: ["header", "chart"]
+
+- name: test_elemental_prompt_snippet_multi_catalogs_and_examples
+  description: Elemental prompt generation with multiple catalogs and pruning renders TypeScript declarations for each catalog and decompiles multi-catalog examples into Elemental HTML.
+  action: generate_prompt_snippet
+  args:
+    format: elemental
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Text", "Column"]
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Chart"]
+    examples:
+      - "test_data/examples/greeting_surface.json"
+      - "test_data/examples/chart_series.json"
+  expect_contains:
+    - "conformance/simplified"
+    - "conformance/custom"
+    - "ui-text"
+    - "ui-chart"
+    - '<ui-chart id="root" values="{[1, 2, 3]}" />'
+  expect_absent:
+    - "ui-button"
+    - "ui-gauge"
+    - '<link rel="catalog" href="conformance/custom">'
+
+- name: test_elemental_create_format_binds_multi_catalogs
+  description: Creating an Elemental format with multiple catalogs binds both catalogs to its prompt generator and creates distinct parsers.
+  action: create_format
+  args:
+    format: elemental
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  expect:
+    parsers_are_distinct: true
+    prompt_snippet_contains:
+      - "conformance/simplified"
+      - "conformance/custom"
+      - "ui-text"
+      - "ui-chart"
+
+# =============================================================================
+# 3. Direct JSON Format: Per-Component & Per-Function catalogId Overrides
 # =============================================================================
 
 - name: test_direct_json_compile_component_and_function_catalog_override

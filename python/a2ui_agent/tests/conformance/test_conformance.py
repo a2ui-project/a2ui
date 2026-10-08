@@ -471,7 +471,7 @@ def test_schema_manager_conformance(name, test_case):
         if fmt_name == "express":
             parser = ExpressParser([core_cat], surface_id="main", version=protocol_ver)
         elif fmt_name == "elemental":
-            parser = ElementalParser(core_cat)
+            parser = ElementalParser([core_cat])
         elif fmt_name == "atom":
             parser = AtomParser(core_cat)
         else:
@@ -754,7 +754,7 @@ def _format_for(format_name, catalogs, examples_path=None):
         )
     if format_name == "elemental":
         return ElementalFormat(
-            catalog=catalogs[0],
+            catalogs=catalogs,
             examples_path=examples_path,
             surface_id=CONFORMANCE_SURFACE_ID,
         )

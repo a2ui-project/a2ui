@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
+
 from google.adk.utils.feature_decorator import experimental
 
 from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
+from a2ui.inference_formats._shared import check_dsl_catalogs
 from a2ui.parser import Parser
+
 from .parser import ElementalParser
 from .prompt_generator import ElementalPromptGenerator
 
@@ -27,30 +31,33 @@ class ElementalFormat(InferenceFormat):
 
     def __init__(
         self,
-        catalog: CatalogApi | None = None,
+        catalogs: Sequence[CatalogApi],
         surface_id: str = "main",
         examples_path: str | None = None,
     ):
-        self.catalog = catalog
+        self._catalogs = check_dsl_catalogs(catalogs)
         self.surface_id = surface_id
         self.examples_path = examples_path
         self._prompt_generator: ElementalPromptGenerator | None = None
 
-    def _ensure_catalog(self) -> None:
-        if not self.catalog:
-            raise ValueError(
-                "Catalog is required for parsing and decompiling in elemental format."
-            )
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the active catalogs, in the order the format received them."""
+        return list(self._catalogs)
+
+    @catalogs.setter
+    def catalogs(self, value: Sequence[CatalogApi]) -> None:
+        self._catalogs = check_dsl_catalogs(value)
+        if self._prompt_generator is not None:
+            self._prompt_generator._sync_catalogs()
 
     @property
     def prompt_generator(self) -> ElementalPromptGenerator:
         """Returns the PromptGenerator instance for this format."""
         if self._prompt_generator is None:
-            self._ensure_catalog()
             self._prompt_generator = ElementalPromptGenerator(self)
         return self._prompt_generator
 
     @property
     def parser(self) -> Parser:
-        self._ensure_catalog()
-        return ElementalParser(self.catalog, self.surface_id)
+        return ElementalParser(self._catalogs, self.surface_id)

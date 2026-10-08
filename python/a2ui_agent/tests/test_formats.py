@@ -182,7 +182,7 @@ def test_supports_streaming_property(test_catalog):
     assert express_fmt.parser.supports_streaming is False
 
     # 3. ElementalFormat parser does not support streaming
-    elemental_fmt = ElementalFormat(catalog=test_catalog)
+    elemental_fmt = ElementalFormat([test_catalog])
     assert elemental_fmt.supports_streaming is False
     assert elemental_fmt.parser.supports_streaming is False
 
@@ -193,7 +193,7 @@ def test_process_chunk_raises_not_implemented(test_catalog):
         express_parser.process_chunk("chunk")
     assert "Streaming is not supported by ExpressParser" in str(exc_info.value)
 
-    elemental_parser = ElementalParser(test_catalog)
+    elemental_parser = ElementalParser([test_catalog])
     with pytest.raises(NotImplementedError) as exc_info:
         elemental_parser.process_chunk("chunk")
     assert "Streaming is not supported by ElementalParser" in str(exc_info.value)

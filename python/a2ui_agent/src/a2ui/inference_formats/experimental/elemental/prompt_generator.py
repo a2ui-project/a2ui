@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Prompt compiler for A2UI Elemental.
 
 Translates standard JSON catalog schemas into TypeScript/TSX interface
@@ -21,16 +20,23 @@ definitions and instruction blocks for on-device models.
 from collections.abc import Mapping, Sequence
 import json
 import re
-from typing import Any, TYPE_CHECKING
+from typing import Any, Literal, TYPE_CHECKING
 
 from a2ui.core import CatalogApi
+from a2ui.core.common import is_at_least_version
 from a2ui.core.schema.v0_9 import V09Capabilities
-from a2ui.inference_formats.experimental.express.schema_helper import (
+from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
+    build_catalog_helpers,
+    catalogs_defining,
+    catalogs_protocol_version,
+    normalize_prompt_example_messages,
+    surface_catalog_id,
 )
 from a2ui.prompt import PromptGenerator
 from a2ui.schema import load_examples
 
+from .compiler import UPDATE_ATTR
 from .parser import ElementalParser
 
 if TYPE_CHECKING:
@@ -40,7 +46,7 @@ ELEMENTAL_RULES = r"""# A2UI Elemental Output Contract
 
 You must output the user interface using A2UI Elemental HTML5-like markup.
 You MUST surround the entire block with the sentinel tags `<a2ui>` and `</a2ui>`.
-Inside the sentinel tags, surround the UI layout with `<body>` and `</body>` tags, including a `<link rel="catalog" href="[CATALOG_ID]">` at the start.
+Inside the sentinel tags, surround the UI layout with `<body>` and `</body>` tags.
 
 ## HTML5 Markup Rules
 
@@ -56,9 +62,21 @@ Inside the sentinel tags, surround the UI layout with `<body>` and `</body>` tag
 10. Do not use values starting with `{` and ending with `}` (like JSON object literals) directly as attribute string values (e.g. `placeholder="{ 'key': 'val' }"`), as the compiler will treat it as an expression. Prefix or write without matching outer braces (e.g., `placeholder="JSON: { 'key': 'val' }"`).
 11. Standalone directives:
     - Data Initialization: `<script type="application/json">{"data"}</script>` at the root of the body.
+    - Surface Update: to change a surface that already exists, add the `[UPDATE_ATTR]` attribute to its body: `<body id="id" [UPDATE_ATTR]>`. It holds only the added or replaced components and data scripts. A data script with a `path` attribute sets the value at that path: `<script type="application/json" path="/user/name">"Ada"</script>`.
     - Surface Deletion: `<ui-delete-surface surface-id="id" />`.
     - Standalone Function Call: `<ui-call-function id="id" name="func"><script type="application/json" slot="args">{"args"}</script></ui-call-function>`.
-"""
+""".replace("[UPDATE_ATTR]", UPDATE_ATTR)
+
+_COMMON_TYPES = """type DataBinding = string;
+type A2UIElement = string; // ID of the referenced component
+type Action = string; // An inline Event(...) call or catalog function call expression, e.g. "{Event('click', {arg: $/path})}" or "{openUrl(url: '...')}"
+type FunctionCall = string; // A catalog function call expression, e.g. "{formatString('Title: ${/path}')}" or "{regex(pattern: '^[A-Z]')}" """
+
+_INTERFACES_INTRO = (
+    "Your elements and attributes must match these TypeScript definitions"
+    " (converting camelCase props to kebab-case attributes in HTML, e.g."
+    " `errorMessage` -> `error-message`)."
+)
 
 
 def _schema_allows_databinding(prop_schema: Any) -> bool:
@@ -118,31 +136,173 @@ class ElementalPromptGenerator(PromptGenerator):
 
         Args:
             format_inst: An ElementalFormat instance.
-
-        Raises:
-            ValueError: If the format instance has no catalog.
         """
-        if format_inst.catalog is None:
-            raise ValueError("Catalog is required to generate elemental prompts.")
         self._format = format_inst
-        self.catalog: CatalogApi = format_inst.catalog
-        self.helper: CatalogSchemaHelper = CatalogSchemaHelper(format_inst.catalog)
-        self.catalog_id: str = format_inst.catalog.catalog_id
+        self.helpers: dict[str, CatalogSchemaHelper] = {}
+        self.catalog_id: str = ""
         self.parser: ElementalParser | None = None
+        self._sync_catalogs()
+
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the catalogs configured on this prompt generator's format."""
+        return self._format.catalogs
+
+    def _sync_catalogs(self) -> None:
+        """Rebuilds the per-catalog state from the format's current catalogs."""
+        catalogs = self.catalogs
+        self.helpers = build_catalog_helpers(catalogs)
+        self.catalog_id = catalogs[0].catalog_id
+        self.parser = None
+
+    def _get_parser(self) -> ElementalParser:
+        if self.parser is None:
+            self.parser = ElementalParser(self.catalogs, self._format.surface_id)
+        return self.parser
+
+    def _supports_catalog_overrides(self) -> bool:
+        catalogs = self.catalogs
+        return is_at_least_version(catalogs[0].protocol_version, "1.0")
 
     def generate_base_rules(self) -> str:
-        """Returns core syntax rules for A2UI Elemental."""
-        return ELEMENTAL_RULES
+        """Returns core syntax rules for A2UI Elemental, with the catalog rules.
+
+        Standalone function calls (`callRendererFunction`) exist from protocol
+        v1.0 on, so the rule for them is left out for earlier catalogs.
+        """
+        rules = ELEMENTAL_RULES
+        if not self._supports_catalog_overrides():
+            rules = "".join(
+                line
+                for line in rules.splitlines(keepends=True)
+                if "Standalone Function Call:" not in line
+            )
+        return f"{rules}\n{self._generate_catalog_rules()}"
+
+    def _generate_catalog_rules(self) -> str:
+        """Returns the rules for choosing catalogs, derived from the catalog list.
+
+        With several catalogs (A2UI v1.0 and later), the surface has no
+        default catalog: the compiler finds each component and function by
+        name, and only a name that several catalogs define needs its catalog.
+        """
+        catalog_ids = list(self.helpers)
+        if not catalog_ids:
+            return ""
+        if len(catalog_ids) == 1:
+            return (
+                "## Catalog\n\nAll components and functions come from the catalog"
+                f' `{catalog_ids[0]}`. Do not add `<link rel="catalog">` tags or'
+                " `catalog-id` attributes.\n"
+            )
+
+        lines = [
+            "## Catalogs",
+            "",
+            "Components and functions come from these catalogs:",
+            "",
+            *(f"- `{cat_id}`" for cat_id in catalog_ids),
+            "",
+            (
+                "1. Components and functions are found by name across the catalogs."
+                ' Do not add `<link rel="catalog">` tags.'
+            ),
+        ]
+        shared_components = self._names_in_several_catalogs("component")
+        shared_functions = self._names_in_several_catalogs("function")
+        if not shared_components and not shared_functions:
+            lines.append(
+                "2. Every component and function name belongs to one catalog, so"
+                " do not add `catalog-id` attributes or `catalogId` arguments."
+            )
+            return "\n".join(lines) + "\n"
+
+        rule = 2
+        if shared_components:
+            comp, comp_catalogs = shared_components[0]
+            tags = ", ".join(
+                f"`<ui-{_to_kebab_case(c)}>`" for c, _ in shared_components
+            )
+            lines.append(
+                f"{rule}. These components are defined in several catalogs: {tags}."
+                " Give each of them a `catalog-id` attribute naming its catalog:"
+                f' `<ui-{_to_kebab_case(comp)} id="x" catalog-id="{comp_catalogs[0]}"'
+                " />`. Other components need no `catalog-id`."
+            )
+            rule += 1
+        if shared_functions:
+            fn, fn_catalogs = shared_functions[0]
+            names = ", ".join(f"`{f}`" for f, _ in shared_functions)
+            lines.append(
+                f"{rule}. These functions are defined in several catalogs: {names}."
+                " Give each call of them a `catalogId` named argument naming its"
+                f" catalog: `{{{fn}(..., catalogId: '{fn_catalogs[0]}')}}`, and a"
+                " standalone call a `catalog-id` attribute:"
+                f' `<ui-call-function id="id" name="{fn}"'
+                f' catalog-id="{fn_catalogs[0]}" />`. Other functions need no'
+                " catalog."
+            )
+        return "\n".join(lines) + "\n"
+
+    def _names_in_several_catalogs(
+        self, kind: Literal["component", "function"]
+    ) -> list[tuple[str, list[str]]]:
+        """Returns the names that several catalogs define, with those catalogs.
+
+        Returns:
+            Sorted (name, catalog IDs) pairs.
+        """
+        names = {
+            name
+            for helper in self.helpers.values()
+            for name in (helper.components if kind == "component" else helper.functions)
+        }
+        shared = []
+        for name in sorted(names):
+            defining = catalogs_defining(self.helpers, kind, name)
+            if len(defining) > 1:
+                shared.append((name, defining))
+        return shared
 
     def generate_catalog_instructions(
         self,
         include_schema: bool = True,
         catalog: Any | None = None,
     ) -> str:
-        """Assembles TypeScript interfaces and catalog instructions."""
+        """Assembles TypeScript interfaces and catalog instructions.
+
+        With several catalogs, the shared type definitions are rendered once,
+        followed by one section of declarations and instructions per catalog.
+        """
         if not include_schema:
             return ""
-        return self._catalog_description(include_schema=True, catalog=catalog)
+        if catalog is not None:
+            return self._catalog_description(include_schema=True, catalog=catalog)
+        if len(self.helpers) <= 1:
+            return self._catalog_description(include_schema=True)
+
+        sections = [
+            "## Component Interfaces",
+            _INTERFACES_INTRO,
+            f"```typescript\n{_COMMON_TYPES}\n```",
+        ]
+        for cat_id, helper in self.helpers.items():
+            sections.append(f"## Catalog `{cat_id}`")
+            sections.append(
+                "```typescript\n"
+                f"{self._generate_component_declarations(helper=helper)}\n```"
+            )
+            func_decls = self._generate_function_declarations(helper=helper)
+            if func_decls:
+                sections.append(
+                    "Helper functions of this catalog, called inside attribute"
+                    " expressions `{...}` using named arguments:"
+                )
+                sections.append(f"```typescript\n{func_decls}\n```")
+            instructions = self._catalog_instructions(helper)
+            if instructions:
+                sections.append(f"### Catalog Instructions\n\n{instructions}")
+        return "\n\n".join(sections)
 
     def generate_examples(
         self,
@@ -150,11 +310,16 @@ class ElementalPromptGenerator(PromptGenerator):
         validate: bool = False,
     ) -> str:
         """Loads and formats few-shot Elemental examples."""
-        target_catalog = catalog or self.catalog
-        if not target_catalog or not self._format or not self._format.examples_path:
+        active_catalogs = list(self.catalogs)
+        if catalog is not None:
+            active_catalogs = [
+                catalog,
+                *(c for c in active_catalogs if c is not catalog),
+            ]
+        if not active_catalogs or not self._format or not self._format.examples_path:
             return ""
         raw_examples = load_examples(
-            [target_catalog], self._format.examples_path, validate=validate
+            active_catalogs, self._format.examples_path, validate=validate
         )
         if not raw_examples:
             return ""
@@ -302,7 +467,7 @@ class ElementalPromptGenerator(PromptGenerator):
         Returns:
             A string containing TypeScript interface declarations.
         """
-        h = helper or self.helper
+        h = helper or next(iter(self.helpers.values()), None)
         if not h:
             return ""
         declarations = []
@@ -359,7 +524,7 @@ class ElementalPromptGenerator(PromptGenerator):
         Returns:
             A string containing TypeScript function declarations.
         """
-        h = helper or self.helper
+        h = helper or next(iter(self.helpers.values()), None)
         if not h:
             return ""
         declarations = []
@@ -392,60 +557,77 @@ class ElementalPromptGenerator(PromptGenerator):
 
         return "\n".join(declarations)
 
-    def _replace_json_block(self, match: re.Match[str]) -> str:
-        json_content = match.group(1).strip()
+    _MESSAGE_KEYS = (
+        "createSurface",
+        "updateComponents",
+        "updateDataModel",
+        "deleteSurface",
+        "callFunction",
+        "callRendererFunction",
+    )
+
+    def _decompile_json_messages(
+        self, parsed: Any, default_catalog_id: str | None
+    ) -> list[str]:
+        """Decompiles example message JSON into Elemental blocks.
+
+        Args:
+            parsed: The example's JSON.
+            default_catalog_id: The catalog of a surface or call that names
+                none, or None to find each component and function by name.
+
+        Raises:
+            ValueError: If the JSON is not a message or list of messages.
+        """
+        items = [parsed] if isinstance(parsed, dict) else parsed
+        if not isinstance(items, list) or not all(
+            isinstance(m, dict) and any(k in m for k in self._MESSAGE_KEYS)
+            for m in items
+        ):
+            raise ValueError("Not an A2UI message payload.")
+        return self._get_parser().decompile_blocks(
+            normalize_prompt_example_messages(
+                items,
+                version=catalogs_protocol_version(self.catalogs),
+                default_catalog_id=default_catalog_id,
+            )
+        )
+
+    def _decompile_example_json(self, json_content: str) -> str | None:
         try:
-            parsed = json.loads(json_content)
-            if isinstance(parsed, dict):
-                messages = [parsed]
-            elif isinstance(parsed, list):
-                messages = parsed
-            else:
-                return str(match.group(0))
-
-            blocks = []
-            for msg in messages:
-                if isinstance(msg, dict) and any(
-                    k in msg
-                    for k in [
-                        "createSurface",
-                        "updateDataModel",
-                        "deleteSurface",
-                        "callFunction",
-                    ]
-                ):
-                    parser = self.parser or self._format.parser
-                    if not parser:
-                        self._format._ensure_catalog()
-                        parser = self._format.parser
-                        assert parser is not None
-                    decompiled = parser.decompile(msg)
-                    blocks.append(decompiled)
-                else:
-                    return str(match.group(0))
-
-            parser = self.parser or self._format.parser
-            if not parser:
-                self._format._ensure_catalog()
-                parser = self._format.parser
-                assert parser is not None
-            return parser.wrap_decompiled_blocks(blocks)
-
+            blocks = self._decompile_json_messages(
+                json.loads(json_content), surface_catalog_id(self.catalogs)
+            )
+            return self._get_parser().wrap_decompiled_blocks(blocks)
         except Exception:
+            return None
+
+    def _replace_json_block(self, match: re.Match[str]) -> str:
+        res = self._decompile_example_json(match.group(1).strip())
+        return res if res is not None else str(match.group(0))
+
+    def _replace_begin_end_block(self, match: re.Match[str]) -> str:
+        name = match.group(1)
+        res = self._decompile_example_json(match.group(2).strip())
+        if res is None:
             return str(match.group(0))
+        return f"---BEGIN {name}---\n{res}\n---END {name}---"
 
     def transform_examples(self, raw_examples_markdown: str) -> str:
         """Transforms JSON blocks in raw markdown into Elemental HTML syntax."""
-        if not self.catalog:
-            return raw_examples_markdown
-
         triple_backticks = chr(96) * 3
         pattern = rf"{triple_backticks}json\s*\n(.*?)\n{triple_backticks}"
-
-        return re.sub(
+        result = re.sub(
             pattern,
             self._replace_json_block,
             raw_examples_markdown,
+            flags=re.DOTALL,
+        )
+        begin_end_pattern = r"---BEGIN ([^\n]+)---\n(.*?)\n---END \1---"
+        return re.sub(
+            begin_end_pattern,
+            self._replace_begin_end_block,
+            result,
             flags=re.DOTALL,
         )
 
@@ -477,13 +659,9 @@ class ElementalPromptGenerator(PromptGenerator):
         Returns:
             The complete system prompt string explaining A2UI Elemental and its catalog.
         """
-        catalog = self.catalog
-
-        prompt = self._catalog_description(include_schema=True)
-
         parts = [role_description]
 
-        rules = ELEMENTAL_RULES.replace("[CATALOG_ID]", self.catalog_id)
+        rules = self.generate_base_rules()
         if workflow_description:
             rules += f"\n\n{workflow_description}"
         parts.append(f"## Workflow Description:\n{rules}")
@@ -491,18 +669,54 @@ class ElementalPromptGenerator(PromptGenerator):
         if ui_description:
             parts.append(f"## UI Description:\n{ui_description}")
 
-        if include_schema and self.helper:
-            parts.append(prompt)
+        if include_schema and self.helpers:
+            parts.append(self.generate_catalog_instructions(include_schema=True))
 
-        if include_examples and self._format.examples_path and catalog:
+        if include_examples and self._format.examples_path and self.catalogs:
             raw_examples = load_examples(
-                [catalog], self._format.examples_path, validate=validate_examples
+                list(self.catalogs),
+                self._format.examples_path,
+                validate=validate_examples,
             )
             if raw_examples:
                 formatted_examples = self.transform_examples(raw_examples)
                 parts.append(f"### Examples:\n{formatted_examples}")
 
         return "\n\n".join(parts)
+
+    def _catalog_instructions(self, helper: CatalogSchemaHelper) -> str:
+        """Returns a catalog's instructions, with JSON examples as Elemental HTML.
+
+        A catalog's examples use its components and functions, so a surface or
+        call in them that names no catalog is read as coming from this catalog.
+        """
+        catalog_instructions = helper.catalog.get("instructions", "")
+        if not catalog_instructions:
+            return ""
+        catalog_instructions = catalog_instructions.replace(
+            "specify any custom error messages directly in the check's 'message'"
+            " property. Do NOT create separate text-display components to display"
+            " validation errors.",
+            "specify any custom error messages directly as a named argument"
+            " `message` inside the validation function call (e.g."
+            " `checks=\"{[regex(pattern: '^[a-zA-Z0-9]{3,}$', message: 'Error"
+            " message')]}\"`). Do NOT create separate text-display components to"
+            " display validation errors.",
+        )
+        catalog_id = helper.catalog_model.catalog_id or self.catalog_id
+        json_blocks = re.findall(
+            r"```json\s*(.*?)\s*```", catalog_instructions, re.DOTALL
+        )
+        for block in json_blocks:
+            try:
+                blocks = self._decompile_json_messages(json.loads(block), catalog_id)
+            except Exception:
+                continue
+            html_block = "\n\n".join(blocks)
+            catalog_instructions = catalog_instructions.replace(
+                f"```json\n{block}\n```", f"```html\n{html_block}\n```"
+            )
+        return catalog_instructions
 
     def _catalog_description(
         self, include_schema: bool = True, catalog: Any | None = None
@@ -519,79 +733,24 @@ class ElementalPromptGenerator(PromptGenerator):
         if not include_schema:
             return ""
 
-        h = CatalogSchemaHelper(catalog) if catalog else self.helper
+        h = (
+            CatalogSchemaHelper(catalog)
+            if catalog
+            else next(iter(self.helpers.values()), None)
+        )
         comp_decls = self._generate_component_declarations(helper=h)
         func_decls = self._generate_function_declarations(helper=h)
 
-        catalog_instructions = h.catalog.get("instructions", "") if h else ""
-        if catalog_instructions:
-            catalog_instructions = catalog_instructions.replace(
-                "specify any custom error messages directly in the check's 'message'"
-                " property. Do NOT create separate text-display components to display"
-                " validation errors.",
-                "specify any custom error messages directly as a named argument"
-                " `message` inside the validation function call (e.g."
-                " `checks=\"{[regex(pattern: '^[a-zA-Z0-9]{3,}$', message: 'Error"
-                " message')]}\"`). Do NOT create separate text-display components to"
-                " display validation errors.",
-            )
-        # Decompile json blocks in catalog instructions to HTML
-        catalog_instructions_block = ""
-        if catalog_instructions:
-            try:
-                json_blocks = re.findall(
-                    r"```json\s*(.*?)\s*```", catalog_instructions, re.DOTALL
-                )
-                for block in json_blocks:
-                    try:
-                        parsed_json = json.loads(block)
-                        if isinstance(parsed_json, list):
-                            html_parts = []
-                            for item in parsed_json:
-                                if isinstance(item, dict):
-                                    parser = self.parser or self._format.parser
-                                    if not parser:
-                                        self._format._ensure_catalog()
-                                        parser = self._format.parser
-                                        assert parser is not None
-                                    html_parts.append(parser.decompile(item))
-                            html_block = "\n\n".join(html_parts)
-                        elif isinstance(parsed_json, dict):
-                            parser = self.parser or self._format.parser
-                            if not parser:
-                                self._format._ensure_catalog()
-                                parser_inst = self._format.parser
-                                assert parser_inst is not None
-                                parser = parser_inst
-                            html_block = parser.decompile(parsed_json)
-
-                        else:
-                            continue
-
-                        target_block = f"```json\n{block}\n```"
-                        catalog_id = self.catalog_id
-                        html_block = html_block.replace(catalog_id, "[CATALOG_ID]")
-                        replacement_block = f"```html\n{html_block}\n```"
-                        catalog_instructions = catalog_instructions.replace(
-                            target_block, replacement_block
-                        )
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-
-            catalog_instructions_block = (
-                f"\n\n## Catalog Instructions\n\n{catalog_instructions}"
-            )
-
-        common_types = """type DataBinding = string;
-type A2UIElement = string; // ID of the referenced component
-type Action = string; // An inline Event(...) call or catalog function call expression, e.g. "{Event('click', {arg: $/path})}" or "{openUrl(url: '...')}"
-type FunctionCall = string; // A catalog function call expression, e.g. "{formatString('Title: ${/path}')}" or "{regex(pattern: '^[A-Z]')}" """
+        catalog_instructions = self._catalog_instructions(h) if h else ""
+        catalog_instructions_block = (
+            f"\n\n## Catalog Instructions\n\n{catalog_instructions}"
+            if catalog_instructions
+            else ""
+        )
 
         desc_template = r"""## Component Interfaces
 
-Your elements and attributes must match these TypeScript definitions (converting camelCase props to kebab-case attributes in HTML, e.g. `errorMessage` -> `error-message`).
+[INTERFACES_INTRO]
 
 ```typescript
 [COMMON_TYPES]
@@ -608,7 +767,8 @@ You can call these functions inside attribute expressions `{...}` using named ar
 ```[CATALOG_INSTRUCTIONS_BLOCK]"""
 
         return (
-            desc_template.replace("[COMMON_TYPES]", common_types)
+            desc_template.replace("[INTERFACES_INTRO]", _INTERFACES_INTRO)
+            .replace("[COMMON_TYPES]", _COMMON_TYPES)
             .replace("[COMPONENT_DECLARATIONS]", comp_decls)
             .replace("[FUNCTION_DECLARATIONS]", func_decls)
             .replace("[CATALOG_INSTRUCTIONS_BLOCK]", catalog_instructions_block)

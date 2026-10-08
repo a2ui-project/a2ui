@@ -14,20 +14,28 @@
 
 """Decompilation engine for A2UI Elemental.
 
-Reconstructs standard A2UI v1.0 JSON envelopes back into A2UI Elemental HTML5-like markup.
+Reconstructs A2UI message envelopes back into A2UI Elemental HTML5-like markup.
 """
 
+from collections.abc import Sequence
 import html
 import json
 import re
-from typing import Any
+from typing import Any, Literal
+
 from a2ui.core import CatalogApi
-
-from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats._shared import (
+    CatalogSchemaHelper,
+    build_catalog_helpers,
+    catalogs_defining,
+    check_dsl_catalogs,
+    coalesce_surface_messages,
+)
 from a2ui.inference_formats.experimental.express.constants import SurfaceOperation
-from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
+from a2ui.schema.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 
-TAG_PREFIX = "ui-"
+from .compiler import TAG_PREFIX, UPDATE_ATTR
 
 
 def _is_component_reference_property(prop_schema: Any) -> bool:
@@ -78,12 +86,29 @@ def _contract_options(val: list[dict]) -> list[str]:
 def _is_complex(val: Any) -> bool:
     """Returns True if the value is complex (dict or list of dicts) and not an expression."""
     if isinstance(val, dict):
-        if "path" in val or "event" in val or "functionCall" in val or "call" in val:
+        if (
+            "path" in val
+            or "@path" in val
+            or "event" in val
+            or "functionCall" in val
+            or "call" in val
+            or "@call" in val
+        ):
             return False
         return True
     if isinstance(val, list):
         return any(_is_complex(x) for x in val)
     return False
+
+
+def _escape_attr(val: Any) -> str:
+    """Escapes a value for a double-quoted HTML attribute.
+
+    The compiler's HTML parser unescapes attribute values, so any string,
+    including one with quotes, `&` or `<`, reads back unchanged. Single quotes
+    are kept as they are, so expressions stay readable.
+    """
+    return html.escape(str(val), quote=False).replace('"', "&quot;")
 
 
 def _decompile_string_in_expr(val: str) -> str:
@@ -114,11 +139,127 @@ def _get_action_properties(helper: CatalogSchemaHelper, comp_name: str) -> list[
     return action_props
 
 
-class _ElementalDecompiler:
-    """Decompiles A2UI JSON payloads back into A2UI Elemental HTML."""
+class ElementalDecompiler:
+    """Decompiles A2UI JSON payloads back into A2UI Elemental HTML.
 
-    def __init__(self, catalog: CatalogApi):
-        self.helper = CatalogSchemaHelper(catalog)
+    The output follows the compiler's catalog rules. With a single catalog, no
+    catalog is ever written. With several catalogs, no `<link rel="catalog">`
+    is written, and a component or function call gets a `catalog-id` attribute
+    or `catalogId` argument only when looking its name up across the catalogs
+    would not find its catalog. A component's or call's catalog is its own
+    `catalogId`, else the `catalogId` of its surface's `createSurface`, else
+    the one catalog that defines its name. An `updateComponents` or
+    `updateDataModel` that updates an existing surface is rendered as a
+    `<body update>` block.
+    """
+
+    def __init__(self, catalogs: Sequence[CatalogApi]):
+        """Initializes the decompiler.
+
+        Args:
+            catalogs: The catalogs that the payload's catalog IDs refer to.
+                Several catalogs need A2UI v1.0 or later.
+
+        Raises:
+            A2uiCatalogError: If no catalog is given, two catalogs share an ID,
+                the catalogs target different protocol versions, or there are
+                several catalogs before v1.0.
+        """
+        self._catalogs = check_dsl_catalogs(catalogs)
+        self.helpers = build_catalog_helpers(self._catalogs)
+        self._multi = len(self._catalogs) > 1
+        # The catalog that a component or call without a `catalogId` comes
+        # from in the message being decompiled: the surface's `createSurface`
+        # catalog, or the single catalog. None when neither is known, so each
+        # name is looked up across the catalogs.
+        self._context_catalog_id: str | None = None
+        self.id_to_component: dict[str, dict[str, Any]] = {}
+        self.comp_ids: set[str] = set()
+
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the catalogs, in the order the decompiler received them."""
+        return list(self._catalogs)
+
+    def _resolve_helper(self, catalog_id: str) -> CatalogSchemaHelper:
+        """Returns the helper for a catalog ID.
+
+        Raises:
+            ValueError: If `catalog_id` names no configured catalog.
+        """
+        if catalog_id in self.helpers:
+            return self.helpers[catalog_id]
+        raise ValueError(
+            f"Unknown catalogId '{catalog_id}'. Available catalogs: "
+            f"{list(self.helpers.keys())}"
+        )
+
+    def _set_context_catalog(self, catalog_id: str | None) -> None:
+        """Sets the catalog of un-annotated components and calls in a message.
+
+        Args:
+            catalog_id: The surface's `createSurface` catalog, if known.
+
+        Raises:
+            ValueError: If `catalog_id` names no configured catalog.
+        """
+        if catalog_id:
+            self._resolve_helper(catalog_id)
+            self._context_catalog_id = catalog_id
+        elif self._multi:
+            self._context_catalog_id = None
+        else:
+            self._context_catalog_id = self._catalogs[0].catalog_id
+
+    def _actual_catalog_id(
+        self,
+        kind: Literal["component", "function"],
+        name: str,
+        own_catalog_id: str | None,
+    ) -> str:
+        """Returns the catalog that a component or function call comes from.
+
+        Raises:
+            ValueError: If `own_catalog_id` names no configured catalog, or the
+                catalog is not known and no catalog or several catalogs define
+                `name`.
+        """
+        if own_catalog_id:
+            self._resolve_helper(own_catalog_id)
+            return own_catalog_id
+        if self._context_catalog_id:
+            return self._context_catalog_id
+        matches = catalogs_defining(self.helpers, kind, name)
+        if len(matches) == 1:
+            return matches[0]
+        found = (
+            f"catalogs {matches} all define it" if matches else "no catalog defines it"
+        )
+        raise ValueError(
+            f"Cannot tell which catalog the {kind} '{name}' comes from: it has no"
+            f" catalogId, its surface names no catalog, and {found}."
+        )
+
+    def _catalog_annotation(
+        self, kind: Literal["component", "function"], name: str, actual: str
+    ) -> str | None:
+        """Returns the catalog to write on an element or call, if any.
+
+        A catalog is written only with several catalogs, and only when looking
+        the name up across them would not find `actual`.
+        """
+        if not self._multi:
+            return None
+        if catalogs_defining(self.helpers, kind, name) == [actual]:
+            return None
+        return actual
+
+    def _component_helper(self, comp: dict[str, Any]) -> CatalogSchemaHelper:
+        return self.helpers[
+            self._actual_catalog_id(
+                "component", comp["component"], comp.get("catalogId")
+            )
+        ]
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         wrapped_blocks = [
@@ -129,68 +270,139 @@ class _ElementalDecompiler:
         triple_backticks = chr(96) * 3
         return f"{triple_backticks}html\n{full_html}\n{triple_backticks}"
 
-    def decompile(self, envelope_json: dict) -> str:
-        """Decompiles standard A2UI wire JSON into A2UI Elemental HTML."""
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
+        """Decompiles structured A2UI payload messages into A2UI Elemental HTML.
+
+        Raises:
+            ValueError: If a message is not a known operation or names an
+                unknown catalog.
+        """
+        return "\n\n".join(self.decompile_blocks(a2ui_payload))
+
+    def decompile_blocks(
+        self, a2ui_payload: Sequence[AgentToRendererMessage]
+    ) -> list[str]:
+        """Decompiles a payload into one Elemental block per coalesced message.
+
+        The payload is coalesced as a whole, so an update keeps the catalog of
+        the surface that an earlier message in the payload created.
+
+        Raises:
+            ValueError: If a message is not a known operation or names an
+                unknown catalog.
+        """
+        return [
+            self._decompile_message_dict(
+                item.message,
+                surface_catalog_id=item.surface_catalog_id,
+                is_update=item.is_update,
+            )
+            for item in coalesce_surface_messages(a2ui_payload)
+            if item.message
+        ]
+
+    def _decompile_message_dict(
+        self,
+        envelope_json: dict[str, Any],
+        surface_catalog_id: str | None = None,
+        is_update: bool = False,
+    ) -> str:
         # 1. Handle deleteSurface
         if SurfaceOperation.DELETE in envelope_json:
             surf_op = envelope_json[SurfaceOperation.DELETE]
             surface_id = surf_op.get("surfaceId", "")
-            return f'<{TAG_PREFIX}delete-surface surface-id="{surface_id}" />'
+            return (
+                f"<{TAG_PREFIX}delete-surface"
+                f' surface-id="{_escape_attr(surface_id)}" />'
+            )
 
-        # 2. Handle callFunction
-        if SurfaceOperation.CALL_FUNC in envelope_json:
-            func_op = envelope_json[SurfaceOperation.CALL_FUNC]
-            fn_name = func_op.get("call", "")
-            fn_args = func_op.get("args", {})
-            fc_id = envelope_json.get("functionCallId", "")
-            want_response = envelope_json.get("wantResponse", False)
+        # 2. Handle callFunction / callRendererFunction
+        if (
+            "callRendererFunction" in envelope_json
+            or SurfaceOperation.CALL_FUNC in envelope_json
+        ):
+            return self._decompile_call_function(envelope_json)
 
-            attrs = []
-            if fc_id:
-                attrs.append(f'id="{fc_id}"')
-            attrs.append(f'name="{fn_name}"')
-
-            if isinstance(fn_args, dict):
-                for k, v in fn_args.items():
-                    val_str = self._format_attribute(k, v, set())
-                    attrs.append(val_str)
-
-            if want_response:
-                attrs.append('want-response="{true}"')
-
-            attrs_str = " ".join(attrs)
-            return f"<{TAG_PREFIX}call-function {attrs_str} />"
-
-        # 3. Handle updateDataModel (standalone)
+        # 3. Handle updateDataModel
         if SurfaceOperation.UPDATE_DATA in envelope_json:
-            val_op = envelope_json[SurfaceOperation.UPDATE_DATA]
-            surface_id = val_op.get("surfaceId", "default_surface")
-            data_val = val_op.get("value", {})
+            return self._decompile_update_data(
+                envelope_json[SurfaceOperation.UPDATE_DATA]
+            )
 
-            lines = [f'<body id="{surface_id}">']
-            if data_val:
-                json_str = json.dumps(data_val, indent=2)
-                indented_json = "\n".join(
-                    f"    {line}" for line in json_str.splitlines()
-                )
-                lines.append('  <script type="application/json">')
-                lines.append(indented_json)
-                lines.append("  </script>")
-            lines.append("</body>")
-            return "\n".join(lines)
-
-        # 4. Handle createSurface
-        if SurfaceOperation.CREATE not in envelope_json:
+        # 4. Handle createSurface / updateComponents
+        if SurfaceOperation.CREATE in envelope_json:
+            body = envelope_json[SurfaceOperation.CREATE]
+            self._set_context_catalog(body.get("catalogId") or surface_catalog_id)
+        elif SurfaceOperation.UPDATE_COMPONENTS in envelope_json:
+            body = envelope_json[SurfaceOperation.UPDATE_COMPONENTS]
+            self._set_context_catalog(surface_catalog_id)
+            is_update = True
+        else:
             raise ValueError(
                 "Invalid A2UI envelope: missing createSurface, deleteSurface, etc."
             )
 
-        create_surface = envelope_json[SurfaceOperation.CREATE]
-        surface_id = create_surface.get("surfaceId", "default_surface")
-        catalog_id = create_surface.get("catalogId", "")
-        data_model = create_surface.get("dataModel", {})
-        components = create_surface.get("components", [])
+        surface_id = body.get("surfaceId", "default_surface")
+        data_model = body.get("dataModel", {})
+        components = body.get("components", [])
+        return self._render_surface(surface_id, components, data_model, is_update)
 
+    def _decompile_call_function(self, envelope_json: dict[str, Any]) -> str:
+        crf = envelope_json.get("callRendererFunction")
+        if isinstance(crf, dict) and "callFunction" in crf:
+            func_op = crf["callFunction"]
+            fc_id = crf.get("functionCallId", "")
+        else:
+            func_op = envelope_json.get(SurfaceOperation.CALL_FUNC, {})
+            fc_id = envelope_json.get("functionCallId", "")
+        fn_name = func_op.get("@call") or func_op.get("call", "")
+        fn_args = func_op.get("args", {})
+        # A standalone call has no surface: the call and the calls nested in
+        # its arguments come from the catalogs they name, or else from the one
+        # catalog that defines them.
+        self._set_context_catalog(None)
+        fn_catalog_id = self._actual_catalog_id(
+            "function", fn_name, func_op.get("catalogId")
+        )
+        annotation = self._catalog_annotation("function", fn_name, fn_catalog_id)
+
+        attrs = []
+        if fc_id:
+            attrs.append(f'id="{_escape_attr(fc_id)}"')
+        attrs.append(f'name="{_escape_attr(fn_name)}"')
+        if annotation:
+            attrs.append(f'catalog-id="{_escape_attr(annotation)}"')
+
+        if isinstance(fn_args, dict):
+            for k, v in fn_args.items():
+                attrs.append(self._format_attribute(k, v, set()))
+
+        attrs_str = " ".join(attrs)
+        return f"<{TAG_PREFIX}call-function {attrs_str} />"
+
+    def _decompile_update_data(self, val_op: dict[str, Any]) -> str:
+        surface_id = val_op.get("surfaceId", "default_surface")
+        path = val_op.get("path")
+        data_val = val_op.get("value")
+
+        json_str = json.dumps(data_val, indent=2)
+        indented_json = "\n".join(f"    {line}" for line in json_str.splitlines())
+        path_attr = "" if path in (None, "", "/") else f' path="{_escape_attr(path)}"'
+        return "\n".join([
+            f'<body id="{_escape_attr(surface_id)}" {UPDATE_ATTR}>',
+            f'  <script type="application/json"{path_attr}>',
+            indented_json,
+            "  </script>",
+            "</body>",
+        ])
+
+    def _render_surface(
+        self,
+        surface_id: str,
+        components: list[dict[str, Any]],
+        data_model: dict[str, Any],
+        is_update: bool,
+    ) -> str:
         self.id_to_component = {c["id"]: c for c in components}
         self.comp_ids = set(self.id_to_component.keys())
 
@@ -198,12 +410,13 @@ class _ElementalDecompiler:
         child_to_parent = {}
         for c in components:
             comp_name = c["component"]
-            properties = self.helper.get_component_properties(comp_name)
+            comp_helper = self._component_helper(c)
+            properties = comp_helper.get_component_properties(comp_name)
             props_to_check = set(properties) | {"template"}
             for prop_name in props_to_check:
                 if prop_name in c:
                     val = c[prop_name]
-                    p_schema = self.helper.get_property_schema(comp_name, prop_name)
+                    p_schema = comp_helper.get_property_schema(comp_name, prop_name)
                     if prop_name == "template" or _is_component_reference_property(
                         p_schema
                     ):
@@ -213,13 +426,15 @@ class _ElementalDecompiler:
                                     child_to_parent[v] = c["id"]
                         elif isinstance(val, str):
                             child_to_parent[val] = c["id"]
+                        elif isinstance(val, dict) and isinstance(
+                            val.get("componentId"), str
+                        ):
+                            child_to_parent[val["componentId"]] = c["id"]
 
         roots = [c["id"] for c in components if c["id"] not in child_to_parent]
 
-        lines = [f'<body id="{surface_id}">']
-        default_catalog_id = self.helper.catalog.get("catalogId", "")
-        if catalog_id and catalog_id != default_catalog_id:
-            lines.append(f'  <link rel="catalog" href="{catalog_id}">')
+        update_attr = f" {UPDATE_ATTR}" if is_update else ""
+        lines = [f'<body id="{_escape_attr(surface_id)}"{update_attr}>']
 
         if data_model:
             json_str = json.dumps(data_model, indent=2)
@@ -235,16 +450,26 @@ class _ElementalDecompiler:
         return "\n".join(lines)
 
     def _render_component(
-        self, comp_id: str, indent: int = 0, slot: str | None = None
+        self,
+        comp_id: str,
+        indent: int = 0,
+        slot: str | None = None,
     ) -> str:
         C = self.id_to_component.get(comp_id)
         if not C:
-            return f'{"  " * indent}<!-- Missing component {comp_id} -->'
+            safe_id = str(comp_id).replace("--", "- -")
+            return f'{"  " * indent}<!-- Missing component {safe_id} -->'
 
         comp_name = C["component"]
+        comp_catalog_id = self._actual_catalog_id(
+            "component", comp_name, C.get("catalogId")
+        )
+        comp_helper = self.helpers[comp_catalog_id]
+        annotation = self._catalog_annotation("component", comp_name, comp_catalog_id)
+
         tag_name = f"{TAG_PREFIX}{re.sub(r'(?<!^)(?=[A-Z])', '-', comp_name).lower()}"
 
-        properties = self.helper.get_component_properties(comp_name)
+        properties = comp_helper.get_component_properties(comp_name)
 
         default_slot = None
         if "children" in properties:
@@ -252,16 +477,18 @@ class _ElementalDecompiler:
         elif "child" in properties:
             default_slot = "child"
 
-        attrs = [f'id="{comp_id}"']
+        attrs = [f'id="{_escape_attr(comp_id)}"']
+        if annotation:
+            attrs.append(f'catalog-id="{_escape_attr(annotation)}"')
         if slot:
-            attrs.append(f'slot="{slot}"')
+            attrs.append(f'slot="{_escape_attr(slot)}"')
 
         child_elements = []
 
         # Collect all properties to process
         all_props = list(properties)
         for k in C.keys():
-            if k not in ["id", "component"] and k not in all_props:
+            if k not in ["id", "component", "catalogId"] and k not in all_props:
                 all_props.append(k)
 
         text_content = ""
@@ -275,7 +502,7 @@ class _ElementalDecompiler:
             if prop_name == "options" and _is_contractable_options(val):
                 val = _contract_options(val)
 
-            p_schema = self.helper.get_property_schema(comp_name, prop_name)
+            p_schema = comp_helper.get_property_schema(comp_name, prop_name)
             is_ref = (
                 _is_component_reference_property(p_schema) or prop_name == "template"
             )
@@ -307,10 +534,12 @@ class _ElementalDecompiler:
                     elif isinstance(val, str):
                         child_elements.append(self._render_component(val, indent + 1))
                     elif (
-                        isinstance(val, dict) and "path" in val and "componentId" in val
+                        isinstance(val, dict)
+                        and ("path" in val or "@path" in val)
+                        and "componentId" in val
                     ):
                         # Render template binding as parent 'path' attribute and nested <template>
-                        path_val = {"path": val["path"]}
+                        path_val = {"path": val.get("@path") or val["path"]}
                         attrs.append(
                             self._format_attribute("path", path_val, self.comp_ids)
                         )
@@ -346,7 +575,13 @@ class _ElementalDecompiler:
                     )
                 else:
                     attrs.append(
-                        self._format_attribute(prop_name, val, self.comp_ids, comp_name)
+                        self._format_attribute(
+                            prop_name,
+                            val,
+                            self.comp_ids,
+                            comp_name,
+                            helper=comp_helper,
+                        )
                     )
 
         attrs_str = " ".join(attrs)
@@ -367,12 +602,27 @@ class _ElementalDecompiler:
         return "\n".join(result)
 
     def _format_attribute(
-        self, name: str, val: Any, comp_ids: set[str], comp_name: str | None = None
+        self,
+        name: str,
+        val: Any,
+        comp_ids: set[str],
+        comp_name: str | None = None,
+        helper: CatalogSchemaHelper | None = None,
     ) -> str:
+        """Formats one attribute.
+
+        Args:
+            name: The property or argument name.
+            val: The value.
+            comp_ids: The component IDs of the surface.
+            comp_name: The component the attribute belongs to, if any.
+            helper: The helper of the component's catalog, used with
+                `comp_name` to name its action properties.
+        """
         kebab_name = re.sub(r"(?<!^)(?=[A-Z])", "-", name).lower()
 
-        if comp_name:
-            action_props = _get_action_properties(self.helper, comp_name)
+        if comp_name and helper:
+            action_props = _get_action_properties(helper, comp_name)
             if name in action_props:
                 if len(action_props) == 1:
                     kebab_name = "onclick"
@@ -381,25 +631,11 @@ class _ElementalDecompiler:
                         kebab_name = f"on-{kebab_name}"
 
         if isinstance(val, str):
-            escaped = html.escape(val, quote=True)
-            return f'{kebab_name}="{escaped}"'
+            return f'{kebab_name}="{_escape_attr(val)}"'
 
-        if isinstance(val, dict):
-            if (
-                "path" in val
-                or "event" in val
-                or "functionCall" in val
-                or "call" in val
-            ):
-                decompiled = self._decompile_value_internal(val, comp_ids)
-                return f'{kebab_name}="{{{decompiled}}}"'
-            else:
-                decompiled = self._decompile_value_internal(val, comp_ids)
-                return f'{kebab_name}="{{{decompiled}}}"'
-
-        if isinstance(val, list):
+        if isinstance(val, (dict, list)):
             decompiled = self._decompile_value_internal(val, comp_ids)
-            return f'{kebab_name}="{{{decompiled}}}"'
+            return f'{kebab_name}="{{{_escape_attr(decompiled)}}}"'
 
         if isinstance(val, bool):
             bool_str = "true" if val else "false"
@@ -411,7 +647,10 @@ class _ElementalDecompiler:
         return f'{kebab_name}="{{{val}}}"'
 
     def _format_checks(
-        self, checks_val: list, C: dict, comp_ids: set[str]
+        self,
+        checks_val: list,
+        C: dict,
+        comp_ids: set[str],
     ) -> str | None:
         if not checks_val:
             return None
@@ -427,10 +666,14 @@ class _ElementalDecompiler:
             else:
                 call_dict = check
 
-            name = call_dict.get("call")
+            name = call_dict.get("@call") or call_dict.get("call")
             args = call_dict.get("args", {})
+            fn_catalog_id = call_dict.get("catalogId")
+            fn_helper = self.helpers[
+                self._actual_catalog_id("function", name, fn_catalog_id)
+            ]
 
-            fn_props = self.helper.get_function_properties(name)
+            fn_props = fn_helper.get_function_properties(name)
             if isinstance(args, dict):
                 refined_args = dict(args)
             else:
@@ -451,19 +694,24 @@ class _ElementalDecompiler:
                 if parent_value and refined_args["value"] == parent_value:
                     del refined_args["value"]
 
-            call_str = self._decompile_function_call(name, refined_args, comp_ids)
+            call_str = self._decompile_function_call(
+                name,
+                refined_args,
+                comp_ids,
+                catalog_id=fn_catalog_id,
+            )
             checks_list.append(call_str)
 
         if not checks_list:
             return None
 
         calls_combined = ", ".join(checks_list)
-        return f'checks="{{[{calls_combined}]}}"'
+        return f'checks="{{[{_escape_attr(calls_combined)}]}}"'
 
     def _decompile_value_internal(self, val: Any, comp_ids: set[str]) -> str:
         if isinstance(val, dict):
-            if "path" in val:
-                path_str = val["path"]
+            if "path" in val or "@path" in val:
+                path_str = str(val.get("@path") or val.get("path", ""))
                 if path_str.startswith("/"):
                     return f"$/{path_str[1:]}"
                 return f"${path_str}"
@@ -482,20 +730,27 @@ class _ElementalDecompiler:
                     ctx_reprs.append(
                         f"{k_repr}: {self._decompile_value_internal(v, comp_ids)}"
                     )
+                name_repr = _decompile_string_in_expr(str(name))
                 if ctx_reprs:
-                    return f"Event('{name}', {{{', '.join(ctx_reprs)}}})"
-                return f"Event('{name}')"
+                    return f"Event({name_repr}, {{{', '.join(ctx_reprs)}}})"
+                return f"Event({name_repr})"
 
             if "functionCall" in val:
                 fn = val["functionCall"]
-                name = fn["call"]
-                args = fn.get("args", {})
-                return self._decompile_function_call(name, args, comp_ids)
+                return self._decompile_function_call(
+                    fn.get("@call") or fn["call"],
+                    fn.get("args", {}),
+                    comp_ids,
+                    catalog_id=fn.get("catalogId"),
+                )
 
-            if "call" in val:
-                name = val["call"]
-                args = val.get("args", {})
-                return self._decompile_function_call(name, args, comp_ids)
+            if "call" in val or "@call" in val:
+                return self._decompile_function_call(
+                    val.get("@call") or val["call"],
+                    val.get("args", {}),
+                    comp_ids,
+                    catalog_id=val.get("catalogId"),
+                )
 
             items_reprs = []
             for k, v in val.items():
@@ -526,8 +781,27 @@ class _ElementalDecompiler:
 
         return str(val)
 
-    def _decompile_function_call(self, name: str, args: Any, comp_ids: set[str]) -> str:
-        fn_props = self.helper.get_function_properties(name)
+    def _decompile_function_call(
+        self,
+        name: str,
+        args: Any,
+        comp_ids: set[str],
+        catalog_id: str | None = None,
+    ) -> str:
+        """Renders a function call expression.
+
+        Args:
+            name: The function name.
+            args: The call's arguments.
+            comp_ids: The component IDs of the surface.
+            catalog_id: The call's own `catalogId`, if it has one.
+
+        The `catalogId` argument is written only when the compiler would not
+        find the call's catalog by its name (see `_catalog_annotation`).
+        """
+        actual = self._actual_catalog_id("function", name, catalog_id)
+        fn_helper = self.helpers[actual]
+        fn_props = fn_helper.get_function_properties(name)
         args_list = []
 
         if isinstance(args, dict):
@@ -546,5 +820,9 @@ class _ElementalDecompiler:
                     args_list.append(f"{fn_props[idx]}: {val_str}")
                 else:
                     args_list.append(f"arg{idx}: {val_str}")
+
+        annotation = self._catalog_annotation("function", name, actual)
+        if annotation:
+            args_list.append(f"catalogId: {_decompile_string_in_expr(annotation)}")
 
         return f"{name}({', '.join(args_list)})"
