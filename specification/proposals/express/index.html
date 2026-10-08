@@ -2577,8 +2577,9 @@
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>path/to/sample.a2ui<span class="w"> </span><span class="se">\</span>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>--surface-id<span class="w"> </span><span class="s2">&quot;dashboard_surface&quot;</span>
 </span></code></pre></div>
+<p><code>--surface-id</code> is the surface used when the DSL has no <code>surface(...)</code> statement.</p>
 <h3 id="json-to-express-decompiler">JSON-to-Express decompiler<a class="headerlink" href="#json-to-express-decompiler" title="Permanent link">&para;</a></h3>
-<p>Convert standard A2UI v1.0 JSON envelopes back into compact A2UI Express code:</p>
+<p>Convert a standard A2UI v1.0 JSON example back into compact A2UI Express code. The script takes the components of the example's first <code>updateComponents</code> message, wraps them in a <code>createSurface</code> for the basic catalog, and prints the resulting <code>surface(...)</code> block:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nv">A2UI_EXPRESS_ENABLED</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>--project<span class="w"> </span>../../../python/a2ui_agent<span class="w"> </span>scripts/run_decompiler.py<span class="w"> </span>../../../catalogs/basic/v1/examples/01_flight-status.json
 </span></code></pre></div>
 <h3 id="regenerate-documentation-examples">Regenerate documentation examples<a class="headerlink" href="#regenerate-documentation-examples" title="Permanent link">&para;</a></h3>

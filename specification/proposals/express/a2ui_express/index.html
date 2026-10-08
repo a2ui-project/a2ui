@@ -1031,6 +1031,19 @@
       
     </span>
 </a>
+<nav aria-label="Variable declarations and component nesting" class="md-nav">
+<ul class="md-nav__list">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#component-ids">
+<span class="md-ellipsis">
+      
+        Component IDs
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="#argument-passing-positional-and-keyword">
@@ -1106,10 +1119,19 @@
 <nav aria-label="Standalone operations and function calls" class="md-nav">
 <ul class="md-nav__list">
 <li class="md-nav__item">
-<a class="md-nav__link" href="#surface-targeting">
+<a class="md-nav__link" href="#creating-or-updating-a-surface">
 <span class="md-ellipsis">
       
-        Surface targeting
+        Creating or updating a surface
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#catalogs">
+<span class="md-ellipsis">
+      
+        Catalogs
       
     </span>
 </a>
@@ -1128,6 +1150,15 @@
 <span class="md-ellipsis">
       
         Executing client-side functions (RPC)
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#v10-binding-keys">
+<span class="md-ellipsis">
+      
+        v1.0 binding keys
       
     </span>
 </a>
@@ -1305,6 +1336,17 @@
 <li>Subsequent characters must be Unicode letters, digits (<code>0-9</code>), or underscores <code>_</code>.</li>
 </ul>
 <p>A2UI Express supports flexible hybrid component nesting: child components can either be defined inline (e.g., <code>Card(child=Text("Hello"))</code>) or assigned to top-level variables and referenced by name (e.g., <code>header = Text("Hello")</code> and <code>root = Card(child=header)</code>).</p>
+<h4 id="component-ids">Component IDs<a class="headerlink" href="#component-ids" title="Permanent link">¶</a></h4>
+<p>By default, a component's Express variable name becomes its A2UI component <code>"id"</code> in the compiled JSON (for example, <code>root = Column([grid])</code> compiles to a component with <code>"id": "root"</code>).</p>
+<p>In the A2UI JSON protocol, a component <code>"id"</code> can be any string (such as <code>"content-grid"</code>, which contains a hyphen <code>-</code>), whereas an Express variable name can only contain letters, digits, and underscores (<code>_</code>) so <code>-</code> is not mistaken for subtraction. To produce an A2UI component <code>"id"</code> that contains characters like hyphens, assign the component to a valid Express variable name (such as <code>grid</code>), reference that variable in parent child lists, and pass the target A2UI ID via the reserved <code>id=</code> keyword argument:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a>root = Column([grid])
+</span><span id="__span-2-2"><a href="#__codelineno-2-2" id="__codelineno-2-2" name="__codelineno-2-2"></a>grid = Row([left, right], id="content-grid")
+</span></code></pre></div>
+<p>Here <code>root</code> compiles with <code>"id": "root"</code> and <code>"children": ["content-grid"]</code>, while <code>grid</code> compiles with <code>"id": "content-grid"</code>. The <code>id=</code> keyword argument works the same way on an inline component, and every catalog accepts it. When the decompiler encounters a component ID like <code>"content-grid"</code>, it derives a valid variable name (<code>content_grid</code>) and emits <code>id="content-grid"</code>.</p>
+<p>When updating an existing surface and referencing a child component ID that was created in an earlier turn (and is not defined in the current block), write the ID as a bare identifier if it is a valid variable name, or as a quoted string if it contains characters like hyphens:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a>surface("dashboard-surface-1")
+</span><span id="__span-3-2"><a href="#__codelineno-3-2" id="__codelineno-3-2" name="__codelineno-3-2"></a>main_column = Column([earlier_header, "earlier-body"])
+</span></code></pre></div>
 <h3 id="argument-passing-positional-and-keyword">Argument passing (positional and keyword)<a class="headerlink" href="#argument-passing-positional-and-keyword" title="Permanent link">¶</a></h3>
 <p>Component constructors support both positional arguments and keyword argument assignments (<code>param=value</code>):</p>
 <ul>
@@ -1326,7 +1368,7 @@
 <h3 id="structural-lists">Structural lists<a class="headerlink" href="#structural-lists" title="Permanent link">¶</a></h3>
 <p>Arrays are represented using square brackets, for example <code>[component1, component2]</code>. The compiler maps these arrays to child container slots in the target catalog components.</p>
 <p>If a component property expects a dynamic list template (such as the <code>children</code> slot of a <code>List</code> component), it uses the compiler-reserved <code>_template(path, templateComponent)</code> helper:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a href="#__codelineno-2-1" id="__codelineno-2-1" name="__codelineno-2-1"></a>breedList = List(_template($/breeds, breedTemplate), "horizontal")
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a href="#__codelineno-4-1" id="__codelineno-4-1" name="__codelineno-4-1"></a>breedList = List(_template($/breeds, breedTemplate), "horizontal")
 </span></code></pre></div>
 <p>The helper starts with an underscore <code>_</code> to clearly distinguish it from components in custom catalogs and prevent naming conflicts.</p>
 <h3 id="data-binding-and-reactive-paths">Data binding and reactive paths<a class="headerlink" href="#data-binding-and-reactive-paths" title="Permanent link">¶</a></h3>
@@ -1337,26 +1379,26 @@
 </ul>
 <h3 id="data-model-population">Data model population<a class="headerlink" href="#data-model-population" title="Permanent link">¶</a></h3>
 <p>To populate or initialize values within the shared data model directly from the generated output, A2UI Express supports data model assignments. A statement with a left-hand side that represents an absolute data path will populate that path in the surface's <code>dataModel</code>:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a href="#__codelineno-3-1" id="__codelineno-3-1" name="__codelineno-3-1"></a>$/path/to/key = value_expression
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a href="#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a>$/path/to/key = value_expression
 </span></code></pre></div>
 <p>Where <code>value_expression</code> is any valid literal primitive, array, or map. For example:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a href="#__codelineno-4-1" id="__codelineno-4-1" name="__codelineno-4-1"></a>$/icon = "check"
-</span><span id="__span-4-2"><a href="#__codelineno-4-2" id="__codelineno-4-2" name="__codelineno-4-2"></a>$/title = "Enable notification"
-</span><span id="__span-4-3"><a href="#__codelineno-4-3" id="__codelineno-4-3" name="__codelineno-4-3"></a>$/user = {firstName: "Alice", age: 30}
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a href="#__codelineno-6-1" id="__codelineno-6-1" name="__codelineno-6-1"></a>$/icon = "check"
+</span><span id="__span-6-2"><a href="#__codelineno-6-2" id="__codelineno-6-2" name="__codelineno-6-2"></a>$/title = "Enable notification"
+</span><span id="__span-6-3"><a href="#__codelineno-6-3" id="__codelineno-6-3" name="__codelineno-6-3"></a>$/user = {firstName: "Alice", age: 30}
 </span></code></pre></div>
 <p>The compiler resolves these statements and generates the structured <code>dataModel</code> JSON object at the root of the <code>createSurface</code> payload.</p>
 <p>If an A2UI Express block contains only data path assignments and omits the reserved <code>root</code> component variable entirely, the compiler produces a standalone <code>updateDataModel</code> protocol message instead of a <code>createSurface</code> layout payload:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-5-1"><a href="#__codelineno-5-1" id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="p">{</span>
-</span><span id="__span-5-2"><a href="#__codelineno-5-2" id="__codelineno-5-2" name="__codelineno-5-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"v1.0"</span><span class="p">,</span>
-</span><span id="__span-5-3"><a href="#__codelineno-5-3" id="__codelineno-5-3" name="__codelineno-5-3"></a><span class="w">  </span><span class="nt">"updateDataModel"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-4"><a href="#__codelineno-5-4" id="__codelineno-5-4" name="__codelineno-5-4"></a><span class="w">    </span><span class="nt">"surfaceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"default_surface"</span><span class="p">,</span>
-</span><span id="__span-5-5"><a href="#__codelineno-5-5" id="__codelineno-5-5" name="__codelineno-5-5"></a><span class="w">    </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/"</span><span class="p">,</span>
-</span><span id="__span-5-6"><a href="#__codelineno-5-6" id="__codelineno-5-6" name="__codelineno-5-6"></a><span class="w">    </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-7"><a href="#__codelineno-5-7" id="__codelineno-5-7" name="__codelineno-5-7"></a><span class="w">      </span><span class="nt">"icon"</span><span class="p">:</span><span class="w"> </span><span class="s2">"check"</span><span class="p">,</span>
-</span><span id="__span-5-8"><a href="#__codelineno-5-8" id="__codelineno-5-8" name="__codelineno-5-8"></a><span class="w">      </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Enable notification"</span>
-</span><span id="__span-5-9"><a href="#__codelineno-5-9" id="__codelineno-5-9" name="__codelineno-5-9"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-5-10"><a href="#__codelineno-5-10" id="__codelineno-5-10" name="__codelineno-5-10"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-5-11"><a href="#__codelineno-5-11" id="__codelineno-5-11" name="__codelineno-5-11"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-7-1"><a href="#__codelineno-7-1" id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="p">{</span>
+</span><span id="__span-7-2"><a href="#__codelineno-7-2" id="__codelineno-7-2" name="__codelineno-7-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"v1.0"</span><span class="p">,</span>
+</span><span id="__span-7-3"><a href="#__codelineno-7-3" id="__codelineno-7-3" name="__codelineno-7-3"></a><span class="w">  </span><span class="nt">"updateDataModel"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-7-4"><a href="#__codelineno-7-4" id="__codelineno-7-4" name="__codelineno-7-4"></a><span class="w">    </span><span class="nt">"surfaceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"default_surface"</span><span class="p">,</span>
+</span><span id="__span-7-5"><a href="#__codelineno-7-5" id="__codelineno-7-5" name="__codelineno-7-5"></a><span class="w">    </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/"</span><span class="p">,</span>
+</span><span id="__span-7-6"><a href="#__codelineno-7-6" id="__codelineno-7-6" name="__codelineno-7-6"></a><span class="w">    </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-7-7"><a href="#__codelineno-7-7" id="__codelineno-7-7" name="__codelineno-7-7"></a><span class="w">      </span><span class="nt">"icon"</span><span class="p">:</span><span class="w"> </span><span class="s2">"check"</span><span class="p">,</span>
+</span><span id="__span-7-8"><a href="#__codelineno-7-8" id="__codelineno-7-8" name="__codelineno-7-8"></a><span class="w">      </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Enable notification"</span>
+</span><span id="__span-7-9"><a href="#__codelineno-7-9" id="__codelineno-7-9" name="__codelineno-7-9"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-7-10"><a href="#__codelineno-7-10" id="__codelineno-7-10" name="__codelineno-7-10"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-7-11"><a href="#__codelineno-7-11" id="__codelineno-7-11" name="__codelineno-7-11"></a><span class="p">}</span>
 </span></code></pre></div>
 <h3 id="nested-function-calls-and-actions">Nested function calls and actions<a class="headerlink" href="#nested-function-calls-and-actions" title="Permanent link">¶</a></h3>
 <p>To support catalog flexibility and avoid hardcoding specific formatting or action helpers, A2UI Express uses standard nested function call syntax.</p>
@@ -1375,41 +1417,57 @@
 </ul>
 <h3 id="standalone-operations-and-function-calls">Standalone operations and function calls<a class="headerlink" href="#standalone-operations-and-function-calls" title="Permanent link">¶</a></h3>
 <p>To execute standalone lifecycle operations or invoke client-side functions directly from the server, A2UI Express supports standalone function call lines without variable assignments:</p>
-<h4 id="surface-targeting">Surface targeting<a class="headerlink" href="#surface-targeting" title="Permanent link">¶</a></h4>
-<p>To specify or target a user interface surface, output <code>surface(surfaceId)</code> or <code>surface(surfaceId, catalogId)</code> before component variable definitions:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a href="#__codelineno-6-1" id="__codelineno-6-1" name="__codelineno-6-1"></a>surface("dashboard-surface-1")
+<h4 id="creating-or-updating-a-surface">Creating or updating a surface<a class="headerlink" href="#creating-or-updating-a-surface" title="Permanent link">¶</a></h4>
+<p>To create or target a user interface surface, output <code>surface(surfaceId)</code> before component variable definitions:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a href="#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a>surface("dashboard-surface-1")
+</span><span id="__span-8-2"><a href="#__codelineno-8-2" id="__codelineno-8-2" name="__codelineno-8-2"></a>root = Card(...)
 </span></code></pre></div>
-<p>The compiler automatically emits <code>createSurface</code> or <code>updateComponents</code> protocol envelopes depending on whether the surface is being instantiated or updated in the active session. If <code>surface()</code> is omitted, the compiler falls back to the default surface identifier (<code>"default_surface"</code>).</p>
+<p>The optional <code>sendDataModel=true</code> keyword argument (<code>surface("dashboard-surface-1", sendDataModel=true)</code>) sets the <code>sendDataModel</code> flag of the <code>createSurface</code> message. To update components (including <code>root</code>) on an existing surface rather than creating a new surface, pass <code>update=true</code>: <code>surface("dashboard-surface-1", update=true)</code>.</p>
+<p>The statements after <code>surface(...)</code>, up to the next surface statement, form one scope. By default, a scope that defines <code>root</code> compiles to a <code>createSurface</code> message (or for v0.9 and v0.9.1 targets, a bare <code>createSurface</code> followed by <code>updateComponents</code> and <code>updateDataModel</code>), while a scope that defines components without <code>root</code> compiles to an <code>updateComponents</code> message (plus <code>updateDataModel</code> if data paths are assigned). Specifying <code>update=true</code> compiles the scope to an <code>updateComponents</code> message even if <code>root</code> is defined, allowing updates to the root container of an existing surface. If <code>surface()</code> is omitted, the compiler uses the surface ID passed to it (<code>"default_surface"</code> by default). A scope that only assigns data paths compiles to an <code>updateDataModel</code> message.</p>
+<h4 id="catalogs">Catalogs<a class="headerlink" href="#catalogs" title="Permanent link">¶</a></h4>
+<p>With a single catalog, <code>createSurface</code> carries that catalog's <code>catalogId</code> (and <code>surface(surfaceId, catalogId)</code> is optional). With multiple catalogs (supported in v1.0 and newer), <code>createSurface</code> omits <code>catalogId</code>, naming a catalog on <code>surface(...)</code> is an error, and every compiled component and function call carries its own <code>catalogId</code>.</p>
+<p>A component or function call written without a <code>catalogId</code> resolves by name across the active catalogs when exactly one catalog defines it, and requires an explicit <code>catalogId</code> override when multiple catalogs define that name. From v1.0, a component or function call can specify its catalog with a <code>catalogId</code> keyword argument, and a check takes a <code>{catalogId: ...}</code> map argument:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a href="#__codelineno-9-1" id="__codelineno-9-1" name="__codelineno-9-1"></a>widget = Chart($/sales, catalogId="https://example.com/charts.json")
+</span><span id="__span-9-2"><a href="#__codelineno-9-2" id="__codelineno-9-2" name="__codelineno-9-2"></a>action = shareLink($/url, catalogId="https://example.com/sharing.json")
+</span><span id="__span-9-3"><a href="#__codelineno-9-3" id="__codelineno-9-3" name="__codelineno-9-3"></a>field = TextField("Zip", $/zip, checks=[?zipCode({catalogId: "https://example.com/checks.json"})])
+</span></code></pre></div>
+<p>The decompiler writes a <code>catalogId</code> only when the component or function name is defined in more than one active catalog (or differs from the single registered catalog). The v0.9 and v0.9.1 schemas allow <code>catalogId</code> only on <code>createSurface</code>, so for those targets the compiler rejects multiple catalogs and per-component or per-function <code>catalogId</code> overrides.</p>
+<blockquote>
+<p><strong>Note:</strong> The multi-catalog behavior described above is implemented in the Python SDK only for now. TypeScript and Dart Express compilers currently fall back to the first catalog for surfaces and do not tag components; see the TypeScript (<code>typescript/a2ui_agent/tests/conformance/KNOWN_FAILURES.md</code>) and Dart (<code>dart/a2ui_agent/test/conformance/conformance_test.dart</code>) known-gaps entries for current conformance status and tracking.</p>
+</blockquote>
 <h4 id="deleting-a-surface">Deleting a surface<a class="headerlink" href="#deleting-a-surface" title="Permanent link">¶</a></h4>
 <p>When the compiler encounters the standalone <code>deleteSurface</code> command, it produces a standard <code>deleteSurface</code> lifecycle message:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a href="#__codelineno-7-1" id="__codelineno-7-1" name="__codelineno-7-1"></a>deleteSurface("dashboard-surface-1")
+<div class="language-text highlight"><pre><span></span><code><span id="__span-10-1"><a href="#__codelineno-10-1" id="__codelineno-10-1" name="__codelineno-10-1"></a>deleteSurface("dashboard-surface-1")
 </span></code></pre></div>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-8-1"><a href="#__codelineno-8-1" id="__codelineno-8-1" name="__codelineno-8-1"></a><span class="p">{</span>
-</span><span id="__span-8-2"><a href="#__codelineno-8-2" id="__codelineno-8-2" name="__codelineno-8-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"v1.0"</span><span class="p">,</span>
-</span><span id="__span-8-3"><a href="#__codelineno-8-3" id="__codelineno-8-3" name="__codelineno-8-3"></a><span class="w">  </span><span class="nt">"deleteSurface"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-8-4"><a href="#__codelineno-8-4" id="__codelineno-8-4" name="__codelineno-8-4"></a><span class="w">    </span><span class="nt">"surfaceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dashboard-surface-1"</span>
-</span><span id="__span-8-5"><a href="#__codelineno-8-5" id="__codelineno-8-5" name="__codelineno-8-5"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-8-6"><a href="#__codelineno-8-6" id="__codelineno-8-6" name="__codelineno-8-6"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-11-1"><a href="#__codelineno-11-1" id="__codelineno-11-1" name="__codelineno-11-1"></a><span class="p">{</span>
+</span><span id="__span-11-2"><a href="#__codelineno-11-2" id="__codelineno-11-2" name="__codelineno-11-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"v1.0"</span><span class="p">,</span>
+</span><span id="__span-11-3"><a href="#__codelineno-11-3" id="__codelineno-11-3" name="__codelineno-11-3"></a><span class="w">  </span><span class="nt">"deleteSurface"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-11-4"><a href="#__codelineno-11-4" id="__codelineno-11-4" name="__codelineno-11-4"></a><span class="w">    </span><span class="nt">"surfaceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"dashboard-surface-1"</span>
+</span><span id="__span-11-5"><a href="#__codelineno-11-5" id="__codelineno-11-5" name="__codelineno-11-5"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-11-6"><a href="#__codelineno-11-6" id="__codelineno-11-6" name="__codelineno-11-6"></a><span class="p">}</span>
 </span></code></pre></div>
 <h4 id="executing-client-side-functions-rpc">Executing client-side functions (RPC)<a class="headerlink" href="#executing-client-side-functions-rpc" title="Permanent link">¶</a></h4>
-<p>When the compiler encounters any other standalone function call, it resolves the arguments against catalog definitions and produces a <code>callRendererFunction</code> message with an auto-generated <code>functionCallId</code>:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a href="#__codelineno-9-1" id="__codelineno-9-1" name="__codelineno-9-1"></a>openUrl("https://example.com")
+<p>When the compiler encounters any other standalone function call, it resolves the arguments against catalog definitions and produces a <code>callRendererFunction</code> message with an auto-generated <code>functionCallId</code>. The call resolves its catalog from an explicit <code>catalogId</code> keyword argument, or else by function name across the active catalogs:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-12-1"><a href="#__codelineno-12-1" id="__codelineno-12-1" name="__codelineno-12-1"></a>openUrl("https://example.com")
 </span></code></pre></div>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-10-1"><a href="#__codelineno-10-1" id="__codelineno-10-1" name="__codelineno-10-1"></a><span class="p">{</span>
-</span><span id="__span-10-2"><a href="#__codelineno-10-2" id="__codelineno-10-2" name="__codelineno-10-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"v1.0"</span><span class="p">,</span>
-</span><span id="__span-10-3"><a href="#__codelineno-10-3" id="__codelineno-10-3" name="__codelineno-10-3"></a><span class="w">  </span><span class="nt">"callRendererFunction"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-10-4"><a href="#__codelineno-10-4" id="__codelineno-10-4" name="__codelineno-10-4"></a><span class="w">    </span><span class="nt">"functionCallId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"call_1"</span><span class="p">,</span>
-</span><span id="__span-10-5"><a href="#__codelineno-10-5" id="__codelineno-10-5" name="__codelineno-10-5"></a><span class="w">    </span><span class="nt">"callFunction"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-10-6"><a href="#__codelineno-10-6" id="__codelineno-10-6" name="__codelineno-10-6"></a><span class="w">      </span><span class="nt">"catalogId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://a2ui.org/catalog.json"</span><span class="p">,</span>
-</span><span id="__span-10-7"><a href="#__codelineno-10-7" id="__codelineno-10-7" name="__codelineno-10-7"></a><span class="w">      </span><span class="nt">"call"</span><span class="p">:</span><span class="w"> </span><span class="s2">"openUrl"</span><span class="p">,</span>
-</span><span id="__span-10-8"><a href="#__codelineno-10-8" id="__codelineno-10-8" name="__codelineno-10-8"></a><span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-10-9"><a href="#__codelineno-10-9" id="__codelineno-10-9" name="__codelineno-10-9"></a><span class="w">        </span><span class="nt">"url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://example.com"</span>
-</span><span id="__span-10-10"><a href="#__codelineno-10-10" id="__codelineno-10-10" name="__codelineno-10-10"></a><span class="w">      </span><span class="p">}</span>
-</span><span id="__span-10-11"><a href="#__codelineno-10-11" id="__codelineno-10-11" name="__codelineno-10-11"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-10-12"><a href="#__codelineno-10-12" id="__codelineno-10-12" name="__codelineno-10-12"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-10-13"><a href="#__codelineno-10-13" id="__codelineno-10-13" name="__codelineno-10-13"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-13-1"><a href="#__codelineno-13-1" id="__codelineno-13-1" name="__codelineno-13-1"></a><span class="p">{</span>
+</span><span id="__span-13-2"><a href="#__codelineno-13-2" id="__codelineno-13-2" name="__codelineno-13-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"v1.0"</span><span class="p">,</span>
+</span><span id="__span-13-3"><a href="#__codelineno-13-3" id="__codelineno-13-3" name="__codelineno-13-3"></a><span class="w">  </span><span class="nt">"callRendererFunction"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-13-4"><a href="#__codelineno-13-4" id="__codelineno-13-4" name="__codelineno-13-4"></a><span class="w">    </span><span class="nt">"functionCallId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"call_1"</span><span class="p">,</span>
+</span><span id="__span-13-5"><a href="#__codelineno-13-5" id="__codelineno-13-5" name="__codelineno-13-5"></a><span class="w">    </span><span class="nt">"callFunction"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-13-6"><a href="#__codelineno-13-6" id="__codelineno-13-6" name="__codelineno-13-6"></a><span class="w">      </span><span class="nt">"@call"</span><span class="p">:</span><span class="w"> </span><span class="s2">"openUrl"</span><span class="p">,</span>
+</span><span id="__span-13-7"><a href="#__codelineno-13-7" id="__codelineno-13-7" name="__codelineno-13-7"></a><span class="w">      </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-13-8"><a href="#__codelineno-13-8" id="__codelineno-13-8" name="__codelineno-13-8"></a><span class="w">        </span><span class="nt">"url"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://example.com"</span>
+</span><span id="__span-13-9"><a href="#__codelineno-13-9" id="__codelineno-13-9" name="__codelineno-13-9"></a><span class="w">      </span><span class="p">},</span>
+</span><span id="__span-13-10"><a href="#__codelineno-13-10" id="__codelineno-13-10" name="__codelineno-13-10"></a><span class="w">      </span><span class="nt">"catalogId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"</span>
+</span><span id="__span-13-11"><a href="#__codelineno-13-11" id="__codelineno-13-11" name="__codelineno-13-11"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-13-12"><a href="#__codelineno-13-12" id="__codelineno-13-12" name="__codelineno-13-12"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-13-13"><a href="#__codelineno-13-13" id="__codelineno-13-13" name="__codelineno-13-13"></a><span class="p">}</span>
 </span></code></pre></div>
-<p>The <code>functionCallId</code> and the <code>callFunction</code> both sit inside <code>callRendererFunction</code>, and <code>catalogId</code> is required on the call. See <code>CallRendererFunctionMessage</code> in <code>specification/v1_0/json/agent_to_renderer.json</code> for the normative definition.</p>
+<p>The n-th standalone call of a block gets the <code>functionCallId</code> <code>call_&lt;n&gt;</code>. To set another ID, pass the reserved <code>functionCallId</code> keyword argument, which every catalog accepts: <code>openUrl("https://example.com", functionCallId="open-docs")</code>. The decompiler writes the argument only when the ID differs from the one the compiler would generate.</p>
+<p>The <code>functionCallId</code> and the <code>callFunction</code> both sit inside <code>callRendererFunction</code>, and <code>catalogId</code> is required on the call. See <code>CallRendererFunctionMessage</code> in <code>specification/v1_0/json/agent_to_renderer.json</code> for the normative definition. <code>callRendererFunction</code> exists only in v1.0, so the compiler rejects a standalone function call for v0.9 and v0.9.1 targets.</p>
+<h4 id="v10-binding-keys">v1.0 binding keys<a class="headerlink" href="#v10-binding-keys" title="Permanent link">¶</a></h4>
+<p>For v1.0 targets, the compiler writes data bindings as <code>{"@path": ...}</code> and function calls as <code>{"@call": ..., "args": ...}</code>, the reserved keys of the v1.0 common types. For v0.9 and v0.9.1 targets, it writes <code>path</code> and <code>call</code>.</p>
 <h2 id="compilation-pipeline">Compilation pipeline<a class="headerlink" href="#compilation-pipeline" title="Permanent link">¶</a></h2>
 <p>The compilation runs as part of the inference pipeline. It takes the plain text stream of A2UI Express, processes it, and emits a standard A2UI v1.0 JSON payload to send to the client.</p>
 <pre class="mermaid"><code>flowchart TD
@@ -1447,120 +1505,120 @@
 </ol>
 <h3 id="protocol-envelope-construction">Protocol envelope construction<a class="headerlink" href="#protocol-envelope-construction" title="Permanent link">¶</a></h3>
 <p>The compiled component list and any extracted default data models are wrapped in a standard A2UI message envelope:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-11-1"><a href="#__codelineno-11-1" id="__codelineno-11-1" name="__codelineno-11-1"></a><span class="p">{</span>
-</span><span id="__span-11-2"><a href="#__codelineno-11-2" id="__codelineno-11-2" name="__codelineno-11-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"v1.0"</span><span class="p">,</span>
-</span><span id="__span-11-3"><a href="#__codelineno-11-3" id="__codelineno-11-3" name="__codelineno-11-3"></a><span class="w">  </span><span class="nt">"createSurface"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-11-4"><a href="#__codelineno-11-4" id="__codelineno-11-4" name="__codelineno-11-4"></a><span class="w">    </span><span class="nt">"surfaceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"surface_id"</span><span class="p">,</span>
-</span><span id="__span-11-5"><a href="#__codelineno-11-5" id="__codelineno-11-5" name="__codelineno-11-5"></a><span class="w">    </span><span class="nt">"catalogId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"catalog_identifier"</span><span class="p">,</span>
-</span><span id="__span-11-6"><a href="#__codelineno-11-6" id="__codelineno-11-6" name="__codelineno-11-6"></a><span class="w">    </span><span class="nt">"components"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
-</span><span id="__span-11-7"><a href="#__codelineno-11-7" id="__codelineno-11-7" name="__codelineno-11-7"></a><span class="w">    </span><span class="nt">"dataModel"</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
-</span><span id="__span-11-8"><a href="#__codelineno-11-8" id="__codelineno-11-8" name="__codelineno-11-8"></a><span class="w">    </span><span class="nt">"surfaceParams"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
-</span><span id="__span-11-9"><a href="#__codelineno-11-9" id="__codelineno-11-9" name="__codelineno-11-9"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-11-10"><a href="#__codelineno-11-10" id="__codelineno-11-10" name="__codelineno-11-10"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-14-1"><a href="#__codelineno-14-1" id="__codelineno-14-1" name="__codelineno-14-1"></a><span class="p">{</span>
+</span><span id="__span-14-2"><a href="#__codelineno-14-2" id="__codelineno-14-2" name="__codelineno-14-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"v1.0"</span><span class="p">,</span>
+</span><span id="__span-14-3"><a href="#__codelineno-14-3" id="__codelineno-14-3" name="__codelineno-14-3"></a><span class="w">  </span><span class="nt">"createSurface"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-14-4"><a href="#__codelineno-14-4" id="__codelineno-14-4" name="__codelineno-14-4"></a><span class="w">    </span><span class="nt">"surfaceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"surface_id"</span><span class="p">,</span>
+</span><span id="__span-14-5"><a href="#__codelineno-14-5" id="__codelineno-14-5" name="__codelineno-14-5"></a><span class="w">    </span><span class="nt">"catalogId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"catalog_identifier"</span><span class="p">,</span>
+</span><span id="__span-14-6"><a href="#__codelineno-14-6" id="__codelineno-14-6" name="__codelineno-14-6"></a><span class="w">    </span><span class="nt">"components"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+</span><span id="__span-14-7"><a href="#__codelineno-14-7" id="__codelineno-14-7" name="__codelineno-14-7"></a><span class="w">    </span><span class="nt">"dataModel"</span><span class="p">:</span><span class="w"> </span><span class="p">{},</span>
+</span><span id="__span-14-8"><a href="#__codelineno-14-8" id="__codelineno-14-8" name="__codelineno-14-8"></a><span class="w">    </span><span class="nt">"surfaceParams"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
+</span><span id="__span-14-9"><a href="#__codelineno-14-9" id="__codelineno-14-9" name="__codelineno-14-9"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-14-10"><a href="#__codelineno-14-10" id="__codelineno-14-10" name="__codelineno-14-10"></a><span class="p">}</span>
 </span></code></pre></div>
 <h2 id="compilation-example">Compilation example<a class="headerlink" href="#compilation-example" title="Permanent link">¶</a></h2>
 <p>This section shows an input text stream in A2UI Express and the compiled A2UI v1.0 JSON payload.</p>
 <h3 id="input-text-stream">Input text stream<a class="headerlink" href="#input-text-stream" title="Permanent link">¶</a></h3>
 <p>The input file defines a notification permission card, using positional arguments and absolute data paths enclosed within the <code>&lt;a2ui&gt;</code> and <code>&lt;/a2ui&gt;</code> sentinel tags:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-12-1"><a href="#__codelineno-12-1" id="__codelineno-12-1" name="__codelineno-12-1"></a>&lt;a2ui&gt;
-</span><span id="__span-12-2"><a href="#__codelineno-12-2" id="__codelineno-12-2" name="__codelineno-12-2"></a>root = Card(main_column)
-</span><span id="__span-12-3"><a href="#__codelineno-12-3" id="__codelineno-12-3" name="__codelineno-12-3"></a>main_column = Column([icon, title, description, actions], _, "center")
-</span><span id="__span-12-4"><a href="#__codelineno-12-4" id="__codelineno-12-4" name="__codelineno-12-4"></a>icon = Icon($/icon)
-</span><span id="__span-12-5"><a href="#__codelineno-12-5" id="__codelineno-12-5" name="__codelineno-12-5"></a>title = Text($/title, "h3")
-</span><span id="__span-12-6"><a href="#__codelineno-12-6" id="__codelineno-12-6" name="__codelineno-12-6"></a>description = Text($/description, "body")
-</span><span id="__span-12-7"><a href="#__codelineno-12-7" id="__codelineno-12-7" name="__codelineno-12-7"></a>actions = Row([yes_btn, no_btn], "center")
-</span><span id="__span-12-8"><a href="#__codelineno-12-8" id="__codelineno-12-8" name="__codelineno-12-8"></a>yes_btn_text = Text("Yes")
-</span><span id="__span-12-9"><a href="#__codelineno-12-9" id="__codelineno-12-9" name="__codelineno-12-9"></a>yes_btn = Button(yes_btn_text, _, Event("accept"))
-</span><span id="__span-12-10"><a href="#__codelineno-12-10" id="__codelineno-12-10" name="__codelineno-12-10"></a>no_btn_text = Text("No")
-</span><span id="__span-12-11"><a href="#__codelineno-12-11" id="__codelineno-12-11" name="__codelineno-12-11"></a>no_btn = Button(no_btn_text, _, Event("decline"))
-</span><span id="__span-12-12"><a href="#__codelineno-12-12" id="__codelineno-12-12" name="__codelineno-12-12"></a>&lt;/a2ui&gt;
+<div class="language-text highlight"><pre><span></span><code><span id="__span-15-1"><a href="#__codelineno-15-1" id="__codelineno-15-1" name="__codelineno-15-1"></a>&lt;a2ui&gt;
+</span><span id="__span-15-2"><a href="#__codelineno-15-2" id="__codelineno-15-2" name="__codelineno-15-2"></a>root = Card(main_column)
+</span><span id="__span-15-3"><a href="#__codelineno-15-3" id="__codelineno-15-3" name="__codelineno-15-3"></a>main_column = Column([icon, title, description, actions], _, "center")
+</span><span id="__span-15-4"><a href="#__codelineno-15-4" id="__codelineno-15-4" name="__codelineno-15-4"></a>icon = Icon($/icon)
+</span><span id="__span-15-5"><a href="#__codelineno-15-5" id="__codelineno-15-5" name="__codelineno-15-5"></a>title = Text($/title, "h3")
+</span><span id="__span-15-6"><a href="#__codelineno-15-6" id="__codelineno-15-6" name="__codelineno-15-6"></a>description = Text($/description, "body")
+</span><span id="__span-15-7"><a href="#__codelineno-15-7" id="__codelineno-15-7" name="__codelineno-15-7"></a>actions = Row([yes_btn, no_btn], "center")
+</span><span id="__span-15-8"><a href="#__codelineno-15-8" id="__codelineno-15-8" name="__codelineno-15-8"></a>yes_btn_text = Text("Yes")
+</span><span id="__span-15-9"><a href="#__codelineno-15-9" id="__codelineno-15-9" name="__codelineno-15-9"></a>yes_btn = Button(yes_btn_text, _, Event("accept"))
+</span><span id="__span-15-10"><a href="#__codelineno-15-10" id="__codelineno-15-10" name="__codelineno-15-10"></a>no_btn_text = Text("No")
+</span><span id="__span-15-11"><a href="#__codelineno-15-11" id="__codelineno-15-11" name="__codelineno-15-11"></a>no_btn = Button(no_btn_text, _, Event("decline"))
+</span><span id="__span-15-12"><a href="#__codelineno-15-12" id="__codelineno-15-12" name="__codelineno-15-12"></a>&lt;/a2ui&gt;
 </span></code></pre></div>
 <h3 id="compiled-a2ui-json-output">Compiled A2UI JSON output<a class="headerlink" href="#compiled-a2ui-json-output" title="Permanent link">¶</a></h3>
 <p>The compiler parses the text stream, resolves the parent-child references, maps positional arguments to the catalog schema, and produces the following flat component layout inside the <code>createSurface</code> message:</p>
-<div class="language-json highlight"><pre><span></span><code><span id="__span-13-1"><a href="#__codelineno-13-1" id="__codelineno-13-1" name="__codelineno-13-1"></a><span class="p">{</span>
-</span><span id="__span-13-2"><a href="#__codelineno-13-2" id="__codelineno-13-2" name="__codelineno-13-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"v1.0"</span><span class="p">,</span>
-</span><span id="__span-13-3"><a href="#__codelineno-13-3" id="__codelineno-13-3" name="__codelineno-13-3"></a><span class="w">  </span><span class="nt">"createSurface"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-13-4"><a href="#__codelineno-13-4" id="__codelineno-13-4" name="__codelineno-13-4"></a><span class="w">    </span><span class="nt">"surfaceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"gallery-notification-permission"</span><span class="p">,</span>
-</span><span id="__span-13-5"><a href="#__codelineno-13-5" id="__codelineno-13-5" name="__codelineno-13-5"></a><span class="w">    </span><span class="nt">"catalogId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"</span><span class="p">,</span>
-</span><span id="__span-13-6"><a href="#__codelineno-13-6" id="__codelineno-13-6" name="__codelineno-13-6"></a><span class="w">    </span><span class="nt">"components"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-</span><span id="__span-13-7"><a href="#__codelineno-13-7" id="__codelineno-13-7" name="__codelineno-13-7"></a><span class="w">      </span><span class="p">{</span>
-</span><span id="__span-13-8"><a href="#__codelineno-13-8" id="__codelineno-13-8" name="__codelineno-13-8"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"root"</span><span class="p">,</span>
-</span><span id="__span-13-9"><a href="#__codelineno-13-9" id="__codelineno-13-9" name="__codelineno-13-9"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Card"</span><span class="p">,</span>
-</span><span id="__span-13-10"><a href="#__codelineno-13-10" id="__codelineno-13-10" name="__codelineno-13-10"></a><span class="w">        </span><span class="nt">"child"</span><span class="p">:</span><span class="w"> </span><span class="s2">"main_column"</span>
-</span><span id="__span-13-11"><a href="#__codelineno-13-11" id="__codelineno-13-11" name="__codelineno-13-11"></a><span class="w">      </span><span class="p">},</span>
-</span><span id="__span-13-12"><a href="#__codelineno-13-12" id="__codelineno-13-12" name="__codelineno-13-12"></a><span class="w">      </span><span class="p">{</span>
-</span><span id="__span-13-13"><a href="#__codelineno-13-13" id="__codelineno-13-13" name="__codelineno-13-13"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"main_column"</span><span class="p">,</span>
-</span><span id="__span-13-14"><a href="#__codelineno-13-14" id="__codelineno-13-14" name="__codelineno-13-14"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Column"</span><span class="p">,</span>
-</span><span id="__span-13-15"><a href="#__codelineno-13-15" id="__codelineno-13-15" name="__codelineno-13-15"></a><span class="w">        </span><span class="nt">"children"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"icon"</span><span class="p">,</span><span class="w"> </span><span class="s2">"title"</span><span class="p">,</span><span class="w"> </span><span class="s2">"description"</span><span class="p">,</span><span class="w"> </span><span class="s2">"actions"</span><span class="p">],</span>
-</span><span id="__span-13-16"><a href="#__codelineno-13-16" id="__codelineno-13-16" name="__codelineno-13-16"></a><span class="w">        </span><span class="nt">"justify"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-</span><span id="__span-13-17"><a href="#__codelineno-13-17" id="__codelineno-13-17" name="__codelineno-13-17"></a><span class="w">        </span><span class="nt">"align"</span><span class="p">:</span><span class="w"> </span><span class="s2">"center"</span>
-</span><span id="__span-13-18"><a href="#__codelineno-13-18" id="__codelineno-13-18" name="__codelineno-13-18"></a><span class="w">      </span><span class="p">},</span>
-</span><span id="__span-13-19"><a href="#__codelineno-13-19" id="__codelineno-13-19" name="__codelineno-13-19"></a><span class="w">      </span><span class="p">{</span>
-</span><span id="__span-13-20"><a href="#__codelineno-13-20" id="__codelineno-13-20" name="__codelineno-13-20"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"icon"</span><span class="p">,</span>
-</span><span id="__span-13-21"><a href="#__codelineno-13-21" id="__codelineno-13-21" name="__codelineno-13-21"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Icon"</span><span class="p">,</span>
-</span><span id="__span-13-22"><a href="#__codelineno-13-22" id="__codelineno-13-22" name="__codelineno-13-22"></a><span class="w">        </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-13-23"><a href="#__codelineno-13-23" id="__codelineno-13-23" name="__codelineno-13-23"></a><span class="w">          </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/icon"</span>
-</span><span id="__span-13-24"><a href="#__codelineno-13-24" id="__codelineno-13-24" name="__codelineno-13-24"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-13-25"><a href="#__codelineno-13-25" id="__codelineno-13-25" name="__codelineno-13-25"></a><span class="w">      </span><span class="p">},</span>
-</span><span id="__span-13-26"><a href="#__codelineno-13-26" id="__codelineno-13-26" name="__codelineno-13-26"></a><span class="w">      </span><span class="p">{</span>
-</span><span id="__span-13-27"><a href="#__codelineno-13-27" id="__codelineno-13-27" name="__codelineno-13-27"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"title"</span><span class="p">,</span>
-</span><span id="__span-13-28"><a href="#__codelineno-13-28" id="__codelineno-13-28" name="__codelineno-13-28"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Text"</span><span class="p">,</span>
-</span><span id="__span-13-29"><a href="#__codelineno-13-29" id="__codelineno-13-29" name="__codelineno-13-29"></a><span class="w">        </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-13-30"><a href="#__codelineno-13-30" id="__codelineno-13-30" name="__codelineno-13-30"></a><span class="w">          </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/title"</span>
-</span><span id="__span-13-31"><a href="#__codelineno-13-31" id="__codelineno-13-31" name="__codelineno-13-31"></a><span class="w">        </span><span class="p">},</span>
-</span><span id="__span-13-32"><a href="#__codelineno-13-32" id="__codelineno-13-32" name="__codelineno-13-32"></a><span class="w">        </span><span class="nt">"variant"</span><span class="p">:</span><span class="w"> </span><span class="s2">"h3"</span>
-</span><span id="__span-13-33"><a href="#__codelineno-13-33" id="__codelineno-13-33" name="__codelineno-13-33"></a><span class="w">      </span><span class="p">},</span>
-</span><span id="__span-13-34"><a href="#__codelineno-13-34" id="__codelineno-13-34" name="__codelineno-13-34"></a><span class="w">      </span><span class="p">{</span>
-</span><span id="__span-13-35"><a href="#__codelineno-13-35" id="__codelineno-13-35" name="__codelineno-13-35"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"description"</span><span class="p">,</span>
-</span><span id="__span-13-36"><a href="#__codelineno-13-36" id="__codelineno-13-36" name="__codelineno-13-36"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Text"</span><span class="p">,</span>
-</span><span id="__span-13-37"><a href="#__codelineno-13-37" id="__codelineno-13-37" name="__codelineno-13-37"></a><span class="w">        </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-13-38"><a href="#__codelineno-13-38" id="__codelineno-13-38" name="__codelineno-13-38"></a><span class="w">          </span><span class="nt">"path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/description"</span>
-</span><span id="__span-13-39"><a href="#__codelineno-13-39" id="__codelineno-13-39" name="__codelineno-13-39"></a><span class="w">        </span><span class="p">},</span>
-</span><span id="__span-13-40"><a href="#__codelineno-13-40" id="__codelineno-13-40" name="__codelineno-13-40"></a><span class="w">        </span><span class="nt">"variant"</span><span class="p">:</span><span class="w"> </span><span class="s2">"body"</span>
-</span><span id="__span-13-41"><a href="#__codelineno-13-41" id="__codelineno-13-41" name="__codelineno-13-41"></a><span class="w">      </span><span class="p">},</span>
-</span><span id="__span-13-42"><a href="#__codelineno-13-42" id="__codelineno-13-42" name="__codelineno-13-42"></a><span class="w">      </span><span class="p">{</span>
-</span><span id="__span-13-43"><a href="#__codelineno-13-43" id="__codelineno-13-43" name="__codelineno-13-43"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"actions"</span><span class="p">,</span>
-</span><span id="__span-13-44"><a href="#__codelineno-13-44" id="__codelineno-13-44" name="__codelineno-13-44"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Row"</span><span class="p">,</span>
-</span><span id="__span-13-45"><a href="#__codelineno-13-45" id="__codelineno-13-45" name="__codelineno-13-45"></a><span class="w">        </span><span class="nt">"children"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"yes_btn"</span><span class="p">,</span><span class="w"> </span><span class="s2">"no_btn"</span><span class="p">],</span>
-</span><span id="__span-13-46"><a href="#__codelineno-13-46" id="__codelineno-13-46" name="__codelineno-13-46"></a><span class="w">        </span><span class="nt">"justify"</span><span class="p">:</span><span class="w"> </span><span class="s2">"center"</span>
-</span><span id="__span-13-47"><a href="#__codelineno-13-47" id="__codelineno-13-47" name="__codelineno-13-47"></a><span class="w">      </span><span class="p">},</span>
-</span><span id="__span-13-48"><a href="#__codelineno-13-48" id="__codelineno-13-48" name="__codelineno-13-48"></a><span class="w">      </span><span class="p">{</span>
-</span><span id="__span-13-49"><a href="#__codelineno-13-49" id="__codelineno-13-49" name="__codelineno-13-49"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"yes_btn_text"</span><span class="p">,</span>
-</span><span id="__span-13-50"><a href="#__codelineno-13-50" id="__codelineno-13-50" name="__codelineno-13-50"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Text"</span><span class="p">,</span>
-</span><span id="__span-13-51"><a href="#__codelineno-13-51" id="__codelineno-13-51" name="__codelineno-13-51"></a><span class="w">        </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Yes"</span>
-</span><span id="__span-13-52"><a href="#__codelineno-13-52" id="__codelineno-13-52" name="__codelineno-13-52"></a><span class="w">      </span><span class="p">},</span>
-</span><span id="__span-13-53"><a href="#__codelineno-13-53" id="__codelineno-13-53" name="__codelineno-13-53"></a><span class="w">      </span><span class="p">{</span>
-</span><span id="__span-13-54"><a href="#__codelineno-13-54" id="__codelineno-13-54" name="__codelineno-13-54"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"yes_btn"</span><span class="p">,</span>
-</span><span id="__span-13-55"><a href="#__codelineno-13-55" id="__codelineno-13-55" name="__codelineno-13-55"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Button"</span><span class="p">,</span>
-</span><span id="__span-13-56"><a href="#__codelineno-13-56" id="__codelineno-13-56" name="__codelineno-13-56"></a><span class="w">        </span><span class="nt">"child"</span><span class="p">:</span><span class="w"> </span><span class="s2">"yes_btn_text"</span><span class="p">,</span>
-</span><span id="__span-13-57"><a href="#__codelineno-13-57" id="__codelineno-13-57" name="__codelineno-13-57"></a><span class="w">        </span><span class="nt">"variant"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-</span><span id="__span-13-58"><a href="#__codelineno-13-58" id="__codelineno-13-58" name="__codelineno-13-58"></a><span class="w">        </span><span class="nt">"action"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-13-59"><a href="#__codelineno-13-59" id="__codelineno-13-59" name="__codelineno-13-59"></a><span class="w">          </span><span class="nt">"event"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-13-60"><a href="#__codelineno-13-60" id="__codelineno-13-60" name="__codelineno-13-60"></a><span class="w">            </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"accept"</span><span class="p">,</span>
-</span><span id="__span-13-61"><a href="#__codelineno-13-61" id="__codelineno-13-61" name="__codelineno-13-61"></a><span class="w">            </span><span class="nt">"context"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
-</span><span id="__span-13-62"><a href="#__codelineno-13-62" id="__codelineno-13-62" name="__codelineno-13-62"></a><span class="w">          </span><span class="p">}</span>
-</span><span id="__span-13-63"><a href="#__codelineno-13-63" id="__codelineno-13-63" name="__codelineno-13-63"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-13-64"><a href="#__codelineno-13-64" id="__codelineno-13-64" name="__codelineno-13-64"></a><span class="w">      </span><span class="p">},</span>
-</span><span id="__span-13-65"><a href="#__codelineno-13-65" id="__codelineno-13-65" name="__codelineno-13-65"></a><span class="w">      </span><span class="p">{</span>
-</span><span id="__span-13-66"><a href="#__codelineno-13-66" id="__codelineno-13-66" name="__codelineno-13-66"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"no_btn_text"</span><span class="p">,</span>
-</span><span id="__span-13-67"><a href="#__codelineno-13-67" id="__codelineno-13-67" name="__codelineno-13-67"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Text"</span><span class="p">,</span>
-</span><span id="__span-13-68"><a href="#__codelineno-13-68" id="__codelineno-13-68" name="__codelineno-13-68"></a><span class="w">        </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"No"</span>
-</span><span id="__span-13-69"><a href="#__codelineno-13-69" id="__codelineno-13-69" name="__codelineno-13-69"></a><span class="w">      </span><span class="p">},</span>
-</span><span id="__span-13-70"><a href="#__codelineno-13-70" id="__codelineno-13-70" name="__codelineno-13-70"></a><span class="w">      </span><span class="p">{</span>
-</span><span id="__span-13-71"><a href="#__codelineno-13-71" id="__codelineno-13-71" name="__codelineno-13-71"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"no_btn"</span><span class="p">,</span>
-</span><span id="__span-13-72"><a href="#__codelineno-13-72" id="__codelineno-13-72" name="__codelineno-13-72"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Button"</span><span class="p">,</span>
-</span><span id="__span-13-73"><a href="#__codelineno-13-73" id="__codelineno-13-73" name="__codelineno-13-73"></a><span class="w">        </span><span class="nt">"child"</span><span class="p">:</span><span class="w"> </span><span class="s2">"no_btn_text"</span><span class="p">,</span>
-</span><span id="__span-13-74"><a href="#__codelineno-13-74" id="__codelineno-13-74" name="__codelineno-13-74"></a><span class="w">        </span><span class="nt">"variant"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-</span><span id="__span-13-75"><a href="#__codelineno-13-75" id="__codelineno-13-75" name="__codelineno-13-75"></a><span class="w">        </span><span class="nt">"action"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-13-76"><a href="#__codelineno-13-76" id="__codelineno-13-76" name="__codelineno-13-76"></a><span class="w">          </span><span class="nt">"event"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-13-77"><a href="#__codelineno-13-77" id="__codelineno-13-77" name="__codelineno-13-77"></a><span class="w">            </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"decline"</span><span class="p">,</span>
-</span><span id="__span-13-78"><a href="#__codelineno-13-78" id="__codelineno-13-78" name="__codelineno-13-78"></a><span class="w">            </span><span class="nt">"context"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
-</span><span id="__span-13-79"><a href="#__codelineno-13-79" id="__codelineno-13-79" name="__codelineno-13-79"></a><span class="w">          </span><span class="p">}</span>
-</span><span id="__span-13-80"><a href="#__codelineno-13-80" id="__codelineno-13-80" name="__codelineno-13-80"></a><span class="w">        </span><span class="p">}</span>
-</span><span id="__span-13-81"><a href="#__codelineno-13-81" id="__codelineno-13-81" name="__codelineno-13-81"></a><span class="w">      </span><span class="p">}</span>
-</span><span id="__span-13-82"><a href="#__codelineno-13-82" id="__codelineno-13-82" name="__codelineno-13-82"></a><span class="w">    </span><span class="p">]</span>
-</span><span id="__span-13-83"><a href="#__codelineno-13-83" id="__codelineno-13-83" name="__codelineno-13-83"></a><span class="w">  </span><span class="p">}</span>
-</span><span id="__span-13-84"><a href="#__codelineno-13-84" id="__codelineno-13-84" name="__codelineno-13-84"></a><span class="p">}</span>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-16-1"><a href="#__codelineno-16-1" id="__codelineno-16-1" name="__codelineno-16-1"></a><span class="p">{</span>
+</span><span id="__span-16-2"><a href="#__codelineno-16-2" id="__codelineno-16-2" name="__codelineno-16-2"></a><span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"v1.0"</span><span class="p">,</span>
+</span><span id="__span-16-3"><a href="#__codelineno-16-3" id="__codelineno-16-3" name="__codelineno-16-3"></a><span class="w">  </span><span class="nt">"createSurface"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-16-4"><a href="#__codelineno-16-4" id="__codelineno-16-4" name="__codelineno-16-4"></a><span class="w">    </span><span class="nt">"surfaceId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"gallery-notification-permission"</span><span class="p">,</span>
+</span><span id="__span-16-5"><a href="#__codelineno-16-5" id="__codelineno-16-5" name="__codelineno-16-5"></a><span class="w">    </span><span class="nt">"catalogId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"</span><span class="p">,</span>
+</span><span id="__span-16-6"><a href="#__codelineno-16-6" id="__codelineno-16-6" name="__codelineno-16-6"></a><span class="w">    </span><span class="nt">"components"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-16-7"><a href="#__codelineno-16-7" id="__codelineno-16-7" name="__codelineno-16-7"></a><span class="w">      </span><span class="p">{</span>
+</span><span id="__span-16-8"><a href="#__codelineno-16-8" id="__codelineno-16-8" name="__codelineno-16-8"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"root"</span><span class="p">,</span>
+</span><span id="__span-16-9"><a href="#__codelineno-16-9" id="__codelineno-16-9" name="__codelineno-16-9"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Card"</span><span class="p">,</span>
+</span><span id="__span-16-10"><a href="#__codelineno-16-10" id="__codelineno-16-10" name="__codelineno-16-10"></a><span class="w">        </span><span class="nt">"child"</span><span class="p">:</span><span class="w"> </span><span class="s2">"main_column"</span>
+</span><span id="__span-16-11"><a href="#__codelineno-16-11" id="__codelineno-16-11" name="__codelineno-16-11"></a><span class="w">      </span><span class="p">},</span>
+</span><span id="__span-16-12"><a href="#__codelineno-16-12" id="__codelineno-16-12" name="__codelineno-16-12"></a><span class="w">      </span><span class="p">{</span>
+</span><span id="__span-16-13"><a href="#__codelineno-16-13" id="__codelineno-16-13" name="__codelineno-16-13"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"main_column"</span><span class="p">,</span>
+</span><span id="__span-16-14"><a href="#__codelineno-16-14" id="__codelineno-16-14" name="__codelineno-16-14"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Column"</span><span class="p">,</span>
+</span><span id="__span-16-15"><a href="#__codelineno-16-15" id="__codelineno-16-15" name="__codelineno-16-15"></a><span class="w">        </span><span class="nt">"children"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"icon"</span><span class="p">,</span><span class="w"> </span><span class="s2">"title"</span><span class="p">,</span><span class="w"> </span><span class="s2">"description"</span><span class="p">,</span><span class="w"> </span><span class="s2">"actions"</span><span class="p">],</span>
+</span><span id="__span-16-16"><a href="#__codelineno-16-16" id="__codelineno-16-16" name="__codelineno-16-16"></a><span class="w">        </span><span class="nt">"justify"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+</span><span id="__span-16-17"><a href="#__codelineno-16-17" id="__codelineno-16-17" name="__codelineno-16-17"></a><span class="w">        </span><span class="nt">"align"</span><span class="p">:</span><span class="w"> </span><span class="s2">"center"</span>
+</span><span id="__span-16-18"><a href="#__codelineno-16-18" id="__codelineno-16-18" name="__codelineno-16-18"></a><span class="w">      </span><span class="p">},</span>
+</span><span id="__span-16-19"><a href="#__codelineno-16-19" id="__codelineno-16-19" name="__codelineno-16-19"></a><span class="w">      </span><span class="p">{</span>
+</span><span id="__span-16-20"><a href="#__codelineno-16-20" id="__codelineno-16-20" name="__codelineno-16-20"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"icon"</span><span class="p">,</span>
+</span><span id="__span-16-21"><a href="#__codelineno-16-21" id="__codelineno-16-21" name="__codelineno-16-21"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Icon"</span><span class="p">,</span>
+</span><span id="__span-16-22"><a href="#__codelineno-16-22" id="__codelineno-16-22" name="__codelineno-16-22"></a><span class="w">        </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-16-23"><a href="#__codelineno-16-23" id="__codelineno-16-23" name="__codelineno-16-23"></a><span class="w">          </span><span class="nt">"@path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/icon"</span>
+</span><span id="__span-16-24"><a href="#__codelineno-16-24" id="__codelineno-16-24" name="__codelineno-16-24"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-16-25"><a href="#__codelineno-16-25" id="__codelineno-16-25" name="__codelineno-16-25"></a><span class="w">      </span><span class="p">},</span>
+</span><span id="__span-16-26"><a href="#__codelineno-16-26" id="__codelineno-16-26" name="__codelineno-16-26"></a><span class="w">      </span><span class="p">{</span>
+</span><span id="__span-16-27"><a href="#__codelineno-16-27" id="__codelineno-16-27" name="__codelineno-16-27"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"title"</span><span class="p">,</span>
+</span><span id="__span-16-28"><a href="#__codelineno-16-28" id="__codelineno-16-28" name="__codelineno-16-28"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Text"</span><span class="p">,</span>
+</span><span id="__span-16-29"><a href="#__codelineno-16-29" id="__codelineno-16-29" name="__codelineno-16-29"></a><span class="w">        </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-16-30"><a href="#__codelineno-16-30" id="__codelineno-16-30" name="__codelineno-16-30"></a><span class="w">          </span><span class="nt">"@path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/title"</span>
+</span><span id="__span-16-31"><a href="#__codelineno-16-31" id="__codelineno-16-31" name="__codelineno-16-31"></a><span class="w">        </span><span class="p">},</span>
+</span><span id="__span-16-32"><a href="#__codelineno-16-32" id="__codelineno-16-32" name="__codelineno-16-32"></a><span class="w">        </span><span class="nt">"variant"</span><span class="p">:</span><span class="w"> </span><span class="s2">"h3"</span>
+</span><span id="__span-16-33"><a href="#__codelineno-16-33" id="__codelineno-16-33" name="__codelineno-16-33"></a><span class="w">      </span><span class="p">},</span>
+</span><span id="__span-16-34"><a href="#__codelineno-16-34" id="__codelineno-16-34" name="__codelineno-16-34"></a><span class="w">      </span><span class="p">{</span>
+</span><span id="__span-16-35"><a href="#__codelineno-16-35" id="__codelineno-16-35" name="__codelineno-16-35"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"description"</span><span class="p">,</span>
+</span><span id="__span-16-36"><a href="#__codelineno-16-36" id="__codelineno-16-36" name="__codelineno-16-36"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Text"</span><span class="p">,</span>
+</span><span id="__span-16-37"><a href="#__codelineno-16-37" id="__codelineno-16-37" name="__codelineno-16-37"></a><span class="w">        </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-16-38"><a href="#__codelineno-16-38" id="__codelineno-16-38" name="__codelineno-16-38"></a><span class="w">          </span><span class="nt">"@path"</span><span class="p">:</span><span class="w"> </span><span class="s2">"/description"</span>
+</span><span id="__span-16-39"><a href="#__codelineno-16-39" id="__codelineno-16-39" name="__codelineno-16-39"></a><span class="w">        </span><span class="p">},</span>
+</span><span id="__span-16-40"><a href="#__codelineno-16-40" id="__codelineno-16-40" name="__codelineno-16-40"></a><span class="w">        </span><span class="nt">"variant"</span><span class="p">:</span><span class="w"> </span><span class="s2">"body"</span>
+</span><span id="__span-16-41"><a href="#__codelineno-16-41" id="__codelineno-16-41" name="__codelineno-16-41"></a><span class="w">      </span><span class="p">},</span>
+</span><span id="__span-16-42"><a href="#__codelineno-16-42" id="__codelineno-16-42" name="__codelineno-16-42"></a><span class="w">      </span><span class="p">{</span>
+</span><span id="__span-16-43"><a href="#__codelineno-16-43" id="__codelineno-16-43" name="__codelineno-16-43"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"actions"</span><span class="p">,</span>
+</span><span id="__span-16-44"><a href="#__codelineno-16-44" id="__codelineno-16-44" name="__codelineno-16-44"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Row"</span><span class="p">,</span>
+</span><span id="__span-16-45"><a href="#__codelineno-16-45" id="__codelineno-16-45" name="__codelineno-16-45"></a><span class="w">        </span><span class="nt">"children"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"yes_btn"</span><span class="p">,</span><span class="w"> </span><span class="s2">"no_btn"</span><span class="p">],</span>
+</span><span id="__span-16-46"><a href="#__codelineno-16-46" id="__codelineno-16-46" name="__codelineno-16-46"></a><span class="w">        </span><span class="nt">"justify"</span><span class="p">:</span><span class="w"> </span><span class="s2">"center"</span>
+</span><span id="__span-16-47"><a href="#__codelineno-16-47" id="__codelineno-16-47" name="__codelineno-16-47"></a><span class="w">      </span><span class="p">},</span>
+</span><span id="__span-16-48"><a href="#__codelineno-16-48" id="__codelineno-16-48" name="__codelineno-16-48"></a><span class="w">      </span><span class="p">{</span>
+</span><span id="__span-16-49"><a href="#__codelineno-16-49" id="__codelineno-16-49" name="__codelineno-16-49"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"yes_btn_text"</span><span class="p">,</span>
+</span><span id="__span-16-50"><a href="#__codelineno-16-50" id="__codelineno-16-50" name="__codelineno-16-50"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Text"</span><span class="p">,</span>
+</span><span id="__span-16-51"><a href="#__codelineno-16-51" id="__codelineno-16-51" name="__codelineno-16-51"></a><span class="w">        </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Yes"</span>
+</span><span id="__span-16-52"><a href="#__codelineno-16-52" id="__codelineno-16-52" name="__codelineno-16-52"></a><span class="w">      </span><span class="p">},</span>
+</span><span id="__span-16-53"><a href="#__codelineno-16-53" id="__codelineno-16-53" name="__codelineno-16-53"></a><span class="w">      </span><span class="p">{</span>
+</span><span id="__span-16-54"><a href="#__codelineno-16-54" id="__codelineno-16-54" name="__codelineno-16-54"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"yes_btn"</span><span class="p">,</span>
+</span><span id="__span-16-55"><a href="#__codelineno-16-55" id="__codelineno-16-55" name="__codelineno-16-55"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Button"</span><span class="p">,</span>
+</span><span id="__span-16-56"><a href="#__codelineno-16-56" id="__codelineno-16-56" name="__codelineno-16-56"></a><span class="w">        </span><span class="nt">"child"</span><span class="p">:</span><span class="w"> </span><span class="s2">"yes_btn_text"</span><span class="p">,</span>
+</span><span id="__span-16-57"><a href="#__codelineno-16-57" id="__codelineno-16-57" name="__codelineno-16-57"></a><span class="w">        </span><span class="nt">"variant"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+</span><span id="__span-16-58"><a href="#__codelineno-16-58" id="__codelineno-16-58" name="__codelineno-16-58"></a><span class="w">        </span><span class="nt">"action"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-16-59"><a href="#__codelineno-16-59" id="__codelineno-16-59" name="__codelineno-16-59"></a><span class="w">          </span><span class="nt">"event"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-16-60"><a href="#__codelineno-16-60" id="__codelineno-16-60" name="__codelineno-16-60"></a><span class="w">            </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"accept"</span><span class="p">,</span>
+</span><span id="__span-16-61"><a href="#__codelineno-16-61" id="__codelineno-16-61" name="__codelineno-16-61"></a><span class="w">            </span><span class="nt">"context"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
+</span><span id="__span-16-62"><a href="#__codelineno-16-62" id="__codelineno-16-62" name="__codelineno-16-62"></a><span class="w">          </span><span class="p">}</span>
+</span><span id="__span-16-63"><a href="#__codelineno-16-63" id="__codelineno-16-63" name="__codelineno-16-63"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-16-64"><a href="#__codelineno-16-64" id="__codelineno-16-64" name="__codelineno-16-64"></a><span class="w">      </span><span class="p">},</span>
+</span><span id="__span-16-65"><a href="#__codelineno-16-65" id="__codelineno-16-65" name="__codelineno-16-65"></a><span class="w">      </span><span class="p">{</span>
+</span><span id="__span-16-66"><a href="#__codelineno-16-66" id="__codelineno-16-66" name="__codelineno-16-66"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"no_btn_text"</span><span class="p">,</span>
+</span><span id="__span-16-67"><a href="#__codelineno-16-67" id="__codelineno-16-67" name="__codelineno-16-67"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Text"</span><span class="p">,</span>
+</span><span id="__span-16-68"><a href="#__codelineno-16-68" id="__codelineno-16-68" name="__codelineno-16-68"></a><span class="w">        </span><span class="nt">"text"</span><span class="p">:</span><span class="w"> </span><span class="s2">"No"</span>
+</span><span id="__span-16-69"><a href="#__codelineno-16-69" id="__codelineno-16-69" name="__codelineno-16-69"></a><span class="w">      </span><span class="p">},</span>
+</span><span id="__span-16-70"><a href="#__codelineno-16-70" id="__codelineno-16-70" name="__codelineno-16-70"></a><span class="w">      </span><span class="p">{</span>
+</span><span id="__span-16-71"><a href="#__codelineno-16-71" id="__codelineno-16-71" name="__codelineno-16-71"></a><span class="w">        </span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"no_btn"</span><span class="p">,</span>
+</span><span id="__span-16-72"><a href="#__codelineno-16-72" id="__codelineno-16-72" name="__codelineno-16-72"></a><span class="w">        </span><span class="nt">"component"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Button"</span><span class="p">,</span>
+</span><span id="__span-16-73"><a href="#__codelineno-16-73" id="__codelineno-16-73" name="__codelineno-16-73"></a><span class="w">        </span><span class="nt">"child"</span><span class="p">:</span><span class="w"> </span><span class="s2">"no_btn_text"</span><span class="p">,</span>
+</span><span id="__span-16-74"><a href="#__codelineno-16-74" id="__codelineno-16-74" name="__codelineno-16-74"></a><span class="w">        </span><span class="nt">"variant"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+</span><span id="__span-16-75"><a href="#__codelineno-16-75" id="__codelineno-16-75" name="__codelineno-16-75"></a><span class="w">        </span><span class="nt">"action"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-16-76"><a href="#__codelineno-16-76" id="__codelineno-16-76" name="__codelineno-16-76"></a><span class="w">          </span><span class="nt">"event"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-16-77"><a href="#__codelineno-16-77" id="__codelineno-16-77" name="__codelineno-16-77"></a><span class="w">            </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"decline"</span><span class="p">,</span>
+</span><span id="__span-16-78"><a href="#__codelineno-16-78" id="__codelineno-16-78" name="__codelineno-16-78"></a><span class="w">            </span><span class="nt">"context"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
+</span><span id="__span-16-79"><a href="#__codelineno-16-79" id="__codelineno-16-79" name="__codelineno-16-79"></a><span class="w">          </span><span class="p">}</span>
+</span><span id="__span-16-80"><a href="#__codelineno-16-80" id="__codelineno-16-80" name="__codelineno-16-80"></a><span class="w">        </span><span class="p">}</span>
+</span><span id="__span-16-81"><a href="#__codelineno-16-81" id="__codelineno-16-81" name="__codelineno-16-81"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-16-82"><a href="#__codelineno-16-82" id="__codelineno-16-82" name="__codelineno-16-82"></a><span class="w">    </span><span class="p">]</span>
+</span><span id="__span-16-83"><a href="#__codelineno-16-83" id="__codelineno-16-83" name="__codelineno-16-83"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-16-84"><a href="#__codelineno-16-84" id="__codelineno-16-84" name="__codelineno-16-84"></a><span class="p">}</span>
 </span></code></pre></div>
 <h2 id="ecosystem-integration">Ecosystem integration<a class="headerlink" href="#ecosystem-integration" title="Permanent link">¶</a></h2>
 <p>A2UI Express is completely catalog-agnostic, making sure it integrates into any environment using custom catalogs.</p>
@@ -1573,29 +1631,29 @@
 </ul>
 <h3 id="automated-catalog-to-prompt-utility">Automated catalog-to-prompt utility<a class="headerlink" href="#automated-catalog-to-prompt-utility" title="Permanent link">¶</a></h3>
 <p>To keep the model updated with the latest catalog definitions, a python utility compiles the active JSON schema into plain-text signatures:</p>
-<div class="language-py highlight"><pre><span></span><code><span id="__span-14-1"><a href="#__codelineno-14-1" id="__codelineno-14-1" name="__codelineno-14-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-</span><span id="__span-14-2"><a href="#__codelineno-14-2" id="__codelineno-14-2" name="__codelineno-14-2"></a>
-</span><span id="__span-14-3"><a href="#__codelineno-14-3" id="__codelineno-14-3" name="__codelineno-14-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">CatalogSignatureCompiler</span><span class="p">:</span>
-</span><span id="__span-14-4"><a href="#__codelineno-14-4" id="__codelineno-14-4" name="__codelineno-14-4"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-</span><span id="__span-14-5"><a href="#__codelineno-14-5" id="__codelineno-14-5" name="__codelineno-14-5"></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">schema_path</span><span class="p">,</span> <span class="s2">"r"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-</span><span id="__span-14-6"><a href="#__codelineno-14-6" id="__codelineno-14-6" name="__codelineno-14-6"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">catalog</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
-</span><span id="__span-14-7"><a href="#__codelineno-14-7" id="__codelineno-14-7" name="__codelineno-14-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">components</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">catalog</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"components"</span><span class="p">,</span> <span class="p">{})</span>
-</span><span id="__span-14-8"><a href="#__codelineno-14-8" id="__codelineno-14-8" name="__codelineno-14-8"></a>
-</span><span id="__span-14-9"><a href="#__codelineno-14-9" id="__codelineno-14-9" name="__codelineno-14-9"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">compile_to_signatures</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-</span><span id="__span-14-10"><a href="#__codelineno-14-10" id="__codelineno-14-10" name="__codelineno-14-10"></a>        <span class="n">signatures</span> <span class="o">=</span> <span class="p">[]</span>
-</span><span id="__span-14-11"><a href="#__codelineno-14-11" id="__codelineno-14-11" name="__codelineno-14-11"></a>        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">schema</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">components</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-</span><span id="__span-14-12"><a href="#__codelineno-14-12" id="__codelineno-14-12" name="__codelineno-14-12"></a>            <span class="n">props</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"properties"</span><span class="p">,</span> <span class="p">{})</span>
-</span><span id="__span-14-13"><a href="#__codelineno-14-13" id="__codelineno-14-13" name="__codelineno-14-13"></a>            <span class="n">required</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"required"</span><span class="p">,</span> <span class="p">[])</span>
-</span><span id="__span-14-14"><a href="#__codelineno-14-14" id="__codelineno-14-14" name="__codelineno-14-14"></a>            <span class="n">ordered_args</span> <span class="o">=</span> <span class="p">[]</span>
-</span><span id="__span-14-15"><a href="#__codelineno-14-15" id="__codelineno-14-15" name="__codelineno-14-15"></a>            <span class="k">for</span> <span class="n">prop_name</span><span class="p">,</span> <span class="n">prop_schema</span> <span class="ow">in</span> <span class="n">props</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-</span><span id="__span-14-16"><a href="#__codelineno-14-16" id="__codelineno-14-16" name="__codelineno-14-16"></a>                <span class="k">if</span> <span class="n">prop_name</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"component"</span><span class="p">,</span> <span class="s2">"id"</span><span class="p">]:</span>
-</span><span id="__span-14-17"><a href="#__codelineno-14-17" id="__codelineno-14-17" name="__codelineno-14-17"></a>                    <span class="k">continue</span>
-</span><span id="__span-14-18"><a href="#__codelineno-14-18" id="__codelineno-14-18" name="__codelineno-14-18"></a>                <span class="n">is_req</span> <span class="o">=</span> <span class="n">prop_name</span> <span class="ow">in</span> <span class="n">required</span>
-</span><span id="__span-14-19"><a href="#__codelineno-14-19" id="__codelineno-14-19" name="__codelineno-14-19"></a>                <span class="n">optional_marker</span> <span class="o">=</span> <span class="s2">""</span> <span class="k">if</span> <span class="n">is_req</span> <span class="k">else</span> <span class="s2">"?"</span>
-</span><span id="__span-14-20"><a href="#__codelineno-14-20" id="__codelineno-14-20" name="__codelineno-14-20"></a>                <span class="n">ordered_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prop_name</span><span class="si">}{</span><span class="n">optional_marker</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-</span><span id="__span-14-21"><a href="#__codelineno-14-21" id="__codelineno-14-21" name="__codelineno-14-21"></a>            <span class="n">sig</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ordered_args</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span>
-</span><span id="__span-14-22"><a href="#__codelineno-14-22" id="__codelineno-14-22" name="__codelineno-14-22"></a>            <span class="n">signatures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
-</span><span id="__span-14-23"><a href="#__codelineno-14-23" id="__codelineno-14-23" name="__codelineno-14-23"></a>        <span class="k">return</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">signatures</span><span class="p">)</span>
+<div class="language-py highlight"><pre><span></span><code><span id="__span-17-1"><a href="#__codelineno-17-1" id="__codelineno-17-1" name="__codelineno-17-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+</span><span id="__span-17-2"><a href="#__codelineno-17-2" id="__codelineno-17-2" name="__codelineno-17-2"></a>
+</span><span id="__span-17-3"><a href="#__codelineno-17-3" id="__codelineno-17-3" name="__codelineno-17-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">CatalogSignatureCompiler</span><span class="p">:</span>
+</span><span id="__span-17-4"><a href="#__codelineno-17-4" id="__codelineno-17-4" name="__codelineno-17-4"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+</span><span id="__span-17-5"><a href="#__codelineno-17-5" id="__codelineno-17-5" name="__codelineno-17-5"></a>        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">schema_path</span><span class="p">,</span> <span class="s2">"r"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+</span><span id="__span-17-6"><a href="#__codelineno-17-6" id="__codelineno-17-6" name="__codelineno-17-6"></a>            <span class="bp">self</span><span class="o">.</span><span class="n">catalog</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+</span><span id="__span-17-7"><a href="#__codelineno-17-7" id="__codelineno-17-7" name="__codelineno-17-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">components</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">catalog</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"components"</span><span class="p">,</span> <span class="p">{})</span>
+</span><span id="__span-17-8"><a href="#__codelineno-17-8" id="__codelineno-17-8" name="__codelineno-17-8"></a>
+</span><span id="__span-17-9"><a href="#__codelineno-17-9" id="__codelineno-17-9" name="__codelineno-17-9"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">compile_to_signatures</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="__span-17-10"><a href="#__codelineno-17-10" id="__codelineno-17-10" name="__codelineno-17-10"></a>        <span class="n">signatures</span> <span class="o">=</span> <span class="p">[]</span>
+</span><span id="__span-17-11"><a href="#__codelineno-17-11" id="__codelineno-17-11" name="__codelineno-17-11"></a>        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">schema</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">components</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="__span-17-12"><a href="#__codelineno-17-12" id="__codelineno-17-12" name="__codelineno-17-12"></a>            <span class="n">props</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"properties"</span><span class="p">,</span> <span class="p">{})</span>
+</span><span id="__span-17-13"><a href="#__codelineno-17-13" id="__codelineno-17-13" name="__codelineno-17-13"></a>            <span class="n">required</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"required"</span><span class="p">,</span> <span class="p">[])</span>
+</span><span id="__span-17-14"><a href="#__codelineno-17-14" id="__codelineno-17-14" name="__codelineno-17-14"></a>            <span class="n">ordered_args</span> <span class="o">=</span> <span class="p">[]</span>
+</span><span id="__span-17-15"><a href="#__codelineno-17-15" id="__codelineno-17-15" name="__codelineno-17-15"></a>            <span class="k">for</span> <span class="n">prop_name</span><span class="p">,</span> <span class="n">prop_schema</span> <span class="ow">in</span> <span class="n">props</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="__span-17-16"><a href="#__codelineno-17-16" id="__codelineno-17-16" name="__codelineno-17-16"></a>                <span class="k">if</span> <span class="n">prop_name</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">"component"</span><span class="p">,</span> <span class="s2">"id"</span><span class="p">]:</span>
+</span><span id="__span-17-17"><a href="#__codelineno-17-17" id="__codelineno-17-17" name="__codelineno-17-17"></a>                    <span class="k">continue</span>
+</span><span id="__span-17-18"><a href="#__codelineno-17-18" id="__codelineno-17-18" name="__codelineno-17-18"></a>                <span class="n">is_req</span> <span class="o">=</span> <span class="n">prop_name</span> <span class="ow">in</span> <span class="n">required</span>
+</span><span id="__span-17-19"><a href="#__codelineno-17-19" id="__codelineno-17-19" name="__codelineno-17-19"></a>                <span class="n">optional_marker</span> <span class="o">=</span> <span class="s2">""</span> <span class="k">if</span> <span class="n">is_req</span> <span class="k">else</span> <span class="s2">"?"</span>
+</span><span id="__span-17-20"><a href="#__codelineno-17-20" id="__codelineno-17-20" name="__codelineno-17-20"></a>                <span class="n">ordered_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prop_name</span><span class="si">}{</span><span class="n">optional_marker</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="__span-17-21"><a href="#__codelineno-17-21" id="__codelineno-17-21" name="__codelineno-17-21"></a>            <span class="n">sig</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ordered_args</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span>
+</span><span id="__span-17-22"><a href="#__codelineno-17-22" id="__codelineno-17-22" name="__codelineno-17-22"></a>            <span class="n">signatures</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
+</span><span id="__span-17-23"><a href="#__codelineno-17-23" id="__codelineno-17-23" name="__codelineno-17-23"></a>        <span class="k">return</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">signatures</span><span class="p">)</span>
 </span></code></pre></div>
 <h3 id="local-performance-profiles">Local performance profiles<a class="headerlink" href="#local-performance-profiles" title="Permanent link">¶</a></h3>
 <p>Local execution requires configuring the model's thinking budget based on the complexity of the interface:</p>

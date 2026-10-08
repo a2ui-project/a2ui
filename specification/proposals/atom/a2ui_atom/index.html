@@ -2494,10 +2494,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#standalone-operations-surface-lifecycle-rpc" class="md-nav__link">
+  <a href="#messages-and-surfaces" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Standalone Operations (Surface Lifecycle &amp; RPC)
+        Messages and surfaces
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#catalogs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Catalogs
       
     </span>
   </a>
@@ -2586,7 +2597,7 @@
 
 <h1 id="a2ui-atom-technical-specification">A2UI Atom technical specification<a class="headerlink" href="#a2ui-atom-technical-specification" title="Permanent link">&para;</a></h1>
 <p>A2UI Atom is an ultra-compact, model-optimized declarative inference format based on S-expressions (Lisp-style parenthesized ASTs). It is designed to minimize token usage, maximize streaming time-to-first-component (TTFC), and guarantee 100% schema-resilient parsing for generative user interfaces.</p>
-<p>A host-side compiler parses this S-expression text stream and compiles it into standard A2UI v1.0 wire protocol payloads.</p>
+<p>A host-side compiler parses this S-expression text stream and compiles it into standard A2UI wire protocol messages for the protocol version of its catalogs (v1.0, v0.9.1 or v0.9).</p>
 <hr />
 <h2 id="core-design-goals">Core design goals<a class="headerlink" href="#core-design-goals" title="Permanent link">&para;</a></h2>
 <ul>
@@ -2659,7 +2670,7 @@
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nv">$/user</span><span class="w"> </span><span class="p">(</span><span class="ss">:name</span><span class="w"> </span><span class="s">&quot;Alice&quot;</span><span class="w"> </span><span class="ss">:role</span><span class="w"> </span><span class="s">&quot;admin&quot;</span><span class="p">)</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nv">$/items</span><span class="w"> </span><span class="nv">[</span><span class="p">(</span><span class="ss">:id</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="ss">:title</span><span class="w"> </span><span class="s">&quot;First&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="ss">:id</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="ss">:title</span><span class="w"> </span><span class="s">&quot;Second&quot;</span><span class="p">)</span><span class="nv">]</span><span class="p">)</span>
 </span></code></pre></div>
-<p>The compiler extracts these assignments and populates the <code>dataModel</code> payload in the resulting <code>createSurface</code> message. If the stream contains only <code>set!</code> or <code>data</code> expressions and no component tree, the compiler emits a standalone <code>updateDataModel</code> protocol message.</p>
+<p>The compiler extracts these assignments and populates the <code>dataModel</code> payload in the resulting <code>createSurface</code> message. If the stream contains only <code>set!</code> or <code>data</code> expressions, no component tree and no surface header, the compiler emits a standalone <code>updateDataModel</code> message for the root path.</p>
 <hr />
 <h3 id="dynamic-list-templates">Dynamic List Templates<a class="headerlink" href="#dynamic-list-templates" title="Permanent link">&para;</a></h3>
 <p>Dynamic list repetition uses the <code>template</code> helper expression:</p>
@@ -2682,6 +2693,8 @@
 <li><strong>Formatting:</strong> <code>(formatString template arg1 ...)</code>, <code>(formatDate date format)</code>, <code>(formatCurrency amount currency)</code>, <code>(pluralize count singular plural)</code></li>
 </ul>
 <p>The compiler maps these into standard <code>FunctionCall</code> objects in the component's <code>checks</code> array.</p>
+<p>The functions come from the catalog; the compiler has no built-in list of them. A check that leaves out the <code>value</code> argument checks the component's own <code>value</code> binding, and <code>:message</code> sets the check's error message. The compiler wraps each check in a <code>CheckRule</code>, <code>{"condition": &lt;FunctionCall&gt;, "message": ...}</code>, in the component's <code>checks</code> array.</p>
+<p>Check arguments can be keyword pairs (<code>:pattern "^[0-9]{5}$" :message "Zip code must be 5 digits"</code>) or positional. When a check's first catalog argument is <code>value</code> and it is bound implicitly (the component has a <code>value</code> and the first positional argument is not a data binding) or passed as <code>:value</code>, positional arguments fill the arguments after <code>value</code>. A string past the last argument is the message. So <code>(regex "^[0-9]{5}$" "Zip code must be 5 digits")</code> is the same check as the keyword form, and <code>(regex $/other "^a$" "Must be a")</code> checks <code>$/other</code> instead.</p>
 <hr />
 <h3 id="action-events">Action Events<a class="headerlink" href="#action-events" title="Permanent link">&para;</a></h3>
 <p>Interactive controls trigger action events using the <code>Event</code> helper:</p>
@@ -2690,16 +2703,54 @@
 </span></code></pre></div>
 <p>Action expressions support both tagged parameter pairs (<code>:param value</code>) and positional arguments. The compiler formats these into standard A2UI action event objects: <code>{"event": {"name": "action_name", "context": {...}}}</code>.</p>
 <hr />
-<h3 id="standalone-operations-surface-lifecycle-rpc">Standalone Operations (Surface Lifecycle &amp; RPC)<a class="headerlink" href="#standalone-operations-surface-lifecycle-rpc" title="Permanent link">&para;</a></h3>
-<ol>
-<li><strong>Deleting a Surface:</strong>
-   <div class="language-lisp highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">(</span><span class="nv">deleteSurface</span><span class="w"> </span><span class="s">&quot;dashboard-surface-1&quot;</span><span class="p">)</span>
-</span></code></pre></div></li>
-<li><strong>Executing Client RPC Functions:</strong>
-   <div class="language-lisp highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">(</span><span class="nv">callFunction</span><span class="w"> </span><span class="s">&quot;openUrl&quot;</span><span class="w"> </span><span class="ss">:url</span><span class="w"> </span><span class="s">&quot;https://example.com&quot;</span><span class="p">)</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="p">(</span><span class="nv">callFunction</span><span class="w"> </span><span class="s">&quot;customRPC&quot;</span><span class="w"> </span><span class="ss">:arg1</span><span class="w"> </span><span class="s">&quot;value1&quot;</span><span class="p">)</span>
-</span></code></pre></div></li>
-</ol>
+<h3 id="messages-and-surfaces">Messages and surfaces<a class="headerlink" href="#messages-and-surfaces" title="Permanent link">&para;</a></h3>
+<p>A block of Atom text can produce several messages, in source order. Header forms start a message, and the trees and data that follow belong to it until the next header:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Form</th>
+<th style="text-align: left;">Message</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>(surface "id" [:catalogId "c"] [:sendDataModel true])</code></td>
+<td style="text-align: left;">A <code>createSurface</code> with the following trees and data.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>(updateComponents "id" [:catalogId "c"])</code></td>
+<td style="text-align: left;">An <code>updateComponents</code> with the following trees. Give each tree an <code>:id</code> so it replaces the component it targets.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>(updateDataModel "id" [:path "/p"] :value v)</code></td>
+<td style="text-align: left;">An <code>updateDataModel</code>. In v1.0 <code>:value</code> is required, and <code>:value null</code> deletes the value at the path.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>(deleteSurface "id")</code></td>
+<td style="text-align: left;">A <code>deleteSurface</code>.</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>(callFunction "name" [:functionCallId "id"] [:catalogId "c"] :arg v)</code></td>
+<td style="text-align: left;">A <code>callRendererFunction</code>. It exists only in v1.0.</td>
+</tr>
+</tbody>
+</table>
+<p>Trees and data before any header create the compiler's default surface. A <code>(surface ...)</code> header with only data still creates the surface. Component ids are generated; an explicit <code>:id</code> never collides with a generated id.</p>
+<div class="language-lisp highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="p">(</span><span class="nv">updateComponents</span><span class="w"> </span><span class="s">&quot;dashboard-surface-1&quot;</span><span class="p">)</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="p">(</span><span class="nv">Text</span><span class="w"> </span><span class="ss">:id</span><span class="w"> </span><span class="s">&quot;status_text&quot;</span><span class="w"> </span><span class="s">&quot;Updated 1m ago&quot;</span><span class="w"> </span><span class="s">&quot;caption&quot;</span><span class="p">)</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="p">(</span><span class="nv">updateDataModel</span><span class="w"> </span><span class="s">&quot;dashboard-surface-1&quot;</span><span class="w"> </span><span class="ss">:path</span><span class="w"> </span><span class="s">&quot;/metrics/sales&quot;</span><span class="w"> </span><span class="ss">:value</span><span class="w"> </span><span class="mi">15800</span><span class="p">)</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="p">(</span><span class="nv">callFunction</span><span class="w"> </span><span class="s">&quot;openUrl&quot;</span><span class="w"> </span><span class="ss">:functionCallId</span><span class="w"> </span><span class="s">&quot;open_1&quot;</span><span class="w"> </span><span class="ss">:url</span><span class="w"> </span><span class="s">&quot;https://example.com&quot;</span><span class="p">)</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="p">(</span><span class="nv">deleteSurface</span><span class="w"> </span><span class="s">&quot;old-surface&quot;</span><span class="p">)</span>
+</span></code></pre></div>
+<p>For v0.9 and v0.9.1 catalogs, a surface compiles to <code>createSurface</code>, <code>updateComponents</code> and <code>updateDataModel</code> messages, and the compiler rejects the constructs that only v1.0 has: a <code>:catalogId</code> on a single component or function call, and <code>callFunction</code>.</p>
+<h3 id="catalogs">Catalogs<a class="headerlink" href="#catalogs" title="Permanent link">&para;</a></h3>
+<p>With a single catalog, <code>createSurface</code> carries that catalog's <code>catalogId</code> (and <code>(surface "id" :catalogId "c")</code> is optional). With more than one catalog (supported in v1.0 and newer), <code>createSurface</code> omits <code>catalogId</code>, naming <code>:catalogId</code> on <code>surface</code> or <code>updateComponents</code> is an error, and every compiled component and function call carries its own <code>catalogId</code>. A component or function call written without <code>:catalogId</code> resolves by name across the active catalogs when exactly one catalog defines it, and requires an explicit <code>:catalogId "c"</code> when multiple catalogs define that name:</p>
+<div class="language-lisp highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="p">(</span><span class="nv">surface</span><span class="w"> </span><span class="s">&quot;main&quot;</span><span class="p">)</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="p">(</span><span class="nv">Column</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="p">(</span><span class="nv">Chart</span><span class="w"> </span><span class="nv">$/sales</span><span class="w"> </span><span class="ss">:catalogId</span><span class="w"> </span><span class="s">&quot;https://example.com/charts.json&quot;</span><span class="p">)</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="p">(</span><span class="nv">Text</span><span class="w"> </span><span class="nv">$/summary</span><span class="p">))</span>
+</span></code></pre></div>
+<p>For v1.0 catalogs, the compiler writes data bindings as <code>{"@path": ...}</code> and function calls as <code>{"@call": ..., "args": ...}</code>. For v0.9 and v0.9.1 catalogs, it writes <code>path</code> and <code>call</code>.</p>
 <hr />
 <h2 id="compilation-example">Compilation Example<a class="headerlink" href="#compilation-example" title="Permanent link">&para;</a></h2>
 <h3 id="input-a2ui-atom-stream">Input A2UI Atom Stream<a class="headerlink" href="#input-a2ui-atom-stream" title="Permanent link">&para;</a></h3>
@@ -2724,7 +2775,7 @@
 </span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;v1.0&quot;</span><span class="p">,</span>
 </span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">&quot;createSurface&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 </span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="nt">&quot;surfaceId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;main&quot;</span><span class="p">,</span>
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="nt">&quot;catalogId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;basic&quot;</span><span class="p">,</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="nt">&quot;catalogId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json&quot;</span><span class="p">,</span>
 </span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="nt">&quot;components&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
 </span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">      </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;root&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Card&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;child&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node_0&quot;</span><span class="p">},</span>
 </span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">      </span><span class="p">{</span>
@@ -2733,8 +2784,8 @@
 </span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">        </span><span class="nt">&quot;children&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;node_1&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;node_2&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;node_3&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;node_4&quot;</span><span class="p">],</span>
 </span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">        </span><span class="nt">&quot;align&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;center&quot;</span>
 </span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">      </span><span class="p">},</span>
-</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="w">      </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node_1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Icon&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/icon&quot;</span><span class="p">}},</span>
-</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="w">      </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node_2&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Text&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/title&quot;</span><span class="p">}},</span>
+</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a><span class="w">      </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node_1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Icon&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;@path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/icon&quot;</span><span class="p">}},</span>
+</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="w">      </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node_2&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Text&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;@path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/title&quot;</span><span class="p">}},</span>
 </span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="w">      </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node_3&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Text&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;text&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Get alerts for order status changes&quot;</span><span class="p">},</span>
 </span><span id="__span-11-17"><a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="w">      </span><span class="p">{</span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node_4&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Row&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;children&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;node_5&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;node_7&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;justify&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;center&quot;</span><span class="p">},</span>
 </span><span id="__span-11-18"><a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a><span class="w">      </span><span class="p">{</span>
