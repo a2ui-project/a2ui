@@ -57,7 +57,7 @@ An adapter whose implementations are not elements (React function components, An
 
 - Elements render into the light DOM by default, so the application's stylesheet reaches them and framework components can be composed inside them. An element MAY opt into shadow DOM.
 - An element's own styles are adopted once per document or shadow root and scoped to its tag name, so that two elements with the same selectors do not leak styles into each other.
-- Elements style themselves from CSS custom properties with documented names and defaults. They read no styling from the protocol: a v1.0 surface carries no `theme`, and the element layer MUST NOT depend on one. A legacy v0.9 theme, where an adapter still supports it, is applied by setting the same custom properties from outside the element.
+- Elements style themselves from CSS custom properties with documented names and defaults. They read no styling from the protocol: a surface at v1.0 or later carries no `theme`, and the element layer MUST NOT depend on one. A legacy v0.9 theme, where an adapter still supports it, is applied by setting the same custom properties from outside the element.
 
 ### **7. Shared basic catalog**
 
@@ -139,14 +139,14 @@ function registerUniversalElement(impl: WebComponentImplementation): void;
 function renderA2uiNode(node: ComponentNode): HostView;
 
 /** The properties every element accepts from the renderer that creates it. */
-interface A2uiElement extends HostElement {
+interface A2uiElement extends HTMLElement {
   node?: ComponentNode;
   context?: ComponentContext;
 }
 
 /** Adapter side: wraps a native entry in a host element with a generated tag. */
 function toWebComponent(
-  impl: NativeImplementation | WebComponentImplementation,
+  impl: ComponentImplementation | WebComponentImplementation,
 ): WebComponentImplementation;
 ```
 
@@ -188,7 +188,7 @@ These cases run in each adapter that implements the feature. They are framework 
   - A host moved within the DOM in one task keeps its mounted state.
 - **Styling**
   - Two different elements with the same internal selector do not style each other.
-  - A v1.0 `createSurface` with a `theme` object renders exactly as one without it.
+  - A `createSurface` at v1.0 or later with a `theme` object renders exactly as one without it.
 - **Shared basic catalog**
   - `accessibility.label` on a basic catalog component appears as the platform label attribute on the element.
   - A failed check with severity `error` renders its message; the element's action is disabled.

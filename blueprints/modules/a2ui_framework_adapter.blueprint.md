@@ -103,7 +103,7 @@ graph LR
 
 `catalog/basic/` must remain cleanly decoupled from `surface/` and `nodes/`. Applications often substitute their own design system components for basic elements (e.g. replacing basic `Button` with an internal UI library button), so core rendering mechanics must never hardcode dependencies on the built-in basic catalog.
 
-`styles/` holds whatever the host framework uses to style components: CSS custom properties, a token set, or a bridge to the platform theme. It never reads styling from the protocol. v1.0 removed `theme` from `createSurface` and from catalog definitions, and a v1.0 surface carries no brand data. An adapter that also renders v0.9 surfaces may read the legacy theme there, but only from code under its versioned subpath.
+`styles/` holds whatever the host framework uses to style components: CSS custom properties, a token set, or a bridge to the platform theme. It never reads styling from the protocol. v1.0 removed `theme` from `createSurface` and from catalog definitions, and a surface at v1.0 or later carries no brand data. An adapter that also renders v0.9 surfaces may read the legacy theme there, but only from code under its versioned subpath.
 
 Web adapters that share element implementations across frameworks follow the [universal custom elements feature blueprint](../features/universal_custom_elements.blueprint.md), which adds a shared element layer to this layout.
 
@@ -362,7 +362,7 @@ interface ComponentImplementation extends ComponentApi {
 Adapters may provide convenience helpers to eliminate boilerplate when registering catalogs or creating implementations:
 
 1. **`createComponentImplementation(api, builder)`**: Validates and bundles API schema with builder function.
-2. **`createCatalog({ id, protocolVersion, components, functions })`**: Constructs a catalog container with registered implementations. A catalog for v1.0 or later MUST declare its `protocolVersion`; Core rejects an unversioned catalog on a v1.0 surface.
+2. **`createCatalog({ id, protocolVersion, components, functions })`**: Constructs a catalog container with registered implementations. A catalog for v1.0 or later MUST declare its `protocolVersion`; Core rejects an unversioned catalog on a surface at v1.0 or later.
 3. **Reactivity Wrappers / Hooks**:
    - React: `useNodeProps(node)` / `useSignalValue(node.props)` returning current resolved props.
    - Flutter: `NodePropsBuilder(node: node, builder: (context, props) => ...)` or `ValueListenable` adapter.
@@ -484,7 +484,7 @@ The repository maintains language-agnostic conformance tests in [`conformance/`]
 | Test Area                      | Assertion                                                                                                                                                                                                                   |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Tree Hierarchy**             | Loading a surface payload builds a native view tree exactly matching the `ComponentNode` graph, with children in declared order.                                                                                            |
-| **Single-message surface**     | A v1.0 `createSurface` carrying `components` and `dataModel` renders without a following `updateComponents`.                                                                                                                |
+| **Single-message surface**     | A `createSurface` at v1.0 or later carrying `components` and `dataModel` renders without a following `updateComponents`.                                                                                                    |
 | **Progressive Arrival**        | When a component is referenced before its definition arrives, the adapter renders a placeholder, then upgrades to the real component in place without remounting the parent.                                                |
 | **Dynamic Repeaters (`List`)** | Modifying an array in the `DataModel` (insert, delete, reorder) updates child widgets without remounting unaffected siblings. A template item that reads `@index` shows its position.                                       |
 | **Two-Way Binding**            | User input on native controls calls `WritableBinding.set()`, updates the Core `DataModel`, and updates all observing components.                                                                                            |
@@ -493,7 +493,7 @@ The repository maintains language-agnostic conformance tests in [`conformance/`]
 | **Multiple catalogs**          | A surface whose root and one descendant come from two different catalogs renders both, and each implementation receives props shaped by its own catalog's schema.                                                           |
 | **Validation results**         | A check that returns `{valid: false, severity: "error", message}` disables the control and shows the message; one returning `severity: "warning"` leaves the control enabled; a boolean `false` behaves as an error.        |
 | **Accessibility**              | `accessibility.label`, `description`, `live`, and `hidden` reach the platform accessibility API on the focusable element, and an explicit `label` overrides the inferred one.                                               |
-| **Theme ignored**              | A v1.0 `createSurface` that carries a `theme` object renders exactly as one without it.                                                                                                                                     |
+| **Theme ignored**              | A `createSurface` at v1.0 or later that carries a `theme` object renders exactly as one without it.                                                                                                                         |
 | **Fallback States**            | Unknown component types and cyclic references render visual diagnostics without crashing, and the adapter reports nothing itself.                                                                                           |
 | **Teardown & Cleanup**         | Unmounting `Surface` or deleting components releases all property subscriptions and frees memory.                                                                                                                           |
 
