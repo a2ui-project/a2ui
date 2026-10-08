@@ -435,7 +435,7 @@ class DataContext {
       } on A2uiCatalogResolutionError {
         final AgentFunctionCaller? caller = _agentCallerOrNull;
         if (caller == null) rethrow;
-        return _agentCall(call, args, caller).state.value.value;
+        return _agentCall(call, args, caller).value.value;
       }
     } catch (error) {
       if (_onError == null) rethrow;
@@ -489,8 +489,9 @@ class DataContext {
   /// same name, catalog and arguments is in flight or completed.
   ///
   /// Sharing the entry is what keeps a `computed` that re-evaluates with
-  /// unchanged arguments from sending the call again. A failure leaves the
-  /// value null and is reported once, through the reporter, with the
+  /// unchanged arguments from sending the call again. A failure evicts the
+  /// entry (so a later retry or argument change can re-send it), leaves the
+  /// value null, and is reported once through the reporter with the
   /// `A2uiRpcError` as its cause.
   _AgentCall _agentCall(
     FunctionCall call,
@@ -498,34 +499,42 @@ class DataContext {
     AgentFunctionCaller caller,
   ) {
     final String key = _agentCallKey(call, args);
-    return _agentCalls.entries.putIfAbsent(key, () {
-      final entry = _AgentCall();
-      final outbound = FunctionCall(
-        call: call.call,
-        args: args,
-        returnType: call.returnType,
-        catalogId: call.catalogId,
-        reservedKeys: true,
-      );
-      Future<Object?> future;
-      try {
-        future = caller(outbound);
-      } catch (error, stackTrace) {
-        future = Future<Object?>.error(error, stackTrace);
-      }
-      future.then<void>(
-        (value) {
-          entry.state.value = (value: value, pending: false);
+    final _AgentCall? existing = _agentCalls.entries[key];
+    if (existing != null) return existing;
+    _agentCalls.evictIfFull();
+    final entry = _AgentCall(call.call, call.catalogId);
+    _agentCalls.entries[key] = entry;
+    final outbound = FunctionCall(
+      call: call.call,
+      args: args,
+      returnType: call.returnType,
+      catalogId: call.catalogId,
+      reservedKeys: true,
+    );
+    Future<Object?> future;
+    try {
+      future = caller(outbound);
+    } catch (error, stackTrace) {
+      future = Future<Object?>.error(error, stackTrace);
+    }
+    future.then<void>(
+      (value) {
+        batch(() {
+          entry.pending = false;
+          entry.value.value = value;
           _agentCalls.version.value++;
-        },
-        onError: (Object error) {
-          entry.state.value = (value: null, pending: false);
+        });
+      },
+      onError: (Object error) {
+        batch(() {
+          entry.pending = false;
+          _agentCalls.entries.remove(key);
           _agentCalls.version.value++;
-          _report(error, call.call);
-        },
-      );
-      return entry;
-    });
+        });
+        _report(error, call.call);
+      },
+    );
+    return entry;
   }
 
   static Object? _canonicalize(Object? value) {
@@ -555,22 +564,27 @@ class DataContext {
   /// Whether evaluating [value] now would read an agent call that is still
   /// awaiting its response.
   ///
-  /// Walks [value] for function calls, resolves each call's arguments, and
-  /// looks the call up among the agent calls this context has sent. A call
-  /// that would resolve locally is never pending. Lets a consumer that treats
-  /// a null from [resolveSync] as "not yet known" tell it from a null result.
+  /// Walks [value] for function calls, resolves each call's arguments when a
+  /// pending call for that function is in flight, and looks the call up among
+  /// the agent calls this context has sent. A call that would resolve locally
+  /// is never pending. Lets a consumer that treats a null from [resolveSync]
+  /// as "not yet known" tell it from a null result.
   bool isPendingAgentCall(Object? value) {
+    if (_agentCalls.entries.isEmpty) return false;
     if (value is List) return value.any(isPendingAgentCall);
     if (value is! Map) return false;
     if (isFunctionCall(value)) {
       final call = FunctionCall.fromJson(_asStringKeyedMap(value));
+      if (call.args.values.any(isPendingAgentCall)) return true;
+      if (!_agentCalls.hasPendingFor(call.call, call.catalogId)) {
+        return false;
+      }
       final args = <String, dynamic>{
         for (final MapEntry<String, dynamic> entry in call.args.entries)
           entry.key: resolveSync(entry.value),
       };
       final _AgentCall? entry = _agentCalls.entries[_agentCallKey(call, args)];
-      if (entry != null && entry.state.value.pending) return true;
-      return call.args.values.any(isPendingAgentCall);
+      return entry != null && entry.pending;
     }
     return value.values.any(isPendingAgentCall);
   }
@@ -717,20 +731,54 @@ class DataContext {
 
 /// One function call sent to the agent on a context's behalf.
 class _AgentCall {
-  /// The call's value, null until it completes, and whether it is pending.
-  final Signal<DynamicValueState> state =
-      signal<DynamicValueState>((value: null, pending: true));
+  _AgentCall(this.functionName, this.catalogId);
+
+  final String functionName;
+  final String? catalogId;
+
+  /// The call's resolved value, null while pending or after a failure.
+  final Signal<Object?> value = signal<Object?>(null);
+
+  /// Whether the call is still awaiting its response.
+  bool pending = true;
 }
 
 /// The agent calls a context and the contexts derived from it have sent,
 /// keyed by name, catalog and resolved arguments.
 class _AgentCallCache {
+  static const int _maxEntries = 256;
+
   final Map<String, _AgentCall> entries = {};
 
   /// Bumped whenever a call settles, so a consumer that also needs to know
   /// about a call completing with null can depend on it.
   final Signal<int> version = signal<int>(0);
+
+  bool hasPendingFor(String functionName, String? catalogId) {
+    for (final _AgentCall call in entries.values) {
+      if (call.pending &&
+          call.functionName == functionName &&
+          call.catalogId == catalogId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void evictIfFull() {
+    if (entries.length < _maxEntries) return;
+    for (final MapEntry<String, _AgentCall> entry in entries.entries) {
+      if (!entry.value.pending) {
+        entries.remove(entry.key);
+        return;
+      }
+    }
+  }
 }
+
+/// Shared [_AgentCallCache] per [SurfaceModel] so all [ComponentContext]
+/// instances on a surface deduplicate in-flight agent calls.
+final Expando<_AgentCallCache> _surfaceAgentCalls = Expando();
 
 /// Context provided to components during rendering.
 class ComponentContext {
@@ -748,7 +796,7 @@ class ComponentContext {
     this.componentModel, {
     String? basePath,
     ExpressionErrorReporter? onError,
-  }) : dataContext = DataContext(
+  }) : dataContext = DataContext._derived(
           surface.dataModel,
           (name, args, context) =>
               surface.resolveCatalog(null).invoke(name, args, context),
@@ -757,29 +805,39 @@ class ComponentContext {
           protocolVersion: surface.protocolVersion,
           invokerForCatalog: (catalogId) =>
               surface.resolveCatalog(catalogId).invoke,
+          isUserActivated: false,
           callAgentFunction: surface.callAgentFunction,
+          agentCalls: _surfaceAgentCalls[surface] ??= _AgentCallCache(),
         );
 
   static ExpressionErrorReporter _surfaceReporter(SurfaceModel surface) =>
-      (error) {
-        final Object? cause = error.cause;
-        surface.dispatchError(
-          cause is A2uiRpcError
-              ? A2uiClientError(
-                  code: RpcErrorCode.executionError.wireValue,
-                  surfaceId: surface.id,
-                  functionCallId: cause.functionCallId,
-                  message: error.message,
-                  details: error.details,
-                )
-              : A2uiClientError(
-                  code: 'EXPRESSION_ERROR',
-                  surfaceId: surface.id,
-                  message: error.message,
-                  details: error.details,
-                ),
-        );
-      };
+      (error) => surface.dispatchError(clientErrorFor(surface, error));
+
+  /// Builds the [A2uiClientError] for [error] on [surface].
+  ///
+  /// When [error]'s cause is an [A2uiRpcError], the error code is
+  /// `EXECUTION_ERROR` and `functionCallId` is set (omitting `surfaceId` when
+  /// `functionCallId` is non-null to satisfy the v1.0 wire `oneOf` rule).
+  static A2uiClientError clientErrorFor(
+    SurfaceModel surface,
+    A2uiExpressionError error,
+  ) {
+    final Object? cause = error.cause;
+    return cause is A2uiRpcError
+        ? A2uiClientError(
+            code: RpcErrorCode.executionError.wireValue,
+            surfaceId: cause.functionCallId == null ? surface.id : null,
+            functionCallId: cause.functionCallId,
+            message: error.message,
+            details: error.details,
+          )
+        : A2uiClientError(
+            code: 'EXPRESSION_ERROR',
+            surfaceId: surface.id,
+            message: error.message,
+            details: error.details,
+          );
+  }
 
   /// Dispatches an action from the component.
   Future<void> dispatchAction(Map<String, dynamic> action) {

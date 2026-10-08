@@ -601,11 +601,13 @@ class GenericBinder {
           .evaluateFunctionCall(functionCall);
     } catch (e) {
       final Object? fnName = functionCall['@call'] ?? functionCall['call'];
+      final String? functionCallId =
+          e is A2uiRpcError ? e.functionCallId : null;
       await context.surface.dispatchError(
         A2uiClientError(
           code: 'EXECUTION_ERROR',
-          surfaceId: context.surface.id,
-          functionCallId: e is A2uiRpcError ? e.functionCallId : null,
+          surfaceId: functionCallId == null ? context.surface.id : null,
+          functionCallId: functionCallId,
           message: "Function '$fnName' failed in component "
               "'${context.componentModel.id}': $e",
         ),

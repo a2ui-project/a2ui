@@ -140,6 +140,19 @@ void main() {
       expect(context.resolveSync(reorderedCall), isNull);
       expect(context.isPendingAgentCall(reorderedCall), isTrue);
       expect(context.nested('/x').resolveSync(call), isNull);
+      final childComp = ComponentModel('child', 'Text', {});
+      surface.componentsModel.addComponent(childComp);
+      expect(
+        ComponentContext(surface, childComp).dataContext.resolveSync(call),
+        isNull,
+      );
+      expect(
+        ComponentContext(surface, ComponentModel('root', 'Text', {}))
+            .childContext('child')
+            .dataContext
+            .resolveSync(call),
+        isNull,
+      );
       expect(agentCalls, hasLength(1));
 
       expect(
@@ -172,9 +185,52 @@ void main() {
       expect(value.value, isNull);
       expect(clientErrors, hasLength(1));
       expect(clientErrors.single.code, 'EXECUTION_ERROR');
-      expect(clientErrors.single.surfaceId, 'surf');
+      expect(clientErrors.single.surfaceId, isNull);
       expect(clientErrors.single.functionCallId, 'fc-9');
       expect(clientErrors.single.message, contains('agent said no'));
+      final Map<String, dynamic> wire =
+          ErrorMessage(version: 'v1.0', error: clientErrors.single).toJson();
+      expect(RendererToAgentMessage.fromJson(wire), isA<ErrorMessage>());
+
+      // A failed call is evicted so a later retry invokes the agent again.
+      expect(
+        context.resolveSync({'@call': 'lookup', 'args': <String, Object?>{}}),
+        isNull,
+      );
+      expect(agentCalls, hasLength(2));
+      agentCalls.last.completer.complete('recovered');
+      await _flush();
+      expect(
+        context.resolveSync({'@call': 'lookup', 'args': <String, Object?>{}}),
+        'recovered',
+      );
+    });
+
+    test('NodeResolver reports agent RPC failure with EXECUTION_ERROR and id',
+        () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final resolver = NodeResolver<ComponentApi>(surface);
+      addTearDown(resolver.dispose);
+      surface.componentsModel.addComponent(
+        ComponentModel('root', 'Text', {
+          'text': {'@call': 'lookup', 'args': <String, Object?>{}},
+        }),
+      );
+      expect(resolver.rootNode.value, isNotNull);
+      expect(agentCalls, hasLength(1));
+      agentCalls.single.completer.completeError(
+        A2uiRpcError(
+          'node rpc fail',
+          RpcErrorCode.executionError,
+          functionCallId: 'fc-node',
+        ),
+      );
+      await _flush();
+      expect(clientErrors, hasLength(1));
+      expect(clientErrors.single.code, 'EXECUTION_ERROR');
+      expect(clientErrors.single.surfaceId, isNull);
+      expect(clientErrors.single.functionCallId, 'fc-node');
+      expect(clientErrors.single.message, contains('node rpc fail'));
     });
 
     test('a custom reporter receives the rpc error as cause', () async {
@@ -479,8 +535,11 @@ void main() {
       expect(clientErrors, hasLength(1));
       expect(clientErrors.single.code, 'EXECUTION_ERROR');
       expect(clientErrors.single.functionCallId, 'fc-7');
-      expect(clientErrors.single.surfaceId, 'surf');
+      expect(clientErrors.single.surfaceId, isNull);
       expect(clientErrors.single.message, contains('refused'));
+      final Map<String, dynamic> wire =
+          ErrorMessage(version: 'v1.0', error: clientErrors.single).toJson();
+      expect(RendererToAgentMessage.fromJson(wire), isA<ErrorMessage>());
     });
 
     test('a functionCall action runs with user activation', () async {
