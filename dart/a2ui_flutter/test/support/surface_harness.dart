@@ -80,6 +80,12 @@ Widget boundedHost(List<Widget> surfaces) => Column(
   children: [for (final s in surfaces) Expanded(child: s)],
 );
 
+/// Puts the surfaces in a horizontal scroll view: each gets an unbounded width.
+Widget unboundedWidthHost(List<Widget> surfaces) => SingleChildScrollView(
+  scrollDirection: Axis.horizontal,
+  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: surfaces),
+);
+
 /// A message processor whose surfaces a widget test renders.
 ///
 /// [actions] and [errors] collect what every surface reports, in order.

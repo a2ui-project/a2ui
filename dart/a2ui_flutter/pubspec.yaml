@@ -28,8 +28,11 @@ dependencies:
   a2ui_core: ^0.2.2
   flutter:
     sdk: flutter
+  path_parsing: ^1.1.0
+  video_player: ^2.14.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   json_schema_builder: ^0.1.7
+  video_player_platform_interface: ^6.9.0
