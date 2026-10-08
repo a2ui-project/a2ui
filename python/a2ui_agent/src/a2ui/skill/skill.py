@@ -14,14 +14,14 @@
 
 """Skill and SkillSet domain objects for A2UI skill packages."""
 
+from collections.abc import Iterator, Sequence
 import os
 import shutil
-from typing import Any, Iterator, Optional, Union
+from typing import Any, Optional
 import yaml
 
 from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
-from a2ui.processor import CatalogConfig
 
 
 def _clean_catalog_name(catalog: Any) -> str:
@@ -41,35 +41,12 @@ def _clean_catalog_name(catalog: Any) -> str:
 
 
 def _resolve_catalogs_list(
-    catalogs: Optional[list[Union[str, CatalogApi]]],
+    catalogs: Optional[Sequence[CatalogApi]],
     fmt: InferenceFormat,
 ) -> list[CatalogApi]:
-    """Resolves catalogs from catalog paths, catalogs, or the format's defaults."""
+    """Resolves catalogs from an explicit sequence or the format's defaults."""
     if catalogs is not None:
-        resolved: list[CatalogApi] = []
-        for c in catalogs:
-            if isinstance(c, str):
-                cat_name = os.path.splitext(os.path.basename(c))[0] or "custom"
-                with open(c, "r", encoding="utf-8") as f:
-                    import json
-
-                    doc = json.load(f)
-                cat_id = (
-                    None if isinstance(doc, dict) and doc.get("catalogId") else cat_name
-                )
-                pv = (
-                    None
-                    if isinstance(doc, dict) and doc.get("protocolVersion")
-                    else "1.0"
-                )
-                resolved.append(
-                    CatalogConfig.from_path(
-                        c, protocol_version=pv, catalog_id=cat_id
-                    ).transformed_catalog
-                )
-            else:
-                resolved.append(c)
-        return resolved
+        return list(catalogs)
 
     defaults: list[CatalogApi] = []
     if hasattr(fmt, "catalogs") and fmt.catalogs:

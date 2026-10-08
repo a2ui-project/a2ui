@@ -113,6 +113,10 @@ def test_file_system_provider_schemes(tmp_path):
     with pytest.raises(A2uiCatalogError, match="Unsupported catalog URL scheme"):
         FileSystemCatalogProvider("ftp://a2ui.org/catalog.json").load()
 
+    # Windows drive letter path is treated as a local file path, not a URL scheme
+    with pytest.raises(A2uiCatalogError, match="Cannot read the catalog document"):
+        FileSystemCatalogProvider("C:/nonexistent/catalog.json").load()
+
 
 def test_catalog_config_transformed_catalog_applies_transformers():
     base = BasicCatalog(VERSION_0_9)

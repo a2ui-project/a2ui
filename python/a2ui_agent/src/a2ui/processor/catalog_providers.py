@@ -67,11 +67,14 @@ class FileSystemCatalogProvider(CatalogProvider):
               or conflict with the provider's values.
         """
         parsed = urlparse(self.path)
-        if parsed.scheme and parsed.scheme != "file":
+        scheme = parsed.scheme
+        if scheme and len(scheme) == 1 and scheme.isalpha():
+            scheme = ""
+        if scheme and scheme != "file":
             raise A2uiCatalogError(
                 f"Unsupported catalog URL scheme '{parsed.scheme}' in '{self.path}'."
             )
-        file_path = parsed.path if parsed.scheme == "file" else self.path
+        file_path = parsed.path if scheme == "file" else self.path
 
         try:
             with open(file_path, "r", encoding="utf-8") as f:
