@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.3.0 (2026-10-08)
+
 - `inline_local_refs` is exported from `a2ui.core`. It writes a schema's local
   `#/` references inline, keeping references to common types, as
   `Catalog.from_json` does
