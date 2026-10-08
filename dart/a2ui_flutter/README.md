@@ -4,8 +4,8 @@ Flutter renderer for [A2UI](https://a2ui.org/) protocol v0.9. It renders the
 surfaces of an `a2ui_core` `MessageProcessor` as widget trees, following the
 [framework adapter blueprint](../../blueprints/modules/a2ui_framework_adapter.blueprint.md).
 
-A component pairs a schema with a widget builder, and goes in a catalog of
-the app's own.
+The basic catalog is included. A custom component pairs a schema with a
+widget builder, and goes in a catalog of the app's own.
 
 ## Installation
 
@@ -39,7 +39,7 @@ a surface go back to the agent.
 
 ```dart
 final processor = MessageProcessor<ComponentImplementation>(
-  catalogs: [demoCatalog],
+  catalogs: [basicCatalog()],
   defaultVersion: A2uiProtocolVersion.v0_9,
 );
 final String version = A2uiProtocolVersion.v0_9.jsonValue;
@@ -96,16 +96,32 @@ ValueListenableBuilder(
 processor.groupModel.dispose();
 ```
 
+- The basic components are Material widgets. Render surfaces under a
+  `MaterialApp` and inside a `Material`, such as a `Scaffold` body.
 - Send `processor.getClientDataModel()` as `a2uiClientDataModel` in the
   transport metadata of each message to the agent, when it is not null.
 - Key each surface's widget by `ObjectKey(surface)`, and remove it when the
   surface is deleted.
 - An `onError` listener can run while an `A2uiSurface` builds, so a
   `setState` it causes must wait for the next frame.
+- On macOS, network images and media need the
+  `com.apple.security.network.client` entitlement.
+
+Models often write Markdown in Text. To render it, wrap the surface in an
+`A2uiMarkdown` with a Markdown package's widget, such as `MarkdownBody` from
+`flutter_markdown_plus`:
+
+```dart
+A2uiMarkdown(
+  builder: (context, markdown, style) => MarkdownBody(data: markdown),
+  child: A2uiSurface(surface: surface),
+);
+```
 
 ## Defining Custom Components
 
-List your components in a `WidgetCatalog` under your own catalog id:
+A v0.9 surface has one catalog, so list your components next to the basic
+components and functions you need, under your own catalog id:
 
 ```dart
 final rating = ComponentImplementation(
@@ -142,7 +158,9 @@ final rating = ComponentImplementation(
 
 final demoCatalog = WidgetCatalog(
   id: 'https://example.com/demo/catalog.json',
-  components: [rating],
+  components: [...BasicComponents.all, rating],
+  functions: BasicCatalog.v0_9().functions.values.toList(),
+  themeSchema: BasicComponents.api.themeSchema,
 );
 ```
 
@@ -170,6 +188,33 @@ a `ChildWidgetBuilder`:
 - Expect an unbounded height or width, as in a scroll view. Give a widget
   that needs a bound, such as a `TextField`, one with a `LimitedBox`.
 
+## Basic Catalog Components
+
+`package:a2ui_flutter/basic_catalog.dart` implements the
+[v0.9 basic catalog](../../specification/v0_9/catalogs/basic/catalog.json)
+with Material widgets. `basicCatalog()` builds all of it, and
+`BasicComponents` holds each component for a catalog of your own.
+
+- **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
+- **Content**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`
+- **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`,
+  `DateTimeInput`
+
+The components take the surface theme's `primaryColor` as the Material
+theme's primary color. The functions format for the `locale` passed to
+`basicCatalog()`, `en-US` by default.
+
+Not supported yet:
+
+- `accessibility` attributes.
+- A literal `min` or `max` on DateTimeInput, which the `a2ui_core` validator
+  rejects.
+- Measuring a surface's intrinsic size, as `IntrinsicWidth` and an
+  `AlertDialog`'s content do. Give the surface a fixed width there, or use a
+  `Dialog`.
+- Leaving `video_player` out of an app. Video and AudioPlayer play through
+  it.
+
 ## Security
 
 > [!IMPORTANT]
@@ -177,3 +222,14 @@ a `ChildWidgetBuilder`:
 > UI definitions are untrusted input: a malicious agent could imitate a
 > legitimate interface to deceive users, or send layouts heavy enough to
 > degrade the app.
+
+`openUrl` fails unless the app passes a callback, such as `url_launcher`'s
+`launchUrl`: `basicCatalog(openUrl: launchUrl)`. A bound `openUrl` call runs
+whenever it resolves, not only on a tap, so with a callback the agent can open
+an `http`, `https`, `mailto` or `tel` URL without the user acting. Pass one
+only for an agent you trust.
+
+## Tests
+
+`test/catalog/basic/examples_test.dart` renders every
+[v0.9 basic catalog example](../../specification/v0_9/catalogs/basic/examples).
