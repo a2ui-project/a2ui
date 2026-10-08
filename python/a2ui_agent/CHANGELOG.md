@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Introduce typesafe fluent builder package for A2UI Protocol v1.0 (`a2ui.builder.v1_0`),
+  providing builder models for v1.0 common types (`DataBinding` with `@path`,
+  `FunctionCall` with `@call`, `Action`, `AccessibilityAttributes`, `CheckRule`, and
+  `DynamicChildList`) and basic catalog components (`Button` with child slot,
+  `TextField` with `placeholder`, `Slider` with `steps`, and `Video` with `posterUrl`) (#2897).
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.3.0,<0.4.0`.
 - **BREAKING**: `remove_strict_validation` and the `schema_modifiers`
   parameter of `CatalogConfig.to_catalog` are removed. Catalog schemas are

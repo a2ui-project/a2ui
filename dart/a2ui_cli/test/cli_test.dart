@@ -83,7 +83,7 @@ void main() {
     });
 
     test(
-      'fails with exit code 1 on unsupported v1.0 catalog version',
+      'succeeds with exit code 0 on supported v1.0 catalog version',
       () async {
         final Directory tmpDir = Directory.systemTemp.createTempSync(
           'cli-test-v1-',
@@ -105,11 +105,8 @@ void main() {
                 '-o',
                 tmpDir.path,
               ]);
-          expect(result.exitCode, equals(1));
-          expect(
-            result.stderr,
-            contains('Unsupported catalog protocol version'),
-          );
+          expect(result.exitCode, equals(0));
+          expect(result.stdout, contains('Successfully generated'));
         } finally {
           tmpDir.deleteSync(recursive: true);
         }
