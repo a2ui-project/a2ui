@@ -32,7 +32,7 @@ from a2ui.catalog_transformers import (
 from a2ui.core import Catalog, CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.catalog import ComponentApi, FunctionApi
-from a2ui.schema import CatalogConfig, InMemoryCatalogProvider
+from a2ui.processor import CatalogConfig
 
 
 def _refs(any_schema: dict[str, Any]) -> set[str]:
@@ -181,10 +181,9 @@ class _RecordingTransformer(CatalogTransformer):
         return catalog
 
 
-def test_to_catalog_applies_transformers_in_order():
+def test_transformed_catalog_applies_transformers_in_order():
     log: list[set[str]] = []
-    config = CatalogConfig.from_catalog(
-        "basic",
+    config = CatalogConfig(
         BasicCatalog("0.9"),
         transformers=[
             ComponentPruningTransformer(["Text", "Column", "Row"]),
@@ -193,7 +192,7 @@ def test_to_catalog_applies_transformers_in_order():
         ],
     )
 
-    catalog = config.to_catalog()
+    catalog = config.transformed_catalog
 
     assert log == [{"Text", "Column", "Row"}]
     assert set(catalog.components) == {"Text"}
@@ -206,13 +205,15 @@ def test_from_path_accepts_transformers(tmp_path):
         encoding="utf-8",
     )
     config = CatalogConfig.from_path(
-        "custom", str(path), transformers=[ComponentPruningTransformer(["Image"])]
+        str(path),
+        transformers=[ComponentPruningTransformer(["Image"])],
+        protocol_version="0.9",
     )
 
-    assert set(config.to_catalog(protocol_version="0.9").components) == {"Image"}
+    assert set(config.transformed_catalog.components) == {"Image"}
 
 
 def test_catalog_config_without_transformers_returns_the_catalog():
     catalog = BasicCatalog("0.9")
 
-    assert CatalogConfig.from_catalog("basic", catalog).to_catalog() is catalog
+    assert CatalogConfig(catalog).transformed_catalog is catalog

@@ -32,7 +32,7 @@ from a2ui.core import (
 )
 from a2ui.inference_format import InferenceFormat
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig
+from a2ui.processor import CatalogConfig
 from ..shared.utils import GIT_ROOT, measured_generate
 
 
@@ -53,7 +53,7 @@ def _get_strategy(
     Returns:
         The instantiated InferenceFormat strategy object.
     """
-    catalog = catalog_config.to_catalog(protocol_version=version)
+    catalog = catalog_config.transformed_catalog
     if format_name == "direct_json":
         return DirectJsonFormat([catalog])
 
@@ -84,7 +84,9 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
         catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
-        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
+        catalog_config = CatalogConfig.from_path(
+            resolved_catalog_path, protocol_version=version
+        )
         strategy = _get_strategy(format_name, version, catalog_config)
 
         role_description = state.metadata.get("protocol_role") or state.metadata.get(
@@ -125,7 +127,9 @@ def _parse_and_validate_in_process(
     surface_id: str,
     completion: str,
 ) -> dict[str, Any]:
-    catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
+    catalog_config = CatalogConfig.from_path(
+        resolved_catalog_path, protocol_version=version
+    )
     strategy = _get_strategy(
         format_name,
         version,

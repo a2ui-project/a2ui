@@ -48,9 +48,12 @@ from a2ui.inference_formats.experimental.elemental import (
 )
 from a2ui.inference_formats.experimental.express import ExpressFormat, ExpressParser
 from a2ui.parser import A2uiCompilationError, parse_and_fix, parse_response
-from a2ui.schema import (
+from a2ui.processor import (
     CatalogConfig,
+    FileSystemCatalogProvider,
     InMemoryCatalogProvider,
+)
+from a2ui.schema import (
     VERSION_0_8,
     VERSION_0_9,
 )
@@ -118,15 +121,6 @@ def assert_raises(expect_error):
                 f" '{exp_code}' not found in:"
                 f" {[getattr(d, 'to_dict', lambda: d)() for d in actual_details]}"
             )
-
-
-class MemoryCatalogProvider:
-
-    def __init__(self, schema):
-        self.schema = schema
-
-    def load(self):
-        return self.schema
 
 
 def setup_catalog(catalog_config):
@@ -367,12 +361,11 @@ def test_schema_manager_conformance(name, test_case):
         accepts_inline_catalogs = args.get("acceptsInlineCatalogs", False)
 
         configs = [
-            CatalogConfig.from_catalog(
-                cat_def["catalogId"],
-                CatalogConfig(
-                    name=cat_def["catalogId"],
-                    provider=MemoryCatalogProvider(cat_def),
-                ).to_catalog(protocol_version=VERSION_0_9),
+            CatalogConfig(
+                InMemoryCatalogProvider(
+                    cat_def,
+                    protocol_version=VERSION_0_9,
+                ).load()
             )
             for cat_def in supported_catalogs
         ]
@@ -405,8 +398,9 @@ def test_schema_manager_conformance(name, test_case):
         catalog_configs = test_case.get("catalogConfigs", [])
         catalogs = [
             CatalogConfig.from_path(
-                name=cfg["name"], catalog_path=get_conformance_path(cfg["path"])
-            ).to_catalog(protocol_version=VERSION_0_8)
+                catalog_path=get_conformance_path(cfg["path"]),
+                protocol_version=VERSION_0_8,
+            ).transformed_catalog
             for cfg in catalog_configs
         ]
         direct_json_format = DirectJsonFormat(catalogs)
@@ -433,7 +427,7 @@ def test_schema_manager_conformance(name, test_case):
             examples_path = get_conformance_path(examples_path)
 
         catalogs = _resolve(
-            [CatalogConfig.from_catalog("basic", BasicCatalog(version))],
+            [CatalogConfig(BasicCatalog(version))],
             version,
             args.get("clientUiCapabilities"),
             args.get("acceptsInlineCatalogs", False),
@@ -699,23 +693,33 @@ def catalog_config_from_document(ref) -> CatalogConfig:
         ref = ref["catalog"]
 
     if isinstance(ref, dict):
+        catalog = InMemoryCatalogProvider(
+            ref,
+            protocol_version=None if "protocolVersion" in ref else "v1.0",
+            catalog_id=None if "catalogId" in ref else "inline",
+        ).load()
         return CatalogConfig(
-            name=str(ref.get("catalogId", "inline")),
-            provider=InMemoryCatalogProvider(ref),
+            catalog=catalog,
             transformers=transformers,
         )
 
     relative_path = str(ref)
+    doc = load_json_file(relative_path)
     return CatalogConfig.from_path(
-        name=os.path.basename(relative_path).removesuffix(".json"),
         catalog_path=get_conformance_path(relative_path),
         transformers=transformers,
+        protocol_version=None if "protocolVersion" in doc else "v1.0",
+        catalog_id=(
+            None
+            if "catalogId" in doc
+            else os.path.basename(relative_path).removesuffix(".json")
+        ),
     )
 
 
-def setup_catalog_from_document(ref) -> Catalog:
+def setup_catalog_from_document(ref):
     """Builds the transformed Catalog that a case's catalog entry describes."""
-    return catalog_config_from_document(ref).to_catalog()
+    return catalog_config_from_document(ref).transformed_catalog
 
 
 def _catalogs_for(args):
@@ -1151,7 +1155,7 @@ def _describe_configs(configs):
     """What a set of registered configs holds, to compare across a negotiation."""
     described = []
     for config in configs:
-        catalog = config.to_catalog()
+        catalog = config.transformed_catalog
         described.append(
             (catalog.catalog_id, sorted(catalog.components), sorted(catalog.functions))
         )

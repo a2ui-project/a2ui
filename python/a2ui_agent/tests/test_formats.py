@@ -53,21 +53,15 @@ def test_catalog():
 
 
 def test_schema_strategy_prompt_generation(test_catalog):
-    from a2ui.schema import A2uiCatalogProvider, CatalogConfig
-
-    class MemoryCatalogProvider(A2uiCatalogProvider):
-
-        def __init__(self, schema):
-            self.schema = schema
-
-        def load(self):
-            return self.schema
+    from a2ui.processor import CatalogConfig, InMemoryCatalogProvider
 
     config = CatalogConfig(
-        name="test_catalog", provider=MemoryCatalogProvider(test_catalog.catalog_schema)
+        InMemoryCatalogProvider(
+            test_catalog.catalog_schema, protocol_version=VERSION_0_9
+        ).load()
     )
     catalogs = resolve_catalogs(
-        [CatalogConfig.from_catalog("test_catalog", config.to_catalog(VERSION_0_9))],
+        [config],
         {"v0.9": {"supportedCatalogIds": ["https://a2ui.org/test_catalog"]}},
     )
 
@@ -156,23 +150,16 @@ def test_strategy_based_converters(test_catalog, monkeypatch):
 
 
 def test_supports_streaming_property(test_catalog):
-    from a2ui.schema import A2uiCatalogProvider, CatalogConfig
-
-    class MemoryCatalogProvider(A2uiCatalogProvider):
-
-        def __init__(self, schema):
-            self.schema = schema
-
-        def load(self):
-            return self.schema
+    from a2ui.processor import CatalogConfig, InMemoryCatalogProvider
 
     config = CatalogConfig(
-        name="test_catalog",
-        provider=MemoryCatalogProvider(test_catalog.catalog_schema),
+        InMemoryCatalogProvider(
+            test_catalog.catalog_schema, protocol_version=VERSION_0_9
+        ).load()
     )
 
     # 1. DirectJsonFormat parser supports streaming
-    direct_json_fmt = DirectJsonFormat([config.to_catalog(VERSION_0_9)])
+    direct_json_fmt = DirectJsonFormat([config.transformed_catalog])
     assert direct_json_fmt.supports_streaming is True
     assert direct_json_fmt.parser.supports_streaming is True
 
@@ -200,16 +187,11 @@ def test_process_chunk_raises_not_implemented(test_catalog):
 
 
 def test_decompiler_delegation(test_catalog):
-    from a2ui.schema import A2uiCatalogProvider, CatalogConfig
+    from a2ui.processor import CatalogConfig
 
-    class DummyProvider(A2uiCatalogProvider):
-
-        def load(self):
-            return test_catalog.catalog_schema
-
-    config = CatalogConfig(name="test_catalog", provider=DummyProvider())
+    config = CatalogConfig(test_catalog)
     # Verify Direct JSON Parser Decompile
-    direct_json_fmt = DirectJsonFormat([config.to_catalog(VERSION_0_9)])
+    direct_json_fmt = DirectJsonFormat([config.transformed_catalog])
     payload = {"createSurface": {"surfaceId": "main"}}
     direct_decompile = direct_json_fmt.parser.decompile(payload)
     assert "createSurface" in direct_decompile
@@ -254,18 +236,11 @@ def test_decompiler_delegation(test_catalog):
 
     # Verify invalid catalog_id check
     from a2ui.core import A2uiCatalogError
-    from a2ui.schema import A2uiCatalogProvider, CatalogConfig
-
-    class _BadProvider(A2uiCatalogProvider):
-
-        def load(self):
-            return {"catalogId": 12345}
+    from a2ui.processor import InMemoryCatalogProvider
 
     with pytest.raises(A2uiCatalogError) as ctx:
-        _ = CatalogConfig(name="bad", provider=_BadProvider()).to_catalog(
-            protocol_version="1.0"
-        )
-    assert "catalogId is not a string" in str(ctx.value)
+        _ = InMemoryCatalogProvider({"catalogId": 12345}, protocol_version="1.0").load()
+    assert "not a non-empty string" in str(ctx.value)
 
     # An empty allowlist keeps nothing. Keeping everything means not pruning.
     from a2ui.catalog_transformers import ComponentPruningTransformer

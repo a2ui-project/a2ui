@@ -21,7 +21,7 @@ import yaml
 
 from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
-from a2ui.schema import CatalogConfig
+from a2ui.processor import CatalogConfig
 
 
 def _clean_catalog_name(catalog: Any) -> str:
@@ -50,7 +50,23 @@ def _resolve_catalogs_list(
         for c in catalogs:
             if isinstance(c, str):
                 cat_name = os.path.splitext(os.path.basename(c))[0] or "custom"
-                resolved.append(CatalogConfig.from_path(cat_name, c).to_catalog())
+                with open(c, "r", encoding="utf-8") as f:
+                    import json
+
+                    doc = json.load(f)
+                cat_id = (
+                    None if isinstance(doc, dict) and doc.get("catalogId") else cat_name
+                )
+                pv = (
+                    None
+                    if isinstance(doc, dict) and doc.get("protocolVersion")
+                    else "1.0"
+                )
+                resolved.append(
+                    CatalogConfig.from_path(
+                        c, protocol_version=pv, catalog_id=cat_id
+                    ).transformed_catalog
+                )
             else:
                 resolved.append(c)
         return resolved
