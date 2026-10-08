@@ -47,4 +47,7 @@ flutter test --concurrency=1 --dart-define=GEMINI_API_KEY="$GEMINI_API_KEY" || S
 cd "$REPO_ROOT/dart/a2ui_agent/e2e_test" || exit 1
 dart test || STATUS=1
 
+cd "$REPO_ROOT/dart/a2ui_flutter/e2e_test" || exit 1
+flutter test || STATUS=1
+
 exit $STATUS

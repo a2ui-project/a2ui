@@ -139,6 +139,8 @@ jobs:
         package:
           - name: dart_a2ui_agent_e2e_test
             path: dart/a2ui_agent/e2e_test
+          - name: dart_a2ui_flutter_e2e_test
+            path: dart/a2ui_flutter/e2e_test
           - name: samples_client_flutter_restaurant_finder_e2e_test
             path: samples/client/flutter/restaurant_finder/e2e_test
     steps:

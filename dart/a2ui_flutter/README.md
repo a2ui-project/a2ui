@@ -235,6 +235,12 @@ only for an agent you trust.
 basic catalog examples one message at a time, next to each surface's data
 model and the actions and errors it reports.
 
+## Example
+
+[example](example) is a chat app in which a Gemini model, prompted through
+`a2ui_agent`, answers with surfaces, and each event action and error on them
+goes back to the model. [e2e_test](e2e_test) runs it against the live model.
+
 ## Tests
 
 `test/catalog/basic/examples_test.dart` renders every
