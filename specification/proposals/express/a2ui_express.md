@@ -164,9 +164,9 @@ surface("dashboard-surface-1")
 root = Card(...)
 ```
 
-The optional `sendDataModel=true` keyword argument (`surface("dashboard-surface-1", sendDataModel=true)`) sets the `sendDataModel` flag of the `createSurface` message.
+The optional `sendDataModel=true` keyword argument (`surface("dashboard-surface-1", sendDataModel=true)`) sets the `sendDataModel` flag of the `createSurface` message. To update components (including `root`) on an existing surface rather than creating a new surface, pass `update=true`: `surface("dashboard-surface-1", update=true)`.
 
-The statements after `surface(...)`, up to the next surface statement, form one scope. A scope that defines `root` compiles to a `createSurface` message (or for v0.9 and v0.9.1 targets, a bare `createSurface` followed by `updateComponents` and `updateDataModel`). A scope that defines components without `root` compiles to an `updateComponents` message (plus `updateDataModel` if data paths are assigned). If `surface()` is omitted, the compiler uses the surface ID passed to it (`"default_surface"` by default). A scope that only assigns data paths compiles to an `updateDataModel` message.
+The statements after `surface(...)`, up to the next surface statement, form one scope. By default, a scope that defines `root` compiles to a `createSurface` message (or for v0.9 and v0.9.1 targets, a bare `createSurface` followed by `updateComponents` and `updateDataModel`), while a scope that defines components without `root` compiles to an `updateComponents` message (plus `updateDataModel` if data paths are assigned). Specifying `update=true` compiles the scope to an `updateComponents` message even if `root` is defined, allowing updates to the root container of an existing surface. If `surface()` is omitted, the compiler uses the surface ID passed to it (`"default_surface"` by default). A scope that only assigns data paths compiles to an `updateDataModel` message.
 
 #### Catalogs
 
