@@ -1,6 +1,7 @@
 ---
 feature_name: universal_custom_elements
 module_blueprints:
+  - a2ui_core
   - a2ui_framework_adapter
 dependencies:
   - node_resolution

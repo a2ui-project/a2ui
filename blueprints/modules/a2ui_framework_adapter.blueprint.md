@@ -22,11 +22,10 @@ Where v1.0 and v0.9 differ inside framework adapter code (as distinct from catal
 
 | Area                          | v1.0 and later                                                                                            | v0.9 compatibility in the adapter                                                                                    |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **Surface styling (`theme`)** | Surfaces and catalogs carry no `theme`. All styling comes from the host (`styles/`, §2).                  | An adapter that supports v0.9 may bridge the legacy `surface.theme` into its host styling tokens under `./v0_9`.     |
 | **Catalog `protocolVersion`** | `createCatalog` requires `protocolVersion` (§4.3); Core rejects an unversioned catalog on a v1.0 surface. | A v0.9 catalog declares `protocolVersion: 'v0.9'` (or omits it where Core permits legacy unversioned catalogs).      |
 | **Catalogs on a surface**     | A surface may use several catalogs (`defaultCatalog` and `availableCatalogs`); each node carries `impl`.  | Preparing all catalogs in `surface.availableCatalogs` (§4.2) and dispatching via `node.impl` works for v0.9 as well. |
 
-Packaging follows the same split: the package root exports the version-agnostic `Surface`, node dispatcher, and implementation factories. Code that only serves a legacy wire format lives under a versioned subpath (for example `./v0_8`, `./v0_9`) and is never imported by the root.
+Packaging follows this model: the package root exports the version-agnostic `Surface`, node dispatcher, and implementation factories capable of rendering any surface produced by Core. Legacy entry points (such as `./v0_9`) are provided as compatibility aliases re-exporting the root runtime, while deprecated pre-Node-API implementations (such as `./v0_8`) are isolated under versioned subpaths.
 
 ### Integration points with Core
 
@@ -65,9 +64,8 @@ graph LR
 | Node dispatcher           | Recursive view mapping each `ComponentNode` to its registered implementation (`node.impl`).                       |
 | Reactivity bridge         | Mapping core signals to framework-native change notifications.                                                    |
 | User input and actions    | Forwarding native events to `WritableBinding.set()` and invoking `NodeAction` closures synchronously on gestures. |
-| Check result propagation  | Exposing resolved check properties (`isValid`, `validationErrors`, `validationResults`) on `node.props` to views. |
 | Accessibility mapping     | Applying resolved `accessibility` attributes and inferred semantics to the platform accessibility API.            |
-| Ambient context           | Propagating the surface handle, its catalogs, and host styling hooks down the view hierarchy.                     |
+| Ambient context           | Propagating the surface handle and its catalogs down the view hierarchy.                                          |
 | Teardown lifecycle        | Disposing resolvers and subscriptions when views unmount.                                                         |
 
 ### What Core owns (Do not reimplement)
@@ -78,7 +76,7 @@ graph LR
 - Function execution and RPC: local `functionCall` actions, `callRendererFunction` handling, `callAgentFunction` dispatch, `rendererFunctionResponse` emission, and the `allowedCallers` and `requiresUserActivation` checks.
 - Tree topology: parent-child links, template repeaters (`ChildList` expansions), placeholder stand-ins for pending components, cycle detection, and subtree cleanup.
 - Composition validation (`allowedParents`, `allowedChildren`, the reserved `Surface` container) and identifier validation (UAX #31).
-- Property classification: mapping catalog schemas into dynamic values, actions, child references, and checks, and normalizing check results into `ValidationResult` objects.
+- Property classification: mapping catalog schemas into dynamic values, actions, child references, and checks, and normalizing check results into `ValidationResult` objects (`isValid`, `validationErrors`, and `validationResults` on `node.props`).
 
 > [!WARNING]
 > Adapter views MUST depend strictly on `SurfaceModel` and the Node API (`NodeResolver`, `ComponentNode`), and MUST NOT use `GenericBinder`, `ComponentContext`, or `DataContext` directly. Function implementations still receive a `DataContext` from Core.
@@ -92,44 +90,23 @@ graph LR
 ├── surface/          # Public Surface view/widget and ambient context providers
 ├── nodes/            # Recursive node dispatcher and fallback components
 ├── binding/          # Reactivity bridge and two-way property accessors
-├── catalog/          # ComponentImplementation interface, catalog types, and factories
-│   └── basic/        # Basic Catalog native component implementations
-└── styles/           # Host styling hooks: design tokens, style injectors, platform theme bridging
+└── catalog/          # ComponentImplementation interface, catalog types, and factories
+    └── basic/        # Basic Catalog native component implementations
 ```
 
 `catalog/basic/` must remain cleanly decoupled from `surface/` and `nodes/`. Applications often substitute their own design system components for basic elements (e.g. replacing basic `Button` with an internal UI library button), so core rendering mechanics must never hardcode dependencies on the built-in basic catalog.
-
-`styles/` holds whatever the host framework uses to style components: CSS custom properties, a token set, or a bridge to the platform theme. It never reads styling from the protocol. A surface at v1.0 or later carries no `theme` or brand data. An adapter that also renders v0.9 surfaces may read the legacy theme there, but only from code under its versioned subpath.
 
 Web adapters that share element implementations across frameworks follow the [universal custom elements feature blueprint](../features/universal_custom_elements.blueprint.md), which adds a shared element layer to this layout.
 
 ---
 
-## 3. The Node API Contract
+## 3. Consuming the Node API
 
-The adapter consumes `NodeResolver`, `ComponentNode`, `ResolvedBinding`, `WritableBinding`, and `NodeAction` as defined in the [node resolution feature blueprint](../features/node_resolution.blueprint.md#interfaces):
+The adapter consumes `NodeResolver`, `ComponentNode`, `ResolvedBinding`, `WritableBinding`, and `NodeAction` as defined in the [node resolution feature blueprint](../features/node_resolution.blueprint.md). Core resolves bindings, child references, actions, and normalized check properties (`isValid`, `validationErrors`, `validationResults`) onto `node.props` before the adapter sees them, and stores envelope `metadata` on `ComponentModel.metadata` (which views ignore unless forwarding it to developer tooling).
 
-- **`NodeResolver`**: Constructed for a `SurfaceModel`. Exposes `rootNode` (a reactive signal/observable holding the root `ComponentNode`, or empty until the root component arrives) and `dispose()` (which tears down all active subscriptions and child nodes).
-- **`ComponentNode`**: Represents one resolved component instance in the tree. See [`ComponentNode` in the node resolution feature blueprint](../features/node_resolution.blueprint.md#interfaces) for its normative fields (`instanceId`, `id`, `componentId`, `type`, `dataPath`, `state`, `isPlaceholder`, `disposed`, `impl`, `props`, `onDestroyed`, and `addCleanup`).
+On the adapter side, two cross-cutting rules apply when rendering nodes:
 
-### Resolved Props Contract
-
-Properties in `node.props` are already resolved against the component's data context scope:
-
-| Property Type       | Resolved Representation                                                       | Adapter / Component Usage                                                                          |
-| ------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| **Dynamic Value**   | `ResolvedBinding<T>`                                                          | Read `binding.value` to display.                                                                   |
-| **Two-Way Binding** | `WritableBinding<T>` (subtypes `ResolvedBinding<T>`)                          | Read `binding.value` to display; invoke `binding.set(nextValue)` on user edit.                     |
-| **Action**          | `NodeAction`, a parameterless closure                                         | Invoke synchronously inside the native gesture handler (`onPressed`, `onClick`). See below.        |
-| **Child**           | `ComponentNode`                                                               | Pass to `buildChild(node)`.                                                                        |
-| **Child List**      | List/Array of `ComponentNode`                                                 | Map each through `buildChild(childNode)`. Repeaters are already expanded per array item.           |
-| **Checks**          | `isValid`, `validationErrors`, and `validationResults` beside `checks`        | Propagate to the component implementation so it can block actions and display feedback. See below. |
-| **Accessibility**   | `accessibility` object with resolved `label`, `description`, `live`, `hidden` | Apply to the platform accessibility API. See below.                                                |
-| **Metadata**        | `metadata.extensions`, a map of opaque extension values                       | Pass through to tooling or ignore. Never render it and never fail on unknown keys.                 |
-
-Child references become nodes where the resolver mounts them: in top-level properties, and single references in objects within top-level arrays. A reference or `ChildList` nested deeper stays unresolved in the props, as ids or descriptors rather than nodes, and is not passed to `buildChild`.
-
-#### Actions, user activation, and asynchronous bindings
+### Actions, user activation, and asynchronous bindings
 
 A `NodeAction` resolves its payload when invoked. For an `event` payload, Core dispatches one action to the agent. For a `functionCall` payload, Core runs the function locally and dispatches nothing. Because a function marked `requiresUserActivation` (such as `openUrl`) runs only while the platform reports an active user gesture, the adapter and its component implementations:
 
@@ -139,19 +116,7 @@ A `NodeAction` resolves its payload when invoked. For an `event` payload, Core d
 
 When a dynamic value or check depends on a function that runs asynchronously, a view treats a binding whose value is not yet available like any other empty value and re-renders when `node.props` emits.
 
-#### Validation results
-
-Core evaluates every `CheckRule` on a component and normalizes each outcome to a `ValidationResult`: `valid`, an optional `code`, a `message` (the function's own message, else the rule's static `message`), and a `severity` of `error`, `warning`, or `info` (default `error`). A boolean result from a v0.9 function is normalized the same way, with severity `error`. Core then publishes three sibling props next to `checks` on `node.props`:
-
-| Prop                | Meaning                                                                  |
-| ------------------- | ------------------------------------------------------------------------ |
-| `isValid`           | `false` if and only if at least one failed result has severity `error`.  |
-| `validationErrors`  | The messages of the failed results with severity `error`, in rule order. |
-| `validationResults` | Every failed result, with its `code` and `severity`, in rule order.      |
-
-The adapter's responsibility is to expose `isValid`, `validationErrors`, and `validationResults` on the resolved props (including in any typed-props helpers) without evaluating `checks` itself or branching on raw check outputs. Rendering validation messages and disabling controls is the responsibility of each interactive component implementation in the catalog (see §5).
-
-#### Accessibility
+### Accessibility
 
 Every component at v1.0 or later may carry `accessibility.label`, `accessibility.description`, `accessibility.live`, and `accessibility.hidden`. `label`, `description`, and `hidden` are dynamic, so they arrive resolved like any other binding. The [protocol](../../specification/v1_0/docs/a2ui_protocol.md#catalog-agnostic-accessibility-requirements) requires every renderer to:
 

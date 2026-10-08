@@ -52,12 +52,20 @@ The layers have separate responsibilities:
 - An action property resolves to a `NodeAction`. Invoking it MUST resolve the action payload at that moment, not at bind, in the node's data scope.
 - For an `event` payload the surface emits one client action carrying the resolved context and the source component id. For a `functionCall` payload the catalog function executes and the surface MUST emit no action event.
 
-### **6. Notification**
+### **6. Checks**
+
+- When a component carries `checks`, the resolver evaluates each `CheckRule` in the node's data scope and normalizes every outcome to a `ValidationResult` (`valid`, optional `code`, `message` taking the function's own message or else the rule's static `message`, and `severity` of `'error' | 'warning' | 'info'`, defaulting to `'error'`; a boolean result from a v0.9 check function normalizes with severity `'error'`).
+- Alongside `checks`, the node's `props` exposes three sibling properties:
+  - `isValid`: `false` if and only if at least one failed result has severity `'error'`.
+  - `validationErrors`: the messages of the failed results with severity `'error'`, in rule order.
+  - `validationResults`: every failed `ValidationResult` (including its `code` and `severity`), in rule order.
+
+### **7. Notification**
 
 - A node's `props` emits when its own resolved properties change, and only then. A child's change emits on the child; replacing a child emits on the parent.
 - An update that changes several properties MUST emit once, with the complete new state.
 
-### **7. Placeholders**
+### **8. Placeholders**
 
 - A partly streamed surface still resolves to a tree: a reference to a component the surface does not currently hold resolves to a placeholder node with state `pending`. When the component arrives, a resolved node replaces the placeholder at the same position.
 - A component whose type has no catalog entry resolves to a placeholder node with state `unknown-type`, and a reference that repeats an ancestor's component id at the same data scope resolves to one with state `cyclic`. The resolver dispatches `UNKNOWN_COMPONENT_TYPE` and `CYCLIC_REFERENCE` to the surface.
