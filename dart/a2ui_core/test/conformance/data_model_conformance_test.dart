@@ -78,45 +78,51 @@ void main() {
   });
 }
 
+/// Runs a payload case through [MessageProcessor], over catalogs that accept
+/// any component, so the data model is built the way a renderer builds it.
 void _runPayloadDataModelCase(Map<String, Object?> testCase) {
-  final models = <String, DataModel>{};
   final steps = testCase['steps']! as List<Object?>;
+  final List<Map<String, Object?>> envelopes = [
+    for (final Object? step in steps)
+      for (final Object? item
+          in (step! as Map<String, Object?>)['payload']! as List<Object?>)
+        item! as Map<String, Object?>,
+  ];
+  final String version =
+      envelopes.map((e) => e['version']).whereType<String>().firstOrNull ??
+          'v0.9';
+  final Set<String> catalogIds = {
+    for (final Map<String, Object?> envelope in envelopes)
+      if (envelope['createSurface'] case final Map<String, Object?> body)
+        if (body['catalogId'] case final String id) id,
+  };
+  final processor = MessageProcessor<ComponentApi>(
+    catalogs: [
+      for (final String id
+          in catalogIds.isEmpty ? {'test-catalog'} : catalogIds)
+        Catalog<ComponentApi, FunctionImplementation>(
+          id: id,
+          protocolVersion: version,
+          components: const [],
+        ),
+    ],
+    validationConfig: ValidationConfig.relaxed,
+  );
+  addTearDown(processor.groupModel.dispose);
 
   for (var i = 0; i < steps.length; i++) {
     final step = steps[i]! as Map<String, Object?>;
-    final payload = step['payload']! as List<Object?>;
+    final Object? payload = _deepCopy(step['payload']);
     final expectError = step['expectError'] as Map<String, Object?>?;
-
-    void applyStep() {
-      for (final item in payload) {
-        final msg = item! as Map<String, Object?>;
-        if (msg.containsKey('createSurface')) {
-          final cs = msg['createSurface']! as Map<String, Object?>;
-          final surfaceId = cs['surfaceId']! as String;
-          final Object? initial = _deepCopy(cs['dataModel']);
-          final model = DataModel(initial ?? <String, Object?>{});
-          addTearDown(model.dispose);
-          models[surfaceId] = model;
-        } else if (msg.containsKey('updateDataModel')) {
-          final udm = msg['updateDataModel']! as Map<String, Object?>;
-          final surfaceId = udm['surfaceId']! as String;
-          final String path = (udm['path'] as String?) ?? '/';
-          final Object? value = _deepCopy(udm['value']);
-          models[surfaceId]!.set(path, value);
-        }
-      }
-    }
-
     if (expectError != null) {
       expect(
-        applyStep,
+        () => processor.processMessages(payload),
         throwsA(_matchesError(expectError)),
         reason: '${testCase['name']} step $i',
       );
       return;
     }
-
-    applyStep();
+    processor.processMessages(payload);
   }
 
   final expected = testCase['expect'] as Map<String, Object?>?;
@@ -126,7 +132,7 @@ void _runPayloadDataModelCase(Map<String, Object?> testCase) {
       final expMap = surfaceExp! as Map<String, Object?>;
       if (expMap.containsKey('dataModel')) {
         expect(
-          models[surfaceId]!.get('/'),
+          processor.groupModel.getSurface(surfaceId)!.dataModel.get('/'),
           equals(expMap['dataModel']),
           reason: '${testCase['name']} surface $surfaceId dataModel',
         );

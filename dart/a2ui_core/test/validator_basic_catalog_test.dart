@@ -92,7 +92,7 @@ void main() {
         // placeholders become orphaned when their parents are updated.
         final processor = MessageProcessor<ComponentApi>(
           catalogs: [rendererCatalog(basicCatalogDocument())],
-          protocolVersion: A2uiProtocolVersion.v0_9,
+          defaultVersion: A2uiProtocolVersion.v0_9,
           validationConfig: ValidationConfig.relaxed,
         );
         expect(

@@ -64,6 +64,39 @@
   `@call` shapes.
 - Validation errors carry JSON Pointer `path`s and per-error `errors` details;
   a dangling reference reports `/components/<index>/children/<n>`.
+- **Breaking:** `MessageProcessor` routes each message through the
+  `VersionAdapter` for the version it declares, so one processor holds v0.9,
+  v0.9.1 and v1.0 surfaces side by side. The required `protocolVersion`
+  parameter and field are replaced by an optional `defaultVersion`, and
+  `commonTypesSchema` is nullable: null uses the copy this package publishes
+  for each message's version. `validatorFor` takes a required `version`.
+- **Breaking:** `processMessages`, `process` and the new
+  `processMessagesAsync` take `Object?`: raw decoded JSON (a lone envelope, a
+  list of envelopes or the `{messages: [...]}` wrapper) or parsed messages
+  (`AgentToRendererMessagePayload`, one `AgentToRendererMessage`, or a list of
+  them). Every message is parsed before any is applied.
+- **Behavior change:** `createSurface` raises `A2uiCatalogError` when its
+  catalog declares a `protocolVersion` incompatible with the message's
+  version. A catalog that declares none is pre-v1.0: accepted by a v0.9 or
+  v0.9.1 message and rejected by a v1.0 one. `MinimalCatalog` declares `v0.9`.
+- **Behavior change:** a v1.0 `createSurface` writes its inline `dataModel` as
+  one root write, then applies its inline `components` (checked as one batch
+  before the surface is added, so a batch that fails creates nothing).
+  Without a `catalogId` it creates a surface with no default catalog; there
+  is no fallback to the processor's catalogs. A v0.9 `createSurface` without
+  a `catalogId` is rejected, as the v0.9 schema requires one.
+- `SurfaceModel.protocolVersion` is the version of the message that created
+  the surface, so `DataContext.isV10` follows each surface's own version.
+- New `InternalOperation` (`CreateSurfaceOp`, `UpdateComponentsOp`,
+  `UpdateDataModelOp`, `DeleteSurfaceOp`, `CallRendererFunctionOp`,
+  `AgentFunctionResponseOp`), `VersionAdapter`, `V0_9Adapter` (v0.9 and
+  v0.9.1), `V1_0Adapter`, and `VersionAdapterRegistry`, which
+  `MessageProcessor` takes as `adapterRegistry`.
+- `Catalog` adds `protocolVersion`, read from the document by
+  `Catalog.fromJson`, which takes an `A2uiProtocolVersion` fallback for
+  documents that declare none. `catalogSchema` emits it and, from `1.0`, names
+  functions under `@call` instead of `call`.
+- `SurfaceModel` adds `metadata`, from v1.0 `createSurface`.
 - **Breaking:** `SurfaceModel.catalog` is replaced by a nullable
   `defaultCatalog`, and the constructor's `catalog:` argument by
   `defaultCatalog:`. `SurfaceModel` adds `availableCatalogs`, `metadata`,

@@ -129,11 +129,14 @@ void main() {
     });
 
     test('is what a processor resolves against by default', () {
+      final catalog = MinimalCatalog();
+      final MessageProcessor<ComponentApi> processor =
+          MessageProcessor(catalogs: [catalog]);
+      expect(processor.commonTypesSchema, isNull);
       expect(
-        MessageProcessor(
-          catalogs: [MinimalCatalog()],
-          protocolVersion: A2uiProtocolVersion.v0_9,
-        ).commonTypesSchema,
+        processor
+            .validatorFor(catalog, version: A2uiProtocolVersion.v0_9)
+            .commonTypesSchema,
         PayloadValidator.commonTypesFor(A2uiProtocolVersion.v0_9),
       );
     });

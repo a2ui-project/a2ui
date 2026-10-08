@@ -47,9 +47,13 @@ export 'src/primitives/reference_schema.dart'
     show ComponentRefMap, ListRef, NestedRef, RefFields, RefKind, SingleRef;
 export 'src/primitives/semver.dart' hide releaseNumbers;
 export 'src/primitives/uax31.dart';
+export 'src/processing/adapters/v0_9_adapter.dart';
+export 'src/processing/adapters/v1_0_adapter.dart';
+export 'src/processing/adapters/version_adapter.dart';
 export 'src/processing/basic_functions.dart';
 export 'src/processing/expressions.dart';
 // Processing & expressions.
+export 'src/processing/operations.dart';
 export 'src/processing/processor.dart';
 export 'src/rendering/binder.dart' show ChildNode, maxDynamicChildListSize;
 export 'src/resolution/component_node.dart'

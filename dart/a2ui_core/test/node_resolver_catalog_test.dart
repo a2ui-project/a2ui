@@ -62,12 +62,13 @@ void main() {
       openUrl = _RecordingFunction(parsed.functions['openUrl']!);
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: parsed.id,
+        protocolVersion: 'v0.9',
         components: parsed.components.values.toList(),
         functions: [openUrl],
       );
       processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
       );
       processor.processMessages(
         AgentToRendererMessagePayload.of(
@@ -234,6 +235,7 @@ void main() {
     });
     final catalog = Catalog<ComponentApi, FunctionImplementation>(
       id: parsed.id,
+      protocolVersion: 'v0.9',
       components: parsed.components.values.toList(),
     );
     final surface = SurfaceModel<ComponentApi>('s', defaultCatalog: catalog);
@@ -279,7 +281,7 @@ void main() {
       );
       processor = MessageProcessor<ComponentApi>(
         catalogs: [MinimalCatalog(), second],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
       );
       processor.processMessages(
         AgentToRendererMessagePayload.of(

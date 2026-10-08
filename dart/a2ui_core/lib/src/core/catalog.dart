@@ -308,11 +308,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   ///
   /// A declared `protocolVersion` is read as a semantic version
   /// ([A2uiProtocolVersion.tryParseSemVer]), so `1.0`, `v1.0` and `1.0.0` all
-  /// name v1.0; a document that declares none is a pre-v1.0 catalog. The
-  /// version gates function capabilities (`returnType: 'validationResult'`
-  /// requires 1.0 or later), and a surface checks it against its own. From
-  /// v1.0, component names, their property names, function names and
-  /// argument names must be UAX #31 identifiers.
+  /// name v1.0. When the document declares none, as documents written before
+  /// v1.0 do not, [protocolVersion] is used instead; with neither the catalog
+  /// is pre-v1.0. The version gates function capabilities
+  /// (`returnType: 'validationResult'` requires 1.0 or later), and a surface
+  /// checks it against its own. From v1.0, component names, their property
+  /// names, function names and argument names must be UAX #31 identifiers.
   ///
   /// Throws [A2uiCatalogError] if the document is malformed, conflicts with
   /// [expectedCatalogId], declares a `protocolVersion` this SDK does not
@@ -320,6 +321,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   static CatalogApi fromJson(
     Map<String, Object?> json, {
     String? expectedCatalogId,
+    A2uiProtocolVersion? protocolVersion,
   }) {
     final Object? rawId = json['catalogId'];
     if (rawId is! String || rawId.isEmpty) {
@@ -346,10 +348,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       '#/functions/',
     );
 
-    final A2uiProtocolVersion? protocolVersion =
-        _parseProtocolVersion(json['protocolVersion'], rawId);
-    final bool v1 =
-        protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
+    final A2uiProtocolVersion? version =
+        _parseProtocolVersion(json['protocolVersion'], rawId) ??
+            protocolVersion;
+    final bool v1 = version?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
 
     // Local references are expanded here, once, so each component and function
     // schema stands alone afterwards. The document is then no longer needed,
@@ -374,7 +376,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       schemaId: document[r'$id'] as String?,
       title: document['title'] as String?,
       description: document['description'] as String?,
-      protocolVersion: protocolVersion,
+      protocolVersion: version,
       instructions: document['instructions'] as String?,
     );
   }
