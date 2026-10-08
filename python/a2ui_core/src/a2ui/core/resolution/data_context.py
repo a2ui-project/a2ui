@@ -239,6 +239,9 @@ class DataContext:
                 # runs in the surface catalog, whatever catalogId it carries.
                 # An empty catalogId names a catalog too (one that never
                 # exists), so it does not fall back to the surface default.
+                names_catalog = at_least_v10 and (
+                    "catalogId" in value or "catalog_id" in value
+                )
                 cat_id = (
                     (
                         value["catalogId"]
@@ -254,6 +257,7 @@ class DataContext:
                     raw_args,
                     catalog_id=cat_id,
                     abort_signal=abort_signal,
+                    names_catalog=names_catalog,
                 )
                 return self._peek_value(res) if peek else res
 
@@ -419,6 +423,7 @@ class DataContext:
         raw_args: Any,
         catalog_id: str | None = None,
         abort_signal: AbortSignal | None = None,
+        names_catalog: bool = False,
     ) -> Any:
         """Validates, resolves and runs a function call.
 
@@ -429,6 +434,11 @@ class DataContext:
         are handed to the function body as they are. Validating the resolved
         values instead would reject, for example, the ``ValidationResult``
         that a v1.0 validator returns to ``and``, ``or`` or ``not``.
+
+        ``names_catalog`` says whether the call carries a ``catalogId`` key,
+        whatever its value. From v1.0 a reserved ``@`` system function belongs
+        to no catalog, so a call to one that names a catalog is a malformed
+        expression: it is reported as an ``EXPRESSION_ERROR`` and not run.
         """
         from ..exceptions import A2uiCatalogError, A2uiExpressionError
 
@@ -443,6 +453,11 @@ class DataContext:
             if self.at_least_v10 and is_system_function_name(name):
                 # A system function belongs to no catalog, so it skips catalog
                 # resolution and works on a surface without a default catalog.
+                if names_catalog:
+                    raise A2uiExpressionError(
+                        f"System function '{name}' belongs to no catalog and must"
+                        " not name a catalogId"
+                    )
                 proto_ver = self._surface_protocol_version()
                 validate_system_function(name, raw_args, proto_ver)
                 fn = system_functions_for(proto_ver).get(name)

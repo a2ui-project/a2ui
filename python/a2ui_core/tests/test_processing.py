@@ -971,3 +971,111 @@ def test_v10_update_of_existing_component_must_name_its_type():
         A2uiValidationError, match="Component root is missing the required 'component'"
     ):
         _v10_update(processor, {"id": "root", "text": "b"})
+
+
+def test_v10_component_from_named_closed_catalog_is_accepted():
+    # The component's catalogId reaches component validation (it names a
+    # catalog that isn't the surface default); a closed schema that doesn't
+    # declare it must still accept the component.
+    closed = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/closed-tags",
+            "components": {
+                "Tag": {
+                    "type": "object",
+                    "properties": {"label": {"type": "string"}},
+                    "additionalProperties": False,
+                }
+            },
+            "functions": {},
+        },
+        protocol_version="1.0",
+    )
+    processor = MessageProcessor(
+        catalogs=[closed],
+        options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
+    )
+    processor.process_messages([
+        {"version": "v1.0", "createSurface": {"surfaceId": "s"}},
+        {
+            "version": "v1.0",
+            "updateComponents": {
+                "surfaceId": "s",
+                "components": [{
+                    "id": "root",
+                    "component": "Tag",
+                    "catalogId": closed.catalog_id,
+                    "label": "x",
+                }],
+            },
+        },
+    ])
+
+    root = processor.model.get_surface("s").components_model.get("root")
+    assert root.catalog is closed
+    assert root.properties == {"label": "x"}
+
+
+def test_v10_call_with_empty_name_is_rejected_by_strict_processor():
+    processor, _ = _v10_generated_basic_and_custom_processor()
+
+    with pytest.raises(A2uiValidationError) as excinfo:
+        _v10_update(
+            processor, {"id": "root", "component": "Text", "text": {"@call": ""}}
+        )
+    assert [(d.path, d.code) for d in excinfo.value.details] == [
+        ("components.root.text", "invalid_identifier")
+    ]
+
+
+def test_v10_cross_catalog_identifier_error_is_reported_once():
+    # Both the processor's nested-call pass and component validation check
+    # the identifiers of a call that runs in another catalog.
+    processor, _ = _v10_generated_basic_and_custom_processor()
+
+    with pytest.raises(A2uiValidationError) as excinfo:
+        _v10_update(
+            processor,
+            {
+                "id": "root",
+                "component": "Text",
+                "text": {
+                    "@call": "shout",
+                    "catalogId": _V10_SHOUT_CATALOG_ID,
+                    "args": {"1bad": "v"},
+                },
+            },
+        )
+    assert [(d.path, d.code) for d in excinfo.value.details] == [
+        ("components.root.text.args.1bad", "invalid_identifier")
+    ]
+    assert str(excinfo.value).count("'1bad'") == 1
+
+
+def test_v10_merged_errors_keep_distinct_component_errors():
+    processor, _ = _v10_generated_basic_and_custom_processor()
+
+    with pytest.raises(A2uiValidationError) as excinfo:
+        _v10_update(
+            processor,
+            {"id": "root", "component": "Column", "children": ["t2"]},
+            {
+                "id": "t1",
+                "component": "Text",
+                "text": {
+                    "@call": "shout",
+                    "catalogId": _V10_SHOUT_CATALOG_ID,
+                    "args": {"1bad": "v"},
+                },
+            },
+            {"id": "t2", "component": "Text"},
+        )
+    codes = [(d.path, d.code) for d in excinfo.value.details]
+    assert codes.count(("components.t1.text.args.1bad", "invalid_identifier")) == 1
+    assert any(
+        path.startswith("components.t2") and code == "missing_field"
+        for path, code in codes
+    )
+    message = str(excinfo.value)
+    assert message.count("'1bad'") == 1
+    assert "'text' is a required property" in message

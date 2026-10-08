@@ -479,6 +479,147 @@ def test_v10_index_call_naming_a_catalog_is_rejected():
     ) == [("components.b1.onSearch.catalogId", "extra_field")]
 
 
+def _v10_closed_tag_catalog() -> Catalog:
+    """A v1.0 catalog whose `Tag` schema is closed and declares no envelope."""
+    return Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/closed-tags",
+            "components": {
+                "Tag": {
+                    "type": "object",
+                    "properties": {"label": {"type": "string"}},
+                    "additionalProperties": False,
+                }
+            },
+            "functions": {},
+        },
+        protocol_version="1.0",
+    )
+
+
+def _component_error_details(
+    val: PayloadValidator, comp: dict[str, Any]
+) -> list[tuple[str, str]]:
+    try:
+        val.validate_component(comp)
+    except A2uiValidationError as e:
+        return [(d.path, d.code) for d in e.details]
+    return []
+
+
+def test_v10_closed_component_schema_accepts_envelope_keys():
+    # catalogId and metadata belong to the v1.0 component envelope
+    # (ComponentCommon), not to the component's own properties.
+    catalog = _v10_closed_tag_catalog()
+    val = PayloadValidator(catalog=catalog)
+    tag = {"id": "t1", "component": "Tag", "label": "x"}
+
+    assert not _component_error_details(val, {**tag, "catalogId": catalog.catalog_id})
+    assert not _component_error_details(
+        val, {**tag, "metadata": {"extensions": {"vendor": 1}}}
+    )
+    # Other unknown keys are still rejected.
+    assert _component_error_details(val, {**tag, "bogus": 1}) == [
+        ("components.t1", "extra_field")
+    ]
+
+
+def test_v10_stripped_catalog_id_must_still_be_a_string():
+    val = PayloadValidator(catalog=_v10_closed_tag_catalog())
+
+    for bad_id in (5, None, False):
+        assert _component_error_details(
+            val, {"id": "t1", "component": "Tag", "label": "x", "catalogId": bad_id}
+        ) == [("components.t1.catalogId", "type_mismatch")]
+
+
+def test_v10_component_schema_declaring_catalog_id_still_sees_it():
+    catalog = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/pinned-tags",
+            "components": {
+                "Tag": {
+                    "type": "object",
+                    "properties": {"catalogId": {"const": "pinned"}},
+                    "additionalProperties": False,
+                }
+            },
+            "functions": {},
+        },
+        protocol_version="1.0",
+    )
+    val = PayloadValidator(catalog=catalog)
+
+    assert not _component_error_details(
+        val, {"id": "t1", "component": "Tag", "catalogId": "pinned"}
+    )
+    assert [
+        path
+        for path, _ in _component_error_details(
+            val, {"id": "t1", "component": "Tag", "catalogId": "other"}
+        )
+    ] == ["components.t1.catalogId"]
+
+
+def test_before_v10_catalog_id_is_not_an_envelope_key():
+    catalog = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/closed-tags-v09",
+            "components": {
+                "Tag": {
+                    "type": "object",
+                    "properties": {"label": {"type": "string"}},
+                    "additionalProperties": False,
+                }
+            },
+            "functions": {},
+        },
+        protocol_version=PROTOCOL_VERSION,
+    )
+
+    assert _component_error_details(
+        PayloadValidator(catalog=catalog),
+        {"id": "t1", "component": "Tag", "catalogId": catalog.catalog_id},
+    ) == [("components.t1", "extra_field")]
+
+
+def test_v10_model_component_without_envelope_fields_accepts_envelope_keys():
+    class TagModel(BaseModel):
+        model_config = {"extra": "forbid"}
+        id: str
+        component: Literal["Tag"] = "Tag"
+        label: str
+
+    catalog = Catalog(
+        catalog_id="https://a2ui.org/model-tags",
+        protocol_version="1.0",
+        components=[ModelComponentApi(TagModel, "Tag")],
+        functions=[],
+    )
+    val = PayloadValidator(catalog=catalog)
+    tag = {"id": "t1", "component": "Tag", "label": "x"}
+
+    assert not _component_error_details(
+        val,
+        {**tag, "catalogId": catalog.catalog_id, "metadata": {"extensions": {}}},
+    )
+    assert _component_error_details(val, {**tag, "catalogId": 5}) == [
+        ("components.t1.catalogId", "type_mismatch")
+    ]
+
+
+def test_v10_call_with_empty_name_is_rejected():
+    val = PayloadValidator(catalog=_v10_nested_call_catalog())
+
+    assert _v10_nested_call_error_details(val, {"@call": ""}) == [
+        ("components.b1.onSearch", "invalid_identifier")
+    ]
+    # Also when the call runs in a catalog this validator can't see.
+    assert _v10_nested_call_error_details(
+        val, {"@call": "", "catalogId": "https://other.example/c"}
+    ) == [("components.b1.onSearch", "invalid_identifier")]
+
+
 def test_v10_component_naming_a_catalog_leaves_its_catalogless_calls_unjudged():
     # A call that names no catalogId runs in the surface default catalog,
     # which a component that names a catalogId need not belong to, so only
