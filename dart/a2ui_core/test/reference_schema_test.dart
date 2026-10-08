@@ -598,7 +598,7 @@ void main() {
     ) {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v1_0,
+        defaultVersion: A2uiProtocolVersion.v1_0,
         // Strict, so that a dangling reference is rejected: these cases are
         // about the validator and the resolver reading one reference map.
         validationConfig: ValidationConfig.strict,
@@ -809,7 +809,7 @@ void main() {
           });
           final processor = MessageProcessor<ComponentApi>(
             catalogs: [catalog],
-            protocolVersion: A2uiProtocolVersion.v1_0,
+            defaultVersion: A2uiProtocolVersion.v1_0,
           );
           processor.processMessages(
             AgentToRendererMessagePayload.of(
@@ -876,7 +876,7 @@ void main() {
       });
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v1_0,
+        defaultVersion: A2uiProtocolVersion.v1_0,
         validationConfig: const ValidationConfig(allowDanglingReferences: true),
       );
       processor.processMessages(

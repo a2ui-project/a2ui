@@ -291,7 +291,7 @@ void main() {
               components: catalog.components.values.toList(),
             ),
           ],
-          protocolVersion: A2uiProtocolVersion.v1_0,
+          defaultVersion: A2uiProtocolVersion.v1_0,
         );
 
     test('rejects an unallowed child before mutating the surface', () {
@@ -392,7 +392,7 @@ void main() {
             components: _catalog().components.values.toList(),
           ),
         ],
-        protocolVersion: A2uiProtocolVersion.v1_0,
+        defaultVersion: A2uiProtocolVersion.v1_0,
         validationConfig: const ValidationConfig(
           rootId: 'main',
           allowOrphanComponents: true,

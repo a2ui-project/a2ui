@@ -414,7 +414,7 @@ void main() {
   });
 
   group('catalogSchema function call key', () {
-    Map<String, Object?> functionSchema(String? protocolVersion) {
+    Map<String, Object?> functionSchema(A2uiProtocolVersion? protocolVersion) {
       final function = CapitalizeFunction();
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'c',
@@ -427,24 +427,22 @@ void main() {
     }
 
     test('is @call from protocol 1.0', () {
-      for (final version in ['1.0', 'v1.0', 'v1.1']) {
-        final Map<String, Object?> schema = functionSchema(version);
-        expect(
-          (schema['properties']! as Map).keys,
-          containsAll(<String>['@call', 'args']),
-          reason: version,
-        );
-        expect(
-          (schema['properties']! as Map).containsKey('call'),
-          isFalse,
-          reason: version,
-        );
-        expect(schema['required'], ['@call', 'args'], reason: version);
-      }
+      final Map<String, Object?> schema =
+          functionSchema(A2uiProtocolVersion.v1_0);
+      expect(
+        (schema['properties']! as Map).keys,
+        containsAll(<String>['@call', 'args']),
+      );
+      expect((schema['properties']! as Map).containsKey('call'), isFalse);
+      expect(schema['required'], ['@call', 'args']);
     });
 
     test('is call before protocol 1.0 or without a version', () {
-      for (final String? version in ['v0.9', 'v0.9.1', null]) {
+      for (final A2uiProtocolVersion? version in [
+        A2uiProtocolVersion.v0_9,
+        A2uiProtocolVersion.v0_9_1,
+        null,
+      ]) {
         final Map<String, Object?> schema = functionSchema(version);
         expect(
           (schema['properties']! as Map).containsKey('call'),
@@ -461,15 +459,15 @@ void main() {
         'protocolVersion': '1.0',
         'components': <String, Object?>{},
       });
-      expect(parsed.protocolVersion, '1.0');
+      expect(parsed.protocolVersion, A2uiProtocolVersion.v1_0);
       expect(parsed.catalogSchema['protocolVersion'], '1.0');
       expect(
         Catalog.fromJson({
           'catalogId': 'c',
           'components': <String, Object?>{},
-        }, protocolVersion: 'v0.9')
+        }, protocolVersion: A2uiProtocolVersion.v0_9)
             .protocolVersion,
-        'v0.9',
+        A2uiProtocolVersion.v0_9,
       );
       expect(
         () => Catalog.fromJson({'catalogId': 'c', 'protocolVersion': 1}),

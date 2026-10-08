@@ -37,7 +37,7 @@ void main() {
     ) =>
         Catalog<ComponentApi, FunctionImplementation>(
           id: id,
-          protocolVersion: 'v0.9',
+          protocolVersion: A2uiProtocolVersion.v0_9,
           components: [
             ComponentApi(
               name: component,
@@ -826,7 +826,7 @@ void main() {
     Catalog<ComponentApi, FunctionImplementation> alphaCatalog(String id) =>
         Catalog<ComponentApi, FunctionImplementation>(
           id: id,
-          protocolVersion: 'v0.9',
+          protocolVersion: A2uiProtocolVersion.v0_9,
           components: [
             ComponentApi(
               name: 'Alpha',
@@ -921,7 +921,7 @@ void main() {
     ]) =>
         Catalog<ComponentApi, FunctionImplementation>(
           id: id,
-          protocolVersion: '1.0',
+          protocolVersion: A2uiProtocolVersion.v1_0,
           components: [
             ComponentApi(name: 'Text', schema: Schema.fromMap({})),
             ComponentApi(
@@ -1192,7 +1192,7 @@ void main() {
     test('BasicCatalog.v1_0 backs a v1.0 surface', () {
       final Catalog<ComponentApi, FunctionImplementation> basic =
           BasicCatalog.v1_0();
-      expect(basic.protocolVersion, '1.0');
+      expect(basic.protocolVersion, A2uiProtocolVersion.v1_0);
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [basic],
         commonTypesSchema: const {},

@@ -34,7 +34,7 @@ Catalog<ComponentApi, FunctionImplementation> rendererCatalog(
     asCatalogId == null
         ? document
         : <String, Object?>{...document, 'catalogId': asCatalogId},
-    protocolVersion: protocolVersion,
+    protocolVersion: A2uiProtocolVersion.tryParse(protocolVersion),
   );
   return Catalog<ComponentApi, FunctionImplementation>(
     id: catalog.id,
