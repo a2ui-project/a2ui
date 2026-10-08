@@ -15,7 +15,7 @@
 """End-to-end integration and round-trip verification tests for A2UI Elemental Parser."""
 
 import unittest
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import Catalog
 from a2ui.schema.constants import VERSION_0_9
 from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
 from a2ui.parser.errors import A2uiCompilationError
@@ -26,11 +26,9 @@ class TestElementalIntegration(unittest.TestCase):
 
     def setUp(self):
         """Initializes a standard test catalog."""
-        self.catalog = A2uiCatalog(
-            version=VERSION_0_9,
-            name="test_catalog",
-            s2c_schema={},
-            common_types_schema={},
+        self.catalog = Catalog.from_json(
+            protocol_version=VERSION_0_9,
+            catalog_id="https://a2ui.org/test_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/test_catalog",
                 "components": {

@@ -28,101 +28,133 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 /// common types. `A2uiReturnType` is the API-level counterpart and is not
 /// gated by version.
 class CommonSchemas {
-  static final dataBinding = Schema.object(
-    description:
-        'REF:common_types.json#/\$defs/DataBinding|A JSON Pointer path to a value in the data model.',
-    properties: {
-      'path': Schema.string(
-        description: 'A JSON Pointer path to a value in the data model.',
-      ),
-    },
-    required: ['path'],
-  );
+  static const String _commonTypesUri = 'common_types.json#/\$defs';
 
-  static final functionCall = Schema.object(
-    description:
-        'REF:common_types.json#/\$defs/FunctionCall|Invokes a named function on the client.',
-    properties: {
-      'call': Schema.string(description: 'The name of the function to call.'),
-      'args': Schema.object(
-        description: 'Arguments passed to the function.',
-        additionalProperties: true,
-      ),
-      'returnType': Schema.string(
-        description: 'The expected return type of the function call.',
-        enumValues: [
-          'string',
-          'number',
-          'boolean',
-          'array',
-          'object',
-          'any',
-          'void',
-        ],
-      ),
-    },
-    required: ['call'],
-  );
+  static Schema _withRef(Schema schema, String name) =>
+      Schema.fromMap(<String, Object?>{
+        ...schema.value,
+        'commonTypesRef': '$_commonTypesUri/$name',
+      });
 
-  static final dynamicString = Schema.combined(
-    description:
-        'REF:common_types.json#/\$defs/DynamicString|Represents a string',
-    anyOf: [Schema.string(), dataBinding, functionCall],
-  );
-
-  static final dynamicBoolean = Schema.combined(
-    description: 'REF:common_types.json#/\$defs/DynamicBoolean|A boolean value',
-    anyOf: [Schema.boolean(), dataBinding, functionCall],
-  );
-
-  static final componentId = Schema.string(
-    description:
-        'REF:common_types.json#/\$defs/ComponentId|The unique identifier for a component.',
-  );
-
-  static final childList = Schema.combined(
-    description: 'REF:common_types.json#/\$defs/ChildList',
-    anyOf: [
-      Schema.list(items: componentId),
-      Schema.object(
-        properties: {'componentId': componentId, 'path': Schema.string()},
-        required: ['componentId', 'path'],
-      ),
-    ],
-  );
-
-  static final action = Schema.combined(
-    description: 'REF:common_types.json#/\$defs/Action',
-    anyOf: [
-      Schema.object(
-        properties: {
-          'event': Schema.object(
-            properties: {
-              'name': Schema.string(),
-              'context': Schema.object(additionalProperties: true),
-            },
-            required: ['name'],
-          ),
-        },
-        required: ['event'],
-      ),
-      Schema.object(
-        properties: {'functionCall': functionCall},
-        required: ['functionCall'],
-      ),
-    ],
-  );
-
-  static final checkable = Schema.object(
-    description: 'REF:common_types.json#/\$defs/Checkable',
-    properties: {
-      'checks': Schema.list(
-        items: Schema.object(
-          properties: {'condition': dynamicBoolean, 'message': Schema.string()},
-          required: ['condition', 'message'],
+  static final Schema dataBinding = _withRef(
+    Schema.object(
+      description: 'A JSON Pointer path to a value in the data model.',
+      properties: {
+        'path': Schema.string(
+          description: 'A JSON Pointer path to a value in the data model.',
         ),
-      ),
-    },
+      },
+      required: ['path'],
+    ),
+    'DataBinding',
+  );
+
+  static final Schema functionCall = _withRef(
+    Schema.object(
+      description: 'Invokes a named function on the client.',
+      properties: {
+        'call': Schema.string(description: 'The name of the function to call.'),
+        'args': Schema.object(
+          description: 'Arguments passed to the function.',
+          additionalProperties: true,
+        ),
+        'returnType': Schema.string(
+          description: 'The expected return type of the function call.',
+          enumValues: [
+            'string',
+            'number',
+            'boolean',
+            'array',
+            'object',
+            'any',
+            'void',
+          ],
+        ),
+      },
+      required: ['call'],
+    ),
+    'FunctionCall',
+  );
+
+  static final Schema dynamicString = _withRef(
+    Schema.combined(
+      description:
+          'Represents a string that can be static, bound, or computed.',
+      anyOf: [Schema.string(), dataBinding, functionCall],
+    ),
+    'DynamicString',
+  );
+
+  static final Schema dynamicBoolean = _withRef(
+    Schema.combined(
+      description: 'A boolean value that can be static, bound, or computed.',
+      anyOf: [Schema.boolean(), dataBinding, functionCall],
+    ),
+    'DynamicBoolean',
+  );
+
+  static final Schema componentId = _withRef(
+    Schema.string(
+      description: 'The unique identifier for a component.',
+    ),
+    'ComponentId',
+  );
+
+  static final Schema childList = _withRef(
+    Schema.combined(
+      description: 'A component id or list of child component ids.',
+      anyOf: [
+        Schema.list(items: componentId),
+        Schema.object(
+          properties: {'componentId': componentId, 'path': Schema.string()},
+          required: ['componentId', 'path'],
+        ),
+      ],
+    ),
+    'ChildList',
+  );
+
+  static final Schema action = _withRef(
+    Schema.combined(
+      description: 'An event or function call to execute.',
+      anyOf: [
+        Schema.object(
+          properties: {
+            'event': Schema.object(
+              properties: {
+                'name': Schema.string(),
+                'context': Schema.object(additionalProperties: true),
+              },
+              required: ['name'],
+            ),
+          },
+          required: ['event'],
+        ),
+        Schema.object(
+          properties: {'functionCall': functionCall},
+          required: ['functionCall'],
+        ),
+      ],
+    ),
+    'Action',
+  );
+
+  static final Schema checkable = _withRef(
+    Schema.object(
+      description: 'Validation checks to perform on this component.',
+      properties: {
+        'checks': Schema.list(
+          items: Schema.object(
+            properties: {
+              'condition': dynamicBoolean,
+              'message': Schema.string()
+            },
+            required: ['condition', 'message'],
+          ),
+        ),
+      },
+    ),
+    'Checkable',
   );
 
   static final dynamicNumber = Schema.combined(

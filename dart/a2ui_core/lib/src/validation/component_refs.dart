@@ -53,9 +53,9 @@ class ComponentReference {
 ///
 /// Reads [Catalog.refMap], so graph validation checks the same properties
 /// the node resolver mounts: `ComponentId`, `Child` and `ChildList` markers
-/// (as a `$ref` or a Dart `REF:` description), nested item references, and
-/// the unmarked `child`/`children` name fallbacks. The result is cached per
-/// reference map.
+/// (as a `$ref`, `commonTypesRef` metadata, or a Dart `REF:` description),
+/// nested item references, and the unmarked `child`/`children` name fallbacks.
+/// The result is cached per reference map.
 ///
 /// A list recognized only by an unmarked `componentId`-and-path object shape
 /// ([ListRef.inferred]) is left out: the resolver mounts it, but validation

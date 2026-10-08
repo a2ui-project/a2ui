@@ -18,7 +18,14 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it is:** `DirectJsonStreamProcessorImpl` checks each component against the catalog its surface's `createSurface` names, or the first active catalog. It ignores a component's own `catalogId`, which v1.0 allows, so components from several catalogs on one surface are checked against the wrong catalog.
 - **Why it exists:** Python adds per-component resolution in #2967, which was still open when streaming landed. The TypeScript port waits for it so it can run that PR's conformance cases unchanged.
 - **What it risks:** On a mixed-catalog surface, a component from another catalog can be held back for missing required properties it doesn't have, or have its child references read with the wrong map.
-- **Done looks like:** A `resolveCatalog(comp)` lookup picks the catalog per component, and `test_v1_0_streaming_multi_catalog_resolution` and `test_v1_0_streaming_component_without_catalog_uses_surface_catalog` from `conformance/agent/legacy/streaming_parser.yaml` pass. Tracked in #3030.
+- **Done looks like:** A `resolveCatalog(comp)` lookup picks the catalog per component, and `test_v1_0_streaming_multi_catalog_resolution` and `test_v1_0_streaming_component_without_catalog_uses_surface_catalog` from `conformance/agent/legacy/streaming_parser.yaml` pass and leave `KNOWN_FAILURES` in `tests/conformance/loader.ts`. Tracked in #3030.
+
+### Stream processor emits v1.0 components before they close
+
+- **What it is:** `DirectJsonStreamProcessorImpl` emits a component as soon as its required properties have arrived, healing partial strings, in every protocol version. From v1.0 a component may name its own `catalogId`, and the key can arrive after the type and properties, so the component has to wait until its object closes. Python's `DirectJsonStreamParser` does this for v1.0 and later, and Dart does it when `bufferIncompleteComponents` is set.
+- **Why it exists:** The buffering landed in Python and Dart first.
+- **What it risks:** A v1.0 component can be emitted and checked against its surface's catalog before a later `catalogId` names the catalog it belongs to, and renderers can redraw a component while its properties are still arriving.
+- **Done looks like:** The stream processor holds a v1.0 component back until its object closes and emits the closed components of a list while the next one arrives, so `test_v1_0_streaming_component_catalog_id_arrives_late`, `test_v1_0_streaming_catalog_id_split_across_chunks` and `test_v1_0_streaming_component_on_surface_catalog_waits_until_closed` from `conformance/agent/legacy/streaming_parser.yaml` pass and leave `KNOWN_FAILURES` in `tests/conformance/loader.ts`. Tracked in #3030.
 
 ### Streamed payloads are not validated against catalogs
 
@@ -26,6 +33,13 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** Catalog validation lives in `A2uiRequestProcessor`, and streaming isn't available through that facade yet. Callers construct the stream processor themselves.
 - **What it risks:** Streaming callers can forward components a renderer's catalog can't render.
 - **Done looks like:** The stream processor validates completed messages against the catalog each component resolves to, for example through web_core's `MessageProcessor`, or streaming moves behind `A2uiRequestProcessor` and is validated there. Whether to do this is decided in #3030.
+
+### `resolveCatalogs` can't tell when capabilities omit the catalogs' version
+
+- **What it is:** `resolveCatalogs` and `A2uiGenerator.createProcessor` take the renderer capabilities entry for one protocol version, not the object keyed by version that the renderer sends. Python takes the keyed object, looks up the entry for the registered catalogs' version, and raises a validation error when it's missing.
+- **Why it exists:** The TypeScript SDK was written against v1.0 only, so callers unwrap the `v1.0` entry before calling in.
+- **What it risks:** A caller that unwraps the wrong key, or passes `undefined` because the key is missing, gets every registered catalog instead of an error.
+- **Done looks like:** The resolver takes the version-keyed capabilities, picks the entry for the catalogs' protocol version, and throws `A2uiValidationError` when there is none, so `test_capabilities_without_the_catalogs_version_are_invalid` in `conformance/agent/catalog_resolution.yaml` passes.
 
 ### State leakage across requests (Sharp edge)
 
@@ -78,7 +92,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### `no-explicit-any` lint warnings
 
-- **What it is:** There are 26 eslint warnings for `no-explicit-any`: 24 in the Direct JSON streaming healer (`streaming.ts`) and 2 in `tests/conformance/conformance.test.ts`. The Express code has none.
+- **What it is:** There are eslint warnings for `no-explicit-any` in the Direct JSON streaming healer (`streaming.ts`) and in `tests/conformance/conformance.test.ts`. The Express code has none.
 - **Why it exists:** In the streaming healer, partial JSON chunks are untyped before they are repaired and compiled.
 - **What it risks:** Mild technical debt.
 - **Done looks like:** The partial JSON trees are given a more rigorous generic recursive type, or `unknown` with runtime type guards, allowing the warnings to be cleanly resolved.
@@ -91,13 +105,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** The generic typing in `web_core` does not differentiate between execution catalogs and schema-only catalogs.
 - **What it risks:** Forces a double cast (`as unknown as Catalog<ComponentApi, FunctionImplementation>[]`) in `processor.ts` when passing schema-only catalogs.
 - **Done looks like:** `MessageProcessor` relaxes its type constraint to allow omitting `FunctionImplementation` when no action handler is provided.
-
-### Local shim for a missing schema modifier
-
-- **What it is:** `RemoveStrictValidationTransformer` is shimmed in `tests/conformance/fixtures.ts`.
-- **Why it exists:** The conformance suite relies on the `remove_strict_validation` modifier, but `web_core` doesn't export common schema modifiers yet.
-- **What it risks:** A duplicate definition that might fall out of sync with future core updates. It is tagged `TODO(web_core)` and listed in the README shim table.
-- **Done looks like:** `web_core` exports an equivalent schema modifier, and the local shim is deleted.
 
 ### Catalog loader keeps a second copy of the common types map
 
@@ -180,7 +187,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it is:** Python's Express compiler writes a `checks` key on any component given a `?check`, whether or not the component's schema declares a check-rule property. `Text("hi", _, _, [?required])` compiles against the v1.0 basic catalog to a `Text` carrying `checks`, and because `Text` has no bound `value` the check's `args` are empty. The compiler never raises. The literal `"checks"` is also hardcoded rather than read from the schema (`compiler.py:502` and `:639` on `origin/main`).
 - **Why it exists:** Python decides whether a component is checkable by matching the substring `"Checkable"` in an `allOf` `$ref`, but uses that result only for property ordering, not to validate checks.
 - **What it risks:** The model gets no feedback from the compiler. Any error surfaces later, away from the line that caused it, and the check silently has nothing to check.
-- **TypeScript:** The port reads the check-rule property from the schema and throws `ExpressValidationError` when a component has none. See `express_format.blueprint.md` §5.2 item 4. This is a deliberate difference from Python. The schema-based test also finds a check-rule property that a component declares itself instead of inheriting from `Checkable`: main's `forms_catalog_v1_0.json` declares `TextField.checks` that way, and Python's helper reports that `TextField` is not checkable while still compiling its checks.
+- **TypeScript:** The port reads the check-rule property from the schema and throws `ExpressValidationError` when a component has none (see `blueprints/codebases/typescript/a2ui_agent/codebase.blueprint.md`). This is a deliberate difference from Python. The schema-based test also finds a check-rule property that a component declares itself instead of inheriting from `Checkable`: main's `forms_catalog_v1_0.json` declares `TextField.checks` that way, and Python's helper reports that `TextField` is not checkable while still compiling its checks.
 - **Done looks like:** Python raises a validation error for checks on a component without a check-rule property, and a conformance case pins the behaviour for both SDKs.
 
 ### Python's Express rejects paths nested inside array items
@@ -188,12 +195,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it is:** Python's Express compiler rejects a data binding anywhere inside a property whose top-level schema doesn't admit one. `Tabs([{title: $/t, child: c}])` raises `ExpressForbiddenDatabindingError` against the v1.0 basic catalog, even though `title` is a `DynamicString`.
 - **Why it exists:** `_schema_allows_databinding` checks the property's top-level schema, and `_has_databinding` then searches the whole written value for a `path`, without following the schema down to where the path appears (`compiler.py:75-121` on `origin/main`).
 - **What it risks:** Valid bindings inside arrays of objects cannot be written in Express. Tabs titles are the case in the basic catalog.
-- **TypeScript:** When a property's schema doesn't admit a path as a whole, the port walks the written value alongside the schema and checks each path against the schema where it appears. A property that admits a path as a whole is not inspected further, as in Python. See `express_format.blueprint.md` §5.2 item 6. This is a deliberate difference from Python.
+- **TypeScript:** When a property's schema doesn't admit a path as a whole, the port walks the written value alongside the schema and checks each path against the schema where it appears. A property that admits a path as a whole is not inspected further, as in Python (see `blueprints/codebases/typescript/a2ui_agent/codebase.blueprint.md`). This is a deliberate difference from Python.
 - **Done looks like:** Python checks bindings positionally, and a conformance case pins the behaviour for both SDKs.
 
 ### Python's Express fails conformance cases that TypeScript passes
 
-- **What it is:** Main's Express suites under `conformance/agent/express/` contain cases Python fails. TypeScript used to follow Python and fail them too; it now follows the suite and passes all 86. Each group below could be filed as a Python issue.
+- **What it is:** Main's Express suites under `conformance/agent/express/` contain cases Python fails. TypeScript used to follow Python and fail them too; it now follows the suite and passes all of them. Each group below could be filed as a Python issue.
   - Validation, in `compiler.py`: a component the catalog doesn't declare is dropped instead of failing (`test_compile_express_unknown_component_is_a_validation_error`, and through the response parser `test_parse_response_express_validation_failure_surfaces`); a call to an undeclared function compiles (`test_compile_express_unknown_function_is_a_validation_error`); a missing required property is not reported (`test_compile_express_missing_required_property_is_a_validation_error`).
   - Output shapes, in `compiler.py`: inline components get `_inline_N` ids instead of `<parent>_<property>`, or `<parent>_<property>_<index>` in arrays, emitted after the parent (`test_compile_express_inline_nesting`); an `Event` with no context compiles to `context: {}` instead of no `context` key (`test_compile_express_event_action`, `test_compile_express_event_variable_is_inlined_at_each_use`); a standalone function call compiles to a top-level `functionCallId`/`callFunction`, which `agent_to_renderer.json` rejects, instead of a `callRendererFunction` message (`test_compile_express_standalone_function_call`); a block that assigns components but no `root` raises "Root target 'root' is not defined" instead of compiling to `updateComponents`, which the round trip in `test_decompile_express_update_components` needs.
   - Decompilation, in `decompiler.py`: a standalone `updateComponents` writes no `surface` line and does not round-trip (`test_decompile_express_update_components`); `callRendererFunction` decompiles to an empty string (`test_decompile_express_renderer_function_call`); a standalone `updateDataModel` writes no `surface` line (`test_decompile_express_update_data_model`, `test_decompile_express_nested_data_model_is_one_assignment_per_leaf`); a string holding a quote is written triple-quoted instead of escaped (`test_decompile_express_escapes_a_quote_in_a_string`); a map key that is not an identifier is written unquoted, which the grammar rejects (`test_decompile_express_quotes_a_map_key_that_is_not_an_identifier`).

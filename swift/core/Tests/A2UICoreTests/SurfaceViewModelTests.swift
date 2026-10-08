@@ -153,13 +153,13 @@ func makeTestCatalog() throws -> AnyCatalog {
 /// A test `ActionHandling` that captures actions for verification.
 final class TestActionHandler: ActionHandling, @unchecked Sendable {
   var capturedActions: [ResolvedAction] = []
-  var capturedErrors: [ClientServerError] = []
+  var capturedErrors: [RendererError] = []
 
   func handle(action: ResolvedAction, from surfaceID: String) {
     capturedActions.append(action)
   }
 
-  func handle(error: ClientServerError, from surfaceID: String) {
+  func handle(error: RendererError, from surfaceID: String) {
     capturedErrors.append(error)
   }
 }
@@ -611,8 +611,8 @@ struct SurfaceViewModelTests {
           "component": "button",
           "onClick": [
             "functionCall": [
-              "call": "submit",
-              "args": ["formId": "contact"],
+              "call": "concat",
+              "args": ["a": "hello ", "b": "world"],
             ]
           ],
         ]
@@ -621,7 +621,7 @@ struct SurfaceViewModelTests {
     let root = surface.componentsModel.get("root")
     let actionJSON = try #require(root?.properties["onClick"]?.dictionaryValue)
     let funcCallJSON = try #require(actionJSON["functionCall"]?.dictionaryValue)
-    #expect(funcCallJSON["call"]?.stringValue == "submit")
+    #expect(funcCallJSON["call"]?.stringValue == "concat")
   }
 
   @Test func actionTriggersLocalFunctionCall() async throws {
@@ -1208,7 +1208,7 @@ extension MessageProcessor {
   ) {
     process(
       message: .updateComponents(
-        UpdateComponentsMessage(surfaceID: surfaceID, components: components)
+        UpdateComponentsMessage(surfaceID: surfaceID, components: components, version: .v091)
       )
     )
   }
@@ -1220,7 +1220,7 @@ extension MessageProcessor {
   ) {
     process(
       message: .updateDataModel(
-        UpdateDataModelMessage(surfaceID: surfaceID, path: path, value: value)
+        UpdateDataModelMessage(surfaceID: surfaceID, path: path, value: value, version: .v091)
       )
     )
   }

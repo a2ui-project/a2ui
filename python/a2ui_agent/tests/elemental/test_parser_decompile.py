@@ -19,7 +19,6 @@ import os
 import unittest
 
 from a2ui.core import Catalog
-from a2ui.schema import A2uiCatalog
 from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
 
 from a2ui.schema.utils import find_repo_root, get_spec_dir
@@ -323,12 +322,9 @@ class TestElementalParser(unittest.TestCase):
         self.assertIn(expected_list, html_output)
 
     def test_decompile_custom_template_property(self):
-        catalog = A2uiCatalog(
-            version="1.0",
-            name="custom_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        catalog = Catalog.from_json(
+            protocol_version="1.0",
+            catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
                 "components": {
@@ -353,27 +349,24 @@ class TestElementalParser(unittest.TestCase):
         self.assertIn('<ui-text id="item_1"', html_output)
 
     def test_decompile_named_slots(self):
-        catalog = A2uiCatalog(
-            version="1.0",
-            name="custom_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        catalog = Catalog.from_json(
+            protocol_version="1.0",
+            catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
                 "components": {
                     "CustomCard": {
                         "properties": {
-                            "leading": {"$ref": "#/definitions/ComponentId"},
+                            "leading": {"$ref": "#/$defs/ComponentId"},
                             "trailing": {
                                 "type": "array",
-                                "items": {"$ref": "#/definitions/ComponentId"},
+                                "items": {"$ref": "#/$defs/ComponentId"},
                             },
                         }
                     },
                     "Text": {"properties": {"text": {"type": "string"}}},
                 },
-                "definitions": {"ComponentId": {"type": "string"}},
+                "$defs": {"ComponentId": {"type": "string"}},
             },
         )
         decompiler = ElementalParser(catalog)
@@ -473,19 +466,16 @@ class TestElementalParser(unittest.TestCase):
         self.assertIn('"foo": "bar"', html_output)
 
     def test_decompile_multiple_actions_prefixing(self):
-        catalog = A2uiCatalog(
-            version="1.0",
-            name="custom_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        catalog = Catalog.from_json(
+            protocol_version="1.0",
+            catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
                 "components": {
                     "MultiActionButton": {
                         "properties": {
-                            "onPress": {"$ref": "#/definitions/Action"},
-                            "ongoing": {"$ref": "#/definitions/Action"},
+                            "onPress": {"$ref": "#/$defs/Action"},
+                            "ongoing": {"$ref": "#/$defs/Action"},
                         }
                     }
                 },

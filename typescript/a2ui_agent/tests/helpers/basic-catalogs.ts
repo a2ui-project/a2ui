@@ -24,7 +24,7 @@
 import * as path from 'path';
 import {fileURLToPath} from 'url';
 
-import {CatalogApi} from '../../src/internal/web_core.js';
+import {CatalogApi} from '../../src/internal/web-core.js';
 import {FileSystemCatalogProvider} from '../../src/index.js';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -41,7 +41,7 @@ export const BASIC_CATALOG_IDS = {
  * The v0.9 and v0.9.1 documents state no `protocolVersion`, so it is passed to the
  * provider along with the id. Both documents share the v0.9 catalog id.
  */
-export function loadBasicCatalog(version: 'v0.9' | 'v0.9.1' | 'v1.0'): Promise<CatalogApi> {
+export function loadBasicCatalog(version: 'v0.9' | 'v0.9.1' | 'v1.0'): CatalogApi {
   if (version === 'v0.9' || version === 'v0.9.1') {
     const dir = version === 'v0.9' ? 'v0_9' : 'v0_9_1';
     return new FileSystemCatalogProvider(

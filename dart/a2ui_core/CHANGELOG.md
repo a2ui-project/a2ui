@@ -53,7 +53,12 @@
   `@call` shapes.
 - Validation errors carry JSON Pointer `path`s and per-error `errors` details;
   a dangling reference reports `/components/<index>/children/<n>`.
+- **Breaking:** `Catalog.fromJson` inlines and flattens `allOf` component envelopes (`ComponentCommon`, `CatalogComponentCommon`, `Checkable`), maps `accessibility` and `checks` mixins, omits envelope keys (`id`, `component`, `catalogId`) from `ComponentApi.schema`, and replaces `REF:` description prefixes in `CommonSchemas` with `commonTypesRef` metadata.
+- Adds `Catalog.protocolVersion`, `FunctionApi.description`, and `FunctionImplementation.description`, and updates `Catalog.catalogSchema` to rebuild component envelopes, emit `anyComponent.discriminator` and function `description`, and restore `common_types.json#/$defs/...` references.
+- Allows the `catalogId` envelope property during component validation in `PayloadValidator`.
+- Resolves local `#/...` pointers that are absent from the catalog document against `commonTypes` in `resolveSchemaRefs`.
 - Support non-ASCII data model keys in templates.
+- `A2uiVersionCapabilities.fromJson` throws `A2uiCatalogError` when `inlineCatalogs` is present but isn't an array, or contains an entry that isn't an object.
 - **Breaking:** `UpdateDataModelMessage` adds `hasValue` (defaulting to `true`) so `toJson()` emits `'value': null` for explicit null deletions while `fromJson()` distinguishes an omitted `value` from an explicit `null`.
 - **Breaking:** `SurfaceModel.dispatchAction` records action timestamps in UTC (`DateTime.now().toUtc()`) and `A2uiClientAction.toJson()` serializes timestamps in UTC (`timestamp.toUtc().toIso8601String()`) so serialized timestamps always end with `Z` per RFC 3339.
 - **Breaking:** `A2uiClientError` validates in its constructor (not only in debug assertions) that a `VALIDATION_FAILED` error provides a non-empty `path`, throwing `A2uiValidationError`.

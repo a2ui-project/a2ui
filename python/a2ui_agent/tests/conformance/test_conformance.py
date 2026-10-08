@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import dataclasses
+import contextlib
+import json
 import os
-import yaml
+import re
+
 import pytest
-from .conformance_helpers import (
-    get_conformance_path,
-    load_conformance_json as load_json_file,
-    load_conformance_yaml as load_tests,
-)
+import yaml
 
 from a2ui.core import (
     A2uiCatalogError,
@@ -29,23 +27,28 @@ from a2ui.core import (
     A2uiParseError,
     A2uiRecursionError,
     A2uiValidationError,
+    Catalog,
     MessageProcessor,
 )
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
+from a2ui.inference_formats.direct_json import (
+    DirectJsonFormat,
+    DirectJsonParser,
+    DirectJsonStreamParser,
+)
+from a2ui.parser import A2uiCompilationError
 from a2ui.schema import (
-    A2uiCatalog,
     CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
-    remove_strict_validation,
 )
-from a2ui.parser.errors import A2uiCompilationError
+from a2ui.utils import resolve_catalogs
 
-import json
-import re
-
-import contextlib
+from .conformance_helpers import (
+    get_conformance_path,
+    load_conformance_json as load_json_file,
+    load_conformance_yaml as load_tests,
+)
 
 CATEGORY_TO_EXCEPTION = {
     "ParseError": A2uiParseError,
@@ -115,34 +118,30 @@ class MemoryCatalogProvider:
 
 
 def setup_catalog(catalog_config):
-    version = str(catalog_config.get("protocolVersion", "v0.9")).removeprefix("v")
+    """Builds the catalog that a legacy case describes.
 
-    s2c_schema = catalog_config.get("s2cSchema")
-    if isinstance(s2c_schema, str):
-        s2c_schema = load_json_file(s2c_schema)
+    The case's `s2cSchema` and `commonTypesSchema` are ignored on purpose. A
+    core `Catalog` validates against the published schemas for its protocol
+    version, so the simplified fixture schemas have no place to go. Cases that
+    need a stricter or looser schema must express it in `catalogSchema`.
+    """
+    version = str(catalog_config.get("protocolVersion", "v0.9")).removeprefix("v")
 
     catalog_schema = catalog_config.get("catalogSchema")
     if isinstance(catalog_schema, str):
         catalog_schema = load_json_file(catalog_schema)
     elif catalog_schema is None:
         catalog_schema = {}
+    else:
+        catalog_schema = dict(catalog_schema)
 
-    common_types_schema = catalog_config.get("commonTypesSchema")
-    if isinstance(common_types_schema, str):
-        common_types_schema = load_json_file(common_types_schema)
-    elif common_types_schema is None:
-        common_types_schema = {}
+    name = catalog_config.get("name", "test_catalog")
+    if "catalogId" not in catalog_schema:
+        catalog_schema["catalogId"] = name
 
-    custom_cuttable_keys = catalog_config.get("customCuttableKeys")
-    return A2uiCatalog(
-        version=version,
-        name=catalog_config.get("name", "test_catalog"),
-        s2c_schema=s2c_schema,
-        common_types_schema=common_types_schema,
-        catalog_schema=catalog_schema,
-        custom_cuttable_keys=frozenset(custom_cuttable_keys)
-        if custom_cuttable_keys is not None
-        else None,
+    return Catalog.from_json(
+        catalog_schema,
+        protocol_version=f"v{version}",
     )
 
 
@@ -178,7 +177,18 @@ def get_conformance_cases(filename):
         catalog = (
             case.get("catalog", {}) if isinstance(case.get("catalog"), dict) else {}
         )
-        version = str(catalog.get("protocolVersion", "v0.9"))
+        catalogs = (
+            case.get("catalogs", []) if isinstance(case.get("catalogs"), list) else []
+        )
+        first_catalog = (
+            catalogs[0] if catalogs and isinstance(catalogs[0], dict) else {}
+        )
+        version = str(
+            case.get("protocolVersion")
+            or catalog.get("protocolVersion")
+            or first_catalog.get("protocolVersion")
+            or "v0.9"
+        )
         if not version.startswith("v"):
             version = f"v{version}"
 
@@ -186,6 +196,33 @@ def get_conformance_cases(filename):
             continue
         filtered.append((name, case))
     return filtered
+
+
+def make_stream_parser(test_case):
+    """Builds the stream parser that a case's catalog configs describe.
+
+    A case configures one catalog under `catalog`, or several under
+    `catalogs`. The shared suites name the progressive keys
+    `customCuttableKeys`, on the catalog config or, for several catalogs, on
+    the case.
+    """
+    if "catalogs" in test_case:
+        catalogs = [setup_catalog(config) for config in test_case["catalogs"]]
+        progressive_keys = test_case.get("customCuttableKeys")
+    else:
+        catalog_config = test_case.get("catalog", {})
+        catalogs = [setup_catalog(catalog_config)]
+        progressive_keys = catalog_config.get("customCuttableKeys")
+    if progressive_keys is None:
+        return DirectJsonStreamParser(catalogs)
+    return DirectJsonStreamParser(
+        catalogs, progressive_keys=frozenset(progressive_keys)
+    )
+
+
+def _disable_validation(parser: DirectJsonStreamParser) -> None:
+    parser._validate_message = lambda m: None
+    parser._validate_components = lambda comp_models, available_reachable: None
 
 
 # --- Streaming Parser Conformance ---
@@ -196,11 +233,9 @@ cases_parser = get_conformance_cases("agent/legacy/streaming_parser.yaml")
     "name, test_case", cases_parser, ids=[c[0] for c in cases_parser]
 )
 def test_parser_conformance(name, test_case):
-    catalog_config = test_case["catalog"]
-    catalog = setup_catalog(catalog_config)
-    parser = DirectJsonStreamParser(catalog=catalog)
+    parser = make_stream_parser(test_case)
     if test_case.get("disableValidation"):
-        parser._validator = None
+        _disable_validation(parser)
 
     steps = test_case.get("steps")
     if steps is None and "process_chunk" in test_case:
@@ -267,6 +302,42 @@ def test_parser_non_streaming_conformance(name, test_case):
 # --- Schema Manager Conformance ---
 cases_schema_manager = get_conformance_cases("agent/legacy/inference_format.yaml")
 
+# These cases describe the legacy schema manager, which merged inline catalogs
+# into the selected catalog and rejected them when it didn't accept them.
+# `resolve_catalogs` activates each inline catalog as a catalog of its own and
+# drops inline catalogs that the agent doesn't accept.
+_INLINE_MERGE_CASES = {
+    "test_select_catalog_inline",
+    "test_select_catalog_inline_not_accepted",
+    "test_select_catalog_multiple_inline",
+    "test_select_catalog_no_match_with_inline",
+}
+
+# The key that each protocol version's capabilities are sent under.
+_CAPABILITIES_KEYS = {"0.8": "v0.8", "0.9": "v0.9", "0.9.1": "v0.9", "1.0": "v1.0"}
+
+
+def _resolve(configs, version, client_capabilities, accepts_inline_catalogs):
+    """Resolves the legacy cases' unkeyed client capabilities.
+
+    The legacy cases leave out fields that the capabilities models require and
+    the schema manager didn't: `supportedCatalogIds` and, for v0.8 inline
+    catalogs, `styles`. They're filled in empty.
+    """
+    renderer_capabilities = None
+    if client_capabilities:
+        entry = {"supportedCatalogIds": [], **client_capabilities}
+        if version == VERSION_0_8:
+            entry["inlineCatalogs"] = [
+                {"styles": {}, **c} for c in entry.get("inlineCatalogs", [])
+            ]
+        renderer_capabilities = {_CAPABILITIES_KEYS[version]: entry}
+    return resolve_catalogs(
+        configs,
+        renderer_capabilities,
+        accepts_inline_catalogs=accepts_inline_catalogs,
+    )
+
 
 @pytest.mark.parametrize(
     "name, test_case",
@@ -278,63 +349,67 @@ def test_schema_manager_conformance(name, test_case):
     args = test_case.get("args", {})
 
     if action == "select_catalog":
+        if name in _INLINE_MERGE_CASES:
+            pytest.skip("Inline catalogs are resolved as separate catalogs.")
         supported_catalogs = args.get("supportedCatalogs", [])
         client_capabilities = args.get("clientCapabilities", {})
         accepts_inline_catalogs = args.get("acceptsInlineCatalogs", False)
 
-        configs = []
-        for cat_def in supported_catalogs:
-            configs.append(
+        configs = [
+            CatalogConfig.from_catalog(
+                cat_def["catalogId"],
                 CatalogConfig(
                     name=cat_def["catalogId"],
                     provider=MemoryCatalogProvider(cat_def),
-                )
+                ).to_catalog(protocol_version=VERSION_0_9),
             )
-
-        direct_json_format = DirectJsonFormat(
-            version=VERSION_0_9,
-            catalogs=configs,
-            accepts_inline_catalogs=accepts_inline_catalogs,
-        )
+            for cat_def in supported_catalogs
+        ]
 
         expect_error = test_case.get("expectError")
         if expect_error:
             with assert_raises(expect_error):
-                direct_json_format.get_selected_catalog(client_capabilities)
+                _resolve(
+                    configs, VERSION_0_9, client_capabilities, accepts_inline_catalogs
+                )
         else:
-            selected = direct_json_format.get_selected_catalog(client_capabilities)
+            selected = _resolve(
+                configs, VERSION_0_9, client_capabilities, accepts_inline_catalogs
+            )[0]
             if "expect" in test_case:
                 expected = test_case["expect"]
                 if isinstance(expected, dict):
-                    assert selected.catalog_schema == expected
+                    actual = {
+                        "catalogId": selected.catalog_id,
+                        "components": {
+                            k: v.schema for k, v in selected.components.items()
+                        },
+                    }
+                    assert actual == expected
             expect_selected = test_case.get("expectSelected")
             if expect_selected:
                 assert selected.catalog_id == expect_selected
 
     elif action == "load_catalog":
         catalog_configs = test_case.get("catalogConfigs", [])
-        modifiers = test_case.get("modifiers", [])
-        schema_modifiers = []
-        if "remove_strict_validation" in modifiers:
-            schema_modifiers.append(remove_strict_validation)
-        configs = []
-        for cfg in catalog_configs:
-            full_path = get_conformance_path(cfg["path"])
-            configs.append(
-                CatalogConfig.from_path(name=cfg["name"], catalog_path=full_path)
-            )
-        direct_json_format = DirectJsonFormat(
-            version=VERSION_0_8, catalogs=configs, schema_modifiers=schema_modifiers
-        )
-        selected = direct_json_format.get_selected_catalog()
+        catalogs = [
+            CatalogConfig.from_path(
+                name=cfg["name"], catalog_path=get_conformance_path(cfg["path"])
+            ).to_catalog(protocol_version=VERSION_0_8)
+            for cfg in catalog_configs
+        ]
+        direct_json_format = DirectJsonFormat(catalogs)
+        selected = direct_json_format.catalogs[0]
         expected = test_case["expect"]
         if isinstance(expected, dict) and "supportedCatalogIds" in expected:
             exp_ids = expected["supportedCatalogIds"]
-            assert [
-                c.catalog_id for c in direct_json_format._supported_catalogs
-            ] == exp_ids
+            assert [c.catalog_id for c in direct_json_format.catalogs] == exp_ids
         elif isinstance(expected, dict):
-            assert selected.catalog_schema == expected
+            actual = {
+                "catalogId": selected.catalog_id,
+                "components": {k: v.schema for k, v in selected.components.items()},
+            }
+            assert actual == expected
 
     elif action == "generate_prompt":
         version = args.get("version", VERSION_0_8)
@@ -346,26 +421,20 @@ def test_schema_manager_conformance(name, test_case):
         if examples_path:
             examples_path = get_conformance_path(examples_path)
 
-        config = CatalogConfig.from_catalog(
-            "basic",
-            BasicCatalog(version),
-            examples_path=examples_path,
+        catalogs = _resolve(
+            [CatalogConfig.from_catalog("basic", BasicCatalog(version))],
+            version,
+            args.get("clientUiCapabilities"),
+            args.get("acceptsInlineCatalogs", False),
         )
+        direct_json_format = DirectJsonFormat(catalogs, examples_path=examples_path)
 
-        accepts_inline = args.get("acceptsInlineCatalogs", False)
-        direct_json_format = DirectJsonFormat(
-            version=version,
-            catalogs=[config],
-            accepts_inline_catalogs=accepts_inline,
-        )
-
-        output = direct_json_format.generate_system_prompt(
+        output = direct_json_format.prompt_generator.generate(
             role_description=role,
             workflow_description=workflow,
             ui_description=ui_desc,
             include_schema=args.get("includeSchema", False),
             include_examples=args.get("includeExamples", False),
-            client_ui_capabilities=args.get("clientUiCapabilities"),
             allowed_components=args.get("allowedComponents"),
             allowed_messages=args.get("allowedMessages"),
         )
@@ -375,6 +444,8 @@ def test_schema_manager_conformance(name, test_case):
         expect_contains = test_case.get("expectContains")
         if expect_contains:
             for expected in expect_contains:
+                if expected == "### Server To Client Schema:":
+                    expected = "### Agent to Renderer Schema:"
                 expected_normalized = re.sub(r"\s+", "", expected.strip())
                 assert expected_normalized in output_normalized
 
@@ -388,7 +459,6 @@ def test_schema_manager_conformance(name, test_case):
         if not spec_ver_key.startswith("v"):
             spec_ver_key = f"v{spec_ver_key}"
 
-        from a2ui.core import Catalog
         from a2ui.schema.utils import get_basic_catalog_path
 
         with open(get_basic_catalog_path(spec_ver_key), "r", encoding="utf-8") as f:
@@ -433,11 +503,9 @@ def test_schema_manager_conformance(name, test_case):
                 assert actual.a2ui_json == exp.get("a2ui")
 
     elif action == "process_chunk":
-        catalog_config = test_case.get("catalog", {})
-        catalog = setup_catalog(catalog_config)
-        parser = DirectJsonStreamParser(catalog=catalog)
+        parser = make_stream_parser(test_case)
         if test_case.get("disableValidation"):
-            parser._validator = None
+            _disable_validation(parser)
 
         steps = test_case.get("steps")
         if steps is None and "process_chunk" in test_case:
@@ -464,19 +532,13 @@ _get_conformance_path = get_conformance_path
 # names the call it exercises (`compile`, `decompile`) and carries its catalog
 # as a path into `conformance/test_data/`.
 #
-# Two things the suites leave to the harness:
-#
-# - The surface a block compiles into. The suites fix `default_surface` as the
-#   surface id a block that names no surface compiles against, which is what
-#   `ExpressCompiler.compile` defaults to; `ExpressParser` takes it as a
-#   constructor argument and defaults to `main` instead, so the harness passes
-#   it explicitly rather than testing a constructor default other languages may
-#   not have.
-# - Turning on v1.0 validation, which this SDK gates behind an experiment. The
-#   suites are all v1.0, so without it every catalog fails to build a validator.
+# One thing the suites leave to the harness is the surface a block compiles
+# into. The suites fix `default_surface` as the surface id a block that names no
+# surface compiles against, which is what `ExpressCompiler.compile` defaults to;
+# `ExpressParser` takes it as a constructor argument and defaults to `main`
+# instead, so the harness passes it explicitly rather than testing a constructor
+# default other languages may not have.
 
-
-V1_0_EXPERIMENTS = frozenset({"version_1_0"})
 
 CONFORMANCE_SURFACE_ID = "default_surface"
 
@@ -572,16 +634,6 @@ KNOWN_GAPS = {
         "parse_response takes no `wrapped` argument, so a response the case"
         " declares unwrapped cannot be handed to the compiler whole"
     ),
-    # Compiler. The direct JSON parser validates components against the catalog
-    # but not the message envelope, so the envelope's `version` goes unchecked.
-    "test_compile_json_other_protocol_version_is_a_validation_error": (
-        "the envelope is not validated, so a message stating another version"
-        " compiles unchanged"
-    ),
-    "test_compile_json_missing_version_is_a_validation_error": (
-        "the envelope is not validated, so a message stating no version"
-        " compiles unchanged"
-    ),
     # Express reserved keys (#3006). v1.0 writes a data binding as `@path` and
     # a function call as `@call`, and the compiler still writes `path` and
     # `call`. The decompiler reads both, so the decompile cases fail only on
@@ -622,15 +674,14 @@ UNSUPPORTED = {
 
 
 def setup_catalog_from_document(relative_path):
-    """Builds an A2uiCatalog from a conformance catalog fixture path."""
+    """Builds a Catalog from a conformance catalog fixture path."""
     document = load_json_file(relative_path)
     version = str(document.get("protocolVersion", "1.0"))
     config = CatalogConfig.from_path(
         name=os.path.basename(relative_path).replace(".json", ""),
         catalog_path=_get_conformance_path(relative_path),
     )
-    catalog = A2uiCatalog.from_config(config, version=version)
-    return dataclasses.replace(catalog, experiments=V1_0_EXPERIMENTS)
+    return config.to_catalog(protocol_version=version)
 
 
 def make_parser(args):
@@ -651,9 +702,7 @@ def make_parser(args):
         ).parser
 
     if format_name == "direct_json":
-        from a2ui.inference_formats.direct_json.parser import DirectJsonParser
-
-        return DirectJsonParser(catalog=catalog, validator=catalog.validate_components)
+        return DirectJsonParser([catalog])
 
     raise ValueError(f"Unknown inference format: {format_name}")
 

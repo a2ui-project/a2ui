@@ -155,9 +155,15 @@ void main() {
         {r'$ref': r'https://example.test/types#/$defs/ChildList'},
       ),
       (
-        'description markers',
-        {'description': r'REF:common_types.json#/$defs/ComponentId|Child'},
-        {'description': r'REF:common_types.json#/$defs/ChildList|Children'},
+        'commonTypesRef metadata markers',
+        {
+          'commonTypesRef': r'common_types.json#/$defs/ComponentId',
+          'description': 'Child'
+        },
+        {
+          'commonTypesRef': r'common_types.json#/$defs/ChildList',
+          'description': 'Children'
+        },
       ),
       ('v1.0 Child wire pointers', _child, _list),
       (
@@ -324,7 +330,7 @@ void main() {
           'component': _single,
           'title': {'type': 'string'},
           'nearMarker': {
-            'description': r'REF:common_types.json#/$defs/ComponentIdSuffix',
+            'commonTypesRef': r'common_types.json#/$defs/ComponentIdSuffix',
           },
         },
       });

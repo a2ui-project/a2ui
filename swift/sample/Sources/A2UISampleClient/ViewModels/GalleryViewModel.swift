@@ -40,7 +40,7 @@ final class GalleryActionHandler: ActionHandling, @unchecked Sendable {
   func handle(action: ResolvedAction, from surfaceID: String) {
     let desc: String
     switch action.identity {
-    case .event(let name, _):
+    case .event(let name, _, _):
       desc = "event=\(name)"
     case .function(let call, _):
       desc = "function=\(call)"
@@ -54,7 +54,7 @@ final class GalleryActionHandler: ActionHandling, @unchecked Sendable {
     }
   }
 
-  func handle(error: ClientServerError, from surfaceID: String) {
+  func handle(error: RendererError, from surfaceID: String) {
     let text: String
     switch error {
     case .validationFailed(let err):

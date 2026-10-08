@@ -80,9 +80,6 @@
           "id": "datetime-field",
           "component": {
             "DateTimeInput": {
-              "label": {
-                "literalString": "Date & Time"
-              },
               "value": {
                 "path": "/reservationTime"
               },

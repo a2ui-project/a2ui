@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {AgentToRendererMessage, CatalogApi} from './internal/web_core.js';
+import {AgentToRendererMessage, CatalogApi} from './internal/web-core.js';
 import {Parser} from './parser/parser.js';
 import {PromptGenerator} from './prompt/generator.js';
 

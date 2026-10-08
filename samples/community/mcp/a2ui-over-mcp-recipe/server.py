@@ -20,7 +20,7 @@ import anyio
 import click
 import mcp.types as types
 from a2ui.schema import CatalogConfig, VERSION_0_9
-from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.utils import validate_payload
 from mcp.server.lowlevel import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 from starlette.requests import Request
@@ -62,21 +62,17 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
         name="basic_with_mcp",
         catalog_path=str(basic_with_mcp_catalog_path),
     )
-    inference_format = DirectJsonFormat(
-        version=VERSION_0_9,
-        catalogs=[catalog_config],
-    )
-    selected_catalog = inference_format.get_selected_catalog()
+    selected_catalog = catalog_config.to_catalog(protocol_version=VERSION_0_9)
 
     recipe_a2ui_json = json.loads(
         (pathlib.Path(__file__).resolve().parent / "recipe_a2ui.json").read_text()
     )
-    selected_catalog.validate_components(recipe_a2ui_json)
+    validate_payload([selected_catalog], recipe_a2ui_json)
 
     recipe_form_json = json.loads(
         (pathlib.Path(__file__).resolve().parent / "recipe_form.json").read_text()
     )
-    selected_catalog.validate_components(recipe_form_json)
+    validate_payload([selected_catalog], recipe_form_json)
 
     app = Server("a2ui-mcp-recipe-demo")
 

@@ -247,6 +247,9 @@ Object? inlineLocalRefs(
   final Object? ref = object[r'$ref'];
 
   if (ref is String && ref.startsWith('#/')) {
+    if (ref.startsWith(r'#/$defs/') && isCommonTypeDef(ref.split('/').last)) {
+      return object;
+    }
     if (visited.contains(ref)) return object;
 
     final Object? target = followJsonPointer(rootCatalog, ref.substring(1));
@@ -300,3 +303,19 @@ Object? followJsonPointer(Object? document, String pointer) {
   }
   return current;
 }
+
+/// Checks if [name] is a standard A2UI common type definition.
+bool isCommonTypeDef(String name) => const {
+      'ComponentId',
+      'DynamicString',
+      'DynamicNumber',
+      'DynamicBoolean',
+      'DynamicStringList',
+      'DynamicValue',
+      'DataBinding',
+      'FunctionCall',
+      'ChildList',
+      'Action',
+      'CheckRule',
+      'AccessibilityAttributes',
+    }.contains(name);

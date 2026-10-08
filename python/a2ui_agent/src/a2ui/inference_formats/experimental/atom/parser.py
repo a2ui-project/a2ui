@@ -17,7 +17,6 @@
 from typing import Any
 from a2ui.core import CatalogApi
 from a2ui.parser import Parser, ResponsePart
-from a2ui.schema import A2uiCatalog
 
 try:
     from google.adk.utils.feature_decorator import experimental
@@ -41,7 +40,7 @@ class AtomParser(Parser):
         surface_id: The target surface identifier.
     """
 
-    def __init__(self, catalog: CatalogApi | A2uiCatalog, surface_id: str = "main"):
+    def __init__(self, catalog: CatalogApi, surface_id: str = "main"):
         """Initializes an AtomParser instance.
 
         Args:

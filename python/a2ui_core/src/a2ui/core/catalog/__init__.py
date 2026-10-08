@@ -20,7 +20,12 @@ from ..schema.common_types_schema import (
     get_common_types_schema_json,
     get_common_types_schema_map,
 )
-from .catalog import Catalog, CatalogApi, is_valid_uax31_identifier
+from .catalog import (
+    Catalog,
+    CatalogApi,
+    inline_local_refs,
+    is_valid_uax31_identifier,
+)
 from .components import (
     ComponentApi,
     ComponentImplementation,
@@ -74,6 +79,7 @@ __all__ = [
     "get_agent_to_renderer_schema_map",
     "get_common_types_schema_json",
     "get_common_types_schema_map",
+    "inline_local_refs",
     "is_valid_uax31_identifier",
     "system_functions_for",
 ]

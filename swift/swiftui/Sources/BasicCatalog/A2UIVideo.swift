@@ -34,6 +34,7 @@ extension BasicCatalogImplementation {
 public struct A2UIVideo: View {
   public let node: Node
   @State private var player: AVPlayer?
+  @State private var isShowingPoster: Bool = true
 
   public init(node: Node) {
     self.node = node
@@ -43,12 +44,50 @@ public struct A2UIVideo: View {
     node.string(for: "url") ?? ""
   }
 
+  /// The optional poster image URL string resolved from the `posterUrl` property.
+  public var posterURLString: String? {
+    node.string(for: "posterUrl")
+  }
+
   public var body: some View {
     Group {
       if let player {
-        VideoPlayer(player: player)
-          .frame(minHeight: 220)
-          .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        ZStack {
+          VideoPlayer(player: player)
+            .frame(minHeight: 220)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+          if isShowingPoster,
+            let posterStr = posterURLString,
+            !posterStr.isEmpty,
+            let posterURL = URL(string: posterStr)
+          {
+            Button {
+              isShowingPoster = false
+              player.play()
+            } label: {
+              ZStack {
+                AsyncImage(url: posterURL) { phase in
+                  switch phase {
+                  case .success(let image):
+                    image
+                      .resizable()
+                      .scaledToFill()
+                  default:
+                    Color.black.opacity(0.6)
+                  }
+                }
+                Image(systemName: "play.circle.fill")
+                  .font(.system(size: 48))
+                  .foregroundStyle(.white)
+                  .shadow(radius: 4)
+              }
+              .frame(maxWidth: .infinity, minHeight: 220)
+              .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.plain)
+          }
+        }
       } else {
         VStack(spacing: 8) {
           Image(systemName: "video.slash")
@@ -67,7 +106,11 @@ public struct A2UIVideo: View {
       updatePlayer()
     }
     .onChange(of: urlString) { _ in
+      isShowingPoster = true
       updatePlayer()
+    }
+    .onChange(of: posterURLString) { _ in
+      isShowingPoster = true
     }
     .onDisappear {
       player?.pause()

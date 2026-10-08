@@ -2,51 +2,70 @@
 
 A2UI Agent SDK for TypeScript and Node.js.
 
-This package targets the A2UI protocol **v0.9** and **v1.0**, and supports the **Direct JSON** and **Express** inference formats. Express accepts several catalogs, and a `surface(...)` line picks one by id. It does not stream. The emitted protocol version is derived from the catalog.
+This package targets A2UI protocol **v0.9** and **v1.0**, and supports the **Direct JSON** and **Express** inference formats.
 
-## Regenerating the Express parser
+## Getting started
 
-The Express lexer, parser, and visitor in `src/inference_formats/express/generated/` are
-generated from the specification grammar at `specification/inference_formats/express/Express.g4`.
-The generated files are checked in, so building, testing, and using this package never runs the
-generator. Regenerate them only when the grammar changes.
+Load your catalogs once at startup and create an `A2uiGenerator`. On each turn, create a request processor for the client's capabilities, include its `promptSnippet` in your system prompt, and pass the model's response to `parseResponse`:
 
-The generator is [antlr-ng](https://www.antlr-ng.org/introduction.html), a TypeScript port of the
-ANTLR 4.13.2 tool published on npm. It is a devDependency of this package, so `yarn install` is
-all the setup needed, with no Java. Its generated code targets the
-[`antlr4ng`](https://www.npmjs.com/package/antlr4ng) runtime, which is a runtime dependency. Both
-are pinned to exact versions, because `antlr-ng` pins the `antlr4ng` version it generates for.
+```ts
+import {
+  A2uiGenerator,
+  CatalogConfig,
+  ExpressFormatFactory,
+  type RendererCapabilities,
+} from '@a2ui/agent';
 
-From the repository root, run:
+// 1. Load catalogs and build the generator once at startup.
+const componentCatalog = CatalogConfig.fromPath('path/to/catalog.json');
+const generator = new A2uiGenerator(
+  [componentCatalog],
+  undefined,
+  // Omit to use DirectJsonFormatFactory by default, or pass ExpressFormatFactory:
+  new ExpressFormatFactory(),
+);
 
-```sh
-yarn workspace @a2ui/agent generate:express
+// 2. Per request, negotiate active catalogs for the client's capabilities.
+const capabilities: RendererCapabilities = {
+  v1_0: {supportedCatalogIds: [componentCatalog.catalog.id]},
+};
+const processor = generator.createProcessor(capabilities);
+
+// 3. Append processor.promptSnippet to your LLM system prompt, then parse the reply.
+const systemPrompt = `You are a helpful assistant.\n\n${processor.promptSnippet}`;
+const llmResponse = await callYourModel(systemPrompt, userMessage);
+
+for (const part of processor.parseResponse(llmResponse)) {
+  if (part.type === 'text') {
+    console.log('Text:', part.content);
+  } else {
+    // Validated AgentToRendererMessage[] ready to send to the renderer
+    console.log('A2UI messages:', part.content);
+  }
+}
 ```
 
-This runs
-`antlr-ng -Dlanguage=TypeScript --generate-visitor --generate-listener false -o src/inference_formats/express/generated ../../specification/inference_formats/express/Express.g4`,
-matching the Python SDK's options (a visitor and no listener).
+## Loading catalogs
 
-The Python SDK generates its parser with the official ANTLR 4.13.2 Java tool. The two SDKs parse
-identically because their serialized ATNs, the tables that drive every lexing and parsing
-decision, are identical. `tests/unit/inference_formats/express/generated_parser.test.ts` compares
-both ATNs against Python's checked-in parser and fails if either SDK is regenerated from a
-different grammar. When the grammar changes, regenerate both SDKs in the same change.
+The SDK bundles no catalogs. Load catalog JSON documents with `CatalogConfig.fromPath` or `FileSystemCatalogProvider`, or pass an existing object to `InMemoryCatalogProvider`.
 
-The generated directory is excluded from ESLint and Prettier, so a regeneration diff shows only
-real grammar changes. When the grammar adds a parser rule, add a matching visitor override in
-both SDKs.
+The emitted protocol version is taken from the catalog. Because the v0.9 basic catalog JSON document omits both `protocolVersion` and `catalogId`, pass them explicitly when loading it:
 
-## Temporary shims
+```ts
+const v09Catalog = CatalogConfig.fromPath(
+  'specification/v0_9/catalogs/basic/catalog.json',
+  [],
+  'v0.9',
+  'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
+);
+```
 
-| Symbol                              | Stands in for                          | Why                                                                                                                          | Remove when                                     |
-| :---------------------------------- | :------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------- |
-| `RemoveStrictValidationTransformer` | a `web_core` catalog schema modifier   | The conformance suite declares a `remove_strict_validation` modifier, but `web_core` exposes no common schema modifiers yet. | `web_core` exports an equivalent transformer.   |
-| `MessageProcessor` type cast        | A generic parameter constraint relaxer | `MessageProcessor` implicitly requires `Catalog<any, FunctionImplementation>` even without an action handler.                | `MessageProcessor` relaxes its type constraint. |
+## Development
 
-Defined in `tests/conformance/fixtures.ts` rather than `src/`, so the shim audit covers both
-`src/` and `tests/`.
+```sh
+yarn workspace @a2ui/agent test
+yarn workspace @a2ui/agent lint
+yarn workspace @a2ui/agent format
+```
 
-## Known limitations
-
-- The SDK bundles no catalog, not even the basic one. Load catalog documents with `FileSystemCatalogProvider` or `CatalogConfig.fromPath`. The v0.9 basic catalog document states neither a `catalogId` nor a `protocolVersion`, so pass both when you load it: `'v0.9'` and `https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json`.
+Architecture, design decisions, and parser regeneration instructions live in the [codebase blueprint](../../blueprints/codebases/typescript/a2ui_agent/codebase.blueprint.md).

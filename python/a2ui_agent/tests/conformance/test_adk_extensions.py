@@ -34,8 +34,8 @@ cases_adk_extensions = get_conformance_cases("extensions/adk/adk_extensions.yaml
 )
 def test_adk_extensions_conformance(name, test_case):
     from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
-    from a2ui.schema.catalog import A2uiCatalog
-    from unittest.mock import MagicMock
+    from a2ui.core import Catalog
+    from unittest.mock import MagicMock, patch
 
     action = test_case["action"]
     args = test_case.get("args", {})
@@ -44,8 +44,7 @@ def test_adk_extensions_conformance(name, test_case):
         a2ui_json_str = args.get("a2uiJson")
         tool_args = {"a2ui_json": a2ui_json_str} if a2ui_json_str else args
 
-        catalog_mock = MagicMock(spec=A2uiCatalog)
-        catalog_mock.validate_components.return_value = []
+        catalog_mock = MagicMock(spec=Catalog)
 
         tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
             catalog_mock, "examples"
@@ -55,10 +54,11 @@ def test_adk_extensions_conformance(name, test_case):
         tool_context_mock.state = {}
         tool_context_mock.actions = MagicMock(skip_summarization=False)
 
-        # run_async is async in Python
-        result = asyncio.run(
-            tool.run_async(args=tool_args, tool_context=tool_context_mock)
-        )
+        with patch("a2ui.adk.send_a2ui_to_client_toolset.validate_payload"):
+            # run_async is async in Python
+            result = asyncio.run(
+                tool.run_async(args=tool_args, tool_context=tool_context_mock)
+            )
 
         expect = test_case["expect"]
         expect_success = expect["success"]

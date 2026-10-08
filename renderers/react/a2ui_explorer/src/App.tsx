@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {useState, useEffect, useSyncExternalStore, useCallback, useRef} from 'react';
-import {MessageProcessor, type SurfaceModel, type A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {useState, useEffect, useCallback, useRef} from 'react';
+import {MessageProcessor, type A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {A2uiSurface, MarkdownContext, type ReactCatalogComponent} from '@a2ui/react';
 import {basicCatalog as basicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
 import {demoCatalog} from './demo-catalog';
@@ -26,28 +26,44 @@ import styles from './App.module.css';
 const demoItemsV09 = getDemoItems('v0.9');
 const demoItemsV10 = getDemoItems('v1.0');
 
-const DataModelViewer = ({surface}: {surface: SurfaceModel<ReactCatalogComponent>}) => {
-  const subscribeHook = useCallback(
-    (callback: () => void) => {
-      const bound = surface.dataModel.subscribe('/', callback);
-      return () => bound.unsubscribe();
-    },
-    [surface],
-  );
+function formatTime(date: Date): string {
+  const pad = (n: number, len = 2) => String(n).padStart(len, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
+}
 
-  const getSnapshot = useCallback(() => {
-    return JSON.stringify(surface.dataModel.get('/'), null, 2);
-  }, [surface]);
-
-  const dataString = useSyncExternalStore(subscribeHook, getSnapshot);
-
-  return (
-    <div style={{marginBottom: '1rem'}}>
-      <strong>Surface: {surface.id}</strong>
-      <pre style={{fontSize: '12px', margin: 0, whiteSpace: 'pre-wrap'}}>{dataString}</pre>
-    </div>
-  );
-};
+function applyPrimaryColorToMessages(
+  messages: Record<string, unknown>[],
+  primaryColor: string,
+): Record<string, unknown>[] {
+  if (!primaryColor) return messages;
+  return messages.map(msg => {
+    if (
+      msg &&
+      typeof msg === 'object' &&
+      'createSurface' in msg &&
+      msg.version !== 'v1.0' &&
+      msg.createSurface &&
+      typeof msg.createSurface === 'object'
+    ) {
+      const createSurface = msg.createSurface as Record<string, unknown>;
+      const existingTheme =
+        createSurface.theme && typeof createSurface.theme === 'object'
+          ? (createSurface.theme as Record<string, unknown>)
+          : {};
+      return {
+        ...msg,
+        createSurface: {
+          ...createSurface,
+          theme: {
+            ...existingTheme,
+            primaryColor,
+          },
+        },
+      };
+    }
+    return msg;
+  });
+}
 
 /**
  * Properties for the main explorer application component.
@@ -74,10 +90,30 @@ export interface AppProps {
  * Represents an entry in the explorer action dispatch log.
  */
 interface LogEntry {
-  /** ISO timestamp of when the action was intercepted. */
-  time: string;
-  /** The intercepted client action object. */
-  action: A2uiClientAction;
+  /** Formatted HH:mm:ss.SSS timestamp of when the event occurred. */
+  timestamp: string;
+  /** Event badge label (action name or 'Error'). */
+  type: string;
+  /** The intercepted payload object. */
+  detail: unknown;
+}
+
+function getLocalStorageBool(key: string): boolean {
+  try {
+    return typeof window !== 'undefined' && localStorage.getItem(key) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function setLocalStorageBool(key: string, value: boolean) {
+  try {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(key, String(value));
+    }
+  } catch {
+    // Ignore in restricted environments
+  }
 }
 
 export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
@@ -96,54 +132,118 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
   });
 
   const demoItems: DemoItem[] = selectedVersion === 'v1.0' ? demoItemsV10 : demoItemsV09;
-  const [selectedExampleId, setSelectedExampleId] = useState(initialExampleId ?? demoItems[0]?.id);
+
+  const [selectedExampleId, setSelectedExampleId] = useState<string>(() => {
+    if (initialExampleId) {
+      return initialExampleId;
+    }
+    if (typeof window !== 'undefined') {
+      const rawHash = window.location.hash.slice(1);
+      if (rawHash) {
+        const matched = demoItems.find(
+          item =>
+            item.id === rawHash ||
+            item.filename === rawHash ||
+            (item.filename ?? '').replace('.json', '') === rawHash,
+        );
+        if (matched) {
+          return matched.id;
+        }
+      }
+    }
+    return demoItems[0]?.id ?? '';
+  });
+
   const selectedItem = demoItems.find(e => e.id === selectedExampleId) ?? demoItems[0];
 
-  const handleVersionChange = (newVersion: 'v0.9' | 'v1.0') => {
-    setSelectedVersion(newVersion);
-    const items = newVersion === 'v1.0' ? demoItemsV10 : demoItemsV09;
-    if (items.length > 0) {
-      setSelectedExampleId(items[0].id);
-    }
-  };
-
+  const [customMessages, setCustomMessages] = useState<Record<string, unknown>[] | null>(null);
+  const [primaryColor, setPrimaryColor] = useState<string>('#1177ee');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [processor, setProcessor] = useState<MessageProcessor<ReactCatalogComponent> | null>(null);
   const [surfaces, setSurfaces] = useState<string[]>([]);
-  const [currentMessageIndex, setCurrentMessageIndex] = useState(-1);
+  const [processedMessageCount, setProcessedMessageCount] = useState(0);
 
-  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(() => {
-    try {
-      return (
-        typeof window !== 'undefined' && localStorage.getItem('isLeftSidebarCollapsed') === 'true'
-      );
-    } catch {
-      return false;
-    }
-  });
+  const [currentCreateSurfaceMessageText, setCurrentCreateSurfaceMessageText] = useState('');
+  const [messageError, setMessageError] = useState<string | null>(null);
+  const [currentDataModelText, setCurrentDataModelText] = useState('{}');
+  const [dataModelError, setDataModelError] = useState<string | null>(null);
+  const jsonInputFocusedRef = useRef(false);
 
-  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(() => {
-    try {
-      return (
-        typeof window !== 'undefined' && localStorage.getItem('isRightSidebarCollapsed') === 'true'
-      );
-    } catch {
-      return false;
-    }
-  });
+  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(() =>
+    getLocalStorageBool('isLeftSidebarCollapsed'),
+  );
+  const [isRightSidebarCollapsed, setIsRightSidebarCollapsed] = useState(() =>
+    getLocalStorageBool('isRightSidebarCollapsed'),
+  );
+  const [isSurfaceMessageFolded, setIsSurfaceMessageFolded] = useState(() =>
+    getLocalStorageBool('isSurfaceMessageFolded'),
+  );
+  const [isDataModelFolded, setIsDataModelFolded] = useState(() =>
+    getLocalStorageBool('isDataModelFolded'),
+  );
+  const [isEventsLogFolded, setIsEventsLogFolded] = useState(() =>
+    getLocalStorageBool('isEventsLogFolded'),
+  );
 
   const navListRef = useRef<HTMLDivElement | null>(null);
+
+  const selectExampleById = useCallback((id: string) => {
+    setCustomMessages(null);
+    setMessageError(null);
+    setDataModelError(null);
+    setSelectedExampleId(id);
+  }, []);
+
+  const handleVersionChange = (newVersion: 'v0.9' | 'v1.0') => {
+    if (newVersion === selectedVersion) return;
+    const currentFilename = selectedItem?.filename;
+    setSelectedVersion(newVersion);
+    setCustomMessages(null);
+    const items = newVersion === 'v1.0' ? demoItemsV10 : demoItemsV09;
+    if (items.length > 0) {
+      const matched = currentFilename ? items.find(i => i.filename === currentFilename) : undefined;
+      setSelectedExampleId((matched ?? items[0]).id);
+    }
+  };
+
+  // Sync URL query (?version=) and hash (#<example-id>)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.history?.replaceState) return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('version', selectedVersion === 'v1.0' ? '1.0' : '0.9');
+      if (selectedItem?.filename) {
+        url.hash = selectedItem.filename.replace('.json', '');
+      }
+      window.history.replaceState(null, '', url.toString());
+    } catch {
+      // Ignore URL update errors in test environments
+    }
+  }, [selectedVersion, selectedItem]);
+
+  // Listen for external hash changes
+  useEffect(() => {
+    const handleHashChange = () => {
+      const rawHash = window.location.hash.slice(1);
+      if (!rawHash) return;
+      const matched = demoItems.find(
+        item =>
+          item.id === rawHash ||
+          item.filename === rawHash ||
+          (item.filename ?? '').replace('.json', '') === rawHash,
+      );
+      if (matched && matched.id !== selectedExampleId) {
+        selectExampleById(matched.id);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [demoItems, selectedExampleId, selectExampleById]);
 
   const toggleLeftSidebar = useCallback(() => {
     setIsLeftSidebarCollapsed(prev => {
       const next = !prev;
-      try {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('isLeftSidebarCollapsed', String(next));
-        }
-      } catch {
-        // Ignore in restricted environments
-      }
+      setLocalStorageBool('isLeftSidebarCollapsed', next);
       return next;
     });
   }, []);
@@ -151,13 +251,31 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
   const toggleRightSidebar = useCallback(() => {
     setIsRightSidebarCollapsed(prev => {
       const next = !prev;
-      try {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('isRightSidebarCollapsed', String(next));
-        }
-      } catch {
-        // Ignore in restricted environments
-      }
+      setLocalStorageBool('isRightSidebarCollapsed', next);
+      return next;
+    });
+  }, []);
+
+  const toggleSurfaceMessage = useCallback(() => {
+    setIsSurfaceMessageFolded(prev => {
+      const next = !prev;
+      setLocalStorageBool('isSurfaceMessageFolded', next);
+      return next;
+    });
+  }, []);
+
+  const toggleDataModel = useCallback(() => {
+    setIsDataModelFolded(prev => {
+      const next = !prev;
+      setLocalStorageBool('isDataModelFolded', next);
+      return next;
+    });
+  }, []);
+
+  const toggleEventsLog = useCallback(() => {
+    setIsEventsLogFolded(prev => {
+      const next = !prev;
+      setLocalStorageBool('isEventsLogFolded', next);
       return next;
     });
   }, []);
@@ -197,6 +315,7 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
       }
 
       if (event.key === 'j') {
+        setCustomMessages(null);
         setSelectedExampleId(prevId => {
           const currentIndex = demoItems.findIndex(e => e.id === prevId);
           const nextIndex = currentIndex < demoItems.length - 1 ? currentIndex + 1 : 0;
@@ -204,6 +323,7 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
         });
         event.preventDefault();
       } else if (event.key === 'k') {
+        setCustomMessages(null);
         setSelectedExampleId(prevId => {
           const currentIndex = demoItems.findIndex(e => e.id === prevId);
           const prevIndex = currentIndex > 0 ? currentIndex - 1 : demoItems.length - 1;
@@ -217,48 +337,85 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [demoItems]);
 
+  const activeMessages = customMessages ?? selectedItem?.messages ?? [];
+
+  const createFreshProcessor = useCallback(() => {
+    const newProcessor = new MessageProcessor<ReactCatalogComponent>(
+      [demoCatalog, basicCatalogV10],
+      async (action: A2uiClientAction) => {
+        setLogs(l => [
+          {
+            timestamp: formatTime(new Date()),
+            type: action.name || 'Action',
+            detail: action,
+          },
+          ...l,
+        ]);
+        if (onActionRef.current) {
+          onActionRef.current(action);
+        }
+      },
+    );
+
+    newProcessor.model.onSurfaceCreated.subscribe(surface => {
+      surface.onError.subscribe(err => {
+        setLogs(l => [
+          {
+            timestamp: formatTime(new Date()),
+            type: 'Error',
+            detail: err,
+          },
+          ...l,
+        ]);
+      });
+    });
+
+    return newProcessor;
+  }, []);
+
   // Initialize or reset processor
   const resetProcessor = useCallback(
     (advanceToEnd: boolean = false) => {
+      const modifiedMsgs = applyPrimaryColorToMessages(activeMessages, primaryColor);
+      const createMsg = modifiedMsgs.find(m => 'createSurface' in m);
+      if (createMsg && !jsonInputFocusedRef.current) {
+        setCurrentCreateSurfaceMessageText(JSON.stringify(createMsg, null, 2));
+        setMessageError(null);
+      }
+
       setProcessor(prevProcessor => {
         if (prevProcessor) {
           prevProcessor.model.dispose();
         }
-        const newProcessor = new MessageProcessor<ReactCatalogComponent>(
-          [demoCatalog, basicCatalogV10],
-          async (action: A2uiClientAction) => {
-            setLogs(l => [...l, {time: new Date().toISOString(), action}]);
-            if (onActionRef.current) {
-              onActionRef.current(action);
-            }
-          },
-        );
-
-        const msgs = selectedItem?.messages;
-        if (advanceToEnd && msgs) {
-          newProcessor.processMessages(structuredClone(msgs));
+        const newProcessor = createFreshProcessor();
+        if (advanceToEnd && modifiedMsgs.length > 0) {
+          newProcessor.processMessages(
+            structuredClone(modifiedMsgs) as Parameters<typeof newProcessor.processMessages>[0],
+          );
         }
         return newProcessor;
       });
 
       setLogs([]);
       setSurfaces([]);
+      setDataModelError(null);
 
-      const msgs = selectedItem?.messages;
-      if (advanceToEnd && msgs) {
-        setCurrentMessageIndex(msgs.length - 1);
+      if (advanceToEnd && modifiedMsgs.length > 0) {
+        setProcessedMessageCount(modifiedMsgs.length);
       } else {
-        setCurrentMessageIndex(-1);
+        setProcessedMessageCount(0);
+        if (!jsonInputFocusedRef.current) {
+          setCurrentDataModelText('{}');
+        }
       }
     },
-    [selectedItem],
+    [activeMessages, primaryColor, createFreshProcessor],
   );
 
-  // Effect to handle example selection change
+  // Effect to handle example, custom message, or primary color change
   useEffect(() => {
     resetProcessor(true);
     scrollToActiveExample();
-    // Cleanup on unmount or when changing examples
     return () => {
       setProcessor(prev => {
         if (prev) prev.model.dispose();
@@ -267,7 +424,7 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
     };
   }, [selectedExampleId, resetProcessor, scrollToActiveExample]);
 
-  // Handle surface subscriptions
+  // Handle surface subscriptions & dataModel synchronization
   useEffect(() => {
     if (!processor) {
       setSurfaces([]);
@@ -289,58 +446,111 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
     };
   }, [processor]);
 
-  const advanceToMessage = (index: number) => {
-    const msgs = selectedItem?.messages;
-    if (!processor || !msgs) return;
+  useEffect(() => {
+    if (!processor || surfaces.length === 0) return;
+    const primarySurface = processor.model.getSurface(surfaces[0]);
+    if (!primarySurface) return;
 
-    // Process messages from currentMessageIndex + 1 to index
-    const messagesToProcess = msgs.slice(currentMessageIndex + 1, index + 1);
-    if (messagesToProcess.length > 0) {
-      processor.processMessages(structuredClone(messagesToProcess));
-      setCurrentMessageIndex(index);
+    const sub = primarySurface.dataModel.subscribe('/', val => {
+      if (!jsonInputFocusedRef.current) {
+        setCurrentDataModelText(JSON.stringify(val || {}, null, 2));
+        setDataModelError(null);
+      }
+    });
+
+    return () => sub.unsubscribe();
+  }, [processor, surfaces]);
+
+  const advanceMessages = (all: boolean) => {
+    if (!processor || activeMessages.length === 0) return;
+    const toProcess = all
+      ? activeMessages.slice(processedMessageCount)
+      : activeMessages.slice(processedMessageCount, processedMessageCount + 1);
+
+    if (toProcess.length === 0) return;
+
+    const modifiedToProcess = applyPrimaryColorToMessages(toProcess, primaryColor);
+    const createMsg = modifiedToProcess.find(m => 'createSurface' in m);
+    if (createMsg && !jsonInputFocusedRef.current) {
+      setCurrentCreateSurfaceMessageText(JSON.stringify(createMsg, null, 2));
+      setMessageError(null);
     }
+
+    processor.processMessages(
+      structuredClone(modifiedToProcess) as Parameters<typeof processor.processMessages>[0],
+    );
+    setProcessedMessageCount(prev => prev + toProcess.length);
+    setSurfaces(Array.from(processor.model.surfacesMap.values()).map(s => s.id));
   };
 
   const handleReset = () => {
     resetProcessor(false);
   };
 
-  const messages = selectedItem?.messages ?? [];
+  const handleSurfaceMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    setCurrentCreateSurfaceMessageText(newValue);
+
+    try {
+      const parsed = JSON.parse(newValue);
+      setMessageError(null);
+      if (!parsed || typeof parsed !== 'object' || !('createSurface' in parsed)) {
+        return;
+      }
+      const baseMessages = customMessages ?? selectedItem?.messages ?? [];
+      setCustomMessages(baseMessages.map(m => ('createSurface' in m ? parsed : m)));
+    } catch (err) {
+      setMessageError(err instanceof Error ? err.message : 'Invalid JSON');
+    }
+  };
+
+  const handleSurfaceMessageBlur = () => {
+    jsonInputFocusedRef.current = false;
+    try {
+      const parsed = JSON.parse(currentCreateSurfaceMessageText);
+      setCurrentCreateSurfaceMessageText(JSON.stringify(parsed, null, 2));
+    } catch {
+      // Ignore if invalid
+    }
+  };
+
+  const handleDataModelChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    setCurrentDataModelText(newValue);
+
+    try {
+      const parsed = JSON.parse(newValue);
+      setDataModelError(null);
+      if (processor && surfaces.length > 0) {
+        const surface = processor.model.getSurface(surfaces[0]);
+        surface?.dataModel.set('/', parsed);
+      }
+    } catch (err) {
+      setDataModelError(err instanceof Error ? err.message : 'Invalid JSON');
+    }
+  };
+
+  const handleDataModelBlur = () => {
+    jsonInputFocusedRef.current = false;
+    try {
+      const parsed = JSON.parse(currentDataModelText);
+      setCurrentDataModelText(JSON.stringify(parsed, null, 2));
+    } catch {
+      // Ignore if invalid
+    }
+  };
+
+  const handleSectionKeyDown = (e: React.KeyboardEvent, toggleFn: () => void) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleFn();
+    }
+  };
+
+  const canAdvance = processedMessageCount < activeMessages.length;
 
   return (
     <div className={styles.app}>
-      <header className={styles.header}>
-        <div className={styles.headerLeft}>
-          <div>
-            <h1 className={styles.h1}>A2UI React Explorer</h1>
-            <p className={styles.subtitle}>Preview and interact with React components</p>
-          </div>
-          <div className={styles.versionSelectorContainer}>
-            <label htmlFor="version-select" className={styles.versionLabel}>
-              Version:
-            </label>
-            <select
-              id="version-select"
-              className={styles.versionSelect}
-              value={selectedVersion}
-              onChange={e => handleVersionChange(e.target.value as 'v0.9' | 'v1.0')}
-              aria-label="Protocol Version"
-            >
-              <option value="v0.9">v0.9</option>
-              <option value="v1.0">v1.0</option>
-            </select>
-          </div>
-        </div>
-        <div className={styles.stepperControls}>
-          <span>
-            Message {currentMessageIndex + 1} of {messages.length}
-          </span>
-          <button className={styles.button} onClick={handleReset}>
-            Reset
-          </button>
-        </div>
-      </header>
-
       <main className={styles.main}>
         {/* Left Column: Sample List */}
         <nav
@@ -361,9 +571,9 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
                 <polyline points="15 18 9 12 15 6"></polyline>
               </svg>
@@ -373,20 +583,20 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
             {demoItems.map(item => {
               const isActive = selectedExampleId === item.id;
               return (
-                <button
+                <div
                   key={item.id}
                   className={`${styles.navItem} ${isActive ? styles.active : ''}`}
-                  onClick={() => setSelectedExampleId(item.id)}
+                  onClick={() => selectExampleById(item.id)}
                 >
-                  <div className={styles.navTitle}>{item.title}</div>
-                  <div className={styles.navDesc}>{item.description}</div>
-                </button>
+                  <h3 className={styles.navTitle}>{item.title}</h3>
+                  <p className={styles.navDesc}>{item.filename}</p>
+                </div>
               );
             })}
           </div>
         </nav>
 
-        {/* Center Column: Preview & JSON Stepper */}
+        {/* Center Column: Combined Header & Surface Preview */}
         <div className={styles.galleryPane}>
           <div className={styles.previewHeader}>
             <div className={styles.previewHeaderLeft}>
@@ -403,20 +613,79 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   >
                     <polyline points="9 18 15 12 9 6"></polyline>
                   </svg>
                 </button>
               )}
-              <div>
-                <h2>{selectedItem?.title || 'No selection'}</h2>
-                <p className={styles.subtitle}>{selectedItem?.description}</p>
+              <div className={styles.appBrand}>
+                <h1 className={styles.h1}>A2UI React Explorer</h1>
               </div>
             </div>
-            <div className={styles.previewHeaderRight}>
+            <div className={styles.agentControls}>
+              <fieldset className={styles.versionControls}>
+                <legend>Spec version</legend>
+                <div
+                  className={styles.versionSelector}
+                  role="group"
+                  aria-label="Specification version"
+                >
+                  <button
+                    className={`${styles.versionBtn} ${selectedVersion === 'v0.9' ? styles.versionBtnActive : ''}`}
+                    data-version="0.9"
+                    onClick={() => handleVersionChange('v0.9')}
+                  >
+                    v0.9
+                  </button>
+                  <button
+                    className={`${styles.versionBtn} ${selectedVersion === 'v1.0' ? styles.versionBtnActive : ''}`}
+                    data-version="1.0"
+                    onClick={() => handleVersionChange('v1.0')}
+                  >
+                    v1.0
+                  </button>
+                </div>
+              </fieldset>
+              <fieldset className={styles.messageControls}>
+                <legend>
+                  Messages: {processedMessageCount} / {activeMessages.length}
+                </legend>
+                <button className={styles.button} onClick={handleReset}>
+                  Reset
+                </button>
+                <button
+                  className={styles.button}
+                  onClick={() => advanceMessages(false)}
+                  disabled={!canAdvance}
+                >
+                  +1 Message
+                </button>
+                <button
+                  className={styles.button}
+                  onClick={() => advanceMessages(true)}
+                  disabled={!canAdvance}
+                >
+                  All Messages
+                </button>
+              </fieldset>
+              <fieldset className={styles.themeControls}>
+                <legend>Primary color</legend>
+                <div className={styles.colorInputGroup}>
+                  <input
+                    type="color"
+                    value={primaryColor || '#1177ee'}
+                    onChange={e => setPrimaryColor(e.target.value)}
+                    className={styles.colorInput}
+                    aria-label="Primary color"
+                  />
+                  <button className={styles.button} onClick={() => setPrimaryColor('')}>
+                    Clear
+                  </button>
+                </div>
+              </fieldset>
               {isRightSidebarCollapsed && (
                 <button
                   className={`${styles.iconBtn} ${styles.expandRightBtn}`}
@@ -430,9 +699,9 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   >
                     <polyline points="15 18 9 12 15 6"></polyline>
                   </svg>
@@ -444,15 +713,15 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
           <div className={styles.previewContent}>
             <div className={styles.surfaceContainer}>
               {surfaces.length === 0 && (
-                <p style={{color: '#888', textAlign: 'center'}}>
-                  No surfaces loaded. Advance the stepper to create one.
-                </p>
+                <div style={{color: '#64748b', textAlign: 'center'}}>
+                  Surface not initialized. Click &apos;+1 Message&apos; to begin.
+                </div>
               )}
               {surfaces.map(surfaceId => {
                 const surface = processor?.model.getSurface(surfaceId);
                 if (!surface) return null;
                 return (
-                  <div key={surfaceId} style={{marginBottom: '2rem'}}>
+                  <div key={surfaceId}>
                     <MarkdownContext.Provider value={renderMarkdown}>
                       <A2uiSurface surface={surface} />
                     </MarkdownContext.Provider>
@@ -461,78 +730,18 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
               })}
             </div>
           </div>
-
-          {/* Messages Stepper at the bottom of gallery pane */}
-          <div
-            style={{
-              height: '200px',
-              borderTop: '1px solid rgba(148, 163, 184, 0.1)',
-              padding: '1rem',
-              overflowY: 'auto',
-              background: '#1e293b',
-            }}
-          >
-            <h3 style={{margin: '0 0 1rem 0', fontSize: '0.9rem', color: '#94a3b8'}}>MESSAGES</h3>
-            <div style={{display: 'flex', flexDirection: 'column', gap: '0.5rem'}}>
-              {messages.map((msg, i) => {
-                const isActive = i <= currentMessageIndex;
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      border: '1px solid',
-                      borderColor: isActive ? '#38bdf8' : '#475569',
-                      opacity: isActive ? 1 : 0.6,
-                      padding: '8px',
-                      borderRadius: '4px',
-                      background: isActive ? 'rgba(56, 189, 248, 0.1)' : '#0f172a',
-                      color: '#f1f5f9',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        marginBottom: '8px',
-                      }}
-                    >
-                      <strong>Message {i + 1}</strong>
-                      {!isActive && (
-                        <button
-                          className={styles.button}
-                          onClick={() => advanceToMessage(i)}
-                          style={{padding: '2px 8px', fontSize: '0.8rem'}}
-                        >
-                          Advance
-                        </button>
-                      )}
-                    </div>
-                    <pre
-                      style={{
-                        fontSize: '11px',
-                        margin: 0,
-                        whiteSpace: 'pre-wrap',
-                        maxHeight: '100px',
-                        overflowY: 'auto',
-                        fontFamily: 'monospace',
-                      }}
-                    >
-                      {JSON.stringify(msg, null, 2)}
-                    </pre>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         </div>
 
-        {/* Right Column: Live DataModelViewer & Action Logs */}
+        {/* Right Column: Inspector Panel */}
         <aside
           className={`${styles.inspectorPane} ${isRightSidebarCollapsed ? styles.collapsed : ''}`}
           aria-label="Inspector Panel"
         >
           <div className={styles.inspectorPaneHeader}>
-            <h4 className={styles.inspectorPaneTitle}>Inspector</h4>
+            <div className={styles.exampleInfo}>
+              <h2>{selectedItem?.title || 'No selection'}</h2>
+              <p className={styles.subtitle}>{selectedItem?.description}</p>
+            </div>
             <button
               className={`${styles.iconBtn} ${styles.collapseRightBtn}`}
               onClick={toggleRightSidebar}
@@ -545,52 +754,190 @@ export const App = ({initialExampleId, initialVersion, onAction}: AppProps) => {
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
             </button>
           </div>
 
-          <div className={styles.inspectorSection}>
-            <h3 className={styles.inspectorHeader}>Data Model</h3>
-            <div className={styles.inspectorBody}>
-              {surfaces.length === 0 ? (
-                <p style={{color: '#888', fontSize: '12px'}}>Empty Data Model</p>
-              ) : null}
-              {surfaces.map(surfaceId => {
-                const surface = processor?.model.getSurface(surfaceId);
-                if (!surface) return null;
-                return <DataModelViewer key={surfaceId} surface={surface} />;
-              })}
-            </div>
-          </div>
-
-          <div className={styles.inspectorSection}>
-            <h3 className={styles.inspectorHeader}>Action Logs</h3>
-            <div className={styles.inspectorBody}>
-              <div className={styles.logList}>
-                {logs.length === 0 ? (
-                  <p style={{color: '#888', fontSize: '12px'}}>No actions logged yet.</p>
-                ) : null}
-                {logs.map((log, i) => (
-                  <div key={i} className={styles.logEntry}>
-                    <strong style={{display: 'block', color: '#38bdf8'}}>{log.time}</strong>
-                    <pre
-                      style={{
-                        margin: '4px 0 0 0',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-all',
-                      }}
-                    >
-                      {JSON.stringify(log.action, null, 2)}
-                    </pre>
-                  </div>
-                ))}
+          <div
+            className={`${styles.inspectorSection} ${styles.surfaceSection} ${isSurfaceMessageFolded ? styles.folded : ''}`}
+          >
+            <div
+              className={styles.inspectorHeader}
+              role="button"
+              tabIndex={0}
+              aria-expanded={!isSurfaceMessageFolded}
+              onClick={toggleSurfaceMessage}
+              onKeyDown={e => handleSectionKeyDown(e, toggleSurfaceMessage)}
+            >
+              <div className={styles.headerLeft}>
+                <span
+                  className={`${styles.toggleIcon} ${!isSurfaceMessageFolded ? styles.expanded : ''}`}
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </span>
+                <h4 className={styles.sectionTitle}>Create Surface Message</h4>
+              </div>
+              <div>
+                <span className={`${styles.badge} ${messageError ? styles.errorBadge : ''}`}>
+                  {messageError ? 'Invalid' : 'Live'}
+                </span>
               </div>
             </div>
+            {!isSurfaceMessageFolded && (
+              <div className={styles.inspectorBody}>
+                {messageError && (
+                  <div className={styles.errorMessage}>
+                    <span>⚠️</span>
+                    <span>{messageError}</span>
+                  </div>
+                )}
+                <textarea
+                  className={styles.surfaceMessageTextarea}
+                  value={currentCreateSurfaceMessageText}
+                  onChange={handleSurfaceMessageChange}
+                  onFocus={() => {
+                    jsonInputFocusedRef.current = true;
+                  }}
+                  onBlur={handleSurfaceMessageBlur}
+                  aria-label="Create Surface Message JSON"
+                />
+              </div>
+            )}
+          </div>
+
+          <div
+            className={`${styles.inspectorSection} ${styles.dataSection} ${isDataModelFolded ? styles.folded : ''}`}
+          >
+            <div
+              className={styles.inspectorHeader}
+              role="button"
+              tabIndex={0}
+              aria-expanded={!isDataModelFolded}
+              onClick={toggleDataModel}
+              onKeyDown={e => handleSectionKeyDown(e, toggleDataModel)}
+            >
+              <div className={styles.headerLeft}>
+                <span
+                  className={`${styles.toggleIcon} ${!isDataModelFolded ? styles.expanded : ''}`}
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </span>
+                <h4 className={styles.sectionTitle}>Data Model</h4>
+              </div>
+              <div>
+                <span className={`${styles.badge} ${dataModelError ? styles.errorBadge : ''}`}>
+                  {dataModelError ? 'Invalid' : 'Live'}
+                </span>
+              </div>
+            </div>
+            {!isDataModelFolded && (
+              <div className={styles.inspectorBody}>
+                {dataModelError && (
+                  <div className={styles.errorMessage}>
+                    <span>⚠️</span>
+                    <span>{dataModelError}</span>
+                  </div>
+                )}
+                <textarea
+                  className={styles.dataModelTextarea}
+                  value={currentDataModelText}
+                  onChange={handleDataModelChange}
+                  onFocus={() => {
+                    jsonInputFocusedRef.current = true;
+                  }}
+                  onBlur={handleDataModelBlur}
+                  aria-label="Data Model JSON"
+                />
+              </div>
+            )}
+          </div>
+
+          <div
+            className={`${styles.inspectorSection} ${styles.eventsSection} ${isEventsLogFolded ? styles.folded : ''}`}
+          >
+            <div
+              className={styles.inspectorHeader}
+              role="button"
+              tabIndex={0}
+              aria-expanded={!isEventsLogFolded}
+              onClick={toggleEventsLog}
+              onKeyDown={e => handleSectionKeyDown(e, toggleEventsLog)}
+            >
+              <div className={styles.headerLeft}>
+                <span
+                  className={`${styles.toggleIcon} ${!isEventsLogFolded ? styles.expanded : ''}`}
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </span>
+                <h4 className={styles.sectionTitle}>Action Logs</h4>
+              </div>
+              <div>
+                <button
+                  className={styles.clearLogsBtn}
+                  onClick={e => {
+                    e.stopPropagation();
+                    setLogs([]);
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            {!isEventsLogFolded && (
+              <div className={styles.inspectorBody}>
+                {logs.length === 0 ? (
+                  <div className={styles.emptyState}>No actions logged...</div>
+                ) : (
+                  logs.map((log, i) => (
+                    <div key={i} className={styles.logItem}>
+                      <div className={styles.logHeader}>
+                        <span className={styles.logTime}>{log.timestamp}</span>
+                        <span className={styles.logType}>{log.type}</span>
+                      </div>
+                      <pre className={styles.logDetails}>{JSON.stringify(log.detail, null, 2)}</pre>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </aside>
       </main>

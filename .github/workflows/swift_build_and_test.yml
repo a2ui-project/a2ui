@@ -22,6 +22,8 @@ on:
       - "swift/core/**"
       - "conformance/**"
       - "Package.swift"
+      - "specification/**"
+      - "catalogs/**"
       - ".github/workflows/swift_build_and_test.yml"
   pull_request:
     branches: [main]
@@ -29,6 +31,8 @@ on:
       - "swift/core/**"
       - "conformance/**"
       - "Package.swift"
+      - "specification/**"
+      - "catalogs/**"
       - ".github/workflows/swift_build_and_test.yml"
 
 concurrency:

@@ -14,10 +14,10 @@
 
 import json
 import logging
+import re
 import os
 from collections import OrderedDict
-from collections.abc import AsyncIterable
-from dataclasses import dataclass
+from collections.abc import AsyncIterable, Mapping, Sequence
 from typing import Any
 
 import jsonschema
@@ -34,7 +34,6 @@ from a2a.types import (
     AgentCapabilities,
     AgentCard,
     AgentSkill,
-    DataPart,
     Part,
     TextPart,
 )
@@ -43,25 +42,72 @@ from google.genai import types
 from prompt_builder import get_text_prompt, ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
 from tools import get_contact_info
 
+from a2ui.core import CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
-from a2ui.parser import ResponsePart, parse_response
+from a2ui.parser import parse_response
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
     CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
-    remove_strict_validation,
 )
 from a2ui.a2a import (
-    create_a2ui_part,
     get_a2ui_agent_extension,
     parse_response_to_parts,
     stream_response_to_parts,
 )
+from a2ui.utils import resolve_catalogs, validate_payload
 
 logger = logging.getLogger(__name__)
+
+
+def _renderer_capabilities(
+    version: str,
+    client_ui_capabilities: Mapping[str, Any] | None,
+    catalog_ids: Sequence[str],
+) -> dict[str, Any] | None:
+    """Returns the client's capabilities keyed by protocol version.
+
+    Clients may send the bare capabilities entry, and may leave out
+    `supportedCatalogIds`, which then names every catalog of the agent.
+    Capabilities that are already keyed by protocol version are only read
+    under the negotiated version's key.
+
+    Args:
+        version: The negotiated A2UI protocol version.
+        client_ui_capabilities: The capabilities that the client sent.
+        catalog_ids: The ids of the agent's catalogs.
+
+    Returns:
+        The capabilities for `a2ui.utils.resolve_catalogs`, or `None` if the
+        client sent none for the negotiated version.
+    """
+    if not client_ui_capabilities:
+        return None
+    key = f"v{version}"
+    raw: Any = client_ui_capabilities
+    if any(_is_version_key(k) for k in client_ui_capabilities):
+        raw = client_ui_capabilities.get(key)
+        if raw is None:
+            return None
+        if not isinstance(raw, Mapping):
+            # Left for `resolve_catalogs` to reject with a validation error.
+            return {key: raw}
+    entry = dict(raw)
+    if "supportedCatalogIds" not in entry and "supported_catalog_ids" not in entry:
+        entry["supportedCatalogIds"] = list(catalog_ids)
+    return {key: entry}
+
+
+def _is_version_key(key: Any) -> bool:
+    """Whether a capabilities key names a protocol version, such as `v0.9`."""
+    return (
+        isinstance(key, str)
+        and key.startswith("v")
+        and bool(re.fullmatch(r"\d+(\.\d+)*", key[1:]))
+    )
 
 
 class ContactAgent:
@@ -75,6 +121,8 @@ class ContactAgent:
         self._user_id = "remote_agent"
         self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
+        self._accepts_inline_catalogs = True
+        self._catalog_configs: dict[str, list[CatalogConfig]] = {}
         self._inference_formats: dict[str, DirectJsonFormat] = {}
         self._ui_runners: dict[str, Runner] = {}
         self._parsers: OrderedDict[str, DirectJsonStreamParser] = OrderedDict()
@@ -92,33 +140,64 @@ class ContactAgent:
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
+    @property
+    def accepts_inline_catalogs(self) -> bool:
+        return self._accepts_inline_catalogs
+
     def get_inference_format(self, version: str | None) -> DirectJsonFormat | None:
         if version is None:
             return None
         return self._inference_formats[version]
 
-    def _build_inference_format(self, version: str) -> DirectJsonFormat:
-        return DirectJsonFormat(
-            version=version,
-            catalogs=[
-                CatalogConfig.from_catalog(
-                    "basic",
-                    BasicCatalog(version),
-                    examples_path=f"examples/{version}",
-                )
-            ],
-            schema_modifiers=[remove_strict_validation],
-            accepts_inline_catalogs=True,
+    def resolve_catalogs(
+        self, version: str, client_ui_capabilities: Mapping[str, Any] | None
+    ) -> list[CatalogApi]:
+        """Returns the catalogs that a response's surfaces can name.
+
+        Each inline catalog of the client is active under its own id, after
+        the agent's catalogs.
+
+        Args:
+            version: The negotiated A2UI protocol version.
+            client_ui_capabilities: The capabilities that the client sent.
+
+        Returns:
+            The active catalogs, the client's preferred one first.
+        """
+        catalog_ids = [c.catalog_id for c in self._inference_formats[version].catalogs]
+        catalogs = resolve_catalogs(
+            self._catalog_configs[version],
+            _renderer_capabilities(version, client_ui_capabilities, catalog_ids),
+            accepts_inline_catalogs=self._accepts_inline_catalogs,
         )
+        # Relax the inline catalogs the way the agent's own catalogs are.
+        return [
+            (
+                catalog
+                if catalog.catalog_id in catalog_ids
+                else CatalogConfig.from_catalog(catalog.catalog_id, catalog).to_catalog(
+                    protocol_version=version
+                )
+            )
+            for catalog in catalogs
+        ]
+
+    def _build_inference_format(self, version: str) -> DirectJsonFormat:
+        catalog = CatalogConfig.from_catalog("basic", BasicCatalog(version)).to_catalog(
+            protocol_version=version
+        )
+        # Per-request resolution reuses the catalog as it is.
+        self._catalog_configs[version] = [CatalogConfig.from_catalog("basic", catalog)]
+        return DirectJsonFormat([catalog], examples_path=f"examples/{version}")
 
     def _build_agent_card(self) -> AgentCard:
         extensions = []
         if self._inference_formats:
-            for version, sm in self._inference_formats.items():
+            for version, fmt in self._inference_formats.items():
                 ext = get_a2ui_agent_extension(
                     version,
-                    sm.accepts_inline_catalogs,
-                    sm.supported_catalog_ids,
+                    self._accepts_inline_catalogs,
+                    [c.catalog_id for c in fmt.catalogs],
                 )
                 extensions.append(ext)
 
@@ -308,14 +387,14 @@ class ContactAgent:
         if ui_version:
             runner = self._ui_runners[ui_version]
             inference_format = self._inference_formats[ui_version]
-            selected_catalog = (
-                inference_format.get_selected_catalog(client_ui_capabilities)
-                if inference_format
-                else None
+            validation_catalogs = self.resolve_catalogs(
+                ui_version, client_ui_capabilities
             )
+            selected_catalog = validation_catalogs[0]
         else:
             runner = self._text_runner
             inference_format = None
+            validation_catalogs = []
             selected_catalog = None
 
         session = await runner.session_service.get_session(
@@ -438,13 +517,15 @@ class ContactAgent:
                                 full_content_list.append(p.text)
                                 yield p.text
 
-            if selected_catalog:
+            # The format's stream parser holds only the format's own catalogs.
+            # When the client's inline catalogs are active too, a response's
+            # surfaces may name any of them, so the response is buffered and
+            # the complete payload is validated against all of them below.
+            if inference_format and selected_catalog and len(validation_catalogs) == 1:
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = DirectJsonStreamParser(
-                        catalog=selected_catalog
-                    )
+                    self._parsers[session_id] = inference_format.create_stream_parser()
                     if len(self._parsers) > self._max_parsers:
                         self._parsers.popitem(last=False)
 
@@ -457,6 +538,9 @@ class ContactAgent:
                         "is_task_complete": False,
                         "parts": [part],
                     }
+            elif inference_format:
+                async for _ in token_stream():
+                    pass
             else:
                 async for token in token_stream():
                     yield {
@@ -514,7 +598,7 @@ class ContactAgent:
                                 "--- ContactAgent.stream: Validating against"
                                 " A2UI_SCHEMA... ---"
                             )
-                            selected_catalog.validate_components(parsed_json_data)
+                            validate_payload(validation_catalogs, parsed_json_data)
 
                             logger.info(
                                 "--- ContactAgent.stream: UI JSON successfully parsed"

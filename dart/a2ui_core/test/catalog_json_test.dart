@@ -20,6 +20,7 @@ import 'package:a2ui_core/src/core/contexts.dart' show ComponentContext;
 import 'package:a2ui_core/src/primitives/reference_schema.dart'
     show ReferenceSchemaReader;
 import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
+import 'package:json_schema_builder/json_schema_builder.dart' show Schema;
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
@@ -264,6 +265,47 @@ void main() {
         rendererCatalog.functions.values,
         everyElement(isA<FunctionImplementation>()),
       );
+    });
+  });
+
+  group('Catalog code-defined', () {
+    test('serializes catalogSchema with id and component envelopes', () {
+      final Catalog<ComponentApi, FunctionApi> catalog = Catalog(
+        id: 'https://example.com/custom-catalog',
+        protocolVersion: 'v0.9',
+        components: [
+          ComponentApi(
+            name: 'Button',
+            schema: Schema.fromMap({
+              'type': 'object',
+              'properties': {
+                'label': {'type': 'string'},
+              },
+              'required': ['label'],
+            }),
+          ),
+        ],
+      );
+
+      final Map<String, Object?> schema = catalog.catalogSchema;
+      expect(schema[r'$schema'], Catalog.jsonSchemaDialect);
+      expect(schema['catalogId'], 'https://example.com/custom-catalog');
+      expect(schema['protocolVersion'], 'v0.9');
+
+      final comps = schema['components'] as Map<String, Object?>;
+      expect(comps.containsKey('Button'), isTrue);
+
+      final button = comps['Button'] as Map<String, Object?>;
+      final props = button['properties'] as Map<String, Object?>;
+      expect(props['id'], {r'$ref': r'#/$defs/ComponentId'});
+      expect(props['component'], {'const': 'Button'});
+      expect(props['label'], {'type': 'string'});
+
+      expect(button['required'], ['id', 'label', 'component']);
+
+      final defs = schema[r'$defs'] as Map<String, Object?>;
+      expect(defs.containsKey('ComponentId'), isTrue);
+      expect(defs.containsKey('anyComponent'), isTrue);
     });
   });
 }
