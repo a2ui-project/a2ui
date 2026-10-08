@@ -17,7 +17,7 @@
 import {describe, it, expect} from 'vitest';
 import {A2uiCatalogError} from '../../../src/errors.js';
 import {PromptGenerator} from '../../../src/prompt/generator.js';
-import {CatalogApi} from '../../../src/internal/web_core.js';
+import {CatalogApi} from '../../../src/internal/web-core.js';
 
 class TestPromptGenerator extends PromptGenerator {
   generateBaseRules(): string {

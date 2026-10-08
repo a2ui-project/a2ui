@@ -23,6 +23,7 @@ public final class DataContext {
   public let path: String
   public let dataModel: DataModel
   public let protocolVersion: String?
+  public let index: Int?
 
   /// A reference to the function handler to evaluate dynamic function calls.
   public weak var functionHandler: FunctionHandler?
@@ -31,12 +32,14 @@ public final class DataContext {
     dataModel: DataModel,
     path: String,
     functionHandler: FunctionHandler,
-    protocolVersion: String? = nil
+    protocolVersion: String? = nil,
+    index: Int? = nil
   ) {
     self.dataModel = dataModel
     self.path = path
     self.functionHandler = functionHandler
     self.protocolVersion = protocolVersion
+    self.index = index
   }
 
   public var isV10: Bool {
@@ -46,7 +49,8 @@ public final class DataContext {
     return major >= 1
   }
 
-  public static func validateReservedDirectives<S: Sequence>(_ keys: S) throws where S.Element == String {
+  public nonisolated static func validateReservedDirectives<S: Sequence>(_ keys: S) throws
+  where S.Element == String {
     for key in keys {
       if key.hasPrefix("@") && !key.hasPrefix("@@") && key != "@path" && key != "@call" {
         throw A2UIValidationError(
@@ -70,7 +74,7 @@ public final class DataContext {
     dataModel.set(absPath, value: value)
   }
 
-  public func nested(relativePath: String) -> DataContext? {
+  public func nested(relativePath: String, index: Int? = nil) -> DataContext? {
     guard let handler = functionHandler else { return nil }
     let absPath = JSONValue.absolutePath(for: relativePath, in: self.path)
 
@@ -78,80 +82,91 @@ public final class DataContext {
       dataModel: dataModel,
       path: absPath,
       functionHandler: handler,
-      protocolVersion: protocolVersion
+      protocolVersion: protocolVersion,
+      index: index ?? self.index
     )
+  }
+
+  public nonisolated static func unescapeObjectKey(_ key: String) -> String {
+    key.hasPrefix("@@") ? String(key.dropFirst()) : key
   }
 
   /// Resolves a dynamic value to its current literal `JSONValue`.
   ///
-  /// Only a top-level `path` or `call` object is a binding; any other value,
-  /// including containers with nested `path`/`call` keys, passes through
-  /// unchanged.
+  /// Recursively evaluates data bindings (`path` / `@path`), function calls
+  /// (`call` / `@call`), arrays, and nested plain objects.
   public func resolveDynamicValue(_ value: JSONValue) -> JSONValue {
     switch value {
+    case .array(let arr):
+      return .array(arr.map { resolveDynamicValue($0) })
     case .object(let dict):
       if isV10 {
         if let pathStr = dict["@path"]?.stringValue {
           let absPath = JSONValue.absolutePath(for: pathStr, in: self.path)
           return dataModel.get(absPath) ?? .null
         } else if let callName = dict["@call"]?.stringValue {
-          let catalogID = dict["catalogId"]?.stringValue
-          guard let function = functionHandler?.function(named: callName, catalogID: catalogID) else {
-            return .null
-          }
-
-          var resolvedArgs: [String: JSONValue] = [:]
-          if let argsObj = dict["args"]?.dictionaryValue {
-            for (argKey, argVal) in argsObj {
-              resolvedArgs[argKey] = resolveDynamicValue(argVal)
-            }
-          }
-
-          do {
-            return try function.evaluate(arguments: resolvedArgs, context: self)
-          } catch {
-            return .null
-          }
+          return evaluateFunctionCall(name: callName, dict: dict)
         }
 
-        if dict.keys.contains(where: { $0.hasPrefix("@@") }) {
-          var resultDict: OrderedDictionary<String, JSONValue> = [:]
-          for (k, v) in dict {
-            let unescapedKey = k.hasPrefix("@@") ? String(k.dropFirst()) : k
-            resultDict[unescapedKey] = v
-          }
-          return .object(resultDict)
+        var resultDict: OrderedDictionary<String, JSONValue> = [:]
+        for (k, v) in dict {
+          let unescapedKey = Self.unescapeObjectKey(k)
+          resultDict[unescapedKey] = resolveDynamicValue(v)
         }
-
-        return value
+        return .object(resultDict)
       } else {
-        if let pathStr = dict["path"]?.stringValue, dict["componentId"] == nil {
+        let allowAtPrefix = (protocolVersion == nil)
+        if let pathStr =
+          (dict["path"]?.stringValue ?? (allowAtPrefix ? dict["@path"]?.stringValue : nil)),
+          dict["componentId"] == nil
+        {
           let absPath = JSONValue.absolutePath(for: pathStr, in: self.path)
           return dataModel.get(absPath) ?? .null
-        } else if let callName = dict["call"]?.stringValue {
-          let catalogID = dict["catalogId"]?.stringValue
-          guard let function = functionHandler?.function(named: callName, catalogID: catalogID) else {
-            return .null
-          }
-
-          var resolvedArgs: [String: JSONValue] = [:]
-          if let argsObj = dict["args"]?.dictionaryValue {
-            for (argKey, argVal) in argsObj {
-              resolvedArgs[argKey] = resolveDynamicValue(argVal)
-            }
-          }
-
-          do {
-            return try function.evaluate(arguments: resolvedArgs, context: self)
-          } catch {
-            return .null
-          }
+        } else if let callName =
+          (dict["call"]?.stringValue ?? (allowAtPrefix ? dict["@call"]?.stringValue : nil))
+        {
+          return evaluateFunctionCall(name: callName, dict: dict)
         }
 
-        return value
+        var resultDict: OrderedDictionary<String, JSONValue> = [:]
+        for (k, v) in dict {
+          let unescapedKey = allowAtPrefix ? Self.unescapeObjectKey(k) : k
+          resultDict[unescapedKey] = resolveDynamicValue(v)
+        }
+        return .object(resultDict)
       }
     default:
       return value
+    }
+  }
+
+  private func evaluateFunctionCall(
+    name callName: String,
+    dict: OrderedDictionary<String, JSONValue>
+  ) -> JSONValue {
+    let catalogID = dict["catalogId"]?.stringValue
+    guard !(callName == "@index" && catalogID != nil) else {
+      return .null
+    }
+    guard
+      let function = functionHandler?.function(named: callName, catalogID: catalogID)
+        ?? (callName == "@index" ? IndexFunction() : nil)
+    else {
+      return .null
+    }
+
+    var resolvedArgs: [String: JSONValue] = [:]
+    if let argsObj = dict["args"]?.dictionaryValue {
+      for (argKey, argVal) in argsObj {
+        resolvedArgs[argKey] = resolveDynamicValue(argVal)
+      }
+    }
+
+    do {
+      return try function.evaluate(arguments: resolvedArgs, context: self)
+    } catch {
+      functionHandler?.handleFunctionError(error, functionName: callName)
+      return .null
     }
   }
 
@@ -205,4 +220,3 @@ public final class DataContext {
     }
   }
 }
-

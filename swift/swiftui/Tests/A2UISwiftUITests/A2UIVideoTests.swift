@@ -49,7 +49,7 @@ struct A2UIVideoTests {
   }
 
   @Test func videoRendersFromCatalog() throws {
-    let catalog = BasicCatalogImplementation.v091Catalog
+    let catalog = BasicCatalogImplementation.makeCatalog(version: .v091)
 
     let node = Node(
       id: "vidCatalog",
@@ -60,6 +60,34 @@ struct A2UIVideoTests {
     )
 
     let rendered = Surface.render(node: node, using: [catalog.id: catalog])
+    #expect(rendered != nil)
+  }
+
+  @Test func videoSupportsPosterUrlAndV10Catalog() throws {
+    let v10Catalog = BasicCatalogImplementation.makeCatalog(version: .v10)
+    #expect(v10Catalog.protocolVersion == "v1.0")
+    #expect(v10Catalog.components.count == 18)
+    #expect(
+      BasicCatalogImplementation.allCatalogs.contains {
+        $0.id == BasicCatalog.catalogURI(version: .v10)
+      }
+    )
+
+    let node = Node(
+      id: "vidV10",
+      type: "Video",
+      catalogID: v10Catalog.id,
+      properties: [
+        "url": "https://example.com/sample.mp4",
+        "posterUrl": "https://example.com/poster.jpg",
+      ]
+    )
+
+    let view = A2UIVideo(node: node)
+    #expect(view.posterURLString == "https://example.com/poster.jpg")
+    _ = view.body
+
+    let rendered = Surface.render(node: node, using: [v10Catalog.id: v10Catalog])
     #expect(rendered != nil)
   }
 }

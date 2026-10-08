@@ -19,7 +19,7 @@ import {A2uiRequestProcessor} from '../../../src/processor/processor.js';
 import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 import {A2uiIntegrityError, A2uiValidationError} from '../../../src/errors.js';
 
-const basicCatalogV10 = await loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('v1.0');
 
 describe('A2uiRequestProcessor', () => {
   test('throws on invalid payload (validation error)', () => {

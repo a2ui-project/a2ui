@@ -28,6 +28,15 @@ describe('Lit Explorer Sidebars & Navigation', () => {
     gallery?.remove();
   });
 
+  it('should render combined header with A2UI Lit Explorer title and example info in right panel', () => {
+    const brandTitle = gallery.shadowRoot?.querySelector('.preview-header h1');
+    expect(brandTitle?.textContent).toBe('A2UI Lit Explorer');
+    expect(gallery.shadowRoot?.querySelector('header')).toBeNull();
+    expect(
+      gallery.shadowRoot?.querySelector('.inspector-pane-header h2')?.textContent,
+    ).toBeTruthy();
+  });
+
   it('should toggle left sidebar collapse and expand', async () => {
     const navPane = gallery.shadowRoot?.querySelector('.nav-pane') as HTMLElement;
     const collapseBtn = gallery.shadowRoot?.querySelector(
@@ -88,5 +97,34 @@ describe('Lit Explorer Sidebars & Navigation', () => {
     await whenSettled(gallery);
 
     expect(gallery.activeItemIndex).toBe(initialIndex);
+  });
+
+  it('should fold and unfold inspector sections and support live JSON editing', async () => {
+    const surfaceSection = gallery.shadowRoot?.querySelector('.surface-section') as HTMLElement;
+    const surfaceHeader = surfaceSection.querySelector('.inspector-header') as HTMLElement;
+    expect(surfaceSection.classList.contains('folded')).toBeFalse();
+
+    surfaceHeader.click();
+    await whenSettled(gallery);
+    expect(surfaceSection.classList.contains('folded')).toBeTrue();
+
+    surfaceHeader.click();
+    await whenSettled(gallery);
+    expect(surfaceSection.classList.contains('folded')).toBeFalse();
+
+    const dataModelTextarea = gallery.shadowRoot?.querySelector(
+      '.data-model-textarea',
+    ) as HTMLTextAreaElement;
+    expect(dataModelTextarea).toBeTruthy();
+
+    dataModelTextarea.value = '{invalid json';
+    dataModelTextarea.dispatchEvent(new Event('input'));
+    await whenSettled(gallery);
+    expect(gallery.dataModelError).toBeTruthy();
+
+    dataModelTextarea.value = '{"testKey": "updated"}';
+    dataModelTextarea.dispatchEvent(new Event('input'));
+    await whenSettled(gallery);
+    expect(gallery.dataModelError).toBeNull();
   });
 });

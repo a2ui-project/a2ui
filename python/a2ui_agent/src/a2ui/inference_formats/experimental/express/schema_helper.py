@@ -19,18 +19,20 @@ signatures, and requirements directly from standard catalog JSON schemas.
 """
 
 from typing import Any
-from a2ui.core import Catalog, CatalogApi
-from a2ui.schema import A2uiCatalog
+
+from a2ui.core import CatalogApi
+from a2ui.schema.schema_helper import (
+    CatalogSchemaHelper as _BaseCatalogSchemaHelper,
+)
 
 
-class CatalogSchemaHelper:
+class CatalogSchemaHelper(_BaseCatalogSchemaHelper):
     """Dynamic schema crawler for A2UI catalogs.
 
     Resolves component and function properties in strict schema definition order
     to support positional parameter mapping for compact generative notations.
 
     Attributes:
-        catalog_path: The absolute filesystem path to the catalog JSON file (if loaded from file).
         catalog: The parsed catalog JSON dictionary.
         components: A dictionary mapping component names to their catalog schemas.
         functions: A dictionary mapping function names to their catalog schemas.
@@ -38,28 +40,14 @@ class CatalogSchemaHelper:
 
     def __init__(
         self,
-        catalog: CatalogApi | A2uiCatalog,
+        catalog: CatalogApi,
     ):
-        """Initializes the helper with a Catalog or an A2uiCatalog.
+        """Initializes the helper with a Catalog.
 
         Args:
-            catalog: A Catalog or an A2uiCatalog.
+            catalog: A Catalog instance.
         """
-        if isinstance(catalog, A2uiCatalog):
-            self.catalog_model = catalog.core_catalog
-        elif isinstance(catalog, Catalog):
-            self.catalog_model = catalog
-        else:
-            raise TypeError(f"Unsupported catalog type: {type(catalog)}")
-
-        self.catalog = self.catalog_model.catalog_schema or {}
-        self.components = {
-            name: comp.schema for name, comp in self.catalog_model.components.items()
-        }
-        self.functions = {
-            name: fn.schema for name, fn in self.catalog_model.functions.items()
-        }
-        self._load_mappings()
+        super().__init__(catalog)
 
     def _load_mappings(self) -> None:
         """Crawls the component and function schemas to build internal mappings."""
@@ -160,62 +148,9 @@ class CatalogSchemaHelper:
             self.function_properties[name] = list(props.keys())
             self.function_required[name] = reqs
 
-    def get_component_properties(self, name: str) -> list[str]:
-        """Returns the ordered properties of the specified component.
-
-        Args:
-            name: The catalog name of the component.
-
-        Returns:
-            A list of property keys in their schema definition order.
-        """
-        return self.component_properties.get(name, [])
-
-    def get_component_required(self, name: str) -> list[str]:
-        """Returns the list of required properties for the specified component.
-
-        Args:
-            name: The catalog name of the component.
-
-        Returns:
-            A list of property keys that are required.
-        """
-        return self.component_required.get(name, [])
-
-    def is_checkable(self, name: str) -> bool:
-        """Returns whether the specified component supports client-side checks.
-
-        Args:
-            name: The catalog name of the component.
-
-        Returns:
-            Whether the component implements the Checkable interface.
-        """
-        return self.component_is_checkable.get(name, False)
-
-    def get_function_properties(self, name: str) -> list[str]:
-        """Returns the ordered properties of the specified function's arguments.
-
-        Args:
-            name: The catalog name of the function.
-
-        Returns:
-            A list of function parameter names in their schema definition order.
-        """
-        return self.function_properties.get(name, [])
-
-    def get_function_required(self, name: str) -> list[str]:
-        """Returns the list of required argument properties for the function.
-
-        Args:
-            name: The catalog name of the function.
-
-        Returns:
-            A list of function parameter names that are required.
-        """
-        return self.function_required.get(name, [])
-
-    def get_function_property_schema(self, fn_name: str, prop_name: str) -> dict | None:
+    def get_function_property_schema(
+        self, fn_name: str, prop_name: str
+    ) -> dict[str, Any] | None:
         """Retrieves the JSON schema for a specific function argument property.
 
         Args:
@@ -226,98 +161,26 @@ class CatalogSchemaHelper:
             The JSON schema dictionary for the property, or None.
         """
         fn_schema = self.functions.get(fn_name, {})
-        if not fn_schema:
+        if not fn_schema or not isinstance(fn_schema, dict):
             return None
 
         sub_schemas = [fn_schema]
-        if "allOf" in fn_schema:
+        if "allOf" in fn_schema and isinstance(fn_schema["allOf"], list):
             sub_schemas.extend(fn_schema["allOf"])
-
-        for sub in sub_schemas:
-            if isinstance(sub, dict) and "properties" in sub:
-                args_obj = sub["properties"].get("args", {})
-                if isinstance(args_obj, dict) and "properties" in args_obj:
-                    if prop_name in args_obj["properties"]:
-                        return args_obj["properties"][prop_name]
-        return None
-
-    def get_property_enum(
-        self, component_name: str, property_name: str
-    ) -> list[str] | None:
-        """Returns the list of allowed enum values for a component property, or None.
-
-        Args:
-            component_name: The catalog name of the component.
-            property_name: The property key name.
-
-        Returns:
-            A list of allowed enum string values, or None if not restricted.
-        """
-        return self.component_property_enums.get((component_name, property_name))
-
-    def get_component_description(self, name: str) -> str | None:
-        """Retrieves the description of the component from its catalog schema."""
-        schema = self.components.get(name)
-        if not schema:
-            return None
-        if "description" in schema:
-            return schema["description"]
-        if "allOf" in schema:
-            for sub in schema["allOf"]:
-                if isinstance(sub, dict) and "description" in sub:
-                    return sub["description"]
-        return None
-
-    def get_function_description(self, name: str) -> str | None:
-        """Retrieves the description of the function from its catalog schema."""
-        schema = self.functions.get(name)
-        if not schema:
-            return None
-        return schema.get("description")
-
-    def get_property_schema(
-        self, component_name: str, property_name: str
-    ) -> dict | None:
-        """Crawls all sub-schemas of a component to retrieve a property's schema definition."""
-        schema = self.components.get(component_name)
-        if not schema:
-            return None
-
-        sub_schemas = [schema]
-        if "allOf" in schema:
-            sub_schemas.extend(schema["allOf"])
 
         for sub in sub_schemas:
             if (
                 isinstance(sub, dict)
                 and "properties" in sub
-                and property_name in sub["properties"]
+                and isinstance(sub["properties"], dict)
             ):
-                return sub["properties"][property_name]
+                args_obj = sub["properties"].get("args", {})
+                if (
+                    isinstance(args_obj, dict)
+                    and "properties" in args_obj
+                    and isinstance(args_obj["properties"], dict)
+                    and prop_name in args_obj["properties"]
+                ):
+                    res = args_obj["properties"][prop_name]
+                    return res if isinstance(res, dict) else None
         return None
-
-    def get_property_type(self, component_name: str, property_name: str) -> str | None:
-        """Resolves the semantic type (ChildList, Child, Action) of a component property from schema $ref."""
-        p_schema = self.get_property_schema(component_name, property_name)
-        if not p_schema:
-            return None
-
-        def _crawl_ref(s: Any) -> str | None:
-            if isinstance(s, dict):
-                if "$ref" in s:
-                    ref = s["$ref"]
-                    if "ChildList" in ref:
-                        return "ChildList"
-                    if "Child" in ref or "ComponentId" in ref:
-                        return "Child"
-                    if "Action" in ref:
-                        return "Action"
-                for k in ("oneOf", "anyOf", "allOf"):
-                    if k in s and isinstance(s[k], list):
-                        for sub_s in s[k]:
-                            res = _crawl_ref(sub_s)
-                            if res:
-                                return res
-            return None
-
-        return _crawl_ref(p_schema)

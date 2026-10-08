@@ -342,4 +342,73 @@ struct NodeResolverTests {
     #expect(rootNode.type == "Text")
     #expect(rootNode.string(for: "text") == "From Surface")
   }
+
+  @Test func nestedDynamicTemplateGeneratesDistinctNodeIDs() throws {
+    let catalog = try makeCatalog()
+    let components: [String: ComponentModel] = [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: [
+          "children": .object([
+            "componentId": .string("outerGroup"),
+            "path": .string("/groups"),
+          ])
+        ]
+      ),
+      "outerGroup": ComponentModel(
+        id: "outerGroup",
+        type: "Container",
+        properties: [
+          "children": .object([
+            "componentId": .string("innerItem"),
+            "path": .string("items"),
+          ])
+        ]
+      ),
+      "innerItem": ComponentModel(
+        id: "innerItem",
+        type: "Text",
+        properties: ["text": .object(["path": .string("label")])]
+      ),
+    ]
+
+    let data: JSONValue = .object([
+      "groups": .array([
+        .object([
+          "items": .array([
+            .object(["label": .string("G0-I0")]),
+            .object(["label": .string("G0-I1")]),
+          ])
+        ]),
+        .object([
+          "items": .array([
+            .object(["label": .string("G1-I0")]),
+            .object(["label": .string("G1-I1")]),
+          ])
+        ]),
+      ])
+    ])
+
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: DataModel(initial: data)
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
+    let outerNodes = rootNode.children(for: "children")
+    #expect(outerNodes.count == 2)
+    #expect(outerNodes[0].id == "outerGroup_0")
+    #expect(outerNodes[1].id == "outerGroup_1")
+
+    let inner0 = outerNodes[0].children(for: "children")
+    let inner1 = outerNodes[1].children(for: "children")
+    #expect(inner0.map(\.id) == ["innerItem_0_0", "innerItem_0_1"])
+    #expect(inner1.map(\.id) == ["innerItem_1_0", "innerItem_1_1"])
+    #expect(inner0[0].string(for: "text") == "G0-I0")
+    #expect(inner1[1].string(for: "text") == "G1-I1")
+  }
 }

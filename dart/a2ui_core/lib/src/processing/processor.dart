@@ -545,15 +545,20 @@ class MessageProcessor<T extends ComponentApi> {
   void _processRefs(Object? node) {
     if (node is! Map) return;
 
-    if (node['description'] is String &&
-        (node['description'] as String).startsWith('REF:')) {
-      final desc = node['description'] as String;
-      final List<String> parts = desc.substring(4).split('|');
-      final String ref = parts[0];
-      final String? actualDesc = parts.length > 1 ? parts[1] : null;
-
+    if (node['commonTypesRef'] is String ||
+        (node['description'] is String &&
+            (node['description'] as String).startsWith('REF:'))) {
+      final hasRefKey = node['commonTypesRef'] is String;
+      final List<String> parts = hasRefKey
+          ? const []
+          : (node['description'] as String).substring(4).split('|');
+      final String ref =
+          hasRefKey ? node['commonTypesRef'] as String : parts[0];
+      final Object? actualDesc = hasRefKey
+          ? node['description']
+          : (parts.length > 1 ? parts.sublist(1).join('|') : null);
       node.clear();
-      node['\$ref'] = ref;
+      node[r'$ref'] = ref;
       if (actualDesc != null) {
         node['description'] = actualDesc;
       }

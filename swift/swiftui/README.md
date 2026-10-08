@@ -39,9 +39,11 @@ struct ChatView: View {
 
   var body: some View {
     VStack {
-      // Embed native A2UI Surface
-      Surface(viewModel: surfaceViewModel)
-        .environment(\.a2uiCatalogs, [BasicCatalogSwiftUI.catalogImplementation])
+      // Embed native A2UI Surface with registered SwiftUI catalogs
+      Surface(
+        viewModel: surfaceViewModel,
+        catalogs: BasicCatalogSwiftUI.allCatalogs
+      )
     }
   }
 }
@@ -53,34 +55,22 @@ struct ChatView: View {
 
 To render custom component types in SwiftUI:
 
-1. Implement `ComponentImplementation` to supply a view builder:
+1. Construct a `ComponentImplementation` combining a `ComponentAPI` and view builder:
 
 ```swift
 import A2UICore
 import A2UISwiftUI
 import SwiftUI
 
-public struct CustomProfileImplementation: ComponentImplementation {
-  public let api: ComponentAPI = UserCardAPI()
-
-  public init() {}
-
-  @ViewBuilder
-  public func buildView(
-    node: Node,
-    context: ComponentContext
-  ) -> AnyView {
-    AnyView(
-      VStack {
-        Text(node.properties["name"]?.stringValue ?? "Unknown")
-          .font(.headline)
-      }
-    )
+let customProfileImplementation = ComponentImplementation(api: UserCardAPI()) { node in
+  VStack {
+    Text(node.string(for: "name") ?? "Unknown")
+      .font(.headline)
   }
 }
 ```
 
-2. Register the implementation in your catalog array passed to the `.a2uiCatalogs` environment.
+2. Register the `ComponentImplementation` in a `Catalog<ComponentImplementation>` and pass it to `Surface(viewModel:catalogs:)`.
 
 ---
 

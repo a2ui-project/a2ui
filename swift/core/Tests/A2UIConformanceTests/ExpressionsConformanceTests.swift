@@ -56,8 +56,9 @@ struct ExpressionsConformanceTests {
           if let expectedMessage {
             switch error {
             case .executionFailed(_, let message):
-              let matches = message.localizedCaseInsensitiveContains(expectedMessage) ||
-                ((try? NSRegularExpression(pattern: expectedMessage).firstMatch(
+              let matches =
+                message.localizedCaseInsensitiveContains(expectedMessage)
+                || ((try? NSRegularExpression(pattern: expectedMessage).firstMatch(
                   in: message,
                   range: NSRange(message.startIndex..., in: message)
                 )) != nil)

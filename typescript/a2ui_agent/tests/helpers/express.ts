@@ -18,8 +18,8 @@
  * Builds Express test inputs and reads Express output for tests.
  */
 
-import {ExpressCompiler} from '../../src/inference_formats/express/compiler.js';
-import {CatalogApi} from '../../src/internal/web_core.js';
+import {ExpressCompiler} from '../../src/inference-formats/express/compiler.js';
+import {CatalogApi} from '../../src/internal/web-core.js';
 
 /**
  * Returns a v0.9 `createSurface` message.

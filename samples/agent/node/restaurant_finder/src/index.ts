@@ -72,7 +72,7 @@ export async function createApp(options: {env?: NodeJS.ProcessEnv; port?: number
   const mode = resolveLlmMode(env);
   const pythonDir = resolvePythonSampleDir();
   verifyPythonSampleAssets(pythonDir);
-  const catalogs = await loadBasicCatalogs();
+  const catalogs = loadBasicCatalogs();
 
   const backend: ModelBackend =
     mode === 'stub'

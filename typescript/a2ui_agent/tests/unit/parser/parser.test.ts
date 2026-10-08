@@ -16,8 +16,8 @@
 
 import {describe, it, expect} from 'vitest';
 import {Parser} from '../../../src/parser/parser.js';
-import {RawResponsePart, ResponsePart} from '../../../src/parser/response_part.js';
-import {AgentToRendererMessage} from '../../../src/internal/web_core.js';
+import {RawResponsePart, ResponsePart} from '../../../src/parser/response-part.js';
+import {AgentToRendererMessage} from '../../../src/internal/web-core.js';
 
 class TestParser extends Parser {
   unwrap(content: string): RawResponsePart[] {
@@ -95,10 +95,10 @@ describe('Parser', () => {
     }
 
     expect(results).toHaveLength(2);
-    expect((results[0][0] as import('../../../src/parser/response_part.js').TextPart).text).toBe(
+    expect((results[0][0] as import('../../../src/parser/response-part.js').TextPart).text).toBe(
       'hello(wrapped=false)',
     );
-    expect((results[1][0] as import('../../../src/parser/response_part.js').TextPart).text).toBe(
+    expect((results[1][0] as import('../../../src/parser/response-part.js').TextPart).text).toBe(
       ' world(wrapped=false)',
     );
   });

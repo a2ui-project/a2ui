@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {CatalogApi} from '../internal/web_core.js';
+import {CatalogApi} from '../internal/web-core.js';
 import {A2uiCatalogError} from '../errors.js';
 
 const catalogDocuments = new WeakMap<CatalogApi, Record<string, unknown>>();

@@ -94,8 +94,8 @@ class _NodeRecord<T extends ComponentApi> {
 /// torn down when its parent stops referencing it or the resolver is
 /// disposed.
 ///
-/// Child references are recognized by wire `$ref` pointers, Dart `REF:`
-/// descriptions, local aliases, and structural `ChildList` shapes (an object
+/// Child references are recognized by wire `$ref` pointers, `commonTypesRef`
+/// metadata, local aliases, and structural `ChildList` shapes (an object
 /// schema declaring `componentId` and `path`). An unmarked string property is
 /// not a child reference.
 ///

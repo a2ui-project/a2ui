@@ -14,6 +14,7 @@
 
 import A2UICore
 import JSONSchema
+import OrderedJSON
 import SwiftUI
 
 /// A closure that constructs a SwiftUI view from a resolved engine node.
@@ -31,6 +32,15 @@ public struct ComponentImplementation: ComponentAPI, @unchecked Sendable {
   /// The JSON Schema validating the component's properties.
   public let schema: Schema
 
+  /// Allowed parent component names. If nil, any parent is allowed.
+  public let allowedParents: [String]?
+
+  /// Allowed child component names. If nil, any child is allowed.
+  public let allowedChildren: [String]?
+
+  /// Optional component metadata.
+  public let metadata: [String: JSONValue]?
+
   /// The closure that constructs a SwiftUI view from a resolved engine node.
   public let builder: ComponentViewBuilder
 
@@ -39,14 +49,23 @@ public struct ComponentImplementation: ComponentAPI, @unchecked Sendable {
   /// - Parameters:
   ///   - name: The component type name.
   ///   - schema: The JSON Schema validating the component's properties.
+  ///   - allowedParents: Optional list of allowed parent component names.
+  ///   - allowedChildren: Optional list of allowed child component names.
+  ///   - metadata: Optional component metadata dictionary.
   ///   - builder: The view builder closure constructing the component's SwiftUI view.
   public init<Content: View>(
     name: String,
     schema: Schema,
+    allowedParents: [String]? = nil,
+    allowedChildren: [String]? = nil,
+    metadata: [String: JSONValue]? = nil,
     builder: @escaping @MainActor (Node) -> Content
   ) {
     self.name = name
     self.schema = schema
+    self.allowedParents = allowedParents
+    self.allowedChildren = allowedChildren
+    self.metadata = metadata
     self.builder = { node in AnyView(builder(node)) }
   }
 
@@ -62,7 +81,27 @@ public struct ComponentImplementation: ComponentAPI, @unchecked Sendable {
     self.init(
       name: api.name,
       schema: api.schema,
+      allowedParents: api.allowedParents,
+      allowedChildren: api.allowedChildren,
+      metadata: api.metadata,
       builder: builder
     )
+  }
+
+  /// Creates a new component implementation from an existing API definition and erased view builder.
+  ///
+  /// - Parameters:
+  ///   - api: The component API definition conforming to ``ComponentAPI``.
+  ///   - builder: The type-erased view builder closure.
+  public init(
+    api: any ComponentAPI,
+    builder: @escaping ComponentViewBuilder
+  ) {
+    self.name = api.name
+    self.schema = api.schema
+    self.allowedParents = api.allowedParents
+    self.allowedChildren = api.allowedChildren
+    self.metadata = api.metadata
+    self.builder = builder
   }
 }

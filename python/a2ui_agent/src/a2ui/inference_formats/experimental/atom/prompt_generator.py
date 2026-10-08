@@ -16,8 +16,11 @@
 
 from collections.abc import Mapping, Sequence
 from typing import Any, TYPE_CHECKING
-from a2ui.prompt import PromptGenerator
+
 from a2ui.core.schema.v0_9 import V09Capabilities
+from a2ui.prompt import PromptGenerator
+from a2ui.schema import load_examples
+
 # CatalogSchemaHelper import handled lazily inside class
 
 if TYPE_CHECKING:
@@ -163,8 +166,8 @@ class AtomPromptGenerator(PromptGenerator):
         target_catalog = catalog or self.format.catalog
         if not target_catalog or not self.format or not self.format.examples_path:
             return ""
-        raw_examples = target_catalog.load_examples(
-            self.format.examples_path, validate=validate
+        raw_examples = load_examples(
+            [target_catalog], self.format.examples_path, validate=validate
         )
         if not raw_examples:
             return ""

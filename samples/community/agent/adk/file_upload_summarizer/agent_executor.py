@@ -61,7 +61,6 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
         active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
 
         runner = self._agent.get_runner(active_ui_version)
-        inference_format = self._agent.get_inference_format(active_ui_version)
 
         session = await super()._prepare_session(context, run_request, runner)
 
@@ -83,13 +82,9 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
                 if context.message and context.message.metadata
                 else None
             )
-            a2ui_catalog = (
-                inference_format.get_selected_catalog(
-                    client_ui_capabilities=client_capabilities
-                )
-                if inference_format
-                else None
-            )
+            a2ui_catalog = self._agent.resolve_catalogs(
+                active_ui_version, client_capabilities
+            )[0]
 
             examples = ""
 

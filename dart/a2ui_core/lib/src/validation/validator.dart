@@ -293,8 +293,22 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
 
   Map<String, Schema> get _resolvedComponentSchemas => _resolvedComponents ??= {
         for (final MapEntry<String, C> entry in catalog.components.entries)
-          entry.key: _resolve(entry.value.schema),
+          entry.key: _resolve(
+            _withEnvelopeProperties(entry.value.schema.value),
+          ),
       };
+
+  static Schema _withEnvelopeProperties(Map<String, Object?> schema) {
+    final copy = Map<String, Object?>.from(schema);
+    final props = Map<String, Object?>.from(
+      (copy['properties'] as Map?)?.cast<String, Object?>() ?? const {},
+    );
+    props['id'] ??= const {'type': 'string'};
+    props['component'] ??= const {'type': 'string'};
+    props['catalogId'] = const {'type': 'string'};
+    copy['properties'] = props;
+    return Schema.fromMap(copy);
+  }
 
   Map<String, Schema> get _resolvedFunctionSchemas => _resolvedFunctions ??= {
         for (final MapEntry<String, F> entry in catalog.functions.entries)

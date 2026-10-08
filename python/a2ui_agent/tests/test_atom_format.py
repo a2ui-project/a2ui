@@ -250,14 +250,10 @@ class TestAtomFormat(unittest.TestCase):
         """Test AtomPromptGenerator generation of catalog prompt rules and component signatures."""
         from a2ui.inference_formats.experimental.atom import AtomFormat
         from a2ui.schema.catalog import CatalogConfig
-        from a2ui.inference_formats.direct_json import DirectJsonFormat
 
         cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        direct_json_format = DirectJsonFormat(
-            version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
-        )
-        cat = direct_json_format.get_selected_catalog()
+        cat = cat_cfg.to_catalog(protocol_version="1.0")
 
         fmt = AtomFormat(catalog=cat, examples_path="/tmp/examples")
         self.assertEqual(fmt.examples_path, "/tmp/examples")
@@ -281,14 +277,10 @@ class TestAtomFormat(unittest.TestCase):
         """Test positional property mapping in AtomCompiler with real catalog schema helper."""
         from a2ui.inference_formats.experimental.atom import AtomCompiler
         from a2ui.schema.catalog import CatalogConfig
-        from a2ui.inference_formats.direct_json import DirectJsonFormat
 
         cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        direct_json_format = DirectJsonFormat(
-            version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
-        )
-        cat = direct_json_format.get_selected_catalog()
+        cat = cat_cfg.to_catalog(protocol_version="1.0")
 
         compiler = AtomCompiler(catalog=cat)
         text = '(Card (Column (Text "Positional Text Property")))'
@@ -381,14 +373,10 @@ class TestAtomFormat(unittest.TestCase):
         from a2ui.inference_formats.experimental.atom import AtomFormat
         from a2ui.inference_formats.experimental.atom.prompt_generator import _get_schema_enum
         from a2ui.schema.catalog import CatalogConfig
-        from a2ui.inference_formats.direct_json import DirectJsonFormat
 
         cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        direct_json_format = DirectJsonFormat(
-            version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
-        )
-        cat = direct_json_format.get_selected_catalog()
+        cat = cat_cfg.to_catalog(protocol_version="1.0")
 
         fmt = AtomFormat(catalog=cat)
         func_sigs = fmt.prompt_generator._generate_function_signatures()
@@ -416,14 +404,10 @@ class TestAtomFormat(unittest.TestCase):
         """Test _schema_expects_single_child and formatDate/formatCurrency helpers."""
         from a2ui.inference_formats.experimental.atom import AtomCompiler
         from a2ui.schema.catalog import CatalogConfig
-        from a2ui.inference_formats.direct_json import DirectJsonFormat
 
         cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        direct_json_format = DirectJsonFormat(
-            version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
-        )
-        cat = direct_json_format.get_selected_catalog()
+        cat = cat_cfg.to_catalog(protocol_version="1.0")
 
         compiler = AtomCompiler(catalog=cat)
         self.assertTrue(compiler._schema_expects_single_child("Card"))
@@ -504,7 +488,6 @@ class TestAtomFormat(unittest.TestCase):
     def test_fuzzed_synthetic_catalog_agnosticism(self):
         """Verify 100% catalog agnosticism using a fuzzed synthetic catalog with non-standard names."""
         from a2ui.inference_formats.experimental.atom import AtomCompiler, AtomDecompiler
-        from a2ui.schema import A2uiCatalog, CatalogConfig
         from a2ui.core import Catalog
 
         # Synthetic catalog definitions with non-standard names
@@ -552,15 +535,12 @@ class TestAtomFormat(unittest.TestCase):
             },
         }
 
-        cat = A2uiCatalog(
-            version="1.0",
-            name="custom_fuzzed_catalog",
-            s2c_schema={},
-            common_types_schema={},
-            catalog_schema={
+        cat = Catalog.from_json(
+            {
                 "catalogId": "https://a2ui.org/custom_fuzzed_catalog",
                 "components": synthetic_components,
             },
+            protocol_version="v1.0",
         )
         compiler = AtomCompiler(catalog=cat)
         decompiler = AtomDecompiler(catalog=cat)
@@ -589,14 +569,10 @@ class TestAtomFormat(unittest.TestCase):
     def test_compile_child_list_template_property_assignment(self):
         """Test standard v1.0 Catalog List component dynamic template assignment to children property."""
         from a2ui.schema.catalog import CatalogConfig
-        from a2ui.inference_formats.direct_json import DirectJsonFormat
 
         cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        direct_json_format = DirectJsonFormat(
-            version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
-        )
-        cat = direct_json_format.get_selected_catalog()
+        cat = cat_cfg.to_catalog(protocol_version="1.0")
 
         compiler = AtomCompiler(catalog=cat)
         text = '(List :items $/products :template (template item (Card (Text "Item"))))'
@@ -613,7 +589,7 @@ class TestAtomFormat(unittest.TestCase):
 
     def test_synthetic_catalog_child_list_template_assignment(self):
         """Test catalog-agnostic ChildList template assignment with custom non-standard property name 'sub_nodes'."""
-        from a2ui.schema.catalog import A2uiCatalog
+        from a2ui.core import Catalog
 
         synthetic_components = {
             "CustomContainerX": {
@@ -637,15 +613,12 @@ class TestAtomFormat(unittest.TestCase):
                 "required": ["component"],
             },
         }
-        cat = A2uiCatalog(
-            version="1.0",
-            name="custom_fuzzed_catalog",
-            s2c_schema={},
-            common_types_schema={},
-            catalog_schema={
+        cat = Catalog.from_json(
+            {
                 "catalogId": "https://a2ui.org/custom_fuzzed_catalog",
                 "components": synthetic_components,
             },
+            protocol_version="v1.0",
         )
         compiler = AtomCompiler(catalog=cat)
         atom_src = (
@@ -664,18 +637,13 @@ class TestAtomFormat(unittest.TestCase):
 
     def test_atom_compiler_extended_coverage(self):
         """Test think tags, a2ui-json, direct JSON, createSurface forms, weight conversions, and functions with real catalog."""
-        from a2ui.inference_formats.experimental.atom import AtomCompiler, AtomDecompiler, AtomFormat, AtomParser
-        from a2ui.schema.catalog import CatalogConfig
-        from a2ui.inference_formats.direct_json import DirectJsonFormat
+        from a2ui.inference_formats.experimental.atom import AtomCompiler, AtomFormat
+        from a2ui.schema import CatalogConfig
 
         cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
         cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        direct_json_format = DirectJsonFormat(
-            version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
-        )
-        cat = direct_json_format.get_selected_catalog()
+        cat = cat_cfg.to_catalog(protocol_version="1.0")
         compiler = AtomCompiler(catalog=cat)
-        decompiler = AtomDecompiler(catalog=cat)
 
         # 1. Think tags and clean up
         think_text = '<think>reasoning process...</think>\n(Card (Text "Hello"))'
@@ -816,8 +784,6 @@ class TestAtomFormat(unittest.TestCase):
         self.assertEqual(cp.get("variant"), "multipleSelection")
 
         # 12. Prompt generator with function signatures and enum details
-        from a2ui.inference_formats.experimental.atom import AtomFormat
-
         fmt = AtomFormat(catalog=cat)
         prompt_gen = fmt.prompt_generator
         func_sigs = prompt_gen._generate_function_signatures()

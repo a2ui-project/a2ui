@@ -14,11 +14,10 @@
 
 """Compilation engine for A2UI Atom S-Expressions."""
 
-import re
 import json
+import re
 from typing import Any
 from a2ui.core import CatalogApi
-from a2ui.schema import A2uiCatalog
 
 
 class CatalogSchemaHelperWrapper:
@@ -242,7 +241,7 @@ class AtomCompiler:
         node_counter: Auto-incrementing node ID generator counter.
     """
 
-    def __init__(self, catalog: CatalogApi | A2uiCatalog):
+    def __init__(self, catalog: CatalogApi):
         """Initializes an AtomCompiler instance.
 
         Args:

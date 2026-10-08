@@ -13,16 +13,9 @@
 // limitations under the License.
 
 /// Raised when surface lifecycle rules or component graph relationship checks are broken.
-public struct A2UIIntegrityError: A2UIError, Equatable, Sendable {
-  /// The error message.
-  public let message: String
-
-  /// Specific structured diagnostic failure details, if available.
-  public let details: [A2UIErrorDetail]
-
+public final class A2UIIntegrityError: A2UIValidationError, @unchecked Sendable {
   /// Creates an integrity error with an optional list of structured details.
-  public init(_ message: String, details: [A2UIErrorDetail] = []) {
-    self.message = message
-    self.details = details
+  public override init(_ message: String, details: [A2UIErrorDetail] = []) {
+    super.init(message, details: details)
   }
 }

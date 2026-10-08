@@ -30,4 +30,8 @@ export abstract class AgentStubService {
   >;
 
   abstract initializeDemo(initialMessages: A2uiMessage[] | ServerToClientMessage[]): void;
+  abstract resetSurface(messages: A2uiMessage[] | ServerToClientMessage[]): void;
+  abstract processIncrementalMessages(
+    messagesToProcess: A2uiMessage[] | ServerToClientMessage[],
+  ): void;
 }

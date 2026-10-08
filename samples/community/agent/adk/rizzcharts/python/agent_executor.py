@@ -13,14 +13,11 @@
 # limitations under the License.
 
 import logging
-from pathlib import Path
 from typing import override
 
 from a2a.server.agent_execution import RequestContext
-from a2a.types import AgentCapabilities, AgentCard, AgentExtension, AgentSkill
-from a2ui.a2a import get_a2ui_agent_extension, try_activate_a2ui_extension
-from a2ui.adk import A2uiEventConverter, SendA2uiToClientToolset
-from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.adk import A2uiEventConverter
 from a2ui.schema import A2UI_CLIENT_CAPABILITIES_KEY
 
 from google.adk.a2a.converters.request_converter import AgentRunRequest
@@ -104,7 +101,6 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
 
         active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
         runner = self._agent.get_runner(active_ui_version)
-        inference_format = self._agent.get_inference_format(active_ui_version)
 
         session = await super()._prepare_session(context, run_request, runner)
 
@@ -117,18 +113,12 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
                 if context.message and context.message.metadata
                 else None
             )
-            a2ui_catalog = (
-                inference_format.get_selected_catalog(
-                    client_ui_capabilities=capabilities
-                )
-                if inference_format
-                else None
+            inference_format = self._agent.resolve_inference_format(
+                active_ui_version, capabilities
             )
-
-            examples = (
-                inference_format.load_examples(a2ui_catalog, validate=True)
-                if inference_format
-                else None
+            a2ui_catalog = inference_format.catalogs[0]
+            examples = inference_format.prompt_generator.generate_examples(
+                validate=True
             )
 
             await runner.session_service.append_event(

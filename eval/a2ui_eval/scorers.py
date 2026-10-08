@@ -17,21 +17,25 @@
 import json
 import os
 import time
+
+from inspect_ai.model._model import sample_model_usage
 from inspect_ai.scorer import (
-    scorer,
     Score,
     Scorer,
     Target,
     accuracy,
     model_graded_qa,
+    scorer,
 )
 from inspect_ai.solver import TaskState
-from inspect_ai.model._model import sample_model_usage
-from a2ui.inference_formats.direct_json.format import DirectJsonFormat
-from a2ui.schema.catalog import CatalogConfig
-from a2ui.parser.parser import parse_response
-from a2ui.core.processing import MessageProcessor, MessageProcessorOptions
-from a2ui.core.validation import STRICT_VALIDATION
+
+from a2ui.core import (
+    MessageProcessor,
+    MessageProcessorOptions,
+    STRICT_VALIDATION,
+)
+from a2ui.parser import parse_response
+from a2ui.schema import CatalogConfig
 from .shared.utils import GIT_ROOT
 
 
@@ -59,13 +63,7 @@ def a2ui_scorer(version: str) -> Scorer:
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        direct_json_format = DirectJsonFormat(
-            version=version,
-            catalogs=[catalog_config],
-            experiments={"version_1_0"} if version == "1.0" else None,
-        )
-        catalog = direct_json_format.get_selected_catalog()
-        validator = catalog.validator
+        catalog = catalog_config.to_catalog(protocol_version=version)
 
         answer_text = state.output.completion or ""
 
@@ -97,7 +95,7 @@ def a2ui_scorer(version: str) -> Scorer:
 
             answer_text = json.dumps(all_messages, indent=2)
             MessageProcessor(
-                [catalog.core_catalog],
+                [catalog],
                 options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
             ).process_messages(all_messages)
             return Score(

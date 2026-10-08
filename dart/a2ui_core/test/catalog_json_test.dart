@@ -394,6 +394,47 @@ void main() {
       expect(catalog.invoke('echo', {'value': null}, context), isNull);
     });
   });
+
+  group('Catalog code-defined', () {
+    test('serializes catalogSchema with id and component envelopes', () {
+      final Catalog<ComponentApi, FunctionApi> catalog = Catalog(
+        id: 'https://example.com/custom-catalog',
+        protocolVersion: 'v0.9',
+        components: [
+          ComponentApi(
+            name: 'Button',
+            schema: Schema.fromMap({
+              'type': 'object',
+              'properties': {
+                'label': {'type': 'string'},
+              },
+              'required': ['label'],
+            }),
+          ),
+        ],
+      );
+
+      final Map<String, Object?> schema = catalog.catalogSchema;
+      expect(schema[r'$schema'], Catalog.jsonSchemaDialect);
+      expect(schema['catalogId'], 'https://example.com/custom-catalog');
+      expect(schema['protocolVersion'], 'v0.9');
+
+      final comps = schema['components'] as Map<String, Object?>;
+      expect(comps.containsKey('Button'), isTrue);
+
+      final button = comps['Button'] as Map<String, Object?>;
+      final props = button['properties'] as Map<String, Object?>;
+      expect(props['id'], {r'$ref': r'#/$defs/ComponentId'});
+      expect(props['component'], {'const': 'Button'});
+      expect(props['label'], {'type': 'string'});
+
+      expect(button['required'], ['id', 'label', 'component']);
+
+      final defs = schema[r'$defs'] as Map<String, Object?>;
+      expect(defs.containsKey('ComponentId'), isTrue);
+      expect(defs.containsKey('anyComponent'), isTrue);
+    });
+  });
 }
 
 /// Returns its `value` argument, which its schema requires to be a string.
