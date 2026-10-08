@@ -839,3 +839,50 @@ def test_undeclared_function_call_and_check_with_single_catalog_round_trips() ->
     }]
     decompiled = single.decompile(to_message_models(messages))
     assert _compile(single, decompiled) == messages
+
+
+def test_multi_catalog_prompt_generator_guards_empty_components() -> None:
+    fn_catalog = Catalog.from_json(
+        {
+            "catalogId": "https://example.com/functions-only",
+            "functions": {"myFunc": _fn({"val": {"type": "string"}})},
+        },
+        protocol_version="v1.0",
+    )
+    pri_cat = _catalogs()[0]
+    fmt = ElementalFormat(catalogs=[pri_cat, fn_catalog])
+    instructions = fmt.prompt_generator.generate_catalog_instructions()
+    assert "## Catalog `https://example.com/functions-only`" in instructions
+    # Should not contain empty typescript code block
+    assert "```typescript\n\n```" not in instructions
+    assert "Helper functions of this catalog" in instructions
+
+
+def test_catalog_description_reuses_cached_helper() -> None:
+    pri_cat, sec_cat = _catalogs()
+    fmt = ElementalFormat(catalogs=[pri_cat, sec_cat])
+    gen = fmt.prompt_generator
+    # Call with catalog in helpers
+    h = gen.helpers.get(getattr(pri_cat, "catalog_id", None)) or CatalogSchemaHelper(
+        pri_cat
+    )
+    assert h is gen.helpers[PRI]
+    output = gen.generate_catalog_instructions(catalog=pri_cat)
+    assert "interface Column" in output
+
+
+def test_catalog_instructions_replaces_indented_json_with_re_sub() -> None:
+    pri_cat = _catalogs()[0]
+    fmt = ElementalFormat(catalogs=[pri_cat])
+    gen = fmt.prompt_generator
+    helper = gen.helpers[PRI]
+
+    helper.catalog["instructions"] = (
+        'Here is an example:\n   ```json\n   [{"version": "v1.0", "createSurface":'
+        ' {"surfaceId": "main", "components": [{"id": "t1", "component": "Text",'
+        ' "text": "hello"}]}}]\n   ```\nEnd of example.'
+    )
+    result = gen._catalog_instructions(helper)
+    assert "```html" in result
+    assert "<ui-text" in result
+    assert "```json" not in result

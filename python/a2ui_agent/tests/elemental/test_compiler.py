@@ -97,6 +97,26 @@ class TestElementalCompiler(unittest.TestCase):
         }]
         self.assertEqual(result, expected)
 
+    def test_compile_multiple_call_functions_auto_numbering(self):
+        catalog_v1 = Catalog.from_json(self.catalog_dict, protocol_version="1.0")
+        compiler_v1 = ElementalCompiler([catalog_v1])
+        html_input = (
+            '<ui-call-function name="openUrl" url="https://first.example.com" />\n'
+            '<ui-call-function name="openUrl" url="https://second.example.com" />'
+        )
+        result = to_message_dicts(compiler_v1.compile(html_input))
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["callRendererFunction"]["functionCallId"], "call_1")
+        self.assertEqual(
+            result[0]["callRendererFunction"]["callFunction"]["args"],
+            {"url": "https://first.example.com"},
+        )
+        self.assertEqual(result[1]["callRendererFunction"]["functionCallId"], "call_2")
+        self.assertEqual(
+            result[1]["callRendererFunction"]["callFunction"]["args"],
+            {"url": "https://second.example.com"},
+        )
+
     def test_compile_call_function_rejects_undeclared_argument(self):
         catalog_v1 = Catalog.from_json(self.catalog_dict, protocol_version="1.0")
         compiler_v1 = ElementalCompiler([catalog_v1])

@@ -281,10 +281,9 @@ class ElementalPromptGenerator(PromptGenerator):
         ]
         for cat_id, helper in self.helpers.items():
             sections.append(f"## Catalog `{cat_id}`")
-            sections.append(
-                "```typescript\n"
-                f"{self._generate_component_declarations(helper=helper)}\n```"
-            )
+            comp_decls = self._generate_component_declarations(helper=helper)
+            if comp_decls:
+                sections.append(f"```typescript\n{comp_decls}\n```")
             func_decls = self._generate_function_declarations(helper=helper)
             if func_decls:
                 sections.append(
@@ -697,19 +696,26 @@ class ElementalPromptGenerator(PromptGenerator):
             " display validation errors.",
         )
         catalog_id = helper.catalog_model.catalog_id or self.catalog_id
-        json_blocks = re.findall(
-            r"```json\s*(.*?)\s*```", catalog_instructions, re.DOTALL
-        )
-        for block in json_blocks:
+
+        def _replace_json_block_in_instructions(match: re.Match[str]) -> str:
             try:
-                blocks = self._decompile_json_messages(json.loads(block), catalog_id)
+                blocks = self._decompile_json_messages(
+                    json.loads(match.group(1).strip()), catalog_id
+                )
             except Exception:
-                continue
+                return match.group(0)
+            if not blocks:
+                return match.group(0)
             html_block = "\n\n".join(blocks)
-            catalog_instructions = catalog_instructions.replace(
-                f"```json\n{block}\n```", f"```html\n{html_block}\n```"
-            )
-        return catalog_instructions
+            return f"```html\n{html_block}\n```"
+
+        pattern = r"[^\S\r\n]*```json[^\S\r\n]*\r?\n(.*?)\r?\n[^\S\r\n]*```"
+        return re.sub(
+            pattern,
+            _replace_json_block_in_instructions,
+            catalog_instructions,
+            flags=re.DOTALL,
+        )
 
     def _catalog_description(
         self, include_schema: bool = True, catalog: Any | None = None
@@ -727,7 +733,8 @@ class ElementalPromptGenerator(PromptGenerator):
             return ""
 
         h = (
-            CatalogSchemaHelper(catalog)
+            self.helpers.get(getattr(catalog, "catalog_id", None))
+            or CatalogSchemaHelper(catalog)
             if catalog
             else next(iter(self.helpers.values()), None)
         )

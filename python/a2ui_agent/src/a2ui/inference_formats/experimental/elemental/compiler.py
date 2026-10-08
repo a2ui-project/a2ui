@@ -708,18 +708,46 @@ class ElementalCompiler:
         if not virtual_root or not virtual_root.children:
             raise ValueError("A2UI Elemental document is empty.")
 
-        # Find the actual active root element inside the virtual root
-        root = None
+        # Collect operations in document order
+        operations: list[Node] = []
         for child in virtual_root.children:
-            if child.tag in [
+            if child.tag in (
                 "body",
                 f"{TAG_PREFIX}delete-surface",
                 f"{TAG_PREFIX}call-function",
-            ]:
-                root = child
-                break
+            ):
+                if child.tag == "body":
+                    standalone_children = [
+                        c
+                        for c in child.children
+                        if c.tag
+                        in (f"{TAG_PREFIX}delete-surface", f"{TAG_PREFIX}call-function")
+                    ]
+                    has_components = any(
+                        c.tag.startswith(TAG_PREFIX)
+                        and c.tag
+                        not in (
+                            f"{TAG_PREFIX}delete-surface",
+                            f"{TAG_PREFIX}call-function",
+                        )
+                        for c in child.children
+                    )
+                    has_data_scripts = any(
+                        _is_json_script(c) and "slot" not in c.attrs
+                        for c in child.children
+                    )
+                    if (
+                        standalone_children
+                        and not has_components
+                        and not has_data_scripts
+                    ):
+                        operations.extend(standalone_children)
+                    else:
+                        operations.append(child)
+                else:
+                    operations.append(child)
 
-        if not root:
+        if not operations:
             raise ValueError(
                 "A2UI Elemental document must have a <body>,"
                 f" <{TAG_PREFIX}delete-surface>, or <{TAG_PREFIX}call-function> root"
@@ -727,32 +755,26 @@ class ElementalCompiler:
             )
 
         link_nodes = [c for c in virtual_root.children if _is_catalog_link(c)]
-        if root.tag == "body":
-            link_nodes.extend(c for c in root.children if _is_catalog_link(c))
-            # If there is a standalone operation inside body, treat it as the root
-            standalone = next(
-                (
-                    c
-                    for c in root.children
-                    if c.tag
-                    in (f"{TAG_PREFIX}delete-surface", f"{TAG_PREFIX}call-function")
-                ),
-                None,
-            )
-            if standalone:
-                root = standalone
+        for op in operations:
+            if op.tag == "body":
+                link_nodes.extend(c for c in op.children if _is_catalog_link(c))
         self._check_catalog_links(link_nodes)
 
-        if root.tag == f"{TAG_PREFIX}delete-surface":
-            surf_id = root.attrs.get("surface-id", "")
-            return to_message_models(
-                [self._envelope({SurfaceOperation.DELETE: {"surfaceId": surf_id}})]
-            )
+        messages: list[dict[str, Any]] = []
+        call_count = 0
+        for op in operations:
+            if op.tag == f"{TAG_PREFIX}delete-surface":
+                surf_id = op.attrs.get("surface-id", "")
+                messages.append(
+                    self._envelope({SurfaceOperation.DELETE: {"surfaceId": surf_id}})
+                )
+            elif op.tag == f"{TAG_PREFIX}call-function":
+                call_count += 1
+                messages.append(self._compile_call_function(op, call_index=call_count))
+            elif op.tag == "body":
+                messages.extend(self._compile_body(op, virtual_root, surface_id))
 
-        if root.tag == f"{TAG_PREFIX}call-function":
-            return to_message_models([self._compile_call_function(root)])
-
-        return to_message_models(self._compile_body(root, virtual_root, surface_id))
+        return to_message_models(messages)
 
     def _check_catalog_links(self, link_nodes: Sequence[Node]) -> None:
         """Checks the document's `<link rel="catalog">` elements.
@@ -780,7 +802,7 @@ class ElementalCompiler:
                 raise ValueError('A <link rel="catalog"> element must have an href.')
             self._resolve_helper(href)
 
-    def _compile_call_function(self, root: Node) -> dict[str, Any]:
+    def _compile_call_function(self, root: Node, call_index: int = 1) -> dict[str, Any]:
         """Compiles a `<ui-call-function>` element into a callRendererFunction.
 
         The function's catalog is the element's `catalog-id`, or else the
@@ -839,7 +861,7 @@ class ElementalCompiler:
 
         return self._envelope({
             "callRendererFunction": {
-                "functionCallId": func_call_id or "call_1",
+                "functionCallId": func_call_id or f"call_{call_index}",
                 "callFunction": {
                     "catalogId": self._catalog_id_of(fn_helper),
                     self._call_key: call_name,
