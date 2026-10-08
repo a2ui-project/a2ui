@@ -122,35 +122,67 @@ describe('Conformance Harness', () => {
 
     const testFn = async () => {
       if (action === 'parse_full') {
-        let parser: DirectJsonParser | ExpressParser;
         if (testCase.format === 'express') {
-          // As Python's harness does (python/a2ui_agent/tests/conformance/test_conformance.py:385-402),
-          // formatted cases compile against the basic catalog of the case's protocol version.
           const declared = (testCase.catalog as Record<string, unknown> | undefined)
             ?.protocolVersion as string | undefined;
           const version = declared ? toWireProtocolVersion(declared) : 'v1.0';
-          parser = new ExpressParser(version === 'v0.9' ? basicCatalogV09 : basicCatalogV10);
+          const parser = new ExpressParser(version === 'v0.9' ? basicCatalogV09 : basicCatalogV10);
+
+          if (expectError) {
+            assertThrows(() => {
+              parser.parseResponse(input);
+            }, expectError);
+          } else {
+            const parts = parser.parseResponse(input);
+            const adapted = adaptParts(parts);
+            const expectedParts = expected as Record<string, unknown>[];
+            expect(adapted.length).toBe(expectedParts.length);
+            for (let i = 0; i < adapted.length; i++) {
+              expect(((adapted[i].text as string) || '').trim()).toBe(
+                ((expectedParts[i].text as string) || '').trim(),
+              );
+              expect(adapted[i].a2ui).toEqual(expectedParts[i].a2ui);
+            }
+          }
         } else {
           const catalog = testCase.catalog
             ? createCatalogConfig(testCase.catalog as Record<string, unknown>).catalog
             : basicCatalogV10;
-          parser = new DirectJsonParser([catalog]);
-        }
+          const parser = new DirectJsonParser([catalog]);
 
-        if (expectError) {
-          assertThrows(() => {
-            parser.parseResponse(input);
-          }, expectError);
-        } else {
-          const parts = parser.parseResponse(input);
-          const adapted = adaptParts(parts);
-          const expectedParts = expected as Record<string, unknown>[];
-          expect(adapted.length).toBe(expectedParts.length);
-          for (let i = 0; i < adapted.length; i++) {
-            expect(((adapted[i].text as string) || '').trim()).toBe(
-              ((expectedParts[i].text as string) || '').trim(),
-            );
-            expect(adapted[i].a2ui).toEqual(expectedParts[i].a2ui);
+          if (expectError) {
+            assertThrows(() => {
+              const unwrapped = parser.unwrap(input);
+              const parts = [];
+              for (const p of unwrapped) {
+                if (p.type === 'a2ui') {
+                  const fixed = parseAndFix(p.a2uiRaw);
+                  parts.push({type: 'a2ui', a2uiRaw: p.a2uiRaw, a2ui: fixed, isFinal: true});
+                } else {
+                  parts.push(p);
+                }
+              }
+            }, expectError);
+          } else {
+            const unwrapped = parser.unwrap(input);
+            const parts: any[] = [];
+            for (const p of unwrapped) {
+              if (p.type === 'a2ui') {
+                const fixed = parseAndFix(p.a2uiRaw);
+                parts.push({type: 'a2ui', a2uiRaw: p.a2uiRaw, a2ui: fixed, isFinal: true});
+              } else {
+                parts.push(p);
+              }
+            }
+            const adapted = adaptParts(parts);
+            const expectedParts = expected as Record<string, unknown>[];
+            expect(adapted.length).toBe(expectedParts.length);
+            for (let i = 0; i < adapted.length; i++) {
+              expect(((adapted[i].text as string) || '').trim()).toBe(
+                ((expectedParts[i].text as string) || '').trim(),
+              );
+              expect(adapted[i].a2ui).toEqual(expectedParts[i].a2ui);
+            }
           }
         }
       } else if (action === 'fix_payload') {

@@ -19,7 +19,7 @@ import {DirectJsonParser} from '../../../../src/inference-formats/direct-json/pa
 import {DirectJsonStreamProcessorImpl} from '../../../../src/inference-formats/direct-json/streaming.js';
 import {DirectJsonFormatFactory} from '../../../../src/inference-formats/direct-json/format.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
-import {ParseError} from '../../../../src/errors.js';
+import {ParseError, A2uiCatalogError, A2uiValidationError} from '../../../../src/errors.js';
 
 const basicCatalogV10 = loadBasicCatalog('v1.0');
 
@@ -71,9 +71,11 @@ describe('DirectJsonParser', () => {
 
   it('compiles raw format content', () => {
     const parser = new DirectJsonParser([catalog]);
-    const payload = '[{"version": "1.0", "createSurface": {"surfaceId": "1"}}]';
+    const payload = `[{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${catalog.id}"}}]`;
     const compiled = parser.compile(payload);
-    expect(compiled).toEqual([{version: '1.0', createSurface: {surfaceId: '1'}}]);
+    expect(compiled).toEqual([
+      {version: 'v1.0', createSurface: {surfaceId: '1', catalogId: catalog.id}},
+    ]);
   });
 
   it('parseChunk throws without a stream processor', () => {
@@ -99,8 +101,56 @@ describe('DirectJsonParser', () => {
   });
 
   it('gets every active catalog from the format', async () => {
-    const catalogs = [catalog, loadBasicCatalog('v0.9')];
+    const catalogs = [catalog, catalog];
     const parser = new DirectJsonFormatFactory().createFormat(catalogs).createParser();
     expect((parser as DirectJsonParser).catalogs).toEqual(catalogs);
+  });
+
+  describe('validation', () => {
+    it('throws A2uiCatalogError on empty catalog list', () => {
+      expect(() => new DirectJsonParser([])).toThrow(A2uiCatalogError);
+    });
+
+    it('throws A2uiCatalogError on mixed v0.9 and v1.0 catalogs', () => {
+      expect(() => new DirectJsonParser([catalog, loadBasicCatalog('v0.9')])).toThrow(
+        A2uiCatalogError,
+      );
+    });
+
+    it('throws A2uiValidationError on missing version', () => {
+      const parser = new DirectJsonParser([catalog]);
+      const payload = `[{"createSurface": {"surfaceId": "1", "catalogId": "${catalog.id}"}}]`;
+      expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
+    });
+
+    it('throws A2uiValidationError on mismatched version', () => {
+      const parser = new DirectJsonParser([catalog]);
+      const payload = `[{"version": "v0.9", "createSurface": {"surfaceId": "1", "catalogId": "${catalog.id}"}}]`;
+      expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
+    });
+
+    it('throws A2uiValidationError on unknown component', () => {
+      const parser = new DirectJsonParser([catalog]);
+      const payload = `[{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${catalog.id}"}}, {"updateComponents": {"surfaceId": "1", "components": [{"component": "unknown", "id": "1"}]}}]`;
+      expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
+    });
+
+    it('throws A2uiValidationError on unknown component property', () => {
+      const parser = new DirectJsonParser([catalog]);
+      const payload = `[{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "${catalog.id}"}}, {"updateComponents": {"surfaceId": "1", "components": [{"component": "text", "id": "1", "unknownProp": 1}]}}]`;
+      expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
+    });
+
+    it('throws A2uiValidationError on unknown catalogId', () => {
+      const parser = new DirectJsonParser([catalog]);
+      const payload = `[{"version": "v1.0", "createSurface": {"surfaceId": "1", "catalogId": "unknown-catalog"}}]`;
+      expect(() => parser.compile(payload)).toThrow(A2uiValidationError);
+    });
+
+    it('compile(raw, false) skips schema validation', () => {
+      const parser = new DirectJsonParser([catalog]);
+      const payload = `[{"version": "1.0", "createSurface": {"surfaceId": "1", "catalogId": "unknown"}}]`;
+      expect(() => parser.compile(payload, false)).not.toThrow();
+    });
   });
 });

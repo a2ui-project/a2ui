@@ -23,6 +23,7 @@ import {A2UI_OPEN_TAG, A2UI_CLOSE_TAG} from '../../parser/constants.js';
 import {DirectJsonStreamProcessor} from './streaming-types.js';
 import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
 import {DirectJsonDecompiler} from './decompiler.js';
+import {checkParserCatalogs, validatePayload} from '../../utils/validation.js';
 
 export class DirectJsonParser extends Parser {
   /**
@@ -40,6 +41,7 @@ export class DirectJsonParser extends Parser {
    */
   constructor(catalogs: CatalogApi[], streamProcessor?: DirectJsonStreamProcessor) {
     super();
+    checkParserCatalogs(catalogs);
     this.catalogs = catalogs;
     this.streamProcessor = streamProcessor;
     this.lexer = new BlockLexer(A2UI_OPEN_TAG, A2UI_CLOSE_TAG, new Set(["'", '"']), new Set());
@@ -83,8 +85,12 @@ export class DirectJsonParser extends Parser {
     return validParts;
   }
 
-  compile(formatContent: string, _isFinal = true): AgentToRendererMessage[] {
+  compile(formatContent: string, isFinal = true): AgentToRendererMessage[] {
     const jsonData = parseAndFix(formatContent);
+
+    if (isFinal) {
+      validatePayload(this.catalogs, jsonData);
+    }
 
     return jsonData as AgentToRendererMessage[];
   }
