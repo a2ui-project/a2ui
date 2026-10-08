@@ -472,10 +472,19 @@
 </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#renderer-function">
+<a class="md-nav__link" href="#function">
 <span class="md-ellipsis">
       
-        Renderer function
+        Function
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#function-call">
+<span class="md-ellipsis">
+      
+        Function call
       
     </span>
 </a>
@@ -1399,10 +1408,19 @@
 </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#renderer-function">
+<a class="md-nav__link" href="#function">
 <span class="md-ellipsis">
       
-        Renderer function
+        Function
+      
+    </span>
+</a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#function-call">
+<span class="md-ellipsis">
+      
+        Function call
       
     </span>
 </a>
@@ -1595,7 +1613,7 @@
 <ol>
 <li>Itemized renderer capabilities:<ul>
 <li>List of components that the agent can use to generate UI</li>
-<li>List of functions that can be invoked by renderer</li>
+<li>List of functions that can be called by the renderer or the agent</li>
 <li>Styles and themes</li>
 </ul>
 </li>
@@ -1654,52 +1672,65 @@
 <h3 id="data-reference">Data reference<a class="headerlink" href="#data-reference" title="Permanent link">¶</a></h3>
 <p>In a component definition, a reference to a data element, resolved either by a path in the data model or by value.</p>
 <p>See the <a href="https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9/catalogs/basic/catalog.json#L23">example in the basic catalog</a>.</p>
-<h3 id="renderer-function">Renderer function<a class="headerlink" href="#renderer-function" title="Permanent link">¶</a></h3>
-<p>A function that the renderer provides for the agent to invoke when needed.</p>
-<p>A renderer function is not the same as an LLM tool:</p>
+<h3 id="function">Function <a id="renderer-function"></a><a class="headerlink" href="#function" title="Permanent link">¶</a></h3>
+<p>A named, catalog-defined operation with a declared argument signature and return type. Functions execute logic without sending raw executable code between the agent and renderer.</p>
+<p>Functions are defined in catalogs and can execute on either the renderer or the agent:</p>
+<ul>
+<li><strong>Renderer function</strong>: A function executed on the <strong>renderer</strong>. Renderer functions handle client-side tasks such as formatting values, validating input fields, navigating, or controlling local UI state. The agent can also request the renderer to execute a function (for example, to display a notification or trigger device feedback).</li>
+<li><strong>Agent function</strong>: A function executed on the <strong>agent</strong>. When the UI requires server-side logic (such as checking inventory, querying a database, or verifying credentials), the renderer requests the agent to execute the function and return the result.</li>
+</ul>
+<p>An A2UI function is not the same as an LLM tool:</p>
 <table>
 <thead>
 <tr>
 <th>Feature</th>
-<th>Renderer function</th>
+<th>A2UI function</th>
 <th>LLM tool invocation</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Executor</td>
-<td>A2UI renderer</td>
-<td>LLM requests the invocation without concern about execution details.</td>
+<td>A2UI renderer (for renderer functions) or agent (for agent functions).</td>
+<td>Model host or agent environment outside the UI.</td>
 </tr>
 <tr>
 <td>Timing</td>
-<td>After the agent to renderer message is sent.</td>
-<td>Before the agent to renderer message is sent.</td>
+<td>During UI rendering, on user interaction, or as a request between turns.</td>
+<td>Before or during model response generation.</td>
 </tr>
 <tr>
 <td>Purpose</td>
-<td>UI logic: validation, visibility toggles, formatting.</td>
-<td>Reasoning, data fetching, backend actions.</td>
+<td>UI logic: validation, formatting, client actions, or app operations.</td>
+<td>Model reasoning, web search, database retrieval.</td>
 </tr>
 <tr>
 <td>Definition</td>
-<td>Registered in renderer function registry and advertised in catalog</td>
-<td>Defined in ToolDefinition, passed to the LLM.</td>
+<td>Declared in an A2UI catalog with argument and return signatures.</td>
+<td>Declared in a tool definition passed to the model.</td>
 </tr>
 <tr>
 <td>State access</td>
-<td>Access to DataContext and input values.</td>
-<td>Access to external APIs, databases, and services, but not to the UI.</td>
+<td>Scoped to surface data context, local UI state, or catalog methods.</td>
+<td>Scoped to external tools, APIs, and services.</td>
 </tr>
 </tbody>
 </table>
-<p>See the <a href="https://github.com/a2ui-project/a2ui/blob/main/specification/v0_9_1/json/common_types.json#L200">example in common types</a>.</p>
-<h3 id="action">Action<a class="headerlink" href="#action" title="Permanent link">¶</a></h3>
-<p>A container for an interaction triggered by the user in the UI. Actions come in two types:</p>
+<p>For details on how functions are routed and executed between the agent and renderer, see <a href="../../specification/v1.0-a2ui/#functions-in-a2ui-content-execution">Functions in A2UI in the protocol specification</a>.</p>
+<h3 id="function-call">Function call<a class="headerlink" href="#function-call" title="Permanent link">¶</a></h3>
+<p>An invocation of a catalog function with a set of arguments.</p>
+<p>Function calls appear in several contexts:</p>
 <ul>
-<li><strong>Event</strong>: Dispatched to the agent for processing (e.g., clicking "Submit").</li>
-<li><strong>Function</strong>: Executed locally on the renderer (e.g., opening a URL).</li>
+<li><strong>Dynamic value bindings</strong>: The renderer calls a renderer function to calculate a component property value dynamically (for example, formatting a date or currency).</li>
+<li><strong>Validation rules</strong>: The renderer calls a renderer function to validate user input before submission.</li>
+<li><strong>Component interaction triggers</strong>: The renderer calls a renderer function when a user interacts with a component (for example, opening a URL).</li>
+<li><strong>Remote procedure calls (RPCs)</strong>: The agent requests the renderer to execute a renderer function, or the renderer requests the agent to execute an agent function.</li>
 </ul>
+<p>Function calls execute locally when the target function is implemented in the caller's environment. When the function resides on the other side of the agent-renderer boundary, the call is communicated over the protocol. In architectures where the agent and renderer run within the same process (such as a standalone desktop application), these calls can execute in-process without network transport.</p>
+<h3 id="action">Action<a class="headerlink" href="#action" title="Permanent link">¶</a></h3>
+<p>An event triggered by a user interaction with a UI component that is dispatched from the renderer to the agent.</p>
+<p>An action informs the agent that an interaction occurred (such as clicking a button or selecting an option). It conveys the user's intent along with an action name, relevant values extracted from the renderer data model, and an optional description of the action.</p>
+<p>Actions represent user intent communicated back to the agent to drive conversational turns or business logic. In contrast, when a component interaction triggers behavior directly without notifying the agent (such as opening a URL or running a client-side calculation), it performs a <a href="#function-call">function call</a> rather than dispatching an action.</p>
 <p>See the <a href="../actions/">detailed guide on actions</a>.</p>
 <h2 id="a2ui-agent-terms">A2UI agent terms<a class="headerlink" href="#a2ui-agent-terms" title="Permanent link">¶</a></h2>
 <p>Terms used to describe agent architecture and the Agent SDK.</p>
