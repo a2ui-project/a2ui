@@ -17,28 +17,22 @@
 # pylint: disable=g-importing-member, line-too-long
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig, VERSION_0_9, remove_strict_validation
+from a2ui.schema import CatalogConfig, VERSION_0_9
 from agent import ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
 
 
 if __name__ == "__main__":
     version = VERSION_0_9
+    rizzcharts_catalog = CatalogConfig.from_path(
+        name="rizzcharts",
+        catalog_path=f"../catalog_schemas/{version}/rizzcharts_catalog_definition.json",
+    ).to_catalog(protocol_version=version)
+    basic_catalog = CatalogConfig.from_catalog(
+        "basic", BasicCatalog(version)
+    ).to_catalog(protocol_version=version)
     inference_format = DirectJsonFormat(
-        version,
-        catalogs=[
-            CatalogConfig.from_path(
-                name="rizzcharts",
-                catalog_path="rizzcharts_catalog_definition.json",
-                examples_path=f"../examples/rizzcharts_catalog/{version}",
-            ),
-            CatalogConfig.from_catalog(
-                "basic",
-                BasicCatalog(version),
-                examples_path=f"../examples/standard_catalog/{version}",
-            ),
-        ],
-        accepts_inline_catalogs=True,
-        schema_modifiers=[remove_strict_validation],
+        [rizzcharts_catalog, basic_catalog],
+        examples_path=f"../examples/rizzcharts_catalog/{version}",
     )
 
     # Generate prompt for rizzcharts catalog
@@ -56,16 +50,15 @@ if __name__ == "__main__":
 
     # Also validate standard catalog examples
     print("Validating standard catalog examples...")
-    # We can trigger this by selecting the basic catalog
-    std_prompt = inference_format.generate_system_prompt(
+    # We can trigger this with a format that reads the standard catalog examples
+    std_format = DirectJsonFormat(
+        [basic_catalog, rizzcharts_catalog],
+        examples_path=f"../examples/standard_catalog/{version}",
+    )
+    std_prompt = std_format.generate_system_prompt(
         role_description=ROLE_DESCRIPTION,
         workflow_description=WORKFLOW_DESCRIPTION,
         ui_description=UI_DESCRIPTION,
-        client_ui_capabilities={
-            "supported_catalog_ids": [
-                "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-            ]
-        },
         include_schema=False,
         include_examples=True,
         validate_examples=True,

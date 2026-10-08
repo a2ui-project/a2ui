@@ -125,6 +125,58 @@ void main() {
     });
   });
 
+  group('MessageProcessor available catalogs', () {
+    Catalog<ComponentApi, FunctionImplementation> catalogNamed(
+      String id, {
+      String? protocolVersion,
+    }) =>
+        Catalog<ComponentApi, FunctionImplementation>(
+          id: id,
+          components: const [],
+          protocolVersion: protocolVersion,
+        );
+
+    Map<String, Catalog<ComponentApi, FunctionImplementation>> availableFor(
+      A2uiProtocolVersion version, {
+      required String catalogId,
+    }) {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [
+          catalogNamed('modern', protocolVersion: 'v1.0'),
+          catalogNamed('legacy'),
+        ],
+        defaultVersion: version,
+        // This package embeds no v1.0 common types; the surface's catalog
+        // set, not schema checking, is the subject here.
+        commonTypesSchema: const {},
+      );
+      processor.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(
+            version: version.jsonValue,
+            surfaceId: 's1',
+            catalogId: catalogId,
+          ),
+        ]),
+      );
+      return processor.groupModel.getSurface('s1')!.availableCatalogs;
+    }
+
+    test('a v1.0 surface excludes unversioned catalogs', () {
+      expect(
+        availableFor(A2uiProtocolVersion.v1_0, catalogId: 'modern').keys,
+        ['modern'],
+      );
+    });
+
+    test('a v0.9 surface includes unversioned catalogs', () {
+      expect(
+        availableFor(A2uiProtocolVersion.v0_9, catalogId: 'legacy').keys,
+        ['legacy'],
+      );
+    });
+  });
+
   group('MessageProcessor', () {
     late MinimalCatalog catalog;
     late MessageProcessor processor;
@@ -329,7 +381,7 @@ void main() {
 
       processor.getClientCapabilities(includeInlineCatalogs: true);
 
-      // _processRefs mutates maps in-place to replace REF: descriptions
+      // _processRefs mutates maps in-place to replace commonTypesRef metadata
       // with $ref pointers. If toJsonMap uses a shallow copy, the shared
       // CommonSchemas statics are corrupted.
       expect(
@@ -748,7 +800,7 @@ void main() {
     test('NodeResolver roots the tree at the surface rootId', () {
       final surface = SurfaceModel<ComponentApi>(
         's1',
-        catalog: catalog,
+        defaultCatalog: catalog,
         rootId: 'main',
       );
       final resolver = NodeResolver<ComponentApi>(surface);
@@ -1067,7 +1119,7 @@ void main() {
       ]);
       final SurfaceModel<ComponentApi> surface =
           processor.groupModel.getSurface('s1')!;
-      expect(surface.catalog.id, 'v10');
+      expect(surface.defaultCatalog!.id, 'v10');
       expect(surface.metadata, {
         'extensions': {'trace': true},
       });

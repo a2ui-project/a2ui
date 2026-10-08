@@ -44,7 +44,7 @@ void main() {
 
     setUp(() {
       catalog = MinimalCatalog();
-      surface = SurfaceModel('s1', catalog: catalog);
+      surface = SurfaceModel('s1', defaultCatalog: catalog);
     });
 
     test('resolves dynamic properties', () {
@@ -105,7 +105,7 @@ void main() {
         errors.clear();
         spySurface = SurfaceModel(
           's2',
-          catalog: Catalog<ComponentApi, FunctionImplementation>(
+          defaultCatalog: Catalog<ComponentApi, FunctionImplementation>(
             id: 'test',
             components: [MinimalButtonApi()],
             functions: [
@@ -434,7 +434,7 @@ void main() {
         ],
       );
       final SurfaceModel<ComponentApi> customSurface =
-          SurfaceModel('s-val', catalog: customCatalog);
+          SurfaceModel('s-val', defaultCatalog: customCatalog);
       customSurface.dataModel.set('/r1', {'valid': true});
       customSurface.dataModel.set('/r2', {
         'valid': false,
@@ -716,7 +716,7 @@ void main() {
       () {
         final v1Surface = SurfaceModel<ComponentApi>(
           's-v1',
-          catalog: catalog,
+          defaultCatalog: catalog.copyWith(protocolVersion: 'v1.0'),
           protocolVersion: 'v1.0',
         );
         addTearDown(v1Surface.dispose);
@@ -765,8 +765,9 @@ void main() {
         final v1Surface = SurfaceModel<ComponentApi>(
           's-v1-fn',
           protocolVersion: 'v1.0',
-          catalog: Catalog<ComponentApi, FunctionImplementation>(
+          defaultCatalog: Catalog<ComponentApi, FunctionImplementation>(
             id: 'test-v1',
+            protocolVersion: 'v1.0',
             components: [MinimalButtonApi()],
             functions: [
               _SpyFunction('spy', (args) {
@@ -851,7 +852,7 @@ void main() {
     test('v1.0 ChildListTemplate expands items using bindingFor', () {
       final v1Surface = SurfaceModel<ComponentApi>(
         's-v1-tpl',
-        catalog: catalog,
+        defaultCatalog: catalog.copyWith(protocolVersion: 'v1.0'),
         protocolVersion: 'v1.0',
       );
       addTearDown(v1Surface.dispose);

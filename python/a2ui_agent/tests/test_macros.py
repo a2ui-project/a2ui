@@ -14,6 +14,7 @@
 
 """Exhaustive unit tests for A2UI Macros."""
 
+import copy
 from enum import Enum
 from typing import Any, Literal, Optional, Sequence, Union
 
@@ -39,9 +40,10 @@ from a2ui.builder.v0_9.catalogs.basic import (
     Row,
     Text,
 )
+from a2ui.catalog_transformers import ComponentPruningTransformer
+from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.core.schema.v0_9 import UpdateComponentsMessage, UpdateComponents
-from a2ui.schema.catalog import A2uiCatalog
 from a2ui.transformers.macros import (
     MacroExpander,
     macro,
@@ -190,22 +192,15 @@ def test_macro_naming_conventions():
     assert meta2.name == "CustomAlert"
 
 
-def make_test_catalog(components: Optional[dict[str, Any]] = None) -> A2uiCatalog:
+def make_test_catalog(components: Optional[dict[str, Any]] = None) -> CatalogApi:
     from a2ui.core.basic_catalog import BasicCatalog
-    from a2ui.schema.catalog import A2uiCatalog
-    from a2ui.schema.utils import load_agent_to_renderer_schema, load_common_types_schema
 
-    cat_schema = (
-        {"components": components}
-        if components is not None
-        else BasicCatalog("0.9.1").catalog_schema
-    )
-    return A2uiCatalog(
-        version="0.9.1",
-        name="test",
-        catalog_schema=cat_schema,
-        s2c_schema=load_agent_to_renderer_schema("0.9.1"),
-        common_types_schema=load_common_types_schema("0.9.1"),
+    if components is None:
+        return BasicCatalog("0.9.1")
+    return Catalog.from_json(
+        catalog_schema={"catalogId": "test", "components": components},
+        protocol_version="0.9.1",
+        catalog_id="test",
     )
 
 
@@ -361,9 +356,7 @@ def test_processor_argument_coercion():
 def test_macro_parser_parse_response():
     """Verifies that MacroParser.parse_response returns ResponsePart objects with fully expanded macros."""
     from a2ui.core.basic_catalog import BasicCatalog
-    from a2ui.schema.catalog import A2uiCatalog
-    from a2ui.schema.utils import load_agent_to_renderer_schema, load_common_types_schema
-    from a2ui.inference_formats.experimental.express.format import ExpressFormat
+    from a2ui.inference_formats.experimental.express import ExpressFormat
 
     @macro
     def UserInfoCard(name: str, role: str = "Engineer") -> Card:
@@ -376,13 +369,7 @@ def test_macro_parser_parse_response():
             )
         )
 
-    cat = A2uiCatalog(
-        version="0.9.1",
-        name="basic",
-        catalog_schema=BasicCatalog("0.9.1").catalog_schema,
-        s2c_schema=load_agent_to_renderer_schema("0.9.1"),
-        common_types_schema=load_common_types_schema("0.9.1"),
-    )
+    cat = BasicCatalog("0.9.1")
 
     expander = MacroExpander([UserInfoCard])
     inference_cat = expander.transform_to_inference_catalog(cat)
@@ -442,12 +429,15 @@ def test_macro_catalog_pruning():
     expander = MacroExpander([MiniBadge])
     inference_cat = expander.transform_to_inference_catalog(base_cat)
     # Prune primitives so model only sees MiniBadge and Text:
-    pruned_cat = inference_cat.with_pruning(allowed_components=["MiniBadge", "Text"])
-    comps = pruned_cat.catalog_schema["components"]
-    assert "Button" not in comps
-    assert "Card" not in comps
-    assert "Text" in comps
-    assert "MiniBadge" in comps
+    pruned_cat = ComponentPruningTransformer(["MiniBadge", "Text"]).transform(
+        inference_cat
+    )
+    schema = pruned_cat.catalog_schema
+    assert set(schema["components"]) == {"MiniBadge", "Text"}
+    assert {ref["$ref"] for ref in schema["$defs"]["anyComponent"]["oneOf"]} == {
+        "#/components/MiniBadge",
+        "#/components/Text",
+    }
 
 
 def test_macro_schema_any_and_dict_types():
@@ -570,7 +560,7 @@ def test_macro_base_catalog_collision_raises_error():
     base_cat = make_test_catalog({"Text": {"type": "object"}})
 
     expander = MacroExpander([CollidingText])
-    with pytest.raises(ValueError, match="collides with an existing component"):
+    with pytest.raises(A2uiCatalogError, match="collides with an existing component"):
         expander.transform_to_inference_catalog(base_cat)
 
 
@@ -642,7 +632,7 @@ def test_macro_expander_passthrough_components():
     assert "Text" not in inf_only_macros.catalog_schema["components"]
 
 
-def test_macro_expander_emits_common_ref_prefix():
+def test_macro_inference_catalog_localizes_common_type_refs():
     @macro
     def DynCard(label: DynamicString) -> Card:
         return Card(child=Text(text="hi"))
@@ -655,18 +645,20 @@ def test_macro_expander_emits_common_ref_prefix():
             "properties": {"text": {"$ref": f"{v09_prefix}DynamicString"}},
         }
     })
+    base_schema = copy.deepcopy(cat_v09.catalog_schema)
     exp = MacroExpander([DynCard])
     inf = exp.transform_to_inference_catalog(cat_v09)
-    # Macros unconditionally emit standard relative common_types refs
+    # Catalog.from_json normalizes external common_types refs to local #/$defs/ pointers
     assert (
         inf.catalog_schema["components"]["DynCard"]["properties"]["label"]["$ref"]
-        == "common_types.json#/$defs/DynamicString"
+        == "#/$defs/DynamicString"
     )
-    # Base components remain untouched
     assert (
         inf.catalog_schema["components"]["Text"]["properties"]["text"]["$ref"]
-        == f"{v09_prefix}DynamicString"
+        == "#/$defs/DynamicString"
     )
+    # The base catalog remains untouched
+    assert cat_v09.catalog_schema == base_schema
 
 
 def test_macro_expander_to_catalog():
@@ -678,8 +670,8 @@ def test_macro_expander_to_catalog():
     exp = MacroExpander([MetricBadge])
     macro_cat = exp.to_catalog()
 
-    assert macro_cat.name == "macros"
-    assert macro_cat.version == "0.9.1"
+    assert macro_cat.catalog_id == "https://a2ui.org/catalogs/macros"
+    assert macro_cat.protocol_version == "0.9.1"
     assert "MetricBadge" in macro_cat.catalog_schema["components"]
     assert macro_cat.catalog_schema["catalogId"] == "https://a2ui.org/catalogs/macros"
     assert (

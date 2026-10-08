@@ -294,9 +294,23 @@ void _checkSurfaces(
 
     if (expectations.containsKey('catalogId')) {
       expect(
-        surface!.catalog.id,
+        surface!.defaultCatalog?.id,
         expectations['catalogId'],
         reason: '$name: $surfaceId catalogId',
+      );
+    }
+    if (expectations.containsKey('rootId')) {
+      expect(
+        surface!.rootId,
+        expectations['rootId'],
+        reason: '$name: $surfaceId rootId',
+      );
+    }
+    if (expectations.containsKey('metadata')) {
+      expect(
+        surface!.metadata,
+        equals(expectations['metadata']),
+        reason: '$name: $surfaceId metadata',
       );
     }
     if (expectations.containsKey('theme')) {

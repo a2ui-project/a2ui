@@ -49,6 +49,7 @@ exclude = [
   "aistudio\\.google\\.com",
   "opal\\.google",
   "gemini\\.google\\.com",
+  "aistudio\\.google\\.com",
   # Known-dead external references (verified 404, no published replacement).
   # Excluded to keep CI green; drop the referencing content if gone for good.
   "github\\.com/orgs/community/discussions/187776",
@@ -62,6 +63,8 @@ exclude = [
   # (/llm-evaluation/ redirects to itself), so the checker exhausts its redirect
   # budget and reports a failure that no URL rewrite here can resolve.
   "arize\\.com/llm-evaluation",
+  # Unpublished workspace packages (404 until first pub.dev release)
+  "pub\\.dev/packages/a2ui_cli",
 ]
 
 # Don't descend into dependency or build-output directories.

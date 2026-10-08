@@ -9,11 +9,27 @@ The following directories contain the base protocol logic, parsing, and schema o
 
 ### Schema Management (`src/a2ui/schema`)
 
-- **`manager.py`**: The `A2uiSchemaManager` handles loading specification
-  schemas, managing catalogs, and generating system prompts for LLMs.
-- **`catalog.py`**: Defines `A2uiCatalog` and `CatalogConfig` for handling
-  component libraries. `A2uiCatalog.validate_components` checks components
-  against the catalog schema with the `a2ui-core` `PayloadValidator`.
+- **`catalog.py`**: Defines `CatalogConfig`, which loads a component catalog
+  as an `a2ui.core.Catalog`, and `load_examples`, which reads few-shot
+  examples and can validate them against the catalogs.
+
+### Catalog transformers (`src/a2ui/catalog_transformers`)
+
+- **`pruning.py`**: `ComponentPruningTransformer` and
+  `FunctionPruningTransformer` return a copy of a catalog that keeps only the
+  allowed components or functions. Pass them to `CatalogConfig` as
+  `transformers`.
+
+### Utilities (`src/a2ui/utils`)
+
+- **`catalog_resolver.py`**: `resolve_catalogs` returns the catalogs that are
+  active for the capabilities that a renderer sent.
+- **`schema_pruning.py`**: `prune_messages_schema` and
+  `prune_common_types_schema` reduce the protocol schemas to the allowed
+  messages and the common types that are referenced.
+- **`validation.py`**: `validate_payload` checks a payload the way a renderer
+  holding the catalogs would, and raises `A2uiValidationError` if the
+  renderer would reject it.
 
 ### Parser (`src/a2ui/parser`)
 

@@ -14,16 +14,59 @@
 
 import 'dart:async';
 
+import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
+import '../primitives/semver.dart';
 import 'catalog.dart';
 import 'component_model.dart';
 import 'data_model.dart';
 import 'messages.dart';
 
+/// A non-fatal condition on a surface, emitted on [SurfaceModel.onWarning].
+class A2uiWarning {
+  /// A machine-readable code, such as `'MISSING_DATA_BINDING'`.
+  final String code;
+
+  /// A human-readable explanation.
+  final String message;
+
+  /// The absolute data model path the warning concerns, if any.
+  final String? path;
+
+  /// The surface the warning came from. [SurfaceModel.dispatchWarning] sets
+  /// it.
+  final String? surfaceId;
+
+  const A2uiWarning({
+    required this.code,
+    required this.message,
+    this.path,
+    this.surfaceId,
+  });
+
+  @override
+  String toString() => 'A2uiWarning($code: $message)';
+}
+
 /// The state model for a single UI surface.
 class SurfaceModel<T extends ComponentApi> {
   final String id;
-  final Catalog<T, FunctionImplementation> catalog;
+
+  /// The catalog that resolves components and function calls naming no
+  /// `catalogId` of their own.
+  ///
+  /// Null when the surface was created without a catalog, in which case every
+  /// item must name its catalog (see [resolveCatalog]).
+  final Catalog<T, FunctionImplementation>? defaultCatalog;
+
+  /// Every catalog an item on this surface may name by `catalogId`, keyed by
+  /// id, including [defaultCatalog].
+  final Map<String, Catalog<T, FunctionImplementation>> availableCatalogs;
+
+  /// Surface-level metadata from `createSurface`, holding at most an
+  /// `extensions` object.
+  final Map<String, dynamic>? metadata;
+
   final Map<String, dynamic> theme;
   final bool sendDataModel;
   final String? protocolVersion;
@@ -34,16 +77,12 @@ class SurfaceModel<T extends ComponentApi> {
   /// `MessageProcessor` checks for it when `ValidationConfig.rootId` is null.
   final String rootId;
 
-  /// The surface-level metadata from `createSurface`, holding at most an
-  /// `extensions` object, or null when it carried none. Defined from v1.0
-  /// only.
-  Map<String, Object?>? metadata;
-
   final DataModel dataModel;
   final SurfaceComponentsModel componentsModel;
 
   final _onAction = EventNotifier<A2uiClientAction>();
   final _onError = EventNotifier<A2uiClientError>();
+  final _onWarning = EventNotifier<A2uiWarning>();
 
   /// Fires whenever an action is dispatched from this surface.
   EventListenable<A2uiClientAction> get onAction => _onAction;
@@ -51,15 +90,98 @@ class SurfaceModel<T extends ComponentApi> {
   /// Fires whenever an error occurs on this surface.
   EventListenable<A2uiClientError> get onError => _onError;
 
+  /// Fires whenever a non-fatal warning occurs on this surface.
+  EventListenable<A2uiWarning> get onWarning => _onWarning;
+
+  /// Creates a surface whose items resolve against [defaultCatalog] or, when
+  /// they name one, against a catalog in [availableCatalogs].
+  ///
+  /// [defaultCatalog] is added to [availableCatalogs] when it is not already
+  /// there. `MessageProcessor` passes its catalogs filtered to the surface's
+  /// protocol version.
+  ///
+  /// Throws [A2uiCatalogError] when two different catalogs share an id, or
+  /// when a catalog's [Catalog.protocolVersion] is incompatible with
+  /// [protocolVersion]: one surface cannot mix protocol versions.
   SurfaceModel(
     this.id, {
-    required this.catalog,
+    this.defaultCatalog,
+    Iterable<Catalog<T, FunctionImplementation>> availableCatalogs = const [],
     this.theme = const {},
     this.sendDataModel = false,
     this.protocolVersion,
     this.rootId = 'root',
-  })  : dataModel = DataModel(),
-        componentsModel = SurfaceComponentsModel(catalog: catalog);
+    this.metadata,
+  })  : availableCatalogs = Map.unmodifiable(
+          _indexCatalogs(
+            id,
+            protocolVersion,
+            [
+              if (defaultCatalog != null) defaultCatalog,
+              ...availableCatalogs,
+            ],
+          ),
+        ),
+        dataModel = DataModel(),
+        componentsModel = SurfaceComponentsModel(catalog: defaultCatalog);
+
+  static Map<String, Catalog<T, FunctionImplementation>>
+      _indexCatalogs<T extends ComponentApi>(
+    String surfaceId,
+    String? protocolVersion,
+    Iterable<Catalog<T, FunctionImplementation>> catalogs,
+  ) {
+    final byId = <String, Catalog<T, FunctionImplementation>>{};
+    for (final catalog in catalogs) {
+      final Catalog<T, FunctionImplementation>? existing = byId[catalog.id];
+      if (existing != null) {
+        if (identical(existing, catalog)) continue;
+        throw A2uiCatalogError(
+          "Surface '$surfaceId' was given two catalogs with id "
+          "'${catalog.id}'.",
+          catalogId: catalog.id,
+        );
+      }
+      final String? catalogVersion = catalog.protocolVersion;
+      if (protocolVersion != null &&
+          !isCatalogVersionCompatible(catalogVersion, protocolVersion)) {
+        final described = catalogVersion == null
+            ? "unversioned catalog '${catalog.id}'"
+            : "catalog '${catalog.id}' ($catalogVersion)";
+        throw A2uiCatalogError(
+          'Protocol version mismatch: cannot mix $described with surface '
+          'version $protocolVersion.',
+          catalogId: catalog.id,
+        );
+      }
+      byId[catalog.id] = catalog;
+    }
+    return byId;
+  }
+
+  /// The catalog a component or function call resolves against.
+  ///
+  /// [catalogId] is the id the item names for itself. The order is the one
+  /// v1.0 specifies: the named catalog, which must be in
+  /// [availableCatalogs]; otherwise [defaultCatalog]. There is no fallback to
+  /// a sole available catalog.
+  ///
+  /// Throws [A2uiCatalogError] when [catalogId] is not in
+  /// [availableCatalogs], or when it is null and the surface has no default.
+  Catalog<T, FunctionImplementation> resolveCatalog(String? catalogId) {
+    if (catalogId != null) {
+      return availableCatalogs[catalogId] ??
+          (throw A2uiCatalogError(
+            "Catalog '$catalogId' is not supported by surface '$id'.",
+            catalogId: catalogId,
+          ));
+    }
+    return defaultCatalog ??
+        (throw A2uiCatalogError(
+          "Surface '$id' has no default catalog, so an item that names no "
+          'catalogId cannot be resolved.',
+        ));
+  }
 
   /// Emits an agent-bound action from this surface on [onAction].
   ///
@@ -122,6 +244,7 @@ class SurfaceModel<T extends ComponentApi> {
       context = const <String, dynamic>{};
     }
 
+    final Object? catalogId = event['catalogId'] ?? payload['catalogId'];
     final action = A2uiClientAction(
       name: name,
       surfaceId: id,
@@ -131,6 +254,7 @@ class SurfaceModel<T extends ComponentApi> {
       userMessage: event['userMessage'] is String
           ? event['userMessage'] as String
           : null,
+      catalogId: catalogId is String && catalogId.isNotEmpty ? catalogId : null,
     );
     _onAction.emit(action);
     // Only event payloads are emitted; functionCall payloads are not
@@ -142,12 +266,25 @@ class SurfaceModel<T extends ComponentApi> {
     _onError.emit(error);
   }
 
+  /// Emits [warning] on [onWarning], stamped with this surface's id.
+  Future<void> dispatchWarning(A2uiWarning warning) async {
+    _onWarning.emit(
+      A2uiWarning(
+        code: warning.code,
+        message: warning.message,
+        path: warning.path,
+        surfaceId: id,
+      ),
+    );
+  }
+
   /// Disposes of the surface and its resources.
   void dispose() {
     dataModel.dispose();
     componentsModel.dispose();
     _onAction.dispose();
     _onError.dispose();
+    _onWarning.dispose();
   }
 }
 

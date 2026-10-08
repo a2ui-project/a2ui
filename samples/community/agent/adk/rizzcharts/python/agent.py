@@ -12,27 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
-from pathlib import Path
-import pkgutil
+import re
+from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a import get_a2ui_agent_extension
-from a2ui.adk import (
-    A2uiCatalogProvider,
-    A2uiEnabledProvider,
-    A2uiExamplesProvider,
-    SendA2uiToClientToolset,
-)
+from a2ui.adk import SendA2uiToClientToolset
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.schema import CatalogConfig, VERSION_0_8, VERSION_0_9
+from a2ui.utils import resolve_catalogs
 from google.adk.agents.llm_agent import LlmAgent
-from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.planners.built_in_planner import BuiltInPlanner
 from google.genai import types
-from pydantic import PrivateAttr
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
@@ -94,6 +87,53 @@ You will also use layout components like `Column` (as the `root`) and `Text` (to
 """
 
 
+def _renderer_capabilities(
+    version: str,
+    client_ui_capabilities: Mapping[str, Any] | None,
+    catalog_ids: Sequence[str],
+) -> dict[str, Any] | None:
+    """Returns the client's capabilities keyed by protocol version.
+
+    Clients may send the bare capabilities entry, and may leave out
+    `supportedCatalogIds`, which then names every catalog of the agent.
+    Capabilities that are already keyed by protocol version are only read
+    under the negotiated version's key.
+
+    Args:
+        version: The negotiated A2UI protocol version.
+        client_ui_capabilities: The capabilities that the client sent.
+        catalog_ids: The ids of the agent's catalogs.
+
+    Returns:
+        The capabilities for `a2ui.utils.resolve_catalogs`, or `None` if the
+        client sent none for the negotiated version.
+    """
+    if not client_ui_capabilities:
+        return None
+    key = f"v{version}"
+    raw: Any = client_ui_capabilities
+    if any(_is_version_key(k) for k in client_ui_capabilities):
+        raw = client_ui_capabilities.get(key)
+        if raw is None:
+            return None
+        if not isinstance(raw, Mapping):
+            # Left for `resolve_catalogs` to reject with a validation error.
+            return {key: raw}
+    entry = dict(raw)
+    if "supportedCatalogIds" not in entry and "supported_catalog_ids" not in entry:
+        entry["supportedCatalogIds"] = list(catalog_ids)
+    return {key: entry}
+
+
+def _is_version_key(key: Any) -> bool:
+    """Whether a capabilities key names a protocol version, such as `v0.9`."""
+    return (
+        isinstance(key, str)
+        and key.startswith("v")
+        and bool(re.fullmatch(r"\d+(\.\d+)*", key[1:]))
+    )
+
+
 class RizzchartsAgent:
     """An agent that runs an ecommerce dashboard"""
 
@@ -120,6 +160,9 @@ class RizzchartsAgent:
 
         self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
+        self._accepts_inline_catalogs = True
+        self._catalog_configs: dict[str, list[CatalogConfig]] = {}
+        self._examples_paths: dict[str, dict[str, str | None]] = {}
         self._inference_formats: dict[str, DirectJsonFormat] = {}
         self._ui_runners: dict[str, Runner] = {}
 
@@ -145,29 +188,60 @@ class RizzchartsAgent:
             return None
         return self._inference_formats[version]
 
-    def _build_inference_format(self, version: str) -> DirectJsonFormat:
+    def resolve_inference_format(
+        self, version: str, client_ui_capabilities: Mapping[str, Any] | None
+    ) -> DirectJsonFormat:
+        """Returns a format with the catalogs active for the client's capabilities.
+
+        Args:
+            version: The negotiated A2UI protocol version.
+            client_ui_capabilities: The capabilities that the client sent.
+
+        Returns:
+            A format whose first catalog is the client's preferred one, with the
+            examples of that catalog.
+        """
+        catalogs = resolve_catalogs(
+            self._catalog_configs[version],
+            _renderer_capabilities(
+                version,
+                client_ui_capabilities,
+                [c.catalog_id for c in self._inference_formats[version].catalogs],
+            ),
+            accepts_inline_catalogs=self._accepts_inline_catalogs,
+        )
         return DirectJsonFormat(
-            version=version,
-            catalogs=[
-                CatalogConfig.from_path(
-                    name="rizzcharts",
-                    catalog_path=(
-                        f"../catalog_schemas/{version}/rizzcharts_catalog_definition.json"
-                    ),
-                    examples_path=f"../examples/rizzcharts_catalog/{version}",
-                ),
-                CatalogConfig.from_catalog(
-                    "basic",
-                    BasicCatalog(version),
-                    examples_path=f"../examples/standard_catalog/{version}",
-                ),
-            ],
-            accepts_inline_catalogs=True,
+            catalogs,
+            examples_path=self._examples_paths[version].get(catalogs[0].catalog_id),
         )
 
-        self._a2ui_enabled_provider = a2ui_enabled_provider
-        self._a2ui_catalog_provider = a2ui_catalog_provider
-        self._a2ui_examples_provider = a2ui_examples_provider
+    def _build_inference_format(self, version: str) -> DirectJsonFormat:
+        configs = [
+            CatalogConfig.from_path(
+                name="rizzcharts",
+                catalog_path=(
+                    f"../catalog_schemas/{version}/rizzcharts_catalog_definition.json"
+                ),
+                examples_path=f"../examples/rizzcharts_catalog/{version}",
+            ),
+            CatalogConfig.from_catalog(
+                "basic",
+                BasicCatalog(version),
+                examples_path=f"../examples/standard_catalog/{version}",
+            ),
+        ]
+        catalogs = [config.to_catalog(protocol_version=version) for config in configs]
+        # Build the catalogs once with the version fixed, so that per-request
+        # resolution reuses them as they are.
+        self._catalog_configs[version] = [
+            CatalogConfig.from_catalog(config.name, catalog)
+            for config, catalog in zip(configs, catalogs)
+        ]
+        self._examples_paths[version] = {
+            catalog.catalog_id: config.examples_path
+            for config, catalog in zip(configs, catalogs)
+        }
+        return DirectJsonFormat(catalogs, examples_path=configs[0].examples_path)
 
     def _build_agent_card(self) -> AgentCard:
         """Returns the AgentCard defining this agent's metadata and skills.
@@ -177,11 +251,11 @@ class RizzchartsAgent:
         """
         extensions = []
         if self._inference_formats:
-            for version, sm in self._inference_formats.items():
+            for version, fmt in self._inference_formats.items():
                 ext = get_a2ui_agent_extension(
                     version,
-                    sm.accepts_inline_catalogs,
-                    sm.supported_catalog_ids,
+                    self._accepts_inline_catalogs,
+                    [c.catalog_id for c in fmt.catalogs],
                 )
                 extensions.append(ext)
 

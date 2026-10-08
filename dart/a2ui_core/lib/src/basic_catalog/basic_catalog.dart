@@ -93,6 +93,8 @@ abstract final class BasicCatalog {
       schemaId: published.schemaId,
       title: published.title,
       description: published.description,
+      protocolVersion: published.protocolVersion,
+      instructions: published.instructions,
       components: const [],
       functions: [
         for (final FunctionApi signature in published.functions.values)

@@ -24,7 +24,9 @@ import 'suites.dart';
 /// The suites are written against v1.0, and this SDK reads and writes v0.9,
 /// so the harness lowers each payload before the parser reads it and lifts
 /// what the parser returns, as `suites.dart` describes. The direct JSON
-/// suites write each message on its own, so nothing is joined.
+/// suites write each message on its own, so nothing is joined. A case whose
+/// catalog declares v1.0 runs with `bufferIncompleteComponents` on, as a
+/// v1.0 agent configures it.
 void main() {
   for (final suite in [
     'compiler',
@@ -79,6 +81,7 @@ InferenceFormat _format(Map<String, Object?> testCase) {
     progressiveKeys: {
       ...?(args['progressive_keys'] as List<Object?>?)?.cast<String>(),
     },
+    bufferIncompleteComponents: caseDeclaresV1(args),
   ).createFormat(
     caseCatalogs(args),
     examples: [

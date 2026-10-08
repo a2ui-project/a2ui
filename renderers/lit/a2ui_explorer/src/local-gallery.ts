@@ -26,17 +26,39 @@ import {demoCatalog} from './demo-catalog.js';
 import {getDemoItems, DemoItem, ExplorerMessage, SpecVersion} from './examples';
 import {appStyles} from './local-gallery.css';
 
+/** Structured log entry displayed in the Action Logs inspector section. */
+export interface ExplorerLogEntry {
+  timestamp: string;
+  type: string;
+  detail: unknown;
+}
+
+function formatTime(date: Date): string {
+  const pad = (n: number, len = 2) => String(n).padStart(len, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
+}
+
 @customElement('local-gallery')
 export class LocalGallery extends LitElement {
   @state() mockLogs: string[] = [];
+  @state() eventLogs: ExplorerLogEntry[] = [];
   @state() demoItems: DemoItem[] = [];
   @state() activeItemIndex = 0;
   @state() processedMessageCount = 0;
+  @state() currentCreateSurfaceMessageText = '';
+  @state() messageError: string | null = null;
   @state() currentDataModelText = '{}';
+  @state() dataModelError: string | null = null;
   @state() primaryColor = '#1177ee';
   @state() isLeftSidebarCollapsed = false;
   @state() isRightSidebarCollapsed = false;
+  @state() isSurfaceMessageFolded = false;
+  @state() isDataModelFolded = false;
+  @state() isEventsLogFolded = false;
   @state() specVersion: SpecVersion = '0.9';
+
+  private jsonInputFocused = false;
+  private customMessages: ExplorerMessage[] | null = null;
 
   // Expose the dispatched actions log for automated integration tests to inspect
   actionLog: A2uiClientAction[] = [];
@@ -47,7 +69,7 @@ export class LocalGallery extends LitElement {
   private processor = new MessageProcessor(
     [demoCatalog, basicCatalogV10],
     (action: A2uiClientAction) => {
-      this.log(`Action dispatched: ${action.surfaceId}`, action);
+      this.log(`Action dispatched: ${action.surfaceId}`, action, action.name || 'Action');
       this.actionLog.push(action);
     },
   );
@@ -79,21 +101,75 @@ export class LocalGallery extends LitElement {
 
     this.isLeftSidebarCollapsed = this.getLocalStorage('isLeftSidebarCollapsed') === 'true';
     this.isRightSidebarCollapsed = this.getLocalStorage('isRightSidebarCollapsed') === 'true';
+    this.isSurfaceMessageFolded = this.getLocalStorage('isSurfaceMessageFolded') === 'true';
+    this.isDataModelFolded = this.getLocalStorage('isDataModelFolded') === 'true';
+    this.isEventsLogFolded = this.getLocalStorage('isEventsLogFolded') === 'true';
+
+    let initialHash: string | undefined;
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const versionParam = params.get('version');
+      if (versionParam === '1.0' || versionParam === 'v1.0') {
+        this.specVersion = '1.0';
+      } else if (versionParam === '0.9' || versionParam === 'v0.9') {
+        this.specVersion = '0.9';
+      }
+      const rawHash = window.location.hash.slice(1);
+      if (rawHash) {
+        initialHash = rawHash;
+      }
+    }
 
     window.addEventListener('keydown', this.handleKeyDown);
+    window.addEventListener('hashchange', this.handleHashChange);
 
     this.processor.model.onSurfaceCreated.subscribe(surface => {
       surface.onError.subscribe((err: {message?: string}) => {
-        this.log(`Error on surface ${surface.id}: ${err.message ?? String(err)}`, err);
+        this.log(`Error on surface ${surface.id}: ${err.message ?? String(err)}`, err, 'Error');
       });
     });
 
-    this.loadExamples();
+    this.loadExamples(this.specVersion, initialHash);
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this.handleKeyDown);
+    window.removeEventListener('hashchange', this.handleHashChange);
+  }
+
+  private handleHashChange = () => {
+    if (typeof window === 'undefined') return;
+    const rawHash = window.location.hash.slice(1);
+    if (!rawHash) return;
+    const matchedIndex = this.findExampleIndex(rawHash);
+    if (matchedIndex >= 0 && matchedIndex !== this.activeItemIndex) {
+      this.selectItem(matchedIndex);
+    }
+  };
+
+  private findExampleIndex(key: string): number {
+    return this.demoItems.findIndex(
+      item =>
+        item.filename === key ||
+        (item.filename ?? '').replace('.json', '') === key ||
+        item.id === key,
+    );
+  }
+
+  private syncUrl() {
+    if (typeof window === 'undefined' || !window.history?.replaceState) return;
+    const activeItem = this.demoItems[this.activeItemIndex];
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('version', this.specVersion);
+      if (activeItem?.filename) {
+        url.hash = activeItem.filename.replace('.json', '');
+      }
+      window.history.replaceState(null, '', url.toString());
+    } catch {
+      // Ignore URL update errors in test environments
+    }
   }
 
   private isEditableElement(el: HTMLElement | null): boolean {
@@ -153,6 +229,28 @@ export class LocalGallery extends LitElement {
     this.setLocalStorage('isRightSidebarCollapsed', String(this.isRightSidebarCollapsed));
   }
 
+  toggleSurfaceMessage() {
+    this.isSurfaceMessageFolded = !this.isSurfaceMessageFolded;
+    this.setLocalStorage('isSurfaceMessageFolded', String(this.isSurfaceMessageFolded));
+  }
+
+  toggleDataModel() {
+    this.isDataModelFolded = !this.isDataModelFolded;
+    this.setLocalStorage('isDataModelFolded', String(this.isDataModelFolded));
+  }
+
+  toggleEventsLog() {
+    this.isEventsLogFolded = !this.isEventsLogFolded;
+    this.setLocalStorage('isEventsLogFolded', String(this.isEventsLogFolded));
+  }
+
+  private handleSectionKeydown(event: KeyboardEvent, toggleFn: () => void) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleFn();
+    }
+  }
+
   setSpecVersion(version: SpecVersion) {
     if (this.specVersion === version && this.demoItems.length > 0) return;
     const currentFilename = this.demoItems[this.activeItemIndex]?.filename;
@@ -161,13 +259,11 @@ export class LocalGallery extends LitElement {
     this.loadExamples(version, currentFilename);
   }
 
-  loadExamples(version: SpecVersion = this.specVersion, preferredFilename?: string) {
+  loadExamples(version: SpecVersion = this.specVersion, preferredKey?: string) {
     try {
       this.demoItems = getDemoItems(version);
       if (this.demoItems.length > 0) {
-        const matchedIndex = preferredFilename
-          ? this.demoItems.findIndex(item => item.filename === preferredFilename)
-          : -1;
+        const matchedIndex = preferredKey ? this.findExampleIndex(preferredKey) : -1;
         this.selectItem(matchedIndex >= 0 ? matchedIndex : 0);
       }
     } catch (err) {
@@ -178,9 +274,11 @@ export class LocalGallery extends LitElement {
   selectItem(index: number) {
     // Delete the surface of the previous example, if any.
     this.deleteActiveExampleSurface();
-    // Then load the new one
+    // Reset custom messages and load the new one
+    this.customMessages = null;
     this.activeItemIndex = index;
     this.reloadExample();
+    this.syncUrl();
     this.scrollToActiveExample();
   }
 
@@ -194,7 +292,10 @@ export class LocalGallery extends LitElement {
   resetSurface() {
     this.processedMessageCount = 0;
     this.mockLogs = [];
+    this.eventLogs = [];
     this.currentDataModelText = '{}';
+    this.dataModelError = null;
+    this.messageError = null;
     this.actionLog = [];
 
     // Clear old surface and subscriptions
@@ -217,6 +318,13 @@ export class LocalGallery extends LitElement {
     }
   }
 
+  private getActiveMessages(): ExplorerMessage[] {
+    if (this.customMessages) {
+      return this.customMessages;
+    }
+    return this.demoItems[this.activeItemIndex]?.messages ?? [];
+  }
+
   /**
    * Advances the message processing.
    *
@@ -226,13 +334,20 @@ export class LocalGallery extends LitElement {
     const item = this.demoItems[this.activeItemIndex];
     if (!item) return;
 
+    const messages = this.getActiveMessages();
     const toProcess = all
-      ? item.messages.slice(this.processedMessageCount)
-      : [item.messages[this.processedMessageCount]];
+      ? messages.slice(this.processedMessageCount)
+      : [messages[this.processedMessageCount]];
 
-    if (toProcess.length === 0) return;
+    if (toProcess.length === 0 || !toProcess[0]) return;
 
     const modifiedToProcess = this.applyPrimaryColorToMessages(toProcess);
+
+    const createMsg = modifiedToProcess.find(m => 'createSurface' in m);
+    if (createMsg && !this.jsonInputFocused) {
+      this.currentCreateSurfaceMessageText = JSON.stringify(createMsg, null, 2);
+      this.messageError = null;
+    }
 
     this.processor.processMessages(structuredClone(modifiedToProcess));
     this.processedMessageCount += toProcess.length;
@@ -242,7 +357,10 @@ export class LocalGallery extends LitElement {
       const surface = this.processor.model.getSurface(item.id);
       if (surface) {
         this.dataModelSubscription = surface.dataModel.subscribe('/', val => {
-          this.currentDataModelText = JSON.stringify(val || {}, null, 2);
+          if (!this.jsonInputFocused) {
+            this.currentDataModelText = JSON.stringify(val || {}, null, 2);
+            this.dataModelError = null;
+          }
         });
       }
     }
@@ -294,42 +412,107 @@ export class LocalGallery extends LitElement {
     this.reloadExample();
   }
 
-  log(msg: string, detail?: unknown) {
-    const time = new Date().toLocaleTimeString();
+  private onSurfaceMessageFocus() {
+    this.jsonInputFocused = true;
+  }
+
+  private onSurfaceMessageBlur() {
+    this.jsonInputFocused = false;
+    try {
+      const parsed = JSON.parse(this.currentCreateSurfaceMessageText);
+      this.currentCreateSurfaceMessageText = JSON.stringify(parsed, null, 2);
+    } catch {
+      // Ignore if invalid, don't format
+    }
+  }
+
+  private onSurfaceMessageChange(e: Event) {
+    const textarea = e.target as HTMLTextAreaElement;
+    const newValue = textarea.value;
+    this.currentCreateSurfaceMessageText = newValue;
+
+    try {
+      const parsed = JSON.parse(newValue);
+      this.messageError = null;
+
+      if (!parsed || typeof parsed !== 'object' || !('createSurface' in parsed)) {
+        return;
+      }
+
+      const item = this.demoItems[this.activeItemIndex];
+      if (!item) return;
+
+      const baseMessages = this.getActiveMessages();
+      this.customMessages = baseMessages.map(m => ('createSurface' in m ? parsed : m));
+      this.reloadExample();
+    } catch (err) {
+      this.messageError = err instanceof Error ? err.message : 'Invalid JSON';
+    }
+  }
+
+  private onDataModelFocus() {
+    this.jsonInputFocused = true;
+  }
+
+  private onDataModelBlur() {
+    this.jsonInputFocused = false;
+    try {
+      const parsed = JSON.parse(this.currentDataModelText);
+      this.currentDataModelText = JSON.stringify(parsed, null, 2);
+    } catch {
+      // Ignore if invalid, don't format
+    }
+  }
+
+  private onDataModelChange(e: Event) {
+    const textarea = e.target as HTMLTextAreaElement;
+    const newValue = textarea.value;
+    this.currentDataModelText = newValue;
+
+    try {
+      const parsed = JSON.parse(newValue);
+      this.dataModelError = null;
+      const item = this.demoItems[this.activeItemIndex];
+      if (!item) return;
+      const surface = this.processor.model.getSurface(item.id);
+      surface?.dataModel.set('/', parsed);
+    } catch (err) {
+      this.dataModelError = err instanceof Error ? err.message : 'Invalid JSON';
+    }
+  }
+
+  clearLogs() {
+    this.mockLogs = [];
+    this.eventLogs = [];
+  }
+
+  log(msg: string, detail?: unknown, type: string = 'Action') {
+    const now = new Date();
+    const time = now.toLocaleTimeString();
     const entry = detail ? `${msg}\n${JSON.stringify(detail, null, 2)}` : msg;
     this.mockLogs = [...this.mockLogs, `[${time}] ${entry}`];
+    this.eventLogs = [
+      {
+        timestamp: formatTime(now),
+        type,
+        detail: detail ?? msg,
+      },
+      ...this.eventLogs,
+    ];
   }
 
   override render() {
     const activeItem = this.demoItems[this.activeItemIndex];
+    const activeMessages = this.getActiveMessages();
     const surface = activeItem ? this.processor.model.getSurface(activeItem.id) : undefined;
-    const canAdvance = activeItem && this.processedMessageCount < activeItem.messages.length;
+    const canAdvance = activeItem && this.processedMessageCount < activeMessages.length;
 
     return html`
-      <header>
-        <div>
-          <h1>A2UI Explorer</h1>
-          <p class="subtitle">v${this.specVersion} Basic Catalog</p>
-        </div>
-        <div class="version-selector" role="group" aria-label="Specification version">
-          <button
-            class="version-btn ${this.specVersion === '0.9' ? 'active' : ''}"
-            data-version="0.9"
-            @click=${() => this.setSpecVersion('0.9')}
-          >
-            v0.9
-          </button>
-          <button
-            class="version-btn ${this.specVersion === '1.0' ? 'active' : ''}"
-            data-version="1.0"
-            @click=${() => this.setSpecVersion('1.0')}
-          >
-            v1.0
-          </button>
-        </div>
-      </header>
       <main>
-        <nav class="nav-pane ${this.isLeftSidebarCollapsed ? 'collapsed' : ''}">
+        <nav
+          class="nav-pane ${this.isLeftSidebarCollapsed ? 'collapsed' : ''}"
+          aria-label="Examples Navigation"
+        >
           <div class="nav-header">
             <h3>Examples</h3>
             <button
@@ -393,16 +576,32 @@ export class LocalGallery extends LitElement {
                     </button>
                   `
                 : nothing}
-              <div>
-                <h2>${activeItem?.title || 'No selection'}</h2>
-                <p class="subtitle">${activeItem?.description}</p>
+              <div class="app-brand">
+                <h1>A2UI Lit Explorer</h1>
               </div>
             </div>
             <div class="agent-controls">
+              <fieldset class="version-controls">
+                <legend>Spec version</legend>
+                <div class="version-selector" role="group" aria-label="Specification version">
+                  <button
+                    class="version-btn ${this.specVersion === '0.9' ? 'active' : ''}"
+                    data-version="0.9"
+                    @click=${() => this.setSpecVersion('0.9')}
+                  >
+                    v0.9
+                  </button>
+                  <button
+                    class="version-btn ${this.specVersion === '1.0' ? 'active' : ''}"
+                    data-version="1.0"
+                    @click=${() => this.setSpecVersion('1.0')}
+                  >
+                    v1.0
+                  </button>
+                </div>
+              </fieldset>
               <fieldset class="message-controls">
-                <legend>
-                  Messages: ${this.processedMessageCount} / ${activeItem?.messages.length || 0}
-                </legend>
+                <legend>Messages: ${this.processedMessageCount} / ${activeMessages.length}</legend>
                 <button @click=${() => this.resetSurface()}>Reset</button>
                 <button @click=${() => this.advanceMessages(false)} ?disabled=${!canAdvance}>
                   +1 Message
@@ -419,6 +618,7 @@ export class LocalGallery extends LitElement {
                     .value=${this.primaryColor || '#1177ee'}
                     @input=${this.onColorInput}
                     class="color-input"
+                    aria-label="Primary color"
                   />
                   <button @click=${this.clearColor} class="clear-btn">Clear</button>
                 </div>
@@ -460,9 +660,15 @@ export class LocalGallery extends LitElement {
           </div>
         </section>
 
-        <aside class="inspector-pane ${this.isRightSidebarCollapsed ? 'collapsed' : ''}">
+        <aside
+          class="inspector-pane ${this.isRightSidebarCollapsed ? 'collapsed' : ''}"
+          aria-label="Inspector Panel"
+        >
           <div class="inspector-pane-header">
-            <h4>Inspector</h4>
+            <div class="example-info">
+              <h2>${activeItem?.title || 'No selection'}</h2>
+              <p class="subtitle">${activeItem?.description}</p>
+            </div>
             <button
               class="icon-btn collapse-right-btn"
               @click=${() => this.toggleRightSidebar()}
@@ -483,18 +689,183 @@ export class LocalGallery extends LitElement {
               </svg>
             </button>
           </div>
-          <div class="inspector-section">
-            <div class="inspector-header">Data Model</div>
-            <div class="inspector-body">${this.currentDataModelText}</div>
-          </div>
-          <div class="inspector-section">
-            <div class="inspector-header">Action Logs</div>
-            <div class="inspector-body log-list">
-              ${this.mockLogs.length === 0
-                ? html`<span style="color:#475569">No actions logged...</span>`
-                : nothing}
-              ${this.mockLogs.map(log => html`<div class="log-entry">${log}</div>`)}
+
+          <div
+            class="inspector-section surface-section ${this.isSurfaceMessageFolded ? 'folded' : ''}"
+          >
+            <div
+              class="inspector-header"
+              role="button"
+              tabindex="0"
+              aria-expanded=${!this.isSurfaceMessageFolded}
+              @click=${() => this.toggleSurfaceMessage()}
+              @keydown=${(e: KeyboardEvent) =>
+                this.handleSectionKeydown(e, () => this.toggleSurfaceMessage())}
+            >
+              <div class="header-left">
+                <span class="toggle-icon ${!this.isSurfaceMessageFolded ? 'expanded' : ''}">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </span>
+                <h4>Create Surface Message</h4>
+              </div>
+              <div>
+                <span class="badge ${this.messageError ? 'error-badge' : ''}">
+                  ${this.messageError ? 'Invalid' : 'Live'}
+                </span>
+              </div>
             </div>
+            ${!this.isSurfaceMessageFolded
+              ? html`
+                  <div class="inspector-body">
+                    ${this.messageError
+                      ? html`
+                          <div class="error-message">
+                            <span class="error-icon">⚠️</span>
+                            <span>${this.messageError}</span>
+                          </div>
+                        `
+                      : nothing}
+                    <textarea
+                      class="surface-message-textarea"
+                      .value=${this.currentCreateSurfaceMessageText}
+                      @input=${this.onSurfaceMessageChange}
+                      @focus=${this.onSurfaceMessageFocus}
+                      @blur=${this.onSurfaceMessageBlur}
+                      aria-label="Create Surface Message JSON"
+                    ></textarea>
+                  </div>
+                `
+              : nothing}
+          </div>
+
+          <div class="inspector-section data-section ${this.isDataModelFolded ? 'folded' : ''}">
+            <div
+              class="inspector-header"
+              role="button"
+              tabindex="0"
+              aria-expanded=${!this.isDataModelFolded}
+              @click=${() => this.toggleDataModel()}
+              @keydown=${(e: KeyboardEvent) =>
+                this.handleSectionKeydown(e, () => this.toggleDataModel())}
+            >
+              <div class="header-left">
+                <span class="toggle-icon ${!this.isDataModelFolded ? 'expanded' : ''}">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </span>
+                <h4>Data Model</h4>
+              </div>
+              <div>
+                <span class="badge ${this.dataModelError ? 'error-badge' : ''}">
+                  ${this.dataModelError ? 'Invalid' : 'Live'}
+                </span>
+              </div>
+            </div>
+            ${!this.isDataModelFolded
+              ? html`
+                  <div class="inspector-body">
+                    ${this.dataModelError
+                      ? html`
+                          <div class="error-message">
+                            <span class="error-icon">⚠️</span>
+                            <span>${this.dataModelError}</span>
+                          </div>
+                        `
+                      : nothing}
+                    <textarea
+                      class="data-model-textarea"
+                      .value=${this.currentDataModelText}
+                      @input=${this.onDataModelChange}
+                      @focus=${this.onDataModelFocus}
+                      @blur=${this.onDataModelBlur}
+                      aria-label="Data Model JSON"
+                    ></textarea>
+                  </div>
+                `
+              : nothing}
+          </div>
+
+          <div class="inspector-section events-section ${this.isEventsLogFolded ? 'folded' : ''}">
+            <div
+              class="inspector-header"
+              role="button"
+              tabindex="0"
+              aria-expanded=${!this.isEventsLogFolded}
+              @click=${() => this.toggleEventsLog()}
+              @keydown=${(e: KeyboardEvent) =>
+                this.handleSectionKeydown(e, () => this.toggleEventsLog())}
+            >
+              <div class="header-left">
+                <span class="toggle-icon ${!this.isEventsLogFolded ? 'expanded' : ''}">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </span>
+                <h4>Action Logs</h4>
+              </div>
+              <div>
+                <button
+                  class="clear-logs-btn"
+                  @click=${(e: Event) => {
+                    e.stopPropagation();
+                    this.clearLogs();
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            ${!this.isEventsLogFolded
+              ? html`
+                  <div class="inspector-body">
+                    ${this.eventLogs.length === 0
+                      ? html`<div class="empty-state">No actions logged...</div>`
+                      : this.eventLogs.map(
+                          entry => html`
+                            <div class="log-item">
+                              <div class="log-header">
+                                <span class="log-time">${entry.timestamp}</span>
+                                <span class="log-type">${entry.type}</span>
+                              </div>
+                              <pre class="log-details">
+${JSON.stringify(entry.detail, null, 2)}</pre
+                              >
+                            </div>
+                          `,
+                        )}
+                  </div>
+                `
+              : nothing}
           </div>
         </aside>
       </main>

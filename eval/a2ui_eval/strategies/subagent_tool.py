@@ -13,28 +13,30 @@
 # limitations under the License.
 
 import json
-from inspect_ai.solver import (
-    Generate,
-    Solver,
-    solver,
-    system_message,
-    TaskState,
-    use_tools,
-)
+
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
-    get_model,
     ModelOutput,
+    get_model,
 )
-from inspect_ai.tool import tool, Tool
+from inspect_ai.solver import (
+    Generate,
+    Solver,
+    TaskState,
+    solver,
+    system_message,
+    use_tools,
+)
+from inspect_ai.tool import Tool, tool
 from inspect_ai.util import store
+
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema.catalog import CatalogConfig
-from a2ui.parser.parser import parse_response
+from a2ui.parser import parse_response
+from a2ui.schema import CatalogConfig
 from ..shared.utils import GIT_ROOT, measured_generate
 
 PAYLOAD_STORE_KEY = "a2ui_payload"
@@ -56,9 +58,7 @@ def a2ui_specialist() -> Tool:
 
         catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
         direct_json_format = DirectJsonFormat(
-            version=version,
-            catalogs=[catalog_config],
-            experiments={"version_1_0"} if version == "1.0" else None,
+            [catalog_config.to_catalog(protocol_version=version)]
         )
 
         role_description = store().get("role_description")

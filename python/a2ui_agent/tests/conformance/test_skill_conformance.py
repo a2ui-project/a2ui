@@ -19,7 +19,7 @@ import unittest
 import yaml
 
 from a2ui.inference_formats.experimental.express import ExpressFormat
-from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
+from a2ui.schema import CatalogConfig
 from a2ui.skill import Skill, SkillGenerator, SkillSet
 
 from a2ui.schema.utils import find_repo_root
@@ -36,7 +36,7 @@ class TestSkillConformance(unittest.TestCase):
         """Asserts prompt_generator.generate_base_rules() matches golden file exactly."""
         cat_path = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
         cat_config = CatalogConfig.from_path("basic", cat_path)
-        catalog = A2uiCatalog.from_config(cat_config)
+        catalog = cat_config.to_catalog()
         express_fmt = ExpressFormat(catalog=catalog)
         prompt_gen = express_fmt.prompt_generator
 
@@ -51,7 +51,7 @@ class TestSkillConformance(unittest.TestCase):
         """Asserts prompt_generator.generate_catalog_instructions() matches golden file exactly."""
         cat_path = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
         cat_config = CatalogConfig.from_path("basic", cat_path)
-        catalog = A2uiCatalog.from_config(cat_config)
+        catalog = cat_config.to_catalog()
         express_fmt = ExpressFormat(catalog=catalog)
         prompt_gen = express_fmt.prompt_generator
 
@@ -83,7 +83,7 @@ class TestSkillConformance(unittest.TestCase):
                 if cat_rel_path:
                     abs_cat_path = os.path.join(REPO_ROOT, cat_rel_path)
                     cat_config = CatalogConfig.from_path("basic", abs_cat_path)
-                    catalog = A2uiCatalog.from_config(cat_config)
+                    catalog = cat_config.to_catalog()
 
                 fmt_name = args.get("format", "express")
                 if fmt_name == "express":

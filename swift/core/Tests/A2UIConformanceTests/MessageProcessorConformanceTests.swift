@@ -23,11 +23,11 @@ import Testing
 private final class ConformanceActionCaptureHandler: ActionHandling,
   @unchecked Sendable
 {
-  var capturedErrors: [ClientServerError] = []
+  var capturedErrors: [RendererError] = []
 
   func handle(action: ResolvedAction, from surfaceID: String) {}
 
-  func handle(error: ClientServerError, from surfaceID: String) {
+  func handle(error: RendererError, from surfaceID: String) {
     capturedErrors.append(error)
   }
 }
@@ -191,7 +191,8 @@ struct MessageProcessorConformanceTests {
     return []
   }
 
-  private func decodeMessages(from rawMessages: [[String: Any]]) throws -> [ServerToClientMessage] {
+  private func decodeMessages(from rawMessages: [[String: Any]]) throws -> [AgentToRendererMessage]
+  {
     let parser = MessageParser()
     return try rawMessages.map { dict in
       let jsonVal = ConformanceTestHelper.toJSONValue(dict)
@@ -227,7 +228,8 @@ struct MessageProcessorConformanceTests {
 
     let messages = try decodeMessages(from: rawMessages)
     processor.process(messages: messages)
-    #expect(handler.capturedErrors.isEmpty, "[\(name)] Unexpected errors: \(handler.capturedErrors)")
+    #expect(
+      handler.capturedErrors.isEmpty, "[\(name)] Unexpected errors: \(handler.capturedErrors)")
 
     let expectedDict = (testCase["expect"] as? [String: Any]) ?? [:]
     let expectedSurfaces =
@@ -305,15 +307,19 @@ struct MessageProcessorConformanceTests {
     let messages = try decodeMessages(from: rawMessages)
     processor.process(messages: messages)
 
-    let actual = processor.getRendererDataModel()
-    let expectedDict = (testCase["expect"] as? [String: Any]) ?? (testCase["expectedDataModel"] as? [String: Any])
+    let actual = try processor.getRendererDataModel()
+    let expectedDict =
+      (testCase["expect"] as? [String: Any])
+      ?? (testCase["expectedDataModel"] as? [String: Any])
     if let expectedSurfaces = expectedDict?["surfaces"] {
       #expect(
-        actual == ConformanceTestHelper.toJSONValue(expectedSurfaces),
+        actual?["surfaces"] == ConformanceTestHelper.toJSONValue(expectedSurfaces),
         "[\(name)] Expected renderer data model \(expectedSurfaces), got \(String(describing: actual))"
       )
     } else {
-      #expect(actual == nil, "[\(name)] Expected nil renderer data model, got \(String(describing: actual))")
+      #expect(
+        actual == nil,
+        "[\(name)] Expected nil renderer data model, got \(String(describing: actual))")
     }
   }
 
@@ -322,11 +328,12 @@ struct MessageProcessorConformanceTests {
     let processor = MessageProcessor(catalogs: catalogs)
     let args = testCase["args"] as? [String: Any] ?? [:]
     let includeInline = args["includeInlineCatalogs"] as? Bool ?? false
-    let version = args["version"] as? String ?? "v0.9"
-    let caps = processor.getRendererCapabilities(
+    let versionStr = args["version"] as? String ?? "v0.9.1"
+    let protocolVersion = A2UIProtocolVersion(rawValue: versionStr) ?? .v091
+    let caps = try processor.getRendererCapabilities(
       options: MessageProcessor.CapabilitiesOptions(
-        includeInlineCatalogs: includeInline,
-        version: version
+        protocolVersion: protocolVersion,
+        includeInlineCatalogs: includeInline
       )
     )
     let expectedDict =
@@ -334,18 +341,21 @@ struct MessageProcessorConformanceTests {
       ?? (testCase["expectedCapabilities"] as? [String: Any])
       ?? [:]
     let expectedVersion =
-      (expectedDict[version] as? [String: Any])
+      (expectedDict[versionStr] as? [String: Any])
+      ?? (expectedDict[protocolVersion.rawValue] as? [String: Any])
       ?? (expectedDict["v0.9"] as? [String: Any])
     if let expectedVersion {
       if let expectedIDs = expectedVersion["supportedCatalogIds"] {
         #expect(
-          caps[version]?["supportedCatalogIds"] == ConformanceTestHelper.toJSONValue(expectedIDs),
+          caps[protocolVersion.rawValue]?["supportedCatalogIds"]
+            == ConformanceTestHelper.toJSONValue(expectedIDs),
           "[\(name)] Supported catalog IDs mismatch"
         )
       }
       if let expectedInline = expectedVersion["inlineCatalogs"] {
         #expect(
-          caps[version]?["inlineCatalogs"] == ConformanceTestHelper.toJSONValue(expectedInline),
+          caps[protocolVersion.rawValue]?["inlineCatalogs"]
+            == ConformanceTestHelper.toJSONValue(expectedInline),
           "[\(name)] Inline catalogs mismatch"
         )
       }

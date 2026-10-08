@@ -22,8 +22,10 @@ from collections.abc import Mapping, Sequence
 import json
 import re
 from typing import Any, TYPE_CHECKING
-from a2ui.prompt import PromptGenerator
+
 from a2ui.core.schema.v0_9 import V09Capabilities
+from a2ui.prompt import PromptGenerator
+from a2ui.schema import load_examples
 
 from .parser import ExpressParser
 from .schema_helper import CatalogSchemaHelper
@@ -161,16 +163,14 @@ class ExpressPromptGenerator(PromptGenerator):
         return self._catalog_description(include_schema=True, catalog=catalog)
 
     def generate_examples(
-        self,
-        catalog: Any | None = None,
-        validate: bool = False,
+        self, catalog: Any | None = None, validate: bool = False
     ) -> str:
         """Loads and formats few-shot Express DSL examples."""
         target_catalog = catalog or self.catalog
         if not target_catalog or not self._format or not self._format.examples_path:
             return ""
-        raw_examples = target_catalog.load_examples(
-            self._format.examples_path, validate=validate
+        raw_examples = load_examples(
+            [target_catalog], self._format.examples_path, validate=validate
         )
         if not raw_examples:
             return ""
@@ -521,9 +521,6 @@ class ExpressPromptGenerator(PromptGenerator):
             The complete system prompt string explaining A2UI Express and its catalog.
         """
         catalog = self._format.catalog if self._format else None
-        if catalog and (allowed_components or allowed_messages):
-            catalog = catalog.with_pruning(allowed_components, allowed_messages)
-
         if self._format:
             self.helper = CatalogSchemaHelper(catalog) if catalog else None
             self.parser = ExpressParser(catalog) if catalog else None

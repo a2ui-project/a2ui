@@ -20,17 +20,9 @@ signatures, and requirements directly from standard catalog JSON schemas.
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
-try:
-    from a2ui.core import Catalog
-except ImportError:
-    Catalog = Any  # type: ignore
-
-if TYPE_CHECKING:
-    from a2ui.core import CatalogApi
-
-from a2ui.schema.catalog import A2uiCatalog
+from a2ui.core import Catalog, CatalogApi, inline_local_refs
 
 
 class CatalogSchemaHelper:
@@ -47,27 +39,25 @@ class CatalogSchemaHelper:
 
     def __init__(
         self,
-        catalog: CatalogApi | A2uiCatalog,
+        catalog: CatalogApi,
     ):
-        """Initializes the helper with a Catalog or an A2uiCatalog.
+        """Initializes the helper with a Catalog.
 
         Args:
-            catalog: A Catalog or an A2uiCatalog.
+            catalog: A Catalog instance.
         """
-        if isinstance(catalog, A2uiCatalog):
-            self.catalog_model = catalog.core_catalog
-        elif isinstance(catalog, Catalog):
-            self.catalog_model = catalog
-        else:
+        if not isinstance(catalog, Catalog):
             raise TypeError(f"Unsupported catalog type: {type(catalog)}")
+        self.catalog_model = catalog
 
-        self.catalog = self.catalog_model.catalog_schema or {}
-        self.components = {
-            name: comp.schema for name, comp in self.catalog_model.components.items()
-        }
-        self.functions = {
-            name: fn.schema for name, fn in self.catalog_model.functions.items()
-        }
+        # A catalog built from models refers to its own definitions, such as
+        # `CatalogComponentCommon`, which `Catalog.from_json` writes inline.
+        # Inlining them lets the crawler read both kinds of catalog the same
+        # way, while references to common types, such as `Checkable`, stay.
+        catalog_schema = dict(catalog.catalog_schema or {})
+        self.catalog = inline_local_refs(catalog_schema, catalog_schema)
+        self.components = dict(self.catalog.get("components", {}))
+        self.functions = dict(self.catalog.get("functions", {}))
         self.component_properties: dict[str, list[str]] = {}
         self.component_required: dict[str, list[str]] = {}
         self.component_is_checkable: dict[str, bool] = {}

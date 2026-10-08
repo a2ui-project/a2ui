@@ -37,7 +37,7 @@ def _extract_a2ui_examples(rules_text: str) -> list[str]:
     return cleaned
 
 
-from a2ui.schema import A2uiCatalog, VERSION_0_9
+from a2ui.schema import VERSION_0_9
 
 
 class TestPromptExamplesValidity:
@@ -45,11 +45,9 @@ class TestPromptExamplesValidity:
 
     @pytest.fixture(autouse=True)
     def setup_catalog(self):
-        self.catalog = A2uiCatalog(
-            version=VERSION_0_9,
-            name="test_catalog",
-            s2c_schema={},
-            common_types_schema={},
+        self.catalog = Catalog.from_json(
+            protocol_version=VERSION_0_9,
+            catalog_id="test_catalog",
             catalog_schema={
                 "catalogId": "test_catalog",
                 "components": {

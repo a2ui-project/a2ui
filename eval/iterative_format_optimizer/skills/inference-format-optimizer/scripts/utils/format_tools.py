@@ -34,8 +34,7 @@ if SDK_SRC not in sys.path:
 if SDK_CORE_SRC not in sys.path:
     sys.path.insert(0, SDK_CORE_SRC)
 
-from a2ui.schema.catalog import CatalogConfig
-from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.schema import CatalogConfig
 
 
 def _load_basic_catalog() -> Any:
@@ -46,10 +45,7 @@ def _load_basic_catalog() -> Any:
     """
     cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
     cat_cfg = CatalogConfig.from_path("basic", cat_path)
-    direct_json_format = DirectJsonFormat(
-        version="1.0", catalogs=[cat_cfg], experiments={"version_1_0"}
-    )
-    return direct_json_format.get_selected_catalog()
+    return cat_cfg.to_catalog(protocol_version="1.0")
 
 
 def test_compile_snippet(format_name: str, snippet: str) -> str:
@@ -76,12 +72,12 @@ def test_compile_snippet(format_name: str, snippet: str) -> str:
     elif fmt_lower in ("direct_json", "transport", "direct"):
         res = json.loads(snippet) if isinstance(snippet, str) else snippet
     elif fmt_lower == "express":
-        from a2ui.inference_formats.experimental.express.parser import ExpressParser
+        from a2ui.inference_formats.experimental.express import ExpressParser
 
         parser = ExpressParser(catalog=cat)
         res = parser.compile(snippet)
     elif fmt_lower == "elemental":
-        from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
+        from a2ui.inference_formats.experimental.elemental import ElementalParser
 
         parser = ElementalParser(catalog=cat)
         res = parser.compile(snippet)
@@ -127,12 +123,12 @@ def test_decompile_payload(format_name: str, json_str_or_dict: Any) -> str:
     elif fmt_lower in ("direct_json", "transport", "direct"):
         return json.dumps(payload, indent=2)
     elif fmt_lower == "express":
-        from a2ui.inference_formats.experimental.express.parser import ExpressParser
+        from a2ui.inference_formats.experimental.express import ExpressParser
 
         parser = ExpressParser(catalog=cat)
         return parser.decompile(payload)
     elif fmt_lower == "elemental":
-        from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
+        from a2ui.inference_formats.experimental.elemental import ElementalParser
 
         parser = ElementalParser(catalog=cat)
         return parser.decompile(payload)
@@ -166,13 +162,13 @@ def test_parse_ast(format_name: str, snippet: str) -> str:
     elif fmt_lower in ("direct_json", "transport", "direct"):
         return json.dumps(json.loads(snippet), indent=2)
     elif fmt_lower == "express":
-        from a2ui.inference_formats.experimental.express.parser import ExpressParser
+        from a2ui.inference_formats.experimental.express import ExpressParser
 
         parser = ExpressParser(catalog=cat)
         parts = parser.unwrap(snippet)
         return str([str(p) for p in parts])
     elif fmt_lower == "elemental":
-        from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
+        from a2ui.inference_formats.experimental.elemental import ElementalParser
 
         parser = ElementalParser(catalog=cat)
         parts = parser.unwrap(snippet)

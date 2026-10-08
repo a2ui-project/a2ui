@@ -43,7 +43,7 @@ describe('Conformance: direct_json/prompt_generator.yaml', () => {
         throw new Error(`Unexpected format '${args.format}'`);
       }
 
-      const catalogs = (await loadRegistrations(args.catalogs)).map(c => c.transformedCatalog);
+      const catalogs = loadRegistrations(args.catalogs).map(c => c.transformedCatalog);
       const turns = (args.examples ?? []).map(
         file =>
           JSON.parse(fs.readFileSync(conformancePath(file), 'utf8')) as AgentToRendererMessage[],

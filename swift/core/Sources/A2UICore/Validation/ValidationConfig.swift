@@ -23,20 +23,46 @@ public struct ValidationConfig: Sendable, Equatable {
   /// Whether missing a component with `id="root"` is permitted.
   public var allowMissingRoot: Bool
 
+  /// Whether unrecognized component types or function names are permitted.
+  public var allowUnknownElements: Bool
+
   /// The target protocol version (e.g. `"v0.9.1"`).
   public var targetVersion: String
+
+  /// The target protocol version as an `A2UIProtocolVersion` enum.
+  public var protocolVersion: A2UIProtocolVersion {
+    get { A2UIProtocolVersion(rawValue: targetVersion) ?? .v091 }
+    set { targetVersion = newValue.rawValue }
+  }
 
   /// Creates a validation configuration.
   public init(
     allowOrphanComponents: Bool = false,
     allowDanglingReferences: Bool = false,
     allowMissingRoot: Bool = false,
+    allowUnknownElements: Bool = false,
     targetVersion: String = "v0.9.1"
   ) {
     self.allowOrphanComponents = allowOrphanComponents
     self.allowDanglingReferences = allowDanglingReferences
     self.allowMissingRoot = allowMissingRoot
+    self.allowUnknownElements = allowUnknownElements
     self.targetVersion = targetVersion
+  }
+
+  /// Creates a validation configuration with a typed `A2UIProtocolVersion`.
+  public init(
+    allowOrphanComponents: Bool = false,
+    allowDanglingReferences: Bool = false,
+    allowMissingRoot: Bool = false,
+    allowUnknownElements: Bool = false,
+    protocolVersion: A2UIProtocolVersion
+  ) {
+    self.allowOrphanComponents = allowOrphanComponents
+    self.allowDanglingReferences = allowDanglingReferences
+    self.allowMissingRoot = allowMissingRoot
+    self.allowUnknownElements = allowUnknownElements
+    self.targetVersion = protocolVersion.rawValue
   }
 
   /// Default strict validation rules for complete message trees.

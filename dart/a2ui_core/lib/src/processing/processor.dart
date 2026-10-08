@@ -348,7 +348,7 @@ class MessageProcessor<T extends ComponentApi> {
   };
 
   /// Creates a surface: its data model first, as one root write, then its
-  /// components, then its metadata.
+  /// components.
   ///
   /// The inline components are checked before the surface is added, so a
   /// `createSurface` they fail creates nothing.
@@ -372,11 +372,20 @@ class MessageProcessor<T extends ComponentApi> {
 
     final surface = SurfaceModel<T>(
       operation.surfaceId,
-      catalog: catalog,
+      defaultCatalog: catalog,
+      availableCatalogs: [
+        for (final Catalog<T, FunctionImplementation> candidate in catalogs)
+          if (isCatalogVersionCompatible(
+            candidate.protocolVersion,
+            operation.version.jsonValue,
+          ))
+            candidate,
+      ],
       theme: operation.theme ?? {},
       sendDataModel: operation.sendDataModel,
       protocolVersion: operation.version.jsonValue,
       rootId: validationConfig?.rootId ?? 'root',
+      metadata: operation.metadata,
     );
 
     _CheckedBatch? batch;
@@ -396,7 +405,6 @@ class MessageProcessor<T extends ComponentApi> {
         surface.dataModel.set('/', dataModel);
       }
       if (batch != null) _applyComponents(surface, batch);
-      surface.metadata = operation.metadata;
     } catch (_) {
       // Do not leave a half-initialized surface registered.
       groupModel.deleteSurface(operation.surfaceId);
@@ -461,31 +469,6 @@ class MessageProcessor<T extends ComponentApi> {
     }
   }
 
-  /// The catalog one component is checked against.
-  ///
-  /// Settled in order: the [catalogId] the component names for itself, which
-  /// v1.0 allows so that one surface can mix catalogs; then the surface's
-  /// default, from `createSurface`; then the sole catalog this processor
-  /// supports, which is the agent case, where a catalog is negotiated before
-  /// anything is generated.
-  ///
-  /// Throws [A2uiCatalogError] when none of those settles it. Skipping the
-  /// component instead would report a payload valid that nothing had checked.
-  Catalog<T, FunctionImplementation> _catalogForComponent(
-    String id,
-    String? catalogId,
-    String? surfaceCatalogId,
-  ) {
-    final String? declared = catalogId ?? surfaceCatalogId;
-    if (declared != null) return catalogFor(declared);
-    if (catalogs.length == 1) return catalogs.single;
-    throw A2uiCatalogError(
-      "Component '$id' names no catalog and its surface has none, so the "
-      'catalog to check it against is ambiguous among: '
-      '${catalogs.map((c) => c.id).join(', ')}.',
-    );
-  }
-
   /// Which properties hold child references, across the catalogs a surface's
   /// components draw on.
   ///
@@ -495,16 +478,16 @@ class MessageProcessor<T extends ComponentApi> {
   /// Each catalog's fields come from its [Catalog.refMap], the map the node
   /// resolver mounts children from.
   Map<String, ComponentRefFields> _refFieldsFor(
-    String? surfaceCatalogId,
+    SurfaceModel<T> surface,
     Iterable<String?> componentCatalogIds,
   ) {
     final ids = <String>{
-      if (surfaceCatalogId != null) surfaceCatalogId,
+      if (surface.defaultCatalog case final catalog?) catalog.id,
       for (final String? id in componentCatalogIds)
         if (id != null) id,
     };
     final Iterable<Catalog<T, FunctionImplementation>> involved =
-        ids.isEmpty ? catalogs : ids.map(catalogFor);
+        ids.map(surface.resolveCatalog);
 
     final merged = <String, ComponentRefFields>{};
     for (final catalog in involved) {
@@ -554,7 +537,7 @@ class MessageProcessor<T extends ComponentApi> {
     ];
 
     final Map<String, ComponentRefFields> refFields = _refFieldsFor(
-      surface.catalog.id,
+      surface,
       [
         for (final ComponentModel c in model.all) c.catalog,
         for (final Map<String, Object?> c in resolved)
@@ -676,11 +659,8 @@ class MessageProcessor<T extends ComponentApi> {
       if (metadata != null) 'metadata': metadata,
     };
 
-    final Catalog<T, FunctionImplementation> catalog = _catalogForComponent(
-      id,
-      catalogId,
-      surface.catalog.id,
-    );
+    final Catalog<T, FunctionImplementation> catalog =
+        surface.resolveCatalog(catalogId);
     validatorFor(catalog, version: version).validateComponent(full);
     return full;
   }
@@ -753,15 +733,20 @@ class MessageProcessor<T extends ComponentApi> {
   void _processRefs(Object? node) {
     if (node is! Map) return;
 
-    if (node['description'] is String &&
-        (node['description'] as String).startsWith('REF:')) {
-      final desc = node['description'] as String;
-      final List<String> parts = desc.substring(4).split('|');
-      final String ref = parts[0];
-      final String? actualDesc = parts.length > 1 ? parts[1] : null;
-
+    if (node['commonTypesRef'] is String ||
+        (node['description'] is String &&
+            (node['description'] as String).startsWith('REF:'))) {
+      final hasRefKey = node['commonTypesRef'] is String;
+      final List<String> parts = hasRefKey
+          ? const []
+          : (node['description'] as String).substring(4).split('|');
+      final String ref =
+          hasRefKey ? node['commonTypesRef'] as String : parts[0];
+      final Object? actualDesc = hasRefKey
+          ? node['description']
+          : (parts.length > 1 ? parts.sublist(1).join('|') : null);
       node.clear();
-      node['\$ref'] = ref;
+      node[r'$ref'] = ref;
       if (actualDesc != null) {
         node['description'] = actualDesc;
       }

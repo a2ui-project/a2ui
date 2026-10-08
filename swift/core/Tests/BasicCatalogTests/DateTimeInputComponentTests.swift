@@ -17,6 +17,7 @@ import BasicCatalog
 import JSONSchema
 import Testing
 
+@MainActor
 struct DateTimeInputComponentTests {
 
   private func instance(min: JSONValue? = nil, max: JSONValue? = nil) -> JSONValue {
