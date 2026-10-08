@@ -176,6 +176,19 @@ def rebase_function_error_details(
     return rebased
 
 
+def _non_object_args_error(name: str) -> A2uiValidationError:
+    """Returns the error for a call whose `args` is not an object."""
+    message = f"Function arguments for '{name}' must be an object/dictionary"
+    return A2uiValidationError(
+        message,
+        details=[
+            A2uiErrorDetail(
+                path=f"functions.{name}", code="type_mismatch", message=message
+            )
+        ],
+    )
+
+
 def nested_call_runs_in_catalog(
     call_catalog_id: Any, catalog_id: str | None, *, catalog_is_default: bool
 ) -> bool:
@@ -666,7 +679,11 @@ class PayloadValidator:
             )
 
     def _validate_function_identifiers(self, name: str, args: Any) -> None:
-        """Validates function name and argument identifiers against UAX #31 for v1.0+."""
+        """Validates a v1.0+ call's envelope without its catalog.
+
+        The function name and argument names must be UAX #31 identifiers, and
+        `args`, when present, must be an object.
+        """
         ver = getattr(self.catalog, "protocol_version", None)
         if not (ver and is_at_least_version(ver, ProtocolVersion.V1_0)):
             return
@@ -684,6 +701,10 @@ class PayloadValidator:
                     )
                 ],
             )
+        # The call envelope types `args` as an object, whatever catalog the
+        # call runs in.
+        if args is not None and not isinstance(args, dict):
+            raise _non_object_args_error(name)
         if isinstance(args, dict):
             for arg_name in args:
                 if not isinstance(arg_name, str) or not is_valid_uax31_identifier(
@@ -718,19 +739,7 @@ class PayloadValidator:
         elif isinstance(args, dict):
             norm_args = dict(args)
         else:
-            raise A2uiValidationError(
-                f"Function arguments for '{name}' must be an object/dictionary",
-                details=[
-                    A2uiErrorDetail(
-                        path=f"functions.{name}",
-                        code="type_mismatch",
-                        message=(
-                            f"Function arguments for '{name}' must be an"
-                            " object/dictionary"
-                        ),
-                    )
-                ],
-            )
+            raise _non_object_args_error(name)
 
         if len(norm_args) > MAX_FUNCTION_CALL_ARGS:
             raise A2uiValidationError(

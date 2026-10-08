@@ -19,8 +19,8 @@
 - (v1_0) `PayloadValidator` fully checks a nested call when it runs in the
   validator's catalog: when it names that catalog, or names no `catalogId` in
   a component that names none either. Any other call runs in a catalog the
-  validator can't see, so only its function and argument identifiers are
-  checked; `MessageProcessor` checks it against the catalog it resolves to.
+  validator can't see, so only its envelope is checked: function and argument
+  identifiers, and `args` must be an object; `MessageProcessor` checks it against the catalog it resolves to.
   `SurfaceComponentsModel.validate_components_update` applies the same rule,
   using whether each component's catalog is the surface default. Nested calls
   are checked even in a component whose type the catalog doesn't define and
