@@ -183,6 +183,18 @@ struct AgentToRendererMessageTests {
     }
   }
 
+  @Test(arguments: ["v0.9", "v0.9.1"])
+  func decodeRejectsCreateSurfaceWithoutCatalogIDBeforeV10(version: String) throws {
+    // Before v1.0 the server_to_client schema requires `catalogId`.
+    let json = try #require(
+      """
+      {"version": "\(version)", "createSurface": {"surfaceId": "s1"}}
+      """.data(using: .utf8))
+    #expect(throws: (any Error).self) {
+      try JSONDecoder().decode(AgentToRendererMessage.self, from: json)
+    }
+  }
+
   @Test func decodeAcceptsVersion09() throws {
     let json = try #require(
       """
