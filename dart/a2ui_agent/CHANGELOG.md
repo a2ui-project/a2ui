@@ -2,9 +2,7 @@
 
 ## Unreleased
 
-- Payload validation builds its `MessageProcessor` with `defaultVersion`, and
-  gives a catalog that declares no `protocolVersion` the v0.9 it validates
-  against, now that `a2ui_core` rejects a catalog without one.
+- Payload validation builds its `MessageProcessor` with `defaultVersion`.
 - Validation forwards `catalog.protocolVersion` when constructing its
   signature-only `Catalog` for `MessageProcessor`.
 - Include common mixin properties (`accessibility`, `weight`) at the end of

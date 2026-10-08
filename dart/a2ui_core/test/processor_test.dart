@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:a2ui_core/src/basic_catalog/basic_catalog.dart';
 import 'package:a2ui_core/src/core/catalog.dart';
 import 'package:a2ui_core/src/core/common_schemas.dart';
 import 'package:a2ui_core/src/core/component_model.dart';
@@ -1047,8 +1048,8 @@ void main() {
     });
 
     test(
-        'an inline createSurface writes the data model, then components, '
-        'then metadata', () {
+        'an inline createSurface carries its metadata and writes the data '
+        'model, then components', () {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [v10Catalog()],
         validationConfig: ValidationConfig.strict,
@@ -1087,6 +1088,7 @@ void main() {
         'version': 'v1.0',
         'createSurface': {
           'surfaceId': 's1',
+          'catalogId': 'v10',
           'components': [
             {
               'id': 'root',
@@ -1106,7 +1108,7 @@ void main() {
       });
 
       expect(events, [
-        'created: data={} components=0 metadata=null',
+        'created: data={} components=0 metadata={extensions: {trace: true}}',
         'data: components=0',
         'component root',
         'component t',
@@ -1148,25 +1150,104 @@ void main() {
       expect(processor.groupModel.getSurface('s1'), isNull);
     });
 
-    test('a v1.0 createSurface without catalogId needs a sole catalog', () {
+    test('a v1.0 createSurface without catalogId has no default catalog', () {
+      // No fallback to the processor's catalogs, even when it supports
+      // exactly one: an item on such a surface must name its catalog.
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v10Catalog()],
+        // This package embeds no v1.0 common types yet.
+        commonTypesSchema: const {},
+      );
+      processor.processMessages({
+        'version': 'v1.0',
+        'createSurface': {'surfaceId': 's1'},
+      });
+      final SurfaceModel<ComponentApi> surface =
+          processor.groupModel.getSurface('s1')!;
+      expect(surface.defaultCatalog, isNull);
+      expect(surface.availableCatalogs.keys, ['v10']);
+
+      Map<String, Object?> update(Map<String, Object?> component) => {
+            'version': 'v1.0',
+            'updateComponents': {
+              'surfaceId': 's1',
+              'components': [component],
+            },
+          };
       expect(
-        () => MessageProcessor<ComponentApi>(
-          catalogs: [v10Catalog('a'), v10Catalog('b')],
-        ).processMessages({
-          'version': 'v1.0',
-          'createSurface': {'surfaceId': 's1'},
-        }),
+        () => processor.processMessages(
+          update({'id': 'root', 'component': 'Text'}),
+        ),
         throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(
+        () => processor.processMessages(
+          update({'id': 'root', 'component': 'Text', 'catalogId': 'v10'}),
+        ),
+        returnsNormally,
+      );
+      expect(surface.componentsModel.all.map((c) => c.id), ['root']);
+    });
+
+    test('BasicCatalog.v1_0 backs a v1.0 surface', () {
+      final Catalog<ComponentApi, FunctionImplementation> basic =
+          BasicCatalog.v1_0();
+      expect(basic.protocolVersion, '1.0');
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [basic],
+        commonTypesSchema: const {},
+      );
+      processor.processMessages({
+        'version': 'v1.0',
+        'createSurface': {'surfaceId': 's1', 'catalogId': basic.id},
+      });
+      expect(
+        processor.groupModel.getSurface('s1')!.defaultCatalog,
+        same(basic),
       );
     });
 
-    test('rejects a catalog with a missing or incompatible version', () {
+    test('an unversioned catalog is pre-v1.0', () {
       final unversioned = Catalog<ComponentApi, FunctionImplementation>(
         id: 'plain',
         components: const [],
       );
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog(), v10Catalog(), unversioned],
+        catalogs: [unversioned],
+      );
+      // Accepted below v1.0.
+      for (final version in ['v0.9', 'v0.9.1']) {
+        processor.processMessages({
+          'version': version,
+          'createSurface': {'surfaceId': 's_$version', 'catalogId': 'plain'},
+        });
+        expect(
+          processor.groupModel.getSurface('s_$version')!.defaultCatalog,
+          same(unversioned),
+          reason: version,
+        );
+      }
+      // Rejected from v1.0 on.
+      expect(
+        () => processor.processMessages({
+          'version': 'v1.0',
+          'createSurface': {'surfaceId': 's_v1', 'catalogId': 'plain'},
+        }),
+        throwsA(
+          isA<A2uiCatalogError>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('declares no protocolVersion'),
+                contains('incompatible')),
+          ),
+        ),
+      );
+      expect(processor.groupModel.getSurface('s_v1'), isNull);
+    });
+
+    test('rejects a catalog with an incompatible version', () {
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [MinimalCatalog(), v10Catalog()],
       );
       expect(
         () => processor.processMessages({
@@ -1187,19 +1268,6 @@ void main() {
           'createSurface': {'surfaceId': 's2', 'catalogId': 'v10'},
         }),
         throwsA(isA<A2uiCatalogError>()),
-      );
-      expect(
-        () => processor.processMessages({
-          'version': 'v0.9',
-          'createSurface': {'surfaceId': 's3', 'catalogId': 'plain'},
-        }),
-        throwsA(
-          isA<A2uiCatalogError>().having(
-            (e) => e.message,
-            'message',
-            contains('declares no protocolVersion'),
-          ),
-        ),
       );
       expect(processor.groupModel.allSurfaces, isEmpty);
     });

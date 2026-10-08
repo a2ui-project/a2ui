@@ -353,10 +353,10 @@ class MessageProcessor<T extends ComponentApi> {
   /// The inline components are checked before the surface is added, so a
   /// `createSurface` they fail creates nothing.
   void _createSurface(CreateSurfaceOp operation) {
-    final Catalog<T, FunctionImplementation> catalog = _surfaceCatalog(
+    final Catalog<T, FunctionImplementation>? catalog = _surfaceCatalog(
       operation,
     );
-    _checkCatalogVersion(catalog, operation);
+    if (catalog != null) _checkCatalogVersion(catalog, operation);
 
     if (groupModel.getSurface(operation.surfaceId) != null) {
       throw A2uiIntegrityError(
@@ -365,7 +365,8 @@ class MessageProcessor<T extends ComponentApi> {
 
     // The theme arrives once, with the surface, so it is checked here rather
     // than on every later message. v1.0 has no theme.
-    if (!operation.version.isAtLeast(A2uiProtocolVersion.v1_0)) {
+    if (catalog != null &&
+        !operation.version.isAtLeast(A2uiProtocolVersion.v1_0)) {
       validatorFor(catalog, version: operation.version)
           .validateTheme(operation.theme);
     }
@@ -412,12 +413,18 @@ class MessageProcessor<T extends ComponentApi> {
     }
   }
 
-  /// The default catalog of the surface [operation] creates.
+  /// The default catalog of the surface [operation] creates, or null when a
+  /// v1.0 message names none.
+  ///
+  /// From v1.0 `catalogId` is optional on `createSurface`: a surface without
+  /// one has no default catalog, so each item on it must name its own, and
+  /// one that does not is rejected by [SurfaceModel.resolveCatalog]. There is
+  /// no fallback to the catalogs this processor supports, even when it
+  /// supports exactly one.
   ///
   /// Throws [A2uiValidationError] for a message before v1.0 that names no
-  /// catalog, and [A2uiCatalogError] for a v1.0 message that names none when
-  /// this processor supports more than one.
-  Catalog<T, FunctionImplementation> _surfaceCatalog(
+  /// catalog, as those versions require one.
+  Catalog<T, FunctionImplementation>? _surfaceCatalog(
     CreateSurfaceOp operation,
   ) {
     if (operation.catalogId case final String catalogId) {
@@ -429,44 +436,30 @@ class MessageProcessor<T extends ComponentApi> {
         'no catalogId.',
       );
     }
-    // From v1.0 a surface may name no catalog. Until a surface can exist
-    // without a default catalog, it takes the sole one this processor
-    // supports.
-    if (catalogs.length == 1) return catalogs.single;
-    throw A2uiCatalogError(
-      "Message 'createSurface' for surface '${operation.surfaceId}' names no "
-      'catalogId, and this processor supports several: '
-      '${catalogs.map((c) => c.id).join(', ')}.',
-    );
+    return null;
   }
 
   /// Throws [A2uiCatalogError] unless [catalog] declares a protocol version
   /// compatible with the message creating a surface on it.
   ///
-  /// Fails closed: a catalog that declares no version is rejected rather than
-  /// assumed to match.
+  /// A catalog that declares no version is pre-v1.0 (see
+  /// [isCatalogVersionCompatible]): it serves a message below 1.0 and is
+  /// rejected for one from 1.0 on.
   void _checkCatalogVersion(
     Catalog<T, FunctionImplementation> catalog,
     CreateSurfaceOp operation,
   ) {
     final String messageVersion = operation.version.jsonValue;
     final String? catalogVersion = catalog.protocolVersion;
-    if (catalogVersion == null) {
-      throw A2uiCatalogError(
-        "Catalog '${catalog.id}' declares no protocolVersion, so it cannot be "
-        "checked against the '$messageVersion' message creating surface "
-        "'${operation.surfaceId}'.",
-        catalogId: catalog.id,
-      );
-    }
-    if (!isCatalogVersionCompatible(catalogVersion, messageVersion)) {
-      throw A2uiCatalogError(
-        "Catalog '${catalog.id}' targets protocol version '$catalogVersion', "
-        "which is incompatible with the '$messageVersion' message creating "
-        "surface '${operation.surfaceId}'.",
-        catalogId: catalog.id,
-      );
-    }
+    if (isCatalogVersionCompatible(catalogVersion, messageVersion)) return;
+    final declared = catalogVersion == null
+        ? 'declares no protocolVersion, so it is pre-v1.0,'
+        : "targets protocol version '$catalogVersion',";
+    throw A2uiCatalogError(
+      "Catalog '${catalog.id}' $declared which is incompatible with the "
+      "'$messageVersion' message creating surface '${operation.surfaceId}'.",
+      catalogId: catalog.id,
+    );
   }
 
   /// Which properties hold child references, across the catalogs a surface's

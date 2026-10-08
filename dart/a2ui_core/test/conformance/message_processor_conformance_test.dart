@@ -39,8 +39,6 @@ const Map<String, String> _v10ExpectedFailures = {
       'The v1.0 common types are not embedded yet.',
   'test_v10_create_surface_inline_initialization':
       'The v1.0 common types are not embedded yet.',
-  'test_v10_update_components_mismatched_catalog_protocol_version_error':
-      'The v1.0 common types are not embedded yet.',
   'test_v10_get_renderer_capabilities':
       'getRendererCapabilities does not emit v1.0 capabilities yet.',
   'test_v10_create_surface_metadata_extension_key_must_be_identifier':

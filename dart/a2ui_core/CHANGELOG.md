@@ -14,13 +14,15 @@
   (`AgentToRendererMessagePayload`, one `AgentToRendererMessage`, or a list of
   them). Every message is parsed before any is applied.
 - **Behavior change:** `createSurface` raises `A2uiCatalogError` when its
-  catalog declares no `protocolVersion`, or one incompatible with the
-  message's version. `MinimalCatalog` declares `v0.9`.
+  catalog declares a `protocolVersion` incompatible with the message's
+  version. A catalog that declares none is pre-v1.0: accepted by a v0.9 or
+  v0.9.1 message and rejected by a v1.0 one. `MinimalCatalog` declares `v0.9`.
 - **Behavior change:** a v1.0 `createSurface` writes its inline `dataModel` as
   one root write, then applies its inline `components` (checked as one batch
-  before the surface is added, so a batch that fails creates nothing), then
-  its `metadata`. Without a `catalogId` it takes the processor's sole catalog,
-  and raises `A2uiCatalogError` when there are several.
+  before the surface is added, so a batch that fails creates nothing).
+  Without a `catalogId` it creates a surface with no default catalog; there
+  is no fallback to the processor's catalogs. A v0.9 `createSurface` without
+  a `catalogId` is rejected, as the v0.9 schema requires one.
 - `SurfaceModel.protocolVersion` is the version of the message that created
   the surface, so `DataContext.isV10` follows each surface's own version.
 - New `InternalOperation` (`CreateSurfaceOp`, `UpdateComponentsOp`,
