@@ -191,6 +191,12 @@ export class PayloadValidator {
       throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
     }
 
+    // Decides which nested calls run in this catalog; see
+    // `nestedCallRunsInCatalog`.
+    const rawCatalogId = comp['catalogId'];
+    const componentCatalogId = typeof rawCatalogId === 'string' ? rawCatalogId : undefined;
+    const properties = stripEnvelopeKeys(comp);
+
     const componentApi = this.catalog.components.get(componentType);
     if (!componentApi) {
       if (!this.allowUnknown) {
@@ -198,14 +204,14 @@ export class PayloadValidator {
           `Unknown component type '${componentType}' not found in catalog '${this.catalog.id}'.`,
         );
       }
+      // The component's properties can't be checked without its schema, but
+      // the function calls in them still run, so they are checked all the
+      // same. `MessageProcessor` relies on this for the calls it leaves to
+      // component validation.
+      this.validateNestedFunctions(properties, componentCatalogId);
       return;
     }
 
-    // Decides which nested calls run in this catalog; see
-    // `nestedCallRunsInCatalog`.
-    const rawCatalogId = comp['catalogId'];
-    const componentCatalogId = typeof rawCatalogId === 'string' ? rawCatalogId : undefined;
-    const properties = stripEnvelopeKeys(comp);
     const knownKeys = getKnownSchemaKeys(componentApi.schema);
     this.validateCommonEnvelopeFields(properties, knownKeys, componentType, id, componentCatalogId);
 

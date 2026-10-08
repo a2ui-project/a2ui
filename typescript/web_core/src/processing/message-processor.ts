@@ -801,12 +801,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       this.componentPayloadForValidation(comp, surface, targetCatalog),
       existing?.type,
     );
-    // `validateComponent` walks nested calls only when the catalog defines the
-    // component type; otherwise every call is checked against its resolved
-    // catalog below.
-    const declaredType = typeof component === 'string' ? component : existing?.type;
-    const nestedCallsWalked = !!declaredType && targetCatalog.components.has(declaredType);
-    this.validateNestedFunctionCalls(comp, surface, targetCatalog, nestedCallsWalked);
+    // `validateComponent` walks the nested calls, even in a component type
+    // the catalog doesn't define, and checks those that run in the
+    // component's catalog; the pass below checks the rest.
+    this.validateNestedFunctionCalls(comp, surface, targetCatalog);
   }
 
   /**
@@ -889,9 +887,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * the surface's default catalog, whatever catalog an enclosing call or the
    * component names, so a call may run in a catalog other than the
    * component's. This pass resolves every call's catalog and checks the
-   * arguments of the calls that run outside the component's catalog; when
-   * component validation walked the nested calls, it already checked the
-   * others, as decided by `nestedCallRunsInCatalog`.
+   * arguments of the calls that run outside the component's catalog;
+   * component validation, which runs first and walks every nested call, has
+   * already checked the others, as decided by `nestedCallRunsInCatalog`.
    * Reserved `@` system functions belong to no catalog and are validated by
    * `PayloadValidator`; their arguments are still walked here.
    *
@@ -901,8 +899,6 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param comp Raw component payload.
    * @param surface Surface the component belongs to.
    * @param componentCatalog Catalog the component resolved to.
-   * @param nestedCallsWalked Whether component validation walked the nested
-   *   calls, checking those that run in `componentCatalog`.
    * @throws {A2uiCatalogError} If a call's catalog cannot be resolved.
    * @throws {A2uiValidationError} If a call fails validation against the
    *   catalog it resolves to.
@@ -911,7 +907,6 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     comp: Record<string, unknown>,
     surface: SurfaceModel<T>,
     componentCatalog: Catalog<T>,
-    nestedCallsWalked: boolean,
   ): void {
     if (!isAtLeastVersion(surface.protocolVersion, '1.0')) return;
 
@@ -931,8 +926,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         // `DataContext` resolves the call at runtime.
         const rawCatalogId = record['catalogId'];
         if (rawCatalogId !== undefined && typeof rawCatalogId !== 'string') {
-          // Only reached when component validation did not walk the nested
-          // calls; when it does, it throws this same error before this pass.
+          // Component validation throws this same error before this pass;
+          // kept so the catalog lookup below never sees a non-string ID.
           throw new A2uiValidationError(nonStringCatalogIdMessage(name));
         }
         const catalogId = rawCatalogId;
@@ -943,11 +938,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         );
         // Component validation already checked a call that runs in the
         // component's catalog.
-        const checked =
-          nestedCallsWalked &&
-          nestedCallRunsInCatalog(catalogId, componentCatalog.id, {
-            catalogIsDefault: componentCatalog === surface.defaultCatalog,
-          });
+        const checked = nestedCallRunsInCatalog(catalogId, componentCatalog.id, {
+          catalogIsDefault: componentCatalog === surface.defaultCatalog,
+        });
         if (!checked) {
           const rawArgs = record['args'];
           new PayloadValidator(target, this.validationConfig).validateFunction(

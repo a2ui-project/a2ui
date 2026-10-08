@@ -1248,23 +1248,43 @@ describe('MessageProcessor', () => {
       });
 
       it('checks the calls of a component type its catalog does not define', () => {
-        const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
-        const custom = new Catalog<ComponentApi>('custom', '1.0', [], [lowerFn]);
-        const proc = new MessageProcessor<ComponentApi>([base, custom], undefined, {
-          validationConfig: {...THEME_ONLY_VALIDATION, allowUnknownElements: true},
+        const newProc = () => {
+          const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
+          const custom = new Catalog<ComponentApi>('custom', '1.0', [], [lowerFn]);
+          return new MessageProcessor<ComponentApi>([base, custom], undefined, {
+            validationConfig: {...THEME_ONLY_VALIDATION, allowUnknownElements: true},
+          });
+        };
+        const widget = (catalogId: string, text: unknown) => ({
+          id: 'root',
+          component: 'Widget',
+          catalogId,
+          text,
         });
-        // Component validation skips an unknown type, so the nested call is
-        // checked against the catalog it resolves to.
+        // Component validation can't check the properties of an unknown type,
+        // but it still checks the calls in them.
         assert.throws(
           () =>
-            processRoot(proc, {
-              id: 'root',
-              component: 'Widget',
-              catalogId: 'custom',
-              text: {'@call': 'lower', catalogId: 'custom', args: {value: 3}},
-            }),
+            processRoot(
+              newProc(),
+              widget('custom', {'@call': 'lower', catalogId: 'custom', args: {value: 3}}),
+            ),
           /Validation failed for function 'lower'/,
         );
+        assert.throws(
+          () => processRoot(newProc(), widget('base', {'@call': 'upper', args: {value: 3}})),
+          /Validation failed for function 'upper'/,
+        );
+        // Reserved system functions too.
+        assert.throws(
+          () => processRoot(newProc(), widget('base', {'@call': '@index', catalogId: 'base'})),
+          /System function '@index' belongs to no catalog and must not name a catalogId/,
+        );
+        assert.throws(
+          () => processRoot(newProc(), widget('base', {'@call': '@index', args: {offset: 'one'}})),
+          /Validation failed for function '@index'/,
+        );
+        processRoot(newProc(), widget('base', {'@call': '@index', args: {offset: 1}}));
       });
 
       it('rejects a non-string catalogId on a call', () => {
@@ -1288,8 +1308,7 @@ describe('MessageProcessor', () => {
 
       it('rejects a call with an empty name', () => {
         const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
-        // `Widget` is unknown to the catalog, so only the nested-call pass sees
-        // its call.
+        // `Widget` is unknown to the catalog; its call is checked all the same.
         for (const component of ['Text', 'Widget']) {
           const proc = new MessageProcessor<ComponentApi>([base]);
           assert.throws(
