@@ -320,6 +320,7 @@ class _Reader {
     if (value == null || !_numberPattern.hasMatch(literal)) {
       _fail("invalid number '$literal'");
     }
+    if (!value.isFinite) _fail("number '$literal' is out of range");
     return value;
   }
 

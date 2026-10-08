@@ -20,6 +20,9 @@
   emitted only once its JSON object closes, as v1.0 requires, and progressive
   keys heal only values outside components. It is false by default, which keeps
   the v0.9 behavior of healing a component while it streams.
+- `DirectJsonParser` rejects a number out of the range of a double, such as
+  `1e400`, with `A2uiParseError`. `parseChunk` used to throw a
+  `JsonUnsupportedObjectError` for it.
 - The Direct JSON message reader and the Express decompiler continue to
   reject a `createSurface` message without a `catalogId` with
   `A2uiValidationError`. The check moved into the agent SDK now that
