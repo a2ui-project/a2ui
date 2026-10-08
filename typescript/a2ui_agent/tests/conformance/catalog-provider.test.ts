@@ -47,7 +47,7 @@ describe('Conformance: catalog_provider.yaml', () => {
       );
 
       if (testCase.expect_error) {
-        await expect(provider.load()).rejects.toThrow(errorClassFor(testCase));
+        expect(() => provider.load()).toThrow(errorClassFor(testCase));
         return;
       }
 
@@ -57,7 +57,7 @@ describe('Conformance: catalog_provider.yaml', () => {
         components?: string[];
         functions?: string[];
       };
-      const catalog = await provider.load();
+      const catalog = provider.load();
       if (expected.catalog_id !== undefined) {
         expect(catalog.id).toBe(expected.catalog_id);
       }

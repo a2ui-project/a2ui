@@ -21,10 +21,10 @@ import {
   ComponentApi,
   FunctionImplementation,
   MessageProcessor,
-} from '../internal/web_core.js';
+} from '../internal/web-core.js';
 import {InferenceFormatFactory, InferenceFormat} from '../inference-format.js';
-import {ResponsePart} from '../parser/response_part.js';
-import {DirectJsonFormatFactory} from '../inference_formats/direct_json/format.js';
+import {ResponsePart} from '../parser/response-part.js';
+import {DirectJsonFormatFactory} from '../inference-formats/direct-json/format.js';
 import {Parser} from '../parser/parser.js';
 
 /** Request-scoped facade over the negotiated catalogs, prompt, parser, and validation. */

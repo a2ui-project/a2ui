@@ -21,7 +21,7 @@
     "format": "wireit",
     "format:check": "wireit",
     "clean": "wireit",
-    "generate:express": "antlr-ng -Dlanguage=TypeScript --generate-visitor --generate-listener false -o src/inference_formats/express/generated ../../specification/inference_formats/express/Express.g4"
+    "generate:express": "antlr-ng -Dlanguage=TypeScript --generate-visitor --generate-listener false -o src/inference-formats/express/generated ../../specification/inference_formats/express/Express.g4"
   },
   "wireit": {
     "build": {

@@ -16,8 +16,8 @@
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
 
-import {normalizeVersionString} from '../internal/web_core.js';
-import {envelopeSchemasFor} from './envelope_validation.js';
+import {normalizeVersionString} from '../internal/web-core.js';
+import {envelopeSchemasFor} from './envelope-validation.js';
 
 const jsonSchemasByVersion = new Map<string, Record<string, Record<string, unknown>>>();
 

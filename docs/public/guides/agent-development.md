@@ -98,7 +98,7 @@ Select `my_agent` from the list, and ask questions about restaurants in New York
 
 ## Generating A2UI Messages
 
-Getting the LLM to generate A2UI messages requires some prompt engineering. The SDK provides the `A2uiSchemaManager` to help you generate a system prompt that includes the A2UI schema and examples from your component catalog.
+Getting the LLM to generate A2UI messages requires some prompt engineering. The SDK provides the `DirectJsonFormat` inference format to help you generate a system prompt that includes the A2UI schema and examples from your component catalog.
 
 First, make sure you have `a2ui-agent-sdk` installed (it is included in the samples).
 
@@ -106,12 +106,11 @@ In your agent file (e.g., `agent.py`), import the necessary classes:
 
 ```python
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.schema.catalog import CatalogConfig
-from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
-from a2ui.strategies.schema import A2uiSchemaManager
+from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.schema import VERSION_0_8, VERSION_0_9
 ```
 
-Then, you can use `A2uiSchemaManager` to generate the system prompt. This ensures that the schema and examples are correctly formatted and up to date.
+Then, you can use `DirectJsonFormat` to generate the system prompt. This ensures that the schema and examples are correctly formatted and up to date.
 
 ```python
 # Define your agent's role
@@ -129,18 +128,14 @@ UI_DESCRIPTION = """
 -   If the query is a booking submission (e.g., "User submitted a booking..."), you MUST use the `CONFIRMATION_EXAMPLE` template.
 """
 
-# Initialize the schema manager with the Basic Catalog
-schema_manager = A2uiSchemaManager(
-    version=VERSION_0_8, # Use VERSION_0_9 for newer protocol
-    catalogs=[
-        CatalogConfig.from_catalog(
-            "basic", BasicCatalog(VERSION_0_8), examples_path="examples/0.8"
-        )
-    ],
+# Initialize the inference format with the Basic Catalog
+inference_format = DirectJsonFormat(
+    [BasicCatalog(VERSION_0_8)],  # Use VERSION_0_9 for newer protocol
+    examples_path="examples/0.8",
 )
 
 # Generate the full system prompt
-A2UI_AND_AGENT_INSTRUCTION = schema_manager.generate_system_prompt(
+A2UI_AND_AGENT_INSTRUCTION = inference_format.prompt_generator.generate(
     role_description=ROLE_DESCRIPTION,
     ui_description=UI_DESCRIPTION,
     include_schema=True,

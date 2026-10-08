@@ -20,11 +20,11 @@ export {type ProtocolVersion} from './types.js';
 // The v1.0 agent-to-renderer protocol message. Re-exported because it appears in public
 // signatures -- notably the `examples` parameter of `A2uiGenerator` -- so callers must be
 // able to name it.
-export type {AgentToRendererMessage} from './internal/web_core.js';
+export type {AgentToRendererMessage} from './internal/web-core.js';
 
 // The renderer capabilities a request is negotiated against. Re-exported because
 // `A2uiGenerator.createProcessor` and `resolveCatalogs` take it.
-export type {RendererCapabilities} from './internal/web_core.js';
+export type {RendererCapabilities} from './internal/web-core.js';
 
 export {
   A2uiError,
@@ -48,7 +48,7 @@ export {
   type RawResponsePart,
   type A2uiPart,
   type ResponsePart,
-} from './parser/response_part.js';
+} from './parser/response-part.js';
 
 export {Parser} from './parser/parser.js';
 
@@ -57,44 +57,44 @@ export {PromptGenerator} from './prompt/generator.js';
 export {type InferenceFormat, type InferenceFormatFactory} from './inference-format.js';
 
 // Phase 1B: Catalog layer
-export {type CatalogTransformer} from './catalog_transformers/base.js';
+export {type CatalogTransformer} from './catalog-transformers/base.js';
 
 export {
   ComponentPruningTransformer,
   FunctionPruningTransformer,
-} from './catalog_transformers/pruning.js';
+} from './catalog-transformers/pruning.js';
 
 export {
   type CatalogProvider,
   FileSystemCatalogProvider,
   InMemoryCatalogProvider,
-} from './processor/catalog_providers.js';
+} from './processor/catalog-providers.js';
 
-export {CatalogConfig} from './processor/catalog_config.js';
+export {CatalogConfig} from './processor/catalog-config.js';
 
-export {resolveCatalogs} from './utils/catalog_resolver.js';
+export {resolveCatalogs} from './utils/catalog-resolver.js';
 
 // Direct JSON inference format
-export {DirectJsonFormat, DirectJsonFormatFactory} from './inference_formats/direct_json/format.js';
-export {DirectJsonParser} from './inference_formats/direct_json/parser.js';
+export {DirectJsonFormat, DirectJsonFormatFactory} from './inference-formats/direct-json/format.js';
+export {DirectJsonParser} from './inference-formats/direct-json/parser.js';
 export type {
   DirectJsonStreamProcessorFactory,
   DirectJsonStreamProcessorOptions,
   DirectJsonStreamProcessor,
-} from './inference_formats/direct_json/streaming_types.js';
-export {DirectJsonStreamProcessorImpl} from './inference_formats/direct_json/streaming.js';
-export {DirectJsonPromptGenerator} from './inference_formats/direct_json/prompt_generator.js';
-export {DirectJsonDecompiler} from './inference_formats/direct_json/decompiler.js';
+} from './inference-formats/direct-json/streaming-types.js';
+export {DirectJsonStreamProcessorImpl} from './inference-formats/direct-json/streaming.js';
+export {DirectJsonPromptGenerator} from './inference-formats/direct-json/prompt-generator.js';
+export {DirectJsonDecompiler} from './inference-formats/direct-json/decompiler.js';
 
 // Express inference format
 export {
   type ExpressFormatOptions,
   ExpressFormat,
   ExpressFormatFactory,
-} from './inference_formats/express/format.js';
-export {ExpressParser} from './inference_formats/express/parser.js';
-export {ExpressPromptGenerator} from './inference_formats/express/prompt_generator.js';
-export {ExpressDecompiler} from './inference_formats/express/decompiler.js';
+} from './inference-formats/express/format.js';
+export {ExpressParser} from './inference-formats/express/parser.js';
+export {ExpressPromptGenerator} from './inference-formats/express/prompt-generator.js';
+export {ExpressDecompiler} from './inference-formats/express/decompiler.js';
 export {
   ExpressCompilerError,
   ExpressParseError,
@@ -113,7 +113,7 @@ export {
   ExpressIdCollisionError,
   ExpressInvalidIdentifierError,
   ExpressUnknownCatalogError,
-} from './inference_formats/express/errors.js';
+} from './inference-formats/express/errors.js';
 
 // Facades
 export {A2uiGenerator} from './processor/generator.js';

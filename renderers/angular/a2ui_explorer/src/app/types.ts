@@ -39,6 +39,8 @@ export type A2uiExample = Example | Example_08;
  */
 export interface Example {
   version: '0.9' | '1.0';
+  /** Original JSON filename of the example. */
+  filename?: string;
   /** The name of the example, displayed in the sidebar. */
   name: string;
   /** A short description of what the example demonstrates. */
@@ -58,6 +60,8 @@ export interface Example {
  */
 export interface Example_08 {
   version: '0.8';
+  /** Original JSON filename of the example. */
+  filename?: string;
   /** The name of the example, displayed in the sidebar. */
   name: string;
   /** A short description of what the example demonstrates. */

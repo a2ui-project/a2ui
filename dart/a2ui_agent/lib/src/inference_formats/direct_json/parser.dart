@@ -48,6 +48,7 @@ class DirectJsonParser extends Parser {
   DirectJsonParser(
     List<CatalogApi> catalogs, {
     Set<String> progressiveKeys = const {},
+    this.bufferIncompleteComponents = false,
   }) : catalogs = List.unmodifiable(catalogs),
        progressiveKeys = Set.unmodifiable(progressiveKeys);
 
@@ -60,6 +61,16 @@ class DirectJsonParser extends Parser {
   /// Which properties hold prose depends on the catalog, so there is no
   /// built-in set. Empty turns healing off.
   final Set<String> progressiveKeys;
+
+  /// Whether a streamed component is held back until its JSON object closes,
+  /// rather than healed and shown while it arrives.
+  ///
+  /// From v1.0 a component may name its own `catalogId`, and the key can
+  /// arrive after its type and properties, so a component shown early may be
+  /// checked and rendered against the wrong catalog. A v1.0 agent turns this
+  /// on; [progressiveKeys] then only heal values outside components, such as
+  /// a data model.
+  final bool bufferIncompleteComponents;
 
   late final MessageReader _reader = MessageReader(catalogs);
 
@@ -280,6 +291,9 @@ class DirectJsonParser extends Parser {
     for (final Object? envelope in readPartialMessages(
       content,
       progressiveKeys,
+      wholeItemKeys: bufferIncompleteComponents
+          ? const {'components'}
+          : const {},
     )) {
       try {
         ready.add(_reader.read(envelope, surfaces));

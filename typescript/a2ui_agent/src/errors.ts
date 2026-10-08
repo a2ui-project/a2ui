@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {A2uiError} from './internal/web_core.js';
-import type {ResponsePart} from './parser/response_part.js';
+import {A2uiError} from './internal/web-core.js';
+import type {ResponsePart} from './parser/response-part.js';
 
 export {
   A2uiCatalogError,
@@ -26,7 +26,7 @@ export {
   A2uiStateError,
   A2uiIntegrityError,
   A2uiRecursionError,
-} from './internal/web_core.js';
+} from './internal/web-core.js';
 
 /**
  * Error raised on malformed model output during parsing.

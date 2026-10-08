@@ -38,7 +38,7 @@ import {VERSIONS, type VersionProfile} from '../src/versions.js';
 
 const packageRoot = fileURLToPath(new URL('..', import.meta.url));
 const FORMATS: A2uiFormat[] = ['direct_json', 'express'];
-const catalogs = await loadBasicCatalogs();
+const catalogs = loadBasicCatalogs();
 
 /** Parses a model response the way the agent does, throwing if it is invalid. */
 function validate(profile: VersionProfile, format: A2uiFormat, response: string) {

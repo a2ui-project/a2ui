@@ -34,11 +34,14 @@ Usage Example:
 """
 
 from __future__ import annotations
+
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from a2ui.adk.a2a.part_converter import A2uiPartConverter
 from google.adk.a2a.converters import part_converter
 from google.adk.utils.feature_decorator import experimental
+
+from .part_converter import A2uiPartConverter
 
 if TYPE_CHECKING:
     from a2a.server.events import Event as A2AEvent
@@ -81,9 +84,15 @@ class A2uiEventConverter:
         catalog = invocation_context.session.state.get(self._catalog_key)
         effective_converter: GenAIPartToA2APartConverter
         if catalog:
+            catalogs = (
+                catalog
+                if isinstance(catalog, Sequence)
+                and not isinstance(catalog, (str, bytes))
+                else [catalog]
+            )
             # Use the catalog-aware part converter
             effective_converter = A2uiPartConverter(
-                catalog,
+                catalogs,
                 bypass_tool_check=self._bypass_tool_check,
                 fallback_text=self._fallback_text,
             ).convert

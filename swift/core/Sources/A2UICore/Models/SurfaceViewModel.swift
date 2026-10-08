@@ -34,14 +34,27 @@ public final class SurfaceViewModel: ObservableObject {
 
   /// The primary default catalog associated with this surface, if available.
   public var catalog: AnyCatalog {
-    if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
-      return catalog
+    if let defaultCatalogID {
+      if let catalog = catalogs[defaultCatalogID] {
+        return catalog
+      }
+      if let catalog = catalogs.values.first(where: {
+        $0.id.hasSuffix("/\(defaultCatalogID)/catalog.json")
+          && $0.isAtLeastV10
+      }) {
+        return catalog
+      }
+      if let catalog = catalogs.values.first(where: {
+        $0.id.hasSuffix("/\(defaultCatalogID)/catalog.json")
+      }) {
+        return catalog
+      }
     }
     return catalogs.values.first ?? Catalog(id: "empty", components: [])
   }
   public let theme: [String: JSONValue]?
   public let sendDataModel: Bool
-  public let protocolVersion: String?
+  public let protocolVersion: A2UIProtocolVersion
 
   public let dataModel: DataModel
   public let componentsModel: SurfaceComponentsModel
@@ -68,25 +81,39 @@ public final class SurfaceViewModel: ObservableObject {
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
     sendDataModel: Bool = false,
-    protocolVersion: String? = nil
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
-    self.defaultCatalogID = defaultCatalogID ?? catalogs.keys.sorted().first
+    let resolvedDefaultCatalogID = defaultCatalogID ?? catalogs.keys.sorted().first
+    self.defaultCatalogID = resolvedDefaultCatalogID
     self.theme = theme
     self.sendDataModel = sendDataModel
     self.actionHandler = actionHandler
-    self.protocolVersion = protocolVersion
+    let explicitVersion: A2UIProtocolVersion?
+    if let protocolVersion {
+      explicitVersion = protocolVersion
+    } else if let resolvedDefaultCatalogID,
+      let defaultCat = catalogs[resolvedDefaultCatalogID],
+      let catVer = defaultCat.a2uiProtocolVersion
+    {
+      explicitVersion = catVer
+    } else if let firstCatVer = catalogs.values.first?.a2uiProtocolVersion {
+      explicitVersion = firstCatVer
+    } else {
+      explicitVersion = nil
+    }
+    self.protocolVersion = explicitVersion ?? .v10
     self.dataModel = DataModel()
     self.componentsModel = SurfaceComponentsModel()
     self.nodeResolver = NodeResolver(
       surfaceID: surfaceID,
       catalogs: catalogs,
-      defaultCatalogID: self.defaultCatalogID,
+      defaultCatalogID: resolvedDefaultCatalogID,
       componentsModel: self.componentsModel,
       dataModel: self.dataModel,
       actionHandler: actionHandler,
-      protocolVersion: protocolVersion
+      protocolVersion: explicitVersion?.rawValue
     )
 
     setUpSubscriptions()
@@ -99,7 +126,7 @@ public final class SurfaceViewModel: ObservableObject {
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
     sendDataModel: Bool = false,
-    protocolVersion: String? = nil
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
     let dict = Dictionary(anyCatalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
@@ -120,7 +147,7 @@ public final class SurfaceViewModel: ObservableObject {
     theme: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
     sendDataModel: Bool = false,
-    protocolVersion: String? = nil
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     let anyCatalog = catalog.eraseToAnyCatalog()
     self.init(
@@ -161,5 +188,9 @@ public final class SurfaceViewModel: ObservableObject {
 extension SurfaceViewModel: FunctionHandler {
   public func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     nodeResolver.function(named: name, catalogID: catalogID)
+  }
+
+  public func handleFunctionError(_ error: any Error, functionName: String) {
+    nodeResolver.handleFunctionError(error, functionName: functionName)
   }
 }

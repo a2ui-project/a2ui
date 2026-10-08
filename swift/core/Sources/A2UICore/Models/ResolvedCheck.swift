@@ -22,18 +22,30 @@ public struct ResolvedCheck: Resolved, Equatable, Sendable {
   /// The error message to display if the check condition evaluates to false.
   public let message: String
 
-  public init(condition: DataBinding<Bool>, message: String) {
+  /// Optional structured validation result from evaluating a v1.0 function or data model path.
+  public let validationResult: ValidationResult?
+
+  public init(
+    condition: DataBinding<Bool>,
+    message: String,
+    validationResult: ValidationResult? = nil
+  ) {
     self.condition = condition
     self.message = message
+    self.validationResult = validationResult
   }
 
   /// Whether the check passed (condition evaluated to true).
   public var isValid: Bool {
-    condition.value ?? false
+    if let validationResult {
+      return validationResult.valid
+    }
+    return condition.value ?? false
   }
 
   public static func == (lhs: ResolvedCheck, rhs: ResolvedCheck) -> Bool {
     lhs.condition == rhs.condition && lhs.message == rhs.message
+      && lhs.validationResult == rhs.validationResult
   }
 }
 

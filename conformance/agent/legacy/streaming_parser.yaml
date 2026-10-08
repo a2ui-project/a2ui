@@ -484,7 +484,7 @@
   steps:
     - input: "<a2ui-json>["
       expect: []
-    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "name", "valueString": "Alice"}]}, '
+    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "name", "valueString": "Alice"}]}}, '
       expect:
         - a2ui:
             - dataModelUpdate:
@@ -492,7 +492,7 @@
                 contents: [{key: "name", valueString: "Alice"}]
     - input: '{"beginRendering": {"root": "root", "surfaceId": "s1"}}, '
       expect: [{a2ui: [{beginRendering: {root: "root", surfaceId: "s1"}}]}]
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text": {"text": {"path": "/name"}}}}}}]</a2ui-json>'
+    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text": {"text": {"path": "/name"}}}}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -524,7 +524,7 @@
       expect: []
     - input: '{"beginRendering": {"root": "root", "surfaceId": "s1"}}, '
       expect: [{a2ui: [{beginRendering: {root: "root", surfaceId: "s1"}}]}]
-    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text": {"text": {"path": "/name"}}}}}}, '
+    - input: '{"surfaceUpdate": {"surfaceId": "s1", "components": [{"id": "root", "component": {"Text": {"text": {"path": "/name"}}}}]}}, '
       expect:
         - a2ui:
             - surfaceUpdate:
@@ -898,7 +898,7 @@
                     component: {Text: {text: {path: "/p2"}}}
                   - id: "root"
                     component: {Container: {children: ["c1", "c2"]}}
-    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "p1", "valueString": "v1"}]}, '
+    - input: '{"dataModelUpdate": {"surfaceId": "s1", "contents": [{"key": "p1", "valueString": "v1"}]}}, '
       expect:
         - a2ui:
             - dataModelUpdate:
@@ -3288,3 +3288,337 @@
                     text: "Streaming v1.0"
                 dataModel:
                   count: 10
+
+- name: test_v1_0_streaming_multi_catalog_resolution
+  description: >-
+    Verifies that a v1.0 stream parser holding several catalogs resolves a
+    component that names no catalog against its surface's catalog, and a
+    component that names a catalog against that catalog.
+  protocolVersion: "v1.0"
+  catalogs:
+    - protocolVersion: "v1.0"
+      catalogSchema:
+        catalogId: "https://a2ui.org/catalogs/basic"
+        components:
+          Text:
+            type: object
+            properties:
+              id: {type: string}
+              component: {type: string, enum: ["Text"]}
+              text: {type: string}
+            required: ["id", "component", "text"]
+          Column:
+            type: object
+            properties:
+              id: {type: string}
+              component: {type: string, enum: ["Column"]}
+              children:
+                type: array
+                items: {type: string}
+            required: ["id", "component", "children"]
+    - protocolVersion: "v1.0"
+      catalogSchema:
+        catalogId: "https://a2ui.org/catalogs/custom"
+        components:
+          CustomMetric:
+            type: object
+            properties:
+              id: {type: string}
+              component: {type: string, enum: ["CustomMetric"]}
+              value: {type: number}
+            required: ["id", "component", "value"]
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "main"
+                catalogId: "https://a2ui.org/catalogs/basic"
+    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["t1", "m1"]}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "catalogId": "https://a2ui.org/catalogs/custom", "component": "CustomMetric"'
+      expect: []
+    - input: ', "value": 42}'
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateComponents:
+                surfaceId: "main"
+                components:
+                  - id: "m1"
+                    catalogId: "https://a2ui.org/catalogs/custom"
+                    component: "CustomMetric"
+                    value: 42
+                  - id: "root"
+                    component: "Column"
+                    children: ["t1", "m1"]
+                  - id: "t1"
+                    component: "Text"
+                    text: "Users"
+    - input: "]}}]</a2ui-json>"
+      expect: []
+
+- name: test_v1_0_streaming_component_without_catalog_uses_surface_catalog
+  description: >-
+    Verifies that a v1.0 component that names no catalog is checked against its
+    surface's catalog only, so a component that only another catalog defines is
+    rejected, as a renderer would reject it.
+  protocolVersion: "v1.0"
+  catalogs:
+    - protocolVersion: "v1.0"
+      catalogSchema:
+        catalogId: "https://a2ui.org/catalogs/basic"
+        components:
+          Text:
+            type: object
+            properties:
+              id: {type: string}
+              component: {type: string, enum: ["Text"]}
+              text: {type: string}
+            required: ["id", "component", "text"]
+    - protocolVersion: "v1.0"
+      catalogSchema:
+        catalogId: "https://a2ui.org/catalogs/custom"
+        components:
+          CustomMetric:
+            type: object
+            properties:
+              id: {type: string}
+              component: {type: string, enum: ["CustomMetric"]}
+              value: {type: number}
+            required: ["id", "component", "value"]
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "main"
+                catalogId: "https://a2ui.org/catalogs/basic"
+    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": ['
+      expect: []
+    - input: '{"id": "root", "component": "CustomMetric", "value": 42}'
+      expect: []
+    - input: "]}}]</a2ui-json>"
+      expectError: "Validation failed"
+
+- name: test_v1_0_streaming_component_catalog_id_arrives_late
+  description: >-
+    Verifies that a v1.0 component is held back until its object closes, so a
+    catalogId that arrives after the type and properties picks the catalog the
+    component is checked against. Yielded early, the component would be
+    checked against the surface's catalog, which does not define it.
+  protocolVersion: "v1.0"
+  catalogs:
+    - protocolVersion: "v1.0"
+      catalogSchema:
+        catalogId: "https://a2ui.org/catalogs/basic"
+        components:
+          Column:
+            type: object
+            properties:
+              id: {type: string}
+              component: {type: string, enum: ["Column"]}
+              children:
+                type: array
+                items: {type: string}
+            required: ["id", "component", "children"]
+    - protocolVersion: "v1.0"
+      catalogSchema:
+        catalogId: "https://a2ui.org/catalogs/custom"
+        components:
+          CustomMetric:
+            type: object
+            properties:
+              id: {type: string}
+              component: {type: string, enum: ["CustomMetric"]}
+              value: {type: number}
+            required: ["id", "component", "value"]
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "main"
+                catalogId: "https://a2ui.org/catalogs/basic"
+    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["m1"]}, {"id": "m1", "component": "CustomMetric", "value": 42'
+      expect: []
+    - input: ', "catalogId": "https://a2ui.org/catalogs/custom"}'
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateComponents:
+                surfaceId: "main"
+                components:
+                  - id: "m1"
+                    component: "CustomMetric"
+                    value: 42
+                    catalogId: "https://a2ui.org/catalogs/custom"
+                  - id: "root"
+                    component: "Column"
+                    children: ["m1"]
+    - input: "]}}]</a2ui-json>"
+      expect: []
+
+- name: test_v1_0_streaming_catalog_id_split_across_chunks
+  description: >-
+    Verifies that a v1.0 component whose catalogId key and value are split
+    across chunks, at the key, between the key and its value, and inside the
+    value, is yielded once, after its object closes.
+  protocolVersion: "v1.0"
+  catalogs:
+    - protocolVersion: "v1.0"
+      catalogSchema:
+        catalogId: "https://a2ui.org/catalogs/basic"
+        components:
+          Text:
+            type: object
+            properties:
+              id: {type: string}
+              component: {type: string, enum: ["Text"]}
+              text: {type: string}
+            required: ["id", "component", "text"]
+    - protocolVersion: "v1.0"
+      catalogSchema:
+        catalogId: "https://a2ui.org/catalogs/custom"
+        components:
+          CustomMetric:
+            type: object
+            properties:
+              id: {type: string}
+              component: {type: string, enum: ["CustomMetric"]}
+              value: {type: number}
+            required: ["id", "component", "value"]
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "main"
+                catalogId: "https://a2ui.org/catalogs/basic"
+    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "CustomMetric", "value": 42, "catal'
+      expect: []
+    - input: 'ogId"'
+      expect: []
+    - input: ": "
+      expect: []
+    - input: '"https://a2ui.org/cat'
+      expect: []
+    - input: 'alogs/custom"'
+      expect: []
+    - input: "}"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateComponents:
+                surfaceId: "main"
+                components:
+                  - id: "root"
+                    component: "CustomMetric"
+                    value: 42
+                    catalogId: "https://a2ui.org/catalogs/custom"
+    - input: "]}}]</a2ui-json>"
+      expect: []
+
+- name: test_v1_0_streaming_component_on_surface_catalog_waits_until_closed
+  description: >-
+    Verifies that a v1.0 component that names no catalog, and so uses its
+    surface's catalog, is still held back until its object closes rather than
+    yielded with a healed partial string.
+  protocolVersion: "v1.0"
+  catalogs:
+    - protocolVersion: "v1.0"
+      catalogSchema:
+        catalogId: "https://a2ui.org/catalogs/basic"
+        components:
+          Text:
+            type: object
+            properties:
+              id: {type: string}
+              component: {type: string, enum: ["Text"]}
+              text: {type: string}
+            required: ["id", "component", "text"]
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, '
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              createSurface:
+                surfaceId: "main"
+                catalogId: "https://a2ui.org/catalogs/basic"
+    - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Text", "text": "Hel'
+      expect: []
+    - input: 'lo"'
+      expect: []
+    - input: "}"
+      expect:
+        - a2ui:
+            - version: "v1.0"
+              updateComponents:
+                surfaceId: "main"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hello"
+    - input: "]}}]</a2ui-json>"
+      expect: []
+
+- name: test_v0_9_streaming_still_heals_incomplete_components
+  description: >-
+    Verifies that buffering is scoped to v1.0: the v0.9 counterpart of
+    test_v1_0_streaming_component_on_surface_catalog_waits_until_closed still
+    yields the component while its text arrives. test_cut_cuttable_text covers
+    v0.8.
+  catalog:
+    protocolVersion: "v0.9"
+    commonTypesSchema: "test_data/simplified_common_types_v09.json"
+    s2cSchema: "test_data/simplified_s2c_v09.json"
+    catalogSchema:
+      catalogId: "test_catalog"
+      components:
+        Text:
+          type: object
+          properties:
+            component: {const: "Text"}
+            text: {type: string}
+          required: ["component"]
+      $defs:
+        anyComponent:
+          oneOf:
+            - {$ref: "#/components/Text"}
+          discriminator: {propertyName: "component"}
+  action: process_chunk
+  steps:
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"catalogId": "test_catalog", "surfaceId": "main"}}, '
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              createSurface:
+                surfaceId: "main"
+                catalogId: "test_catalog"
+    - input: '{"version": "v0.9", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Text", "text": "Hel'
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              updateComponents:
+                surfaceId: "main"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hel"
+    - input: 'lo"}]}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              updateComponents:
+                surfaceId: "main"
+                components:
+                  - id: "root"
+                    component: "Text"
+                    text: "Hello"

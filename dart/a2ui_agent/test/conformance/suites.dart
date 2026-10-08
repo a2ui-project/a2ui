@@ -98,6 +98,24 @@ List<CatalogApi> caseCatalogs(Map<String, Object?> args) => [
       catalogConfig(entry).transformedCatalog,
 ];
 
+bool _isVersionAtLeast1_0(Object? versionStr) =>
+    versionStr is String && compareVersions(versionStr, '1.0') >= 0;
+
+/// Whether a catalog the case names in `args` declares v1.0 or later before it
+/// is lowered, which turns on what this SDK does only for a v1.0+ agent.
+bool caseDeclaresV1(Map<String, Object?> args) =>
+    [
+      if (args['catalog'] case final Object catalog) catalog,
+      ...?(args['catalogs'] as List<Object?>?),
+    ].any((Object? entry) {
+      final Object? path = entry is Map ? entry['catalog'] : entry;
+      if (path is! String) return false;
+      final document =
+          jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
+              as Map<String, Object?>;
+      return _isVersionAtLeast1_0(document['protocolVersion']);
+    });
+
 CatalogTransformer _transformer(Object? spec) => switch (spec) {
   {'component_pruning': final List<Object?> names} =>
     ComponentPruningTransformer(names.cast<String>()),
@@ -126,10 +144,11 @@ CatalogApi loadCatalog(String path) => _catalogCache.putIfAbsent(path, () {
   ).load();
 });
 
-/// [document] with a `protocolVersion` of `1.0` stated as `0.9`.
+/// [document] with a `protocolVersion` of `1.0` or later stated as `0.9`.
 Map<String, Object?> lowerCatalogDocument(Map<String, Object?> document) => {
   ...document,
-  if (document['protocolVersion'] == '1.0') 'protocolVersion': '0.9',
+  if (_isVersionAtLeast1_0(document['protocolVersion']))
+    'protocolVersion': '0.9',
 };
 
 /// [version] swapped between the suite's version and this SDK's, in either

@@ -84,8 +84,8 @@ The decorator maps Python type hints to canonical A2UI JSON schema definitions:
 
 `MacroExpander` implements the three canonical transformer methods:
 
-1. **`transform_to_inference_catalog(base_catalog: A2uiCatalog) -> A2uiCatalog`**:
-   Derives an authoring catalog by augmenting the base catalog with the synthesized macro component schemas. Fails fast with `ValueError` if any macro name collides with an existing primitive in the base catalog.
+1. **`transform_to_inference_catalog(base_catalog: Catalog) -> Catalog`**:
+   Derives an authoring catalog by augmenting the base catalog with the synthesized macro component schemas. Fails fast with `A2uiCatalogError` if any macro name collides with an existing primitive in the base catalog.
 2. **`transform_to_transport(messages: Sequence[AgentToRendererMessage]) -> list[AgentToRendererMessage]`**:
    Lowers outbound envelopes (`createSurface`, `updateComponents`, `surfaceUpdate`) emitted by the LLM by recursively expanding all macro components into primitive subtrees.
 3. **`transform_to_inference(messages: Sequence[AgentToRendererMessage]) -> list[AgentToRendererMessage]`**:
@@ -101,7 +101,7 @@ Until the full `TransformerPipeline` and `CatalogConfig` abstractions land in th
 from pydantic import TypeAdapter
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.transformers.macros import MacroExpander, macro
-from a2ui.inference_formats.express.format import ExpressFormat
+from a2ui.inference_formats.experimental.express import ExpressFormat
 
 # 1. Initialize the expander with your macros
 expander = MacroExpander([product_card])

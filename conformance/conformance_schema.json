@@ -76,7 +76,6 @@
             "process_messages",
             "provide_catalog",
             "prune",
-            "remove_strict_validation",
             "render",
             "resolve_catalogs",
             "resolve_path",
@@ -154,13 +153,6 @@
         },
         "format": {
           "description": "Inference format configuration or name."
-        },
-        "modifiers": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Modifiers applied during test execution."
         },
         "strictMode": {
           "type": "boolean",
