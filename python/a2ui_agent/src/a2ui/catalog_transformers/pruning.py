@@ -21,9 +21,9 @@ from collections.abc import Iterable, Mapping, Sequence
 import copy
 from typing import Any
 
-from a2ui.core import Catalog
+from a2ui.core import Catalog, CatalogApi
 
-from .base import CatalogTransformer, TComponent, TFunction
+from .base import CatalogTransformer
 
 __all__ = [
     "ComponentPruningTransformer",
@@ -74,11 +74,11 @@ def _prune_defs(
 
 
 def _pruned(
-    catalog: Catalog[TComponent, TFunction],
+    catalog: CatalogApi,
     *,
     components: frozenset[str] | None = None,
     functions: frozenset[str] | None = None,
-) -> Catalog[TComponent, TFunction]:
+) -> CatalogApi:
     """Returns a copy of `catalog` that keeps only the named entries.
 
     `None` keeps every entry of that kind. The copy's schema is generated from
@@ -138,9 +138,7 @@ class ComponentPruningTransformer(CatalogTransformer):
         """
         self.allowed_components = _allowlist(allowed_components, "allowed_components")
 
-    def transform(
-        self, catalog: Catalog[TComponent, TFunction]
-    ) -> Catalog[TComponent, TFunction]:
+    def transform(self, catalog: CatalogApi) -> CatalogApi:
         """Returns a copy of `catalog` with only the allowlisted components."""
         return _pruned(catalog, components=self.allowed_components)
 
@@ -165,8 +163,6 @@ class FunctionPruningTransformer(CatalogTransformer):
         """
         self.allowed_functions = _allowlist(allowed_functions, "allowed_functions")
 
-    def transform(
-        self, catalog: Catalog[TComponent, TFunction]
-    ) -> Catalog[TComponent, TFunction]:
+    def transform(self, catalog: CatalogApi) -> CatalogApi:
         """Returns a copy of `catalog` with only the allowlisted functions."""
         return _pruned(catalog, functions=self.allowed_functions)

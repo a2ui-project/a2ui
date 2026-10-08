@@ -18,7 +18,13 @@ from typing import Any
 
 import pytest
 
-from a2ui.core import A2uiCatalogError, A2uiIntegrityError, A2uiValidationError, Catalog
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiIntegrityError,
+    A2uiValidationError,
+    Catalog,
+    CatalogApi,
+)
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.utils import validate_payload
 
@@ -54,7 +60,7 @@ def _v08_update(*components: dict[str, Any]) -> dict[str, Any]:
 
 def _catalog(
     catalog_id: str, *components: str, protocol_version: str = "0.9"
-) -> Catalog:
+) -> CatalogApi:
     """Returns a catalog whose components each require a `text` string."""
     return Catalog.from_json(
         {

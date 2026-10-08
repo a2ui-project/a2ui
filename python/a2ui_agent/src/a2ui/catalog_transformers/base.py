@@ -17,18 +17,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TypeVar
 
-from a2ui.core import Catalog
-from a2ui.core.catalog import ComponentApi, FunctionApi
-
-TComponent = TypeVar("TComponent", bound=ComponentApi)
-TFunction = TypeVar("TFunction", bound=FunctionApi)
+from a2ui.core import CatalogApi
 
 __all__ = [
     "CatalogTransformer",
-    "TComponent",
-    "TFunction",
 ]
 
 
@@ -41,9 +34,7 @@ class CatalogTransformer(ABC):
     """
 
     @abstractmethod
-    def transform(
-        self, catalog: Catalog[TComponent, TFunction]
-    ) -> Catalog[TComponent, TFunction]:
+    def transform(self, catalog: CatalogApi) -> CatalogApi:
         """Returns the transformed catalog.
 
         Args:

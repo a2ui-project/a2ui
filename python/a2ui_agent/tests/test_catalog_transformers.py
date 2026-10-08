@@ -28,10 +28,8 @@ from a2ui.catalog_transformers import (
     CatalogTransformer,
     ComponentPruningTransformer,
     FunctionPruningTransformer,
-    TComponent,
-    TFunction,
 )
-from a2ui.core import Catalog
+from a2ui.core import Catalog, CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.catalog import ComponentApi, FunctionApi
 from a2ui.processor import CatalogConfig
@@ -205,9 +203,7 @@ class _RecordingTransformer(CatalogTransformer):
     def __init__(self, log: list[set[str]]):
         self._log = log
 
-    def transform(
-        self, catalog: Catalog[TComponent, TFunction]
-    ) -> Catalog[TComponent, TFunction]:
+    def transform(self, catalog: CatalogApi) -> CatalogApi:
         self._log.append(set(catalog.components))
         return catalog
 
