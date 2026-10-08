@@ -2,7 +2,7 @@
 
 A2UI Atom is an ultra-compact, model-optimized declarative inference format based on S-expressions (Lisp-style parenthesized ASTs). It is designed to minimize token usage, maximize streaming time-to-first-component (TTFC), and guarantee 100% schema-resilient parsing for generative user interfaces.
 
-A host-side compiler parses this S-expression text stream and compiles it into standard A2UI v1.0 wire protocol payloads.
+A host-side compiler parses this S-expression text stream and compiles it into standard A2UI wire protocol messages for the protocol version of its catalogs (v1.0, v0.9.1 or v0.9).
 
 ---
 
@@ -100,7 +100,7 @@ Or a single combined data block:
   $/items [(:id 1 :title "First") (:id 2 :title "Second")])
 ```
 
-The compiler extracts these assignments and populates the `dataModel` payload in the resulting `createSurface` message. If the stream contains only `set!` or `data` expressions and no component tree, the compiler emits a standalone `updateDataModel` protocol message.
+The compiler extracts these assignments and populates the `dataModel` payload in the resulting `createSurface` message. If the stream contains only `set!` or `data` expressions, no component tree and no surface header, the compiler emits a standalone `updateDataModel` message for the root path.
 
 ---
 
@@ -124,17 +124,13 @@ The template expression accepts `:item <var>` to define the relative iteration v
 Validation rules and logic functions are expressed using nested function expressions inside the `:checks` property:
 
 ```lisp
-(TextInput :value $/user/zip
-  :checks [ (required) (regex "^[0-9]{5}$" "Zip code must be 5 digits") ])
+(TextField "Zip code" $/user/zip
+  :checks [ (required) (regex :pattern "^[0-9]{5}$" :message "Zip code must be 5 digits") ])
 ```
 
-Supported logic and utility function primitives include:
+The functions come from the catalog; the compiler has no built-in list of them. A check that leaves out the `value` argument checks the component's own `value` binding, and `:message` sets the check's error message. The compiler wraps each check in a `CheckRule`, `{"condition": <FunctionCall>, "message": ...}`, in the component's `checks` array.
 
-- **Validation:** `(required)`, `(regex pattern message)`
-- **Logic:** `(not expr)`, `(and expr1 expr2)`, `(or expr1 expr2)`, `(equal a b)`, `(greaterThan a b)`, `(lessThan a b)`
-- **Formatting:** `(formatString template arg1 ...)`, `(formatDate date format)`, `(formatCurrency amount currency)`, `(pluralize count singular plural)`
-
-The compiler maps these into standard `FunctionCall` objects in the component's `checks` array.
+Check arguments can also be positional. When a check's first catalog argument is `value` and it is bound implicitly (the component has a `value` and the first positional argument is not a data binding) or passed as `:value`, positional arguments fill the arguments after `value`. A string past the last argument is the message. So `(regex "^[0-9]{5}$" "Zip code must be 5 digits")` is the same check as the keyword form above, and `(regex $/other "^a$" "Must be a")` checks `$/other` instead.
 
 ---
 
@@ -151,17 +147,42 @@ Action expressions support both tagged parameter pairs (`:param value`) and posi
 
 ---
 
-### Standalone Operations (Surface Lifecycle & RPC)
+### Messages and surfaces
 
-1. **Deleting a Surface:**
-   ```lisp
-   (deleteSurface "dashboard-surface-1")
-   ```
-2. **Executing Client RPC Functions:**
-   ```lisp
-   (callFunction "openUrl" :url "https://example.com")
-   (callFunction "customRPC" :arg1 "value1")
-   ```
+A block of Atom text can produce several messages, in source order. Header forms start a message, and the trees and data that follow belong to it until the next header:
+
+| Form                                                                   | Message                                                                                                          |
+| :--------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
+| `(surface "id" [:catalogId "c"] [:sendDataModel true])`                | A `createSurface` with the following trees and data.                                                             |
+| `(updateComponents "id" [:catalogId "c"])`                             | An `updateComponents` with the following trees. Give each tree an `:id` so it replaces the component it targets. |
+| `(updateDataModel "id" [:path "/p"] :value v)`                         | An `updateDataModel`. In v1.0 `:value` is required, and `:value null` deletes the value at the path.             |
+| `(deleteSurface "id")`                                                 | A `deleteSurface`.                                                                                               |
+| `(callFunction "name" [:functionCallId "id"] [:catalogId "c"] :arg v)` | A `callRendererFunction`. It exists only in v1.0.                                                                |
+
+Trees and data before any header create the compiler's default surface. A `(surface ...)` header with only data still creates the surface. Component ids are generated; an explicit `:id` never collides with a generated id.
+
+```lisp
+(updateComponents "dashboard-surface-1")
+(Text :id "status_text" "Updated 1m ago" "caption")
+(updateDataModel "dashboard-surface-1" :path "/metrics/sales" :value 15800)
+(callFunction "openUrl" :functionCallId "open_1" :url "https://example.com")
+(deleteSurface "old-surface")
+```
+
+For v0.9 and v0.9.1 catalogs, a surface compiles to `createSurface`, `updateComponents` and `updateDataModel` messages, and the compiler rejects the constructs that only v1.0 has: a `:catalogId` on a single component or function call, and `callFunction`.
+
+### Catalogs
+
+With a single catalog, `createSurface` carries that catalog's `catalogId` (and `(surface "id" :catalogId "c")` is optional). With more than one catalog (supported in v1.0 and newer), `createSurface` omits `catalogId`, naming `:catalogId` on `surface` or `updateComponents` is an error, and every compiled component and function call carries its own `catalogId`. A component or function call written without `:catalogId` resolves by name across the active catalogs when exactly one catalog defines it, and requires an explicit `:catalogId "c"` when multiple catalogs define that name:
+
+```lisp
+(surface "main")
+(Column
+  (Chart $/sales :catalogId "https://example.com/charts.json")
+  (Text $/summary))
+```
+
+For v1.0 catalogs, the compiler writes data bindings as `{"@path": ...}` and function calls as `{"@call": ..., "args": ...}`. For v0.9 and v0.9.1 catalogs, it writes `path` and `call`.
 
 ---
 
@@ -194,33 +215,74 @@ Action expressions support both tagged parameter pairs (`:param value`) and posi
   "version": "v1.0",
   "createSurface": {
     "surfaceId": "main",
-    "catalogId": "basic",
+    "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
     "components": [
-      {"id": "root", "component": "Card", "child": "node_0"},
+      {
+        "id": "root",
+        "component": "Card",
+        "child": "node_0"
+      },
       {
         "id": "node_0",
         "component": "Column",
-        "children": ["node_1", "node_2", "node_3", "node_4"],
-        "align": "center"
+        "align": "center",
+        "children": ["node_1", "node_2", "node_3", "node_4"]
       },
-      {"id": "node_1", "component": "Icon", "name": {"path": "/icon"}},
-      {"id": "node_2", "component": "Text", "text": {"path": "/title"}},
-      {"id": "node_3", "component": "Text", "text": "Get alerts for order status changes"},
-      {"id": "node_4", "component": "Row", "children": ["node_5", "node_7"], "justify": "center"},
       {
-        "id": "node_5",
-        "component": "Button",
-        "child": "node_6",
-        "action": {"event": {"name": "accept"}}
+        "id": "node_4",
+        "component": "Row",
+        "justify": "center",
+        "children": ["node_5", "node_7"]
       },
-      {"id": "node_6", "component": "Text", "text": "Yes"},
       {
         "id": "node_7",
         "component": "Button",
-        "child": "node_8",
-        "action": {"event": {"name": "decline"}}
+        "action": {
+          "event": {
+            "name": "decline"
+          }
+        },
+        "child": "node_8"
       },
-      {"id": "node_8", "component": "Text", "text": "No"}
+      {
+        "id": "node_8",
+        "component": "Text",
+        "text": "No"
+      },
+      {
+        "id": "node_5",
+        "component": "Button",
+        "action": {
+          "event": {
+            "name": "accept"
+          }
+        },
+        "child": "node_6"
+      },
+      {
+        "id": "node_6",
+        "component": "Text",
+        "text": "Yes"
+      },
+      {
+        "id": "node_3",
+        "component": "Text",
+        "text": "Get alerts for order status changes"
+      },
+      {
+        "id": "node_2",
+        "component": "Text",
+        "text": {
+          "@path": "/title"
+        }
+      },
+      {
+        "id": "node_1",
+        "component": "Icon",
+        "name": {
+          "@path": "/icon"
+        }
+      }
     ],
     "dataModel": {
       "icon": "check",
