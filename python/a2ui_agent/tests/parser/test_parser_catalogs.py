@@ -34,7 +34,7 @@ def _catalog(catalog_id: str, protocol_version: str) -> Catalog:
 def test_parsers_hold_multiple_catalogs(parser_type, version):
     catalogs = [_catalog("basic", version), _catalog("custom", version)]
 
-    assert parser_type(catalogs).catalogs == tuple(catalogs)
+    assert parser_type(catalogs).catalogs == list(catalogs)
 
 
 @pytest.mark.parametrize("parser_type", [DirectJsonParser, DirectJsonStreamParser])

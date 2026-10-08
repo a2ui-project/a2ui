@@ -55,7 +55,7 @@ Future<void> _runDispatchActionCase(Map<String, Object?> testCase) async {
   );
   final SurfaceModel surface = SurfaceModel(
     testCase['surfaceId'] as String? ?? 'test_surface',
-    catalog: catalog,
+    defaultCatalog: catalog,
   );
   if (initialData != null) {
     surface.dataModel.set('/', initialData);

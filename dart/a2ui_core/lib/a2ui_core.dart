@@ -47,15 +47,20 @@ export 'src/primitives/reference_schema.dart'
     show ComponentRefMap, ListRef, NestedRef, RefFields, RefKind, SingleRef;
 export 'src/primitives/semver.dart';
 export 'src/primitives/uax31.dart';
+export 'src/processing/adapters/v0_9_adapter.dart';
+export 'src/processing/adapters/v1_0_adapter.dart';
+export 'src/processing/adapters/version_adapter.dart';
 export 'src/processing/basic_functions.dart';
 export 'src/processing/expressions.dart';
 // Processing & expressions.
+export 'src/processing/operations.dart';
 export 'src/processing/processor.dart';
 export 'src/rendering/binder.dart' show ChildNode, maxDynamicChildListSize;
 export 'src/resolution/component_node.dart'
     hide MutableComponentNode, sameValue;
 export 'src/resolution/node_resolver.dart';
 export 'src/resolution/resolved_binding.dart';
+export 'src/rpc/rpc_handler.dart';
 // Payload validation. The component-graph and reference helpers behind the
 // validator stay package-private: `MessageProcessor` is the entry point, and
 // `PayloadValidator` checks one item against one catalog.

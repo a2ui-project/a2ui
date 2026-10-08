@@ -1,6 +1,18 @@
 ## Unreleased
 
+## 0.8.0 (2026-10-08)
+
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.3.0,<0.4.0`.
+- **BREAKING**: `Parser.compile` and inference format parsers/compilers now
+  return `list[AgentToRendererMessage]` models, and `Parser.decompile` and
+  format decompilers accept `Sequence[AgentToRendererMessage]` (#3064). Use
+  `a2ui.inference_formats.to_message_models` and `to_message_dicts` to convert
+  between dicts and models.
+- **BREAKING**: Renamed `_DirectJsonDecompiler` to `DirectJsonDecompiler` and
+  exported it from `a2ui.inference_formats` (#3064).
+- **BREAKING**: `DirectJsonFormat`, `DirectJsonParser` and
+  `DirectJsonStreamParser` now reject duplicate catalog IDs, and their
+  `catalogs` property returns a list copy instead of a tuple (#3064).
 - **BREAKING**: `remove_strict_validation` and the `schema_modifiers`
   parameter of `CatalogConfig.to_catalog` are removed. Catalog schemas are
   parsed as published, with `additionalProperties` and `unevaluatedProperties`

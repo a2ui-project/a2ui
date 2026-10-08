@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **BREAKING**: `a2ui.core.schema.AgentToRendererMessage`,
+  `RendererToAgentMessage`, and their legacy aliases now expose the full
+  v0.8–v1.0 union instead of being overwritten by v0.9 re-exports. The facade
+  no longer re-exports `AGENT_TO_RENDERER_DEFS`, `INLINE_DEF_MARKER`,
+  `SchemaKeywords`, `def_ref` or `Annotated`, which leaked through the old
+  star imports; import them from their defining modules (#3064).
+
+## 0.3.0 (2026-10-08)
+
 - `inline_local_refs` is exported from `a2ui.core`. It writes a schema's local
   `#/` references inline, keeping references to common types, as
   `Catalog.from_json` does

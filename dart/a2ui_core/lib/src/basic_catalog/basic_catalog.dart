@@ -93,6 +93,8 @@ abstract final class BasicCatalog {
       schemaId: published.schemaId,
       title: published.title,
       description: published.description,
+      protocolVersion: published.protocolVersion,
+      instructions: published.instructions,
       components: const [],
       functions: [
         for (final FunctionApi signature in published.functions.values)
@@ -100,6 +102,8 @@ abstract final class BasicCatalog {
             name: signature.name,
             argumentSchema: signature.argumentSchema,
             returnType: signature.returnType,
+            allowedCallers: signature.allowedCallers,
+            requiresUserActivation: signature.requiresUserActivation,
             body: bodies[signature.name]!,
           ),
       ],

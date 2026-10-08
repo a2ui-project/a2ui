@@ -139,7 +139,7 @@ MessageProcessor<ComponentApi> newProcessor({
 }) =>
     MessageProcessor<ComponentApi>(
       catalogs: [rendererCatalog(testCatalogDocument())],
-      protocolVersion: A2uiProtocolVersion.v0_9,
+      defaultVersion: A2uiProtocolVersion.v0_9,
       validationConfig: validationConfig,
       commonTypesSchema: withCommonTypes ? commonTypes() : const {},
     );
@@ -481,7 +481,7 @@ void main() {
 
       final inlinedProcessor = MessageProcessor<ComponentApi>(
         catalogs: [rendererCatalog(document)],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v0_9,
       );
       expect(
         () => inlinedProcessor.processMessages(
@@ -604,7 +604,7 @@ void main() {
             for (final String id in ids)
               namedCatalog(id, id == 'cat1' ? 'Alpha' : 'Beta'),
           ],
-          protocolVersion: A2uiProtocolVersion.v0_9,
+          defaultVersion: A2uiProtocolVersion.v0_9,
           validationConfig: ValidationConfig.strict,
         );
 
@@ -678,10 +678,10 @@ void main() {
       'a': 'x',
     };
 
-    test('checks an incremental payload against the sole catalog', () {
-      // A payload that only updates a surface carries no catalog id, and an
-      // agent negotiates one catalog before it generates anything, so the
-      // components are checked rather than skipped.
+    test('checks an incremental payload against the surface default', () {
+      // A payload that only updates a surface carries no catalog id, so its
+      // components are checked against the catalog the surface was created
+      // with rather than skipped.
       expect(
         () => holding(['cat1'], surfaceCatalog: 'cat1').processMessages(
           AgentToRendererMessage.parseAll(
@@ -700,6 +700,23 @@ void main() {
         ),
         throwsA(isA<A2uiValidationError>()),
       );
+    });
+
+    test('a v0.9 createSurface must name its catalog', () {
+      // v0.9 requires `catalogId` on `createSurface`, so there is nothing to
+      // fall back to: the message is rejected, even when the processor
+      // supports exactly one catalog. (From v1.0 the surface is created with
+      // no default catalog instead; see processor_test.dart.)
+      final MessageProcessor<ComponentApi> processor = over(['cat1']);
+      expect(
+        () => processor.processMessages(
+          AgentToRendererMessagePayload.of(
+            CreateSurfaceMessage(version: 'v0.9', surfaceId: 's1'),
+          ),
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(processor.groupModel.getSurface('s1'), isNull);
     });
 
     test('rejects a component belonging to another catalog', () {

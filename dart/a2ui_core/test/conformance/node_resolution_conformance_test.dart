@@ -161,7 +161,7 @@ class _Runner {
           _RecordingFunction(api, functions),
       ],
     );
-    surface = SurfaceModel('s', catalog: catalog);
+    surface = SurfaceModel('s', defaultCatalog: catalog);
     surface.dataModel.set('/', _copy(fixture['data']));
     updateComponents(fixture['components']! as List<Object?>);
     surface.onAction.addListener((event) {

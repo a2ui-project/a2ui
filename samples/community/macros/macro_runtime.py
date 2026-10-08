@@ -53,7 +53,7 @@ class MacroAgentRuntime:
 
         # 4. Central Inference Format Instance (Reused across prompt gen, compile, parse)
         self.format = format_class(
-            catalog=self.inference_catalog,
+            catalogs=[self.inference_catalog],
             surface_id="main",
             version=protocol_version,
         )

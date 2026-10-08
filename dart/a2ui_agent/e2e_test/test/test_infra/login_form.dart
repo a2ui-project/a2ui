@@ -40,7 +40,7 @@ void expectLoginForm(
 
   final renderer = MessageProcessor<ComponentApi>(
     catalogs: [rendererCatalog(catalog)],
-    protocolVersion: A2uiProtocolVersion.v0_9,
+    defaultVersion: A2uiProtocolVersion.v0_9,
   );
   addTearDown(renderer.groupModel.dispose);
   renderer.processMessages(AgentToRendererMessagePayload(messages));

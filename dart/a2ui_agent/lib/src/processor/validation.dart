@@ -42,7 +42,7 @@ void validatePayloads(
   }
   final renderer = MessageProcessor<ComponentApi>(
     catalogs: [for (final CatalogApi catalog in catalogs) _signed(catalog)],
-    protocolVersion: A2uiProtocolVersion.v0_9,
+    defaultVersion: A2uiProtocolVersion.v0_9,
     // A surface may arrive across several messages of one payload, so the
     // checks that span messages wait for the whole payload below. Undeclared
     // types, duplicate ids, cycles, depth and paths are checked per message.
@@ -81,6 +81,7 @@ Catalog<ComponentApi, FunctionImplementation> _signed(CatalogApi catalog) =>
       components: catalog.components.values.toList(),
       functions: catalog.functions.values.map(_SignatureOnly.new).toList(),
       themeSchema: catalog.themeSchema,
+      protocolVersion: catalog.protocolVersion,
       schemaId: catalog.schemaId,
       title: catalog.title,
       description: catalog.description,

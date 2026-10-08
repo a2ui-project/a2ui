@@ -33,7 +33,7 @@ from a2ui.core import (
     ValidationConfig,
 )
 from a2ui.core.validation import analyze_topology
-from a2ui.inference_formats.direct_json._parser_catalogs import check_parser_catalogs
+from a2ui.inference_formats._shared import check_catalogs
 from a2ui.parser import ResponsePart
 from a2ui.parser.constants import (
     MSG_TYPE_CREATE_SURFACE,
@@ -68,7 +68,7 @@ class DirectJsonStreamParser:
         progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
     ) -> DirectJsonStreamParser:
         if cls is DirectJsonStreamParser:
-            checked = check_parser_catalogs(catalogs)
+            checked = check_catalogs(catalogs)
             version = str(checked[0].protocol_version).removeprefix("v")
             # Lazy import inside __new__ to prevent circular import errors, as the
             # version-specific subclass modules import DirectJsonStreamParser from this module.
@@ -108,7 +108,7 @@ class DirectJsonStreamParser:
             A2uiCatalogError: If no catalog is given, or the catalogs target
                 different protocol versions.
         """
-        self._catalogs = check_parser_catalogs(catalogs)
+        self._catalogs = check_catalogs(catalogs)
         self._catalogs_by_id: dict[str, CatalogApi] = {
             c.catalog_id: c for c in self._catalogs if c.catalog_id
         }
@@ -188,9 +188,9 @@ class DirectJsonStreamParser:
         return self._components_by_surface.setdefault(sid, {})
 
     @property
-    def catalogs(self) -> tuple[CatalogApi, ...]:
-        """The catalogs the parser holds, in the order it received them."""
-        return self._catalogs
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the catalogs the parser holds, in the order it received them."""
+        return list(self._catalogs)
 
     def _resolve_catalog(
         self, component: Mapping[str, Any] | None = None

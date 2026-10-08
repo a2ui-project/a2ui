@@ -51,7 +51,9 @@ class TestFormatTools(unittest.TestCase):
     def test_compile_snippet_atom(self) -> None:
         compiled = format_tools.test_compile_snippet("atom", '(Card (Text "Hello"))')
         payload = json.loads(compiled)
-        self.assertEqual(payload["version"], "v1.0")
+        self.assertIsInstance(payload, list)
+        self.assertTrue(payload)
+        self.assertEqual(payload[0]["version"], "v1.0")
 
     def test_compile_snippet_express(self) -> None:
         compiled = format_tools.test_compile_snippet(

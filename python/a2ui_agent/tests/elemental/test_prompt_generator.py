@@ -122,7 +122,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         self.tmp_dir.cleanup()
 
     def test_elemental_prompt_generator_property(self):
-        elemental_format = ElementalFormat(catalog=self.catalog)
+        elemental_format = ElementalFormat([self.catalog])
         generator = elemental_format.prompt_generator
 
         prompt = generator.generate(
@@ -136,14 +136,14 @@ class TestElementalPromptGenerator(unittest.TestCase):
         self.assertIn("interface Text {", prompt)
 
     def test_catalog_description_before_generate(self):
-        elemental_format = ElementalFormat(catalog=self.catalog)
+        elemental_format = ElementalFormat([self.catalog])
         generator = elemental_format.prompt_generator
         desc = generator.generate_catalog_instructions(include_schema=True)
         self.assertIn("interface Text {", desc)
 
     def test_catalog_description_no_schema(self):
         """Verifies catalog_description returns an empty string when include_schema is False."""
-        fmt = ElementalFormat(catalog=self.catalog)
+        fmt = ElementalFormat([self.catalog])
         generator = fmt.prompt_generator
         desc = generator.generate_catalog_instructions(include_schema=False)
         self.assertEqual(desc, "")
@@ -177,7 +177,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
             },
         )
 
-        fmt = ElementalFormat(catalog=custom_catalog)
+        fmt = ElementalFormat([custom_catalog])
         generator = fmt.prompt_generator
 
         desc = generator.generate_catalog_instructions(include_schema=True)
@@ -221,7 +221,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
             },
         )
 
-        fmt = ElementalFormat(catalog=custom_catalog)
+        fmt = ElementalFormat([custom_catalog])
         generator = fmt.prompt_generator
 
         desc = generator.generate_catalog_instructions(include_schema=True)
@@ -232,7 +232,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         self.assertNotIn("```json", desc)
 
     def test_elemental_ts_type_mapping(self):
-        elemental_format = ElementalFormat(catalog=self.catalog)
+        elemental_format = ElementalFormat([self.catalog])
         generator = elemental_format.prompt_generator
 
         prompt = generator.generate(
@@ -268,7 +268,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         from a2ui.catalog_transformers import ComponentPruningTransformer
 
         pruned_catalog = ComponentPruningTransformer(["Text"]).transform(self.catalog)
-        elemental_format = ElementalFormat(catalog=pruned_catalog)
+        elemental_format = ElementalFormat([pruned_catalog])
         generator = elemental_format.prompt_generator
 
         # Only allow Text component, which should prune RichComponent
@@ -296,9 +296,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         with open(md_file_path, "w", encoding="utf-8") as f:
             f.write(md_content)
 
-        elemental_format = ElementalFormat(
-            catalog=self.catalog, examples_path=md_file_path
-        )
+        elemental_format = ElementalFormat([self.catalog], examples_path=md_file_path)
         generator = elemental_format.prompt_generator
 
         prompt = generator.generate(
@@ -327,7 +325,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
             json.dump(example_payload, f)
 
         elemental_format = ElementalFormat(
-            catalog=self.catalog, examples_path=self.tmp_dir.name
+            [self.catalog], examples_path=self.tmp_dir.name
         )
         generator = elemental_format.prompt_generator
 
@@ -358,7 +356,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
                 "components": {"Text": {"properties": {"text": {"type": "string"}}}},
             },
         )
-        elemental_format = ElementalFormat(catalog=cat_with_instructions)
+        elemental_format = ElementalFormat([cat_with_instructions])
         generator = elemental_format.prompt_generator
         generator.parser = None
 
@@ -370,8 +368,8 @@ class TestElementalPromptGenerator(unittest.TestCase):
         self.assertIn("```html", prompt)
 
     def test_transform_examples_edge_cases(self):
-        """Test transform_examples with JSON arrays, invalid JSON, non-A2UI JSON, and catalog=None."""
-        elemental_format = ElementalFormat(catalog=self.catalog)
+        """Test transform_examples with JSON arrays, invalid JSON, and non-A2UI JSON."""
+        elemental_format = ElementalFormat([self.catalog])
         generator = elemental_format.prompt_generator
 
         # 1. JSON array block
@@ -391,13 +389,9 @@ class TestElementalPromptGenerator(unittest.TestCase):
         transformed_invalid = generator.transform_examples(invalid_markdown)
         self.assertEqual(transformed_invalid, invalid_markdown)
 
-        # 4. catalog=None (should return raw markdown as is)
-        generator.catalog = None
-        self.assertEqual(generator.transform_examples("raw text"), "raw text")
-
     def test_map_schema_to_ts_type_uncovered_branches(self):
         """Test _map_schema_to_ts_type for DynamicStringList, boolean, empty array, and union databinding."""
-        elemental_format = ElementalFormat(catalog=self.catalog)
+        elemental_format = ElementalFormat([self.catalog])
         generator = elemental_format.prompt_generator
 
         # 1. DynamicStringList ref

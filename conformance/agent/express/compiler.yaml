@@ -484,7 +484,7 @@
             text: "Hello"
 
 - name: test_compile_express_surface_targeting_names_a_catalog
-  description: A second argument to surface picks which of the active catalogs the block is written against.
+  description: With multiple active catalogs, a component resolves against the catalog that defines it and carries its catalogId while createSurface omits catalogId.
   action: compile
   args:
     format: express
@@ -492,16 +492,16 @@
       - "test_data/catalogs/simplified_catalog_v1_0.json"
       - "test_data/catalogs/custom_catalog_v1_0.json"
   input: |-
-    surface("dashboard", "conformance/custom")
+    surface("dashboard")
     root = Gauge(0.5)
   expect:
     - version: "v1.0"
       createSurface:
         surfaceId: "dashboard"
-        catalogId: "conformance/custom"
         components:
           - id: "root"
             component: "Gauge"
+            catalogId: "conformance/custom"
             value: 0.5
 
 - name: test_compile_express_delete_surface
