@@ -15,7 +15,9 @@
 """A2UI inference formats for model prompt generation and output parsing."""
 
 from . import direct_json as direct_json
+from ._shared import to_message_dicts, to_message_models
 from .direct_json import (
+    DirectJsonDecompiler,
     DirectJsonFormat,
     DirectJsonParser,
     DirectJsonPromptGenerator,
@@ -23,9 +25,12 @@ from .direct_json import (
 )
 
 __all__ = [
+    "DirectJsonDecompiler",
     "DirectJsonFormat",
     "DirectJsonParser",
     "DirectJsonPromptGenerator",
     "DirectJsonStreamParser",
     "direct_json",
+    "to_message_dicts",
+    "to_message_models",
 ]

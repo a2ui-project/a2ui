@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **BREAKING**: `a2ui.core.schema.AgentToRendererMessage`,
+  `RendererToAgentMessage` and their legacy names `ServerToClientMessage`,
+  `ClientToServerMessage`, `A2uiMessage` and `A2uiClientMessage` are the
+  unions across v0.8, v0.9 and v1.0, as their definitions say. Before, the
+  v0.9 re-exports at the end of the module replaced them with the v0.9 types,
+  so validating a v1.0 message against them failed. Code that needs the v0.9
+  types alone imports them from `a2ui.core.schema.v0_9`
+  ([#3031](https://github.com/a2ui-project/a2ui/pull/3031)).
 - `inline_local_refs` is exported from `a2ui.core`. It writes a schema's local
   `#/` references inline, keeping references to common types, as
   `Catalog.from_json` does

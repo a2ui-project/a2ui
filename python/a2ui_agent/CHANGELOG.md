@@ -1,6 +1,112 @@
 ## Unreleased
 
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.3.0,<0.4.0`.
+- **BREAKING**: `Parser.compile`, `DirectJsonParser.compile` and the Express,
+  Elemental and Atom parsers and compilers return
+  `list[AgentToRendererMessage]` models instead of message dicts (#3031).
+  `AtomCompiler.compile` used to return a single dict and now returns a list
+  too. `ResponsePart.a2ui_json` from `parse_response` stays a list of dicts. To
+  migrate, convert models with `a2ui.inference_formats.to_message_dicts`.
+- **BREAKING**: `Parser.decompile` and the Direct JSON, Express, Elemental and
+  Atom decompilers take a `Sequence[AgentToRendererMessage]` instead of a
+  message dict or a list of dicts (#3031). To migrate, validate dicts with
+  `a2ui.inference_formats.to_message_models` first. A single message passed
+  where a sequence is expected is treated as a one-message list.
+- `a2ui.inference_formats` exports `to_message_models` and `to_message_dicts`,
+  which convert between message dicts and `AgentToRendererMessage` models
+  without adding, renaming or dropping fields (#3031). They keep v1.0's `@call`
+  and `@path`, keep an explicit `null` such as an `updateDataModel` value of
+  `null`, and add no default `version`, `surfaceId`, `catalogId` or
+  `functionCallId`. `to_message_models` raises `A2uiValidationError` for a
+  message no protocol version accepts. Direct JSON compiles through them, so
+  a payload passes through unchanged, and `DirectJsonParser.compile` raises
+  `A2uiValidationError` for a payload that is not a valid message list even
+  when `is_final` is false.
+- **BREAKING**: `_DirectJsonDecompiler` is renamed `DirectJsonDecompiler` and
+  is exported from `a2ui.inference_formats` and
+  `a2ui.inference_formats.direct_json` (#3031).
+- **BREAKING**: The Direct JSON, Express, Elemental and Atom formats, parsers,
+  compilers and decompilers raise `A2uiCatalogError` when two catalogs share a
+  catalog ID, instead of keeping one of them (#3031).
+- **BREAKING**: `ExpressFormat`, `ElementalFormat` and `AtomFormat`, along with
+  their parsers, compilers, decompilers and prompt generators, take
+  `catalogs: Sequence[CatalogApi]` instead of a single `catalog` and expose
+  them as `catalogs` (#3031). The first catalog is the default surface
+  catalog. `ElementalCompiler` and `ElementalDecompiler` no longer accept
+  catalog dicts, and `AtomDecompiler` requires its catalogs. To migrate, wrap
+  a single catalog in a list: `ExpressFormat([catalog])`,
+  `ElementalFormat([catalog])` or `AtomFormat([catalog])`.
+- **BREAKING**: `ExpressFormat`, `ElementalFormat` and `AtomFormat` require at
+  least one catalog when they are created, as `DirectJsonFormat` does (#3031).
+  The `catalogs` property of every format, parser, compiler, decompiler and
+  prompt generator returns a new `list`, so changing it has no effect; set
+  `catalogs` on the format instead. The prompt generators no longer have a
+  `catalogs` setter.
+- **BREAKING**: In the Express, Elemental and Atom formats, a component or
+  function call without a `catalogId` resolves against the catalog of its
+  surface, as the v1.0 protocol defines, including inside a component that
+  names another catalog (#3031). Before, it took the catalog of the enclosing
+  component. A component or call that names a `catalogId` uses that catalog.
+  Atom still resolves a function that the surface catalog does not define,
+  used inside a component from another catalog, against that component's
+  catalog, and names it on the compiled call. The decompilers write a
+  `catalogId` only where it differs from the surface catalog.
+- **BREAKING**: The Express, Elemental and Atom compilers write v1.0 data
+  bindings and function calls as `{"@path": ...}` and `{"@call": ...}`
+  instead of `path` and `call`, and keep `path` and `call` for v0.9 and v0.9.1
+  (#3031). For v0.9 and v0.9.1 targets, they raise instead of writing a
+  `catalogId` on a single component or function call, which only v1.0
+  allows.
+- **BREAKING**: The Express, Elemental and Atom formats raise for a catalog ID
+  that none of their catalogs has, including when they hold a single catalog,
+  instead of writing it to the output or falling back to the default catalog
+  (#3031). The default surface catalog is the first catalog's ID instead of
+  `https://a2ui.org/catalog.json`.
+- **BREAKING**: Express `surface("id"[, "catalogId"])` always creates the
+  surface. The new `updateSurface("id"[, "catalogId"])` statement opens a
+  scope that changes an existing surface: its components compile to one
+  `updateComponents`, and each data path assignment compiles to an
+  `updateDataModel` for that path, with `$/ = {...}` replacing the whole data
+  model (#3031). Without a catalog, `updateSurface` uses the catalog of the
+  same surface's earlier `surface` scope in the block, or else the default
+  catalog. A block compiles every statement, and the messages come back in
+  statement order.
+- **BREAKING**: Elemental `<body id="..." update>` changes an existing
+  surface instead of creating it, and a `<script type="application/json"
+path="/p">` data script sets the value at that path (#3031). The
+  `want-response` attribute of `<ui-call-function>` is removed. A
+  `<ui-call-function>` takes literal JSON arguments from script slots: `args`
+  holds an object of arguments, and any other slot holds the argument of that
+  name. A `<link rel="catalog">` must have an `href`, and links in one
+  document must name the same catalog. `ElementalCompiler.compile` no longer
+  takes `is_final`, and `ElementalParser` and `ElementalDecompiler` add
+  `decompile_blocks`.
+- **BREAKING**: Atom adds `(updateComponents "id" [:catalogId "c"])`,
+  `(updateDataModel "id" [:path "/p"] :value v)` and
+  `(callFunction "name" [:functionCallId "id"] ...)`, and a block with several
+  headers compiles to one message per header, in source order (#3031). A
+  `(surface ...)` header with only data still creates the surface.
+  `AtomCompiler.compile` no longer takes `is_final`. The output version comes
+  from the catalogs, so v0.9 and v0.9.1 catalogs compile to split
+  `createSurface`, `updateComponents` and `updateDataModel` messages instead
+  of v1.0 messages. A component that the catalog does not define raises,
+  instead of compiling when its name is on a built-in list of standard
+  components. Templates and tabs resolve against the surface catalog, and an
+  explicit `:id` no longer collides with a generated one.
+- The Express, Elemental and Atom decompilers turn an `updateComponents` or
+  `updateDataModel` that they cannot fold into an earlier `createSurface` into
+  the format's update form (`updateSurface`, `<body update>`, or Atom's
+  `updateComponents` and `updateDataModel`) instead of a second create, and
+  keep the `path` of a data model update (#3031). They resolve an
+  `updateComponents` against the catalog that the payload's `createSurface`
+  gave the surface, replace (rather than merge into) a `createSurface` data
+  model on a root `updateDataModel`, and keep a `createSurface` that has no
+  components or data model. The Express decompiler escapes surface IDs, and
+  the Atom decompiler escapes strings, writes lists as Atom lists and keeps
+  `functionCallId`, so its output compiles back to the same messages.
+- With more than one catalog, the Express, Elemental and Atom prompts list the
+  catalog IDs and explain how to choose a surface catalog and, from v1.0, how
+  to take a single component or function call from another catalog (#3031).
 - **BREAKING**: `remove_strict_validation` and the `schema_modifiers`
   parameter of `CatalogConfig.to_catalog` are removed. Catalog schemas are
   parsed as published, with `additionalProperties` and `unevaluatedProperties`

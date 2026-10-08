@@ -14,6 +14,7 @@
 
 from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS
 
+from .decompiler import DirectJsonDecompiler
 from .format import DirectJsonFormat
 from .parser import DirectJsonParser
 from .prompt_generator import DirectJsonPromptGenerator
@@ -24,6 +25,7 @@ from .streaming_v08_legacy import DirectJsonStreamParserV08Legacy
 
 __all__ = [
     "DEFAULT_PROGRESSIVE_KEYS",
+    "DirectJsonDecompiler",
     "DirectJsonFormat",
     "DirectJsonParser",
     "DirectJsonPromptGenerator",

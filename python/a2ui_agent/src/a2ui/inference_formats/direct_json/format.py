@@ -16,9 +16,9 @@
 
 from collections.abc import Collection, Sequence
 
-from a2ui.core import A2uiCatalogError, CatalogApi
-from a2ui.core.common import to_protocol_version
+from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
+from a2ui.inference_formats._shared import check_catalogs
 from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 from a2ui.inference_formats.direct_json.prompt_generator import DirectJsonPromptGenerator
 from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
@@ -53,18 +53,11 @@ class DirectJsonFormat(InferenceFormat):
               when a chunk cuts them. An empty set turns healing off.
 
         Raises:
-            A2uiCatalogError: If no catalog is given, or the catalogs target
-              different protocol versions.
+            TypeError: If `catalogs` is not a sequence of catalogs.
+            A2uiCatalogError: If no catalog is given, two catalogs share a
+              catalog ID, or the catalogs target different protocol versions.
         """
-        if not catalogs:
-            raise A2uiCatalogError("The Direct JSON format needs at least one catalog.")
-        versions = {to_protocol_version(c.protocol_version) for c in catalogs}
-        if len(versions) > 1:
-            raise A2uiCatalogError(
-                "The Direct JSON format's catalogs target different protocol"
-                f" versions: {sorted(v.value for v in versions)}."
-            )
-        self._catalogs = tuple(catalogs)
+        self._catalogs = check_catalogs(catalogs)
         self._examples_path = examples_path
         self._progressive_keys = frozenset(progressive_keys)
         self._parser: DirectJsonParser | None = None
@@ -88,9 +81,9 @@ class DirectJsonFormat(InferenceFormat):
         return self._parser
 
     @property
-    def catalogs(self) -> tuple[CatalogApi, ...]:
-        """The active catalogs, in the order the format received them."""
-        return self._catalogs
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the active catalogs, in the order the format received them."""
+        return list(self._catalogs)
 
     @property
     def examples_path(self) -> str | None:
