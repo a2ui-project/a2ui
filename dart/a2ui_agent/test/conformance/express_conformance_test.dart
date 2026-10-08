@@ -54,12 +54,45 @@ void main() {
 
 /// Cases this SDK does not pass yet, with the reason for each.
 const Map<String, String> _knownGaps = {
+  'test_compile_express_checks_on_uncheckable_component_is_a_validation_error':
+      'Does not reject check lists on components without checks '
+      '(https://github.com/a2ui-project/a2ui/issues/3100).',
+  'test_compile_express_inline_array_id_collision_is_a_validation_error':
+      'Does not reject inline array child IDs colliding with variables '
+      '(https://github.com/a2ui-project/a2ui/issues/3100).',
+  'test_compile_express_inline_id_collision_is_a_validation_error':
+      'Does not reject inline child IDs colliding with variables '
+      '(https://github.com/a2ui-project/a2ui/issues/3100).',
   'test_compile_express_surface_targeting_names_a_catalog':
       'Multi-catalog Express in Dart compiles to v0.9 and has not been updated '
       'to omit createSurface.catalogId and stamp catalogId per component.',
+  'test_decompile_express_check_with_arg_omits_default_message':
+      'Does not decompile check rules when value is not bound on the component '
+      '(https://github.com/a2ui-project/a2ui/issues/3100).',
+  'test_decompile_express_check_with_custom_message':
+      'Does not decompile check rules when value is not bound on the component '
+      '(https://github.com/a2ui-project/a2ui/issues/3100).',
+  'test_decompile_express_check_with_default_message_omits_parens':
+      'Does not decompile check rules when value is not bound on the component '
+      '(https://github.com/a2ui-project/a2ui/issues/3100).',
+  'test_decompile_express_event_action_with_nested_context':
+      'Does not recursively format nested maps in Event context '
+      '(https://github.com/a2ui-project/a2ui/issues/3100).',
+  'test_decompile_express_raw_triple_quoted_multiline_string':
+      'Does not emit raw triple-quoted strings for multiline backslash strings '
+      '(https://github.com/a2ui-project/a2ui/issues/3100).',
+  'test_decompile_express_several_checks_in_one_list':
+      'Does not decompile check rules when value is not bound on the component '
+      '(https://github.com/a2ui-project/a2ui/issues/3100).',
   'test_decompile_express_two_surfaces_in_two_catalogs':
       'Multi-catalog Express in Dart compiles to v0.9 and has not been updated '
       'to omit createSurface.catalogId and stamp catalogId per component.',
+  'test_decompile_express_update_data_model_map_at_path':
+      'Does not decompile updateDataModel with a non-root path '
+      '(https://github.com/a2ui-project/a2ui/issues/3100).',
+  'test_decompile_express_update_data_model_scalar_at_path':
+      'Does not decompile updateDataModel with a non-root path '
+      '(https://github.com/a2ui-project/a2ui/issues/3100).',
 };
 
 /// Why this SDK cannot run [testCase], or null if it can.
