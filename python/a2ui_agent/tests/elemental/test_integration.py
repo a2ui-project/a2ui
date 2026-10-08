@@ -64,13 +64,15 @@ class TestElementalIntegration(unittest.TestCase):
         )
 
         parts = ElementalParser([self.catalog]).parse_response(content)
-        self.assertEqual(len(parts), 1)
+        self.assertEqual(len(parts), 2)
         self.assertEqual(parts[0].text, "Here is the UI:")
-        self.assertIsNotNone(parts[0].a2ui_json)
+        self.assertIsNotNone(parts[1].a2ui)
 
         # A v0.9 catalog makes a new surface compile to `createSurface`
         # followed by `updateComponents`, both stamped with version v0.9.
-        messages = parts[0].a2ui_json
+        messages = [
+            m.model_dump(by_alias=True, exclude_none=True) for m in parts[1].a2ui
+        ]
         self.assertEqual([m["version"] for m in messages], ["v0.9", "v0.9"])
         self.assertEqual(
             messages[0]["createSurface"],
@@ -97,13 +99,16 @@ class TestElementalIntegration(unittest.TestCase):
         )
 
         parts = ElementalParser([self.catalog]).parse_response(content)
-        self.assertEqual(len(parts), 1)
+        self.assertEqual(len(parts), 2)
         self.assertEqual(parts[0].text, "Here is the UI:")
-        self.assertIsNotNone(parts[0].a2ui_json)
+        self.assertIsNotNone(parts[1].a2ui)
 
-        create_surface = parts[0].a2ui_json[0]["createSurface"]
+        messages = [
+            m.model_dump(by_alias=True, exclude_none=True) for m in parts[1].a2ui
+        ]
+        create_surface = messages[0]["createSurface"]
         self.assertEqual(create_surface["surfaceId"], "my-custom-surface-id")
-        update_components = parts[0].a2ui_json[1]["updateComponents"]
+        update_components = messages[1]["updateComponents"]
         self.assertEqual(update_components["surfaceId"], "my-custom-surface-id")
         self.assertEqual(len(update_components["components"]), 2)
 
@@ -115,11 +120,14 @@ class TestElementalIntegration(unittest.TestCase):
         )
 
         parts = ElementalParser([self.catalog]).parse_response(truncated_response)
-        self.assertEqual(len(parts), 1)
+        self.assertEqual(len(parts), 2)
         self.assertEqual(parts[0].text, "Conversational preamble:")
-        self.assertIsNotNone(parts[0].a2ui_json)
+        self.assertIsNotNone(parts[1].a2ui)
 
-        compiled_components = parts[0].a2ui_json[1]["updateComponents"]["components"]
+        messages = [
+            m.model_dump(by_alias=True, exclude_none=True) for m in parts[1].a2ui
+        ]
+        compiled_components = messages[1]["updateComponents"]["components"]
         # Column and Text should both be parsed. Text is closed gracefully.
         self.assertEqual(len(compiled_components), 2)
         self.assertEqual(compiled_components[0]["id"], "comp_1")
@@ -142,7 +150,8 @@ class TestElementalIntegration(unittest.TestCase):
             ElementalParser([self.catalog]).parse_response(invalid_response)
 
         exc = ctx.exception
-        self.assertEqual(len(exc.partial_results), 0)
+        self.assertEqual(len(exc.partial_results), 1)
+        self.assertEqual(exc.partial_results[0].text, "Preceding conversation text.")
         self.assertIn("UnknownComponent", exc.raw_content)
 
         # Test multi-block scenario where first compiles and second fails
@@ -165,9 +174,10 @@ class TestElementalIntegration(unittest.TestCase):
             ElementalParser([self.catalog]).parse_response(multi_response)
 
         exc_multi = ctx.exception
-        self.assertEqual(len(exc_multi.partial_results), 1)
+        self.assertEqual(len(exc_multi.partial_results), 3)
         self.assertEqual(exc_multi.partial_results[0].text, "First block:")
-        self.assertIsNotNone(exc_multi.partial_results[0].a2ui_json)
+        self.assertIsNotNone(exc_multi.partial_results[1].a2ui)
+        self.assertEqual(exc_multi.partial_results[2].text, "Second block:")
         self.assertIn("UnknownComponent", exc_multi.raw_content)
 
 

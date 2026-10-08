@@ -14,6 +14,8 @@
 
 """Parser utilities to extract and compile A2UI Express DSL from LLM responses."""
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from typing import Type
 
@@ -22,33 +24,25 @@ from google.adk.utils.feature_decorator import experimental
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import check_mixed_catalogs
-from a2ui.parser import (
-    A2uiCompilationError,
-    A2uiCompilationParseError,
-    A2uiCompilationValidationError,
-    Parser,
-    ResponsePart,
-)
-from a2ui.schema.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
+from a2ui.parser import A2uiCompilationError
+from a2ui.parser import A2uiCompilationParseError
+from a2ui.parser import A2uiCompilationValidationError
+from a2ui.parser import Parser
+from a2ui.parser import RawA2uiPart
+from a2ui.parser import RawResponsePart
+from a2ui.parser import TextPart
+from a2ui.parser.lexer import BlockLexer
+from a2ui.schema.constants import A2UI_INFERENCE_CLOSE_TAG
+from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG
 
 from .compiler import ExpressCompiler
 from .decompiler import ExpressDecompiler
-from .errors import ExpressParseError, ExpressValidationError
+from .errors import ExpressParseError
+from .errors import ExpressValidationError
 
 
 def _compilation_error_class(error: BaseException) -> Type[A2uiCompilationError]:
-    """Picks the compilation error the compiler's failure belongs under.
-
-    The compiler sorts its own failures into two families, so the choice is a
-    type test rather than a reading of the message. A failure in neither family
-    has no category to carry, and is reported as a plain compilation error.
-
-    Args:
-        error: The exception the compiler raised.
-
-    Returns:
-        The A2uiCompilationError subclass to raise in its place.
-    """
+    """Picks the compilation error the compiler's failure belongs under."""
     if isinstance(error, ExpressValidationError):
         return A2uiCompilationValidationError
     if isinstance(error, (SyntaxError, ExpressParseError)) or isinstance(
@@ -68,14 +62,6 @@ class ExpressParser(Parser):
         surface_id: str = "main",
         version: str | None = None,
     ):
-        """Initializes the Express parser with one or more catalogs and target version.
-
-        Args:
-            catalogs: A sequence of catalogs.
-            surface_id: Surface identifier for compiled messages.
-            version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
-                Defaults to the version that the catalogs target.
-        """
         self._catalogs = check_mixed_catalogs(catalogs)
         self.surface_id = surface_id
         self.version = version
@@ -85,27 +71,33 @@ class ExpressParser(Parser):
         """A copy of the catalogs the parser holds, in the order it received them."""
         return list(self._catalogs)
 
-    def has_format_content(self, content: str, *, complete: bool = False) -> bool:
-        """Checks whether the given content string contains A2UI Express sentinel tags.
+    def has_format_content(self, content: str, complete: bool = False) -> bool:
+        """Checks whether the given content string contains A2UI Express sentinel tags."""
+        if not complete and A2UI_INFERENCE_OPEN_TAG[:-1] in content:
+            if A2UI_INFERENCE_OPEN_TAG not in content:
+                return not content.startswith("<a2ui-") and "<a2ui-" not in content
+        parts = self.unwrap(content)
+        for part in parts:
+            if isinstance(part.part, RawA2uiPart):
+                if not complete or part.is_final:
+                    return True
+        return False
 
-        Args:
-            content: The text content to inspect.
-            complete: Whether to require both opening and closing sentinel tags.
+    def wrap(self, blocks: Sequence[RawResponsePart]) -> str:
+        """Wraps text and raw A2UI blocks into a single LLM-formatted string."""
+        parts: list[str] = []
+        for block in blocks:
+            inner = block.part if isinstance(block, RawResponsePart) else block
+            if isinstance(inner, TextPart):
+                parts.append(inner.text)
+            elif isinstance(inner, RawA2uiPart):
+                parts.append(
+                    f"{A2UI_INFERENCE_OPEN_TAG}\n{inner.a2ui_raw}\n{A2UI_INFERENCE_CLOSE_TAG}"
+                )
+        return "\n".join(parts)
 
-        Returns:
-            True if Express format tags are detected; False otherwise.
-        """
-        if complete:
-            return (
-                A2UI_INFERENCE_OPEN_TAG in content
-                and A2UI_INFERENCE_CLOSE_TAG in content
-            )
-        return A2UI_INFERENCE_OPEN_TAG[:-1] in content
-
-    def unwrap(self, content: str) -> list[ResponsePart]:
+    def unwrap(self, content: str) -> list[RawResponsePart]:
         """Unwraps/tokenizes the response content into raw Express DSL parts."""
-        from a2ui.parser.lexer import BlockLexer
-
         lexer = BlockLexer(
             open_tag=A2UI_INFERENCE_OPEN_TAG,
             close_tag=A2UI_INFERENCE_CLOSE_TAG,
@@ -142,6 +134,12 @@ class ExpressParser(Parser):
                 help_message=help_msg,
                 details=details,
             ) from e
+
+    def _compile_raw_part(
+        self, raw_part: RawResponsePart
+    ) -> list[AgentToRendererMessage]:
+        assert isinstance(raw_part.part, RawA2uiPart)
+        return self.compile(raw_part.part.a2ui_raw, is_final=raw_part.is_final)
 
     def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
         """Decompiles structured A2UI payload messages into this format's raw notation."""

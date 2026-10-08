@@ -114,6 +114,15 @@ def prune_messages_schema(
             )
         return pruned
 
+    defs = pruned.get("$defs")
+    allowed_defs = set(allowed)
+    if isinstance(defs, dict):
+        for def_name, def_val in defs.items():
+            if isinstance(def_val, dict):
+                props = def_val.get("properties")
+                if isinstance(props, dict) and any(k in allowed for k in props):
+                    allowed_defs.add(def_name)
+
     one_of = pruned.get("oneOf")
     if isinstance(one_of, list):
         pruned["oneOf"] = [
@@ -122,11 +131,10 @@ def prune_messages_schema(
             if isinstance(item, dict)
             and isinstance(item.get("$ref"), str)
             and item["$ref"].startswith(_DEFS_REF_PREFIX)
-            and item["$ref"].removeprefix(_DEFS_REF_PREFIX) in allowed
+            and item["$ref"].removeprefix(_DEFS_REF_PREFIX) in allowed_defs
         ]
-    defs = pruned.get("$defs")
     if isinstance(defs, dict):
-        pruned["$defs"] = _reachable_defs(defs, allowed)
+        pruned["$defs"] = _reachable_defs(defs, allowed_defs)
     return pruned
 
 

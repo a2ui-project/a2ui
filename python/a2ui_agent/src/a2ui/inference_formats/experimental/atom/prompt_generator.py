@@ -139,29 +139,54 @@ class AtomPromptGenerator(PromptGenerator):
             catalog order.
     """
 
-    def __init__(self, format_inst: "AtomFormat"):
-        """Initializes an AtomPromptGenerator instance.
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi] | "AtomFormat",
+        examples: Sequence[Sequence[Any]] | None = None,
+        allowed_messages: Sequence[str] | None = None,
+        *,
+        examples_path: str | None = None,
+    ):
+        from .format import AtomFormat as _AtmFormat
+        from a2ui.inference_formats._shared import check_mixed_catalogs
 
-        Args:
-            format_inst: The AtomFormat strategy instance.
-
-        Raises:
-            A2uiCatalogError: If two catalogs share a catalog ID.
-        """
-        self._format = format_inst
+        if isinstance(catalogs, _AtmFormat):
+            self._format: AtomFormat | None = catalogs
+            self._catalogs = list(catalogs.catalogs)
+            self._examples = (
+                [list(t) for t in examples]
+                if examples is not None
+                else catalogs.examples
+            )
+            self._allowed_messages = (
+                list(allowed_messages)
+                if allowed_messages is not None
+                else catalogs.allowed_messages
+            )
+            self._examples_path = examples_path or catalogs.examples_path
+        else:
+            self._format = None
+            self._catalogs = list(check_mixed_catalogs(catalogs))
+            self._examples = (
+                [list(t) for t in examples] if examples is not None else None
+            )
+            self._allowed_messages = (
+                list(allowed_messages) if allowed_messages is not None else None
+            )
+            self._examples_path = examples_path
         self.schema_helpers: dict[str, CatalogSchemaHelper] = build_catalog_helpers(
-            self.catalogs
+            self._catalogs
         )
 
     @property
-    def format(self) -> "AtomFormat":
+    def format(self) -> "AtomFormat | None":
         """The AtomFormat strategy instance this generator belongs to."""
         return self._format
 
     @property
     def catalogs(self) -> list[CatalogApi]:
-        """A copy of the catalogs configured on this prompt generator's format."""
-        return self._format.catalogs
+        """A copy of the catalogs configured on this prompt generator."""
+        return list(self._catalogs)
 
     def _default_helper(self) -> CatalogSchemaHelper | None:
         return next(iter(self.schema_helpers.values()), None)
@@ -304,10 +329,22 @@ class AtomPromptGenerator(PromptGenerator):
                 catalog,
                 *(c for c in active_catalogs if c is not catalog),
             ]
-        if not active_catalogs or not self._format.examples_path:
+        if self._examples:
+            from a2ui.inference_formats._shared import to_message_dicts
+            from a2ui.utils import validate_payload
+
+            decompiler = AtomDecompiler(self.catalogs)
+            blocks = []
+            for turn in self._examples:
+                if validate:
+                    validate_payload(active_catalogs, to_message_dicts(turn))
+                dsl = decompiler.decompile(turn)
+                blocks.append(decompiler.wrap_decompiled_blocks([dsl]))
+            return "\n\n".join(blocks)
+        if not active_catalogs or not self._examples_path:
             return ""
         raw_examples = load_examples(
-            active_catalogs, self._format.examples_path, validate=validate
+            active_catalogs, self._examples_path, validate=validate
         )
         if not raw_examples:
             return ""

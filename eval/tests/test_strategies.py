@@ -318,7 +318,7 @@ async def test_format_system_prompt_with_domain_prompt() -> None:
         completion='Preamble\n<a2ui>\nroot = Text("Direct test")\n</a2ui>\nPostamble',
     )
     assert len(res["compiled_jsons"]) > 0
-    assert len(res["parts"]) == 2
+    assert len(res["parts"]) == 3
 
     # Test compile_format_payload with empty output and error recovery
     compile_solver = compile_format_payload("express", version="1.0")

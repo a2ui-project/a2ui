@@ -109,9 +109,8 @@ def parser() -> ElementalParser:
 
 
 def _compile(parser: ElementalParser, body: str) -> list[dict[str, Any]]:
-    result = parser.parse_response(f"<a2ui>\n{body}\n</a2ui>")[0].a2ui_json
-    assert isinstance(result, list)
-    return result
+    part = parser.parse_response(f"<a2ui>\n{body}\n</a2ui>")[0]
+    return to_message_dicts(part.a2ui)
 
 
 def _components(messages: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:

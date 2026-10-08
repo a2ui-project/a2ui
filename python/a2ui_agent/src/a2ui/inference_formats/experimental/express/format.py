@@ -12,16 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 
 from google.adk.utils.feature_decorator import experimental
 
 from a2ui.core import CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat
-from a2ui.inference_formats._shared import (
-    catalogs_protocol_version,
-    check_mixed_catalogs,
-)
+from a2ui.inference_format import InferenceFormatFactory
+from a2ui.inference_formats._shared import catalogs_protocol_version
+from a2ui.inference_formats._shared import check_mixed_catalogs
 from a2ui.parser import Parser
 
 from .parser import ExpressParser
@@ -35,20 +37,17 @@ class ExpressFormat(InferenceFormat):
     def __init__(
         self,
         catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
+        allowed_messages: Sequence[str] | None = None,
         surface_id: str = "main",
         examples_path: str | None = None,
         version: str | None = None,
     ):
-        """Initializes the Express DSL inference format.
-
-        Args:
-            catalogs: A sequence of catalogs containing valid elements.
-            surface_id: The surface identifier for layout targeting.
-            examples_path: Optional path to markdown files containing examples.
-            version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
-                Defaults to the version that the catalogs target.
-        """
         self._catalogs = check_mixed_catalogs(catalogs)
+        self._examples = [list(turn) for turn in examples] if examples else None
+        self._allowed_messages = (
+            list(allowed_messages) if allowed_messages is not None else None
+        )
         self.surface_id = surface_id
         self.examples_path = examples_path
         self._version = version
@@ -56,12 +55,7 @@ class ExpressFormat(InferenceFormat):
 
     @property
     def version(self) -> str:
-        """The target protocol version: the override, else the catalogs' version.
-
-        Raises:
-            A2uiCatalogError: If no override is set and the catalogs target
-                different protocol versions.
-        """
+        """The target protocol version: the override, else the catalogs' version."""
         return self._version or catalogs_protocol_version(self._catalogs)
 
     @property
@@ -70,13 +64,58 @@ class ExpressFormat(InferenceFormat):
         return list(self._catalogs)
 
     @property
+    def examples(self) -> list[list[AgentToRendererMessage]] | None:
+        """The configured few-shot example turns, if any."""
+        return [list(t) for t in self._examples] if self._examples else None
+
+    @property
+    def allowed_messages(self) -> list[str] | None:
+        """The allowed message types, if restricted."""
+        return (
+            list(self._allowed_messages) if self._allowed_messages is not None else None
+        )
+
+    @property
     def prompt_generator(self) -> ExpressPromptGenerator:
         """The prompt generator instance configured for this Express format."""
         if self._prompt_generator is None:
             self._prompt_generator = ExpressPromptGenerator(self)
         return self._prompt_generator
 
+    def create_parser(self) -> ExpressParser:
+        """Creates a new parser instance configured for this Express format."""
+        return ExpressParser(self._catalogs, self.surface_id, version=self._version)
+
     @property
     def parser(self) -> Parser:
         """The parser instance configured for this Express format."""
-        return ExpressParser(self._catalogs, self.surface_id, version=self._version)
+        return self.create_parser()
+
+
+class ExpressFormatFactory(InferenceFormatFactory):
+    """Factory for creating ExpressFormat instances."""
+
+    def __init__(
+        self,
+        allowed_messages: Sequence[str] | None = None,
+        surface_id: str = "main",
+        version: str | None = None,
+    ):
+        self._allowed_messages = (
+            list(allowed_messages) if allowed_messages is not None else None
+        )
+        self._surface_id = surface_id
+        self._version = version
+
+    def create_format(
+        self,
+        catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
+    ) -> ExpressFormat:
+        return ExpressFormat(
+            catalogs,
+            examples=examples,
+            allowed_messages=self._allowed_messages,
+            surface_id=self._surface_id,
+            version=self._version,
+        )

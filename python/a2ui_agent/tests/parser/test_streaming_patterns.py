@@ -22,7 +22,7 @@ import pytest
 
 from a2ui.core import A2uiValidationError, CatalogApi, get_common_types_schema_map
 from a2ui.core.schema import ProtocolVersion
-from a2ui.inference_formats.direct_json import DirectJsonStreamParser
+from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.processor import CatalogConfig
 from a2ui.schema import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.schema.utils import get_basic_catalog_path, load_common_types_schema
@@ -43,8 +43,8 @@ def _stream_create_surface(catalog: CatalogApi, extensions: dict[str, int]) -> N
             "metadata": {"extensions": extensions},
         },
     }
-    parser = DirectJsonStreamParser(catalogs=[catalog])
-    parser.process_chunk(f"{A2UI_OPEN_TAG}[{json.dumps(message)}]{A2UI_CLOSE_TAG}")
+    parser = DirectJsonParser(catalogs=[catalog])
+    parser.parse_chunk(f"{A2UI_OPEN_TAG}[{json.dumps(message)}]{A2UI_CLOSE_TAG}")
 
 
 def test_load_common_types_schema_comes_from_core() -> None:

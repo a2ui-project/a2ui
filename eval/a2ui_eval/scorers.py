@@ -34,7 +34,8 @@ from a2ui.core import (
     MessageProcessorOptions,
     STRICT_VALIDATION,
 )
-from a2ui.parser import parse_response
+from a2ui.inference_formats.direct_json import DirectJsonParser
+from a2ui.parser import A2uiPart
 from a2ui.processor import CatalogConfig
 from .shared.utils import GIT_ROOT
 
@@ -77,14 +78,21 @@ def a2ui_scorer(version: str) -> Scorer:
             )
 
         try:
-            parts = parse_response(answer_text)
+            parser = DirectJsonParser([catalog])
+            if not parser.has_format_content(answer_text, complete=True):
+                raise ValueError(
+                    "A2UI tags '<a2ui-json>' and '</a2ui-json>' not found in response."
+                )
+            parts = parser.parse_response(answer_text)
             all_messages = []
             for part in parts:
-                if part.a2ui_json:
-                    if isinstance(part.a2ui_json, list):
-                        all_messages.extend(part.a2ui_json)
-                    else:
-                        all_messages.append(part.a2ui_json)
+                if isinstance(part, A2uiPart):
+                    for msg in part.a2ui:
+                        all_messages.append(
+                            msg.model_dump(by_alias=True, exclude_none=True)
+                            if hasattr(msg, "model_dump")
+                            else msg
+                        )
 
             if not all_messages:
                 return Score(

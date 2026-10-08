@@ -131,26 +131,58 @@ class ElementalPromptGenerator(PromptGenerator):
     TypeScript/TSX interfaces and function declarations.
     """
 
-    def __init__(self, format_inst: "ElementalFormat"):
-        """Initializes the generator with the specified format instance.
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi] | "ElementalFormat",
+        examples: Sequence[Sequence[Any]] | None = None,
+        allowed_messages: Sequence[str] | None = None,
+        *,
+        examples_path: str | None = None,
+        surface_id: str = "main",
+    ):
+        from .format import ElementalFormat as _ElemFormat
+        from a2ui.inference_formats._shared import check_mixed_catalogs
 
-        Args:
-            format_inst: An ElementalFormat instance.
-        """
-        self._format = format_inst
-        catalogs = self.catalogs
-        self.helpers: dict[str, CatalogSchemaHelper] = build_catalog_helpers(catalogs)
-        self.catalog_id: str = catalogs[0].catalog_id
+        if isinstance(catalogs, _ElemFormat):
+            self._format: ElementalFormat | None = catalogs
+            self._catalogs = list(catalogs.catalogs)
+            self._examples = (
+                [list(t) for t in examples]
+                if examples is not None
+                else catalogs.examples
+            )
+            self._allowed_messages = (
+                list(allowed_messages)
+                if allowed_messages is not None
+                else catalogs.allowed_messages
+            )
+            self._examples_path = examples_path or catalogs.examples_path
+            self._surface_id = catalogs.surface_id
+        else:
+            self._format = None
+            self._catalogs = list(check_mixed_catalogs(catalogs))
+            self._examples = (
+                [list(t) for t in examples] if examples is not None else None
+            )
+            self._allowed_messages = (
+                list(allowed_messages) if allowed_messages is not None else None
+            )
+            self._examples_path = examples_path
+            self._surface_id = surface_id
+        self.helpers: dict[str, CatalogSchemaHelper] = build_catalog_helpers(
+            self._catalogs
+        )
+        self.catalog_id: str = self._catalogs[0].catalog_id
         self.parser: ElementalParser | None = None
 
     @property
     def catalogs(self) -> list[CatalogApi]:
-        """A copy of the catalogs configured on this prompt generator's format."""
-        return self._format.catalogs
+        """A copy of the catalogs configured on this prompt generator."""
+        return list(self._catalogs)
 
     def _get_parser(self) -> ElementalParser:
         if self.parser is None:
-            self.parser = ElementalParser(self.catalogs, self._format.surface_id)
+            self.parser = ElementalParser(self.catalogs, self._surface_id)
         return self.parser
 
     def _at_least_v10(self) -> bool:
@@ -308,10 +340,22 @@ class ElementalPromptGenerator(PromptGenerator):
                 catalog,
                 *(c for c in active_catalogs if c is not catalog),
             ]
-        if not active_catalogs or not self._format or not self._format.examples_path:
+        if self._examples:
+            from a2ui.inference_formats._shared import to_message_dicts
+            from a2ui.utils import validate_payload
+
+            parser = self._get_parser()
+            blocks = []
+            for turn in self._examples:
+                if validate:
+                    validate_payload(active_catalogs, to_message_dicts(turn))
+                decompiled = parser.decompile_blocks(turn)
+                blocks.append(parser.wrap_decompiled_blocks(decompiled))
+            return "\n\n".join(blocks)
+        if not active_catalogs or not self._examples_path:
             return ""
         raw_examples = load_examples(
-            active_catalogs, self._format.examples_path, validate=validate
+            active_catalogs, self._examples_path, validate=validate
         )
         if not raw_examples:
             return ""

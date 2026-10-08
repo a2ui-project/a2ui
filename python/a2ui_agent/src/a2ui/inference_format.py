@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,79 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unified interface coordinating prompt generation and parsing of LLM response payloads."""
+from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-import warnings
-from abc import ABC, abstractmethod
-from typing import Any
-from a2ui.prompt import PromptGenerator
+from abc import ABC
+from abc import abstractmethod
+from collections.abc import Sequence
+
+from a2ui.core import CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
 from a2ui.parser import Parser
-from a2ui.core.schema.v0_9 import V09Capabilities
+from a2ui.prompt import PromptGenerator
 
 
 class InferenceFormat(ABC):
-    """Interface coordinating system prompt generation and response parsing."""
+    """Abstract base class for an A2UI inference format."""
 
     @property
     @abstractmethod
     def prompt_generator(self) -> PromptGenerator:
-        """The PromptGenerator instance associated with this inference format."""
-        pass
+        """Returns the prompt generator for this format."""
 
-    @property
     @abstractmethod
-    def parser(self) -> Parser:
-        """The Parser instance associated with this inference format."""
-        pass
+    def create_parser(self) -> Parser:
+        """Creates a new parser instance for this format."""
 
     @property
     def supports_streaming(self) -> bool:
-        """Whether this inference format supports streaming token chunk parsing."""
-        return self.parser.supports_streaming
+        """Returns whether parsers created by this format support streaming."""
+        return self.create_parser().supports_streaming
 
-    def generate_system_prompt(
+
+class InferenceFormatFactory(ABC):
+    """Abstract factory for creating InferenceFormat instances."""
+
+    @abstractmethod
+    def create_format(
         self,
-        role_description: str,
-        workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = False,
-        include_examples: bool = False,
-        validate_examples: bool = False,
-    ) -> str:
-        """Generates a system prompt for all LLM requests (deprecated compatibility helper).
-
-        Args:
-            role_description: Description of the agent's role.
-            workflow_description: Optional description of the task workflow.
-            ui_description: Optional UI context or rules.
-            client_ui_capabilities: Optional client UI capability details.
-            allowed_components: Optional list of component tags the LLM may use.
-            allowed_messages: Optional list of message types allowed.
-            include_schema: Whether to include component schemas in the prompt.
-            include_examples: Whether to include few-shot examples.
-            validate_examples: Whether to validate few-shot examples on generation.
-
-        Returns:
-            The complete system prompt string.
-        """
-        warnings.warn(
-            "generate_system_prompt is deprecated. Use prompt_generator.generate(...)"
-            " instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.prompt_generator.generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
-            ui_description=ui_description,
-            client_ui_capabilities=client_ui_capabilities,
-            allowed_components=allowed_components,
-            allowed_messages=allowed_messages,
-            include_schema=include_schema,
-            include_examples=include_examples,
-            validate_examples=validate_examples,
-        )
+        catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
+    ) -> InferenceFormat:
+        """Creates an InferenceFormat configured with the given catalogs and examples."""

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import copy
 from typing import Any, cast
 
 from pydantic import BaseModel
@@ -126,6 +127,14 @@ def validate_payload(
     messages = _extract_messages(payload)
     for index, message in enumerate(messages):
         _check_version(message, index, protocol_version)
+        for action in ("updateComponents", "surfaceUpdate", "createSurface"):
+            body = message.get(action)
+            if isinstance(body, Mapping) and "components" in body:
+                comps = body["components"]
+                if isinstance(comps, list) and not comps:
+                    raise A2uiValidationError(
+                        f"Message {index} ({action}) has an empty 'components' list."
+                    )
 
     created = {
         surface_id
@@ -181,7 +190,7 @@ def _extract_messages(
             item = to_message_dicts(cast(AgentToRendererMessage, item))[0]
         if not isinstance(item, Mapping):
             raise A2uiValidationError(f"Message {index} is not a JSON object.")
-        messages.append(dict(item))
+        messages.append(copy.deepcopy(dict(item)))
     return messages
 
 

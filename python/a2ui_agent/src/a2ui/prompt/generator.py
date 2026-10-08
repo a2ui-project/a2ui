@@ -14,9 +14,13 @@
 
 """Abstract prompt generator interface for inference formats."""
 
-from collections.abc import Mapping, Sequence
-from abc import ABC, abstractmethod
+from __future__ import annotations
+
+from abc import ABC
+from collections.abc import Mapping
+from collections.abc import Sequence
 from typing import Any
+
 from a2ui.core.schema.v0_9 import V09Capabilities
 
 
@@ -24,11 +28,7 @@ class PromptGenerator(ABC):
     """Abstract base class for inference format prompt generators."""
 
     def generate_base_rules(self) -> str:
-        """Returns the core syntax contract and grammar rules for the inference format.
-
-        Returns:
-            The core syntax rules string.
-        """
+        """Returns the core syntax contract and grammar rules for the inference format."""
         return ""
 
     def generate_catalog_instructions(
@@ -36,15 +36,7 @@ class PromptGenerator(ABC):
         include_schema: bool = True,
         catalog: Any | None = None,
     ) -> str:
-        """Returns component and function signatures or JSON schemas for a catalog.
-
-        Args:
-            include_schema: Whether to include schema details.
-            catalog: Optional target catalog instance.
-
-        Returns:
-            The catalog instructions string.
-        """
+        """Returns component and function signatures or JSON schemas for a catalog."""
         return ""
 
     def generate_examples(
@@ -52,46 +44,24 @@ class PromptGenerator(ABC):
         catalog: Any | None = None,
         validate: bool = False,
     ) -> str:
-        """Returns formatted few-shot examples for a catalog.
-
-        Args:
-            catalog: Optional target catalog instance.
-            validate: Whether to validate examples.
-
-        Returns:
-            The formatted few-shot examples string.
-        """
+        """Returns formatted few-shot examples for a catalog."""
         return ""
 
     def generate(
         self,
-        role_description: str,
+        role_description: str = "",
         workflow_description: str = "",
         ui_description: str = "",
         client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
         allowed_components: Sequence[str] | None = None,
         allowed_messages: Sequence[str] | None = None,
         include_schema: bool = True,
-        include_examples: bool = False,
+        include_examples: bool = True,
         validate_examples: bool = False,
     ) -> str:
-        """Template Method: Assembles prompt instructions using sub-methods.
-
-        Args:
-            role_description: Description of the agent's role.
-            workflow_description: Optional description of the task workflow.
-            ui_description: Optional UI context or rules.
-            client_ui_capabilities: Optional client UI capability details.
-            allowed_components: Optional list of component tags the LLM may use.
-            allowed_messages: Optional list of A2UI message types allowed.
-            include_schema: Whether to include component schemas in the prompt.
-            include_examples: Whether to include few-shot examples.
-            validate_examples: Whether to validate few-shot examples on generation.
-
-        Returns:
-            The complete generated prompt system instruction.
-        """
-        parts = []
+        """Generates the complete system prompt instruction string for the format."""
+        del client_ui_capabilities, allowed_components, allowed_messages
+        parts: list[str] = []
 
         if role_description:
             parts.append(role_description)

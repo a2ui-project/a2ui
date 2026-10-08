@@ -138,18 +138,23 @@ def _parse_and_validate_in_process(
     )
     catalogs = strategy.catalogs
 
-    parts = strategy.parser.parse_response(completion)
+    from a2ui.parser import A2uiPart, TextPart
+
+    parts = strategy.create_parser().parse_response(completion)
     compiled_jsons = []
     serialized_parts = []
     for p in parts:
-        part_dict = {"text": p.text, "a2ui_json": getattr(p, "a2ui_json", None)}
-        serialized_parts.append(part_dict)
-        a2ui_json = getattr(p, "a2ui_json", None)
-        if a2ui_json:
-            if isinstance(a2ui_json, list):
-                compiled_jsons.extend(a2ui_json)
-            else:
-                compiled_jsons.append(a2ui_json)
+        if isinstance(p, TextPart):
+            serialized_parts.append({"text": p.text, "a2ui_json": None})
+        elif isinstance(p, A2uiPart):
+            msgs = [
+                m.model_dump(by_alias=True, exclude_none=True)
+                if hasattr(m, "model_dump")
+                else m
+                for m in p.a2ui
+            ]
+            serialized_parts.append({"text": "", "a2ui_json": msgs})
+            compiled_jsons.extend(msgs)
 
     if not compiled_jsons:
         raise ValueError(

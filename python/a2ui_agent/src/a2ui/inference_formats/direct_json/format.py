@@ -14,53 +14,40 @@
 
 """Standard A2UI Direct JSON inference format coordination."""
 
-from collections.abc import Collection, Sequence
+from __future__ import annotations
+
+from collections.abc import Collection
+from collections.abc import Sequence
 
 from a2ui.core import CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat
+from a2ui.inference_format import InferenceFormatFactory
 from a2ui.inference_formats._shared import check_catalogs
 from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 from a2ui.inference_formats.direct_json.prompt_generator import DirectJsonPromptGenerator
-from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS
 
 
 class DirectJsonFormat(InferenceFormat):
-    """Manages standard A2UI JSON schema responses and prompt injection (Direct JSON Format).
-
-    The format works on catalogs that are already resolved for a renderer, for
-    example the ones that `a2ui.utils.resolve_catalogs` returns. Selecting
-    catalogs from renderer capabilities, adding inline catalogs and modifying
-    or pruning catalog schemas all happen before the format is built.
-    """
+    """Manages standard A2UI JSON schema responses and prompt injection (Direct JSON Format)."""
 
     def __init__(
         self,
         catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
+        allowed_messages: Sequence[str] | None = None,
+        progressive_keys: Collection[str] = DEFAULT_PROGRESSIVE_KEYS,
         *,
         examples_path: str | None = None,
-        progressive_keys: Collection[str] = DEFAULT_PROGRESSIVE_KEYS,
     ):
-        """Initializes the DirectJsonFormat with resolved catalogs.
-
-        Args:
-            catalogs: The active catalogs. The prompt describes all of them, and
-              the parsers hold all of them and resolve each component against
-              the catalog that it or its surface names.
-            examples_path: Optional directory or glob pattern of few-shot example
-              files, which `a2ui.schema.load_examples` reads.
-            progressive_keys: Keys whose string values the stream parsers heal
-              when a chunk cuts them. An empty set turns healing off.
-
-        Raises:
-            TypeError: If `catalogs` is not a sequence of catalogs.
-            A2uiCatalogError: If no catalog is given, two catalogs share a
-              catalog ID, or the catalogs target different protocol versions.
-        """
         self._catalogs = check_catalogs(catalogs)
+        self._examples = [list(turn) for turn in examples] if examples else None
+        self._allowed_messages = (
+            list(allowed_messages) if allowed_messages is not None else None
+        )
         self._examples_path = examples_path
         self._progressive_keys = frozenset(progressive_keys)
-        self._parser: DirectJsonParser | None = None
         self._prompt_generator: DirectJsonPromptGenerator | None = None
 
     @property
@@ -70,15 +57,17 @@ class DirectJsonFormat(InferenceFormat):
             self._prompt_generator = DirectJsonPromptGenerator(self)
         return self._prompt_generator
 
+    def create_parser(self) -> DirectJsonParser:
+        """Creates a new parser instance configured for this Direct JSON format."""
+        return DirectJsonParser(
+            self._catalogs,
+            progressive_keys=self._progressive_keys,
+        )
+
     @property
     def parser(self) -> DirectJsonParser:
-        """The parser instance configured for this Direct JSON format."""
-        if self._parser is None:
-            self._parser = DirectJsonParser(
-                self._catalogs,
-                progressive_keys=self._progressive_keys,
-            )
-        return self._parser
+        """Creates a parser instance configured for this Direct JSON format."""
+        return self.create_parser()
 
     @property
     def catalogs(self) -> list[CatalogApi]:
@@ -86,20 +75,44 @@ class DirectJsonFormat(InferenceFormat):
         return list(self._catalogs)
 
     @property
+    def examples(self) -> list[list[AgentToRendererMessage]] | None:
+        """The configured few-shot example turns, if any."""
+        return [list(t) for t in self._examples] if self._examples else None
+
+    @property
+    def allowed_messages(self) -> list[str] | None:
+        """The allowed message types, if restricted."""
+        return (
+            list(self._allowed_messages) if self._allowed_messages is not None else None
+        )
+
+    @property
     def examples_path(self) -> str | None:
         """The directory or glob pattern of few-shot example files, if any."""
         return self._examples_path
 
-    def create_stream_parser(self) -> DirectJsonStreamParser:
-        """Creates a streaming parser configured by this format.
 
-        The parser heals this format's progressive keys and checks each
-        message the way a renderer holding the catalogs would.
+class DirectJsonFormatFactory(InferenceFormatFactory):
+    """Factory for creating DirectJsonFormat instances."""
 
-        Returns:
-            A new streaming parser.
-        """
-        return DirectJsonStreamParser(
-            self._catalogs,
+    def __init__(
+        self,
+        allowed_messages: Sequence[str] | None = None,
+        progressive_keys: Collection[str] = DEFAULT_PROGRESSIVE_KEYS,
+    ):
+        self._allowed_messages = (
+            list(allowed_messages) if allowed_messages is not None else None
+        )
+        self._progressive_keys = frozenset(progressive_keys)
+
+    def create_format(
+        self,
+        catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
+    ) -> DirectJsonFormat:
+        return DirectJsonFormat(
+            catalogs,
+            examples=examples,
+            allowed_messages=self._allowed_messages,
             progressive_keys=self._progressive_keys,
         )
