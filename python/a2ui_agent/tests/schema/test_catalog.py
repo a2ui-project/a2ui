@@ -105,9 +105,16 @@ def test_file_system_provider_schemes(tmp_path):
     cat1 = FileSystemCatalogProvider(str(cat_file)).load()
     assert cat1.catalog_id == "test/file"
 
-    # file:// scheme
-    cat2 = FileSystemCatalogProvider(f"file://{cat_file}").load()
-    assert cat2.catalog_id == "test/file"
+    # file:// scheme (including percent-encoded spaces)
+    spaced_dir = tmp_path / "dir with space"
+    spaced_dir.mkdir()
+    spaced_file = spaced_dir / "catalog.json"
+    spaced_file.write_text(
+        '{"catalogId": "test/spaced", "protocolVersion": "1.0", "components": {}}',
+        encoding="utf-8",
+    )
+    cat2 = FileSystemCatalogProvider(spaced_file.as_uri()).load()
+    assert cat2.catalog_id == "test/spaced"
 
     # Unsupported scheme raises A2uiCatalogError
     with pytest.raises(A2uiCatalogError, match="Unsupported catalog URL scheme"):
@@ -138,6 +145,10 @@ def test_resolve_examples_path_handling():
     assert resolve_examples_path(None) is None
     assert resolve_examples_path("/absolute/examples") == "/absolute/examples"
     assert resolve_examples_path("file:///absolute/examples") == "/absolute/examples"
+    assert (
+        resolve_examples_path("file:///absolute/my%20examples")
+        == "/absolute/my examples"
+    )
 
     with pytest.raises(A2uiCatalogError, match="Unsupported examples URL scheme"):
         resolve_examples_path("https://a2ui.org/examples")

@@ -164,9 +164,14 @@ def _extract_messages(
     messages: list[dict[str, Any]] = []
     for index, item in enumerate(raw_messages):
         if hasattr(item, "model_dump"):
-            item = item.model_dump(by_alias=True, exclude_none=True)
-            if isinstance(item, Mapping) and item.get("version") == "v0.8":
-                item = {k: v for k, v in item.items() if k != "version"}
+            version = getattr(item, "version", None)
+            d = item.model_dump(mode="json", by_alias=True, exclude_unset=True)
+            if isinstance(d, Mapping):
+                if version == "v0.8":
+                    d = {k: v for k, v in d.items() if k != "version"}
+                elif version is not None and "version" not in d:
+                    d = {"version": version, **d}
+            item = d
         if not isinstance(item, Mapping):
             raise A2uiValidationError(f"Message {index} is not a JSON object.")
         messages.append(dict(item))

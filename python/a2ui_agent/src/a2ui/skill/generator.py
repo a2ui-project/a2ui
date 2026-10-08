@@ -21,7 +21,12 @@ from typing import Optional
 
 from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
-from a2ui.skill.skill import Skill, SkillSet, _clean_catalog_name, _resolve_catalogs_list
+
+from .skill import Skill, SkillSet, _clean_catalog_name, _resolve_catalogs_list
+
+__all__ = [
+    "SkillGenerator",
+]
 
 
 class SkillGenerator:

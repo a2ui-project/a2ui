@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 import json
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
 from a2ui.core.common import to_protocol_version
@@ -74,7 +74,7 @@ class FileSystemCatalogProvider(CatalogProvider):
             raise A2uiCatalogError(
                 f"Unsupported catalog URL scheme '{parsed.scheme}' in '{self.path}'."
             )
-        file_path = parsed.path if scheme == "file" else self.path
+        file_path = unquote(parsed.path) if scheme == "file" else self.path
 
         try:
             with open(file_path, "r", encoding="utf-8") as f:

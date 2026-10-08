@@ -465,3 +465,11 @@ def test_typed_schema_models_are_accepted():
     validate_payload([v08_basic], v08_msg)
     validate_payload([v08_basic], [v08_msg])
     validate_payload([v08_basic], v08_wrapper)
+
+    null_data_wrapper = v0_9.A2uiMessageListWrapper.model_validate({
+        "messages": [{
+            "version": "v0.9",
+            "updateDataModel": {"surfaceId": "s", "path": "/user", "value": None},
+        }]
+    })
+    validate_payload([_BASIC], null_data_wrapper.messages[0])

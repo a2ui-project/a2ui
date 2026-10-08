@@ -19,7 +19,7 @@ import glob
 import json
 import logging
 import os
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from a2ui.core import A2uiCatalogError, A2uiError, CatalogApi
 from a2ui.utils import validate_payload
@@ -30,10 +30,11 @@ from .constants import ENCODING
 def resolve_examples_path(path: str | None) -> str | None:
     if path:
         parsed = urlparse(path)
-        if not parsed.scheme or parsed.scheme == "file":
+        if not parsed.scheme:
             return parsed.path
-        else:
-            raise A2uiCatalogError(f"Unsupported examples URL scheme: {path}")
+        if parsed.scheme == "file":
+            return unquote(parsed.path)
+        raise A2uiCatalogError(f"Unsupported examples URL scheme: {path}")
     return None
 
 
