@@ -42,7 +42,7 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(
     Catalog<ComponentApi, FunctionImplementation>(
       id: 'references',
       // `Child` is a v1.0 common type.
-      protocolVersion: 'v1.0',
+      protocolVersion: A2uiProtocolVersion.v1_0,
       components: [
         ComponentApi(name: 'Parent', schema: Schema.fromMap(schema)),
         ComponentApi(name: 'Leaf', schema: Schema.object()),

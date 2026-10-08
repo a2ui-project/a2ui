@@ -115,9 +115,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   ///
   /// Catalogs state their component properties in terms of these shared types
   /// rather than restating them. Defaults to this package's copy of the
-  /// document for [Catalog.protocolVersion] (see
-  /// [commonTypesForProtocolVersion]); pass a different document to override
-  /// it, or an empty map to leave the shared types unchecked.
+  /// document for [Catalog.protocolVersion] (see [commonTypesFor]); pass a
+  /// different document to override it, or an empty map to leave the shared
+  /// types unchecked.
   final Map<String, Object?> commonTypesSchema;
 
   /// Which unknown items pass rather than fail.
@@ -153,16 +153,20 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     Map<String, Object?>? commonTypesSchema,
     this.config = ValidationConfig.strict,
   })  : protocolVersion = protocolVersion ?? A2uiProtocolVersion.v0_9,
-        _v1 = isVersionAtLeast(catalog.protocolVersion, 'v1.0'),
+        _v1 = _isV1(catalog),
         _fallbackCommonTypes = commonTypesSchema == null
-            ? commonTypesForProtocolVersion(
-                isVersionAtLeast(catalog.protocolVersion, 'v1.0')
-                    ? 'v0.9'
-                    : 'v1.0',
+            ? commonTypesFor(
+                _isV1(catalog)
+                    ? A2uiProtocolVersion.v0_9
+                    : A2uiProtocolVersion.v1_0,
               )
             : null,
         commonTypesSchema = commonTypesSchema ??
-            commonTypesForProtocolVersion(catalog.protocolVersion);
+            documents.commonTypesForProtocolVersion(catalog.protocolVersion);
+
+  /// Whether [catalog] declares v1.0 or later.
+  static bool _isV1(Catalog<Object?, Object?> catalog) =>
+      catalog.protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
 
   /// The `common_types.json` document this package publishes for [version].
   ///
@@ -171,18 +175,11 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// installed from pub.dev can resolve the shared types without reading the
   /// specification repository. Each call returns a fresh document, so a caller
   /// may edit the result. v0.9.1 shares the v0.9 document.
-  static Map<String, Object?> commonTypesFor(A2uiProtocolVersion version) =>
-      commonTypesForProtocolVersion(version.jsonValue);
-
-  /// The `common_types.json` document this package publishes for a catalog
-  /// declaring [version], such as `v1.0` or `1.0`.
   ///
-  /// Returns the v1.0 document for v1.0 and later, and the v0.9 document for
-  /// anything else, including null. Each call returns a fresh document. The
-  /// same selection backs [Catalog.commonTypesSchema], which the catalog's
+  /// The same selection backs [Catalog.commonTypesSchema], which the catalog's
   /// reference map and the renderer's binders read, so the validator and the
   /// readers resolve shared types against the same document.
-  static Map<String, Object?> commonTypesForProtocolVersion(String? version) =>
+  static Map<String, Object?> commonTypesFor(A2uiProtocolVersion version) =>
       documents.commonTypesForProtocolVersion(version);
 
   /// Creates a validator for [version].

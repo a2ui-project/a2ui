@@ -15,21 +15,24 @@
 import 'dart:convert';
 
 import '../validation/common_types.g.dart';
-import 'semver.dart';
+import 'protocol_version.dart';
 
 /// The `common_types.json` document this package embeds for a catalog
-/// declaring [protocolVersion], such as `v1.0` or `1.0`.
+/// declaring [protocolVersion].
 ///
-/// Returns the v1.0 document for 1.0 and later, and the v0.9 document for
-/// anything else, including null: the catalog definition schema defaults an
-/// undeclared `protocolVersion` to 0.9. This is the one place that choice is
-/// made, so `Catalog`, `PayloadValidator`, and the schema readers resolve a
-/// catalog's shared types against the same document.
+/// Returns the v1.0 document for [A2uiProtocolVersion.v1_0] and later, and the
+/// v0.9 document for anything else, including null: the catalog definition
+/// schema defaults an undeclared `protocolVersion` to 0.9. This is the one
+/// place that choice is made, so `Catalog`, `PayloadValidator`, and the schema
+/// readers resolve a catalog's shared types against the same document.
 ///
 /// Each call returns a fresh document, so a caller may edit the result.
-Map<String, Object?> commonTypesForProtocolVersion(String? protocolVersion) =>
+Map<String, Object?> commonTypesForProtocolVersion(
+  A2uiProtocolVersion? protocolVersion,
+) =>
     jsonDecode(
-      isVersionAtLeast(protocolVersion, 'v1.0')
+      protocolVersion != null &&
+              protocolVersion.isAtLeast(A2uiProtocolVersion.v1_0)
           ? commonTypesV1_0Json
           : commonTypesV0_9Json,
     ) as Map<String, Object?>;

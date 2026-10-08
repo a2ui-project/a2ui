@@ -914,9 +914,9 @@ void v1RulesTests() {
     test('Catalog.fromJson keeps the declared protocolVersion', () {
       final CatalogApi catalog = _versionedCatalog('v1.0');
 
-      expect(catalog.protocolVersion, 'v1.0');
-      expect(catalog.copyWith().protocolVersion, 'v1.0');
-      expect(catalog.catalogSchema['protocolVersion'], 'v1.0');
+      expect(catalog.protocolVersion, A2uiProtocolVersion.v1_0);
+      expect(catalog.copyWith().protocolVersion, A2uiProtocolVersion.v1_0);
+      expect(catalog.catalogSchema['protocolVersion'], '1.0');
       expect(_versionedCatalog(null).protocolVersion, isNull);
     });
   });
@@ -1082,6 +1082,64 @@ void v1RulesTests() {
           },
         }),
         throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('Catalog.fromJson checks names reached through \$ref and allOf', () {
+      // The property name arrives through a local `$defs` mixin, so it is only
+      // visible once local references are inlined.
+      expect(
+        () => Catalog.fromJson({
+          'catalogId': 'c',
+          'protocolVersion': 'v1.0',
+          r'$defs': {
+            'Mixin': {
+              'type': 'object',
+              'properties': {
+                'bad-prop': {'type': 'string'},
+              },
+            },
+          },
+          'components': {
+            'Box': {
+              'type': 'object',
+              'allOf': [
+                {r'$ref': r'#/$defs/Mixin'},
+              ],
+            },
+          },
+        }),
+        throwsA(
+          isA<A2uiCatalogError>().having(
+            (e) => e.message,
+            'message',
+            contains('bad-prop'),
+          ),
+        ),
+      );
+      // A well-formed name through the same path is accepted.
+      expect(
+        Catalog.fromJson({
+          'catalogId': 'c',
+          'protocolVersion': 'v1.0',
+          r'$defs': {
+            'Mixin': {
+              'type': 'object',
+              'properties': {
+                'label': {'type': 'string'},
+              },
+            },
+          },
+          'components': {
+            'Box': {
+              'type': 'object',
+              'allOf': [
+                {r'$ref': r'#/$defs/Mixin'},
+              ],
+            },
+          },
+        }).components['Box']!.schema.value['properties'],
+        containsPair('label', anything),
       );
     });
 

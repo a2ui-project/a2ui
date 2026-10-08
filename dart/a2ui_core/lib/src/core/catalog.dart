@@ -17,9 +17,9 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/common_types_documents.dart';
 import '../primitives/errors.dart';
+import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
-import '../primitives/semver.dart';
 import '../primitives/uax31.dart';
 import '../validation/schema_resolution.dart';
 import 'contexts.dart';
@@ -162,14 +162,16 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// The document's `description`, when it declares one.
   final String? description;
 
-  /// The document's `protocolVersion`, such as `v1.0` or `1.0`, when it
-  /// declares one.
+  /// The protocol version the document declared as its `protocolVersion`,
+  /// when it declared one.
   ///
   /// Selects the validation rules applied to payloads drawing on this catalog:
   /// v1.0 and later use the v1.0 rules (`@path` and `@call`, UAX #31
   /// identifiers, reserved `@` keys), anything else, including none, the v0.9
-  /// rules.
-  final String? protocolVersion;
+  /// rules. [catalogSchema] writes it back as the bare semantic version
+  /// ([A2uiProtocolVersion.semverValue]), the spelling the catalog definition
+  /// schema requires.
+  final A2uiProtocolVersion? protocolVersion;
 
   final Map<String, C> components;
   final Map<String, F> functions;
@@ -219,12 +221,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// published catalog documents, and the list of definitions used by inline
   /// catalogs in renderer capabilities.
   ///
-  /// A declared `protocolVersion` is kept as [protocolVersion] rather than
-  /// checked against this SDK. From v1.0, component names, their property
-  /// names, function names and argument names must be UAX #31 identifiers.
+  /// A declared `protocolVersion` is read as a semantic version
+  /// ([A2uiProtocolVersion.tryParseSemVer]), so `1.0`, `v1.0` and `1.0.0` all
+  /// name v1.0; a document that declares none is a pre-v1.0 catalog. From
+  /// v1.0, component names, their property names, function names and
+  /// argument names must be UAX #31 identifiers.
   ///
   /// Throws [A2uiCatalogError] if the document is malformed, conflicts with
-  /// [expectedCatalogId], or holds a local `$ref` that names nothing.
+  /// [expectedCatalogId], declares a `protocolVersion` this SDK does not
+  /// implement, or holds a local `$ref` that names nothing.
   static CatalogApi fromJson(
     Map<String, Object?> json, {
     String? expectedCatalogId,
@@ -254,22 +259,16 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       '#/functions/',
     );
 
-    final Object? rawVersion = json['protocolVersion'];
-    if (rawVersion != null && rawVersion is! String) {
-      throw A2uiCatalogError(
-        "Catalog 'protocolVersion' must be a string.",
-        catalogId: rawId,
-      );
-    }
-    final protocolVersion = rawVersion as String?;
-    if (isVersionAtLeast(protocolVersion, 'v1.0')) {
-      _checkIdentifiers(json, rawId);
-    }
+    final A2uiProtocolVersion? protocolVersion =
+        _parseProtocolVersion(json['protocolVersion'], rawId);
+    final bool v1 =
+        protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
 
     // Local references are expanded here, once, so each component and function
     // schema stands alone afterwards. The document is then no longer needed,
     // and [catalogSchema] rebuilds it from the parts rather than caching it.
     final document = inlineLocalRefs(json, json)! as Map<String, Object?>;
+    if (v1) _checkIdentifiers(document, rawId);
 
     return CatalogApi(
       id: rawId,
@@ -292,7 +291,34 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     );
   }
 
+  /// The protocol version a catalog document declares, or null when it
+  /// declares none.
+  ///
+  /// Throws [A2uiCatalogError] when [raw] is not a string, is not a semantic
+  /// version, or names a version this SDK does not implement.
+  static A2uiProtocolVersion? _parseProtocolVersion(
+    Object? raw,
+    String catalogId,
+  ) {
+    if (raw == null) return null;
+    if (raw is! String) {
+      throw A2uiCatalogError(
+        "Catalog 'protocolVersion' must be a string.",
+        catalogId: catalogId,
+      );
+    }
+    return A2uiProtocolVersion.tryParseSemVer(raw) ??
+        (throw A2uiCatalogError(
+          "Catalog declares protocol version '$raw'; this SDK supports only "
+          '${A2uiProtocolVersion.supportedVersions}.',
+          catalogId: catalogId,
+        ));
+  }
+
   /// Checks the names a v1.0 catalog declares against UAX #31.
+  ///
+  /// [json] is the document after local references are inlined, so property
+  /// and argument names reached through `$ref` and `allOf` are checked too.
   static void _checkIdentifiers(Map<String, Object?> json, String catalogId) {
     // Only function and argument names may start with `@`, as system
     // functions such as `@index` do.
@@ -308,11 +334,19 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
     }
 
-    Iterable<String> propertyNames(Object? schema) => switch (schema) {
-          {'properties': final Map<Object?, Object?> properties} =>
-            properties.keys.whereType<String>(),
-          _ => const <String>[],
-        };
+    // The names of an object schema's properties, including those its
+    // `allOf` members declare, since `_parseComponents` merges them in.
+    Iterable<String> propertyNames(Object? schema) sync* {
+      if (schema is! Map) return;
+      if (schema['properties'] case final Map<Object?, Object?> properties) {
+        yield* properties.keys.whereType<String>();
+      }
+      if (schema['allOf'] case final List<Object?> members) {
+        for (final member in members) {
+          yield* propertyNames(member);
+        }
+      }
+    }
 
     if (json['components'] case final Map<Object?, Object?> components) {
       for (final MapEntry<Object?, Object?> entry in components.entries) {
@@ -843,7 +877,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       _memoizedCatalogSchema ??= _buildCatalogSchema();
 
   Map<String, Object?> _buildCatalogSchema() {
-    final bool v1 = isVersionAtLeast(protocolVersion, 'v1.0');
+    final bool v1 =
+        protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
     final serializedComponents = <String, Object?>{
       for (final MapEntry<String, C> entry in components.entries)
         entry.key: _serializeComponent(entry.key, entry.value, v1: v1),
@@ -909,7 +944,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       if (schemaId != null) r'$id': schemaId,
       if (title != null) 'title': title,
       if (description != null) 'description': description,
-      if (protocolVersion != null) 'protocolVersion': protocolVersion,
+      if (protocolVersion case final A2uiProtocolVersion version)
+        'protocolVersion': version.semverValue,
       'catalogId': id,
       'components': serializedComponents,
       if (serializedFunctions.isNotEmpty) 'functions': serializedFunctions,
@@ -1075,7 +1111,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     Iterable<C>? components,
     Iterable<F>? functions,
     Schema? themeSchema,
-    String? protocolVersion,
+    A2uiProtocolVersion? protocolVersion,
   }) =>
       Catalog<C, F>(
         id: id,

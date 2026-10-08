@@ -50,20 +50,35 @@ void main() {
     });
 
     test('picks the document by catalog protocol version', () {
-      for (final String? version in [null, 'v0.9', '0.9', 'v0.9.1']) {
+      for (final A2uiProtocolVersion version in [
+        A2uiProtocolVersion.v0_9,
+        A2uiProtocolVersion.v0_9_1,
+      ]) {
         expect(
-          PayloadValidator.commonTypesForProtocolVersion(version)[r'$id'],
+          PayloadValidator.commonTypesFor(version)[r'$id'],
           'https://a2ui.org/specification/v0_9/common_types.json',
-          reason: '$version',
+          reason: version.jsonValue,
         );
       }
-      for (final version in ['v1.0', '1.0', 'v1.2']) {
-        expect(
-          PayloadValidator.commonTypesForProtocolVersion(version)[r'$id'],
-          'https://a2ui.org/specification/v1_0/common_types.json',
-          reason: version,
-        );
-      }
+      expect(
+        PayloadValidator.commonTypesFor(A2uiProtocolVersion.v1_0)[r'$id'],
+        'https://a2ui.org/specification/v1_0/common_types.json',
+      );
+    });
+
+    test('a catalog declaring no version resolves against v0.9', () {
+      final catalog = Catalog<ComponentApi, FunctionApi>(
+        id: 'unversioned',
+        components: const [],
+      );
+      expect(
+        catalog.commonTypesSchema[r'$id'],
+        'https://a2ui.org/specification/v0_9/common_types.json',
+      );
+      expect(
+        PayloadValidator(catalog: catalog).commonTypesSchema[r'$id'],
+        'https://a2ui.org/specification/v0_9/common_types.json',
+      );
     });
 
     test('parses to the v0.9 document', () {

@@ -84,7 +84,7 @@ void main() {
     test('is the v1.0 document for the published v1.0 basic catalog', () {
       final CatalogApi catalog = Catalog.fromJson(loadBasicCatalogV1Json());
 
-      expect(catalog.protocolVersion, '1.0');
+      expect(catalog.protocolVersion, A2uiProtocolVersion.v1_0);
       expect(
         catalog.commonTypesSchema[r'$id'],
         'https://a2ui.org/specification/v1_0/common_types.json',
@@ -108,6 +108,59 @@ void main() {
   });
 
   group('Catalog.fromJson', () {
+    test('reads protocolVersion as a semantic version', () {
+      for (final spelling in ['1.0', 'v1.0', '1.0.0', '1.0.0-rc.1']) {
+        final CatalogApi catalog = Catalog.fromJson({
+          'catalogId': 'versioned',
+          'protocolVersion': spelling,
+          'components': <String, Object?>{},
+        });
+        expect(
+          catalog.protocolVersion,
+          A2uiProtocolVersion.v1_0,
+          reason: spelling,
+        );
+      }
+      expect(
+        Catalog.fromJson({
+          'catalogId': 'versioned',
+          'protocolVersion': 'v0.9.1',
+          'components': <String, Object?>{},
+        }).protocolVersion,
+        A2uiProtocolVersion.v0_9_1,
+      );
+    });
+
+    test('rejects a protocolVersion this SDK does not implement', () {
+      for (final Object spelling in ['2.0', '0.8', 'latest', 1.0]) {
+        expect(
+          () => Catalog.fromJson({
+            'catalogId': 'versioned',
+            'protocolVersion': spelling,
+            'components': <String, Object?>{},
+          }),
+          throwsA(
+            isA<A2uiCatalogError>()
+                .having((e) => e.catalogId, 'catalogId', 'versioned'),
+          ),
+          reason: '$spelling',
+        );
+      }
+    });
+
+    test('writes protocolVersion back as the bare semantic version', () {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'versioned',
+        'protocolVersion': 'v1.0',
+        'components': <String, Object?>{},
+      });
+      expect(catalog.catalogSchema['protocolVersion'], '1.0');
+      expect(
+        Catalog.fromJson(catalog.catalogSchema).protocolVersion,
+        A2uiProtocolVersion.v1_0,
+      );
+    });
+
     test('parses the published basic catalog document', () {
       final CatalogApi catalog = Catalog.fromJson(loadBasicCatalogJson());
 
@@ -272,7 +325,7 @@ void main() {
     test('serializes catalogSchema with id and component envelopes', () {
       final Catalog<ComponentApi, FunctionApi> catalog = Catalog(
         id: 'https://example.com/custom-catalog',
-        protocolVersion: 'v0.9',
+        protocolVersion: A2uiProtocolVersion.v0_9,
         components: [
           ComponentApi(
             name: 'Button',
@@ -290,7 +343,7 @@ void main() {
       final Map<String, Object?> schema = catalog.catalogSchema;
       expect(schema[r'$schema'], Catalog.jsonSchemaDialect);
       expect(schema['catalogId'], 'https://example.com/custom-catalog');
-      expect(schema['protocolVersion'], 'v0.9');
+      expect(schema['protocolVersion'], '0.9');
 
       final comps = schema['components'] as Map<String, Object?>;
       expect(comps.containsKey('Button'), isTrue);

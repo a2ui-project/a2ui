@@ -20,6 +20,8 @@
 /// on which catalogs can serve a message.
 library;
 
+import 'package:meta/meta.dart';
+
 /// For each protocol version a message may declare (key), the protocol
 /// versions a catalog may declare in its `protocolVersion` and still serve
 /// that message (value), beyond an exact match.
@@ -159,6 +161,19 @@ int compareVersions(String a, String b) {
 /// `isVersionAtLeast('1.0', 'v1.0')` is true.
 bool isVersionAtLeast(String? version, String minimum) =>
     version != null && compareVersions(version, minimum) >= 0;
+
+/// The release numbers of [version] as `(major, minor, patch)`, or null when
+/// it is not a semantic version.
+///
+/// Spellings are normalized as in [isCatalogVersionCompatible], a missing
+/// patch number is zero, and pre-release and build suffixes are dropped, so
+/// `'v1.0'`, `'1.0.0'` and `'1.0.0-rc.1'` all give `(1, 0, 0)`.
+@internal
+(int major, int minor, int patch)? releaseNumbers(String version) {
+  final _SemVer? parsed = _parse(version);
+  if (parsed == null) return null;
+  return (parsed.major, parsed.minor, parsed.patch);
+}
 
 /// Compares pre-release identifier lists (SemVer 2.0.0 rules 11.3 and 11.4).
 int _comparePrerelease(List<String> a, List<String> b) {
