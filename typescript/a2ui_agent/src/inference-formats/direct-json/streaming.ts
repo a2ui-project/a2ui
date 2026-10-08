@@ -30,6 +30,7 @@ import {
   A2uiValidationError,
   buildComponentRefMap,
   CatalogApi,
+  compareSemVer,
   ComponentRefMap,
   getComponentReferences,
   V10_CHILD_REF_OPTIONS,
@@ -100,6 +101,27 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
   private get catalog(): CatalogApi {
     const surfaceCatalog = this.surfaceId ? this.surfaceCatalogs[this.surfaceId] : undefined;
     return surfaceCatalog ?? this.catalogs[0];
+  }
+
+  private resolveCatalog(comp?: Record<string, unknown>): CatalogApi {
+    const catalogId =
+      compareSemVer(this.protocolVersion, '1.0.0') >= 0 &&
+      comp &&
+      typeof comp.catalogId === 'string'
+        ? comp.catalogId
+        : undefined;
+    if (catalogId) {
+      const found = this.catalogs.find(c => c.id === catalogId);
+      if (found) return found;
+      throw new A2uiValidationError(
+        `Unknown catalog ID '${catalogId}' for component '${comp?.id ?? 'unknown'}'`,
+      );
+    }
+    return this.catalog;
+  }
+
+  private get buffersIncompleteComponents(): boolean {
+    return compareSemVer(this.protocolVersion, '1.0.0') >= 0;
   }
 
   /** The child reference map of the surface being processed. */
@@ -566,18 +588,19 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
    * the object in `refine`, `default` and similar, so the shape is read from the innermost
    * schema.
    */
-  private getRequiredProps(componentType: string): string[] {
-    let cache = this.requiredPropsCache.get(this.catalog.id);
+  private getRequiredProps(componentType: string, comp?: Record<string, unknown>): string[] {
+    const catalog = this.resolveCatalog(comp);
+    let cache = this.requiredPropsCache.get(catalog.id);
     if (!cache) {
       cache = new Map();
-      this.requiredPropsCache.set(this.catalog.id, cache);
+      this.requiredPropsCache.set(catalog.id, cache);
     }
     const cached = cache.get(componentType);
     if (cached !== undefined) {
       return cached;
     }
 
-    const componentApi = this.catalog.components.get(componentType);
+    const componentApi = catalog.components.get(componentType);
     if (!componentApi || !componentApi.schema) {
       cache.set(componentType, []);
       return [];
@@ -634,7 +657,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
 
     const compType = comp.component;
     if (typeof compType === 'string') {
-      const required = this.getRequiredProps(compType);
+      const required = this.getRequiredProps(compType, comp);
       for (const req of required) {
         if (!(req in comp)) {
           return;
@@ -647,6 +670,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
   }
 
   private sniffPartialComponent() {
+    if (this.buffersIncompleteComponents) return;
     if (!this.jsonBuffer.includes('"components"')) return;
 
     for (let i = this.braceStack.length - 1; i >= 0; i--) {
@@ -947,9 +971,9 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
         }
       } else {
         const compType = obj.component as string | undefined;
-        if (compType && this.refMap[compType]) {
-          const refs = this.refMap[compType];
-
+        const catalogRefMap = compType ? this.refMaps.get(this.resolveCatalog(obj).id) : undefined;
+        const refs = catalogRefMap && compType ? catalogRefMap[compType] : undefined;
+        if (refs) {
           const processPointers = (val: any, fieldKey: string): any => {
             if (typeof val === 'string') {
               if (this.seenComponents[val]) return val;
@@ -1052,6 +1076,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
   }
 
   private yieldReachable(messages: ResponsePart[], checkRoot: boolean, raiseOnOrphans: boolean) {
+    const shouldValidate = checkRoot || this.buffersIncompleteComponents;
     const activeMsgType = this.getActiveMsgTypeForComponents();
     if (!this.getRootId() || !activeMsgType) return;
     if (!this.surfaceId) return;
@@ -1061,6 +1086,7 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
 
     try {
       const root = this.getRootId();
+
       if (checkRoot && !this.seenComponents[root]) {
         throw new A2uiIntegrityError(`No root component (id='${root}') found in ${activeMsgType}`);
       }
@@ -1076,7 +1102,10 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
             pathSeen.add(nodeId);
             targetSet.add(nodeId);
             const compObj = this.seenComponents[nodeId];
-            for (const [childId, fieldName] of getComponentReferences(compObj, this.refMap)) {
+            for (const [childId, fieldName] of getComponentReferences(
+              compObj,
+              this.refMaps.get(this.resolveCatalog(compObj).id) || {},
+            )) {
               if (childId === nodeId) {
                 throw new A2uiRecursionError(
                   `Circular reference detected: Component '${nodeId}' references itself in field '${fieldName}' (Self-reference detected)`,
@@ -1103,8 +1132,11 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
           pathSeen.add(nodeId);
           const compObj = this.seenComponents[nodeId];
           const compType = compObj.component as string | undefined;
-          if (compType && this.refMap[compType]) {
-            const refs = this.refMap[compType];
+          const catalogRefMap = compType
+            ? this.refMaps.get(this.resolveCatalog(compObj).id)
+            : undefined;
+          const refs = catalogRefMap && compType ? catalogRefMap[compType] : undefined;
+          if (refs) {
             for (const field of refs.listRefs) {
               const vals = compObj[field];
               if (Array.isArray(vals)) {
@@ -1175,8 +1207,11 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
             collected.add(nodeId);
             const compObj = this.seenComponents[nodeId];
             const compType = compObj.component as string | undefined;
-            if (compType && this.refMap[compType]) {
-              const refs = this.refMap[compType];
+            const catalogRefMap = compType
+              ? this.refMaps.get(this.resolveCatalog(compObj).id)
+              : undefined;
+            const refs = catalogRefMap && compType ? catalogRefMap[compType] : undefined;
+            if (refs) {
               for (const field of refs.listRefs) {
                 const vals = compObj[field];
                 if (Array.isArray(vals)) {
@@ -1219,6 +1254,20 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
           collectTree(root, completeNodes);
         }
         availableReachable = completeNodes;
+      }
+
+      if (shouldValidate) {
+        for (const rid of availableReachable) {
+          const comp = this.seenComponents[rid];
+          const resolvedCatalog = this.resolveCatalog(comp);
+          if (
+            comp &&
+            typeof comp.component === 'string' &&
+            !resolvedCatalog.components.has(comp.component)
+          ) {
+            throw new A2uiValidationError(`Validation failed: unknown component ${comp.component}`);
+          }
+        }
       }
 
       const processedComponents: Record<string, any>[] = [];

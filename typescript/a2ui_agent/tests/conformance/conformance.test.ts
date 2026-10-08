@@ -241,16 +241,26 @@ describe('Conformance Harness', () => {
           }
         }
       } else if (action === 'process_chunk') {
-        const catalogConfig = testCase.catalog
-          ? createCatalogConfig(testCase.catalog as Record<string, unknown>)
-          : undefined;
-        const catalog = catalogConfig?.catalog || basicCatalogV10;
-        const catalogObj = testCase.catalog as Record<string, unknown> | undefined;
-        const progressiveKeys = (catalogObj?.customCuttableKeys as string[] | undefined) ?? [
-          'text',
-          'literalString',
-        ];
-        const processor = new DirectJsonStreamProcessorImpl([catalog], {
+        const catalogs: CatalogApi[] = [];
+        let progressiveKeys: string[] = ['text', 'literalString'];
+
+        if (testCase.catalogs && Array.isArray(testCase.catalogs)) {
+          for (const cat of testCase.catalogs) {
+            const config = createCatalogConfig(cat);
+            catalogs.push(config.catalog);
+            if (cat.customCuttableKeys) progressiveKeys = cat.customCuttableKeys;
+          }
+        } else if (testCase.catalog) {
+          const config = createCatalogConfig(testCase.catalog as Record<string, unknown>);
+          catalogs.push(config.catalog);
+          const catalogObj = testCase.catalog as Record<string, unknown> | undefined;
+          if (catalogObj?.customCuttableKeys)
+            progressiveKeys = catalogObj.customCuttableKeys as string[];
+        } else {
+          catalogs.push(basicCatalogV10);
+        }
+
+        const processor = new DirectJsonStreamProcessorImpl(catalogs, {
           progressiveKeys,
           // The legacy suite's disableValidation predates ValidationConfig. Omitting the
           // config turns validation off, as it does for web_core's MessageProcessor.

@@ -597,6 +597,119 @@ describe('Direct JSON Streaming with several catalogs', () => {
       .find(m => 'updateDataModel' in m);
     expect((message as Record<string, unknown> | undefined)?.version).toBe('v0.9');
   });
+
+  const catalogBasicV10: CatalogApi = new Catalog(
+    'https://a2ui.org/catalogs/basic',
+    'v1.0',
+    [
+      {
+        name: 'Text',
+        schema: z.object({id: z.string(), component: z.literal('Text'), text: z.string()}),
+      } as unknown as ComponentApi,
+      {
+        name: 'Column',
+        schema: z.object({
+          id: z.string(),
+          component: z.literal('Column'),
+          children: z.array(z.string()),
+        }),
+      } as unknown as ComponentApi,
+    ],
+    [],
+  );
+  const catalogCustomV10: CatalogApi = new Catalog(
+    'https://a2ui.org/catalogs/custom',
+    'v1.0',
+    [
+      {
+        name: 'CustomMetric',
+        schema: z.object({id: z.string(), component: z.literal('CustomMetric'), value: z.number()}),
+      } as unknown as ComponentApi,
+    ],
+    [],
+  );
+
+  test('resolves catalog per component in v1.0 streaming', () => {
+    const processor = new DirectJsonStreamProcessorImpl([catalogBasicV10, catalogCustomV10]);
+    overrideRefMap(processor, catalogBasicV10, {
+      Column: {singleRefs: new Set(), listRefs: new Set(['children'])},
+      Text: {singleRefs: new Set(), listRefs: new Set()},
+    });
+    const messages = processor
+      .processChunk(
+        '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, ' +
+          '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [' +
+          '{"id": "root", "component": "Column", "children": ["t1", "m1"]}, ' +
+          '{"id": "t1", "component": "Text", "text": "Users"}, ' +
+          '{"id": "m1", "catalogId": "https://a2ui.org/catalogs/custom", "component": "CustomMetric", "value": 42}' +
+          ']}}]</a2ui-json>',
+      )
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui);
+
+    const allComps = messages
+      .filter(
+        (m): m is {updateComponents: {components: Array<Record<string, unknown>>}} =>
+          'updateComponents' in m,
+      )
+      .flatMap(m => m.updateComponents.components);
+    expect(allComps.find(c => c.id === 'm1')).toEqual({
+      id: 'm1',
+      catalogId: 'https://a2ui.org/catalogs/custom',
+      component: 'CustomMetric',
+      value: 42,
+    });
+  });
+
+  test('throws A2uiValidationError for unknown component catalogId in v1.0', () => {
+    const processor = new DirectJsonStreamProcessorImpl([catalogBasicV10, catalogCustomV10]);
+    processor.processChunk(
+      '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, ',
+    );
+    expect(() =>
+      processor.processChunk(
+        '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [' +
+          '{"id": "root", "catalogId": "https://a2ui.org/catalogs/unknown", "component": "Text", "text": "Hi"}' +
+          ']}}]</a2ui-json>',
+      ),
+    ).toThrow(A2uiValidationError);
+  });
+
+  test('holds v1.0 components until their JSON object closes', () => {
+    const processor = new DirectJsonStreamProcessorImpl([catalogBasicV10, catalogCustomV10]);
+    // Send createSurface and start of component object with no catalogId yet
+    const chunk1 =
+      '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, ' +
+      '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [' +
+      '{"id": "root", "component": "CustomMetric", "value": 42';
+    const parts1 = processor.processChunk(chunk1);
+    const updateMsgs1 = parts1
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui)
+      .filter(m => 'updateComponents' in m);
+    // Component is unclosed, so nothing should be emitted for updateComponents yet
+    expect(updateMsgs1).toEqual([]);
+
+    // Now send the late catalogId and close the component object
+    const chunk2 = ', "catalogId": "https://a2ui.org/catalogs/custom"}}]}}]</a2ui-json>';
+    const parts2 = processor.processChunk(chunk2);
+    const updateMsgs2 = parts2
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui)
+      .filter(m => 'updateComponents' in m);
+    expect(updateMsgs2.length).toBe(1);
+    const comps = (
+      updateMsgs2[0] as {updateComponents: {components: Array<Record<string, unknown>>}}
+    ).updateComponents.components;
+    expect(comps).toEqual([
+      {
+        id: 'root',
+        component: 'CustomMetric',
+        value: 42,
+        catalogId: 'https://a2ui.org/catalogs/custom',
+      },
+    ]);
+  });
 });
 
 describe('Direct JSON Streaming surface lifecycle', () => {
