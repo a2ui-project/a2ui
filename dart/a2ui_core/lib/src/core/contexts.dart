@@ -433,6 +433,11 @@ class DataContext {
       try {
         return _invokeLocally(call, args);
       } on A2uiCatalogResolutionError {
+        if (isV10) {
+          final _AgentCall? existing =
+              _agentCalls.entries[_agentCallKey(call, args)];
+          if (existing != null) return existing.value.value;
+        }
         final AgentFunctionCaller? caller = _agentCallerOrNull;
         if (caller == null) rethrow;
         return _agentCall(call, args, caller).value.value;
@@ -579,9 +584,20 @@ class DataContext {
       if (!_agentCalls.hasPendingFor(call.call, call.catalogId)) {
         return false;
       }
+      final peek = DataContext._derived(
+        dataModel,
+        _invoke,
+        path,
+        onError: (_) {},
+        protocolVersion: protocolVersion,
+        invokerForCatalog: _invokerForCatalog,
+        isUserActivated: isUserActivated,
+        callAgentFunction: null,
+        agentCalls: _agentCalls,
+      );
       final args = <String, dynamic>{
         for (final MapEntry<String, dynamic> entry in call.args.entries)
-          entry.key: resolveSync(entry.value),
+          entry.key: peek.resolveSync(entry.value),
       };
       final _AgentCall? entry = _agentCalls.entries[_agentCallKey(call, args)];
       return entry != null && entry.pending;

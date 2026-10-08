@@ -206,6 +206,39 @@ void main() {
       );
     });
 
+    test(
+        'nested agent call failure while outer call is pending does not '
+        'retry in a loop', () async {
+      final SurfaceModel<ComponentApi> surface = makeSurface();
+      final DataContext context =
+          ComponentContext(surface, ComponentModel('root', 'Text', {}))
+              .dataContext;
+      final ReadonlySignal<DynamicValueState> state =
+          context.resolveListenableWithPending({
+        '@call': 'outer',
+        'args': {
+          'x': {'@call': 'inner', 'args': <String, Object?>{}},
+        },
+      });
+      expect(state.value.pending, isTrue);
+      expect(agentCalls.map((c) => c.call.call).toList(), ['inner', 'outer']);
+      agentCalls.first.completer.completeError(
+        A2uiRpcError(
+          'inner failed',
+          RpcErrorCode.executionError,
+          functionCallId: 'fc-inner',
+        ),
+      );
+      await _flush();
+      expect(state.value.pending, isTrue);
+      expect(
+        agentCalls.map((c) => c.call.call).toList(),
+        ['inner', 'outer'],
+        reason: 'isPendingAgentCall must not re-dispatch failed inner call',
+      );
+      expect(clientErrors, hasLength(1));
+    });
+
     test('NodeResolver reports agent RPC failure with EXECUTION_ERROR and id',
         () async {
       final SurfaceModel<ComponentApi> surface = makeSurface();
