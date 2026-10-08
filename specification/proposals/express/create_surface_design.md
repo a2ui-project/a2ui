@@ -34,9 +34,9 @@ surfaceStatement = "surface(" surfaceId [ "," catalogId ] ")" ;
 
 ### Parameters
 
-| Parameter   | Type   | Required | Description                                                                                          |
-| :---------- | :----- | :------- | :--------------------------------------------------------------------------------------------------- |
-| `surfaceId` | String | Yes      | Unique string identifier for the target surface.                                                     |
+| Parameter   | Type   | Required | Description                                                                                           |
+| :---------- | :----- | :------- | :---------------------------------------------------------------------------------------------------- |
+| `surfaceId` | String | Yes      | Unique string identifier for the target surface.                                                      |
 | `catalogId` | String | No       | Optional ID of the sole active catalog in single-catalog mode. Rejected when multiple catalogs exist. |
 
 ---
