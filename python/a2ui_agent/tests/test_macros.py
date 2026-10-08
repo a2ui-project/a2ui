@@ -43,7 +43,7 @@ from a2ui.builder.v0_9.catalogs.basic import (
 from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.core.schema.v0_9 import UpdateComponentsMessage, UpdateComponents
+from a2ui.core.schema.v0_9 import UpdateComponents, UpdateComponentsMessage
 from a2ui.transformers.macros import (
     MacroExpander,
     macro,
@@ -491,7 +491,8 @@ def test_macro_component_subclass_parameter_coercion():
 
 def test_macro_expansion_failure_logs_error(caplog):
     import logging
-    from a2ui.parser.parser import Parser
+
+    from a2ui.parser import Parser
 
     @macro
     def FailingMacro(bad_arg: str) -> Card:

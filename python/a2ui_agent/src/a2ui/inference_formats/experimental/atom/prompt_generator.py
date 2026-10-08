@@ -456,7 +456,7 @@ class AtomPromptGenerator(PromptGenerator):
             if instructions:
                 parts.append(instructions)
 
-        if include_examples and self._format.examples_path and self.catalogs:
+        if include_examples:
             formatted_examples = self.generate_examples(validate=validate_examples)
             if formatted_examples:
                 parts.append(f"### Examples:\n{formatted_examples}")

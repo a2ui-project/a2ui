@@ -26,7 +26,6 @@ from a2ui.inference_format import InferenceFormatFactory
 from a2ui.inference_formats._shared import check_catalogs
 from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 from a2ui.inference_formats.direct_json.prompt_generator import DirectJsonPromptGenerator
-from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS
 
 
 class DirectJsonFormat(InferenceFormat):
@@ -37,7 +36,7 @@ class DirectJsonFormat(InferenceFormat):
         catalogs: Sequence[CatalogApi],
         examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
         allowed_messages: Sequence[str] | None = None,
-        progressive_keys: Collection[str] = DEFAULT_PROGRESSIVE_KEYS,
+        progressive_keys: Collection[str] = frozenset(),
         *,
         examples_path: str | None = None,
     ):
@@ -87,6 +86,11 @@ class DirectJsonFormat(InferenceFormat):
         )
 
     @property
+    def progressive_keys(self) -> frozenset[str]:
+        """The progressive string property keys healed while streaming."""
+        return self._progressive_keys
+
+    @property
     def examples_path(self) -> str | None:
         """The directory or glob pattern of few-shot example files, if any."""
         return self._examples_path
@@ -98,12 +102,24 @@ class DirectJsonFormatFactory(InferenceFormatFactory):
     def __init__(
         self,
         allowed_messages: Sequence[str] | None = None,
-        progressive_keys: Collection[str] = DEFAULT_PROGRESSIVE_KEYS,
+        progressive_keys: Collection[str] = frozenset(),
     ):
         self._allowed_messages = (
             list(allowed_messages) if allowed_messages is not None else None
         )
         self._progressive_keys = frozenset(progressive_keys)
+
+    @property
+    def allowed_messages(self) -> list[str] | None:
+        """The allowed message types, if restricted."""
+        return (
+            list(self._allowed_messages) if self._allowed_messages is not None else None
+        )
+
+    @property
+    def progressive_keys(self) -> frozenset[str]:
+        """The progressive string property keys healed while streaming."""
+        return self._progressive_keys
 
     def create_format(
         self,

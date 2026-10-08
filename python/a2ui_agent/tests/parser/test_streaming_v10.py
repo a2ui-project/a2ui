@@ -199,7 +199,9 @@ def test_v10_component_with_late_catalog_id_succeeds_once_closed(
 
 def test_v09_progressive_text_heals_partial_component():
     """v0.9 components yield while a progressive string arrives."""
-    parser = DirectJsonParser([BasicCatalog("v0.9")])
+    parser = DirectJsonParser(
+        [BasicCatalog("v0.9")], progressive_keys=frozenset({"text"})
+    )
     basic_v09_id = BasicCatalog("v0.9").catalog_id
 
     steps = _stream_steps(

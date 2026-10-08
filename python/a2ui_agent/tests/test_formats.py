@@ -250,7 +250,7 @@ def test_decompiler_delegation(test_catalog):
     )
 
     # Verify abstract PromptGenerator generate pass
-    from a2ui.prompt.generator import PromptGenerator
+    from a2ui.prompt import PromptGenerator
 
     class DummyPromptGenerator(PromptGenerator):
 

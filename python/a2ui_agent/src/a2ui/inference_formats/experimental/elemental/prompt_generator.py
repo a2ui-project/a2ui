@@ -710,14 +710,9 @@ class ElementalPromptGenerator(PromptGenerator):
         if include_schema and self.helpers:
             parts.append(self.generate_catalog_instructions(include_schema=True))
 
-        if include_examples and self._format.examples_path and self.catalogs:
-            raw_examples = load_examples(
-                list(self.catalogs),
-                self._format.examples_path,
-                validate=validate_examples,
-            )
-            if raw_examples:
-                formatted_examples = self.transform_examples(raw_examples)
+        if include_examples:
+            formatted_examples = self.generate_examples(validate=validate_examples)
+            if formatted_examples:
                 parts.append(f"### Examples:\n{formatted_examples}")
 
         return "\n\n".join(parts)

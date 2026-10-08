@@ -23,6 +23,11 @@ from a2ui.core.schema import AgentToRendererMessage
 from a2ui.parser import Parser
 from a2ui.prompt import PromptGenerator
 
+__all__ = [
+    "InferenceFormat",
+    "InferenceFormatFactory",
+]
+
 
 class InferenceFormat(ABC):
     """Abstract base class for an A2UI inference format."""

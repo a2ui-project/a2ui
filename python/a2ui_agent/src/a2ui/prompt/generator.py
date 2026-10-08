@@ -16,12 +16,16 @@
 
 from __future__ import annotations
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from collections.abc import Sequence
 from typing import Any
 
 from a2ui.core.schema.v0_9 import V09Capabilities
+
+__all__ = [
+    "PromptGenerator",
+]
 
 
 class PromptGenerator(ABC):
@@ -47,6 +51,7 @@ class PromptGenerator(ABC):
         """Returns formatted few-shot examples for a catalog."""
         return ""
 
+    @abstractmethod
     def generate(
         self,
         role_description: str = "",

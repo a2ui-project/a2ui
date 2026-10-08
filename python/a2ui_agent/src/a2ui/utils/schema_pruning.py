@@ -19,6 +19,8 @@ agent-to-renderer and common types schemas belong to the protocol rather than to
 a catalog, so they are pruned with the functions here.
 """
 
+from __future__ import annotations
+
 from collections import deque
 from collections.abc import Iterable, Mapping, Sequence
 import copy
@@ -26,6 +28,11 @@ from typing import Any
 
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import ProtocolVersion
+
+__all__ = [
+    "prune_common_types_schema",
+    "prune_messages_schema",
+]
 
 _DEFS_REF_PREFIX = "#/$defs/"
 _PROPERTIES_REF_PREFIX = "#/properties/"

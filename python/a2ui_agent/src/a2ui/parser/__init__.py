@@ -18,6 +18,7 @@ from .errors import (
     A2uiCompilationParseError,
     A2uiCompilationValidationError,
 )
+from .lexer import BlockLexer
 from .messages import (
     normalize_prompt_example_messages,
     to_message_dicts,
@@ -38,6 +39,7 @@ __all__ = [
     "A2uiCompilationParseError",
     "A2uiCompilationValidationError",
     "A2uiPart",
+    "BlockLexer",
     "Parser",
     "RawA2uiPart",
     "RawResponsePart",

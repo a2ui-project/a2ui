@@ -107,6 +107,13 @@ class ExpressFormatFactory(InferenceFormatFactory):
         self._surface_id = surface_id
         self._version = version
 
+    @property
+    def allowed_messages(self) -> list[str] | None:
+        """The allowed message types, if restricted."""
+        return (
+            list(self._allowed_messages) if self._allowed_messages is not None else None
+        )
+
     def create_format(
         self,
         catalogs: Sequence[CatalogApi],

@@ -26,11 +26,11 @@ from a2ui.inference_formats._shared import check_mixed_catalogs
 from a2ui.parser import A2uiCompilationError
 from a2ui.parser import A2uiCompilationParseError
 from a2ui.parser import A2uiCompilationValidationError
+from a2ui.parser import BlockLexer
 from a2ui.parser import Parser
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
-from a2ui.parser.lexer import BlockLexer
 from a2ui.schema.constants import A2UI_INFERENCE_CLOSE_TAG
 from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG
 
@@ -59,9 +59,6 @@ class ElementalParser(Parser):
 
     def has_format_content(self, content: str, complete: bool = False) -> bool:
         """Checks if the content contains any A2UI Elemental sentinel tags."""
-        if not complete and A2UI_INFERENCE_OPEN_TAG[:-1] in content:
-            if A2UI_INFERENCE_OPEN_TAG not in content:
-                return not content.startswith("<a2ui-") and "<a2ui-" not in content
         parts = self.unwrap(content)
         for part in parts:
             if isinstance(part.part, RawA2uiPart):

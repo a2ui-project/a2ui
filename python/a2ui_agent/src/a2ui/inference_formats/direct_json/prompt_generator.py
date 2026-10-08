@@ -84,6 +84,16 @@ class DirectJsonPromptGenerator(PromptGenerator):
     def catalogs(self) -> list[CatalogApi]:
         return list(self._catalogs)
 
+    @property
+    def examples(self) -> list[list[AgentToRendererMessage]] | None:
+        return [list(t) for t in self._examples] if self._examples is not None else None
+
+    @property
+    def allowed_messages(self) -> list[str] | None:
+        return (
+            list(self._allowed_messages) if self._allowed_messages is not None else None
+        )
+
     def generate_base_rules(self) -> str:
         """Returns default JSON workflow rules."""
         return DEFAULT_WORKFLOW_RULES

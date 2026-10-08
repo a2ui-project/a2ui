@@ -212,7 +212,7 @@ This is bold.
 
     def test_parser_compilation_error_handling(self):
         """Verify that parsing invalid Express syntax raises A2uiCompilationError with error details."""
-        from a2ui.parser.errors import A2uiCompilationError
+        from a2ui.parser import A2uiCompilationError
 
         invalid_response = (
             "Preceding conversation text.\n"

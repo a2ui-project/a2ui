@@ -15,7 +15,8 @@
 """Unit tests for state-machine-based BlockLexer."""
 
 import unittest
-from a2ui.parser.lexer import BlockLexer
+
+from a2ui.parser import BlockLexer
 
 
 class TestBlockLexer(unittest.TestCase):

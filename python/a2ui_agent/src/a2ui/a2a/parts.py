@@ -22,10 +22,13 @@ from a2a.types import DataPart
 from a2a.types import Part
 from a2a.types import TextPart as A2aTextPart
 
-from a2ui.inference_formats._shared import to_message_dicts
+from a2ui.inference_formats import to_message_dicts
 from a2ui.parser import A2uiPart
+from a2ui.parser import BlockLexer
 from a2ui.parser import Parser
+from a2ui.parser import RawA2uiPart
 from a2ui.parser import TextPart
+from a2ui.parser import parse_and_fix
 
 logger = logging.getLogger(__name__)
 
@@ -153,10 +156,6 @@ def parse_response_to_parts(
         DeprecationWarning,
         stacklevel=2,
     )
-
-    from a2ui.parser.lexer import BlockLexer
-    from a2ui.parser.payload_fixer import parse_and_fix
-    from a2ui.parser.response_part import RawA2uiPart
 
     parts: list[Part] = []
     try:

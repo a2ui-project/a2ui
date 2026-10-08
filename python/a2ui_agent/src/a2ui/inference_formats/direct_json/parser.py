@@ -58,7 +58,7 @@ class DirectJsonParser(Parser):
     def __init__(
         self,
         catalogs: Sequence[CatalogApi],
-        progressive_keys: Collection[str] = DEFAULT_PROGRESSIVE_KEYS,
+        progressive_keys: Collection[str] = frozenset(),
     ):
         self._catalogs = check_catalogs(catalogs)
         self._progressive_keys = frozenset(progressive_keys)
@@ -77,6 +77,11 @@ class DirectJsonParser(Parser):
     def catalogs(self) -> list[CatalogApi]:
         """The active catalogs in priority order."""
         return self._catalogs
+
+    @property
+    def progressive_keys(self) -> frozenset[str]:
+        """The progressive string property keys healed while streaming."""
+        return self._progressive_keys
 
     @property
     def supports_streaming(self) -> bool:
