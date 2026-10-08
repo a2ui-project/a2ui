@@ -23,6 +23,7 @@ import json
 import re
 from typing import Any, Literal
 
+from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
