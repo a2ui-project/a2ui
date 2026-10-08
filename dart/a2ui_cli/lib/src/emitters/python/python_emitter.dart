@@ -95,17 +95,18 @@ String extractCatalogName(String catalogId) {
   return last.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
 }
 
-String _resolveDefaultBaseImport(String specVersion) {
+/// Returns true if [specVersion] targets A2UI Protocol v1.0 (`1.0`, `1.0.*`).
+bool isV10ProtocolVersion(String specVersion) {
   final String clean = specVersion.startsWith('v')
       ? specVersion.substring(1)
       : specVersion;
-  if (clean == '1.0' ||
-      clean == '1.0.0' ||
-      clean.startsWith('1.0.') ||
-      clean.startsWith('1.0.0-')) {
-    return 'a2ui.builder.v1_0';
-  }
-  return 'a2ui.builder.v0_9';
+  return clean == '1.0' || clean.startsWith('1.0.');
+}
+
+String _resolveDefaultBaseImport(String specVersion) {
+  return isV10ProtocolVersion(specVersion)
+      ? 'a2ui.builder.v1_0'
+      : 'a2ui.builder.v0_9';
 }
 
 /// Renders a catalog description as a one-line Python docstring.

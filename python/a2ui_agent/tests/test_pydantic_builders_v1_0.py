@@ -54,14 +54,15 @@ from a2ui.builder.v1_0 import (
     Required,
     Row,
     Slider,
-    Tabs,
     TabItem,
+    Tabs,
     Text,
     TextField,
     Video,
     flatten_component_tree,
 )
 from a2ui.core.schema.v1_0 import (
+    ComponentCommonMetadata,
     CreateSurfaceMessage,
     UpdateComponentsMessage,
 )
@@ -204,18 +205,20 @@ def test_v1_0_accessibility_attributes_attached_to_component() -> None:
     assert flat[0]["accessibility"] == dumped_acc
 
 
-def test_v1_0_component_catalog_id_and_metadata() -> None:
-    """Verifies attaching catalog_id and metadata to component nodes."""
+def test_v1_0_component_catalog_id_and_extensions() -> None:
+    """Verifies attaching catalog_id and extensions to component nodes."""
     text = Text(
         id="custom_text",
         text="Special",
         catalog_id="https://custom.org/catalog.json",
-        metadata={"customProp": "test"},
+        extensions={"custom_ext": {"key": "value"}},
     )
     flat = flatten_component_tree(text)
     assert len(flat) == 1
     assert flat[0]["catalogId"] == "https://custom.org/catalog.json"
-    assert flat[0]["metadata"] == {"customProp": "test"}
+    assert flat[0]["metadata"] == {"extensions": {"custom_ext": {"key": "value"}}}
+    meta = ComponentCommonMetadata.model_validate(flat[0]["metadata"])
+    assert meta.extensions == {"custom_ext": {"key": "value"}}
 
 
 def test_v1_0_components_specific_to_v1_0() -> None:

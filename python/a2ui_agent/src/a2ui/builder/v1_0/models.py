@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from typing import Any, TypeAlias
+
 from pydantic import (
     AliasChoices,
     Field,
@@ -32,11 +33,9 @@ from pydantic import (
     StrictFloat,
     StrictInt,
     StrictStr,
+    field_serializer,
     model_validator,
 )
-
-from ..core.base_model import BuilderBaseModel
-from ..core.child import Child
 
 from a2ui.core.schema.v1_0 import (
     AccessibilityAttributes as AccessibilityAttributes,
@@ -44,7 +43,30 @@ from a2ui.core.schema.v1_0 import (
     CheckRule as CheckRule,
     DataBinding as CoreDataBinding,
     FunctionCall as CoreFunctionCall,
+    LiteralObject as LiteralObject,
 )
+from ..core.base_model import BuilderBaseModel
+from ..core.base_node import ComponentBuilderNode as CoreComponentBuilderNode
+from ..core.child import Child
+
+
+class ComponentBuilderNode(CoreComponentBuilderNode):
+    """Base class for A2UI Protocol v1.0 component builders with envelope attributes."""
+
+    catalog_id: str | None = Field(default=None, alias="catalogId")
+    accessibility: AccessibilityAttributes | None = None
+    extensions: dict[str, Any] | None = Field(
+        default=None,
+        serialization_alias="metadata",
+    )
+
+    @field_serializer("extensions")
+    def _serialize_extensions(
+        self, value: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        if value is None:
+            return None
+        return {"extensions": value}
 
 
 class DataBinding(CoreDataBinding):
@@ -84,6 +106,7 @@ DynamicValue = (
     | StrictFloat
     | StrictBool
     | Sequence[Any]
+    | LiteralObject
     | DataBinding
     | FunctionCall
 )
@@ -133,6 +156,7 @@ __all__ = [
     "ActionEvent",
     "CheckRule",
     "ChildList",
+    "ComponentBuilderNode",
     "DataBinding",
     "DynamicBoolean",
     "DynamicChildList",
