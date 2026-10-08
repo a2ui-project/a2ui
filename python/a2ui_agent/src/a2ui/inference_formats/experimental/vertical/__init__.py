@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      https://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,20 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Experimental A2UI extensions and proposals."""
+"""Provides the Vertical inference format strategy for A2UI."""
 
-from .express import ExpressFormat, ExpressParser
-from .elemental import ElementalFormat, ElementalParser
-from .atom import AtomFormat, AtomParser
-from .vertical import VerticalFormat, VerticalParser
+from .format import VerticalFormat
+from .parser import VerticalParser
+from .compiler import VerticalCompiler
+from .decompiler import VerticalDecompiler
+from .prompt_generator import VerticalPromptGenerator
+from .streaming import VerticalStreamParser
 
 __all__ = [
-    "ExpressFormat",
-    "ExpressParser",
-    "ElementalFormat",
-    "ElementalParser",
-    "AtomFormat",
-    "AtomParser",
     "VerticalFormat",
     "VerticalParser",
+    "VerticalCompiler",
+    "VerticalDecompiler",
+    "VerticalPromptGenerator",
+    "VerticalStreamParser",
 ]

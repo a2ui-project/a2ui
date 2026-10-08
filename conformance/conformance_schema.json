@@ -825,7 +825,7 @@
     },
     "InferenceFormatName": {
       "type": "string",
-      "enum": ["direct_json", "express"],
+      "enum": ["direct_json", "express", "vertical"],
       "description": "The inference format strategy the case exercises."
     },
     "CatalogExpectation": {
