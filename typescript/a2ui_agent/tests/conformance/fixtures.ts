@@ -15,15 +15,14 @@
  */
 
 import * as fs from 'fs';
-import {CatalogConfig, InMemoryCatalogProvider} from '../../src/index.js';
 import * as path from 'path';
+
+import {CatalogConfig, InMemoryCatalogProvider} from '../../src/index.js';
 import {ProtocolVersion} from '../../src/types.js';
-import {toWireProtocolVersion} from '../../src/utils/protocol_version.js';
+import {toWireProtocolVersion} from '../../src/utils/protocol-version.js';
 import {CONFORMANCE_ROOT} from './loader.js';
 
-export async function createCatalogConfig(
-  catalogData: Record<string, unknown>,
-): Promise<CatalogConfig> {
+export function createCatalogConfig(catalogData: Record<string, unknown>): CatalogConfig {
   // Legacy cases that state no version have always run as v1.0 here. The SDK has no default
   // version, so the harness states it.
   const version = toWireProtocolVersion(
@@ -69,15 +68,15 @@ export async function createCatalogConfig(
   };
 
   const provider = new InMemoryCatalogProvider(schemaToLoad, version as ProtocolVersion, name);
-  return new CatalogConfig(await provider.load());
+  return new CatalogConfig(provider.load());
 }
 
-export async function createFileCatalogConfig(relPath: string): Promise<CatalogConfig> {
+export function createFileCatalogConfig(relPath: string): CatalogConfig {
   const fullPath = path.resolve(CONFORMANCE_ROOT, relPath);
   // The legacy suite's catalog files state no protocol version. They used to load as v0.9
   // through web_core's default, and the SDK no longer has a default, so the harness states it
   // for files that give none. The Express suite's catalog files state their own version.
   const document = JSON.parse(fs.readFileSync(fullPath, 'utf8')) as Record<string, unknown>;
   const fallbackVersion = document.protocolVersion === undefined ? 'v0.9' : undefined;
-  return await CatalogConfig.fromPath(fullPath, [], fallbackVersion);
+  return CatalogConfig.fromPath(fullPath, [], fallbackVersion);
 }

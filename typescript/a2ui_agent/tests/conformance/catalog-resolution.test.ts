@@ -17,7 +17,7 @@
 import {describe, expect} from 'vitest';
 
 import {resolveCatalogs} from '../../src/index.js';
-import {RendererCapabilities} from '../../src/internal/web_core.js';
+import {RendererCapabilities} from '../../src/internal/web-core.js';
 import {loadCases} from './loader.js';
 import {
   CatalogRegistration,
@@ -44,7 +44,7 @@ describe('Conformance: catalog_resolution.yaml', () => {
         renderer_capabilities?: Record<string, RendererCapabilities>;
         accepts_inline_catalogs?: boolean;
       };
-      const configs = await loadRegistrations(args.catalogs);
+      const configs = loadRegistrations(args.catalogs);
 
       // Capabilities arrive keyed by protocol version. Every case sends one version.
       const byVersion = Object.values(args.renderer_capabilities ?? {});

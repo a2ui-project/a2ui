@@ -29,17 +29,17 @@ import {
   ResponsePart,
   resolveCatalogs,
 } from '../../src/index.js';
-import {STRICT_VALIDATION, V10RendererCapabilities} from '../../src/internal/web_core.js';
-import {DirectJsonParser} from '../../src/inference_formats/direct_json/parser.js';
-import {DirectJsonStreamProcessorImpl} from '../../src/inference_formats/direct_json/streaming.js';
+import {STRICT_VALIDATION, V10RendererCapabilities} from '../../src/internal/web-core.js';
+import {DirectJsonParser} from '../../src/inference-formats/direct-json/parser.js';
+import {DirectJsonStreamProcessorImpl} from '../../src/inference-formats/direct-json/streaming.js';
 
-import {parseAndFix} from '../../src/parser/payload_fixer.js';
-import {toWireProtocolVersion} from '../../src/utils/protocol_version.js';
+import {parseAndFix} from '../../src/parser/payload-fixer.js';
+import {toWireProtocolVersion} from '../../src/utils/protocol-version.js';
 import {loadBasicCatalog} from '../helpers/basic-catalogs.js';
 
 // Cases that name no catalog run against the v1.0 basic catalog.
-const basicCatalogV10 = await loadBasicCatalog('v1.0');
-const basicCatalogV09 = await loadBasicCatalog('v0.9');
+const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV09 = loadBasicCatalog('v0.9');
 
 // We map category strings to actual error classes for assertions
 const CATEGORY_TO_ERROR: Record<string, new (...args: string[]) => Error> = {
@@ -133,7 +133,7 @@ describe('Conformance Harness', () => {
           parser = new ExpressParser(version === 'v0.9' ? basicCatalogV09 : basicCatalogV10);
         } else {
           const catalog = testCase.catalog
-            ? (await createCatalogConfig(testCase.catalog as Record<string, unknown>)).catalog
+            ? createCatalogConfig(testCase.catalog as Record<string, unknown>).catalog
             : basicCatalogV10;
           parser = new DirectJsonParser([catalog]);
         }
@@ -173,10 +173,8 @@ describe('Conformance Harness', () => {
         expect(result).toBe(expected);
       } else if (action === 'load_catalog') {
         const expectedObj = expected as Record<string, unknown>;
-        const configs = await Promise.all(
-          ((testCase.catalogConfigs as Record<string, unknown>[]) || []).map(async cfg => {
-            return await createFileCatalogConfig(cfg.path as string);
-          }),
+        const configs = ((testCase.catalogConfigs as Record<string, unknown>[]) || []).map(cfg =>
+          createFileCatalogConfig(cfg.path as string),
         );
         if (expectedObj.supportedCatalogIds) {
           expect(configs.map(c => c.catalog.id)).toEqual(expectedObj.supportedCatalogIds);
@@ -207,13 +205,11 @@ describe('Conformance Harness', () => {
       } else if (action === 'select_catalog') {
         const args = (testCase.args as Record<string, unknown>) || {};
         const supportedCatalogs = (args.supportedCatalogs as Record<string, unknown>[]) || [];
-        const configs = await Promise.all(
-          supportedCatalogs.map(async c => {
-            return await createCatalogConfig({
-              name: c.catalogId,
-              protocolVersion: 'v1.0',
-              catalogSchema: {components: c.components || {}},
-            });
+        const configs = supportedCatalogs.map(c =>
+          createCatalogConfig({
+            name: c.catalogId,
+            protocolVersion: 'v1.0',
+            catalogSchema: {components: c.components || {}},
           }),
         );
         const capabilities = (args.clientCapabilities || {}) as unknown as V10RendererCapabilities;
@@ -247,7 +243,7 @@ describe('Conformance Harness', () => {
         }
       } else if (action === 'process_chunk') {
         const catalogConfig = testCase.catalog
-          ? await createCatalogConfig(testCase.catalog as Record<string, unknown>)
+          ? createCatalogConfig(testCase.catalog as Record<string, unknown>)
           : undefined;
         const catalog = catalogConfig?.catalog || basicCatalogV10;
         const catalogObj = testCase.catalog as Record<string, unknown> | undefined;

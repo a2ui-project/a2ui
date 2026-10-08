@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {ResponsePart, RawResponsePart} from './response_part.js';
-import {AgentToRendererMessage} from '../internal/web_core.js';
+import {ResponsePart, RawResponsePart} from './response-part.js';
+import {AgentToRendererMessage} from '../internal/web-core.js';
 
 /**
  * Abstract interface defining the response parser and compiler.

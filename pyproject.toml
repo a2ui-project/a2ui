@@ -96,7 +96,10 @@ unstable = true
 target-version = []
 pyink-indentation = 4
 pyink-use-majority-quotes = true
-extend-exclude = '/generated/'
+extend-exclude = '''(?x)(
+  /generated/
+  | python/a2ui_agent/src/a2ui/builder/v0_9/catalogs/
+)'''
 pyink-annotation-pragmas = [
   "noqa",
   "pylint:",

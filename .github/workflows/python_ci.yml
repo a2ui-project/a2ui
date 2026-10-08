@@ -25,6 +25,7 @@ on:
       - "conformance/**"
       - "samples/agent/adk/**"
       - ".agents/skills/**"
+      - "dart/a2ui_cli/**"
       - "scripts/run_skills_tests.py"
       - ".github/scripts/**"
       - ".github/workflows/python_ci.yml"
@@ -38,6 +39,7 @@ on:
       - "conformance/**"
       - "samples/agent/adk/**"
       - ".agents/skills/**"
+      - "dart/a2ui_cli/**"
       - "scripts/run_skills_tests.py"
       - ".github/scripts/**"
       - ".github/workflows/python_ci.yml"
@@ -97,6 +99,15 @@ jobs:
           uv run --all-packages mypy .
       - name: Run Unit Tests
         run: uv run pytest
+      - name: Set Up Dart
+        uses: ./.github/actions/setup-dart
+      - name: Run CLI Python Runtime Tests
+        env:
+          REQUIRE_PYTHON_TESTS: "true"
+        run: |
+          cd dart/a2ui_cli
+          flutter pub get
+          VIRTUAL_ENV="$GITHUB_WORKSPACE/.venv" flutter test test/python_runtime_test.dart
       - name: Build All Packages
         run: uv build --all
       - name: Run Skills Unit Tests
