@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from typing import Any, Optional
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from .base_model import BuilderBaseModel
 
@@ -32,6 +32,10 @@ class ComponentBuilderNode(BuilderBaseModel):
 
     component: str = ""
     id: Optional[str] = None
+    catalog_id: Optional[str] = Field(default=None, alias="catalogId")
+    accessibility: Optional[Any] = None
+    weight: Optional[float] = None
+    metadata: Optional[dict[str, Any]] = None
 
     @property
     def component_name(self) -> str:

@@ -96,8 +96,15 @@ String extractCatalogName(String catalogId) {
 }
 
 String _resolveDefaultBaseImport(String specVersion) {
-  // Code generation currently targets the v0.9/v0.9.1 builder runtime.
-  // v1.0 builder support will be added when the Python v1.0 runtime lands.
+  final String clean = specVersion.startsWith('v')
+      ? specVersion.substring(1)
+      : specVersion;
+  if (clean == '1.0' ||
+      clean == '1.0.0' ||
+      clean.startsWith('1.0.') ||
+      clean.startsWith('1.0.0-')) {
+    return 'a2ui.builder.v1_0';
+  }
   return 'a2ui.builder.v0_9';
 }
 

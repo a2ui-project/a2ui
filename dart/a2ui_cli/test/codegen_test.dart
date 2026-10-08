@@ -246,6 +246,54 @@ void main() {
       },
     );
 
+    test('generates code from the authoritative v1.0 basic catalog schema', () {
+      final String catalogPath = p.join(
+        repoRoot,
+        'catalogs/basic/v1/catalog.json',
+      );
+      final catalogJson =
+          jsonDecode(File(catalogPath).readAsStringSync())
+              as Map<String, dynamic>;
+      final catalog = CodegenCatalog.fromJson(catalogJson);
+      final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(catalog);
+      final emitter = PythonEmitter(analysed);
+      final String generated = emitter.generate();
+
+      expect(
+        generated,
+        contains('"""Type-safe A2UI builders for basic (version 1.0).'),
+      );
+      expect(generated, contains('from a2ui.builder.v1_0 import ('));
+      expect(generated, contains('class Button(ComponentBuilderNode):'));
+      expect(generated, contains('child: Child'));
+      expect(generated, contains('class TextField(ComponentBuilderNode):'));
+      expect(
+        generated,
+        contains(
+          'placeholder: Optional[str | DataBinding | FunctionCall] = None',
+        ),
+      );
+      expect(generated, contains('class Slider(ComponentBuilderNode):'));
+      expect(generated, contains('steps: Optional[float] = None'));
+      expect(generated, contains('class Video(ComponentBuilderNode):'));
+      expect(generated, contains('alias="posterUrl"'));
+
+      final String checkedInPath = p.join(
+        repoRoot,
+        'python/a2ui_agent/src/a2ui/builder/v1_0/catalogs/basic.py',
+      );
+      expect(
+        generated,
+        equals(File(checkedInPath).readAsStringSync()),
+        reason:
+            'Generated v1.0 basic catalog output must match checked-in Python '
+            'agent SDK file byte-for-byte. Regenerate with:\n'
+            'dart run dart/a2ui_cli/bin/a2ui.dart codegen '
+            '--catalog catalogs/basic/v1/catalog.json '
+            '--out python/a2ui_agent/src/a2ui/builder/v1_0/catalogs/basic.py',
+      );
+    });
+
     test('snake_cases function parameters in Python function classes', () {
       final json = <String, Object?>{
         'catalogId': 'param_catalog',

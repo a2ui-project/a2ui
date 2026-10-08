@@ -102,11 +102,16 @@ class CodegenCommand extends Command<int> {
     final String cleanVersion = specVersion.startsWith('v')
         ? specVersion.substring(1)
         : specVersion;
-    const supportedVersions = {'0.9', '0.9.1'};
-    if (!supportedVersions.contains(cleanVersion)) {
+    final bool isV09 = cleanVersion == '0.9' || cleanVersion == '0.9.1';
+    final bool isV10 =
+        cleanVersion == '1.0' ||
+        cleanVersion == '1.0.0' ||
+        cleanVersion.startsWith('1.0.') ||
+        cleanVersion.startsWith('1.0.0-');
+    if (!isV09 && !isV10) {
       errSink.writeln(
         "Unsupported catalog protocol version '$specVersion'. Code generation is "
-        'currently supported for protocol version 0.9 / 0.9.1 catalogs only.',
+        'currently supported for protocol versions 0.9, 0.9.1, and 1.0 catalogs.',
       );
       return 1;
     }
