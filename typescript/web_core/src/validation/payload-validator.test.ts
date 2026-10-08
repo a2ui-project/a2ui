@@ -195,6 +195,21 @@ describe('PayloadValidator', () => {
       );
     });
 
+    it('rejects non-object args whatever catalog the call runs in', () => {
+      const validator = new PayloadValidator(cat);
+      for (const call of [
+        {'@call': 'upper', args: 123},
+        {'@call': 'upper', catalogId: 'https://example.com/other', args: 123},
+        {'@call': 'upper', catalogId: 'https://example.com/other', args: ['x']},
+        {'@call': '@index', args: 123},
+      ]) {
+        assertValidationError(
+          () => validator.validateComponent(textWith(call)),
+          /Expected object, received (number|array)/,
+        );
+      }
+    });
+
     it('rejects a non-string catalogId on a call', () => {
       const validator = new PayloadValidator(cat);
       for (const catalogId of [7, null, {}]) {
