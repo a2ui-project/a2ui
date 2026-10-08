@@ -84,6 +84,7 @@ Catalog<ComponentApi, FunctionImplementation> _signed(CatalogApi catalog) =>
       schemaId: catalog.schemaId,
       title: catalog.title,
       description: catalog.description,
+      protocolVersion: catalog.protocolVersion,
     );
 
 class _SignatureOnly extends FunctionImplementation {

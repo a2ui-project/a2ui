@@ -86,7 +86,7 @@ void _add(
     surface.componentsModel.addComponent(ComponentModel(id, type, properties));
 
 _Fixture _fixture(Catalog<ComponentApi, FunctionImplementation> catalog) {
-  final surface = SurfaceModel<ComponentApi>('s', catalog: catalog);
+  final surface = SurfaceModel<ComponentApi>('s', defaultCatalog: catalog);
   final resolver = NodeResolver<ComponentApi>(surface);
   addTearDown(() {
     resolver.dispose();
@@ -598,7 +598,7 @@ void main() {
     ) {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        protocolVersion: A2uiProtocolVersion.v1_0,
         // Strict, so that a dangling reference is rejected: these cases are
         // about the validator and the resolver reading one reference map.
         validationConfig: ValidationConfig.strict,
@@ -615,14 +615,14 @@ void main() {
     ) =>
         AgentToRendererMessage.parseAll([
           {
-            'version': 'v0.9',
+            'version': 'v1.0',
             'createSurface': {'surfaceId': 's', 'catalogId': catalogId},
           },
           {
-            'version': 'v0.9',
+            'version': 'v1.0',
             'updateComponents': {'surfaceId': 's', 'components': components},
           },
-        ], protocolVersion: A2uiProtocolVersion.v0_9);
+        ], protocolVersion: A2uiProtocolVersion.v1_0);
 
     Matcher danglingAt(String id, String field) => throwsA(
           isA<A2uiValidationError>().having(
@@ -809,12 +809,12 @@ void main() {
           });
           final processor = MessageProcessor<ComponentApi>(
             catalogs: [catalog],
-            protocolVersion: A2uiProtocolVersion.v0_9,
+            protocolVersion: A2uiProtocolVersion.v1_0,
           );
           processor.processMessages(
             AgentToRendererMessagePayload.of(
               CreateSurfaceMessage(
-                  version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
+                  version: 'v1.0', surfaceId: 's', catalogId: catalog.id),
             ),
           );
           final SurfaceModel<ComponentApi> surface =
@@ -828,13 +828,13 @@ void main() {
             processor.processMessages(
               AgentToRendererMessage.parseAll([
                 {
-                  'version': 'v0.9',
+                  'version': 'v1.0',
                   'updateComponents': {
                     'surfaceId': 's',
                     'components': components,
                   },
                 },
-              ], protocolVersion: A2uiProtocolVersion.v0_9),
+              ], protocolVersion: A2uiProtocolVersion.v1_0),
             );
           }
 
@@ -876,13 +876,13 @@ void main() {
       });
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        protocolVersion: A2uiProtocolVersion.v1_0,
         validationConfig: const ValidationConfig(allowDanglingReferences: true),
       );
       processor.processMessages(
         AgentToRendererMessagePayload.of(
           CreateSurfaceMessage(
-              version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
+              version: 'v1.0', surfaceId: 's', catalogId: catalog.id),
         ),
       );
       final SurfaceModel<ComponentApi> surface =
@@ -896,10 +896,10 @@ void main() {
         processor.processMessages(
           AgentToRendererMessage.parseAll([
             {
-              'version': 'v0.9',
+              'version': 'v1.0',
               'updateComponents': {'surfaceId': 's', 'components': components},
             },
-          ], protocolVersion: A2uiProtocolVersion.v0_9),
+          ], protocolVersion: A2uiProtocolVersion.v1_0),
         );
       }
 

@@ -138,7 +138,7 @@ Map<String, Object?> _render(
     for (final SurfaceModel<ComponentApi> surface
         in renderer.groupModel.allSurfaces)
       surface.id: {
-        'catalog': surface.catalog.id,
+        'catalog': surface.defaultCatalog?.id,
         'components': {
           for (final ComponentModel component in surface.componentsModel.all)
             component.id: component.toJson(),

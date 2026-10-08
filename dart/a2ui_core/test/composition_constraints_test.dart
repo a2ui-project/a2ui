@@ -291,7 +291,7 @@ void main() {
               components: catalog.components.values.toList(),
             ),
           ],
-          protocolVersion: A2uiProtocolVersion.v0_9,
+          protocolVersion: A2uiProtocolVersion.v1_0,
         );
 
     test('rejects an unallowed child before mutating the surface', () {
@@ -301,11 +301,11 @@ void main() {
         () => p.processMessages(
           AgentToRendererMessage.parseAll([
             {
-              'version': 'v0.9',
+              'version': 'v1.0',
               'createSurface': {'surfaceId': 's1', 'catalogId': 'custom'},
             },
             {
-              'version': 'v0.9',
+              'version': 'v1.0',
               'updateComponents': {
                 'surfaceId': 's1',
                 'components': [
@@ -318,7 +318,7 @@ void main() {
                 ],
               },
             },
-          ], protocolVersion: A2uiProtocolVersion.v0_9),
+          ], protocolVersion: A2uiProtocolVersion.v1_0),
         ),
         throwsA(
           _violation('UNALLOWED_CHILD', path: '/components/0/children/0'),
@@ -335,11 +335,11 @@ void main() {
       p.processMessages(
         AgentToRendererMessage.parseAll([
           {
-            'version': 'v0.9',
+            'version': 'v1.0',
             'createSurface': {'surfaceId': 's1', 'catalogId': 'custom'},
           },
           {
-            'version': 'v0.9',
+            'version': 'v1.0',
             'updateComponents': {
               'surfaceId': 's1',
               'components': [
@@ -351,14 +351,14 @@ void main() {
               ],
             },
           },
-        ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ], protocolVersion: A2uiProtocolVersion.v1_0),
       );
 
       expect(
         () => p.processMessages(
           AgentToRendererMessage.parseAll([
             {
-              'version': 'v0.9',
+              'version': 'v1.0',
               'updateComponents': {
                 'surfaceId': 's1',
                 'components': [
@@ -366,7 +366,7 @@ void main() {
                 ],
               },
             },
-          ], protocolVersion: A2uiProtocolVersion.v0_9),
+          ], protocolVersion: A2uiProtocolVersion.v1_0),
         ),
         throwsA(
           _violation(
@@ -392,7 +392,7 @@ void main() {
             components: _catalog().components.values.toList(),
           ),
         ],
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        protocolVersion: A2uiProtocolVersion.v1_0,
         validationConfig: const ValidationConfig(
           rootId: 'main',
           allowOrphanComponents: true,
@@ -406,11 +406,11 @@ void main() {
         () => p.processMessages(
           AgentToRendererMessage.parseAll([
             {
-              'version': 'v0.9',
+              'version': 'v1.0',
               'createSurface': {'surfaceId': 's1', 'catalogId': 'custom'},
             },
             {
-              'version': 'v0.9',
+              'version': 'v1.0',
               'updateComponents': {
                 'surfaceId': 's1',
                 'components': [
@@ -418,7 +418,7 @@ void main() {
                 ],
               },
             },
-          ], protocolVersion: A2uiProtocolVersion.v0_9),
+          ], protocolVersion: A2uiProtocolVersion.v1_0),
         ),
         throwsA(_violation('UNALLOWED_PARENT', path: '/components/0')),
       );

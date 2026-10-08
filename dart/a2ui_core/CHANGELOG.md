@@ -64,6 +64,46 @@
   `@call` shapes.
 - Validation errors carry JSON Pointer `path`s and per-error `errors` details;
   a dangling reference reports `/components/<index>/children/<n>`.
+- **Breaking:** `SurfaceModel.catalog` is replaced by a nullable
+  `defaultCatalog`, and the constructor's `catalog:` argument by
+  `defaultCatalog:`. `SurfaceModel` adds `availableCatalogs`, `metadata`,
+  `onWarning`/`dispatchWarning` (with the new `A2uiWarning`), and
+  `resolveCatalog(catalogId)`, which resolves an item's own `catalogId`, then
+  the default, and otherwise throws `A2uiCatalogError`. There is no fallback to
+  a sole catalog. A catalog whose `protocolVersion` is incompatible with the
+  surface's throws `A2uiCatalogError` at construction. A catalog without a
+  `protocolVersion` is pre-v1.0: a v0.9 or v0.9.1 surface accepts it and a
+  v1.0 or later surface rejects it.
+- **Behavior change:** `NodeResolver`, `GenericBinder` and `DataContext`
+  resolve components and function calls through `surface.resolveCatalog`, so a
+  component or function call naming another catalog's `catalogId` renders or
+  runs with that catalog. `FunctionCall` adds `catalogId`, and `DataContext`
+  adds `invokerForCatalog`.
+- **Behavior change:** `MessageProcessor` gives each surface the processor
+  catalogs compatible with its protocol version as `availableCatalogs`, and
+  `createSurface` without a `catalogId` creates a surface with no default
+  catalog instead of throwing. A component that names no catalog on such a
+  surface throws `A2uiCatalogError`, even when the processor supports one
+  catalog. `createSurface` metadata is kept on `SurfaceModel.metadata`.
+- **Behavior change:** `SurfaceGroupModel.addSurface` throws `A2uiStateError`
+  for a surface id it already holds, instead of ignoring the new surface.
+- **Behavior change:** `Catalog` throws `A2uiCatalogError` for two components
+  or two functions with one name, for a component named `Surface`, for a
+  function name starting with `@`, and for a function declaring
+  `returnType: 'validationResult'` when the catalog's effective
+  `protocolVersion` is below `1.0` (an omitted `protocolVersion` defaults to
+  `'0.9'`).
+- **Behavior change:** `Catalog.invoke` checks arguments against the
+  function's argument schema and throws `A2uiExpressionError` on a mismatch
+  before the function runs. Parameters that reference `common_types.json` or
+  a definition the catalog bundles are checked against the referenced
+  definition. Null arguments, such as bindings to missing data, are not
+  checked.
+- `SurfaceModel.dispatchAction` copies the action's `catalogId` onto
+  `A2uiClientAction.catalogId`.
+- `Catalog` adds `protocolVersion` and `instructions`, read by
+  `Catalog.fromJson` and written by `catalogSchema`. `catalogSchema` requires
+  `args` only for functions with required parameters.
 - **Breaking:** `Catalog.fromJson` inlines and flattens `allOf` component envelopes (`ComponentCommon`, `CatalogComponentCommon`, `Checkable`), maps `accessibility` and `checks` mixins, omits envelope keys (`id`, `component`, `catalogId`) from `ComponentApi.schema`, and replaces `REF:` description prefixes in `CommonSchemas` with `commonTypesRef` metadata.
 - Adds `Catalog.protocolVersion`, `FunctionApi.description`, and `FunctionImplementation.description`, and updates `Catalog.catalogSchema` to rebuild component envelopes, emit `anyComponent.discriminator` and function `description`, and restore `common_types.json#/$defs/...` references.
 - Allows the `catalogId` envelope property during component validation in `PayloadValidator`.
@@ -173,7 +213,8 @@
   `A2uiRendererCapabilities.forVersion` falls back to a compatible declared
   version in the same way.
 - Added `isCatalogVersionCompatible` and `compareVersions`, matching the
-  TypeScript and Python SDKs.
+  TypeScript and Python SDKs. `isCatalogVersionCompatible` accepts a null
+  catalog version, which is compatible with versions below 1.0 only.
 - Added the v1.0 messages `CallRendererFunctionMessage`,
   `AgentFunctionResponseMessage`, `CallAgentFunctionMessage` and
   `RendererFunctionResponseMessage`, with `A2uiFunctionResponse` and

@@ -115,8 +115,17 @@ String? _canonical(String version) {
 /// A string that is not a semantic version (a custom identifier such as
 /// `'custom'`) matches only the same identifier, ignoring a leading `v` or
 /// `V`. An empty string matches nothing.
-bool isCatalogVersionCompatible(String catalogVersion, String messageVersion) {
-  if (catalogVersion.isEmpty || messageVersion.isEmpty) return false;
+///
+/// A null [catalogVersion] is an unversioned catalog, which predates the
+/// field and so is pre-v1.0: it serves any message below 1.0 and none from
+/// 1.0 on. Catalogs targeting v1.0 or later must declare their version.
+bool isCatalogVersionCompatible(String? catalogVersion, String messageVersion) {
+  if (messageVersion.isEmpty) return false;
+  if (catalogVersion == null) {
+    final _SemVer? message = _parse(messageVersion);
+    return message != null && message.major < 1;
+  }
+  if (catalogVersion.isEmpty) return false;
   final String? catalogCanonical = _canonical(catalogVersion);
   final String? messageCanonical = _canonical(messageVersion);
   if (catalogCanonical != null && messageCanonical != null) {
