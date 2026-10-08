@@ -208,7 +208,9 @@ class TestExpressPromptGenerator(unittest.TestCase):
         self.assertIn("Map with keys:", sigs)
 
     def test_express_schema_helper_methods(self):
-        from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper as ExpressCatalogSchemaHelper
+        from a2ui.inference_formats._shared import (
+            CatalogSchemaHelper as ExpressCatalogSchemaHelper,
+        )
 
         cat = Catalog.from_json(
             protocol_version=VERSION_1_0,

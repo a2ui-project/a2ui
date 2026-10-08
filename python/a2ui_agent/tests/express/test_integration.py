@@ -23,9 +23,7 @@ from typing import Any
 from a2ui.core import Catalog
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
 from a2ui.inference_formats.experimental.express.parser import ExpressParser
-from a2ui.inference_formats.experimental.express.schema_helper import (
-    CatalogSchemaHelper,
-)
+from a2ui.inference_formats._shared import CatalogSchemaHelper
 
 from a2ui.schema.utils import (
     find_repo_root,

@@ -113,7 +113,7 @@ def test_v10_child_fields_use_the_component_catalog(
 ):
     """A component that names a catalog reads its child fields from that catalog."""
     parser = DirectJsonStreamParser([basic_catalog_v10, custom_catalog_v10])
-    assert parser.catalogs == (basic_catalog_v10, custom_catalog_v10)
+    assert parser.catalogs == [basic_catalog_v10, custom_catalog_v10]
 
     assert "children" in parser._get_child_fields_for_obj(
         {"component": "Column", "id": "col1", "children": ["c1", "c2"]}

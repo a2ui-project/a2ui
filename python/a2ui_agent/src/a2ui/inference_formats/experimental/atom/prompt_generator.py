@@ -120,11 +120,9 @@ class AtomPromptGenerator(PromptGenerator):
         self._format = format_inst
         self.format = format_inst
         try:
-            from a2ui.schema.schema_helper import CatalogSchemaHelper
+            from a2ui.inference_formats._shared import CatalogSchemaHelper
         except ImportError:
-            from a2ui.inference_formats.experimental.express.schema_helper import (
-                CatalogSchemaHelper,
-            )
+            from a2ui.schema.schema_helper import CatalogSchemaHelper
 
         try:
             self.schema_helper = CatalogSchemaHelper(format_inst.catalog)
@@ -145,11 +143,9 @@ class AtomPromptGenerator(PromptGenerator):
             return ""
         if catalog:
             try:
-                from a2ui.schema.schema_helper import CatalogSchemaHelper
+                from a2ui.inference_formats._shared import CatalogSchemaHelper
             except ImportError:
-                from a2ui.inference_formats.experimental.express.schema_helper import (
-                    CatalogSchemaHelper,
-                )
+                from a2ui.schema.schema_helper import CatalogSchemaHelper
             helper = CatalogSchemaHelper(catalog)
         else:
             helper = self.schema_helper

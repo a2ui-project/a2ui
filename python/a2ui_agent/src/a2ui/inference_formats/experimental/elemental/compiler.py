@@ -23,9 +23,7 @@ import re
 from html.parser import HTMLParser
 from typing import Any
 from a2ui.core import CatalogApi
-from a2ui.inference_formats.experimental.express.schema_helper import (
-    CatalogSchemaHelper,
-)
+from a2ui.inference_formats._shared import CatalogSchemaHelper
 from a2ui.inference_formats.experimental.express.constants import SurfaceOperation
 from .expression_parser import ElementalExpressionParser
 

@@ -27,8 +27,8 @@ from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.prompt import PromptGenerator
 from a2ui.schema import load_examples
 
+from a2ui.inference_formats._shared import CatalogSchemaHelper
 from .parser import ExpressParser
-from .schema_helper import CatalogSchemaHelper
 
 if TYPE_CHECKING:
     from .format import ExpressFormat

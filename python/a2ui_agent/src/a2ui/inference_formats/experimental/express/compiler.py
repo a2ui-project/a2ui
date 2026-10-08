@@ -28,7 +28,7 @@ from a2ui.core.schema import ProtocolVersion
 from .generated.express_lexer import ExpressLexer
 from .generated.express_parser import ExpressParser
 from .visitor import ExpressAstVisitor, ExpressErrorListener
-from .schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats._shared import CatalogSchemaHelper
 from .constants import SurfaceOperation
 from .errors import (
     ExpressCompilerError,

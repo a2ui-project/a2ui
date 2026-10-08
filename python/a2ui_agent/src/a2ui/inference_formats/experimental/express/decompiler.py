@@ -22,8 +22,8 @@ import re
 from typing import Any
 from a2ui.core import CatalogApi
 
+from a2ui.inference_formats._shared import CatalogSchemaHelper
 from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
-from .schema_helper import CatalogSchemaHelper
 from .constants import SurfaceOperation
 
 

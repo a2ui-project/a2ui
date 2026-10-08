@@ -33,7 +33,7 @@ import unittest
 from a2ui.core import Catalog
 from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
 from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
+from a2ui.inference_formats._shared import CatalogSchemaHelper
 from a2ui.inference_formats.experimental.express.parser import ExpressParser
 from a2ui.inference_formats.experimental.express.errors import (
     ExpressUnknownPropertyError,

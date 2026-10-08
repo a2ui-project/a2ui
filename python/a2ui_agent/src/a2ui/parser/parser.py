@@ -14,11 +14,21 @@
 
 """Abstract parser interface and legacy parsing compatibility helpers."""
 
-import warnings
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from typing import Any
+import warnings
+
 from a2ui.core import A2uiError
+from a2ui.core.schema import AgentToRendererMessage
+from .messages import to_message_dicts
 from .response_part import ResponsePart
+
+
+def _part_messages_to_dicts(
+    messages: Sequence[AgentToRendererMessage | dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return to_message_dicts(messages)
 
 
 class Parser(ABC):
@@ -51,7 +61,8 @@ class Parser(ABC):
         for part in parts:
             if part.a2ui_raw is not None:
                 try:
-                    part.a2ui_json = self.compile(part.a2ui_raw, is_final=part.is_final)
+                    compiled = self.compile(part.a2ui_raw, is_final=part.is_final)
+                    part.a2ui_json = _part_messages_to_dicts(compiled)
                 except A2uiError as e:
                     # The compiler already said what kind of failure this is.
                     # Re-raising it as something else would throw that away, so
@@ -85,7 +96,7 @@ class Parser(ABC):
     @abstractmethod
     def compile(
         self, format_content: str, *, is_final: bool = True
-    ) -> list[dict[str, Any]]:
+    ) -> list[AgentToRendererMessage]:
         """Compiles raw format-content (inference format string) to structured A2UI messages.
 
         Args:
@@ -93,7 +104,7 @@ class Parser(ABC):
             is_final: Whether this format block is complete (not truncated).
 
         Returns:
-            A list of compiled A2UI message dictionaries.
+            A list of compiled AgentToRendererMessage objects.
         """
         pass
 
@@ -116,8 +127,15 @@ class Parser(ABC):
         )
 
     @abstractmethod
-    def decompile(self, val: dict[str, Any]) -> str:
-        """Decompiles a structured A2UI payload into this format's raw notation."""
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
+        """Decompiles structured A2UI payload messages into this format's raw notation.
+
+        Args:
+            a2ui_payload: Sequence of AgentToRendererMessage objects to convert to raw format text.
+
+        Returns:
+            Raw format content string representing the messages.
+        """
         pass
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
