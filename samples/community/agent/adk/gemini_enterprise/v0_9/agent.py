@@ -28,15 +28,13 @@ from a2a.types import (
 )
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.a2a import parse_response_to_parts, stream_response_to_parts
-from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.parser import A2uiPart
-from a2ui.processor import CatalogConfig
+from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
     VERSION_0_9,
 )
-from a2ui.utils import validate_payload
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
@@ -82,10 +80,11 @@ class A2uiDemoAgent:
         self._user_id = "remote_agent"
         self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
-        self._inference_format: DirectJsonFormat = self._build_inference_format()
+        self._generator: A2uiGenerator = self._build_generator()
+        self._processor: A2uiRequestProcessor = self._build_processor(self._generator)
         self._ui_runner: Runner = self._build_runner(
             self._build_llm_agent(
-                self._inference_format, examples_path=f"examples/{A2UI_VERSION}"
+                self._processor, examples_path=f"examples/{A2UI_VERSION}"
             )
         )
         self._parsers = OrderedDict()
@@ -97,18 +96,27 @@ class A2uiDemoAgent:
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def _build_inference_format(self) -> DirectJsonFormat:
-        catalog = CatalogConfig.from_path(
+    def _build_generator(self) -> A2uiGenerator:
+        config = CatalogConfig.from_path(
             catalog_path=COMPOSITE_CATALOG_PATH,
             protocol_version=A2UI_VERSION,
-        ).transformed_catalog
-        return DirectJsonFormat([catalog])
+        )
+        return A2uiGenerator([config])
+
+    def _build_processor(self, generator: A2uiGenerator) -> A2uiRequestProcessor:
+        return generator.create_processor({
+            f"v{A2UI_VERSION}": {
+                "supportedCatalogIds": [
+                    c.transformed_catalog.catalog_id for c in generator.catalogs
+                ]
+            }
+        })
 
     def _build_agent_card(self) -> AgentCard:
         ext = get_a2ui_agent_extension(
             A2UI_VERSION,
             supported_catalog_ids=[
-                c.catalog_id for c in self._inference_format.catalogs
+                c.catalog_id for c in self._processor.active_catalogs
             ],
         )
 
@@ -178,7 +186,7 @@ class A2uiDemoAgent:
 
     def _build_llm_agent(
         self,
-        inference_format: DirectJsonFormat | None = None,
+        processor: A2uiRequestProcessor | None = None,
         examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the A2UI demo agent."""
@@ -187,14 +195,14 @@ class A2uiDemoAgent:
         model_env = os.getenv("MODEL") or "gemini-2.5-flash"
         model_name = model_env.split("/")[-1]
 
-        if inference_format:
+        if processor:
             prompt_parts = [
                 ROLE_DESCRIPTION,
                 f"## UI Description:\n{UI_DESCRIPTION}",
-                inference_format.prompt_generator.generate(),
+                processor.prompt_snippet,
             ]
             examples = load_examples(
-                inference_format.catalogs, examples_path, validate=True
+                processor.active_catalogs, examples_path, validate=True
             )
             if examples:
                 prompt_parts.append(f"### Examples:\n{examples}")
@@ -228,13 +236,13 @@ class A2uiDemoAgent:
         # Determine which runner to use based on whether the a2ui extension is active.
         if ui_version:
             runner = self._ui_runner
-            inference_format = self._inference_format
+            processor = self._processor
             selected_catalog = (
-                inference_format.catalogs[0] if inference_format else None
+                processor.active_catalogs[0] if processor.active_catalogs else None
             )
         else:
             runner = self._text_runner
-            inference_format = None
+            processor = None
             selected_catalog = None
 
         session = await runner.session_service.get_session(
@@ -323,11 +331,11 @@ class A2uiDemoAgent:
             full_content_list = []
             parts_streamed = False
 
-            if inference_format and selected_catalog:
+            if processor and selected_catalog:
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = inference_format.create_parser()
+                    self._parsers[session_id] = processor.create_parser()
                     if len(self._parsers) > self._max_parsers:
                         self._parsers.popitem(last=False)
 
@@ -353,31 +361,17 @@ class A2uiDemoAgent:
             is_valid = False
             error_message = ""
 
-            if ui_version:
+            if ui_version and processor:
                 logger.info(
                     "--- A2uiDemoAgent.stream: Validating UI response (Attempt"
                     f" {attempt})... ---"
                 )
                 try:
-                    response_parts = inference_format.create_parser().parse_response(
-                        final_response_content
-                    )
+                    response_parts = processor.parse_response(final_response_content)
 
                     for part in response_parts:
                         if not isinstance(part, A2uiPart):
                             continue
-
-                        parsed_json_data = part.a2ui
-
-                        # --- Validation Steps ---
-                        # Check the payload against the selected catalog. This
-                        # raises A2uiValidationError, a ValueError, if it fails.
-                        logger.info(
-                            "--- A2uiDemoAgent.stream: Validating against"
-                            " A2UI_SCHEMA... ---"
-                        )
-                        validate_payload([selected_catalog], parsed_json_data)
-                        # --- End Validation Steps ---
 
                         logger.info(
                             "--- A2uiDemoAgent.stream: UI JSON successfully parsed AND"

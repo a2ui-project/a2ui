@@ -16,8 +16,7 @@
 
 # pylint: disable=g-importing-member, line-too-long
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.processor import CatalogConfig
+from a2ui.processor import A2uiRequestProcessor, CatalogConfig
 from a2ui.schema import VERSION_0_9, load_examples
 from agent import ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
 
@@ -29,12 +28,12 @@ if __name__ == "__main__":
         protocol_version=version,
     ).transformed_catalog
     basic_catalog = CatalogConfig(BasicCatalog(version)).transformed_catalog
-    inference_format = DirectJsonFormat([rizzcharts_catalog, basic_catalog])
+    processor = A2uiRequestProcessor([rizzcharts_catalog, basic_catalog])
 
     # Generate prompt for rizzcharts catalog
     print("Building prompt and validating rizzcharts examples...")
     rizzcharts_examples = load_examples(
-        inference_format.catalogs,
+        processor.active_catalogs,
         f"../examples/rizzcharts_catalog/{version}",
         validate=True,
     )
@@ -42,7 +41,7 @@ if __name__ == "__main__":
         ROLE_DESCRIPTION,
         f"## Workflow Description:\n{WORKFLOW_DESCRIPTION}",
         f"## UI Description:\n{UI_DESCRIPTION}",
-        inference_format.prompt_generator.generate(),
+        processor.prompt_snippet,
     ]
     if rizzcharts_examples:
         prompt_parts.append(f"### Examples:\n{rizzcharts_examples}")

@@ -22,8 +22,12 @@ from .catalog_providers import (
     FileSystemCatalogProvider,
     InMemoryCatalogProvider,
 )
+from .generator import A2uiGenerator
+from .processor import A2uiRequestProcessor
 
 __all__ = [
+    "A2uiGenerator",
+    "A2uiRequestProcessor",
     "CatalogConfig",
     "CatalogProvider",
     "FileSystemCatalogProvider",

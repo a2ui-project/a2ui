@@ -82,9 +82,10 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
                 if context.message and context.message.metadata
                 else None
             )
-            a2ui_catalog = self._agent.resolve_catalogs(
+            processor = self._agent.create_processor(
                 active_ui_version, client_capabilities
-            )[0]
+            )
+            a2ui_catalog = processor.active_catalogs[0]
 
             examples = ""
 

@@ -22,6 +22,17 @@
   components name children that a later message in the payload adds, and a
   v0.8 payload that deletes a surface and starts it over.
 
+- **BREAKING**: Implement `A2uiGenerator`, `A2uiRequestProcessor`, `CatalogConfig`,
+  `CatalogProvider` (`FileSystemCatalogProvider`, `InMemoryCatalogProvider`),
+  `InferenceFormatFactory` (`DirectJsonFormatFactory`, `ExpressFormatFactory`,
+  `ElementalFormatFactory`, `AtomFormatFactory`), `PromptGenerator`, and unified
+  `Parser` (`ResponsePart`, `TextPart`, `A2uiPart`, `RawResponsePart`,
+  `RawA2uiPart`) per `a2ui_agent.blueprint.md`. `InferenceFormat.parser` is
+  replaced by `InferenceFormat.create_parser()`, `CatalogConfig` moves from
+  `a2ui.schema` to `a2ui.processor` with
+  `CatalogConfig(catalog, transformers=None)` and `transformed_catalog`, and
+  `A2uiCatalogProvider` is replaced by `CatalogProvider`.
+
 ## 0.8.0 (2026-10-08)
 
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.3.0,<0.4.0`.

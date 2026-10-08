@@ -6,13 +6,18 @@ message validation for A2A (Agent-to-Agent/Agent-to-Client) communication.
 
 ## Core Concepts
 
-The `agent_sdk` revolves around three main classes:
+The `agent_sdk` revolves around four main classes:
 
-- **`CatalogConfig`**: Wraps a `Catalog` with optional `CatalogTransformer` instances into `transformed_catalog`.
 - **`Catalog`**: Represents a component catalog from `a2ui.core`, providing
   component and function schemas for validation and LLM instruction rendering.
-- **`DirectJsonFormat`**: The inference format that takes resolved catalogs and
-  generates system prompts and response parsers.
+- **`CatalogConfig`**: Wraps a `Catalog` with optional `CatalogTransformer`
+  instances into `transformed_catalog`.
+- **`A2uiGenerator`**: Holds the agent's supported `CatalogConfig` instances,
+  optional few-shot example turns, and format factory, and negotiates an
+  `A2uiRequestProcessor` for a client's renderer capabilities.
+- **`A2uiRequestProcessor`**: Request-scoped facade that binds the active
+  negotiated catalogs to an `InferenceFormat` (defaulting to `DirectJsonFormat`)
+  and exposes `prompt_snippet`, `create_parser()`, and `parse_response()`.
 
 ## Prerequisites
 
@@ -20,15 +25,14 @@ The `agent_sdk` revolves around three main classes:
 
 ## Generating A2UI Messages
 
-### Step 1: Set up the Inference Format
+### Step 1: Set up the Generator and Request Processor
 
-The first step in any A2UI-enabled agent is loading your catalogs and
-initializing the `DirectJsonFormat` with them.
+The first step in any A2UI-enabled agent is loading your catalogs into an
+`A2uiGenerator` and creating an `A2uiRequestProcessor`.
 
 ```python
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.processor import CatalogConfig
+from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.schema import VERSION_0_9
 
 # Define your catalogs (basic or bring your own)
@@ -37,70 +41,85 @@ catalog_configs = [
     CatalogConfig.from_path("path/to/catalog.json"),
 ]
 
-# Extract the transformed catalogs
-catalogs = [config.transformed_catalog for config in catalog_configs]
+# Initialize the agent-level generator with your catalogs
+generator = A2uiGenerator(catalog_configs)
 
-# Initialize the format with your catalogs
-inference_format = DirectJsonFormat(catalogs)
+# Negotiate a request processor for the client's renderer capabilities
+processor = generator.create_processor({
+    "v0.9": {
+        "supportedCatalogIds": [
+            c.transformed_catalog.catalog_id for c in catalog_configs
+        ]
+    }
+})
+
+# Or create a processor directly when using a static catalog list
+static_processor = A2uiRequestProcessor(
+    [config.transformed_catalog for config in catalog_configs]
+)
 ```
 
 Notes:
 
-- The format needs at least one catalog, and all of its catalogs must target
-  the same protocol version. The system prompt describes all of them.
+- A processor needs at least one active catalog, and all of its catalogs must
+  target compatible protocol versions. `processor.prompt_snippet` describes all
+  of them.
 - To shape a catalog, such as pruning components or functions, pass
   `transformers` to `CatalogConfig`. `transformed_catalog` applies them in order.
+- When `examples` (a sequence of message turns) are passed to `A2uiGenerator` or
+  `A2uiRequestProcessor`, each example turn is validated against
+  `processor.active_catalogs` when the processor is created (raising
+  `A2uiValidationError` if invalid) and rendered into `processor.prompt_snippet`.
 - The provided catalogs must be freestanding, i.e. they should not reference any
   external schemas or components, except for the common types.
 - If you have a modular catalog that references other catalogs, refer
   to [Freestanding Catalogs](../../docs/public/concepts/catalogs.md#freestanding-catalogs)
   for more information.
-- You can define multiple `DirectJsonFormat` instances (one for each protocol version)
+- You can define multiple `A2uiGenerator` instances (one for each protocol version)
   and select the active one at runtime based on the client request.
   See [Multiple Version Support](#3-multiple-version-support) for more details.
 
 ### Step 2: Generate System Prompt
 
-Use the format's `prompt_generator.generate()` method to produce the A2UI format
-and schema prompt snippet, and combine it with your agent's role/workflow
-instructions and optional few-shot examples loaded via `load_examples`.
+Use `processor.prompt_snippet` to produce the A2UI format and schema prompt
+snippet, and combine it with your agent's role/workflow instructions and
+optional few-shot examples loaded via `load_examples`.
 
 ```python
 from a2ui.prompt import load_examples
 
-a2ui_prompt = inference_format.prompt_generator.generate()
 examples = load_examples(
+    processor.active_catalogs,
     "path/to/examples",
-    catalogs=inference_format.catalogs,
     validate=True,
 )
 instruction = "\n\n".join([
     "You are a helpful assistant...",
     "# Workflow\nAnalyze the request and return UI...",
     "# UI Description\nUse the following components...",
+    processor.prompt_snippet,
     examples,
-    a2ui_prompt,
 ])
 ```
 
-To save tokens, prune the catalogs before building the format rather than
+To save tokens, prune the catalogs before building the processor rather than
 when generating the prompt.
 
 ```python
 from a2ui.catalog_transformers import ComponentPruningTransformer
-from a2ui.inference_formats.direct_json import DirectJsonFormat, schema_to_prompt
-from a2ui.processor import CatalogConfig
+from a2ui.inference_formats.direct_json import schema_to_prompt
+from a2ui.processor import A2uiRequestProcessor, CatalogConfig
 
 # Keep only some components in the catalog that the prompt describes.
 config = CatalogConfig(
     BasicCatalog(VERSION_0_9),
     transformers=[ComponentPruningTransformer(["Text", "Button", "Column"])],
 )
-inference_format = DirectJsonFormat([config.transformed_catalog])
+processor = A2uiRequestProcessor([config.transformed_catalog])
 
 # Keep only some messages in the agent-to-renderer schema.
 schema_text = schema_to_prompt(
-    inference_format.catalogs,
+    processor.active_catalogs,
     allowed_messages=["CreateSurfaceMessage", "UpdateComponentsMessage"],
 )
 ```
@@ -161,8 +180,8 @@ from a2ui.a2a.extension import try_activate_a2ui_extension
 activated_version = try_activate_a2ui_extension(context, agent_card)
 
 if activated_version:
-    # Use the activated version to route requests to the inference format
-    inference_format = inference_formats[activated_version]
+    # Use the activated version to create a request processor from its generator
+    processor = generators[activated_version].create_processor(capabilities)
 ```
 
 #### 4c. Select a Parsing Strategy
@@ -175,19 +194,18 @@ Use this approach if you wait for the LLM to finish its entire response before p
 
 **1. Parse, Validate, and Fix**
 
-Validate the LLM's JSON output before returning it. The parser attempts to fix simple errors (e.g., trailing commas), and `validate_payload` raises `A2uiValidationError` if a renderer holding the catalogs would reject the payload.
+`processor.parse_response(full_text)` parses, heals simple JSON formatting errors (e.g., trailing commas), and validates every A2UI block against `processor.active_catalogs` in a single call, raising `A2uiValidationError` if a renderer holding the catalogs would reject the payload.
 
 ```python
 from a2ui.parser import A2uiPart
-from a2ui.utils import validate_payload
 
-# Parse the full response into parts
-response_parts = inference_format.create_parser().parse_response(full_text)
+# Parse and validate the full response into parts
+response_parts = processor.parse_response(full_text)
 
 for part in response_parts:
   if isinstance(part, A2uiPart):
-    # Validate against the active catalogs
-    validate_payload(inference_format.catalogs, part.a2ui)
+    # part.a2ui contains the validated AgentToRendererMessage objects
+    ...
 ```
 
 **2. Stream the A2UI Payload**
@@ -211,7 +229,7 @@ yield {
 
 ##### Option B: Incremental Streaming Parsing (Advanced)
 
-Use this approach for sub-second UI updates. The `DirectJsonParser` **automatically parses, validates, and fixes (heals)** the JSON payload chunks _incrementally_ as they arrive from the LLM stream. It yields valid UI messages _before_ the entire JSON block is complete by automatically closing open quotes and braces. Create it with the format's `create_parser`, so that it validates against the format's catalogs and heals the format's progressive keys. From v1.0 on, the parser holds all of the format's catalogs and checks each component against the catalog that the component or its surface's `createSurface` names.
+Use this approach for sub-second UI updates. The `DirectJsonParser` **automatically parses, validates, and fixes (heals)** the JSON payload chunks _incrementally_ as they arrive from the LLM stream. It yields valid UI messages _before_ the entire JSON block is complete by automatically closing open quotes and braces. Create it with `processor.create_parser()`, so that it validates against `processor.active_catalogs` and heals the format's progressive keys. From v1.0 on, the parser holds all of the processor's active catalogs and checks each component against the catalog that the component or its surface's `createSurface` names.
 
 > [!IMPORTANT]
 > **Prerequisite**: To use incremental streaming, your agent executor must support streaming mode. In ADK, enable this using `RunConfig`:
@@ -226,7 +244,7 @@ Use this approach for sub-second UI updates. The `DirectJsonParser` **automatica
 from a2ui.a2a import create_a2ui_part
 from a2ui.parser import A2uiPart, TextPart
 
-parser = inference_format.create_parser()
+parser = processor.create_parser()
 
 # Inside your LLM stream loop:
 for chunk in llm_response_stream:
@@ -255,7 +273,7 @@ for chunk in llm_response_stream:
 
 ### 1. Simple Agents with Static Schemas
 
-For agents with a fixed set of UI capabilities, simply use the `inference_format`
+For agents with a fixed set of UI capabilities, simply use `processor.prompt_snippet`
 to generate the system instruction.
 
 **Example Samples:**
@@ -267,7 +285,7 @@ instruction = "\n\n".join([
     "You are a helpful assistant...",
     "# Workflow\nAnalyze the request and return UI...",
     "# UI Description\nUse the following components...",
-    inference_format.prompt_generator.generate(),
+    processor.prompt_snippet,
 ])
 
 # Use with your LLM framework (e.g., ADK)
@@ -286,14 +304,13 @@ e.g., Charts vs. Maps).
 #### 2a. Injecting Catalogs into Session State
 
 In a dynamic scenario, you don't provide a static catalog to the agent. Instead,
-you resolve the active catalogs at runtime (e.g., during session preparation)
-with `resolve_catalogs` and store the selected catalog in the session state.
-Build the catalog configs once with `CatalogConfig(catalog)` so that each
-request reuses the loaded catalogs.
+you configure an `A2uiGenerator` once with `CatalogConfig(catalog)` and
+`accepts_inline_catalogs=True`, and call `generator.create_processor(capabilities)`
+at runtime (e.g., during session preparation) to negotiate the active catalogs
+and store the selected catalog in the session state.
 
 ```python
 from a2ui.prompt import load_examples
-from a2ui.utils import resolve_catalogs
 
 # In your AgentExecutor subclass
 async def _prepare_session(self, context, run_request, runner):
@@ -303,13 +320,11 @@ async def _prepare_session(self, context, run_request, runner):
   #    for example {"v0.9": {"supportedCatalogIds": [...]}}
   capabilities = context.message.metadata.get("a2ui_client_capabilities")
 
-  # 2. Resolve the active catalogs and load examples
-  catalogs = resolve_catalogs(
-      self.catalog_configs, capabilities, accepts_inline_catalogs=True
-  )
-  a2ui_catalog = catalogs[0]
+  # 2. Negotiate a request processor for the client capabilities and load examples
+  processor = self.generator.create_processor(capabilities)
+  a2ui_catalog = processor.active_catalogs[0]
   examples = load_examples(
-      "path/to/examples", catalogs=[a2ui_catalog], validate=True
+      processor.active_catalogs, "path/to/examples", validate=True
   )
 
   # 3. Store in session state for tool access
@@ -364,30 +379,40 @@ When the LLM calls the UI tool, the toolset uses the dynamic catalog to:
 
 ### 3. Multiple Version Support
 
-To support multiple protocol versions (e.g., v0.8 and v0.9), pre-configure `DirectJsonFormat` and `LlmAgent` instances for each version during your agent's initialization. At runtime, use `try_activate_a2ui_extension` to negotiate the version and select the pre-configured inference format or runner.
+To support multiple protocol versions (e.g., v0.8 and v0.9), pre-configure `A2uiGenerator`, `A2uiRequestProcessor`, and `LlmAgent` instances for each version during your agent's initialization. At runtime, use `try_activate_a2ui_extension` to negotiate the version and select the pre-configured processor or runner.
 
 ```python
 # During Initialization (Setup mapping for each supported version)
-inference_formats = {
-    VERSION_0_8: DirectJsonFormat([...]),  # Catalogs loaded for v0.8
-    VERSION_0_9: DirectJsonFormat([...]),  # Catalogs loaded for v0.9
+generators = {
+    VERSION_0_8: A2uiGenerator([CatalogConfig(BasicCatalog(VERSION_0_8))]),
+    VERSION_0_9: A2uiGenerator([CatalogConfig(BasicCatalog(VERSION_0_9))]),
+}
+processors = {
+    version: gen.create_processor({
+        f"v{version}": {
+            "supportedCatalogIds": [
+                c.transformed_catalog.catalog_id for c in gen.catalogs
+            ]
+        }
+    })
+    for version, gen in generators.items()
 }
 ui_runners = {
-    VERSION_0_8: build_runner(build_agent(inference_formats[VERSION_0_8])),
-    VERSION_0_9: build_runner(build_agent(inference_formats[VERSION_0_9])),
+    VERSION_0_8: build_runner(build_agent(processors[VERSION_0_8])),
+    VERSION_0_9: build_runner(build_agent(processors[VERSION_0_9])),
 }
 
 # Runtime Stream Handling (Select based on negotiation)
 version = try_activate_a2ui_extension(context, self.agent_card)
 
 if version:
-    # Select the pre-configured agent runner and inference format
+    # Select the pre-configured agent runner and request processor
     runner = ui_runners[version]
-    inference_format = inference_formats[version]
+    processor = processors[version]
 else:
     # Fallback to standard text agent runner
     runner = text_runner
-    inference_format = None
+    processor = None
 ```
 
 ### 4. Orchestration and Delegation

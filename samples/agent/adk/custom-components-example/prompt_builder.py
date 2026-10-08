@@ -13,8 +13,7 @@
 # limitations under the License.
 
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.processor import CatalogConfig
+from a2ui.processor import A2uiRequestProcessor, CatalogConfig
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
@@ -67,7 +66,7 @@ def get_text_prompt() -> str:
 
 
 def get_ui_prompt(
-    inference_format: DirectJsonFormat,
+    processor: A2uiRequestProcessor,
     examples_path: str | None = None,
     *,
     validate_examples: bool = False,
@@ -80,9 +79,9 @@ def get_ui_prompt(
         prompt_parts.append(f"## Workflow Description:\n{WORKFLOW_DESCRIPTION}")
     if UI_DESCRIPTION:
         prompt_parts.append(f"## UI Description:\n{UI_DESCRIPTION}")
-    prompt_parts.append(inference_format.prompt_generator.generate())
+    prompt_parts.append(processor.prompt_snippet)
     examples = load_examples(
-        inference_format.catalogs, examples_path, validate=validate_examples
+        processor.active_catalogs, examples_path, validate=validate_examples
     )
     if examples:
         prompt_parts.append(f"### Examples:\n{examples}")
@@ -92,7 +91,7 @@ def get_ui_prompt(
 if __name__ == "__main__":
     from a2ui.schema import load_examples
 
-    # Example of how to use the Direct JSON format to generate a system prompt
+    # Example of how to use A2uiRequestProcessor to generate a system prompt
     my_base_url = "http://localhost:8000"
     my_version = VERSION_0_9
     inline_catalog_path = f"inline_catalog_{my_version}.json"
@@ -102,9 +101,9 @@ if __name__ == "__main__":
     ).transformed_catalog
     # The examples target both the basic catalog and the inline catalog.
     basic_catalog = CatalogConfig(BasicCatalog(my_version)).transformed_catalog
-    direct_json_format = DirectJsonFormat([inline_catalog, basic_catalog])
+    processor = A2uiRequestProcessor([inline_catalog, basic_catalog])
     contact_prompt = get_ui_prompt(
-        direct_json_format,
+        processor,
         examples_path=f"examples/{my_version}",
         validate_examples=False,
     )
@@ -113,7 +112,7 @@ if __name__ == "__main__":
         f.write(contact_prompt)
     print("\nGenerated prompt saved to generated_prompt.txt")
 
-    request_prompt = direct_json_format.prompt_generator.generate_catalog_instructions(
+    request_prompt = processor.format.prompt_generator.generate_catalog_instructions(
         catalog=inline_catalog
     )
     print(request_prompt)
@@ -122,7 +121,7 @@ if __name__ == "__main__":
     print("\nGenerated request prompt saved to request_prompt.txt")
 
     examples = load_examples(
-        direct_json_format.catalogs, f"examples/{my_version}", validate=True
+        processor.active_catalogs, f"examples/{my_version}", validate=True
     )
     print(examples)
     with open("examples.txt", "w") as f:
