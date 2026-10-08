@@ -25,8 +25,8 @@ The feature is optional. An adapter on a platform without a shared element regis
 
 ### **2. Element contract**
 
-- An element exposes two settable properties: `node`, the resolved `ComponentNode` it renders, and `context`, the binding context Core resolved for that node. A renderer sets `node`; setting `node` also sets `context`.
-- When both are set, `node` wins: the element takes its context and its children from the node. An element that only reads `context` keeps working.
+- An element exposes two settable properties: `node`, the resolved `ComponentNode` it renders, and `context`, the binding context Core resolved for that node. A renderer sets `node`; setting `node` also sets `context` from `node.context`.
+- When both are set, `node` wins: the element takes its context (`node.context`) and its children from the node. An element that only reads `context` keeps working.
 - An element binds itself when `node` or `context` is assigned, rebinds when it is reassigned to a different node, and tolerates both being unset while detached or rendered standalone.
 - An element renders its own children: for each child node in its resolved props it renders that node's element (requirement 4). It does not ask its parent to do so.
 
@@ -38,8 +38,8 @@ The feature is optional. An adapter on a platform without a shared element regis
 
 ### **4. Rendering a node as an element**
 
-- A function, `renderA2uiNode(node)`, renders a resolved node as its implementation's element: it registers the element if needed, creates one element per child position, assigns `node` and `context`, and returns the element to the host framework.
-- A placeholder node (`isPlaceholder`), a disposed node, or a node whose implementation is not universal renders nothing from this path. The adapter's own dispatcher handles those cases as the module blueprint describes.
+- A function, `renderA2uiNode(node)`, renders a resolved node as its implementation's element: it registers the element if needed, creates one element per child position, assigns `node` and `node.context`, and returns the element to the host framework.
+- A placeholder node (`isPlaceholder`), a disposed node, a node with no `context`, or a node whose implementation is not universal renders nothing from this path. The adapter's own dispatcher handles those cases as the module blueprint describes.
 - A parent re-render reuses the element at each child position. The element is replaced only when the tag name at that position changes.
 
 ### **5. Hosting framework-native implementations**
@@ -57,7 +57,7 @@ An adapter whose implementations are not elements (React function components, An
 
 - Elements render into the light DOM by default, so the application's stylesheet reaches them and framework components can be composed inside them. An element MAY opt into shadow DOM.
 - An element's own styles are adopted once per document or shadow root and scoped to its tag name, so that two elements with the same selectors do not leak styles into each other.
-- Elements style themselves from CSS custom properties with documented names and defaults. They read no styling from the protocol: a surface at v1.0 or later carries no `theme`, and the element layer MUST NOT depend on one. A legacy v0.9 theme, where an adapter still supports it, is applied by setting the same custom properties from outside the element.
+- Elements style themselves from CSS custom properties with documented names and defaults. They read no styling from the protocol: a surface at v1.0 or later carries no `theme`, and the element layer MUST NOT depend on one. A legacy v0.9 theme, where an adapter still supports it, is applied by setting the same custom properties from outside the element. (In the current reference layer, `BasicCatalogA2uiLitElement` still reads `context.theme.primaryColor` on the element itself for v0.9 surfaces; that is a known deviation.)
 
 ### **7. Shared basic catalog**
 
@@ -67,7 +67,7 @@ An adapter whose implementations are not elements (React function components, An
 ### **8. Lifecycle**
 
 - An element creates its binder or controller when it is first bound and reuses it while it is reassigned the same component at the same data path. It disposes the binder when it is bound to a different component.
-- An element MUST also dispose its binder when it is disconnected from the document and not reconnected within the same task. A disconnected element that keeps its binder keeps the data model subscriptions with it.
+- An element MUST also dispose its binder when it is disconnected from the document and not reconnected within the same task. A disconnected element that keeps its binder keeps the data model subscriptions with it. (In the current reference layer, `A2uiController.hostDisconnected` unsubscribes its update listeners on disconnect but disposes the binder only when the context is replaced; that is a known deviation.)
 - When a node is disposed, the element renders nothing; the adapter's dispatcher removes the element when the parent re-renders.
 
 ---
@@ -139,7 +139,7 @@ function registerUniversalElement(impl: WebComponentImplementation): void;
 function renderA2uiNode(node: ComponentNode): HostView;
 
 /** The properties every element accepts from the renderer that creates it. */
-interface A2uiElement extends HTMLElement {
+interface A2uiWebComponentElement extends HTMLElement {
   node?: ComponentNode;
   context?: ComponentContext;
 }

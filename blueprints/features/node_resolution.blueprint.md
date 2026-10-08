@@ -129,6 +129,8 @@ interface ComponentNode<C extends ComponentApi> {
   readonly disposed: boolean;
   /** The resolved catalog entry; absent while the node is a placeholder. */
   readonly impl?: C;
+  /** The binding context the resolver bound this node with; absent while the node is a placeholder. */
+  readonly context?: ComponentContext;
   /** Resolved, reactive properties. */
   readonly props: Signal<NodeProps>;
   /** Fires once, when this node is disposed. */
