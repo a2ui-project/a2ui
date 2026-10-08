@@ -19,7 +19,7 @@ Background for anything not covered here:
 
 > [!CAUTION]
 > **Publishing to PyPI is irreversible.** A version can be yanked but never
-> reused or deleted. Step 4 is a mandatory stop. Never dispatch a run with
+> reused or deleted. Step 5 is a mandatory stop. Never dispatch a run with
 > `dry_run: false` without an explicit go-ahead from the maintainer in the
 > current conversation.
 
@@ -47,8 +47,8 @@ spending a CI run: is there anything to release, and will preflight reject it.
 > [!IMPORTANT]
 > A local `plan` is a **prediction**, not the release. It is computed from the
 > tags in the local checkout, so it is only as current as the last fetch — which
-> is why Step 1 fetches first. The plan the workflow computes is the one that
-> counts, and Step 3 reads it back out of the run before anyone approves it.
+> is why Step 2 fetches first. The plan the workflow computes is the one that
+> counts, and Step 4 reads it back out of the run before anyone approves it.
 
 Never run `cut-changelog --write`, `git tag`, `git push`, `uv build` or `twine`
 by hand to perform a release. If the workflow cannot do it, fix the workflow.
@@ -58,13 +58,14 @@ by hand to perform a release. If the workflow cannot do it, fix the workflow.
 > opened by a person, not by the workflow.** GitHub does not start workflow runs
 > for events caused by `GITHUB_TOKEN`, so a pull request the workflow opened
 > would never get the required checks and could never be merged. The workflow
-> pushes the branch; Step 6 opens the pull request.
+> pushes the branch; Step 7 opens the pull request.
 
-### Environment Prerequisites
+## Step 1: Check environment prerequisites
 
-`release_version.py check` validates these locally and stops with an
-`Action needed:` message for each one that fails. They are skipped in GitHub
-Actions, where they do not apply.
+Check that your local environment meets these prerequisites before proceeding.
+The preflight check in Step 3 (`release_version.py check`) also validates these
+automatically and stops with an `Action needed:` message for each one that
+fails. They are skipped in GitHub Actions, where they do not apply.
 
 1. **An a2ui checkout.** Run from your clone of `a2ui-project/a2ui`. The script
    finds the repository root itself, so a subdirectory works (it warns), but
@@ -83,12 +84,12 @@ Actions, where they do not apply.
    The commands below call it `${REMOTE}`:
 
    ```bash
-   REMOTE=$(git remote -v | awk '/a2ui-project\/a2ui(\.git)? \(fetch\)/ {print $1; exit}')
+   REMOTE=$(git remote -v | awk '/a2ui-project\/a2ui(\.git)?\/? \(fetch\)/ {print $1; exit}')
    ```
 
 ---
 
-## Step 1: Work out what is being released
+## Step 2: Work out what is being released
 
 Two things are needed: `PACKAGE` (`a2ui-core`, `a2ui-agent-sdk`, or `both`) and
 `BUMP` (`patch`, `minor`, or `major`). Derive both from the changelogs. Never
@@ -147,7 +148,7 @@ python3 .github/scripts/release_version.py plan --package "${PACKAGE}" --bump "$
 >   The cost is an over-bumped version on the quieter package.
 > - **Run two single-package releases.** Correct versioning, but the changelog
 >   pull request from the first must be **merged before starting the second**,
->   or the Step 2 guard will block it. Release `a2ui-core` first if both are
+>   or the Step 3 guard will block it. Release `a2ui-core` first if both are
 >   going out, since `a2ui-agent-sdk` depends on it.
 
 > [!IMPORTANT]
@@ -157,20 +158,20 @@ python3 .github/scripts/release_version.py plan --package "${PACKAGE}" --bump "$
 > the proposed `a2ui-core` version falls outside it, widen the pin in its own
 > pull request and **merge it to `main` before dispatching**. The workflow
 > releases `main` as it is and cannot change package files during the run.
-> Step 2 rejects the release until this is done.
+> Step 3 rejects the release until this is done.
 
 Put the proposal to the maintainer with `ask_question`, showing the pending
 entries and the resulting versions, and let them correct it.
 
 ---
 
-## Step 2: Preflight locally
+## Step 3: Preflight locally
 
 These checks cost seconds and catch the failures that are expensive to hit
 mid-run. Run all of them before dispatching anything.
 
 **1. The environment and the checkout.** `check` runs these for you (see
-Environment Prerequisites); this is what it looks for and why:
+Step 1: Check environment prerequisites); this is what it looks for and why:
 
 - **No outstanding changelog branch** from a previous release on `${REMOTE}`.
   Until the last release's changelog lands, its entries are still under
@@ -178,7 +179,7 @@ Environment Prerequisites); this is what it looks for and why:
   not the pull request, because the release stops at the branch and there may
   be no pull request yet. The repository deletes branches on merge, so no
   branch means the last changelog landed. If one is found, get that change
-  merged (open the pull request if nobody has), then start over from Step 1,
+  merged (open the pull request if nobody has), then start over from Step 2,
   because the pending entries will have changed.
 - **The released packages match `${REMOTE}/main`.** The workflow builds from
   `main`, so `python/a2ui_core` and `python/a2ui_agent` must be identical to it.
@@ -186,9 +187,12 @@ Environment Prerequisites); this is what it looks for and why:
   say), would make the local preview describe a release that is not the one
   that will go out. Other paths in the checkout do not matter.
 
-If it reports either, stop and say what was found.
+If it reports any of these, or any of the Environment Prerequisites, stop and
+say what was found.
 
-**2. The repository's own preflight passes.** This is the same check the workflow runs, so a failure here is a failure there:
+**2. The repository's own preflight passes.** The package checks (changelog,
+tag, and pin) are the ones the workflow runs, so a failure in them here is a
+failure there:
 
 ```bash
 # Check using bump level (supports 'both', 'a2ui-core', or 'a2ui-agent-sdk'):
@@ -204,11 +208,11 @@ is passed with `--bump`, it evaluates both packages and their cross-dependency
 pin compatibility in a single step.
 
 If preflight reports that `a2ui-core` falls outside the `a2ui-agent-sdk` pin,
-stop: see the pin note in Step 1.
+stop: see the pin note in Step 2.
 
 ---
 
-## Step 3: Dry run
+## Step 4: Dry run
 
 A dry run builds and stages the artifacts in the Exit Gate Artifact Registry,
 removes them again, and pushes nothing.
@@ -241,13 +245,13 @@ gh run view "${RUN_ID}" --repo a2ui-project/a2ui --log \
   | grep -A 20 'Build the release plan'
 ```
 
-Compare it against the local `plan` output from Step 1. They are computed the
+Compare it against the local `plan` output from Step 2. They are computed the
 same way and should agree. If they differ, a tag landed in between — stop and
 work out why before going any further.
 
 ---
 
-## Step 4: Confirm with the maintainer
+## Step 5: Confirm with the maintainer
 
 **Stop here.** Show the maintainer:
 
@@ -264,7 +268,7 @@ Then ask for explicit confirmation to publish. Proceed only on a clear yes.
 
 ---
 
-## Step 5: Publish
+## Step 6: Publish
 
 ```bash
 AUTHOR_NAME=$(git config user.name)
@@ -274,7 +278,7 @@ gh workflow run release-pypi.yml --repo a2ui-project/a2ui --ref main \
   -f author_name="${AUTHOR_NAME}" -f author_email="${AUTHOR_EMAIL}"
 ```
 
-Watch it as in Step 3. The run pushes the tags, stages the artifacts, uploads
+Watch it as in Step 4. The run pushes the tags, stages the artifacts, uploads
 the manifest that triggers the Exit Gate, and creates the GitHub releases.
 
 Four jobs follow:
@@ -299,7 +303,7 @@ Four jobs follow:
 
 ---
 
-## Step 6: Follow through
+## Step 7: Follow through
 
 A release is not done when the workflow goes green.
 
@@ -343,7 +347,7 @@ A release is not done when the workflow goes green.
    ```
 
    Check the diff touches only `CHANGELOG.md` files, then ask the maintainer to
-   review it. Do not leave it open: Step 2 blocks the next release until the
+   review it. Do not leave it open: Step 3 blocks the next release until the
    branch is gone.
 
 3. **Report** the published versions, the GitHub release links, and the
@@ -392,6 +396,6 @@ gcloud artifacts versions delete "${VERSION}" --package="${PYPI_NAME}" \
 - Never push tags or run the release scripts locally to publish. The scripts
   under `.github/scripts/` are safe to run read-only for `notes`, `next`,
   `current`, `tag`, and `check`. Everything else belongs to the workflow.
-- Never dispatch `dry_run: false` without the Step 4 confirmation.
+- Never dispatch `dry_run: false` without the Step 5 confirmation.
 - If the maintainer asks to skip the dry run, push back once: it is the only
   rehearsal before an irreversible publish. Defer if they insist.

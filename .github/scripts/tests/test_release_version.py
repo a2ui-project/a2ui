@@ -475,6 +475,7 @@ class CheckCommandTest(unittest.TestCase):
         code, out, err = self._run(["--package", "both", "--bump", "minor"])
         self.assertEqual(code, 1)
         self.assertIn("falls outside the a2ui-core>=0.2.0,<0.3.0 range", err)
+        self.assertIn("error: 1 problem(s) found, see above.", err)
         self.assertIn("Preflight checks passed for a2ui-agent-sdk 0.8.0", out)
 
     def test_invalid_version_fails_gracefully(self):

@@ -512,9 +512,10 @@ def check_environment(
     if diff.returncode == 1:
         report.errors.append(
             f"{' and '.join(RELEASE_PATHS)} differ from {remote}/{RELEASE_BRANCH},"
-            " which is what the workflow releases. Action needed: merge any"
-            f" pending changes to {RELEASE_BRANCH} through a pull request, then run"
-            f" 'git checkout {RELEASE_BRANCH} && git pull {remote} {RELEASE_BRANCH}'."
+            " which is what the workflow releases. Action needed: if your checkout"
+            f" is behind, run 'git checkout {RELEASE_BRANCH} && git pull {remote}"
+            f" {RELEASE_BRANCH}'; if it has local commits, merge them to"
+            f" {RELEASE_BRANCH} through a pull request first."
         )
     elif diff.returncode != 0:
         report.errors.append(
@@ -775,7 +776,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             else:
                 print(f"Preflight checks passed for {pkg.pypi_name} {ver}")
 
-        return 1 if all_problems else 0
+        if all_problems:
+            print(
+                f"error: {len(all_problems)} problem(s) found, see above.",
+                file=sys.stderr,
+            )
+            return 1
+        return 0
 
     package = PACKAGES[args.package]
 
