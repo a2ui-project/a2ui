@@ -154,10 +154,8 @@ def _extract_messages(
 ) -> list[dict[str, Any]]:
     """Normalizes a payload into a list of message dictionaries."""
     raw: Any = payload
-    if hasattr(raw, "model_dump"):
-        raw = raw.model_dump(by_alias=True, exclude_none=True)
-        if isinstance(raw, Mapping) and isinstance(raw.get("messages"), list):
-            raw = raw["messages"]
+    if hasattr(raw, "model_dump") and isinstance(getattr(raw, "messages", None), list):
+        raw = raw.messages
     raw_messages = (
         raw
         if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes))
@@ -167,6 +165,8 @@ def _extract_messages(
     for index, item in enumerate(raw_messages):
         if hasattr(item, "model_dump"):
             item = item.model_dump(by_alias=True, exclude_none=True)
+            if isinstance(item, Mapping) and item.get("version") == "v0.8":
+                item = {k: v for k, v in item.items() if k != "version"}
         if not isinstance(item, Mapping):
             raise A2uiValidationError(f"Message {index} is not a JSON object.")
         messages.append(dict(item))

@@ -14,9 +14,22 @@
 
 """The abstract base class for catalog transformers."""
 
-from abc import ABC, abstractmethod
+from __future__ import annotations
 
-from a2ui.core import CatalogApi
+from abc import ABC, abstractmethod
+from typing import TypeVar
+
+from a2ui.core import Catalog
+from a2ui.core.catalog import ComponentApi, FunctionApi
+
+TComponent = TypeVar("TComponent", bound=ComponentApi)
+TFunction = TypeVar("TFunction", bound=FunctionApi)
+
+__all__ = [
+    "CatalogTransformer",
+    "TComponent",
+    "TFunction",
+]
 
 
 class CatalogTransformer(ABC):
@@ -28,7 +41,9 @@ class CatalogTransformer(ABC):
     """
 
     @abstractmethod
-    def transform(self, catalog: CatalogApi) -> CatalogApi:
+    def transform(
+        self, catalog: Catalog[TComponent, TFunction]
+    ) -> Catalog[TComponent, TFunction]:
         """Returns the transformed catalog.
 
         Args:

@@ -447,7 +447,7 @@ def test_created_surface_ignores_its_known_catalog():
 
 
 def test_typed_schema_models_are_accepted():
-    from a2ui.core.schema import v0_9
+    from a2ui.core.schema import v0_8, v0_9
 
     wrapper = v0_9.A2uiMessageListWrapper.model_validate({"messages": [_update(_TEXT)]})
     msg = wrapper.messages[0]
@@ -455,3 +455,13 @@ def test_typed_schema_models_are_accepted():
     validate_payload([_BASIC], msg)
     validate_payload([_BASIC], [msg])
     validate_payload([_BASIC], wrapper)
+
+    v08_wrapper = v0_8.A2uiMessageListWrapper.model_validate(
+        {"messages": [_v08_update(_V08_TEXT)]}
+    )
+    v08_msg = v08_wrapper.messages[0]
+    v08_basic = BasicCatalog("0.8")
+
+    validate_payload([v08_basic], v08_msg)
+    validate_payload([v08_basic], [v08_msg])
+    validate_payload([v08_basic], v08_wrapper)

@@ -14,14 +14,21 @@
 
 """Transformers that prune a catalog's components or functions to an allowlist."""
 
+from __future__ import annotations
+
 from collections import deque
 from collections.abc import Iterable, Mapping, Sequence
 import copy
 from typing import Any
 
-from a2ui.core import Catalog, CatalogApi
+from a2ui.core import Catalog
 
-from .base import CatalogTransformer
+from .base import CatalogTransformer, TComponent, TFunction
+
+__all__ = [
+    "ComponentPruningTransformer",
+    "FunctionPruningTransformer",
+]
 
 _DEFS_REF_PREFIX = "#/$defs/"
 
@@ -67,11 +74,11 @@ def _prune_defs(
 
 
 def _pruned(
-    catalog: CatalogApi,
+    catalog: Catalog[TComponent, TFunction],
     *,
     components: frozenset[str] | None = None,
     functions: frozenset[str] | None = None,
-) -> CatalogApi:
+) -> Catalog[TComponent, TFunction]:
     """Returns a copy of `catalog` that keeps only the named entries.
 
     `None` keeps every entry of that kind. The copy's schema is generated from
@@ -131,7 +138,9 @@ class ComponentPruningTransformer(CatalogTransformer):
         """
         self.allowed_components = _allowlist(allowed_components, "allowed_components")
 
-    def transform(self, catalog: CatalogApi) -> CatalogApi:
+    def transform(
+        self, catalog: Catalog[TComponent, TFunction]
+    ) -> Catalog[TComponent, TFunction]:
         """Returns a copy of `catalog` with only the allowlisted components."""
         return _pruned(catalog, components=self.allowed_components)
 
@@ -156,6 +165,8 @@ class FunctionPruningTransformer(CatalogTransformer):
         """
         self.allowed_functions = _allowlist(allowed_functions, "allowed_functions")
 
-    def transform(self, catalog: CatalogApi) -> CatalogApi:
+    def transform(
+        self, catalog: Catalog[TComponent, TFunction]
+    ) -> Catalog[TComponent, TFunction]:
         """Returns a copy of `catalog` with only the allowlisted functions."""
         return _pruned(catalog, functions=self.allowed_functions)

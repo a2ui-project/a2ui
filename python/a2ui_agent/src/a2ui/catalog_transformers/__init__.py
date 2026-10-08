@@ -14,11 +14,13 @@
 
 """Rules that an agent applies to a catalog before prompting or validating with it."""
 
-from .base import CatalogTransformer
+from .base import CatalogTransformer, TComponent, TFunction
 from .pruning import ComponentPruningTransformer, FunctionPruningTransformer
 
 __all__ = [
     "CatalogTransformer",
     "ComponentPruningTransformer",
     "FunctionPruningTransformer",
+    "TComponent",
+    "TFunction",
 ]

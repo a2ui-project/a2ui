@@ -28,8 +28,10 @@ from a2ui.catalog_transformers import (
     CatalogTransformer,
     ComponentPruningTransformer,
     FunctionPruningTransformer,
+    TComponent,
+    TFunction,
 )
-from a2ui.core import Catalog, CatalogApi
+from a2ui.core import Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.catalog import ComponentApi, FunctionApi
 from a2ui.processor import CatalogConfig
@@ -37,6 +39,33 @@ from a2ui.processor import CatalogConfig
 
 def _refs(any_schema: dict[str, Any]) -> set[str]:
     return {item["$ref"] for item in any_schema["oneOf"]}
+
+
+def test_catalog_transformer_is_abstract() -> None:
+    """Verifies CatalogTransformer cannot be instantiated without transform()."""
+    with pytest.raises(TypeError):
+        CatalogTransformer()  # type: ignore[abstract]
+
+
+def test_pruning_transformers_none_vs_empty_allowlist() -> None:
+    """Verifies None and empty allowlists both keep no items."""
+    original = BasicCatalog("0.9")
+
+    comp_none = ComponentPruningTransformer(None).transform(original)
+    assert list(comp_none.components.keys()) == []
+    assert set(comp_none.functions.keys()) == set(original.functions.keys())
+
+    comp_empty = ComponentPruningTransformer([]).transform(original)
+    assert list(comp_empty.components.keys()) == []
+    assert set(comp_empty.functions.keys()) == set(original.functions.keys())
+
+    func_none = FunctionPruningTransformer(None).transform(original)
+    assert set(func_none.components.keys()) == set(original.components.keys())
+    assert list(func_none.functions.keys()) == []
+
+    func_empty = FunctionPruningTransformer([]).transform(original)
+    assert set(func_empty.components.keys()) == set(original.components.keys())
+    assert list(func_empty.functions.keys()) == []
 
 
 def test_component_pruning_regenerates_any_component():
@@ -176,7 +205,9 @@ class _RecordingTransformer(CatalogTransformer):
     def __init__(self, log: list[set[str]]):
         self._log = log
 
-    def transform(self, catalog: CatalogApi) -> CatalogApi:
+    def transform(
+        self, catalog: Catalog[TComponent, TFunction]
+    ) -> Catalog[TComponent, TFunction]:
         self._log.append(set(catalog.components))
         return catalog
 
