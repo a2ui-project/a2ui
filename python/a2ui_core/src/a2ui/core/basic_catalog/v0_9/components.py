@@ -201,7 +201,7 @@ class AudioPlayerComponent(CatalogComponentCommon):
 
 
 class RowComponent(CatalogComponentCommon):
-    """A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row."""
+    """A layout component that arranges its children horizontally. Fills available width in vertical containers, while unweighted children inside a Row size to their intrinsic content width unless 'weight' is specified. To create a grid layout, nest Columns within this Row."""
 
     component: Literal["Row"] = "Row"
     children: ChildList = Field(
@@ -228,7 +228,8 @@ class RowComponent(CatalogComponentCommon):
         description=(
             "Defines the arrangement of children along the main axis (horizontally)."
             " Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center'"
-            " to pack them together."
+            " to pack them together. Unweighted children size to their intrinsic"
+            " content width so they do not starve sibling items."
         ),
         json_schema_extra={"default": "start"},
     )
@@ -244,7 +245,7 @@ class RowComponent(CatalogComponentCommon):
 
 
 class ColumnComponent(CatalogComponentCommon):
-    """A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column."""
+    """A layout component that arranges its children vertically. Fills available width in vertical containers, but sizes to its intrinsic content width when placed as an unweighted child inside a Row (unless 'weight' is set). To create a grid layout, nest Rows within this Column."""
 
     component: Literal["Column"] = "Column"
     children: ChildList = Field(
@@ -279,9 +280,12 @@ class ColumnComponent(CatalogComponentCommon):
         default=None,
         description=(
             "Defines the alignment of children along the cross axis (horizontally)."
-            " This is similar to the CSS 'align-items' property."
+            " Defaults to 'start' so interactive/leaf children (e.g., Button, Icon)"
+            " retain their intrinsic width rather than stretching across the column,"
+            " while full-width containers (e.g., Row, Divider) fill the available"
+            " width."
         ),
-        json_schema_extra={"default": "stretch"},
+        json_schema_extra={"default": "start"},
     )
 
 

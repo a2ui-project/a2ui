@@ -53,7 +53,7 @@
           "id": "action_col",
           "children": ["action_col__btn_checkout", "action_col__btn_help"],
           "justify": "start",
-          "align": "stretch"
+          "align": "start"
         }
       ]
     }

@@ -37,7 +37,8 @@
           {
             "id": "content",
             "component": "Column",
-            "children": ["title", "description", "meta_row"]
+            "children": ["title", "description", "meta_row"],
+            "weight": 1
           },
           {
             "id": "title",

@@ -25,7 +25,7 @@
             "componentId": "feed_container__post_card"
           },
           "justify": "start",
-          "align": "stretch"
+          "align": "start"
         }
       ]
     }

@@ -21,7 +21,7 @@
           "id": "panel__column_1",
           "children": ["panel__text_1", "panel__text_2"],
           "justify": "start",
-          "align": "stretch"
+          "align": "start"
         },
         {
           "component": "Card",

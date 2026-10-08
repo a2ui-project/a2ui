@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Synced embedded `v0.9` and `v1.0` basic catalog schemas with `Row`/`Column` sizing clarifications and `Column.align` defaulting to `'start'`.
 - **Breaking:** `Catalog.fromJson` inlines and flattens `allOf` component envelopes (`ComponentCommon`, `CatalogComponentCommon`, `Checkable`), maps `accessibility` and `checks` mixins, omits envelope keys (`id`, `component`, `catalogId`) from `ComponentApi.schema`, and replaces `REF:` description prefixes in `CommonSchemas` with `commonTypesRef` metadata.
 - Adds `Catalog.protocolVersion`, `FunctionApi.description`, and `FunctionImplementation.description`, and updates `Catalog.catalogSchema` to rebuild component envelopes, emit `anyComponent.discriminator` and function `description`, and restore `common_types.json#/$defs/...` references.
 - Allows the `catalogId` envelope property during component validation in `PayloadValidator`.

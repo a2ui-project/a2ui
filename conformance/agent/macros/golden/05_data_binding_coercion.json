@@ -23,7 +23,7 @@
           "id": "metric_1__column_1",
           "children": ["metric_1__text_1", "metric_1__text_2"],
           "justify": "start",
-          "align": "stretch"
+          "align": "start"
         },
         {
           "component": "Card",

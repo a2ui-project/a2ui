@@ -20,7 +20,7 @@
             "componentId": "org_chart__employee_name"
           },
           "justify": "start",
-          "align": "stretch"
+          "align": "start"
         },
         {
           "component": "Column",
@@ -30,7 +30,7 @@
             "componentId": "org_chart__department_block"
           },
           "justify": "start",
-          "align": "stretch"
+          "align": "start"
         }
       ]
     }

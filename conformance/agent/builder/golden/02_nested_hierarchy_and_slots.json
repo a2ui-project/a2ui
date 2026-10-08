@@ -49,7 +49,7 @@
           "id": "main_card__main_col",
           "children": ["main_card__title", "main_card__div_1", "main_card__action_row"],
           "justify": "start",
-          "align": "stretch"
+          "align": "start"
         },
         {
           "component": "Card",

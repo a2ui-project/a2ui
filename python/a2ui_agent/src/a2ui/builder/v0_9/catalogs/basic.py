@@ -188,7 +188,7 @@ class AudioPlayer(ComponentBuilderNode):
 
 
 class Row(ComponentBuilderNode):
-    r"""A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row."""
+    r"""A layout component that arranges its children horizontally. Fills available width in vertical containers, while unweighted children inside a Row size to their intrinsic content width unless 'weight' is specified. To create a grid layout, nest Columns within this Row."""
 
     component: Literal["Row"] = "Row"
     weight: Optional[float] = None
@@ -199,13 +199,13 @@ class Row(ComponentBuilderNode):
 
 
 class Column(ComponentBuilderNode):
-    r"""A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column."""
+    r"""A layout component that arranges its children vertically. Fills available width in vertical containers, but sizes to its intrinsic content width when placed as an unweighted child inside a Row (unless 'weight' is set). To create a grid layout, nest Rows within this Column."""
 
     component: Literal["Column"] = "Column"
     weight: Optional[float] = None
     children: ChildList
     justify: Optional[FlexJustify] = "start"
-    align: Optional[FlexAlign] = "stretch"
+    align: Optional[FlexAlign] = "start"
     accessibility: Optional[AccessibilityAttributes] = None
 
 

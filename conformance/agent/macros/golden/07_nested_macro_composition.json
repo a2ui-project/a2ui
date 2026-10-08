@@ -39,7 +39,7 @@
           "id": "nested_1__column_1",
           "children": ["nested_1__text_1", "nested_1__card_1"],
           "justify": "start",
-          "align": "stretch"
+          "align": "start"
         },
         {
           "component": "Card",

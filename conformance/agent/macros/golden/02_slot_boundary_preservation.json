@@ -15,7 +15,7 @@
           "id": "container_1__column_1",
           "children": ["container_1__text_1", "external_child_42"],
           "justify": "start",
-          "align": "stretch"
+          "align": "start"
         },
         {
           "component": "Card",

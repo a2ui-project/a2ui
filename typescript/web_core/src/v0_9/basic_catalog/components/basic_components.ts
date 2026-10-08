@@ -240,7 +240,7 @@ export const RowApi = {
         .enum(['center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start', 'stretch'])
         .default('start')
         .describe(
-          "Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together.",
+          "Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together. Unweighted children size to their intrinsic content width so they do not starve sibling items.",
         )
         .optional(),
       'align': z
@@ -279,9 +279,9 @@ export const ColumnApi = {
         .optional(),
       'align': z
         .enum(['center', 'end', 'start', 'stretch'])
-        .default('stretch')
+        .default('start')
         .describe(
-          "Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property.",
+          "Defines the alignment of children along the cross axis (horizontally). Defaults to 'start' so interactive/leaf children (e.g., Button, Icon) retain their intrinsic width rather than stretching across the column, while full-width containers (e.g., Row, Divider) fill the available width.",
         )
         .optional(),
     })

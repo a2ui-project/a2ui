@@ -61,7 +61,8 @@
           {
             "id": "item_details",
             "component": "Column",
-            "children": ["item_name", "item_size"]
+            "children": ["item_name", "item_size"],
+            "weight": 1
           },
           {
             "id": "item_name",

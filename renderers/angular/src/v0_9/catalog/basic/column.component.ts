@@ -37,11 +37,11 @@ import {ColumnApi} from '@a2ui/web_core/v0_9/basic_catalog';
   host: {
     '[style.display]': '"flex"',
     '[style.flex-direction]': '"column"',
-    '[style.width]': '"100%"',
     '[style.gap]': '"var(--a2ui-column-gap, var(--a2ui-spacing-m, 16px))"',
     '[style.justify-content]': 'justify()',
     '[style.align-items]': 'align()',
   },
+  styles: [':host { width: var(--a2ui-column-width, 100%); }'],
   template: `
     @for (child of children(); track trackChild($index, child)) {
       <a2ui-v09-component-host [componentKey]="child" [surfaceId]="surfaceId()">

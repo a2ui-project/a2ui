@@ -41,6 +41,10 @@ import {RowApi} from '@a2ui/web_core/v0_9/basic_catalog';
     '[style.justify-content]': 'justify()',
     '[style.align-items]': 'align()',
   },
+  styles: [
+    ':host { width: var(--a2ui-row-width, 100%); }',
+    ':host > a2ui-v09-component-host ::ng-deep > a2ui-v09-column, :host > a2ui-v09-component-host ::ng-deep > a2ui-v09-row { width: auto; }',
+  ],
   template: `
     @for (child of children(); track trackChild($index, child)) {
       <a2ui-v09-component-host [componentKey]="child" [surfaceId]="surfaceId()">

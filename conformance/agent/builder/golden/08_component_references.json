@@ -15,7 +15,7 @@
           "id": "outer_card__inner_col",
           "children": ["outer_card__intro_text", "existing_surface_widget"],
           "justify": "start",
-          "align": "stretch"
+          "align": "start"
         },
         {
           "component": "Card",

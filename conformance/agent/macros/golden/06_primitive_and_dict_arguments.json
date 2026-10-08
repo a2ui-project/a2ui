@@ -27,7 +27,7 @@
           "id": "cfg_1__column_1",
           "children": ["cfg_1__text_1", "cfg_1__text_2", "cfg_1__text_3"],
           "justify": "start",
-          "align": "stretch"
+          "align": "start"
         },
         {
           "component": "Card",

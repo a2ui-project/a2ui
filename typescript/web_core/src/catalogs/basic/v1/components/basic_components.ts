@@ -218,7 +218,7 @@ export const RowApi = {
         .enum(['center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start', 'stretch'])
         .default('start')
         .describe(
-          "Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together.",
+          "Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together. Unweighted children size to their intrinsic content width so they do not starve sibling items.",
         )
         .optional(),
       'align': z
@@ -231,7 +231,7 @@ export const RowApi = {
       'weight': z
         .number()
         .describe(
-          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' / Compose 'Modifier.weight' property. When omitted inside a Row, the component sizes to its intrinsic content width rather than filling 100% of the Row. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
         )
         .optional(),
     })
@@ -254,15 +254,15 @@ export const ColumnApi = {
         .optional(),
       'align': z
         .enum(['center', 'end', 'start', 'stretch'])
-        .default('stretch')
+        .default('start')
         .describe(
-          "Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property.",
+          "Defines the alignment of children along the cross axis (horizontally). Defaults to 'start' so interactive/leaf children (e.g., Button, Icon) retain their intrinsic width rather than stretching across the column, while full-width containers (e.g., Row, Divider) fill the available width.",
         )
         .optional(),
       'weight': z
         .number()
         .describe(
-          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' / Compose 'Modifier.weight' property. When omitted inside a Row, the Column sizes to its intrinsic content width so it does not starve sibling components. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
         )
         .optional(),
     })

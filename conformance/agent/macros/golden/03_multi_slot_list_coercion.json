@@ -15,7 +15,7 @@
           "id": "multi_1__column_1",
           "children": ["multi_1__text_1", "action_btn_1", "action_btn_2"],
           "justify": "start",
-          "align": "stretch"
+          "align": "start"
         },
         {
           "component": "Card",
