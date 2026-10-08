@@ -99,10 +99,18 @@ struct CatalogV10Tests {
   }
 
   @Test func catalogProtocolVersionForwardCompatibility() {
+    #expect(A2UIProtocolVersion(lenientRawValue: "v1.0") == .v10)
+    #expect(A2UIProtocolVersion(lenientRawValue: "1.0") == .v10)
+    #expect(A2UIProtocolVersion(lenientRawValue: "v0.9.1") == .v091)
+    #expect(A2UIProtocolVersion(lenientRawValue: "0.9.1") == .v091)
+    #expect(A2UIProtocolVersion(lenientRawValue: "invalid") == nil)
+
     let catV10 = AnyCatalog(id: "c1", protocolVersion: "v1.0", components: [])
+    #expect(catV10.a2uiProtocolVersion == .v10)
     #expect(catV10.isAtLeastV10 == true)
 
     let cat10 = AnyCatalog(id: "c2", protocolVersion: "1.0", components: [])
+    #expect(cat10.a2uiProtocolVersion == .v10)
     #expect(cat10.isAtLeastV10 == true)
 
     let catV11 = AnyCatalog(id: "c3", protocolVersion: "v1.1", components: [])
@@ -112,9 +120,11 @@ struct CatalogV10Tests {
     #expect(catV20.isAtLeastV10 == true)
 
     let catV091 = AnyCatalog(id: "c5", protocolVersion: "v0.9.1", components: [])
+    #expect(catV091.a2uiProtocolVersion == .v091)
     #expect(catV091.isAtLeastV10 == false)
 
     let catV09 = AnyCatalog(id: "c6", protocolVersion: "v0.9", components: [])
+    #expect(catV09.a2uiProtocolVersion == .v09)
     #expect(catV09.isAtLeastV10 == false)
   }
 }

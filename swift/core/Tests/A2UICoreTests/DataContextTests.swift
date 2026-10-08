@@ -123,7 +123,7 @@ struct DataContextTests {
       dataModel: dataModel,
       path: "/",
       functionHandler: mockHandler,
-      protocolVersion: "v1.0"
+      protocolVersion: .v10
     )
     let v10Nested: JSONValue = [
       "list": [
@@ -156,7 +156,7 @@ struct DataContextTests {
       dataModel: dataModel,
       path: "/",
       functionHandler: mockHandler,
-      protocolVersion: "v1.0"
+      protocolVersion: .v10
     )
 
     let atPathBinding: JSONValue = ["@path": "/item"]

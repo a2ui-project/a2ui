@@ -46,8 +46,12 @@ struct RPCHandlerTests {
   @Test func incomingCallSuccess() async {
     let handler = RPCHandler()
     let echoFn = MockEchoFunction()
-    let catalog = Catalog(id: "test", components: [AnyComponentAPI](), functions: [echoFn])
-      .eraseToAnyCatalog()
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [echoFn]
+    ).eraseToAnyCatalog()
 
     let callPayload = CallFunctionPayload(
       call: "echo",
@@ -72,7 +76,11 @@ struct RPCHandlerTests {
 
   @Test func incomingCallUnknownFunction() async {
     let handler = RPCHandler()
-    let catalog = Catalog(id: "test", components: [AnyComponentAPI]()).eraseToAnyCatalog()
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI]()
+    ).eraseToAnyCatalog()
 
     let callPayload = CallFunctionPayload(call: "nonexistent")
     let callMsg = CallRendererFunctionMessage(
@@ -94,8 +102,12 @@ struct RPCHandlerTests {
   @Test func incomingCallDisallowedCaller() async {
     let handler = RPCHandler()
     let echoFn = MockEchoFunction(allowedCallers: .rendererOnly)
-    let catalog = Catalog(id: "test", components: [AnyComponentAPI](), functions: [echoFn])
-      .eraseToAnyCatalog()
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [echoFn]
+    ).eraseToAnyCatalog()
 
     let callPayload = CallFunctionPayload(call: "echo")
     let callMsg = CallRendererFunctionMessage(
@@ -114,13 +126,51 @@ struct RPCHandlerTests {
     #expect(response.error?.code == "INVALID_FUNCTION_CALL")
   }
 
+  @Test func incomingCallRejectsUnversionedCatalogDefaultingToV09() async {
+    let handler = RPCHandler()
+    let echoFn = MockEchoFunction()
+    let unversionedCatalog = Catalog(
+      id: "test",
+      components: [AnyComponentAPI](),
+      functions: [echoFn]
+    ).eraseToAnyCatalog()
+
+    let callPayload = CallFunctionPayload(
+      call: "echo",
+      catalogID: "test",
+      args: ["message": .string("Hello Agent")]
+    )
+    let callMsg = CallRendererFunctionMessage(
+      functionCallID: "call_unversioned",
+      callFunction: callPayload,
+      version: .v10
+    )
+
+    let response = await handler.handleIncomingCall(
+      callMsg,
+      catalogs: [unversionedCatalog.id: unversionedCatalog]
+    )
+
+    #expect(response.functionCallID == "call_unversioned")
+    #expect(response.value == nil)
+    #expect(response.error?.code == "INVALID_FUNCTION_CALL")
+  }
+
   @Test func incomingCallAmbiguousCatalogsWithoutCatalogIdFails() async {
     let handler = RPCHandler()
     let echoFn = MockEchoFunction()
-    let basicCatalog = Catalog(id: "basic", components: [AnyComponentAPI](), functions: [echoFn])
-      .eraseToAnyCatalog()
-    let otherCatalog = Catalog(id: "other", components: [AnyComponentAPI](), functions: [echoFn])
-      .eraseToAnyCatalog()
+    let basicCatalog = Catalog(
+      id: "basic",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [echoFn]
+    ).eraseToAnyCatalog()
+    let otherCatalog = Catalog(
+      id: "other",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [echoFn]
+    ).eraseToAnyCatalog()
 
     let callPayload = CallFunctionPayload(call: "echo", args: ["message": .string("hi")])
     let callMsg = CallRendererFunctionMessage(
@@ -241,7 +291,12 @@ struct RPCHandlerTests {
 
   @Test func messageProcessorRoutesRPCCalls() async throws {
     let echoFn = MockEchoFunction()
-    let catalog = Catalog(id: "test", components: [AnyComponentAPI](), functions: [echoFn])
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [echoFn]
+    )
     let processor = MessageProcessor(catalog: catalog)
 
     let box = RPCBox<RendererFunctionResponseMessage>()
@@ -274,6 +329,84 @@ struct RPCHandlerTests {
     let response = try #require(box.value)
     #expect(response.functionCallID == "proc_call_1")
     #expect(response.value == "Processor Echo")
+  }
+
+  @Test func outgoingCallDuplicateAndLifecycleErrors() async throws {
+    let handler = RPCHandler()
+    let task1 = Task {
+      try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "slowFn",
+        functionCallID: "dup_call",
+        version: .v10,
+        timeoutSeconds: 5.0,
+        sendOutbound: { _ in }
+      )
+    }
+
+    try await Task.sleep(nanoseconds: 20_000_000)
+
+    do {
+      _ = try await handler.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "slowFn",
+        functionCallID: "dup_call",
+        version: .v10,
+        timeoutSeconds: 5.0,
+        sendOutbound: { _ in }
+      )
+      Issue.record("Expected duplicate error")
+    } catch let error as FunctionError {
+      #expect(error == .duplicate(callID: "dup_call"))
+      #expect(error.rpcCode == "DUPLICATE")
+    }
+
+    handler.cancelAllPendingCalls()
+    do {
+      _ = try await task1.value
+      Issue.record("Expected cancelled error")
+    } catch let error as FunctionError {
+      #expect(error == .cancelled(callID: "dup_call"))
+      #expect(error.rpcCode == "CANCELLED")
+    }
+
+    let catalog = Catalog(
+      id: "test",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI]()
+    )
+    let processor = MessageProcessor(catalog: catalog)
+    do {
+      _ = try await processor.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "fnWithoutListener",
+        version: .v10
+      )
+      Issue.record("Expected noListener error")
+    } catch let error as FunctionError {
+      #expect(error == .noListener(name: "fnWithoutListener"))
+      #expect(error.rpcCode == "NO_LISTENER")
+    }
+
+    processor.outboundListener = { _ in }
+    let task2 = Task {
+      try await processor.callAgentFunction(
+        surfaceID: "surf1",
+        functionName: "disposedFn",
+        functionCallID: "disp_call",
+        version: .v10,
+        timeoutSeconds: 5.0
+      )
+    }
+    try await Task.sleep(nanoseconds: 20_000_000)
+    processor.dispose()
+    do {
+      _ = try await task2.value
+      Issue.record("Expected disposed error")
+    } catch let error as FunctionError {
+      #expect(error == .disposed(callID: "disp_call"))
+      #expect(error.rpcCode == "DISPOSED")
+    }
   }
 }
 

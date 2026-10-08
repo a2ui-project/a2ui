@@ -26,13 +26,16 @@ public struct ValidationConfig: Sendable, Equatable {
   /// Whether unrecognized component types or function names are permitted.
   public var allowUnknownElements: Bool
 
-  /// The target protocol version (e.g. `"v0.9.1"`).
-  public var targetVersion: String
+  /// The target protocol version (e.g. `"v0.9.1"`), or `nil` when unspecified.
+  public var targetVersion: String?
 
-  /// The target protocol version as an `A2UIProtocolVersion` enum.
-  public var protocolVersion: A2UIProtocolVersion {
-    get { A2UIProtocolVersion(rawValue: targetVersion) ?? .v091 }
-    set { targetVersion = newValue.rawValue }
+  /// The target protocol version as an `A2UIProtocolVersion` enum, if specified.
+  public var protocolVersion: A2UIProtocolVersion? {
+    get {
+      guard let targetVersion else { return nil }
+      return A2UIProtocolVersion(lenientRawValue: targetVersion)
+    }
+    set { targetVersion = newValue?.rawValue }
   }
 
   /// Creates a validation configuration.
@@ -41,7 +44,7 @@ public struct ValidationConfig: Sendable, Equatable {
     allowDanglingReferences: Bool = false,
     allowMissingRoot: Bool = false,
     allowUnknownElements: Bool = false,
-    targetVersion: String = "v0.9.1"
+    targetVersion: String? = nil
   ) {
     self.allowOrphanComponents = allowOrphanComponents
     self.allowDanglingReferences = allowDanglingReferences
