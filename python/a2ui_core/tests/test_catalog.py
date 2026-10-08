@@ -620,6 +620,21 @@ def test_v10_call_with_empty_name_is_rejected():
     ) == [("components.b1.onSearch", "invalid_identifier")]
 
 
+def test_v10_call_with_non_object_args_is_rejected():
+    # The call envelope types `args` as an object, so the check doesn't depend
+    # on the catalog the call runs in.
+    val = PayloadValidator(catalog=_v10_nested_call_catalog())
+
+    for call in [
+        {"@call": "doSearch", "args": 123},
+        {"@call": "fn", "catalogId": "https://other.example/c", "args": 123},
+        {"@call": "fn", "catalogId": "https://other.example/c", "args": ["x"]},
+        {"@call": "@index", "args": 123},
+    ]:
+        details = _v10_nested_call_error_details(val, call)
+        assert len(details) == 1 and details[0][0] == "components.b1.onSearch", call
+
+
 def test_v10_calls_in_unknown_component_type_are_still_checked():
     # Allowing an unknown component type leaves its properties unchecked, but
     # the function calls in them still run, so they are checked as usual.
