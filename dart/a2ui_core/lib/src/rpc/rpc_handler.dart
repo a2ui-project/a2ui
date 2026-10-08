@@ -216,7 +216,7 @@ class RpcHandler {
     );
     try {
       final FutureOr<void> delivery = listener(message);
-      if (delivery is Future<void>) {
+      if (delivery is Future) {
         delivery.then<void>(
           (_) {},
           onError: (Object error, StackTrace stackTrace) {
@@ -378,12 +378,12 @@ class RpcHandler {
       if (result is ReadonlySignal) result = result.value;
       return A2uiFunctionResponse.value(functionCallId, result);
     } catch (error) {
-      final String message =
+      final String errorMessage =
           error is A2uiError ? error.message : error.toString();
       throw A2uiRpcError(
-        message.isEmpty
+        errorMessage.isEmpty
             ? 'An error occurred during function execution.'
-            : message,
+            : errorMessage,
         RpcErrorCode.executionError,
         cause: error,
       );
