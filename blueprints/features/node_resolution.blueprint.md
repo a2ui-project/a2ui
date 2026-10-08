@@ -114,6 +114,8 @@ type NodeAction = () => void | Promise<void>;
 interface ComponentNode<C extends ComponentApi> {
   /** Names the component at this node's data scope; distinct among siblings. */
   readonly instanceId: string;
+  /** Unique across the document for this node object; a replaced node gets a new one. */
+  readonly id: string;
   /** The component id from the payload. */
   readonly componentId: string;
   /** The declared component type; `'Placeholder'` for a pending or cyclic node. */
@@ -121,6 +123,10 @@ interface ComponentNode<C extends ComponentApi> {
   /** The data scope this node resolves relative paths against, e.g. '/items/0'. */
   readonly dataPath: string;
   readonly state: NodeState;
+  /** True for every state other than `resolved`. */
+  readonly isPlaceholder: boolean;
+  /** True once the resolver has disposed this node. */
+  readonly disposed: boolean;
   /** The resolved catalog entry; absent while the node is a placeholder. */
   readonly impl?: C;
   /** Resolved, reactive properties. */
