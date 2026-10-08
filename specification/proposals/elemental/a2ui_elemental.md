@@ -213,7 +213,7 @@ If the model needs to perform a lifecycle operation or invoke an RPC function wi
   ```html
   <ui-call-function id="call_1" name="openUrl" url="https://example.com" want-response="{true}" />
   ```
-  This maps to the v1.0 `callRendererFunction` message. The `id` attribute maps to `functionCallId` (`call_1` if omitted), `want-response` maps to `wantResponse`, `name` maps to the function, and the other attributes are the function's arguments. Literal JSON arguments go in script slots: a `<script type="application/json" slot="args">` holds an object of arguments, and a script with any other slot name holds the argument of that name:
+  This maps to the v1.0 `callRendererFunction` message. The `id` attribute maps to `functionCallId` (`call_<n>` for the n-th call in the document if omitted), `want-response` maps to `wantResponse`, `name` maps to the function, and the other attributes are the function's arguments. Literal JSON arguments go in script slots: a `<script type="application/json" slot="args">` holds an object of arguments, and a script with any other slot name holds the argument of that name:
   ```html
   <ui-call-function id="call_2" name="openUrl">
     <script type="application/json" slot="args">

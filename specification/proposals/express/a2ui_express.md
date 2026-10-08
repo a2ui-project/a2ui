@@ -182,6 +182,8 @@ field = TextField("Zip", $/zip, checks=[?zipCode({catalogId: "https://example.co
 
 The decompiler writes a `catalogId` only when the component or function name is defined in more than one active catalog (or differs from the single registered catalog). The v0.9 and v0.9.1 schemas allow `catalogId` only on `createSurface`, so for those targets the compiler rejects multiple catalogs and per-component or per-function `catalogId` overrides.
 
+> **Note:** The multi-catalog behavior described above is implemented in the Python SDK only for now. TypeScript and Dart Express compilers currently fall back to the first catalog for surfaces and do not tag components; see the TypeScript (`typescript/a2ui_agent/tests/conformance/KNOWN_FAILURES.md`) and Dart (`dart/a2ui_agent/test/conformance/conformance_test.dart`) known-gaps entries for current conformance status and tracking.
+
 #### Deleting a surface
 
 When the compiler encounters the standalone `deleteSurface` command, it produces a standard `deleteSurface` lifecycle message:

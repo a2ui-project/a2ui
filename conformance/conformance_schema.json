@@ -1115,7 +1115,8 @@
             "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
             "catalogs": {
               "type": "array",
-              "items": {"$ref": "#/$defs/AgentCatalogRef"}
+              "items": {"$ref": "#/$defs/AgentCatalogRef"},
+              "description": "For cases where the decompiler needs more than one active catalog."
             }
           },
           "required": ["format"],

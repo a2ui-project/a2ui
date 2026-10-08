@@ -1,4 +1,3 @@
-surface("gallery-incremental-dashboard")
 $/logs = [{message: "System boot complete."}, {message: "All services healthy."}, {message: "Waiting for user input."}]
 right_panel = Column([logs_list], _, _, 1)
 logs_list = List(_template($/logs, log_template))

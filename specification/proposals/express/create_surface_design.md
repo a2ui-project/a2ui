@@ -9,8 +9,7 @@ A2UI Express DSL is a compact declarative syntax designed for generative user in
 ## Design Principles
 
 1. **Unified Surface Targeting**: `surface("surface_id")` is the single directive used to declare a new surface or target an existing surface for updates.
-   - Initial rendering emits a `createSurface` message payload.
-   - Subsequent updates emit an `updateComponents` message payload.
+   - A scope that defines `root` compiles to a `createSurface` message; a scope that defines components without `root` compiles to an `updateComponents` message.
 2. **Multi-Surface Support**: A single `<a2ui>` DSL block can target or switch between multiple surfaces using sequential `surface("id")` calls.
 3. **Backward Compatibility**: If `surface()` is omitted from a DSL block, the compiler uses the default `surface_id` parameter (default `"default_surface"`).
 4. **Protocol Verbs**: `deleteSurface("id")` remains an explicit standalone command for destroying a surface.
