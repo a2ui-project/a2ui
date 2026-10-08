@@ -171,6 +171,30 @@ describe('PayloadValidator', () => {
       }
     });
 
+    it('checks the calls of a component type the catalog does not define', () => {
+      const validator = new PayloadValidator(cat, {
+        ...STRICT_VALIDATION,
+        allowUnknownElements: true,
+      });
+      const widgetWith = (call: unknown) => ({id: 'w1', component: 'Widget', prop: call});
+
+      assert.doesNotThrow(() =>
+        validator.validateComponent(widgetWith({'@call': 'upper', args: {value: 'x'}})),
+      );
+      assertValidationError(
+        () => validator.validateComponent(widgetWith({'@call': 'upper', args: {value: 3}})),
+        /Validation failed for function 'upper'/,
+      );
+      assertValidationError(
+        () => validator.validateComponent(widgetWith({'@call': '@index', catalogId: CATALOG_ID})),
+        /System function '@index' belongs to no catalog and must not name a catalogId/,
+      );
+      assertValidationError(
+        () => validator.validateComponent(widgetWith({'@call': 'upper', args: {'bad-arg': 'x'}})),
+        /Function argument 'bad-arg' in function 'upper' must be a valid UAX #31 identifier/,
+      );
+    });
+
     it('rejects a non-string catalogId on a call', () => {
       const validator = new PayloadValidator(cat);
       for (const catalogId of [7, null, {}]) {

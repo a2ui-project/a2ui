@@ -273,7 +273,9 @@ export class WebAppFrameBridgeService {
         }
       }
       const surface = this.rendererService.surfaceGroup.getSurface(this.config.surfaceId());
-      if (!surface?.defaultCatalog) {
+      // samples/community builds against the published @a2ui/web_core, which has
+      // no `defaultCatalog` yet; `catalog` names the surface default in both.
+      if (!surface?.catalog) {
         // Always answer the callId so the app is not left waiting for a result.
         this.appPort.postMessage({
           type: A2uiMessageType.FunctionResult,
@@ -291,11 +293,7 @@ export class WebAppFrameBridgeService {
       }
       const dataContext = new DataContext(surface, '/');
       try {
-        const result = await surface.defaultCatalog.invoker(
-          data.call,
-          data.args || {},
-          dataContext,
-        );
+        const result = await surface.catalog.invoker(data.call, data.args || {}, dataContext);
         this.appPort?.postMessage({
           type: A2uiMessageType.FunctionResult,
           call: data.call,
