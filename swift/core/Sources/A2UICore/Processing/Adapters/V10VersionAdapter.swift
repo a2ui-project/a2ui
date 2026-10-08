@@ -36,77 +36,6 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     Self.supportedCatalogVersions
   }
 
-  public override func adaptMessage(
-    _ message: AgentToRendererMessage
-  ) throws -> [InternalOperation] {
-    switch message {
-    case .createSurface(let msg):
-      return [
-        .createSurface(
-          InternalCreateSurfaceOp(
-            surfaceID: msg.surfaceID,
-            catalogID: msg.catalogID,
-            theme: nil,
-            sendDataModel: msg.shouldSendDataModel,
-            components: msg.components,
-            dataModel: msg.dataModel,
-            metadata: msg.metadata,
-            version: msg.version
-          )
-        )
-      ]
-    case .updateComponents(let msg):
-      return [
-        .updateComponents(
-          InternalUpdateComponentsOp(
-            surfaceID: msg.surfaceID,
-            components: msg.components
-          )
-        )
-      ]
-    case .updateDataModel(let msg):
-      return [
-        .updateDataModel(
-          InternalUpdateDataModelOp(
-            surfaceID: msg.surfaceID,
-            path: msg.path,
-            value: msg.value
-          )
-        )
-      ]
-    case .deleteSurface(let msg):
-      return [
-        .deleteSurface(
-          InternalDeleteSurfaceOp(surfaceID: msg.surfaceID)
-        )
-      ]
-    case .callRendererFunction(let msg):
-      return [
-        .callRendererFunction(
-          InternalCallRendererFunctionOp(
-            functionCallID: msg.functionCallID,
-            call: msg.callFunction.call,
-            version: msg.version,
-            catalogID: msg.callFunction.catalogID,
-            args: msg.callFunction.args,
-            returnType: msg.callFunction.returnType
-          )
-        )
-      ]
-    case .agentFunctionResponse(let msg):
-      return [
-        .agentFunctionResponse(
-          InternalAgentFunctionResponseOp(
-            functionCallID: msg.functionCallID,
-            version: msg.version,
-            value: msg.value,
-            error: msg.error
-          )
-        )
-      ]
-    }
-  }
-
   public override func extractOperationsFromObject(
     _ message: OrderedDictionary<String, JSONValue>,
     action: String,
@@ -114,6 +43,11 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
   ) throws -> [InternalOperation] {
     switch action {
     case "createSurface":
+      try validateAllowedKeys(
+        in: actionObject,
+        action: action,
+        allowed: ["surfaceId", "catalogId", "sendDataModel", "components", "dataModel", "metadata"]
+      )
       let surfaceID = try requireSurfaceID(in: actionObject, action: action)
       var catalogID: String?
       if let rawCatalogID = actionObject["catalogId"], rawCatalogID != .null {
@@ -131,15 +65,52 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         }
         catalogID = str
       }
-      let sendDataModel = actionObject["sendDataModel"]?.boolValue ?? false
-      let components = try parseComponentsArray(actionObject["components"], action: action)
-      let dataModel: [String: JSONValue]? = actionObject["dataModel"]?.objectValue.map {
-        Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
+      let sendDataModel: Bool
+      if let rawSend = actionObject["sendDataModel"], rawSend != .null {
+        guard let boolVal = rawSend.boolValue else {
+          throw A2UIValidationError(
+            "Invalid v1.0 message: createSurface.sendDataModel must be a boolean",
+            details: [
+              A2UIErrorDetail(
+                path: "messages.0.createSurface.sendDataModel",
+                code: "type_mismatch",
+                message: "Field 'sendDataModel' must be a boolean"
+              )
+            ]
+          )
+        }
+        sendDataModel = boolVal
+      } else {
+        sendDataModel = false
       }
-      let metadata: [String: JSONValue]? = actionObject["metadata"]?.objectValue.map {
-        Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
+      let components = try parseV10ComponentsArray(actionObject["components"], action: action)
+      let dataModel: [String: JSONValue]?
+      if let rawDataModel = actionObject["dataModel"], rawDataModel != .null {
+        guard let dmObj = rawDataModel.objectValue else {
+          throw A2UIValidationError(
+            "Invalid v1.0 message: createSurface.dataModel must be an object",
+            details: [
+              A2UIErrorDetail(
+                path: "messages.0.createSurface.dataModel",
+                code: "type_mismatch",
+                message: "Field 'dataModel' must be an object"
+              )
+            ]
+          )
+        }
+        dataModel = Dictionary(uniqueKeysWithValues: dmObj.map { ($0.key, $0.value) })
+      } else {
+        dataModel = nil
       }
-      // Per blueprint rule 6, v1.0 removed `theme` and must NOT extract it.
+      let metadata: [String: JSONValue]?
+      if let rawMetadata = actionObject["metadata"], rawMetadata != .null {
+        metadata = try validateMetadata(
+          rawMetadata,
+          pathPrefix: "messages.0.createSurface.metadata"
+        )
+      } else {
+        metadata = nil
+      }
       return [
         .createSurface(
           InternalCreateSurfaceOp(
@@ -156,6 +127,11 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       ]
 
     case "updateComponents":
+      try validateAllowedKeys(
+        in: actionObject,
+        action: action,
+        allowed: ["surfaceId", "components"]
+      )
       let surfaceID = try requireSurfaceID(in: actionObject, action: action)
       guard let componentsValue = actionObject["components"] else {
         throw A2UIValidationError(
@@ -169,7 +145,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
           ]
         )
       }
-      let components = try parseComponentsArray(componentsValue, action: action) ?? []
+      let components = try parseV10ComponentsArray(componentsValue, action: action) ?? []
       return [
         .updateComponents(
           InternalUpdateComponentsOp(
@@ -180,6 +156,11 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       ]
 
     case "updateDataModel":
+      try validateAllowedKeys(
+        in: actionObject,
+        action: action,
+        allowed: ["surfaceId", "path", "value"]
+      )
       let surfaceID = try requireSurfaceID(in: actionObject, action: action)
       let path: String
       if let rawPath = actionObject["path"], rawPath != .null {
@@ -234,6 +215,11 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       ]
 
     case "deleteSurface":
+      try validateAllowedKeys(
+        in: actionObject,
+        action: action,
+        allowed: ["surfaceId"]
+      )
       let surfaceID = try requireSurfaceID(in: actionObject, action: action)
       return [
         .deleteSurface(
@@ -242,6 +228,11 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       ]
 
     case "callRendererFunction":
+      try validateAllowedKeys(
+        in: actionObject,
+        action: action,
+        allowed: ["functionCallId", "callFunction"]
+      )
       guard let functionCallID = actionObject["functionCallId"]?.stringValue,
         !functionCallID.isEmpty
       else {
@@ -271,17 +262,21 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
           ]
         )
       }
-      guard let catalogID = callFunctionObj["catalogId"]?.stringValue, !catalogID.isEmpty else {
-        throw A2UIValidationError(
-          "Invalid v1.0 message: callRendererFunction.callFunction.catalogId is required",
-          details: [
-            A2UIErrorDetail(
-              path: "messages.0.callRendererFunction.callFunction.catalogId",
-              code: callFunctionObj["catalogId"] == nil ? "missing_field" : "type_mismatch",
-              message: "Field 'catalogId' is required"
-            )
-          ]
-        )
+      var catalogID: String?
+      if let rawCatalogID = callFunctionObj["catalogId"], rawCatalogID != .null {
+        guard let str = rawCatalogID.stringValue, !str.isEmpty else {
+          throw A2UIValidationError(
+            "Invalid v1.0 message: callRendererFunction.callFunction.catalogId must be a string",
+            details: [
+              A2UIErrorDetail(
+                path: "messages.0.callRendererFunction.callFunction.catalogId",
+                code: rawCatalogID.stringValue == nil ? "type_mismatch" : "invalid_value",
+                message: "Field 'catalogId' must be a non-empty string"
+              )
+            ]
+          )
+        }
+        catalogID = str
       }
       let args: [String: JSONValue]? = callFunctionObj["args"]?.objectValue.map {
         Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
@@ -301,6 +296,11 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       ]
 
     case "agentFunctionResponse":
+      try validateAllowedKeys(
+        in: actionObject,
+        action: action,
+        allowed: ["functionCallId", "value", "error"]
+      )
       guard let functionCallID = actionObject["functionCallId"]?.stringValue,
         !functionCallID.isEmpty
       else {
@@ -345,6 +345,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       var errorPayload: FunctionErrorPayload?
       if let rawError = actionObject["error"] {
         guard let errObj = rawError.objectValue,
+          errObj.keys.allSatisfy({ $0 == "code" || $0 == "message" }),
           let code = errObj["code"]?.stringValue,
           let errMessage = errObj["message"]?.stringValue
         else {
@@ -375,5 +376,108 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     default:
       return []
     }
+  }
+
+  private func parseV10ComponentsArray(
+    _ value: JSONValue?,
+    action: String
+  ) throws -> [[String: JSONValue]]? {
+    guard let components = try parseComponentsArray(value, action: action) else {
+      return nil
+    }
+    guard !components.isEmpty else {
+      throw A2UIValidationError(
+        "Invalid v1.0 message: \(action).components must contain at least 1 item",
+        details: [
+          A2UIErrorDetail(
+            path: "messages.0.\(action).components",
+            code: "invalid_value",
+            message: "Components array must contain at least 1 item"
+          )
+        ]
+      )
+    }
+    for (index, comp) in components.enumerated() {
+      if comp["component"]?.stringValue == "Surface" {
+        let msg =
+          "Component type cannot be \"Surface\". \"Surface\" is a top-level protocol "
+          + "container defined in createSurface, not a child component."
+        throw A2UIValidationError(
+          msg,
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.\(action).components.\(index).component",
+              code: "invalid_value",
+              message: msg
+            )
+          ]
+        )
+      }
+      if let rawMetadata = comp["metadata"], rawMetadata != .null {
+        _ = try validateMetadata(
+          rawMetadata,
+          pathPrefix: "messages.0.\(action).components.\(index).metadata"
+        )
+      }
+    }
+    return components
+  }
+
+  private func validateMetadata(
+    _ rawMetadata: JSONValue,
+    pathPrefix: String
+  ) throws -> [String: JSONValue] {
+    guard let metaObj = rawMetadata.objectValue else {
+      throw A2UIValidationError(
+        "Invalid v1.0 message: metadata must be an object",
+        details: [
+          A2UIErrorDetail(
+            path: pathPrefix,
+            code: "type_mismatch",
+            message: "Field 'metadata' must be an object"
+          )
+        ]
+      )
+    }
+    for key in metaObj.keys where key != "extensions" {
+      throw A2UIValidationError(
+        "Invalid v1.0 message: unrecognized property '\(key)' in metadata",
+        details: [
+          A2UIErrorDetail(
+            path: "\(pathPrefix).\(key)",
+            code: "invalid_value",
+            message: "Unrecognized property '\(key)' in metadata"
+          )
+        ]
+      )
+    }
+    if let rawExtensions = metaObj["extensions"], rawExtensions != .null {
+      guard let extObj = rawExtensions.objectValue else {
+        throw A2UIValidationError(
+          "Invalid v1.0 message: metadata.extensions must be an object",
+          details: [
+            A2UIErrorDetail(
+              path: "\(pathPrefix).extensions",
+              code: "type_mismatch",
+              message: "Field 'extensions' must be an object"
+            )
+          ]
+        )
+      }
+      for extKey in extObj.keys where !UnicodeIdentifierValidator.isValidIdentifier(extKey) {
+        let msg = "Invalid extension key \"\(extKey)\": Keys MUST be Unicode identifiers (UAX #31)."
+        throw A2UIValidationError(
+          msg,
+          details: [
+            A2UIErrorDetail(
+              path: "\(pathPrefix).extensions.\(extKey)",
+              code: "invalid_identifier",
+              message: msg
+            )
+          ]
+        )
+      }
+    }
+    return Dictionary(uniqueKeysWithValues: metaObj.map { ($0.key, $0.value) })
   }
 }

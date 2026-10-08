@@ -156,6 +156,74 @@ struct MessageErrorMapperTests {
     }
   }
 
+  @Test func mapFunctionErrorToExpressionError() {
+    let error = FunctionError.functionNotFound("missingFn")
+    let result = mapper.map(error, surfaceID: "s1", version: .v10)
+    if case .generic(let generic) = result {
+      #expect(generic.code == "EXPRESSION_ERROR")
+      #expect(generic.surfaceID == "s1")
+      #expect(generic.message == "Function not found: missingFn")
+      #expect(generic.version == .v10)
+    } else {
+      Issue.record("Expected .generic")
+    }
+  }
+
+  @Test func formatDotSeparatedErrorPaths() {
+    let error = A2UIValidationError(
+      "Invalid metadata",
+      details: [
+        A2UIErrorDetail(
+          path: "messages.1.createSurface.metadata.owner",
+          code: "INVALID_METADATA",
+          message: "Only 'extensions' allowed"
+        )
+      ]
+    )
+    let result = mapper.map(error, surfaceID: "s1", version: .v10)
+    if case .validationFailed(let valError) = result {
+      #expect(valError.path == "/metadata/owner")
+    } else {
+      Issue.record("Expected .validationFailed")
+    }
+
+    let rpcCallError = A2UIValidationError(
+      "Missing call",
+      details: [
+        A2UIErrorDetail(
+          path: "messages.0.callRendererFunction.callFunction.call",
+          code: "missing_field",
+          message: "Field 'call' is required"
+        )
+      ]
+    )
+    if case .validationFailed(let valError) = mapper.map(
+      rpcCallError, surfaceID: "s1", version: .v10)
+    {
+      #expect(valError.path == "/callFunction/call")
+    } else {
+      Issue.record("Expected .validationFailed")
+    }
+
+    let rpcRespError = A2UIValidationError(
+      "Invalid error payload",
+      details: [
+        A2UIErrorDetail(
+          path: "messages.0.agentFunctionResponse.error",
+          code: "type_mismatch",
+          message: "Field 'error' must be an object"
+        )
+      ]
+    )
+    if case .validationFailed(let valError) = mapper.map(
+      rpcRespError, surfaceID: "s1", version: .v10)
+    {
+      #expect(valError.path == "/error")
+    } else {
+      Issue.record("Expected .validationFailed")
+    }
+  }
+
   @Test func parseReturnsNilSurfaceIDForInvalidJSON() {
     let parser = MessageParser()
     do {

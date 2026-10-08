@@ -159,7 +159,7 @@ public enum ConformanceTestHelper {
       if inlineCatalog["components"] == nil {
         let basicVersion: A2UIProtocolVersion =
           (version.hasPrefix("v1") || version.hasPrefix("1")) ? .v10 : .v091
-        catalogs.append(BasicCatalog.makeCatalog(version: basicVersion))
+        catalogs.append(contentsOf: basicCatalogs(for: basicVersion))
       }
       return catalogs
     }
@@ -170,6 +170,20 @@ public enum ConformanceTestHelper {
         protocolVersion: testCase.protocolVersion
       )
     }
+  }
+
+  /// Returns the basic catalog for the given protocol version with `id: "basic"`
+  /// for conformance test cases that reference `"basic"` or omit `catalogId`.
+  public static func basicCatalogs(for version: A2UIProtocolVersion = .v10) -> [AnyCatalog] {
+    let canonical = BasicCatalog.makeCatalog(version: version)
+    let shorthand = Catalog(
+      id: "basic",
+      protocolVersion: version,
+      components: Array(canonical.components.values),
+      functions: Array(canonical.functions.values),
+      themeSchema: canonical.themeSchema
+    )
+    return [shorthand]
   }
 
   /// Finds the `common_types.json` schema for a given protocol version.

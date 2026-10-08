@@ -38,7 +38,8 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
   /// - Throws: ``A2UIValidationError`` (or its subclasses) if the envelope is invalid.
   public static func parseAll(
     _ payload: JSONValue,
-    protocolVersion: A2UIProtocolVersion? = nil
+    protocolVersion: A2UIProtocolVersion? = nil,
+    adapterFactory: VersionAdapterFactory = .shared
   ) throws -> [AgentToRendererMessage] {
     if case .null = payload {
       return []
@@ -46,9 +47,9 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
 
     let adapter: any VersionAdapter
     if let protocolVersion {
-      adapter = VersionAdapterFactory.getAdapter(for: protocolVersion)
+      adapter = adapterFactory.getAdapter(for: protocolVersion)
     } else {
-      adapter = try VersionAdapterFactory.resolveFromPayload(payload)
+      adapter = try adapterFactory.resolveFromPayload(payload)
     }
 
     _ = try adapter.extractOperations(from: payload)
@@ -85,7 +86,8 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
   /// values without requiring a ``Catalog`` or ``MessageProcessor``.
   public static func parseAll(
     from data: Data,
-    protocolVersion: A2UIProtocolVersion? = nil
+    protocolVersion: A2UIProtocolVersion? = nil,
+    adapterFactory: VersionAdapterFactory = .shared
   ) throws -> [AgentToRendererMessage] {
     let payload: JSONValue
     do {
@@ -93,7 +95,11 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
     } catch {
       throw A2UIValidationError(error.localizedDescription)
     }
-    return try parseAll(payload, protocolVersion: protocolVersion)
+    return try parseAll(
+      payload,
+      protocolVersion: protocolVersion,
+      adapterFactory: adapterFactory
+    )
   }
 
   private enum CodingKeys: String, CodingKey {

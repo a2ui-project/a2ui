@@ -143,7 +143,7 @@ struct BasicCatalogConformanceTests {
     for testCase in testCases {
       let errorHandler = IndexConformanceErrorHandler()
       let processor = MessageProcessor(
-        catalogs: BasicCatalog.allCatalogs,
+        catalogs: ConformanceTestHelper.basicCatalogs(for: .v10),
         actionHandler: errorHandler,
         validationConfig: ValidationConfig(targetVersion: "v1.0")
       )
@@ -216,7 +216,7 @@ struct BasicCatalogConformanceTests {
 
     for testCase in testCases {
       let processor = MessageProcessor(
-        catalogs: BasicCatalog.allCatalogs,
+        catalogs: ConformanceTestHelper.basicCatalogs(for: .v10),
         validationConfig: ValidationConfig(targetVersion: "v1.0")
       )
 
