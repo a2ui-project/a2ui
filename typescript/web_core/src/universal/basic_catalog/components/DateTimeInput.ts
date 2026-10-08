@@ -63,6 +63,18 @@ function normalizeDateTimeValue(value: string | null | undefined, type: string):
   return '';
 }
 
+/** Applies a time bound only on its date boundary when both inputs are enabled. */
+function getTimeBound(
+  value: string | undefined,
+  selectedDate: string,
+  enableDate: boolean,
+): string {
+  if (!value) return '';
+  const boundDate = normalizeDateTimeValue(value, 'date');
+  if (enableDate && boundDate && boundDate !== selectedDate) return '';
+  return normalizeDateTimeValue(value, 'time');
+}
+
 export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTimeInputSupportedApis> {
   /** @nocollapse */
   static readonly tagName = 'a2ui-datetimeinput';
@@ -129,16 +141,20 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
     const props = this.controller.props;
     if (!props) return nothing;
 
-    const enableDate = props.enableDate ?? true;
+    const enableDate = props.enableDate ?? false;
     const enableTime = props.enableTime ?? false;
     const rawValue =
       typeof props.value === 'string' ? props.value : props.value ? String(props.value) : '';
 
     const dateValue = normalizeDateTimeValue(rawValue, 'date');
     const timeValue = normalizeDateTimeValue(rawValue, 'time');
+    const min = typeof props.min === 'string' ? props.min : undefined;
+    const max = typeof props.max === 'string' ? props.max : undefined;
 
     const handleDateChange = (event: Event) => {
-      const date = (event.target as HTMLInputElement).value;
+      const input = event.target as HTMLInputElement;
+      if (!input.checkValidity()) return;
+      const date = input.value;
       if (enableTime) {
         const time = rawValue.includes('T')
           ? rawValue.split('T')[1]
@@ -152,7 +168,9 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
     };
 
     const handleTimeChange = (event: Event) => {
-      const time = (event.target as HTMLInputElement).value;
+      const input = event.target as HTMLInputElement;
+      if (!input.checkValidity()) return;
+      const time = input.value;
       if (enableDate) {
         const date = rawValue.includes('T')
           ? rawValue.split('T')[0]
@@ -174,6 +192,8 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
                 <input
                   type="date"
                   .value=${dateValue}
+                  min=${normalizeDateTimeValue(min, 'date')}
+                  max=${normalizeDateTimeValue(max, 'date')}
                   @change=${handleDateChange}
                   class="a2ui-date-time-input"
                 />
@@ -184,6 +204,8 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
                 <input
                   type="time"
                   .value=${timeValue}
+                  min=${getTimeBound(min, dateValue, enableDate)}
+                  max=${getTimeBound(max, dateValue, enableDate)}
                   @change=${handleTimeChange}
                   class="a2ui-date-time-input"
                 />
