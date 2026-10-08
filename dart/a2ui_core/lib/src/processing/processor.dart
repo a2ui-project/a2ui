@@ -524,24 +524,10 @@ class MessageProcessor<T extends ComponentApi> {
           version: A2uiVersionCapabilities(
             supportedCatalogIds: catalogIds,
             inlineCatalogs: inlineCatalogs,
-            componentEnvelopeRef: options.componentEnvelopeRef,
           ),
       },
     );
   }
-
-  /// The v0.9 capabilities object, as JSON.
-  ///
-  /// Equivalent to [getRendererCapabilities] for v0.9 alone, serialized.
-  Map<String, dynamic> getClientCapabilities({
-    bool includeInlineCatalogs = false,
-  }) =>
-      getRendererCapabilities(
-        CapabilitiesOptions(
-          versions: const [A2uiProtocolVersion.v0_9],
-          includeInlineCatalogs: includeInlineCatalogs,
-        ),
-      ).toJson();
 
   /// The data models of the surfaces created with `sendDataModel`, in the
   /// shape of the `a2uiClientDataModel` object the renderer sends with each
@@ -597,9 +583,6 @@ class MessageProcessor<T extends ComponentApi> {
       },
     };
   }
-
-  /// Equivalent to [getRendererDataModel] with no version.
-  Map<String, dynamic>? getClientDataModel() => getRendererDataModel();
 }
 
 extension SchemaExtension on Schema {

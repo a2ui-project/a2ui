@@ -5,25 +5,27 @@
 - Added `MessageProcessor.getRendererCapabilities(CapabilitiesOptions)`,
   which returns an `A2uiRendererCapabilities` with one entry per requested
   version and raises `A2uiValidationError` for an empty version list. Inline
-  catalogs use the legacy shape below v1.0 and the standalone catalog schema
-  document from v1.0. `CapabilitiesOptions.componentEnvelopeRef` sets the
-  envelope each inline component is wrapped in.
+  catalogs use the legacy shape below v1.0 and a copy of the standalone
+  catalog schema document from v1.0.
 - **Breaking:** `A2uiVersionCapabilities.toJson` takes a required `version`
   and shapes inline catalogs for it; `A2uiRendererCapabilities.toJson` and
-  `getRendererCapabilities` use the same code. `A2uiVersionCapabilities`
-  adds `componentEnvelopeRef`.
-- **Behavior change:** Legacy inline catalogs no longer drop the properties
-  and required entries of `allOf` component schemas. `allOf` members are
-  merged, `$ref` members other than the envelope stay in `allOf`, `anyOf` and
-  `oneOf` branches are kept, and `id` and `component` are dropped from a
-  component's own properties. `getClientCapabilities` now calls
-  `getRendererCapabilities` for v0.9.
+  `getRendererCapabilities` use the same code.
+- **Behavior change:** Legacy inline catalogs are derived from
+  `Catalog.catalogSchema`, so a component's properties and required list
+  match the catalog document (which merges `allOf` members). `id` and
+  `component` are left to the `ComponentCommon` envelope, bundled common-type
+  refs become `common_types.json#/$defs/...` refs again, other local refs are
+  inlined when they resolve and dropped otherwise, and function entries carry
+  `description`.
+- **Breaking:** Removed `MessageProcessor.getClientCapabilities` and
+  `getClientDataModel`. Use
+  `getRendererCapabilities(CapabilitiesOptions(versions: [A2uiProtocolVersion.v0_9], includeInlineCatalogs: ...)).toJson()`
+  and `getRendererDataModel()`.
 - **Behavior change:** `getRendererDataModel` takes an optional `version`.
   With one, it returns only the surfaces compatible with that version. Without
   one, it reports the version the surfaces share, defaults to `v1.0` when none
   records a version, and raises `A2uiValidationError` when the surfaces record
   different versions. It returns `Map<String, Object?>?`.
-  `getClientDataModel` now calls it, so it no longer always reports `v0.9`.
 - **Breaking:** `Catalog.fromJson` inlines and flattens `allOf` component envelopes (`ComponentCommon`, `CatalogComponentCommon`, `Checkable`), maps `accessibility` and `checks` mixins, omits envelope keys (`id`, `component`, `catalogId`) from `ComponentApi.schema`, and replaces `REF:` description prefixes in `CommonSchemas` with `commonTypesRef` metadata.
 - Adds `Catalog.protocolVersion`, `FunctionApi.description`, and `FunctionImplementation.description`, and updates `Catalog.catalogSchema` to rebuild component envelopes, emit `anyComponent.discriminator` and function `description`, and restore `common_types.json#/$defs/...` references.
 - Allows the `catalogId` envelope property during component validation in `PayloadValidator`.

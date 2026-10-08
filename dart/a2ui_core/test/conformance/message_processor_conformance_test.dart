@@ -121,7 +121,6 @@ void _runGetRendererCapabilitiesCase(Map<String, Object?> testCase) {
               A2uiProtocolVersion.v0_9,
           ],
           includeInlineCatalogs: args['includeInlineCatalogs'] == true,
-          componentEnvelopeRef: args['componentEnvelopeRef'] as String?,
         ),
       )
       .toJson();

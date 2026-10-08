@@ -329,8 +329,8 @@ void main() {
 
       // Below v1.0: the legacy shape, with components wrapped in the
       // ComponentCommon envelope and no `$schema`. Button's schema is an
-      // allOf of CommonSchemas.checkable, a shared definition that stays a
-      // `$ref`, and an object whose properties are merged into the body.
+      // allOf of CommonSchemas.checkable and an object; the body carries the
+      // properties the catalog document serializes for it, minus `id`.
       final Map<String, Object?> legacy = firstInline('v0.9');
       expect(legacy.containsKey(r'$schema'), isFalse);
       final button = (legacy['components']! as Map)['Button'] as Map;
@@ -339,21 +339,23 @@ void main() {
         r'$ref': r'common_types.json#/$defs/ComponentCommon',
       });
       final buttonBody = buttonMembers[1] as Map;
-      expect(buttonBody['allOf'], [
-        {r'$ref': r'common_types.json#/$defs/Checkable'},
-      ]);
+      final documentButton =
+          (catalog.catalogSchema['components']! as Map)['Button'] as Map;
+      expect(buttonBody.keys, ['properties', 'required']);
       expect((buttonBody['properties'] as Map).keys, [
         'component',
-        'child',
-        'variant',
-        'action',
+        for (final Object? key in (documentButton['properties'] as Map).keys)
+          if (key != 'id' && key != 'component') key,
       ]);
       expect(
         (buttonBody['properties'] as Map)['component'],
         {'const': 'Button'},
       );
-      expect(buttonBody['required'],
-          containsAll(['component', 'child', 'action']));
+      expect(buttonBody['required'], [
+        'component',
+        for (final Object? key in documentButton['required'] as List)
+          if (key != 'id' && key != 'component') key,
+      ]);
 
       // At v1.0: the standalone catalog schema document.
       final Map<String, Object?> current = firstInline('v1.0');
@@ -364,25 +366,12 @@ void main() {
         contains(equals({r'$ref': '#/components/Button'})),
       );
 
-      // _processRefs rewrites maps in place, so the emitter must work on
-      // copies rather than on the shared CommonSchemas statics.
+      // The emitter must work on copies rather than on the shared
+      // CommonSchemas statics or the memoized catalog document.
       expect(
         CommonSchemas.dynamicString.value['description'],
         equals(descBefore),
       );
-    });
-
-    test('getClientCapabilities is a v0.9 call-through', () {
-      expect(processor.getClientCapabilities(includeInlineCatalogs: true), {
-        'v0.9': processor
-            .getRendererCapabilities(
-              const CapabilitiesOptions(
-                versions: [A2uiProtocolVersion.v0_9],
-                includeInlineCatalogs: true,
-              ),
-            )
-            .toJson()['v0.9'],
-      });
     });
 
     group('getRendererDataModel', () {
@@ -491,14 +480,6 @@ void main() {
             version: A2uiProtocolVersion.v1_0,
           ),
           isNull,
-        );
-      });
-
-      test('getClientDataModel is a call-through', () {
-        addSurface('s1', 'v0.9');
-        expect(
-          dataProcessor.getClientDataModel(),
-          dataProcessor.getRendererDataModel(),
         );
       });
     });
