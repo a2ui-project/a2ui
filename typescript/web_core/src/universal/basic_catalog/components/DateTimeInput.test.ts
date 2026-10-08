@@ -262,6 +262,47 @@ describe('DateTimeInput Component', () => {
     assert.strictEqual(surface.dataModel.get('/appointment'), '2025-01-20T15:30:00');
   });
 
+  it('should preserve the timezone offset when editing a time', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateDataModel: {
+          surfaceId: 'test-surface',
+          path: '/zonedAppointment',
+          value: '2024-06-15T10:00:00+02:00',
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'dt_zoned',
+              component: 'DateTimeInput',
+              value: {path: '/zonedAppointment'},
+              enableDate: true,
+              enableTime: true,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-datetimeinput') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'dt_zoned');
+    });
+
+    const timeInput = el.querySelector('input[type="time"]') as HTMLInputElement;
+    timeInput.value = '15:30';
+    timeInput.dispatchEvent(new Event('change'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(surface.dataModel.get('/zonedAppointment'), '2024-06-15T15:30:00+02:00');
+  });
+
   it('should fallback to local calendar date when choosing time first in datetime mode', async () => {
     processor.processMessages([
       {

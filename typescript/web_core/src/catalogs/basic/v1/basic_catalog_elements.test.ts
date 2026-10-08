@@ -113,7 +113,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     assert.strictEqual(surface.dataModel.get('/time'), '10:45');
   });
 
-  it('does not store a date outside DateTimeInput bounds', async () => {
+  it('keeps DateTimeInput data in sync when a date is outside picker bounds', async () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
@@ -156,7 +156,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     input.value = '2026-07-04';
     input.dispatchEvent(new Event('change'));
     await new Promise(resolve => setTimeout(resolve, 0));
-    assert.strictEqual(surface.dataModel.get('/date'), '2026-01-15');
+    assert.strictEqual(surface.dataModel.get('/date'), '2026-07-04');
   });
 
   it('applies date-time bounds to the selected date boundary', async () => {

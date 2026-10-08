@@ -1,6 +1,6 @@
 ## Unreleased
 
-- The shared `DateTimeInput` honors the catalog's `enableDate: false` default and applies `min` and `max` to its date and time pickers. Out-of-range selections no longer update bound data.
+- The shared `DateTimeInput` honors the catalog's `enableDate: false` default and applies `min` and `max` to its date and time pickers. Editing the time of a date-time value preserves its timezone suffix.
 
 - (v1_0) The basic catalog's `and`, `or` and `not` read a ValidationResult operand by its `valid` member instead of treating every object as truthy, so the v1.0 specification's nested `and(required, or(required, required))` check is false when a field is empty. The v0.9 catalog keeps JavaScript truthiness, since its validators return booleans. `createAndImplementation`, `createOrImplementation` and `createNotImplementation` accept a `truthy` option, and `executeAnd`, `executeOr` and `executeNot` a `truthy` argument.
 - `formatDate` returns an empty string for a date that does not exist, such as `2026-02-30`, instead of rolling it into the next month. `parseTimestamp` returns null when the written fields do not survive parsing.

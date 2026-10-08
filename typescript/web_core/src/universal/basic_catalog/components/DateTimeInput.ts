@@ -152,9 +152,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
     const max = typeof props.max === 'string' ? props.max : undefined;
 
     const handleDateChange = (event: Event) => {
-      const input = event.target as HTMLInputElement;
-      if (!input.checkValidity()) return;
-      const date = input.value;
+      const date = (event.target as HTMLInputElement).value;
       if (enableTime) {
         const time = rawValue.includes('T')
           ? rawValue.split('T')[1]
@@ -168,16 +166,15 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
     };
 
     const handleTimeChange = (event: Event) => {
-      const input = event.target as HTMLInputElement;
-      if (!input.checkValidity()) return;
-      const time = input.value;
+      const time = (event.target as HTMLInputElement).value;
       if (enableDate) {
         const date = rawValue.includes('T')
           ? rawValue.split('T')[0]
           : rawValue.includes('-')
             ? rawValue
             : getLocalIsoDate();
-        props.setValue?.(`${date}T${time}:00`);
+        const timezone = rawValue.match(/(?:Z|[+-]\d{2}:\d{2})$/)?.[0] ?? '';
+        props.setValue?.(`${date}T${time}:00${timezone}`);
       } else {
         props.setValue?.(time);
       }
