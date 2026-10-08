@@ -91,7 +91,7 @@ class TestSkillConformance(unittest.TestCase):
                 if fmt_name == "express":
                     fmt = ExpressFormat([catalog]) if catalog else ExpressFormat()
                 elif fmt_name == "atom":
-                    fmt = AtomFormat(catalog=catalog) if catalog else AtomFormat()
+                    fmt = AtomFormat([catalog]) if catalog else AtomFormat()
                 elif fmt_name == "elemental":
                     fmt = ElementalFormat([catalog]) if catalog else ElementalFormat()
                 else:

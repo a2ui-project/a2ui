@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      https://www.apache.org/licenses/LICENSE-2.0
+#     https://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,926 +12,926 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for A2UI Atom inference format compiler and decompiler."""
+"""Tests for the Atom S-expression inference format."""
 
-from pathlib import Path
-import unittest
 from typing import Any
-from a2ui.inference_formats.experimental.atom.compiler import AtomCompiler
-from a2ui.inference_formats.experimental.atom.decompiler import AtomDecompiler
 
-from a2ui.schema.utils import find_repo_root
+import pytest
 
-REPO_ROOT = Path(find_repo_root())
+from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.inference_formats import to_message_dicts, to_message_models
+from a2ui.inference_formats.experimental.atom import (
+    AtomCompiler,
+    AtomDecompiler,
+    AtomFormat,
+)
+from a2ui.parser import A2uiCompilationError
+
+PRI = "https://a2ui.org/test/primary"
+SEC = "https://a2ui.org/test/secondary"
+
+_CHILD_LIST = {"$ref": "common_types.json#/$defs/ChildList"}
+_CHILD = {"$ref": "common_types.json#/$defs/ComponentId"}
+_DYN_STRING = {"$ref": "common_types.json#/$defs/DynamicString"}
+_ACTION = {"$ref": "common_types.json#/$defs/Action"}
 
 
-class MockCatalog:
+def _component(name: str, props: dict[str, Any], required: list[str] | None = None):
+    return {
+        "type": "object",
+        "properties": {"component": {"const": name}, **props},
+        "required": ["component", *(required or [])],
+    }
 
-    def __init__(self):
-        self.id = "basic"
 
-    def get_components(self):
-        return {
-            "Card": {
-                "properties": {
-                    "child": {"type": "string"},
-                    "children": {"type": "array"},
-                }
+def _function(args: dict[str, Any], required: list[str] | None = None):
+    return {
+        "returnType": "boolean",
+        "properties": {
+            "args": {
+                "type": "object",
+                "properties": args,
+                "required": required or [],
+            }
+        },
+    }
+
+
+def _primary(version: str = "v1.0") -> CatalogApi:
+    return Catalog.from_json(
+        {
+            "catalogId": PRI,
+            "components": {
+                "Box": _component("Box", {"children": _CHILD_LIST}),
+                "Label": _component("Label", {"text": _DYN_STRING}, ["text"]),
+                "Press": _component(
+                    "Press", {"child": _CHILD, "action": _ACTION}, ["child"]
+                ),
             },
-            "Column": {
-                "properties": {
-                    "children": {"type": "array"},
-                    "align": {"type": "string"},
-                }
+            "functions": {
+                "check": _function({"value": {"type": "string"}}, ["value"]),
             },
-            "Row": {
-                "properties": {
-                    "children": {"type": "array"},
-                    "justify": {"type": "string"},
-                    "align": {"type": "string"},
-                }
-            },
-            "Text": {
-                "properties": {
-                    "text": {"type": "string"},
-                    "variant": {"type": "string"},
-                }
-            },
-            "Icon": {"properties": {"name": {"type": "string"}}},
-            "Button": {
-                "properties": {
-                    "child": {"type": "string"},
-                    "action": {"type": "object"},
-                }
-            },
-        }
+        },
+        protocol_version=version,
+    )
 
 
-class TestAtomFormat(unittest.TestCase):
+def _secondary(version: str = "v1.0") -> CatalogApi:
+    return Catalog.from_json(
+        {
+            "catalogId": SEC,
+            "components": {
+                "Stack": _component("Stack", {"items": _CHILD_LIST}),
+                "Deck": _component("Deck", {"cards": _CHILD_LIST}),
+                "Note": _component("Note", {"body": _DYN_STRING}, ["body"]),
+                "Pager": _component(
+                    "Pager",
+                    {
+                        "pages": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "title": {"type": "string"},
+                                    "child": _CHILD,
+                                },
+                                "required": ["title", "child"],
+                            },
+                        }
+                    },
+                ),
+            },
+            "functions": {
+                "secOnly": _function({"limit": {"type": "number"}}, ["limit"]),
+            },
+        },
+        protocol_version=version,
+    )
 
-    def setUp(self):
-        self.catalog = MockCatalog()
-        self.compiler = AtomCompiler(self.catalog)
-        self.decompiler = AtomDecompiler(self.catalog)
 
-    def test_compile_notification_card(self):
-        text = """(data $/icon "check" $/title "Enable notification")
+@pytest.fixture(name="basic")
+def fixture_basic() -> CatalogApi:
+    return BasicCatalog("1.0")
+
+
+@pytest.fixture(name="compiler")
+def fixture_compiler(basic: CatalogApi) -> AtomCompiler:
+    return AtomCompiler([basic])
+
+
+@pytest.fixture(name="decompiler")
+def fixture_decompiler(basic: CatalogApi) -> AtomDecompiler:
+    return AtomDecompiler([basic])
+
+
+def _compile(compiler: AtomCompiler, text: str) -> list[dict[str, Any]]:
+    return to_message_dicts(compiler.compile(text))
+
+
+def _compile_one(compiler: AtomCompiler, text: str) -> dict[str, Any]:
+    messages = _compile(compiler, text)
+    assert len(messages) == 1
+    return messages[0]
+
+
+def _components(message: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    body = message.get("createSurface") or message["updateComponents"]
+    return {c["id"]: c for c in body["components"]}
+
+
+def _by_id(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Returns the messages with component lists keyed by id, for comparison."""
+    result = []
+    for message in messages:
+        message = dict(message)
+        for key in ("createSurface", "updateComponents"):
+            if key in message and "components" in message[key]:
+                body = dict(message[key])
+                body["components"] = {c["id"]: c for c in body["components"]}
+                message[key] = body
+        result.append(message)
+    return result
+
+
+def _round_trip(
+    compiler: AtomCompiler, decompiler: AtomDecompiler, messages: list[dict[str, Any]]
+) -> str:
+    """Decompiles messages, recompiles the text, and checks nothing changed."""
+    text = decompiler.decompile(to_message_models(messages))
+    assert _by_id(_compile(compiler, text)) == _by_id(messages)
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Construction
+# ---------------------------------------------------------------------------
+
+
+def test_compiler_requires_a_catalog() -> None:
+    with pytest.raises(A2uiCatalogError):
+        AtomCompiler([])
+
+
+def test_duplicate_catalog_ids_raise() -> None:
+    with pytest.raises(A2uiCatalogError):
+        AtomCompiler([_primary(), _primary()])
+    with pytest.raises(A2uiCatalogError):
+        AtomFormat([_primary(), _primary()])
+
+
+def test_format_without_catalog_is_an_error() -> None:
+    with pytest.raises(A2uiCatalogError, match="At least one catalog"):
+        AtomFormat([])
+
+
+# ---------------------------------------------------------------------------
+# Compiling components
+# ---------------------------------------------------------------------------
+
+
+def test_compile_notification_card(compiler: AtomCompiler) -> None:
+    text = """(data $/icon "check" $/title "Enable notification")
 (Card
   (Column :align "center"
     (Icon $/icon)
     (Text $/title)
     (Row :justify "center"
       (Button :action (Event "accept") (Text "Yes")))))"""
+    message = _compile_one(compiler, text)
+    surface = message["createSurface"]
+    assert surface["dataModel"] == {"icon": "check", "title": "Enable notification"}
+    comps = _components(message)
+    assert comps["root"]["component"] == "Card"
+    column = comps[comps["root"]["child"]]
+    assert column["component"] == "Column"
+    assert column["align"] == "center"
+    icon, title, row = (comps[cid] for cid in column["children"])
+    assert icon["name"] == {"@path": "/icon"}
+    assert title["text"] == {"@path": "/title"}
+    button = comps[row["children"][0]]
+    assert button["action"] == {"event": {"name": "accept"}}
+    assert comps[button["child"]] == {
+        "id": button["child"],
+        "component": "Text",
+        "text": "Yes",
+    }
 
-        compiled = self.compiler.compile(text)
-        self.assertIn("createSurface", compiled)
-        surface = compiled["createSurface"]
-        self.assertEqual(surface["dataModel"]["icon"], "check")
-        self.assertEqual(surface["dataModel"]["title"], "Enable notification")
 
-        comps = surface["components"]
-        self.assertGreater(len(comps), 0)
-        self.assertEqual(comps[0]["component"], "Card")
+def test_compile_auto_heals_missing_parens(compiler: AtomCompiler) -> None:
+    comps = _components(_compile_one(compiler, '(Card (Column (Text "Hello World"'))
+    assert [c["component"] for c in comps.values()].count("Text") == 1
+    assert comps["root"]["component"] == "Card"
 
-    def test_compile_auto_healing_missing_parens(self):
-        # Truncated S-expression missing trailing parens at EOF
-        text = """(Card (Column (Text "Hello World"""
-        compiled = self.compiler.compile(text)
-        self.assertIn("createSurface", compiled)
-        comps = compiled["createSurface"]["components"]
-        self.assertGreater(len(comps), 0)
-        self.assertEqual(comps[0]["component"], "Card")
 
-    def test_compile_delete_surface(self):
-        text = '(deleteSurface "dashboard-1")'
-        compiled = self.compiler.compile(text)
-        self.assertIn("deleteSurface", compiled)
-        self.assertEqual(compiled["deleteSurface"]["surfaceId"], "dashboard-1")
+def test_compile_empty_text_raises(compiler: AtomCompiler) -> None:
+    with pytest.raises(ValueError):
+        compiler.compile("")
 
-    def test_compile_call_function(self):
-        text = '(callFunction "openUrl" :url "https://example.com")'
-        compiled = self.compiler.compile(text)
-        self.assertIn("callFunction", compiled)
-        self.assertEqual(compiled["callFunction"]["call"], "openUrl")
-        self.assertEqual(compiled["callFunction"]["args"]["url"], "https://example.com")
 
-    def test_decompile_round_trip(self):
-        original = {
-            "version": "v1.0",
-            "createSurface": {
-                "surfaceId": "main",
-                "catalogId": "basic",
-                "dataModel": {"title": "Welcome"},
-                "components": [
-                    {"id": "node_0", "component": "Card", "child": "node_1"},
-                    {"id": "node_1", "component": "Text", "text": "Hello"},
-                ],
-            },
+def test_unknown_component_raises(compiler: AtomCompiler) -> None:
+    with pytest.raises(ValueError, match="Unknown component type 'Mystery'"):
+        compiler.compile('(Mystery (Text "Label"))')
+
+
+def test_unknown_component_hints_at_other_catalog() -> None:
+    compiler = AtomCompiler([_primary(), _secondary()])
+    with pytest.raises(ValueError, match=f':catalogId "{SEC}"'):
+        compiler.compile(f'(Box (Note :catalogId "{PRI}" "x"))')
+
+
+def test_component_unknown_in_every_catalog_raises() -> None:
+    compiler = AtomCompiler([_primary(), _secondary()])
+    with pytest.raises(ValueError, match="not defined in any catalog"):
+        compiler.compile('(Box (Mystery "x"))')
+
+
+def test_compile_primitives_and_bindings(compiler: AtomCompiler) -> None:
+    comps = _components(
+        _compile_one(
+            compiler,
+            '(Column (Text $/user/name) (Text (@path "relative/x")) (Slider :value'
+            " $/v :min 0 :max 2.5))",
+        )
+    )
+    first, second, slider = (comps[cid] for cid in comps["root"]["children"])
+    assert first["text"] == {"@path": "/user/name"}
+    assert second["text"] == {"@path": "relative/x"}
+    assert slider["min"] == 0
+    assert slider["max"] == 2.5
+
+
+def test_compile_function_call(compiler: AtomCompiler) -> None:
+    comps = _components(
+        _compile_one(compiler, '(Text :text (formatString "Hello ${/name}"))')
+    )
+    assert comps["root"]["text"] == {
+        "@call": "formatString",
+        "args": {"value": "Hello ${/name}"},
+    }
+
+
+def test_compile_event_context(compiler: AtomCompiler) -> None:
+    comps = _components(
+        _compile_one(
+            compiler,
+            '(Button :action (Event "submit" :user $/name :age 30) (Text "Go"))',
+        )
+    )
+    assert comps["root"]["action"] == {
+        "event": {
+            "name": "submit",
+            "context": {"user": {"@path": "/name"}, "age": 30},
         }
-        decompiled_text = self.decompiler.decompile(original)
-        self.assertIn('(data $/title "Welcome")', decompiled_text)
-        self.assertIn("(Card", decompiled_text)
-        self.assertIn('(Text :text "Hello")', decompiled_text)
+    }
 
-    def test_regression_data_model_brackets_and_empty_arrays(self):
-        """Regression test: (data $/rating [] $/likes [] $/comments "") must compile empty arrays cleanly."""
-        text_data_only = '(data $/rating [] $/likes [] $/comments "")'
-        compiled_data = self.compiler.compile(text_data_only)
-        self.assertIn("updateDataModel", compiled_data)
-        self.assertEqual(
-            compiled_data["updateDataModel"]["value"],
-            {"rating": [], "likes": [], "comments": ""},
-        )
 
-        text_with_card = (
-            '(data $/rating [] $/likes [] $/comments "") (Card (Text "Hello"))'
-        )
-        compiled_surface = self.compiler.compile(text_with_card)
-        self.assertIn("createSurface", compiled_surface)
-        self.assertEqual(
-            compiled_surface["createSurface"]["dataModel"],
-            {"rating": [], "likes": [], "comments": ""},
-        )
+def test_tagged_children_list_and_id_references(compiler: AtomCompiler) -> None:
+    comps = _components(
+        _compile_one(compiler, '(Column :children [(Text "A") "existing_id"])')
+    )
+    children = comps["root"]["children"]
+    assert comps[children[0]]["text"] == "A"
+    assert children[1] == "existing_id"
 
-    def test_regression_action_event_object_structure(self):
-        """Regression test: Button action events must emit action: {"event": {"name": "event_name", "context": {...}}}."""
-        text = (
-            '(Card (Button :action (Event "generate_dog" :name $/gen/name) (Text'
-            ' "Submit")))'
+
+def test_invalid_enum_falls_back_to_schema_default(compiler: AtomCompiler) -> None:
+    comps = _components(
+        _compile_one(
+            compiler,
+            '(ChoicePicker :value $/sel :options ["A" "B"] :variant "checkboxes")',
         )
-        compiled = self.compiler.compile(text)
-        comps = compiled["createSurface"]["components"]
-        btn = next(c for c in comps if c["component"] == "Button")
-        self.assertEqual(
-            btn["action"],
-            {
-                "event": {
-                    "name": "generate_dog",
-                    "context": {"name": {"path": "/gen/name"}},
-                }
+    )
+    picker = comps["root"]
+    assert picker["variant"] == "mutuallyExclusive"
+    assert picker["options"] == [
+        {"label": "A", "value": "A"},
+        {"label": "B", "value": "B"},
+    ]
+
+
+def test_list_template_and_tabs_round_trip(
+    compiler: AtomCompiler, decompiler: AtomDecompiler
+) -> None:
+    text = (
+        "(Column (List :children (template :items $/users (Card (Text"
+        ' $/item/name)))) (Tabs :tabs [(item :title "A" :child (Text "a"))]))'
+    )
+    message = _compile_one(compiler, text)
+    comps = _components(message)
+    lst, tabs = (comps[cid] for cid in comps["root"]["children"])
+    assert lst["children"]["path"] == "/users"
+    card = comps[lst["children"]["componentId"]]
+    assert comps[card["child"]]["text"] == {"@path": "item/name"}
+    assert tabs["tabs"][0]["title"] == "A"
+    assert comps[tabs["tabs"][0]["child"]]["text"] == "a"
+    _round_trip(compiler, decompiler, [message])
+
+
+def test_template_item_variable_only_rewrites_template_subtree(
+    compiler: AtomCompiler,
+) -> None:
+    text = (
+        "(Column (Text $/row/title) (List :children (template :items $/rows :item"
+        " row (Text $/row/title))))"
+    )
+    comps = _components(_compile_one(compiler, text))
+    outside, lst = (comps[cid] for cid in comps["root"]["children"])
+    assert outside["text"] == {"@path": "/row/title"}
+    inside = comps[lst["children"]["componentId"]]
+    assert inside["text"] == {"@path": "item/title"}
+
+
+# ---------------------------------------------------------------------------
+# Ids
+# ---------------------------------------------------------------------------
+
+
+def test_duplicate_explicit_id_raises(compiler: AtomCompiler) -> None:
+    with pytest.raises(ValueError, match="dup"):
+        compiler.compile('(Column (Text :id "dup" "a") (Text :id "dup" "b"))')
+
+
+def test_generated_ids_skip_explicit_ids(compiler: AtomCompiler) -> None:
+    comps = _components(
+        _compile_one(compiler, '(Column (Text "generated") (Text :id "node_0" "x"))')
+    )
+    first, second = comps["root"]["children"]
+    assert second == "node_0"
+    assert first != "node_0"
+    assert comps["node_0"]["text"] == "x"
+
+
+def test_ids_restart_for_each_compile(compiler: AtomCompiler) -> None:
+    first = _compile_one(compiler, '(Column (Text "a"))')
+    second = _compile_one(compiler, '(Column (Text "a"))')
+    assert first == second
+
+
+# ---------------------------------------------------------------------------
+# Messages
+# ---------------------------------------------------------------------------
+
+
+def test_data_only_input_is_a_root_data_update(compiler: AtomCompiler) -> None:
+    message = _compile_one(compiler, '(data $/rating [] $/likes [] $/comments "")')
+    assert message["updateDataModel"] == {
+        "surfaceId": "main",
+        "value": {"rating": [], "likes": [], "comments": ""},
+    }
+
+
+def test_explicit_surface_without_components_still_creates_it(
+    compiler: AtomCompiler,
+) -> None:
+    message = _compile_one(compiler, '(surface "s1") (data $/a 1)')
+    assert message["createSurface"]["surfaceId"] == "s1"
+    assert message["createSurface"]["dataModel"] == {"a": 1}
+
+
+def test_delete_surface(compiler: AtomCompiler, decompiler: AtomDecompiler) -> None:
+    message = _compile_one(compiler, '(deleteSurface "dashboard-1")')
+    assert message == {
+        "version": "v1.0",
+        "deleteSurface": {"surfaceId": "dashboard-1"},
+    }
+    assert (
+        _round_trip(compiler, decompiler, [message]) == '(deleteSurface "dashboard-1")'
+    )
+
+
+def test_call_function_ids_are_unique_and_round_trip(
+    compiler: AtomCompiler, decompiler: AtomDecompiler, basic: CatalogApi
+) -> None:
+    messages = _compile(
+        compiler,
+        '(callFunction "openUrl" :url "https://a.example")\n'
+        '(callFunction "openUrl" :url "https://b.example")',
+    )
+    assert [m["callRendererFunction"]["functionCallId"] for m in messages] == [
+        "call_1",
+        "call_2",
+    ]
+    assert messages[0]["callRendererFunction"]["callFunction"] == {
+        "@call": "openUrl",
+        "catalogId": basic.catalog_id,
+        "args": {"url": "https://a.example"},
+    }
+    text = _round_trip(compiler, decompiler, messages)
+    assert ':functionCallId "call_1"' in text
+
+
+def test_explicit_function_call_id_is_kept(compiler: AtomCompiler) -> None:
+    messages = _compile(
+        compiler,
+        '(callFunction "openUrl" :url "u")\n'
+        '(callFunction "openUrl" :functionCallId "call_1" :url "v")',
+    )
+    ids = [m["callRendererFunction"]["functionCallId"] for m in messages]
+    assert ids[1] == "call_1"
+    assert ids[0] != "call_1"
+
+
+def test_update_data_model_with_path(
+    compiler: AtomCompiler, decompiler: AtomDecompiler
+) -> None:
+    messages = _compile(
+        compiler,
+        '(updateDataModel "main" :path "/a/b" :value 5)\n'
+        '(updateDataModel "main" :value "scalar")\n'
+        '(updateDataModel "main" :path "/gone" :value null)',
+    )
+    assert [m["updateDataModel"] for m in messages] == [
+        {"surfaceId": "main", "path": "/a/b", "value": 5},
+        {"surfaceId": "main", "value": "scalar"},
+        {"surfaceId": "main", "path": "/gone", "value": None},
+    ]
+    _round_trip(compiler, decompiler, messages)
+
+
+def test_update_components_marker_round_trip(
+    compiler: AtomCompiler, decompiler: AtomDecompiler
+) -> None:
+    message = _compile_one(compiler, '(updateComponents "main")\n(Text :id "t1" "new")')
+    assert message["updateComponents"] == {
+        "surfaceId": "main",
+        "components": [{"id": "t1", "component": "Text", "text": "new"}],
+    }
+    text = _round_trip(compiler, decompiler, [message])
+    assert text.startswith('(updateComponents "main")')
+
+
+def test_multi_message_round_trip_in_source_order() -> None:
+    compiler = AtomCompiler([_primary(), _secondary()])
+    decompiler = AtomDecompiler([_primary(), _secondary()])
+    text = (
+        '(surface "a")\n(Box (Label "hi"))\n'
+        '(surface "b")\n(Stack (Note "there"))\n'
+        '(deleteSurface "c")'
+    )
+    messages = _compile(compiler, text)
+    assert [next(k for k in m if k != "version") for m in messages] == [
+        "createSurface",
+        "createSurface",
+        "deleteSurface",
+    ]
+    # With several catalogs a surface has no default catalog, so every
+    # component names the only catalog that defines it.
+    assert "catalogId" not in messages[0]["createSurface"]
+    assert "catalogId" not in messages[1]["createSurface"]
+    assert {c["catalogId"] for c in _components(messages[0]).values()} == {PRI}
+    assert {c["catalogId"] for c in _components(messages[1]).values()} == {SEC}
+    assert _components(messages[1])["root"]["component"] == "Stack"
+    decompiled = _round_trip(compiler, decompiler, messages)
+    assert ":catalogId" not in decompiled
+
+
+def test_secondary_catalog_templates_and_object_lists() -> None:
+    compiler = AtomCompiler([_primary(), _secondary()])
+    decompiler = AtomDecompiler([_primary(), _secondary()])
+    text = (
+        '(surface "s2")\n'
+        "(Stack (Deck :cards (template :items $/notes (Note $/item/body)))"
+        ' (Pager :pages [(item :title "P1" :child (Note "x"))]))'
+    )
+    message = _compile_one(compiler, text)
+    comps = _components(message)
+    deck, pager = (comps[cid] for cid in comps["root"]["items"])
+    assert deck["cards"]["path"] == "/notes"
+    assert comps[deck["cards"]["componentId"]]["body"] == {"@path": "item/body"}
+    assert pager["pages"][0]["title"] == "P1"
+    assert comps[pager["pages"][0]["child"]]["body"] == "x"
+    assert all(c["catalogId"] == SEC for c in comps.values())
+    _round_trip(compiler, decompiler, [message])
+
+
+def test_escaping_round_trip(
+    compiler: AtomCompiler, decompiler: AtomDecompiler
+) -> None:
+    message = {
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "catalogId": compiler.catalogs[0].catalog_id,
+            "components": [
+                {"id": "root", "component": "Column", "children": ["q", "k"]},
+                {"id": "q", "component": "Text", "text": 'say "hi"\n\\ok'},
+                {"id": "k", "component": "Text", "text": ":id"},
+            ],
+            "dataModel": {
+                "list": [1, "two", {"three": 3}],
+                "nested": {"a b": "spaced key", "c": [True, None]},
             },
-        )
+        },
+    }
+    _round_trip(compiler, decompiler, [message])
 
-    def test_regression_unwrap_create_surface_macro_expression(self):
-        """Regression test: Outer (createSurface "main" ...) macro forms must not create invalid component nodes."""
-        text = '(createSurface "main" (Column (Text "Hello World")))'
-        compiled = self.compiler.compile(text)
-        comps = compiled["createSurface"]["components"]
-        comp_types = [c["component"] for c in comps]
-        self.assertNotIn("createSurface", comp_types)
-        self.assertIn("Column", comp_types)
-        self.assertIn("Text", comp_types)
 
-    def test_compile_empty_text_raises_value_error(self):
-        """Negative test: Empty input text should raise ValueError."""
-        with self.assertRaises(ValueError):
-            self.compiler.compile("")
+_ZIP_CHECK = {
+    "condition": {
+        "@call": "regex",
+        "args": {"pattern": "^[0-9]{5}$", "value": {"@path": "/zip"}},
+    },
+    "message": "Bad zip",
+}
 
-    def test_compile_helper_functions(self):
-        """Test formatting helper functions formatString, formatDate, formatCurrency."""
-        text = '(Card (Text :text (formatString "Hello %s" $/name)))'
-        compiled = self.compiler.compile(text)
-        comps = compiled["createSurface"]["components"]
-        txt = next(c for c in comps if c["component"] == "Text")
-        self.assertEqual(
-            txt["text"],
-            {
-                "call": "formatString",
-                "args": {"value": "Hello %s", "arg_1": {"path": "/name"}},
+
+@pytest.mark.parametrize(
+    "checks",
+    [
+        '(regex "^[0-9]{5}$" "Bad zip")',
+        '[(regex "^[0-9]{5}$" "Bad zip")]',
+        '(regex :pattern "^[0-9]{5}$" :message "Bad zip")',
+        '(regex :value $/zip :pattern "^[0-9]{5}$" :message "Bad zip")',
+        '(regex $/zip "^[0-9]{5}$" "Bad zip")',
+        '(regex :value $/zip "^[0-9]{5}$" "Bad zip")',
+    ],
+)
+def test_check_positional_args_skip_implicit_value(
+    compiler: AtomCompiler, checks: str
+) -> None:
+    message = _compile_one(
+        compiler, f'(TextField :label "Zip" :value $/zip :checks {checks})'
+    )
+    field = _components(message)["root"]
+    checks_out = field["checks"]
+    for check in checks_out:
+        check["condition"]["args"] = dict(sorted(check["condition"]["args"].items()))
+    assert checks_out == [_ZIP_CHECK]
+
+
+def test_check_implicit_value_does_not_depend_on_property_order(
+    compiler: AtomCompiler,
+) -> None:
+    message = _compile_one(
+        compiler,
+        '(TextField :checks (regex "^[0-9]{5}$" "Bad zip") :label "Zip" :value $/zip)',
+    )
+    rule = _components(message)["root"]["checks"][0]
+    assert rule["message"] == "Bad zip"
+    assert rule["condition"]["args"] == {
+        "pattern": "^[0-9]{5}$",
+        "value": {"@path": "/zip"},
+    }
+
+
+def test_check_without_component_value_maps_positionally(
+    compiler: AtomCompiler,
+) -> None:
+    # Without a component value nothing is bound implicitly, so the first
+    # positional argument fills `value`, as for any function call.
+    message = _compile_one(
+        compiler, '(TextField :label "x" :checks (regex $/other "^a$" "Must be a"))'
+    )
+    rule = _components(message)["root"]["checks"][0]
+    assert rule == {
+        "condition": {
+            "@call": "regex",
+            "args": {"value": {"@path": "/other"}, "pattern": "^a$"},
+        },
+        "message": "Must be a",
+    }
+
+
+def test_check_rule_object_form_is_kept(compiler: AtomCompiler) -> None:
+    message = _compile_one(
+        compiler,
+        '(TextField :label "Zip" :value $/zip'
+        ' :checks (:condition (required) :message "Needed"))',
+    )
+    assert _components(message)["root"]["checks"] == [{
+        "condition": {"@call": "required", "args": {"value": {"@path": "/zip"}}},
+        "message": "Needed",
+    }]
+
+
+def test_checks_round_trip(compiler: AtomCompiler, decompiler: AtomDecompiler) -> None:
+    message = _compile_one(
+        compiler,
+        '(TextField :label "Zip" :value $/zip'
+        ' :checks [(required) (regex "^[0-9]{5}$" "Bad zip")])',
+    )
+    text = _round_trip(compiler, decompiler, [message])
+    assert ':pattern "^[0-9]{5}$"' in text
+    assert ':message "Bad zip"' in text
+
+
+def test_raw_json_input_is_accepted(compiler: AtomCompiler) -> None:
+    message = _compile_one(
+        compiler,
+        '<a2ui-json>{"version": "v1.0", "deleteSurface": {"surfaceId": "j"}}'
+        "</a2ui-json>",
+    )
+    assert message["deleteSurface"]["surfaceId"] == "j"
+
+
+# ---------------------------------------------------------------------------
+# Multiple catalogs
+# ---------------------------------------------------------------------------
+
+
+TER = "https://a2ui.org/test/tertiary"
+
+
+def _tertiary() -> CatalogApi:
+    """A catalog that redefines `Label` and `check` from the primary catalog."""
+    return Catalog.from_json(
+        {
+            "catalogId": TER,
+            "components": {
+                "Label": _component(
+                    "Label", {"text": _DYN_STRING, "tone": {"type": "string"}}
+                ),
             },
-        )
-
-    def test_compile_list_template_expression(self):
-        """Test List component with template child expression."""
-        text = "(List (template :item item (Text item/title)))"
-        compiled = self.compiler.compile(text)
-        comps = compiled["createSurface"]["components"]
-        lst = next(c for c in comps if c["component"] == "List")
-        self.assertIn("template", lst)
-        self.assertIn("componentId", lst["template"])
-
-    def test_atom_format_and_parser_integration(self):
-        """Integration test for AtomFormat, AtomParser, and sentinel tag unwrapping."""
-        from a2ui.inference_formats.experimental.atom import AtomFormat
-
-        fmt = AtomFormat(catalog=self.catalog, surface_id="main")
-        parser = fmt.parser
-
-        # Test has_format_content
-        raw_text = '<a2ui>(Card (Text "Hello"))</a2ui>'
-        self.assertTrue(parser.has_format_content(raw_text, complete=True))
-        self.assertFalse(parser.has_format_content("no tags", complete=True))
-
-        # Test unwrap
-        parts = parser.unwrap(raw_text)
-        self.assertEqual(len(parts), 1)
-
-        # Test compile
-        compiled = parser.compile('(Card (Text "Hello"))')
-        self.assertEqual(len(compiled), 1)
-        self.assertIn("createSurface", compiled[0])
-
-        # Test wrap_decompiled_blocks
-        wrapped = parser.wrap_decompiled_blocks(['(Card (Text "Hello"))'])
-        self.assertIn("<a2ui>", wrapped)
-        self.assertIn("</a2ui>", wrapped)
-
-    def test_atom_parser_compilation_error(self):
-        """Negative test: Invalid syntax in AtomParser should raise A2uiCompilationError."""
-        from a2ui.inference_formats.experimental.atom import AtomFormat
-        from a2ui.parser.errors import A2uiCompilationError
-
-        fmt = AtomFormat(catalog=self.catalog)
-        with self.assertRaises(A2uiCompilationError):
-            # Non-string format_content causes compilation error in compiler
-            fmt.parser.compile(12345)  # type: ignore
-
-    def test_atom_prompt_generator(self):
-        """Test AtomPromptGenerator generation of catalog prompt rules and component signatures."""
-        from a2ui.inference_formats.experimental.atom import AtomFormat
-        from a2ui.schema.catalog import CatalogConfig
-
-        cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
-        cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        cat = cat_cfg.to_catalog(protocol_version="1.0")
-
-        fmt = AtomFormat(catalog=cat, examples_path="/tmp/examples")
-        self.assertEqual(fmt.examples_path, "/tmp/examples")
-        prompt_gen = fmt.prompt_generator
-        prompt = prompt_gen.generate(
-            role_description="You are a helpful UI generator.",
-            workflow_description="Follow standard A2UI guidelines.",
-        )
-        self.assertIn("You are a helpful UI generator.", prompt)
-        self.assertIn("Follow standard A2UI guidelines.", prompt)
-        self.assertIn(
-            "Output the user interface using compact A2UI Atom S-Expression notation.",
-            prompt,
-        )
-        self.assertIn("<a2ui>", prompt)
-        self.assertIn("Component Catalog Signatures", prompt)
-        self.assertIn("- (Card", prompt)
-        self.assertIn("- (Column", prompt)
-
-    def test_compiler_positional_properties_with_real_catalog(self):
-        """Test positional property mapping in AtomCompiler with real catalog schema helper."""
-        from a2ui.inference_formats.experimental.atom import AtomCompiler
-        from a2ui.schema.catalog import CatalogConfig
-
-        cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
-        cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        cat = cat_cfg.to_catalog(protocol_version="1.0")
-
-        compiler = AtomCompiler(catalog=cat)
-        text = '(Card (Column (Text "Positional Text Property")))'
-        compiled = compiler.compile(text)
-        comps = compiled["createSurface"]["components"]
-        txt = next(c for c in comps if c["component"] == "Text")
-        self.assertEqual(txt["text"], "Positional Text Property")
-
-    def test_decompile_standalone_operations(self):
-        """Test decompilation of deleteSurface and callFunction payloads."""
-        del_payload = {"version": "v1.0", "deleteSurface": {"surfaceId": "surf1"}}
-        self.assertEqual(
-            self.decompiler.decompile(del_payload), '(deleteSurface "surf1")'
-        )
-
-        call_payload = {
-            "version": "v1.0",
-            "callFunction": {"call": "openUrl", "args": {"url": "https://a2ui.org"}},
-        }
-        self.assertEqual(
-            self.decompiler.decompile(call_payload),
-            '(callFunction "openUrl" :url "https://a2ui.org")',
-        )
-
-    def test_format_missing_catalog_raises_value_error(self):
-        """Test AtomFormat without catalog raises ValueError on ensure_catalog."""
-        from a2ui.inference_formats.experimental.atom import AtomFormat
-
-        fmt = AtomFormat()
-        with self.assertRaises(ValueError):
-            _ = fmt.parser
-
-    def test_decompile_update_data_model(self):
-        """Test decompilation of updateDataModel payload with primitives."""
-        payload = {
-            "version": "v1.0",
-            "updateDataModel": {"value": {"score": 100, "active": True, "note": None}},
-        }
-        decompiled = self.decompiler.decompile(payload)
-        self.assertIn("(data $/score 100 $/active true $/note null)", decompiled)
-
-    def test_decompile_multiple_children_and_events(self):
-        """Test decompilation of multiple children and event action objects."""
-        payload = {
-            "version": "v1.0",
-            "createSurface": {
-                "components": [
-                    {"id": "root", "component": "Column", "children": ["c1", "c2"]},
-                    {"id": "c1", "component": "Text", "text": {"path": "title"}},
-                    {
-                        "id": "c2",
-                        "component": "Button",
-                        "action": {"event": {"name": "submit"}},
-                        "child": "c1",
-                    },
-                ]
+            "functions": {
+                "check": _function({"pattern": {"type": "string"}}, ["pattern"]),
             },
-        }
-        decompiled = self.decompiler.decompile(payload)
-        self.assertIn("(Column", decompiled)
-        self.assertIn("$/title", decompiled)
-        self.assertIn('(Event "submit")', decompiled)
+        },
+        protocol_version="v1.0",
+    )
 
-    def test_compiler_primitives_and_relative_paths(self):
-        """Test compilation of boolean, null, number literals and relative path bindings."""
-        text = (
-            "(Card (Text :text $title :count 42 :ratio 3.14 :visible true :disabled"
-            " false :extra null))"
+
+def _with_component_catalogs(
+    messages: list[dict[str, Any]], decompiler_catalog: str | None = None
+) -> list[dict[str, Any]]:
+    """Rewrites messages to the form the compiler emits with several catalogs.
+
+    `createSurface` loses its `catalogId`, and each component without one gets
+    the surface's catalog (or `decompiler_catalog`) instead.
+    """
+    result = []
+    for message in messages:
+        message = dict(message)
+        body = message.get("createSurface")
+        if isinstance(body, dict):
+            body = dict(body)
+            surface_cat = body.pop("catalogId", decompiler_catalog)
+            body["components"] = [
+                {"catalogId": surface_cat, **c} if "catalogId" not in c else c
+                for c in body.get("components", [])
+            ]
+            message["createSurface"] = body
+        result.append(message)
+    return result
+
+
+def test_names_resolve_by_unique_lookup_across_catalogs() -> None:
+    compiler = AtomCompiler([_primary(), _secondary()])
+    text = '(Box (Note :body (check "v")) (Note :body (secOnly 3)))'
+    message = _compile_one(compiler, text)
+    assert "catalogId" not in message["createSurface"]
+    comps = _components(message)
+    assert comps["root"]["catalogId"] == PRI
+    first, second = (comps[cid] for cid in comps["root"]["children"])
+    assert first["catalogId"] == SEC
+    assert first["body"] == {"@call": "check", "catalogId": PRI, "args": {"value": "v"}}
+    assert second["body"] == {
+        "@call": "secOnly",
+        "catalogId": SEC,
+        "args": {"limit": 3},
+    }
+
+
+def test_ambiguous_component_name_needs_catalog_id() -> None:
+    compiler = AtomCompiler([_primary(), _tertiary()])
+    with pytest.raises(ValueError, match="defined in several catalogs") as err:
+        compiler.compile('(Box (Label "x"))')
+    assert PRI in str(err.value) and TER in str(err.value)
+    comps = _components(
+        _compile_one(compiler, f'(Box (Label :catalogId "{TER}" :tone "warm" "x"))')
+    )
+    label = comps[comps["root"]["children"][0]]
+    assert label == {
+        "id": label["id"],
+        "component": "Label",
+        "catalogId": TER,
+        "text": "x",
+        "tone": "warm",
+    }
+
+
+def test_ambiguous_function_name_needs_catalog_id() -> None:
+    compiler = AtomCompiler([_primary(), _tertiary()])
+    with pytest.raises(ValueError, match="function 'check' is defined in several"):
+        compiler.compile(f'(Label :catalogId "{PRI}" :text (check "v"))')
+    comps = _components(
+        _compile_one(
+            compiler,
+            f'(Label :catalogId "{PRI}" :text (check :catalogId "{TER}" "^a$"))',
         )
-        compiled = self.compiler.compile(text)
-        comps = compiled["createSurface"]["components"]
-        txt = next(c for c in comps if c["component"] == "Text")
-        self.assertEqual(txt["text"], {"path": "/title"})
-        self.assertEqual(txt["count"], 42)
-        self.assertEqual(txt["ratio"], 3.14)
-        self.assertEqual(txt["visible"], True)
-        self.assertEqual(txt["disabled"], False)
-        self.assertEqual(txt["extra"], None)
-
-    def test_compiler_tagged_children_list(self):
-        """Test compilation of explicit :children [ (Text "A") (Text "B") ] attribute."""
-        text = '(Column :children [ (Text "A") (Text "B") ])'
-        compiled = self.compiler.compile(text)
-        comps = compiled["createSurface"]["components"]
-        col = next(c for c in comps if c["component"] == "Column")
-        self.assertEqual(len(col["children"]), 2)
-
-    def test_function_signatures_and_enum_helpers(self):
-        """Test function signature generation and enum schema helpers in prompt generator."""
-        from a2ui.inference_formats.experimental.atom import AtomFormat
-        from a2ui.inference_formats.experimental.atom.prompt_generator import _get_schema_enum
-        from a2ui.schema.catalog import CatalogConfig
-
-        cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
-        cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        cat = cat_cfg.to_catalog(protocol_version="1.0")
-
-        fmt = AtomFormat(catalog=cat)
-        func_sigs = fmt.prompt_generator._generate_function_signatures()
-        self.assertIsInstance(func_sigs, str)
-
-        # Test _get_schema_enum helper
-        enum_schema = {"oneOf": [{"enum": ["a", "b"]}]}
-        self.assertEqual(_get_schema_enum(enum_schema), ["a", "b"])
-
-    def test_decompile_multiple_root_nodes(self):
-        """Test decompilation when components list has multiple root nodes."""
-        payload = {
-            "version": "v1.0",
-            "createSurface": {
-                "components": [
-                    {"id": "node_0", "component": "Text", "text": "First"},
-                    {"id": "node_1", "component": "Text", "text": "Second"},
-                ]
-            },
-        }
-        decompiled = self.decompiler.decompile(payload)
-        self.assertIn('(Text :text "First")', decompiled)
-
-    def test_compiler_schema_expects_single_child_and_helpers(self):
-        """Test _schema_expects_single_child and formatDate/formatCurrency helpers."""
-        from a2ui.inference_formats.experimental.atom import AtomCompiler
-        from a2ui.schema.catalog import CatalogConfig
-
-        cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
-        cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        cat = cat_cfg.to_catalog(protocol_version="1.0")
-
-        compiler = AtomCompiler(catalog=cat)
-        self.assertTrue(compiler._schema_expects_single_child("Card"))
-        self.assertFalse(compiler._schema_expects_single_child("Column"))
-
-        # Test formatDate and formatCurrency
-        text = (
-            "(Card (Text :text (formatDate $/created_at) :amount (formatCurrency"
-            " 99.99)))"
-        )
-        compiled = compiler.compile(text)
-        comps = compiled["createSurface"]["components"]
-        txt = next(c for c in comps if c["component"] == "Text")
-        self.assertEqual(
-            txt["text"],
-            {"call": "formatDate", "args": {"value": {"path": "/created_at"}}},
-        )
-        self.assertEqual(
-            txt["amount"], {"call": "formatCurrency", "args": {"value": 99.99}}
-        )
-
-    def test_direct_enum_schema_helper(self):
-        """Test _get_schema_enum with direct dict enum."""
-        from a2ui.inference_formats.experimental.atom.prompt_generator import _get_schema_enum
-
-        self.assertEqual(_get_schema_enum({"enum": ["opt1", "opt2"]}), ["opt1", "opt2"])
-        self.assertIsNone(_get_schema_enum("not_a_dict"))
-
-    def test_accept_adjacency_list_string_child_ids(self):
-        """Fault-tolerance test: Allow string child ID references in Column."""
-        text_tagged_string_id = '(Column :children ["node_1"])'
-        compiled = self.compiler.compile(text_tagged_string_id)
-        comps = compiled["createSurface"]["components"]
-        col = next(c for c in comps if c["component"] == "Column")
-        self.assertEqual(col["children"], ["node_1"])
-
-    def test_complex_deeply_nested_tree(self):
-        """Positive test: Verify 6+ level deeply nested tree compilation and schema integrity."""
-        text = """
-(Card
-  (Column :align "stretch"
-    (Row :justify "spaceBetween"
-      (Text "Header Title")
-      (Icon "star"))
-    (Card
-      (Column
-        (Text "Nested Level 4")
-        (Row
-          (Button :action (Event "submit" :name $/user/name)
-            (Text "Confirm")))))))
-"""
-        compiled = self.compiler.compile(text)
-        self.assertIn("createSurface", compiled)
-        comps = compiled["createSurface"]["components"]
-        # Verify 11 total component nodes created cleanly in tree topology
-        self.assertEqual(len(comps), 11)
-
-        # Verify root component is Card
-        root = next(c for c in comps if c["id"] == "root")
-        self.assertEqual(root["component"], "Card")
-
-        # Verify deep child Action event object
-        btn = next(c for c in comps if c["component"] == "Button")
-        self.assertEqual(
-            btn["action"],
-            {"event": {"name": "submit", "context": {"name": {"path": "/user/name"}}}},
-        )
-
-    def test_unknown_component_type_raises_value_error(self):
-        """Negative test: Ensure unknown component types raise a descriptive ValueError instead of substituting UI."""
-        with self.assertRaises(ValueError) as ctx:
-            self.compiler.compile('(UnknownCustomComponent (Text "Label"))')
-        self.assertIn(
-            "Unknown component type 'UnknownCustomComponent'", str(ctx.exception)
-        )
-        self.assertIn("Available components in catalog are:", str(ctx.exception))
-
-    def test_fuzzed_synthetic_catalog_agnosticism(self):
-        """Verify 100% catalog agnosticism using a fuzzed synthetic catalog with non-standard names."""
-        from a2ui.inference_formats.experimental.atom import AtomCompiler, AtomDecompiler
-        from a2ui.core import Catalog
-
-        # Synthetic catalog definitions with non-standard names
-        synthetic_components = {
-            "CustomContainerX": {
-                "type": "object",
-                "properties": {
-                    "component": {"const": "CustomContainerX"},
-                    "sub_nodes": {
-                        "$ref": (
-                            "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
-                        )
-                    },
-                },
-                "required": ["component"],
-            },
-            "CustomSlotCardY": {
-                "type": "object",
-                "properties": {
-                    "component": {"const": "CustomSlotCardY"},
-                    "slot_node": {
-                        "$ref": (
-                            "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Child"
-                        )
-                    },
-                },
-                "required": ["component"],
-            },
-            "CustomWidgetZ": {
-                "type": "object",
-                "properties": {
-                    "component": {"const": "CustomWidgetZ"},
-                    "label_text": {
-                        "$ref": (
-                            "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicString"
-                        )
-                    },
-                    "press_handler": {
-                        "$ref": (
-                            "https://a2ui.org/specification/v1_0/common_types.json#/$defs/Action"
-                        )
-                    },
-                },
-                "required": ["component", "label_text"],
-            },
-        }
-
-        cat = Catalog.from_json(
-            {
-                "catalogId": "https://a2ui.org/custom_fuzzed_catalog",
-                "components": synthetic_components,
-            },
-            protocol_version="v1.0",
-        )
-        compiler = AtomCompiler(catalog=cat)
-        decompiler = AtomDecompiler(catalog=cat)
-
-        # 1. Compile S-expression with synthetic components & non-standard property names
-        atom_src = (
-            "(CustomSlotCardY :slot_node (CustomContainerX :sub_nodes [(CustomWidgetZ"
-            ' :label_text "Hello Synthetic" :press_handler (Event "on_synthetic_click"'
-            " :data $/user/id))]))"
-        )
-        compiled = compiler.compile(atom_src)
-
-        self.assertIn("createSurface", compiled)
-        comps = compiled["createSurface"]["components"]
-        comp_types = [c["component"] for c in comps]
-        self.assertIn("CustomSlotCardY", comp_types)
-        self.assertIn("CustomContainerX", comp_types)
-        self.assertIn("CustomWidgetZ", comp_types)
-
-        # 2. Decompile back to S-expression and verify round-trip integrity
-        decompiled = decompiler.decompile(compiled)
-        self.assertIn("(CustomSlotCardY", decompiled)
-        self.assertIn("(CustomContainerX", decompiled)
-        self.assertIn('(CustomWidgetZ :label_text "Hello Synthetic"', decompiled)
-
-    def test_compile_child_list_template_property_assignment(self):
-        """Test standard v1.0 Catalog List component dynamic template assignment to children property."""
-        from a2ui.schema.catalog import CatalogConfig
-
-        cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
-        cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        cat = cat_cfg.to_catalog(protocol_version="1.0")
-
-        compiler = AtomCompiler(catalog=cat)
-        text = '(List :items $/products :template (template item (Card (Text "Item"))))'
-        compiled = compiler.compile(text)
-
-        comps = compiled["createSurface"]["components"]
-        lst = next(c for c in comps if c["component"] == "List")
-        self.assertIn("children", lst)
-        self.assertIsInstance(lst["children"], dict)
-        self.assertIn("componentId", lst["children"])
-        self.assertEqual(lst["children"]["path"], "/products")
-        self.assertNotIn("items", lst)
-        self.assertNotIn("template", lst)
-
-    def test_synthetic_catalog_child_list_template_assignment(self):
-        """Test catalog-agnostic ChildList template assignment with custom non-standard property name 'sub_nodes'."""
-        from a2ui.core import Catalog
-
-        synthetic_components = {
-            "CustomContainerX": {
-                "type": "object",
-                "properties": {
-                    "component": {"const": "CustomContainerX"},
-                    "sub_nodes": {
-                        "$ref": (
-                            "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
-                        )
-                    },
-                },
-                "required": ["component", "sub_nodes"],
-            },
-            "CustomWidgetZ": {
-                "type": "object",
-                "properties": {
-                    "component": {"const": "CustomWidgetZ"},
-                    "label_text": {"type": "string"},
-                },
-                "required": ["component"],
-            },
-        }
-        cat = Catalog.from_json(
-            {
-                "catalogId": "https://a2ui.org/custom_fuzzed_catalog",
-                "components": synthetic_components,
-            },
-            protocol_version="v1.0",
-        )
-        compiler = AtomCompiler(catalog=cat)
-        atom_src = (
-            "(CustomContainerX :items $/catalog_items (template (CustomWidgetZ"
-            " :label_text $/title)))"
-        )
-        compiled = compiler.compile(atom_src)
-
-        comps = compiled["createSurface"]["components"]
-        container = next(c for c in comps if c["component"] == "CustomContainerX")
-        self.assertIn("sub_nodes", container)
-        self.assertIsInstance(container["sub_nodes"], dict)
-        self.assertEqual(container["sub_nodes"]["path"], "/catalog_items")
-        self.assertNotIn("items", container)
-        self.assertNotIn("template", container)
-
-    def test_atom_compiler_extended_coverage(self):
-        """Test think tags, a2ui-json, direct JSON, createSurface forms, weight conversions, and functions with real catalog."""
-        from a2ui.inference_formats.experimental.atom import AtomCompiler, AtomFormat
-        from a2ui.schema import CatalogConfig
-
-        cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
-        cat_cfg = CatalogConfig.from_path("basic_catalog", cat_path)
-        cat = cat_cfg.to_catalog(protocol_version="1.0")
-        compiler = AtomCompiler(catalog=cat)
-
-        # 1. Think tags and clean up
-        think_text = '<think>reasoning process...</think>\n(Card (Text "Hello"))'
-        compiled = compiler.compile(think_text)
-        self.assertIn("createSurface", compiled)
-
-        # 2. <a2ui-json> block
-        json_tag_text = (
-            '<a2ui-json>{"version": "v1.0", "deleteSurface": {"surfaceId":'
-            ' "json_surf"}}</a2ui-json>'
-        )
-        compiled_json_tag = compiler.compile(json_tag_text)
-        self.assertEqual(
-            compiled_json_tag.get("deleteSurface", {}).get("surfaceId"), "json_surf"
-        )
-
-        # 3. Direct JSON
-        raw_json_text = (
-            '{"version": "v1.0", "updateDataModel": {"value": {"score": 42}}}'
-        )
-        compiled_raw_json = compiler.compile(raw_json_text)
-        self.assertEqual(
-            compiled_raw_json.get("updateDataModel", {}).get("value"), {"score": 42}
-        )
-
-        # 4. <a2ui> wrapper
-        a2ui_tag_text = '<a2ui>(deleteSurface "tag_surf")</a2ui>'
-        compiled_tag = compiler.compile(a2ui_tag_text)
-        self.assertEqual(
-            compiled_tag.get("deleteSurface", {}).get("surfaceId"), "tag_surf"
-        )
-
-        # 5. createSurface macro forms
-        create_surf_text = (
-            '(createSurface :id "custom_surf" :data (data $/foo "bar") :child (Card'
-            ' (Text "Sub")))'
-        )
-        compiled_cs = compiler.compile(create_surf_text)
-        self.assertIn("createSurface", compiled_cs)
-        self.assertEqual(compiled_cs["createSurface"]["surfaceId"], "custom_surf")
-        self.assertEqual(compiled_cs["createSurface"]["dataModel"], {"foo": "bar"})
-
-        create_surf_children_text = (
-            '(createSurface :id "cs2" :children [ (Card (Text "A")) (Card (Text'
-            ' "B")) ])'
-        )
-        compiled_cs2 = compiler.compile(create_surf_children_text)
-        self.assertEqual(compiled_cs2["createSurface"]["surfaceId"], "cs2")
-
-        # 6. Weight conversions
-        weight_text = '(Column :weight "2.5" (Text "Weighted"))'
-        compiled_w = compiler.compile(weight_text)
-        col = compiled_w["createSurface"]["components"][0]
-        self.assertEqual(col.get("weight"), 2.5)
-
-        invalid_weight_text = '(Column :weight "invalid" (Text "Weighted"))'
-        compiled_iw = compiler.compile(invalid_weight_text)
-        col_iw = compiled_iw["createSurface"]["components"][0]
-        self.assertNotIn("weight", col_iw)
-
-        # 7. Function expressions (regex, openUrl, pluralize, required, min, max, email, formatString)
-        fn_text = """(Card
-          (Text :text (regex :pattern "^[0-9]+$")
-                :variant (formatString "${user/name}")))"""
-        compiled_fn = compiler.compile(fn_text)
-        txt = next(
-            c
-            for c in compiled_fn["createSurface"]["components"]
-            if c["component"] == "Text"
-        )
-        self.assertEqual(
-            txt["text"], {"call": "regex", "args": {"pattern": "^[0-9]+$"}}
-        )
-        self.assertEqual(
-            txt["variant"], {"call": "formatString", "args": {"value": "${user/name}"}}
-        )
-
-        # Additional function calls
-        fn_call_text = '(callFunction "openUrl" :url "https://example.com")'
-        compiled_fc = compiler.compile(fn_call_text)
-        self.assertIn("callFunction", compiled_fc)
-
-        fn_direct_text = (
-            '(Button :action (Event "click" :context (data $/a 1)) (Text "Click"))'
-        )
-        compiled_fd = compiler.compile(fn_direct_text)
-        self.assertIn("createSurface", compiled_fd)
-
-        # 8. Event contexts
-        ev_list_text = (
-            '(Button :action (Event "ev2" :context [ :x $/x :y $/y ]) (Text "Btn"))'
-        )
-        compiled_ev_list = compiler.compile(ev_list_text)
-        btn_list = next(
-            c
-            for c in compiled_ev_list["createSurface"]["components"]
-            if c["component"] == "Button"
-        )
-        self.assertEqual(btn_list["action"]["event"]["name"], "ev2")
-
-        ev_val_text = (
-            '(Button :action (Event "ev3" :context $/single_val) (Text "Btn"))'
-        )
-        compiled_ev_val = compiler.compile(ev_val_text)
-        btn_val = next(
-            c
-            for c in compiled_ev_val["createSurface"]["components"]
-            if c["component"] == "Button"
-        )
-        self.assertEqual(btn_val["action"]["event"]["name"], "ev3")
-
-        # 9. Tabs compilation
-        tabs_text = (
-            '(Tabs :tabs [ (Tab :title "Tab1" :content (Text "Content1")) (tab :label'
-            ' "Tab2" (Text "Content2")) ])'
-        )
-        compiled_tabs = compiler.compile(tabs_text)
-        tabs_comp = compiled_tabs["createSurface"]["components"][0]
-        self.assertEqual(tabs_comp["component"], "Tabs")
-        self.assertEqual(len(tabs_comp["tabs"]), 2)
-
-        # 11. Validation checks, ChoicePicker variant, and options in component properties
-        fn_val_text = """
-        (Card
-          (Column
-            (Text :text (formatDate $/created_at))
-            (Text :text (formatCurrency $/amount))
-            (ChoicePicker :value $/sel :options [ "Option A" "Option B" ] :variant "checkboxes")
-            (TextField :label "Email" :value $/email :checks [ (required) (min 5) (regex :pattern "^[a-z]+$") ])))
-        """
-        compiled_fn_val = compiler.compile(fn_val_text)
-        self.assertIn("createSurface", compiled_fn_val)
-        cp = next(
-            c
-            for c in compiled_fn_val["createSurface"]["components"]
-            if c["component"] == "ChoicePicker"
-        )
-        self.assertEqual(cp.get("variant"), "multipleSelection")
-
-        # 12. Prompt generator with function signatures and enum details
-        fmt = AtomFormat(catalog=cat)
-        prompt_gen = fmt.prompt_generator
-        func_sigs = prompt_gen._generate_function_signatures()
-        self.assertIsInstance(func_sigs, str)
-        prompt_full = prompt_gen.generate(include_schema=True, include_examples=True)
-        self.assertIn("Instructions", prompt_full)
-
-    def test_catalog_schema_helper_wrapper_direct(self):
-        """Direct tests for CatalogSchemaHelperWrapper methods and fallback branches."""
-        from a2ui.inference_formats.experimental.atom.compiler import CatalogSchemaHelperWrapper
-
-        class PlainCatalog:
-            pass
-
-        plain_cat = PlainCatalog()
-        wrapper_plain = CatalogSchemaHelperWrapper(plain_cat)
-        self.assertEqual(wrapper_plain.get_available_components(), [])
-        self.assertEqual(wrapper_plain.get_component_properties("Unknown"), {})
-        self.assertEqual(wrapper_plain.get_component_required("Unknown"), [])
-        self.assertIsNone(wrapper_plain.get_property_type("Unknown", "prop"))
-        self.assertIsNone(wrapper_plain.get_child_list_property("Unknown"))
-        self.assertIsNone(wrapper_plain.get_single_child_property("Unknown"))
-
-        class CustomDictPropsCatalog:
-
-            def get_components(self):
-                return {
-                    "CustomComp": {
-                        "properties": ["child", "children"],
-                    }
-                }
-
-        cat_list_props = CustomDictPropsCatalog()
-        wrapper_list = CatalogSchemaHelperWrapper(cat_list_props)
-        self.assertEqual(wrapper_list.get_child_list_property("CustomComp"), "children")
-        self.assertEqual(wrapper_list.get_single_child_property("CustomComp"), "child")
-
-    def test_atom_prompt_generator_signatures_with_enum(self):
-        """Test function signature generation with property descriptions and enum values."""
-        from a2ui.inference_formats.experimental.atom.prompt_generator import AtomPromptGenerator
-        from unittest.mock import MagicMock
-
-        mock_helper = MagicMock()
-        mock_helper.component_properties = {"CompA": {"prop1": {}}}
-        mock_helper.get_component_properties.return_value = {"id": {}, "prop1": {}}
-        mock_helper.get_component_required.return_value = ["prop1"]
-        mock_helper.get_component_description.return_value = "A test component"
-        mock_helper.get_property_schema.return_value = {
-            "description": "Property 1",
-            "enum": ["val1", "val2"],
-        }
-
-        mock_helper.function_properties = {"FuncA": {"arg1": {}}}
-        mock_helper.get_function_properties.return_value = {"arg1": {}}
-        mock_helper.get_function_required.return_value = []
-        mock_helper.get_function_description.return_value = "A test function"
-
-        mock_fmt = MagicMock()
-        pg = AtomPromptGenerator(mock_fmt)
-        pg.schema_helper = mock_helper
-
-        comp_sigs = pg._generate_component_signatures()
-        self.assertIn("- (CompA :prop1)", comp_sigs)
-        self.assertIn("Must be one of: 'val1', 'val2'", comp_sigs)
-
-        func_sigs = pg._generate_function_signatures()
-        self.assertIn("- (FuncA :arg1?)", func_sigs)
-        self.assertIn("Must be one of: 'val1', 'val2'", func_sigs)
-
-    def test_sexpr_parser_unicode_and_strict_tokens(self):
-        """Test Unicode string unescaping and strict token gap handling in SExprParser."""
-        from a2ui.inference_formats.experimental.atom.compiler import SExprParser
-
-        # 1. Unicode & emoji string literals
-        parser = SExprParser('(Text :text "Hello 🚀 world café")')
-        ast = parser.parse()
-        self.assertEqual(ast, [["Text", ":text", "Hello 🚀 world café"]])
-
-        # 2. String unescaping for multiline/escaped quotes
-        parser2 = SExprParser(r'(Text :text "Line1\nLine2 \"quoted\"")')
-        ast2 = parser2.parse()
-        self.assertEqual(ast2, [["Text", ":text", 'Line1\nLine2 "quoted"']])
-
-    def test_compile_open_url_and_event_context_list(self):
-        """Test openUrl call resolution and Event context list parsing."""
-        # openUrl with keyword URL
-        text_url = '(callFunction "openUrl" :url "https://example.com/test")'
-        compiled_url = self.compiler.compile(text_url)
-        self.assertEqual(
-            compiled_url["callFunction"],
-            {"call": "openUrl", "args": {"url": "https://example.com/test"}},
-        )
-
-        # Event with context key-value list
-        text_event = (
-            '(Button :action (Event "submit_form" :user $/name :age 30) (Text'
-            ' "Submit"))'
-        )
-        compiled_event = self.compiler.compile(text_event)
-        comps = compiled_event["createSurface"]["components"]
-        btn = next(c for c in comps if c["component"] == "Button")
-        self.assertEqual(
-            btn["action"],
-            {
-                "event": {
-                    "name": "submit_form",
-                    "context": {"user": {"path": "/name"}, "age": 30},
-                }
-            },
-        )
-
-    def test_compile_children_wrapper_list(self):
-        """Test explicit :children wrapper list unwrapping."""
-        text_wrapper = '(Column (:children (Text "First") (Text "Second")))'
-        compiled_w = self.compiler.compile(text_wrapper)
-        comps_w = compiled_w["createSurface"]["components"]
-        col_w = next(c for c in comps_w if c["component"] == "Column")
-        self.assertEqual(len(col_w["children"]), 2)
-        c1 = next(c for c in comps_w if c["id"] == col_w["children"][0])
-        c2 = next(c for c in comps_w if c["id"] == col_w["children"][1])
-        self.assertEqual(c1["text"], "First")
-        self.assertEqual(c2["text"], "Second")
-
-    def test_compile_template_nodes(self):
-        """Test template node compilation and items path mapping."""
-        text_template = "(Column (template :path $/users (Card (Text $/item/name))))"
-        compiled_t = self.compiler.compile(text_template)
-        comps_t = compiled_t["createSurface"]["components"]
-        col_t = next(c for c in comps_t if c["component"] == "Column")
-        self.assertEqual(
-            col_t["children"]["path"],
-            "/users",
-        )
-        template_child_id = col_t["children"]["componentId"]
-        card = next(c for c in comps_t if c["id"] == template_child_id)
-        self.assertEqual(card["component"], "Card")
-
-    def test_compile_event_positional_name(self):
-        """Test Event action compilation with positional name and keyword context."""
-        text_act = '(Button :action (Event "remove_item" :id "99") (Text "Remove"))'
-        compiled_act = self.compiler.compile(text_act)
-        comps_act = compiled_act["createSurface"]["components"]
-        btn_act = next(c for c in comps_act if c["component"] == "Button")
-        self.assertEqual(
-            btn_act["action"],
-            {"event": {"name": "remove_item", "context": {"id": "99"}}},
+    )
+    assert comps["root"]["text"] == {
+        "@call": "check",
+        "catalogId": TER,
+        "args": {"pattern": "^a$"},
+    }
+
+
+def test_header_catalog_rejected_with_several_catalogs() -> None:
+    compiler = AtomCompiler([_primary(), _secondary()])
+    with pytest.raises(ValueError, match="single catalog"):
+        compiler.compile(f'(surface "s" :catalogId "{PRI}")\n(Box)')
+    with pytest.raises(ValueError, match="single catalog"):
+        compiler.compile(f'(surface "s" "{PRI}")\n(Box)')
+    with pytest.raises(ValueError, match="single catalog"):
+        compiler.compile(
+            f'(updateComponents "s" :catalogId "{SEC}")\n(Note :id "n" "x")'
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_header_catalog_allowed_with_a_single_catalog() -> None:
+    compiler = AtomCompiler([_primary()])
+    message = _compile_one(compiler, f'(surface "s" :catalogId "{PRI}")\n(Box)')
+    assert message["createSurface"]["catalogId"] == PRI
+    assert "catalogId" not in _components(message)["root"]
+    with pytest.raises(ValueError, match="Unknown catalogId"):
+        compiler.compile(f'(surface "s" :catalogId "{SEC}")\n(Box)')
+
+
+def test_update_components_carry_catalog_ids_with_several_catalogs() -> None:
+    compiler = AtomCompiler([_primary(), _secondary()])
+    message = _compile_one(
+        compiler, '(updateComponents "s")\n(Note :id "n" "x")\n(Label :id "l" "y")'
+    )
+    assert {c["id"]: c["catalogId"] for c in _components(message).values()} == {
+        "n": SEC,
+        "l": PRI,
+    }
+
+
+def test_bare_string_child_wraps_in_parent_catalog() -> None:
+    compiler = AtomCompiler([_primary(), _tertiary()])
+    comps = _components(_compile_one(compiler, '(Box "hello")'))
+    child = comps[comps["root"]["children"][0]]
+    assert child == {
+        "id": child["id"],
+        "component": "Label",
+        "catalogId": PRI,
+        "text": "hello",
+    }
+
+
+def test_standalone_call_resolves_by_name_with_several_catalogs() -> None:
+    compiler = AtomCompiler([_primary(), _secondary()])
+    message = _compile_one(compiler, "(callFunction secOnly :limit 2)")
+    assert message["callRendererFunction"]["callFunction"] == {
+        "catalogId": SEC,
+        "@call": "secOnly",
+        "args": {"limit": 2},
+    }
+    ambiguous = AtomCompiler([_primary(), _tertiary()])
+    with pytest.raises(ValueError, match="defined in several catalogs"):
+        ambiguous.compile('(callFunction check :value "v")')
+
+
+def test_decompile_several_catalogs_names_only_ambiguous_catalogs() -> None:
+    catalogs = [_primary(), _tertiary()]
+    compiler, decompiler = AtomCompiler(catalogs), AtomDecompiler(catalogs)
+    # Input with a createSurface catalog, as examples or history may have.
+    messages = [{
+        "version": "v1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "catalogId": PRI,
+            "components": [
+                {"id": "root", "component": "Box", "children": ["a", "b"]},
+                {"id": "a", "component": "Label", "text": {"@call": "check"}},
+                {"id": "b", "component": "Label", "catalogId": TER, "text": "t"},
+            ],
+            "dataModel": {},
+        },
+    }]
+    text = decompiler.decompile(to_message_models(messages))
+    assert text.startswith('(surface "main")')
+    assert f'(Label :id "a" :catalogId "{PRI}"' in text
+    assert f'(check :catalogId "{PRI}")' in text
+    assert f'(Label :id "b" :catalogId "{TER}"' in text
+    assert "(Box :catalogId" not in text
+    recompiled = _compile(compiler, text)
+    expected = _with_component_catalogs(messages)
+    expected[0]["createSurface"]["components"][1]["text"] = {
+        "@call": "check",
+        "catalogId": PRI,
+        "args": {},
+    }
+    assert _by_id(recompiled) == _by_id(expected)
+
+
+def test_several_catalogs_require_v1() -> None:
+    catalogs = [_primary("v0.9"), _secondary("v0.9")]
+    for factory in (AtomCompiler, AtomDecompiler, AtomFormat):
+        with pytest.raises(A2uiCatalogError, match="v1.0"):
+            factory(catalogs)
+    with pytest.raises(A2uiCatalogError, match="v1.0"):
+        AtomFormat([_primary("v0.9")]).parser.catalogs = catalogs
+
+
+def test_explicit_unknown_catalog_raises() -> None:
+    compiler = AtomCompiler([_primary(), _secondary()])
+    with pytest.raises((ValueError, A2uiCatalogError)):
+        compiler.compile('(Box :catalogId "https://nowhere" (Label "x"))')
+
+
+# ---------------------------------------------------------------------------
+# v0.9 catalogs
+# ---------------------------------------------------------------------------
+
+
+def test_v09_catalog_splits_create_and_update() -> None:
+    compiler = AtomCompiler([_primary("v0.9")])
+    messages = _compile(compiler, '(data $/t "x") (Box (Label $/t))')
+    assert [next(k for k in m if k != "version") for m in messages] == [
+        "createSurface",
+        "updateComponents",
+        "updateDataModel",
+    ]
+    assert all(m["version"] == "v0.9" for m in messages)
+    comps = _components(messages[1])
+    assert comps[comps["root"]["children"][0]]["text"] == {"path": "/t"}
+    assert messages[2]["updateDataModel"]["value"] == {"t": "x"}
+
+
+def test_v09_rejects_per_component_catalog() -> None:
+    compiler = AtomCompiler([_primary("v0.9")])
+    with pytest.raises(ValueError, match="requires protocol v1.0"):
+        compiler.compile(f'(Box (Label :catalogId "{PRI}" "x"))')
+
+
+# ---------------------------------------------------------------------------
+# Format, parser and prompt generator
+# ---------------------------------------------------------------------------
+
+
+def test_format_and_parser_integration(basic: CatalogApi) -> None:
+    parser = AtomFormat([basic], surface_id="main").parser
+    raw = '<a2ui>(Card (Text "Hello"))</a2ui>'
+    assert parser.has_format_content(raw, complete=True)
+    assert not parser.has_format_content("no tags", complete=True)
+    assert len(parser.unwrap(raw)) == 1
+    compiled = to_message_dicts(parser.compile('(Card (Text "Hello"))'))
+    assert len(compiled) == 1
+    assert "createSurface" in compiled[0]
+    wrapped = parser.wrap_decompiled_blocks(['(Card (Text "Hello"))'])
+    assert wrapped.startswith("<a2ui>")
+    assert wrapped.endswith("</a2ui>")
+
+
+def test_parser_wraps_errors(basic: CatalogApi) -> None:
+    with pytest.raises(A2uiCompilationError):
+        AtomFormat([basic]).parser.compile(12345)  # type: ignore[arg-type]
+
+
+def test_prompt_generator_single_catalog(basic: CatalogApi) -> None:
+    prompt = AtomFormat([basic]).prompt_generator.generate(
+        role_description="You are a helpful UI generator.",
+        workflow_description="Follow standard A2UI guidelines.",
+    )
+    assert "You are a helpful UI generator." in prompt
+    assert "Follow standard A2UI guidelines." in prompt
+    assert "A2UI Atom S-Expression notation" in prompt
+    assert "Component Catalog Signatures" in prompt
+    assert "- (Card" in prompt
+    assert "- (formatString :value" in prompt
+    assert "Multiple Catalogs" not in prompt
+
+
+def test_prompt_generator_multi_catalog_rules() -> None:
+    generator = AtomFormat([_primary(), _secondary()]).prompt_generator
+    rules = generator.generate_base_rules()
+    assert "Multiple Catalogs" in rules
+    assert f"`{PRI}`" in rules
+    assert f"`{SEC}`" in rules
+    assert ':catalogId "catalog_id"' in rules
+    instructions = generator.generate_catalog_instructions()
+    assert f"## Catalog `{PRI}`\n" in instructions
+    assert f"## Catalog `{SEC}`" in instructions
+    assert "- (secOnly :limit)" in instructions
+
+
+def test_prompt_generator_follows_catalog_changes() -> None:
+    fmt = AtomFormat([_primary()])
+    generator = fmt.prompt_generator
+    assert list(generator.schema_helpers) == [PRI]
+    fmt.catalogs = [_primary(), _secondary()]
+    assert list(generator.schema_helpers) == [PRI, SEC]
+    fmt.catalogs = [_secondary()]
+    assert list(generator.schema_helpers) == [SEC]
+
+
+def test_catalogs_property_returns_a_copy() -> None:
+    fmt = AtomFormat([_primary()])
+    fmt.catalogs.append(_secondary())
+    fmt.prompt_generator.catalogs.append(_secondary())
+    assert [c.catalog_id for c in fmt.catalogs] == [PRI]
+
+
+def test_prompt_examples_are_decompiled(tmp_path, basic: CatalogApi) -> None:
+    (tmp_path / "example.json").write_text(
+        '[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId":'
+        f' "{basic.catalog_id}", "components": [{{"id": "root", "component":'
+        ' "Text", "text": "Hi"}]}}]'
+    )
+    generator = AtomFormat([basic], examples_path=str(tmp_path)).prompt_generator
+    examples = generator.generate_examples()
+    assert '(Text :text "Hi")' in examples
+    assert "<a2ui>" in examples

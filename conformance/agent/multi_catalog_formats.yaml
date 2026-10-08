@@ -697,7 +697,288 @@
       - "ui-chart"
 
 # =============================================================================
-# 3. Direct JSON Format: Per-Component & Per-Function catalogId Overrides
+# 3. Atom Format: Mixed-Catalog Compilation, Decompilation, Parsing & Prompts
+# =============================================================================
+
+- name: test_atom_compile_surface_and_component_catalog_override
+  description: With multiple active catalogs, an Atom S-expression surface omits catalogId on createSurface while each component resolves its catalog by name or explicit :catalogId attribute and carries catalogId in the compiled output.
+  action: compile
+  args:
+    format: atom
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    (surface "s1")
+    (Column :id "root"
+      (Text :id "title" :text "Quarterly Revenue")
+      (Chart :id "chart" :catalogId "conformance/custom" :values [10 20 30] :caption "Q1-Q3"))
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Column"
+            catalogId: "conformance/simplified"
+            children: ["title", "chart"]
+          - id: "chart"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [10, 20, 30]
+            caption: "Q1-Q3"
+          - id: "title"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text: "Quarterly Revenue"
+        dataModel: {}
+
+- name: test_atom_compile_second_surface_catalog
+  description: An Atom (surface "s2" :catalogId "conformance/custom") directive fails validation when multiple catalogs are active.
+  action: compile
+  args:
+    format: atom
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    (surface "s2" :catalogId "conformance/custom")
+    (Chart :id "root" :values [1 2 3] :caption "Series")
+  expect_error:
+    category: ValidationError
+
+- name: test_atom_compile_function_catalog_override
+  description: An Atom function call carrying :catalogId resolves against that catalog and preserves catalogId in the compiled call.
+  action: compile
+  args:
+    format: atom
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    (surface "s1")
+    (Chart :id "root" :values [1 2] :caption (formatString :catalogId "conformance/simplified" :value "Total"))
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [1, 2]
+            caption:
+              "@call": "formatString"
+              catalogId: "conformance/simplified"
+              args:
+                value: "Total"
+        dataModel: {}
+
+- name: test_atom_compile_unknown_component_catalog_override_fails
+  description: An Atom component whose :catalogId names a catalog that does not declare that component fails validation.
+  action: compile
+  args:
+    format: atom
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    (surface "s1")
+    (Chart :id "root" :catalogId "conformance/simplified" :values [1 2])
+  expect_error:
+    category: ValidationError
+
+- name: test_atom_compile_unknown_function_catalog_override_fails
+  description: An Atom function call whose :catalogId names a catalog that does not declare that function fails validation.
+  action: compile
+  args:
+    format: atom
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    (surface "s1")
+    (Text :id "root" :text (percent :catalogId "conformance/simplified" :value 50))
+  expect_error:
+    category: ValidationError
+
+- name: test_atom_decompile_mixed_catalog_components_and_functions
+  description: Decompiling a multi-catalog surface where each component and function name is unique across the active catalogs into Atom S-expressions omits redundant :catalogId attributes.
+  action: decompile
+  args:
+    format: atom
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Column"
+            catalogId: "conformance/simplified"
+            children: ["title", "chart"]
+          - id: "title"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text: "Metrics"
+          - id: "chart"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [10, 20]
+            caption:
+              "@call": "formatString"
+              catalogId: "conformance/simplified"
+              args:
+                value: "Total"
+  expect_contains:
+    - '(surface "s1")'
+    - '(Chart :id "chart" :values [10 20] :caption (formatString :value "Total"))'
+  expect_absent:
+    - ':catalogId "conformance/simplified"'
+    - ':catalogId "conformance/custom"'
+
+- name: test_atom_decompile_omits_redundant_catalog_id
+  description: Decompiling a component whose name is unique across active catalogs omits the redundant :catalogId attribute in Atom S-expressions.
+  action: decompile
+  args:
+    format: atom
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text: "Hello"
+  expect_contains:
+    - '(Text :text "Hello")'
+  expect_absent:
+    - ":catalogId"
+
+- name: test_atom_decompile_function_catalog_differs_from_surface
+  description: Decompiling a component whose name is defined in two active catalogs into Atom S-expressions keeps :catalogId on the component.
+  action: decompile
+  args:
+    format: atom
+    catalogs:
+      - catalogId: "conformance/cat_a"
+        protocolVersion: "v1.0"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              label: {$ref: "common.json#/$defs/DynamicString"}
+            required: ["component", "label"]
+      - catalogId: "conformance/cat_b"
+        protocolVersion: "v1.0"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              count: {$ref: "common.json#/$defs/DynamicNumber"}
+            required: ["component", "count"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Badge"
+            catalogId: "conformance/cat_b"
+            count: 42
+  expect_contains:
+    - '(surface "s1")'
+    - '(Badge :catalogId "conformance/cat_b" :count 42)'
+
+- name: test_atom_parse_response_mixed_catalogs
+  description: Parsing a wrapped Atom response containing mixed-catalog components returns the conversational text and the compiled surface message.
+  action: parse_response
+  args:
+    format: atom
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    Here is the Atom view.<a2ui>
+    (surface "s1")
+    (Column :id "root"
+      (Text :id "header" :text "Revenue")
+      (Chart :id "chart" :catalogId "conformance/custom" :values [5 10] :caption "H1"))
+    </a2ui>
+  expect:
+    - text: "Here is the Atom view."
+    - a2ui:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component: "Column"
+                catalogId: "conformance/simplified"
+                children: ["header", "chart"]
+              - id: "chart"
+                component: "Chart"
+                catalogId: "conformance/custom"
+                values: [5, 10]
+                caption: "H1"
+              - id: "header"
+                component: "Text"
+                catalogId: "conformance/simplified"
+                text: "Revenue"
+            dataModel: {}
+
+- name: test_atom_prompt_snippet_multi_catalogs_and_examples
+  description: Atom prompt generation with multiple catalogs and pruning renders S-expression signatures for each catalog and decompiles multi-catalog examples into Atom notation.
+  action: generate_prompt_snippet
+  args:
+    format: atom
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Text", "Column"]
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Chart"]
+    examples:
+      - "test_data/examples/greeting_surface.json"
+      - "test_data/examples/chart_series.json"
+  expect_contains:
+    - "conformance/simplified"
+    - "conformance/custom"
+    - "(Text"
+    - "(Chart"
+    - '(Chart :values [1 2 3])'
+  expect_absent:
+    - "(Button"
+    - "(Gauge"
+    - '(surface "s1" :catalogId "conformance/custom")'
+
+- name: test_atom_create_format_binds_multi_catalogs
+  description: Creating an Atom format with multiple catalogs binds both catalogs to its prompt generator and creates distinct parsers.
+  action: create_format
+  args:
+    format: atom
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  expect:
+    parsers_are_distinct: true
+    prompt_snippet_contains:
+      - "conformance/simplified"
+      - "conformance/custom"
+      - "(Text"
+      - "(Chart"
+
+# =============================================================================
+# 4. Direct JSON Format: Per-Component & Per-Function catalogId Overrides
 # =============================================================================
 
 - name: test_direct_json_compile_component_and_function_catalog_override
