@@ -58,12 +58,7 @@ def _assert_recompiled_matches_payload(
     recompiled, expected_surface_id, expected_components
 ):
     assert recompiled, "Recompiled payload must not be empty"
-    raw_messages = recompiled if isinstance(recompiled, list) else [recompiled]
-    messages = (
-        raw_messages
-        if all(isinstance(m, dict) for m in raw_messages)
-        else to_message_dicts(raw_messages)
-    )
+    messages = to_message_dicts(recompiled)
     recompiled_components = []
     found_surface_id = None
     for msg in messages:
@@ -118,7 +113,7 @@ class TestSpecificationRoundtripAllFormats:
         self.catalog = BasicCatalog("0.9")
         self.express_fmt = ExpressFormat([self.catalog])
         self.elemental_fmt = ElementalFormat([self.catalog])
-        self.atom_fmt = AtomFormat(catalog=self.catalog)
+        self.atom_fmt = AtomFormat([self.catalog])
 
     @pytest.mark.parametrize(
         "json_file", EXAMPLE_FILES, ids=lambda p: os.path.basename(p)
@@ -156,15 +151,14 @@ class TestSpecificationRoundtripAllFormats:
         if not all_components:
             pytest.skip(f"No components in {os.path.basename(json_file)}")
 
-        surface_payload_dict = {
+        surface_payload = to_message_models({
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": surface_id,
                 "catalogId": self.catalog.catalog_id,
                 "components": all_components,
             },
-        }
-        surface_payload = to_message_models(surface_payload_dict)
+        })
 
         processed = 0
 
@@ -194,7 +188,7 @@ class TestSpecificationRoundtripAllFormats:
 
         # 3. Test Atom Format Roundtrip
         try:
-            atom_sexpr = self.atom_fmt.parser.decompile(surface_payload_dict)
+            atom_sexpr = self.atom_fmt.parser.decompile(surface_payload)
             if atom_sexpr:
                 recompiled = self.atom_fmt.parser.compile(atom_sexpr)
                 _assert_recompiled_matches_payload(

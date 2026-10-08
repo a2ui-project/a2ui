@@ -64,21 +64,21 @@ def test_compile_snippet(format_name: str, snippet: str) -> str:
     cat = _load_basic_catalog()
     fmt_lower = format_name.lower()
 
+    from a2ui.inference_formats import to_message_dicts
+
     if fmt_lower == "atom":
         from a2ui.inference_formats.experimental.atom import AtomCompiler
 
-        compiler = AtomCompiler(catalog=cat)
-        res = compiler.compile(snippet)
+        compiler = AtomCompiler([cat])
+        res = to_message_dicts(compiler.compile(snippet))
     elif fmt_lower in ("direct_json", "transport", "direct"):
         res = json.loads(snippet) if isinstance(snippet, str) else snippet
     elif fmt_lower == "express":
-        from a2ui.inference_formats import to_message_dicts
         from a2ui.inference_formats.experimental.express import ExpressParser
 
         parser = ExpressParser([cat])
         res = to_message_dicts(parser.compile(snippet))
     elif fmt_lower == "elemental":
-        from a2ui.inference_formats import to_message_dicts
         from a2ui.inference_formats.experimental.elemental import ElementalParser
 
         parser = ElementalParser([cat])
@@ -104,6 +104,8 @@ def test_decompile_payload(format_name: str, json_str_or_dict: Any) -> str:
     Raises:
         ValueError: If the format strategy name is unsupported.
     """
+    from a2ui.inference_formats import to_message_models
+
     cat = _load_basic_catalog()
     fmt_lower = format_name.lower()
 
@@ -120,18 +122,16 @@ def test_decompile_payload(format_name: str, json_str_or_dict: Any) -> str:
     if fmt_lower == "atom":
         from a2ui.inference_formats.experimental.atom import AtomDecompiler
 
-        decompiler = AtomDecompiler(catalog=cat)
-        return decompiler.decompile(payload)
+        decompiler = AtomDecompiler([cat])
+        return decompiler.decompile(to_message_models(payload))
     elif fmt_lower in ("direct_json", "transport", "direct"):
         return json.dumps(payload, indent=2)
     elif fmt_lower == "express":
-        from a2ui.inference_formats import to_message_models
         from a2ui.inference_formats.experimental.express import ExpressParser
 
         parser = ExpressParser([cat])
         return parser.decompile(to_message_models(payload))
     elif fmt_lower == "elemental":
-        from a2ui.inference_formats import to_message_models
         from a2ui.inference_formats.experimental.elemental import ElementalParser
 
         parser = ElementalParser([cat])
@@ -158,11 +158,9 @@ def test_parse_ast(format_name: str, snippet: str) -> str:
     cat = _load_basic_catalog()
     fmt_lower = format_name.lower()
     if fmt_lower == "atom":
-        from a2ui.inference_formats.experimental.atom.compiler import SExprParser
+        from a2ui.inference_formats.experimental.atom import parse_sexpr
 
-        parser = SExprParser(snippet)
-        ast = parser.parse()
-        return json.dumps(ast, indent=2)
+        return json.dumps(parse_sexpr(snippet), indent=2)
     elif fmt_lower in ("direct_json", "transport", "direct"):
         return json.dumps(json.loads(snippet), indent=2)
     elif fmt_lower == "express":

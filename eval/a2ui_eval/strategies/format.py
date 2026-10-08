@@ -71,7 +71,7 @@ def _get_strategy(
     elif format_name == "atom":
         from a2ui.inference_formats.experimental.atom import AtomFormat
 
-        return AtomFormat(catalog=catalog, surface_id=surface_id)
+        return AtomFormat([catalog], surface_id=surface_id)
     else:
         raise ValueError(f"Unknown format strategy: {format_name}")
 
@@ -132,11 +132,7 @@ def _parse_and_validate_in_process(
         catalog_config,
         surface_id=surface_id,
     )
-    catalogs = (
-        list(strategy.catalogs)
-        if hasattr(strategy, "catalogs")
-        else [getattr(strategy, "catalog")]
-    )
+    catalogs = strategy.catalogs
 
     parts = strategy.parser.parse_response(completion)
     compiled_jsons = []
@@ -157,7 +153,7 @@ def _parse_and_validate_in_process(
         )
 
     MessageProcessor(
-        catalogs,
+        list(catalogs),
         options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     ).process_messages(compiled_jsons)
     return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}

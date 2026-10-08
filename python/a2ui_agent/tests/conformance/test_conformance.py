@@ -473,7 +473,7 @@ def test_schema_manager_conformance(name, test_case):
         elif fmt_name == "elemental":
             parser = ElementalParser([core_cat])
         elif fmt_name == "atom":
-            parser = AtomParser(core_cat)
+            parser = AtomParser([core_cat])
         else:
             parser = None
 
@@ -758,7 +758,7 @@ def _format_for(format_name, catalogs, examples_path=None):
         )
     if format_name == "atom":
         return AtomFormat(
-            catalog=catalogs[0],
+            catalogs=catalogs,
             examples_path=examples_path,
             surface_id=CONFORMANCE_SURFACE_ID,
         )

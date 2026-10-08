@@ -30,7 +30,7 @@ from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.experimental.express import ExpressCompiler, ExpressFormat
 
 _FORMATS: dict[str, Callable[[CatalogApi], Any]] = {
-    "atom": AtomFormat,
+    "atom": lambda catalog: AtomFormat([catalog]),
     "elemental": lambda catalog: ElementalFormat([catalog]),
     "express": lambda catalog: ExpressFormat(
         [catalog], version=catalog.protocol_version
@@ -83,7 +83,9 @@ def test_schema_helpers_keep_checkable_for_model_and_json_catalogs(version):
     catalog = BasicCatalog(version)
     for candidate in (catalog, _from_json(catalog)):
         helpers = (
-            AtomFormat(candidate).prompt_generator.schema_helper,
+            next(
+                iter(AtomFormat([candidate]).prompt_generator.schema_helpers.values())
+            ),
             next(
                 iter(
                     ExpressFormat(
