@@ -325,7 +325,7 @@ class AndArgs(StrictBaseModel):
         ),
     )
     values: Annotated[list[DynamicBoolean], Field(min_length=2)] = Field(
-        ..., description="The list of boolean values to evaluate."
+        ..., description="The list of boolean values or validation results to evaluate."
     )
 
 
@@ -333,7 +333,10 @@ class AndApi(FunctionApi):
     name = "and"
     schema = AndArgs
     return_type = "boolean"
-    description = "Performs a logical AND operation on a list of boolean values."
+    description = (
+        "Performs a logical AND operation on a list of boolean values or validation"
+        " results (using each result's 'valid' boolean)."
+    )
 
 
 class OrArgs(StrictBaseModel):
@@ -344,7 +347,7 @@ class OrArgs(StrictBaseModel):
         ),
     )
     values: Annotated[list[DynamicBoolean], Field(min_length=2)] = Field(
-        ..., description="The list of boolean values to evaluate."
+        ..., description="The list of boolean values or validation results to evaluate."
     )
 
 
@@ -352,7 +355,10 @@ class OrApi(FunctionApi):
     name = "or"
     schema = OrArgs
     return_type = "boolean"
-    description = "Performs a logical OR operation on a list of boolean values."
+    description = (
+        "Performs a logical OR operation on a list of boolean values or validation"
+        " results (using each result's 'valid' boolean)."
+    )
 
 
 class NotArgs(StrictBaseModel):
@@ -362,11 +368,16 @@ class NotArgs(StrictBaseModel):
             {"unevaluatedProperties": False}, drop=("additionalProperties",)
         ),
     )
-    value: DynamicBoolean = Field(..., description="The boolean value to negate.")
+    value: DynamicBoolean = Field(
+        ..., description="The boolean value or validation result to negate."
+    )
 
 
 class NotApi(FunctionApi):
     name = "not"
     schema = NotArgs
     return_type = "boolean"
-    description = "Performs a logical NOT operation on a boolean value."
+    description = (
+        "Performs a logical NOT operation on a boolean value or validation result"
+        " (negating its 'valid' boolean)."
+    )

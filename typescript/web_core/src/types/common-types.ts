@@ -220,22 +220,22 @@ export const CheckRuleSchema = z
   .object({
     'condition': z
       .union([DynamicBooleanSchema, DataBindingSchema, FunctionCallSchema])
-      .describe('Path or function call evaluating to a structured validation result object.'),
+      .describe(
+        'Path or function call evaluating to a structured validation result object or a boolean.',
+      ),
     'message': z.string().describe('Optional fallback error message.').optional(),
   })
   .describe(
-    'REF:common_types.json#/$defs/CheckRule|A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object.',
+    'REF:common_types.json#/$defs/CheckRule|A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object or a boolean (which is coerced to a validation result object).',
   );
-/** REF:common_types.json#/$defs/CheckRule|A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object. */
+/** REF:common_types.json#/$defs/CheckRule|A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object or a boolean (which is coerced to a validation result object). */
 export type CheckRule = z.infer<typeof CheckRuleSchema>;
 
 export const CheckableSchema = z
   .object({
     'checks': z
       .array(CheckRuleSchema)
-      .describe(
-        'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
-      )
+      .describe('A list of validation check rules to perform on the component.')
       .optional(),
   })
   .describe(

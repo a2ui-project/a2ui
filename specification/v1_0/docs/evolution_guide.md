@@ -11,7 +11,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `$defs/FunctionCommon` in `common_types.json` composed at the envelope level via `FunctionCall` for function-level catalog overrides, matching the `ComponentCommon` pattern.
 - Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` to allow individual components and function calls to explicitly declare their source catalog.
 - Retained `catalogId` on `createSurface` as an optional parameter that defines the default catalog for that surface.
-- Added extensibility metadata support via `$defs/Extensions` in `common_types.json`, allowing `ComponentCommon`, `createSurface`, and `ComponentDefinition` to convey arbitrary extension key-value pairs (with Unicode UAX #31 keys and reserved `a2ui_` namespace).
+- Added extensibility metadata support via `$defs/Extensions` in `common_types.json`, allowing `ComponentCommon`, `createSurface`, `ComponentDefinition`, and `action` to convey arbitrary extension key-value pairs (with Unicode UAX #31 keys and reserved `a2ui_` namespace).
 - Defined explicit component and function call resolution logic: the renderer checks the component-level (or function call-level) `catalogId` first, then falls back to the surface default `catalogId`. If neither is defined, the renderer errors out and does not render the component (or rejects the function call). There is no fallback to catalogs declared in capabilities. Available catalogs for a surface include both `supportedCatalogIds` and any negotiated `inlineCatalogs`, and all mixed catalogs must use the same A2UI specification version.
 - The `theme` property in the catalog and surface creation message is removed, along with `primaryColor`, to separate layout from branding.
 - Components and initial data model states can be defined directly within the `createSurface` parameters. This allows for the creation of entire UIs in a single message, rather than a create followed by separate updates.
@@ -31,8 +31,8 @@ Version 1.0 differs from 0.9 in the following ways:
 
 - Standardized the names of core architectural components, renaming "client" to _renderer_ and "server" to _agent_ (e.g., `server_to_client` schemas are renamed to `agent_to_renderer`), because A2UI is sometimes generated on clients, and rendering sometimes happens on servers, making those terms ambiguous.
 - Catalogs can now define composition constraints (`allowedParents` and `allowedChildren`) on component definitions, using `"Surface"` as the canonical root component type. Because JSON Schema cannot natively restrict child component types across a flat adjacency list of ID references, these rules allow catalogs to declare valid parent-child relationships without altering the wire format.
-- `CheckRule` in `common_types.json` supports dynamic structured validation result objects (`ValidationResult`) returned directly by function evaluations or data bindings (containing `valid`, `code`, `message`, and `severity`), and `message` on `CheckRule` is made optional as a fallback error message.
-- Enhanced `AccessibilityAttributes` in `common_types.json` with WAI-ARIA `live` region support (`"off"`, `"polite"`, `"assertive"`) and `hidden` (`DynamicBoolean`), while setting `"additionalProperties": false`. Established normative specification prose requiring catalog and renderer implementations to plumb accessibility attributes, infer default screen reader semantics from visible text properties, and enforce SDK linter checks.
+- `CheckRule` in `common_types.json` supports dynamic structured validation result objects (`ValidationResult`) returned directly by function evaluations or data bindings (containing `valid`, `code`, `message`, and `severity`) as well as booleans (coerced to `ValidationResult`), and `message` on `CheckRule` is made optional as a fallback error message.
+- Enhanced `AccessibilityAttributes` in `common_types.json` by adding WAI-ARIA `live` region support (`"off"`, `"polite"`, `"assertive"`) and `hidden` (`DynamicBoolean`) alongside the existing `label` (`DynamicString`) and `description` (`DynamicString`) properties, while setting `"additionalProperties": false`. Established normative specification prose requiring catalog and renderer implementations to plumb accessibility attributes, infer default screen reader semantics from visible text properties, and enforce SDK linter checks.
 
 ## 2. Changes
 
@@ -56,12 +56,12 @@ Version 1.0 differs from 0.9 in the following ways:
 ### 2.2. Standard catalogs (basic)
 
 - Added `posterUrl` property to the `Video` component in `catalogs/basic/catalog.json`, allowing a preview image to be displayed before the video plays.
-- Added `placeholder` prop to the `TextField` component schema.
+- Added `placeholder` prop to the `TextField` component schema, and removed `TextField.validationRegexp` in favor of `checks` using the `regex` validation function.
 - Added a `steps` property to the `Slider` component schema to snap values to discrete intervals.
 - Updated `openUrl` function definition in `catalogs/basic/catalog.json` to set `"requiresUserActivation": true`.
 - Refactored component definitions in `catalogs/basic/catalog.json` from `allOf: [ComponentCommon, ...]` and `unevaluatedProperties: false` to direct explicit property definitions (including explicit `component` const and `weight` props) or `$defs/Checkable`.
 - Added an optional `instructions` field to the `Catalog` schema (`catalogs/basic/catalog.json`) to embed Markdown guidelines/rules directly, replacing the external `rules.txt` file.
-- Updated return types on standard validation check functions (`required`, `regex`, `length`, `numeric`, `email`) in `catalogs/basic/catalog.json` from `"boolean"` to `"validationResult"`.
+- Updated return types on standard validation check functions (`required`, `regex`, `length`, `numeric`, `email`) in `catalogs/basic/catalog.json` from `"boolean"` to `"validationResult"`. Logical combinators (`and`, `or`, `not`) accept both boolean values and `ValidationResult` objects (extracting `.valid`) and return a `boolean`.
 - Updated external references to standard types in `catalogs/basic/catalog.json` to use relative paths (`common_types.json#/$defs/...`) instead of version-qualified URLs.
 - Removed `$defs/theme` from the basic catalog.
 
@@ -71,6 +71,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `agentFunctionResponse` message structure (`AgentFunctionResponseMessage`) to `agent_to_renderer.json` so agents can return execution results or error payloads for renderer-initiated function calls (referencing `common_types.json#/$defs/FunctionResponse`).
 - Updated the `createSurface` message (`CreateSurfaceMessage`) to remove the `theme` field, allowed passing initial `components` and `dataModel` directly inside the payload, made `catalogId` an optional parameter that acts as the surface's default catalog, and added optional surface-level `metadata` (containing `extensions`).
 - Added an optional `catalogId` property to `ComponentCommon` and `FunctionCall` in `common_types.json` to enable mixing catalogs and explicitly designating the catalog on individual components or function calls.
+- Added an optional `userMessage` (`DynamicString`) property to `Action.event` in `common_types.json`, resolved by the renderer into the outbound `action` message.
 - Added `$defs/Extensions` to `common_types.json` and added optional `metadata` (containing `extensions`, `$ref: "#/$defs/Extensions"`) to `ComponentCommon`.
 - Added `$defs/Child` (`"$ref": "#/$defs/ComponentId"`), `$defs/FunctionCommon`, and `$defs/IndexSystemFunction` to `common_types.json`.
 - Added the `Component` definition in `agent_to_renderer.json` (referenced by `ComponentsList`) to compose `ComponentCommon` (`$ref: "common_types.json#/$defs/ComponentCommon"`) and updated `FunctionCall` in `common_types.json` to compose `FunctionCommon` (`$ref: "#/$defs/FunctionCommon"`), so base component and function call properties are validated at the envelope level regardless of catalog structure.
@@ -80,6 +81,7 @@ Version 1.0 differs from 0.9 in the following ways:
 
 - Added `callAgentFunction` message structure to support renderer-initiated remote function execution requests sent to the agent.
 - Added `rendererFunctionResponse` renderer-to-agent message structure to return function execution results (`value`) or failure payloads (`error`), referencing `common_types.json#/$defs/FunctionResponse`.
+- Added optional `userMessage` (string, resolved from `Action.event.userMessage`) and `metadata` (containing `extensions`, `$ref: "common_types.json#/$defs/Extensions"`) to the renderer-to-agent `action` message in `renderer_to_agent.json`.
 - Updated renderer `error` messages to support `functionCallId` when reporting function execution failures, enforcing mutual exclusivity with `surfaceId`.
 - Added `"UNALLOWED_PARENT"` and `"UNALLOWED_CHILD"` error code values to `renderer_to_agent.json` for reporting validation errors when a component is placed under an unallowed parent or an unallowed child is placed inside a container.
 - Updated all protocol version references from `v0.9` or `v0.9.1` to `v1.0`.
@@ -139,7 +141,7 @@ This section outlines the steps required to migrate existing applications and co
 - Remove the `$defs/theme` catalog definition and the `primaryColor` field.
 - Ensure all generated catalog entity names conform to UAX #31 identifier rules.
 - Do not include `allowedCallers` or `returnType` properties in wire-level `FunctionCall` payloads. Set static `allowedCallers`, `returnType`, and optional `requiresUserActivation` metadata in catalog function definitions where needed.
-- Update `Video`, `TextField`, and `Slider` components to support optional `posterUrl`, `placeholder`, and `steps` properties. Update `openUrl` functions to specify `"requiresUserActivation": true`.
+- Update `Video`, `TextField`, and `Slider` components to support optional `posterUrl`, `placeholder`, and `steps` properties, and migrate any `TextField.validationRegexp` usage to `checks` with the `regex` validation function. Update `openUrl` functions to specify `"requiresUserActivation": true`.
 - Explicitly set values to `null` in `updateDataModel` messages to delete keys at specified paths. The `value` property is now required, and omitting it is a schema validation error.
 - Handle remote function execution requests from renderers (`callAgentFunction`) and respond with `agentFunctionResponse` messages.
 - Rename all references, constants, and endpoints mapping to `server_to_client.json` or `server_capabilities.json` to use `agent_to_renderer.json` and `agent_capabilities.json`.

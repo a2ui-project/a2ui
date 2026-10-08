@@ -25,7 +25,7 @@ Use the `functions` property to define a map of function schemas.
       "description": "Removes whitespace (or other characters) from the beginning and end of a string.",
       "returnType": "string",
       "properties": {
-        "call": {"const": "trim"},
+        "@call": {"const": "trim"},
         "args": {
           "type": "object",
           "properties": {
@@ -42,7 +42,7 @@ Use the `functions` property to define a map of function schemas.
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"],
+      "required": ["@call", "args"],
       "unevaluatedProperties": false
     },
     "getScreenResolution": {
@@ -50,7 +50,7 @@ Use the `functions` property to define a map of function schemas.
       "description": "Queries hardware for screen resolution.",
       "returnType": "array",
       "properties": {
-        "call": {"const": "getScreenResolution"},
+        "@call": {"const": "getScreenResolution"},
         "args": {
           "type": "object",
           "properties": {
@@ -62,7 +62,7 @@ Use the `functions` property to define a map of function schemas.
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"],
+      "required": ["@call", "args"],
       "unevaluatedProperties": false
     }
   }
@@ -105,14 +105,14 @@ those can be added too:
 
 When a `FunctionCall` is validated:
 
-1. **Discriminator Lookup:** The validator looks at the `call` property of the
+1. **Discriminator Lookup:** The validator looks at the `@call` property of the
    object.
 2. **Schema Matching:**
-   - If `call` is "length", it matches `Functions` -> `length`
+   - If `@call` is `"length"`, it matches `Functions` -> `length`
      and validates the named arguments in `args` against the length rules.
-   - If `call` is "trim", it matches `CustomFunctions` -> `trim` and
+   - If `@call` is `"trim"`, it matches `CustomFunctions` -> `trim` and
      validates against your custom rules.
-   - If `call` is "unknownFunc", validation FAILS immediately (strict mode).
+   - If `@call` is `"unknownFunc"`, validation FAILS immediately (strict mode).
 
 This strict-by-default approach ensures typos are caught early, while the
 modular structure makes it easy to add new capabilities with full type safety.
