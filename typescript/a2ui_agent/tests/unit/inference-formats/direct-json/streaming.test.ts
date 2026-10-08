@@ -355,7 +355,9 @@ describe('Direct JSON Streaming required fields guard', () => {
           name: 'Container',
           schema: z.object({
             component: z.literal('Container'),
-            children: z.array(z.string()),
+            children: z
+              .array(z.string().describe('REF:#/$defs/ComponentId'))
+              .describe('REF:#/$defs/ChildList'),
           }),
         } as unknown as ComponentApi,
       ],
