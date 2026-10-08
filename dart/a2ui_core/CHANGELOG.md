@@ -9,9 +9,19 @@
   `commonTypesSchema` become optional overrides, and the validator gains a
   `config`. `MessageProcessor` no longer forces its v0.9 common types onto
   each catalog unless a `commonTypesSchema` is passed. Adds
-  `PayloadValidator.commonTypesForProtocolVersion`,
+  `commonTypesForProtocolVersion(A2uiProtocolVersion?)`,
   `ValidationConfig.allowUnknownElements`, `A2uiValidationError.surfaceId`,
   and `ComponentApi.allowedParents` / `allowedChildren`.
+- **Breaking:** `Catalog.protocolVersion` is an `A2uiProtocolVersion?` rather
+  than a `String?`. `Catalog.fromJson` reads the document's value as a
+  semantic version (`1.0`, `v1.0` and `1.0.0` all name v1.0; pre-release and
+  build suffixes are ignored) and throws `A2uiCatalogError` for a value it
+  cannot parse or a version this SDK does not implement. `catalogSchema`
+  writes the version back as the bare form the catalog definition schema
+  requires (`1.0`, not `v1.0`). `A2uiProtocolVersion` adds `semverValue` and
+  `tryParseSemVer`. `PayloadValidator.commonTypesForProtocolVersion(String?)`
+  is removed; `PayloadValidator.commonTypesFor(A2uiProtocolVersion)` is the
+  one entry point.
 - The package now embeds both `specification/v0_9/json/common_types.json` and
   `specification/v1_0/json/common_types.json`. `CommonSchemas` gains
   `dynamicNumber`, `dynamicStringList`, `dynamicValue`,
@@ -26,9 +36,10 @@
   `accessibility` and `metadata` are checked against `ComponentCommon`.
 - **Behavior change:** composition constraints. `allowedParents` and
   `allowedChildren` in a catalog are enforced by `MessageProcessor`, with the
-  surface (`Surface`) as the implicit parent of `root`; violations throw
-  `A2uiValidationError` with code `UNALLOWED_PARENT` or `UNALLOWED_CHILD`, a
-  JSON Pointer `path` and the `surfaceId`.
+  surface (`Surface`) as the implicit parent of the surface's root id;
+  violations throw `A2uiValidationError` with code `UNALLOWED_PARENT` or
+  `UNALLOWED_CHILD`, the `surfaceId`, and a JSON Pointer `path` into the
+  message when the offending parent arrived in it.
 - **Behavior change:** `validateComponent` checks every nested function call
   against the catalog's schema for it, keyed on `@call` for v1.0 catalogs and
   `call` below that, and rejects calls passing more than 1000 arguments (also
@@ -87,9 +98,10 @@
 - Recognize v1.0 `common_types.json#/$defs/Child` (and `#/$defs/Child`) as a
   single child reference, for dangling-reference and orphan checks and for
   resolution.
-- Add `Catalog.commonTypesSchema`, the embedded `common_types.json` document
-  selected by the catalog's `protocolVersion` (v1.0 for 1.0 and later, v0.9
-  otherwise, including when undeclared), decoded once per catalog.
+- Add `Catalog.commonTypesSchema` (internal to the package), the embedded
+  `common_types.json` document selected by the catalog's `protocolVersion`
+  (v1.0 for 1.0 and later, v0.9 otherwise, including when undeclared),
+  decoded once per catalog.
   `Catalog.refMap` and `GenericBinder` resolve `common_types.json#/$defs/...`
   pointers against it, and `ComponentRefMap` takes the same optional
   `commonTypes` document, so a v1.0 catalog's shared types (such as the
@@ -180,30 +192,6 @@
   rejects unknown envelope and body keys, an empty `components` list, and a
   v1.0 `updateDataModel` without `value`. A new oracle test checks the parsers
   against the specification's envelope schemas.
-- `PayloadValidator.commonTypesFor` returns the embedded v1.0 document for
-  v1.0, now that the package embeds it.
-- Added `ValidationResult` and `A2uiReturnType.validationResult` for structured
-  client-side validation outcomes (`valid`, `message`, `code`, `severity`), and
-  exposed `validationResults` alongside `isValid` and `validationErrors` on
-  resolved component properties. `A2uiReturnType.validationResult` is an
-  API-level value; the v0.9 `CommonSchemas.functionCall` wire schema still
-  accepts only the seven v0.9 return types. `ValidationResult.validityOf`
-  exposes the rule the binder uses to read a check result's validity.
-- Fixed `checks` evaluation in `GenericBinder`:
-  - Rules evaluate once during initial binding without a duplicate object-branch
-    pass.
-  - `_subscribe` skips invoking its reactive callback during the initial
-    synchronous pass so rebuilds do not write into stale property maps.
-  - Non-map rule entries emit a `VALIDATION_FAILED` client error on the surface
-    instead of throwing a `TypeError`.
-  - Checkable properties are classified from schema markers or `CheckRule` item
-    structure rather than matching the property name `'checks'`.
-- `ReferenceSchemaReader` resolves external `common_types.json#/$defs/...`
-  pointers against the `common_types.json` document the caller supplies (the
-  embedded v0.9 document by default) so catalogs loaded via `Catalog.fromJson`
-  classify `Checkable`, `DynamicValue`, `Action`, and `ChildList` properties
-  identically to code-constructed catalogs. `extractRefFields` forwards the
-  same optional `commonTypes` document.
 - Harden `ExpressionParser` to clamp scanner bounds at EOF, reject unclosed
   string literals and trailing backslashes with `A2uiExpressionError`, accept
   `@`-prefixed function names (such as `${@index()}` and

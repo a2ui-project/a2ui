@@ -408,16 +408,17 @@ class MessageProcessor<T extends ComponentApi> {
     // Composition constraints (`allowedParents` / `allowedChildren`) over the
     // surface this batch would leave behind. An edge whose child has not
     // arrived yet is skipped, so this holds without a config too.
-    final List<Map<String, Object?>> candidate = [
-      ...resolved,
+    final List<Map<String, Object?>> existing = [
       for (final ComponentModel c in model.all)
         if (!resolved.any((Map<String, Object?> r) => r['id'] == c.id))
           c.toJson(),
     ];
     checkCompositionConstraints(
-      candidate,
+      resolved,
       refFields,
-      _compositionRulesFor(surface.catalog.id, candidate),
+      _compositionRulesFor(surface.catalog.id, [...resolved, ...existing]),
+      existing: existing,
+      rootId: surface.rootId,
       surfaceId: surface.id,
     );
 

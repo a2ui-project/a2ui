@@ -75,16 +75,21 @@ String referencePointer(String field) => [
           '/${segment.replaceAll('~', '~0').replaceAll('/', '~1')}',
     ].join();
 
-/// Checks every parent-child edge in [components] against [rules].
+/// Checks every parent-child edge among [components] and [existing] against
+/// [rules].
 ///
-/// The component with id `root` has the surface as its implicit parent, which
-/// `allowedParents` names `Surface`. An edge whose child is not in
-/// [components] is skipped: its type is unknown, and a later payload is
+/// [components] are the components the current message carries and
+/// [existing] the ones the surface already holds that the message does not
+/// replace. The component with id [rootId] has the surface as its implicit
+/// parent, which `allowedParents` names `Surface`. An edge whose child is in
+/// neither list is skipped: its type is unknown, and a later payload is
 /// checked when it arrives.
 ///
-/// Error paths are JSON Pointers into [components], such as
-/// `/components/0/children/1` for the offending reference or
-/// `/components/0` for a root the surface may not hold.
+/// An error for an edge whose parent is in [components] carries a JSON
+/// Pointer into the message, such as `/components/0/children/1` for the
+/// offending reference or `/components/0` for a root the surface may not
+/// hold. When the parent is in [existing], nothing in the message holds the
+/// reference, so the error carries no path.
 ///
 /// Throws [A2uiValidationError] with code `UNALLOWED_PARENT` or
 /// `UNALLOWED_CHILD`, carrying [surfaceId].
@@ -92,11 +97,13 @@ void checkCompositionConstraints(
   List<Map<String, Object?>> components,
   Map<String, ComponentRefFields> refFields,
   Map<String, CompositionRule> rules, {
+  Iterable<Map<String, Object?>> existing = const [],
+  String rootId = _rootComponentId,
   String? surfaceId,
 }) {
   if (rules.isEmpty) return;
   final types = <String, String>{
-    for (final component in components)
+    for (final component in components.followedBy(existing))
       if ((component['id'], component['component'])
           case (final String id, final String type))
         id: type,
@@ -104,14 +111,15 @@ void checkCompositionConstraints(
   String list(List<String> names) =>
       '[${names.map((name) => "'$name'").join(', ')}]';
 
-  for (var index = 0; index < components.length; index++) {
-    final Map<String, Object?> component = components[index];
+  // [pointer] locates [component] in the message, or is null when the
+  // component was already stored.
+  void check(Map<String, Object?> component, String? pointer) {
     final Object? id = component['id'];
     final Object? type = component['component'];
-    if (id is! String || type is! String) continue;
+    if (id is! String || type is! String) return;
 
     final List<String>? rootParents = rules[type]?.allowedParents;
-    if (id == _rootComponentId &&
+    if (id == rootId &&
         rootParents != null &&
         !rootParents.contains(_surfaceParent)) {
       throw A2uiValidationError(
@@ -119,7 +127,7 @@ void checkCompositionConstraints(
         "'$_surfaceParent' ($_surfaceParent). Allowed parents: "
         '${list(rootParents)}.',
         code: 'UNALLOWED_PARENT',
-        path: '/components/$index',
+        path: pointer,
         surfaceId: surfaceId,
       );
     }
@@ -131,7 +139,9 @@ void checkCompositionConstraints(
     )) {
       final String? childType = types[reference.id];
       if (childType == null) continue;
-      final path = '/components/$index${referencePointer(reference.field)}';
+      final String? path = pointer == null
+          ? null
+          : '$pointer${referencePointer(reference.field)}';
       if (allowedChildren != null && !allowedChildren.contains(childType)) {
         throw A2uiValidationError(
           "Container '$id' ($type) cannot contain child '${reference.id}' "
@@ -152,6 +162,13 @@ void checkCompositionConstraints(
         );
       }
     }
+  }
+
+  for (var index = 0; index < components.length; index++) {
+    check(components[index], '/components/$index');
+  }
+  for (final component in existing) {
+    check(component, null);
   }
 }
 

@@ -60,16 +60,20 @@ CatalogApi _catalog() => Catalog.fromJson({
 void _check(
   CatalogApi catalog,
   List<Map<String, Object?>> components, {
+  Iterable<Map<String, Object?>> existing = const [],
+  String rootId = 'root',
   String? surfaceId = 's1',
 }) =>
     checkCompositionConstraints(
       components,
       extractComponentRefFields(catalog),
       extractCompositionRules(catalog),
+      existing: existing,
+      rootId: rootId,
       surfaceId: surfaceId,
     );
 
-Matcher _violation(String code, {required String path, String? message}) =>
+Matcher _violation(String code, {required String? path, String? message}) =>
     isA<A2uiValidationError>()
         .having((e) => e.code, 'code', code)
         .having((e) => e.path, 'path', path)
@@ -204,6 +208,77 @@ void main() {
         returnsNormally,
       );
     });
+
+    test('omits the path when the offending parent was already stored', () {
+      expect(
+        () => _check(
+          _catalog(),
+          [
+            {'id': 'v1', 'component': 'Video'},
+          ],
+          existing: [
+            {
+              'id': 'root',
+              'component': 'RestrictedBox',
+              'children': ['v1'],
+            },
+          ],
+        ),
+        throwsA(
+          _violation(
+            'UNALLOWED_CHILD',
+            path: null,
+            message: "Container 'root' (RestrictedBox) cannot contain child "
+                "'v1' (Video). Allowed children: ['Text', 'Button'].",
+          ),
+        ),
+      );
+    });
+
+    test('points at the message component when it is the parent', () {
+      expect(
+        () => _check(
+          _catalog(),
+          [
+            {'id': 't', 'component': 'Text'},
+            {
+              'id': 'root',
+              'component': 'RestrictedBox',
+              'children': ['v1'],
+            },
+          ],
+          existing: [
+            {'id': 'v1', 'component': 'Video'},
+          ],
+        ),
+        throwsA(
+          _violation('UNALLOWED_CHILD', path: '/components/1/children/0'),
+        ),
+      );
+    });
+
+    test('treats Surface as the parent of the configured root id', () {
+      expect(
+        () => _check(
+          _catalog(),
+          [
+            {'id': 'main', 'component': 'ColumnHeader'},
+          ],
+          rootId: 'main',
+        ),
+        throwsA(_violation('UNALLOWED_PARENT', path: '/components/0')),
+      );
+      expect(
+        () => _check(
+          _catalog(),
+          [
+            {'id': 'root', 'component': 'ColumnHeader'},
+          ],
+          rootId: 'main',
+        ),
+        returnsNormally,
+      );
+    });
   });
 
   group('MessageProcessor composition constraints', () {
@@ -252,6 +327,100 @@ void main() {
       expect(
         p.groupModel.getSurface('s1')?.componentsModel.get('root'),
         isNull,
+      );
+    });
+
+    test('omits the path when the parent arrived in an earlier message', () {
+      final MessageProcessor<ComponentApi> p = processor(_catalog());
+      p.processMessages(
+        AgentToRendererMessage.parseAll([
+          {
+            'version': 'v0.9',
+            'createSurface': {'surfaceId': 's1', 'catalogId': 'custom'},
+          },
+          {
+            'version': 'v0.9',
+            'updateComponents': {
+              'surfaceId': 's1',
+              'components': [
+                {
+                  'id': 'root',
+                  'component': 'RestrictedBox',
+                  'children': ['v1'],
+                },
+              ],
+            },
+          },
+        ], protocolVersion: A2uiProtocolVersion.v0_9),
+      );
+
+      expect(
+        () => p.processMessages(
+          AgentToRendererMessage.parseAll([
+            {
+              'version': 'v0.9',
+              'updateComponents': {
+                'surfaceId': 's1',
+                'components': [
+                  {'id': 'v1', 'component': 'Video'},
+                ],
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ),
+        throwsA(
+          _violation(
+            'UNALLOWED_CHILD',
+            path: null,
+            message: "Container 'root' (RestrictedBox) cannot contain child "
+                "'v1' (Video). Allowed children: ['Text', 'Button'].",
+          ),
+        ),
+      );
+      expect(
+        p.groupModel.getSurface('s1')?.componentsModel.get('v1'),
+        isNull,
+      );
+    });
+
+    test('treats Surface as the parent of the configured root id', () {
+      final p = MessageProcessor<ComponentApi>(
+        catalogs: [
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: 'custom',
+            protocolVersion: A2uiProtocolVersion.v1_0,
+            components: _catalog().components.values.toList(),
+          ),
+        ],
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        validationConfig: const ValidationConfig(
+          rootId: 'main',
+          allowOrphanComponents: true,
+          allowMissingRoot: true,
+          allowDanglingReferences: true,
+          allowUnknownElements: true,
+        ),
+      );
+
+      expect(
+        () => p.processMessages(
+          AgentToRendererMessage.parseAll([
+            {
+              'version': 'v0.9',
+              'createSurface': {'surfaceId': 's1', 'catalogId': 'custom'},
+            },
+            {
+              'version': 'v0.9',
+              'updateComponents': {
+                'surfaceId': 's1',
+                'components': [
+                  {'id': 'main', 'component': 'ColumnHeader'},
+                ],
+              },
+            },
+          ], protocolVersion: A2uiProtocolVersion.v0_9),
+        ),
+        throwsA(_violation('UNALLOWED_PARENT', path: '/components/0')),
       );
     });
   });

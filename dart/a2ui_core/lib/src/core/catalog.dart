@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'package:json_schema_builder/json_schema_builder.dart';
+import 'package:meta/meta.dart';
 
 import '../primitives/cancellation.dart';
 import '../primitives/common_types_documents.dart';
@@ -183,7 +184,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// version is declared.
   ///
   /// Decoded once per catalog and shared by [refMap] and the renderer's
-  /// binders, so treat it as read-only.
+  /// binders, so treat it as read-only. Internal to this package: callers that
+  /// need the document call `commonTypesForProtocolVersion`.
+  @internal
   late final Map<String, Object?> commonTypesSchema =
       commonTypesForProtocolVersion(protocolVersion);
 

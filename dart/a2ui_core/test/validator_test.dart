@@ -1264,6 +1264,94 @@ void v1RulesTests() {
         throwsA(_validationError(message: contains('1000'))),
       );
     });
+
+    group('a key named call that is not a call', () {
+      // A v0.9 catalog whose `Caller` component declares a property named
+      // `call`, and whose function `g` takes an argument named `call` and an
+      // unconstrained `inner`.
+      final PayloadValidator<ComponentApi, FunctionApi> validator =
+          PayloadValidator(
+        catalog: Catalog.fromJson({
+          'catalogId': 'caller',
+          'protocolVersion': '0.9',
+          'components': {
+            'Caller': {
+              'type': 'object',
+              'properties': {
+                'call': {'type': 'string'},
+                'value': <String, Object?>{},
+              },
+              'additionalProperties': false,
+            },
+          },
+          'functions': {
+            'g': {
+              'type': 'object',
+              'properties': {
+                'call': {'const': 'g'},
+                'args': {
+                  'type': 'object',
+                  'properties': {
+                    'call': {'type': 'string'},
+                    'inner': <String, Object?>{},
+                  },
+                  'additionalProperties': false,
+                },
+              },
+              'required': ['call', 'args'],
+            },
+          },
+        }),
+        config: ValidationConfig.strict,
+      );
+
+      test('a component property named call is a property', () {
+        expect(
+          () => validator.validateComponent({
+            'id': 'c',
+            'component': 'Caller',
+            'call': 'nope',
+          }),
+          returnsNormally,
+        );
+      });
+
+      test('a function argument named call is an argument', () {
+        expect(
+          () => validator.validateComponent({
+            'id': 'c',
+            'component': 'Caller',
+            'value': {
+              'call': 'g',
+              'args': {'call': 'nope'},
+            },
+          }),
+          returnsNormally,
+        );
+      });
+
+      test('a call inside an argument value is still checked', () {
+        expect(
+          () => validator.validateComponent({
+            'id': 'c',
+            'component': 'Caller',
+            'value': {
+              'call': 'g',
+              'args': {
+                'call': 'fine',
+                'inner': {'call': 'nope', 'args': <String, Object?>{}},
+              },
+            },
+          }),
+          throwsA(
+            _validationError(
+              path: '/value/args/inner',
+              message: contains("'nope'"),
+            ),
+          ),
+        );
+      });
+    });
   });
 
   group('PayloadValidator v1.0 reserved keys', () {

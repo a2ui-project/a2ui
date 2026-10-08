@@ -428,6 +428,11 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
 
   /// Walks [value], at JSON Pointer [path], checking each function call and,
   /// from v1.0, each object's reserved keys.
+  ///
+  /// The component itself (an empty [path]) is never a call, whatever its
+  /// properties are named, and once an object is read as a call the walk
+  /// descends into its argument values only, so an argument named `call` is
+  /// an argument.
   void _validateNested(Object? value, String path) {
     if (value is List) {
       for (var i = 0; i < value.length; i++) {
@@ -453,7 +458,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       }
     }
 
-    final Object? name = object[_v1 ? '@call' : 'call'];
+    final Object? name = path.isEmpty ? null : object[_v1 ? '@call' : 'call'];
     if (name is String && name.isNotEmpty) {
       final Map<String, Object?> args = switch (object['args']) {
         null => const <String, Object?>{},
@@ -473,6 +478,10 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       } else {
         validateFunction(name, args, path: path);
       }
+      for (final MapEntry<String, Object?> arg in args.entries) {
+        _validateNested(arg.value, '$path/args/${_escape(arg.key)}');
+      }
+      return;
     }
 
     for (final MapEntry<String, Object?> entry in object.entries) {
