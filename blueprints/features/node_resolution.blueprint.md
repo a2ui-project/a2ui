@@ -112,9 +112,9 @@ type NodeProps = Record<string, unknown>;
 type NodeAction = () => void | Promise<void>;
 
 interface ComponentNode<C extends ComponentApi> {
-  /** Names the component at this node's data scope; distinct among siblings. */
+  /** Names the component at this node's data scope; distinct among siblings. Use it to key sibling views across updates and reorders. */
   readonly instanceId: string;
-  /** Unique across the document for this node object; a replaced node gets a new one. */
+  /** Unique across the document for the life of this node object (suitable for a DOM id, portal key, or accessibility target); a replaced node gets a new one, so never persist it. */
   readonly id: string;
   /** The component id from the payload. */
   readonly componentId: string;
@@ -127,10 +127,8 @@ interface ComponentNode<C extends ComponentApi> {
   readonly isPlaceholder: boolean;
   /** True once the resolver has disposed this node. */
   readonly disposed: boolean;
-  /** The resolved catalog entry; absent while the node is a placeholder. */
+  /** The catalog entry the resolver chose from the component's resolved catalog; absent while the node is a placeholder. */
   readonly impl?: C;
-  /** The binding context the resolver bound this node with; absent while the node is a placeholder. */
-  readonly context?: ComponentContext;
   /** Resolved, reactive properties. */
   readonly props: Signal<NodeProps>;
   /** Fires once, when this node is disposed. */
