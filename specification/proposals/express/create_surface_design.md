@@ -15,6 +15,7 @@ A2UI Express DSL is a compact declarative syntax designed for generative user in
 3. **Backward Compatibility**: If `surface()` is omitted from a DSL block, the compiler uses the default `surface_id` parameter (default `"default_surface"`).
 4. **Protocol Verbs**: `deleteSurface("id")` remains an explicit standalone command for destroying a surface.
 5. **Catalogs**: With a single catalog, `createSurface` carries that catalog's `catalogId`. With multiple catalogs, `createSurface` omits `catalogId` and each component and function call carries its own `catalogId`, resolved by name across active catalogs or via an explicit `catalogId` override.
+6. **Model Simplicity**: Generative models only need to know which surface they are targeting (`surface("id")`). By inferring `createSurface` vs `updateComponents` structurally from the presence of `root` (with `update=true` available for explicit root updates), the DSL eliminates the need for models to track complex session state.
 
 ---
 
