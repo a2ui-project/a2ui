@@ -1,22 +1,20 @@
-# Express DSL `surface()` Design Proposal
+# Express DSL `surface()` Design
 
-## Executive Summary
+## Summary
 
-A2UI Express DSL is a compact declarative syntax designed for generative user interface models. Standard A2UI wire protocol distinguishes between initializing a surface (`createSurface`) and updating components on an existing surface (`updateComponents`).
-
-To prevent unnecessary model complexity and state tracking errors, Express DSL abstracts this protocol distinction behind a single top-level `surface()` directive. The model uses `surface("surface_id")` to specify the target surface for subsequent component definitions. The host-side compiler automatically resolves whether to emit a `createSurface` or `updateComponents` wire protocol envelope based on session state and context.
+A2UI Express DSL is a compact declarative syntax designed for generative user interface models. The `surface("surface_id")` top-level statement allows an LLM to explicitly declare, target, or update a specific surface, while `deleteSurface("surface_id")` destroys an existing surface.
 
 ---
 
-## Key Design Principles
+## Design Principles
 
-1. **Model Simplicity**: The model does not need to track surface lifecycle state across turns. A single `surface("id")` call sets the target surface for component assignments.
-2. **Compiler State Handling**: The compiler handles wire protocol mapping:
+1. **Unified Surface Targeting**: `surface("surface_id")` is the single directive used to declare a new surface or target an existing surface for updates.
    - Initial rendering emits a `createSurface` message payload.
    - Subsequent updates emit an `updateComponents` message payload.
-3. **Multi-Surface Support**: A single `<a2ui>` DSL block can target or switch between multiple surfaces using sequential `surface("id")` calls.
-4. **Backward Compatibility**: If `surface()` is omitted from a DSL block, the compiler uses the default `surface_id` parameter (default `"default_surface"`).
-5. **Protocol Verbs**: `deleteSurface("id")` remains an explicit standalone command for destroying a surface.
+2. **Multi-Surface Support**: A single `<a2ui>` DSL block can target or switch between multiple surfaces using sequential `surface("id")` calls.
+3. **Backward Compatibility**: If `surface()` is omitted from a DSL block, the compiler uses the default `surface_id` parameter (default `"default_surface"`).
+4. **Protocol Verbs**: `deleteSurface("id")` remains an explicit standalone command for destroying a surface.
+5. **Catalogs**: With a single catalog, `createSurface` carries that catalog's `catalogId`. With multiple catalogs, `createSurface` omits `catalogId` and each component and function call carries its own `catalogId`, resolved by name across active catalogs or via an explicit `catalogId` override.
 
 ---
 
@@ -31,15 +29,15 @@ surfaceStatement = "surface(" surfaceId [ "," catalogId ] ")" ;
 ### Signatures
 
 - `surface(surfaceId)`
-- `surface(surfaceId, catalogId)`
-- `surface(surfaceId="id", catalogId="uri")`
+- `surface(surfaceId, catalogId)` (single-catalog mode only)
+- `surface(surfaceId="id", catalogId="uri")` (single-catalog mode only)
 
 ### Parameters
 
-| Parameter   | Type   | Required | Description                                      |
-| :---------- | :----- | :------- | :----------------------------------------------- |
-| `surfaceId` | String | Yes      | Unique string identifier for the target surface. |
-| `catalogId` | String | No       | Component catalog schema URI or identifier.      |
+| Parameter   | Type   | Required | Description                                                                                          |
+| :---------- | :----- | :------- | :--------------------------------------------------------------------------------------------------- |
+| `surfaceId` | String | Yes      | Unique string identifier for the target surface.                                                     |
+| `catalogId` | String | No       | Optional ID of the sole active catalog in single-catalog mode. Rejected when multiple catalogs exist. |
 
 ---
 
