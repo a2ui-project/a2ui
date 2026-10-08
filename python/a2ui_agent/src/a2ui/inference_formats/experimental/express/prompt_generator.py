@@ -23,15 +23,31 @@ import json
 import re
 from typing import Any, TYPE_CHECKING
 
+from a2ui.core import CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
 from a2ui.core.schema.v0_9 import V09Capabilities
+from a2ui.inference_formats._shared import (
+    CatalogSchemaHelper,
+    build_catalog_helpers,
+    catalogs_defining,
+    normalize_prompt_example_messages,
+    surface_catalog_id,
+)
 from a2ui.prompt import PromptGenerator
 from a2ui.schema import load_examples
 
-from .parser import ExpressParser
-from .schema_helper import CatalogSchemaHelper
-
 if TYPE_CHECKING:
     from .format import ExpressFormat
+
+# Envelope keys of the messages a JSON example may hold to be decompiled.
+_EXAMPLE_MESSAGE_KEYS = (
+    "createSurface",
+    "updateComponents",
+    "updateDataModel",
+    "deleteSurface",
+    "callFunction",
+    "callRendererFunction",
+)
 
 EXPRESS_RULES = r'''# A2UI Express DSL Output Contract
 
@@ -95,6 +111,68 @@ The host compiler will compile your A2UI Express output into the correct JSON en
     root = Card(...)'''
 
 
+def _multi_catalog_rules(helpers: Mapping[str, CatalogSchemaHelper]) -> str:
+    """Builds the rules that explain how to use several catalogs.
+
+    The rules are written from the catalog IDs and the names each catalog
+    defines, so they hold for any catalogs.
+
+    Args:
+        helpers: The schema helpers keyed by catalog ID, in catalog order.
+
+    Returns:
+        The rules, as a markdown section.
+    """
+    catalog_ids = list(helpers)
+    example_id = catalog_ids[-1]
+    listing = "\n".join(f"- `{cat_id}`" for cat_id in catalog_ids)
+    rules = [
+        "## Multiple Catalogs",
+        "",
+        (
+            "Several component catalogs are active. Each is identified by its catalog"
+            " ID, and the signatures below are grouped by catalog:"
+        ),
+        listing,
+        "",
+        (
+            "16. A surface has no catalog of its own: do not name a catalog on a"
+            " `surface` line. Each component and function call, including checks,"
+            " actions, nested function calls and inline child components, is found"
+            " by its name in whichever catalog defines it."
+        ),
+        "",
+        (
+            "17. When several catalogs define the same component or function name,"
+            " you MUST say which one you mean: add a `catalogId` keyword argument"
+            " to the component or function call, or a `{catalogId: ...}` argument"
+            " to a check. Do not add `catalogId` to any other name:"
+        ),
+        f'    widget = ComponentName(..., catalogId="{example_id}")',
+        f'    action = functionName(..., catalogId="{example_id}")',
+        f'    ?checkName(..., {{catalogId: "{example_id}"}})',
+    ]
+    shared = []
+    for kind, label in (("component", "Component"), ("function", "Function")):
+        names = {
+            name
+            for helper in helpers.values()
+            for name in (helper.components if kind == "component" else helper.functions)
+        }
+        for name in sorted(names):
+            defining = catalogs_defining(helpers, kind, name)
+            if len(defining) > 1:
+                ids = ", ".join(f"`{cat_id}`" for cat_id in defining)
+                shared.append(f"- {label} `{name}`: {ids}")
+    if shared:
+        rules.extend([
+            "",
+            "These names are defined in several catalogs and need a `catalogId`:",
+            *shared,
+        ])
+    return "\n".join(rules)
+
+
 def _schema_allows_databinding(prop_schema: Any) -> bool:
     """Helper to check if a JSON schema allows data binding (DynamicString/DataBinding, etc)."""
     if not isinstance(prop_schema, dict):
@@ -144,33 +222,62 @@ class ExpressPromptGenerator(PromptGenerator):
             format_inst: An ExpressFormat instance.
         """
         self._format = format_inst
-        self.catalog = format_inst.catalog
-        self.helper = CatalogSchemaHelper(format_inst.catalog)
-        self.parser: ExpressParser | None = None
+        self._helpers = build_catalog_helpers(self._format.catalogs)
+
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the catalogs configured on this prompt generator's format."""
+        return self._format.catalogs
+
+    @property
+    def helpers(self) -> dict[str, CatalogSchemaHelper]:
+        """Schema helpers for the format's catalogs, keyed by catalog ID."""
+        return self._helpers
 
     def generate_base_rules(self) -> str:
-        """Returns the core syntax contract and grammar rules for A2UI Express."""
-        return EXPRESS_RULES
+        """Returns the core syntax contract and grammar rules for A2UI Express.
+
+        With more than one active catalog, rules that explain how components
+        and functions are found by name, and when they need a `catalogId`,
+        follow the grammar rules.
+        """
+        if len(self.catalogs) <= 1:
+            return EXPRESS_RULES
+        return f"{EXPRESS_RULES}\n\n{_multi_catalog_rules(self.helpers)}"
 
     def generate_catalog_instructions(
         self,
         include_schema: bool = True,
         catalog: Any | None = None,
     ) -> str:
-        """Assembles positional signatures and instructions for a catalog."""
+        """Assembles positional signatures and instructions for one or all catalogs."""
         if not include_schema:
             return ""
-        return self._catalog_description(include_schema=True, catalog=catalog)
+        if catalog is not None:
+            return self._catalog_description(include_schema=True, catalog=catalog)
+        active_catalogs = self.catalogs
+        if len(active_catalogs) <= 1:
+            return self._catalog_description(include_schema=True)
+        sections = []
+        for cat in active_catalogs:
+            desc = self._catalog_description(include_schema=True, catalog=cat)
+            sections.append(f"# Catalog `{cat.catalog_id}`\n\n{desc}")
+        return "\n\n".join(sections)
 
     def generate_examples(
         self, catalog: Any | None = None, validate: bool = False
     ) -> str:
         """Loads and formats few-shot Express DSL examples."""
-        target_catalog = catalog or self.catalog
-        if not target_catalog or not self._format or not self._format.examples_path:
+        active_catalogs = list(self.catalogs)
+        if catalog is not None:
+            active_catalogs = [
+                catalog,
+                *(c for c in active_catalogs if c is not catalog),
+            ]
+        if not active_catalogs or not self._format or not self._format.examples_path:
             return ""
         raw_examples = load_examples(
-            [target_catalog], self._format.examples_path, validate=validate
+            active_catalogs, self._format.examples_path, validate=validate
         )
         if not raw_examples:
             return ""
@@ -184,7 +291,7 @@ class ExpressPromptGenerator(PromptGenerator):
         Returns:
             A plain-text multi-line list of component signatures.
         """
-        h = helper or self.helper
+        h = helper or next(iter(self.helpers.values()), None)
         if not h:
             return ""
         signatures = []
@@ -293,7 +400,7 @@ class ExpressPromptGenerator(PromptGenerator):
         Returns:
             A plain-text multi-line list of function signatures.
         """
-        h = helper or self.helper
+        h = helper or next(iter(self.helpers.values()), None)
         if not h:
             return ""
         signatures = []
@@ -334,7 +441,7 @@ class ExpressPromptGenerator(PromptGenerator):
         return "\n".join(signatures)
 
     def _build_schema_prompt(self) -> str:
-        return self._catalog_description(include_schema=True)
+        return self.generate_catalog_instructions(include_schema=True)
 
     def _catalog_description(
         self, include_schema: bool = True, catalog: Any | None = None
@@ -351,17 +458,25 @@ class ExpressPromptGenerator(PromptGenerator):
         if not include_schema:
             return ""
 
-        h = CatalogSchemaHelper(catalog) if catalog else self.helper
+        h = (
+            self.helpers.get(catalog.catalog_id) or CatalogSchemaHelper(catalog)
+            if catalog
+            else next(iter(self.helpers.values()), None)
+        )
         comp_sigs = self._generate_component_signatures(helper=h)
         func_sigs = self._generate_function_signatures(helper=h)
         catalog_instructions = h.catalog.get("instructions", "") if h else ""
 
-        # Translate json examples in catalog instructions into A2UI Express DSL
-        if catalog_instructions:
+        # Translate json examples in catalog instructions into A2UI Express DSL.
+        # An example in a catalog's instructions belongs to that catalog.
+        if catalog_instructions and h:
+            instructions_catalog_id = h.catalog_model.catalog_id
             pattern = r"```json\s*\n(.*?)\n```"
             catalog_instructions = re.sub(
                 pattern,
-                self._replace_json_block_in_instructions,
+                lambda match: self._replace_json_block_in_instructions(
+                    match, instructions_catalog_id
+                ),
                 catalog_instructions,
                 flags=re.DOTALL,
             )
@@ -382,21 +497,16 @@ class ExpressPromptGenerator(PromptGenerator):
         )
         return desc
 
-    def decompile(self, val: dict[str, Any]) -> str:
-        """Decompiles a structured JSON surface block into Express DSL.
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
+        """Decompiles structured A2UI payload messages into Express DSL.
 
         Args:
-            val: The structured JSON dictionary representing surface instructions.
+            a2ui_payload: Sequence of AgentToRendererMessage objects.
 
         Returns:
-            The Express DSL string representation of the surface.
+            The Express DSL string representation of the payload.
         """
-        parser = self.parser or self._format.parser
-        if not parser:
-            self._format._ensure_catalog()
-            parser = self._format.parser
-            assert parser is not None
-        return parser.decompile(val)
+        return self._format.parser.decompile(a2ui_payload)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Encloses decompiled DSL code blocks in markdown code fences and sentinel tags.
@@ -407,88 +517,86 @@ class ExpressPromptGenerator(PromptGenerator):
         Returns:
             The enclosed and formatted markdown block.
         """
-        parser = self.parser or self._format.parser
-        if not parser:
-            self._format._ensure_catalog()
-            parser = self._format.parser
-            assert parser is not None
-        return parser.wrap_decompiled_blocks(blocks)
+        return self._format.parser.wrap_decompiled_blocks(blocks)
 
-    def _replace_json_block_in_instructions(self, match: re.Match[str]) -> str:
-        json_content = match.group(1).strip()
+    def _decompile_example_messages(
+        self, json_content: str, default_catalog_id: str | None = None
+    ) -> str | None:
+        """Decompiles a JSON example payload into one Express block.
+
+        The whole payload is decompiled at once, so that an update in it is
+        read against the catalog of the surface the payload created.
+
+        Args:
+            json_content: The JSON example.
+            default_catalog_id: The catalog of a surface that the example
+                creates without naming one. Defaults to the single catalog, or
+                none when several catalogs are active.
+
+        Returns:
+            The Express block without sentinel tags, or None when the JSON is
+            not a payload of A2UI messages or cannot be decompiled.
+        """
         try:
             parsed = json.loads(json_content)
-            if isinstance(parsed, dict):
-                messages = [parsed]
-            elif isinstance(parsed, list):
-                messages = parsed
-            else:
-                return str(match.group(0))
-
-            dsl_blocks = []
-            for msg in messages:
-                if isinstance(msg, dict) and any(
-                    k in msg
-                    for k in [
-                        "createSurface",
-                        "updateDataModel",
-                        "deleteSurface",
-                        "callFunction",
-                    ]
-                ):
-                    dsl_clean = self.decompile(msg)
-                    dsl_blocks.append(dsl_clean)
-                else:
-                    return str(match.group(0))
-
-            full_dsl = self.wrap_decompiled_blocks(dsl_blocks)
-            return f"```\n{full_dsl}\n```"
+            messages = [parsed] if isinstance(parsed, dict) else parsed
+            if not isinstance(messages, list) or not messages:
+                return None
+            if not all(
+                isinstance(msg, dict) and any(k in msg for k in _EXAMPLE_MESSAGE_KEYS)
+                for msg in messages
+            ):
+                return None
+            return self.decompile(
+                normalize_prompt_example_messages(
+                    messages,
+                    version=self._format.version,
+                    default_catalog_id=(
+                        default_catalog_id or surface_catalog_id(self.catalogs)
+                    ),
+                )
+            )
         except Exception:
+            return None
+
+    def _replace_json_block_in_instructions(
+        self, match: re.Match[str], catalog_id: str
+    ) -> str:
+        dsl = self._decompile_example_messages(match.group(1).strip(), catalog_id)
+        if dsl is None:
             return str(match.group(0))
+        return f"```\n{self.wrap_decompiled_blocks([dsl])}\n```"
+
+    def _decompile_example_json(self, json_content: str) -> str | None:
+        dsl = self._decompile_example_messages(json_content)
+        return None if dsl is None else self.wrap_decompiled_blocks([dsl])
 
     def _replace_json_block(self, match: re.Match[str]) -> str:
-        json_content = match.group(1).strip()
-        try:
-            parsed = json.loads(json_content)
-            if isinstance(parsed, dict):
-                messages = [parsed]
-            elif isinstance(parsed, list):
-                messages = parsed
-            else:
-                return str(match.group(0))
+        res = self._decompile_example_json(match.group(1).strip())
+        return res if res is not None else str(match.group(0))
 
-            blocks = []
-            for msg in messages:
-                if isinstance(msg, dict) and any(
-                    k in msg
-                    for k in [
-                        "createSurface",
-                        "updateDataModel",
-                        "deleteSurface",
-                        "callFunction",
-                    ]
-                ):
-                    decompiled = self.decompile(msg)
-                    blocks.append(decompiled)
-                else:
-                    return str(match.group(0))
-
-            return self.wrap_decompiled_blocks(blocks)
-        except Exception:
+    def _replace_begin_end_block(self, match: re.Match[str]) -> str:
+        name = match.group(1)
+        res = self._decompile_example_json(match.group(2).strip())
+        if res is None:
             return str(match.group(0))
+        return f"---BEGIN {name}---\n{res}\n---END {name}---"
 
     def transform_examples(self, raw_examples_markdown: str) -> str:
         """Transforms JSON blocks in raw markdown into Express DSL syntax."""
-        if not self.catalog:
-            return raw_examples_markdown
-
         triple_backticks = chr(96) * 3
         pattern = rf"{triple_backticks}json\s*\n(.*?)\n{triple_backticks}"
-
-        return re.sub(
+        result = re.sub(
             pattern,
             self._replace_json_block,
             raw_examples_markdown,
+            flags=re.DOTALL,
+        )
+        begin_end_pattern = r"---BEGIN ([^\n]+)---\n(.*?)\n---END \1---"
+        return re.sub(
+            begin_end_pattern,
+            self._replace_begin_end_block,
+            result,
             flags=re.DOTALL,
         )
 
@@ -520,11 +628,6 @@ class ExpressPromptGenerator(PromptGenerator):
         Returns:
             The complete system prompt string explaining A2UI Express and its catalog.
         """
-        catalog = self._format.catalog if self._format else None
-        if self._format:
-            self.helper = CatalogSchemaHelper(catalog) if catalog else None
-            self.parser = ExpressParser(catalog) if catalog else None
-
         return super().generate(
             role_description=role_description,
             workflow_description=workflow_description,

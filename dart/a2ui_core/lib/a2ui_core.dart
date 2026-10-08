@@ -60,6 +60,7 @@ export 'src/resolution/component_node.dart'
     hide MutableComponentNode, sameValue;
 export 'src/resolution/node_resolver.dart';
 export 'src/resolution/resolved_binding.dart';
+export 'src/rpc/rpc_handler.dart';
 // Payload validation. The component-graph and reference helpers behind the
 // validator stay package-private: `MessageProcessor` is the entry point, and
 // `PayloadValidator` checks one item against one catalog.

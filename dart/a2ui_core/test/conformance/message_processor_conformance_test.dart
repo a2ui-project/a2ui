@@ -39,8 +39,6 @@ const Map<String, String> _v10ExpectedFailures = {
       'The v1.0 common types are not embedded yet.',
   'test_v10_create_surface_inline_initialization':
       'The v1.0 common types are not embedded yet.',
-  'test_v10_get_renderer_capabilities':
-      'getRendererCapabilities does not emit v1.0 capabilities yet.',
   'test_v10_create_surface_metadata_extension_key_must_be_identifier':
       'Metadata extension keys are not checked against the v1.0 schema yet.',
 };
@@ -140,7 +138,12 @@ void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
   );
   _process(processor, testCase);
 
-  final Map<String, dynamic>? actual = processor.getClientDataModel();
+  final Map<String, Object?> args =
+      (testCase['args'] as Map<String, Object?>?) ?? const {};
+  final Object? version = args['version'];
+  final Map<String, Object?>? actual = processor.getRendererDataModel(
+    version: version is String ? A2uiProtocolVersion.parse(version) : null,
+  );
   final Object? expected = testCase['expect'];
   if (expected == null) {
     expect(actual, isNull, reason: name);
@@ -157,11 +160,20 @@ void _runGetRendererCapabilitiesCase(Map<String, Object?> testCase) {
   );
   final Map<String, Object?> args =
       (testCase['args'] as Map<String, Object?>?) ?? const {};
-  final includeInlineCatalogs = args['includeInlineCatalogs'] == true;
-
-  final Map<String, dynamic> actual = processor.getClientCapabilities(
-    includeInlineCatalogs: includeInlineCatalogs,
-  );
+  final Object? version = args['version'];
+  final Map<String, Object?> actual = processor
+      .getRendererCapabilities(
+        CapabilitiesOptions(
+          versions: [
+            if (version is String)
+              A2uiProtocolVersion.parse(version)
+            else
+              A2uiProtocolVersion.v0_9,
+          ],
+          includeInlineCatalogs: args['includeInlineCatalogs'] == true,
+        ),
+      )
+      .toJson();
   expect(actual, equals(testCase['expect']), reason: name);
 }
 

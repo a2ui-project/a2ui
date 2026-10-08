@@ -295,3 +295,36 @@
   expect_contains:
     - 'root = Chart([1, 2, 3], "Rainfall")'
   expect_round_trip: true
+
+- name: test_decompile_express_two_surfaces_in_two_catalogs
+  description: Two surfaces built from two active catalogs write back out without surface-level catalog arguments when component names are unique across the catalogs, and recompiling restores both surfaces with per-component catalogIds.
+  action: decompile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text: "Summary"
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s2"
+        components:
+          - id: "root"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [1, 2]
+            caption: "Q1"
+  expect_contains:
+    - 'surface("s1")'
+    - 'root = Text("Summary")'
+    - 'surface("s2")'
+    - 'root = Chart([1, 2], "Q1")'
+  expect_round_trip: true

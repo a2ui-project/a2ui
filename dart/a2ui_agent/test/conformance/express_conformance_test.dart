@@ -52,8 +52,19 @@ void main() {
   }
 }
 
+/// Cases this SDK does not pass yet, with the reason for each.
+const Map<String, String> _knownGaps = {
+  'test_compile_express_surface_targeting_names_a_catalog':
+      'Multi-catalog Express in Dart compiles to v0.9 and has not been updated '
+      'to omit createSurface.catalogId and stamp catalogId per component.',
+  'test_decompile_express_two_surfaces_in_two_catalogs':
+      'Multi-catalog Express in Dart compiles to v0.9 and has not been updated '
+      'to omit createSurface.catalogId and stamp catalogId per component.',
+};
+
 /// Why this SDK cannot run [testCase], or null if it can.
 String? _skipReason(Map<String, Object?> testCase) {
+  if (_knownGaps[testCase['name']] case final String reason) return reason;
   if (jsonEncode(testCase).contains('"callRendererFunction"')) {
     return 'Protocol v0.9 has no callRendererFunction message.';
   }

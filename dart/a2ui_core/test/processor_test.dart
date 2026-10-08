@@ -19,10 +19,12 @@ import 'package:a2ui_core/src/core/component_model.dart';
 import 'package:a2ui_core/src/core/contexts.dart';
 import 'package:a2ui_core/src/core/messages.dart';
 import 'package:a2ui_core/src/core/minimal_catalog.dart';
+import 'package:a2ui_core/src/core/renderer_capabilities.dart';
 import 'package:a2ui_core/src/core/surface_model.dart';
 import 'package:a2ui_core/src/primitives/errors.dart';
 import 'package:a2ui_core/src/primitives/protocol_version.dart';
 import 'package:a2ui_core/src/primitives/reactivity.dart';
+import 'package:a2ui_core/src/primitives/semver.dart';
 import 'package:a2ui_core/src/processing/processor.dart';
 import 'package:a2ui_core/src/resolution/node_resolver.dart';
 import 'package:a2ui_core/src/validation/validation_config.dart';
@@ -376,21 +378,187 @@ void main() {
       expect(processor.groupModel.getSurface('s1'), isNotNull);
     });
 
-    test('getClientCapabilities does not corrupt shared schemas', () {
+    test('getRendererCapabilities emits both inline catalog shapes', () {
       final Object? descBefore =
           CommonSchemas.dynamicString.value['description'];
 
-      processor.getClientCapabilities(includeInlineCatalogs: true);
+      final Map<String, Object?> json = processor
+          .getRendererCapabilities(
+            const CapabilitiesOptions(
+              versions: [A2uiProtocolVersion.v0_9, A2uiProtocolVersion.v1_0],
+              includeInlineCatalogs: true,
+            ),
+          )
+          .toJson();
 
-      // _processRefs mutates maps in-place to replace commonTypesRef metadata
-      // with $ref pointers. If toJsonMap uses a shallow copy, the shared
-      // CommonSchemas statics are corrupted.
+      Map<String, Object?> firstInline(String version) =>
+          ((json[version]! as Map)['inlineCatalogs'] as List).first
+              as Map<String, Object?>;
+
+      // Below v1.0: the legacy shape, with components wrapped in the
+      // ComponentCommon envelope and no `$schema`. Button's schema is an
+      // allOf of CommonSchemas.checkable and an object; the body carries the
+      // properties the catalog document serializes for it, minus `id`.
+      final Map<String, Object?> legacy = firstInline('v0.9');
+      expect(legacy.containsKey(r'$schema'), isFalse);
+      final button = (legacy['components']! as Map)['Button'] as Map;
+      final buttonMembers = button['allOf'] as List;
+      expect(buttonMembers.first, {
+        r'$ref': r'common_types.json#/$defs/ComponentCommon',
+      });
+      final buttonBody = buttonMembers[1] as Map;
+      final documentButton =
+          (catalog.catalogSchema['components']! as Map)['Button'] as Map;
+      expect(buttonBody.keys, ['properties', 'required']);
+      expect((buttonBody['properties'] as Map).keys, [
+        'component',
+        for (final Object? key in (documentButton['properties'] as Map).keys)
+          if (key != 'id' && key != 'component') key,
+      ]);
+      expect(
+        (buttonBody['properties'] as Map)['component'],
+        {'const': 'Button'},
+      );
+      expect(buttonBody['required'], [
+        'component',
+        for (final Object? key in documentButton['required'] as List)
+          if (key != 'id' && key != 'component') key,
+      ]);
+
+      // At v1.0: the standalone catalog schema document.
+      final Map<String, Object?> current = firstInline('v1.0');
+      expect(current[r'$schema'], Catalog.jsonSchemaDialect);
+      expect(current['catalogId'], catalog.id);
+      expect(
+        ((current[r'$defs']! as Map)['anyComponent'] as Map)['oneOf'],
+        contains(equals({r'$ref': '#/components/Button'})),
+      );
+
+      // The emitter must work on copies rather than on the shared
+      // CommonSchemas statics or the memoized catalog document.
       expect(
         CommonSchemas.dynamicString.value['description'],
         equals(descBefore),
-        reason: 'CommonSchemas.dynamicString should not be mutated by '
-            'getClientCapabilities',
       );
+    });
+
+    group('getRendererDataModel', () {
+      late MessageProcessor<ComponentApi> dataProcessor;
+      final v09Catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'cat-v09',
+        protocolVersion: 'v0.9',
+        components: [ComponentApi(name: 'Alpha', schema: Schema.object())],
+      );
+      final v10Catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'cat-v10',
+        protocolVersion: 'v1.0',
+        components: [ComponentApi(name: 'Alpha', schema: Schema.object())],
+      );
+
+      void addSurface(String id, String? version, {bool send = true}) {
+        final catalog = version != null && compareVersions(version, 'v1.0') >= 0
+            ? v10Catalog
+            : v09Catalog;
+        final surface = SurfaceModel<ComponentApi>(
+          id,
+          defaultCatalog: catalog,
+          sendDataModel: send,
+          protocolVersion: version,
+        );
+        surface.dataModel.set('/', {'id': id});
+        dataProcessor.groupModel.addSurface(surface);
+      }
+
+      setUp(() {
+        dataProcessor = MessageProcessor<ComponentApi>(
+          catalogs: [v09Catalog, v10Catalog],
+          defaultVersion: A2uiProtocolVersion.v0_9,
+        );
+      });
+
+      test('returns null when no surface sends its data model', () {
+        addSurface('s1', 'v0.9', send: false);
+        expect(dataProcessor.getRendererDataModel(), isNull);
+      });
+
+      test('derives the version from the surfaces', () {
+        addSurface('s1', 'v0.9');
+        addSurface('s2', 'v0.9', send: false);
+        expect(dataProcessor.getRendererDataModel(), {
+          'version': 'v0.9',
+          'surfaces': {
+            's1': {'id': 's1'},
+          },
+        });
+      });
+
+      test('defaults to v1.0 when no surface declares a version', () {
+        addSurface('s1', null);
+        expect(dataProcessor.getRendererDataModel(), {
+          'version': 'v1.0',
+          'surfaces': {
+            's1': {'id': 's1'},
+          },
+        });
+      });
+
+      test('raises when surfaces carry different versions', () {
+        addSurface('s1', 'v0.9');
+        addSurface('s2', 'v1.0');
+        expect(
+          () => dataProcessor.getRendererDataModel(),
+          throwsA(
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('v0.9, v1.0'), contains('getRendererDataModel')),
+            ),
+          ),
+        );
+      });
+
+      test('filters surfaces by the requested version', () {
+        addSurface('s1', 'v0.9');
+        addSurface('s2', 'v1.0');
+        addSurface('s3', 'v0.9.1');
+        addSurface('s4', null);
+
+        expect(
+          dataProcessor.getRendererDataModel(
+            version: A2uiProtocolVersion.v1_0,
+          ),
+          {
+            'version': 'v1.0',
+            'surfaces': {
+              's2': {'id': 's2'},
+              's4': {'id': 's4'},
+            },
+          },
+        );
+        expect(
+          dataProcessor.getRendererDataModel(
+            version: A2uiProtocolVersion.v0_9,
+          ),
+          {
+            'version': 'v0.9',
+            'surfaces': {
+              's1': {'id': 's1'},
+              's3': {'id': 's3'},
+              's4': {'id': 's4'},
+            },
+          },
+        );
+      });
+
+      test('returns null when no surface matches the requested version', () {
+        addSurface('s1', 'v0.9');
+        expect(
+          dataProcessor.getRendererDataModel(
+            version: A2uiProtocolVersion.v1_0,
+          ),
+          isNull,
+        );
+      });
     });
 
     test('applies a fully valid batch of components', () {

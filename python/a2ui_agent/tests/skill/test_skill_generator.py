@@ -40,7 +40,7 @@ class TestSkillGenerator(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.catalog_config = CatalogConfig.from_path("basic", CATALOG_PATH)
         self.catalog = self.catalog_config.to_catalog()
-        self.express_fmt = ExpressFormat(catalog=self.catalog)
+        self.express_fmt = ExpressFormat([self.catalog])
         self.generator = SkillGenerator(self.express_fmt)
 
     def tearDown(self):
@@ -205,7 +205,6 @@ class TestSkillGenerator(unittest.TestCase):
         )
         mock_fmt = MagicMock()
         mock_fmt.catalogs = [self.catalog, other]
-        mock_fmt.catalog = None
         mock_fmt.prompt_generator.generate_base_rules.return_value = "RULES"
         mock_fmt.prompt_generator.generate_catalog_instructions.return_value = "INST"
         mock_fmt.prompt_generator.generate_examples.return_value = "SHARED EXAMPLES"

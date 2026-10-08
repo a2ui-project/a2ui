@@ -228,14 +228,7 @@ class NodeResolver<T extends ComponentApi> {
   void _reportExpressionError(A2uiExpressionError error) {
     if (_disposed) return;
     _pendingErrors.add(
-      _QueuedError(
-        A2uiClientError(
-          code: 'EXPRESSION_ERROR',
-          surfaceId: _surface.id,
-          message: error.message,
-          details: error.details,
-        ),
-      ),
+      _QueuedError(ComponentContext.clientErrorFor(_surface, error)),
     );
     if (_updateDepth == 0 && !_dispatchingErrors && !_errorFlushScheduled) {
       // Normally drained synchronously once the rebuild finishes; a rebuild

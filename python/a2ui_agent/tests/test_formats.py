@@ -177,23 +177,23 @@ def test_supports_streaming_property(test_catalog):
     assert direct_json_fmt.parser.supports_streaming is True
 
     # 2. ExpressFormat parser does not support streaming
-    express_fmt = ExpressFormat(catalog=test_catalog)
+    express_fmt = ExpressFormat([test_catalog])
     assert express_fmt.supports_streaming is False
     assert express_fmt.parser.supports_streaming is False
 
     # 3. ElementalFormat parser does not support streaming
-    elemental_fmt = ElementalFormat(catalog=test_catalog)
+    elemental_fmt = ElementalFormat([test_catalog])
     assert elemental_fmt.supports_streaming is False
     assert elemental_fmt.parser.supports_streaming is False
 
 
 def test_process_chunk_raises_not_implemented(test_catalog):
-    express_parser = ExpressParser(test_catalog)
+    express_parser = ExpressParser([test_catalog])
     with pytest.raises(NotImplementedError) as exc_info:
         express_parser.process_chunk("chunk")
     assert "Streaming is not supported by ExpressParser" in str(exc_info.value)
 
-    elemental_parser = ElementalParser(test_catalog)
+    elemental_parser = ElementalParser([test_catalog])
     with pytest.raises(NotImplementedError) as exc_info:
         elemental_parser.process_chunk("chunk")
     assert "Streaming is not supported by ElementalParser" in str(exc_info.value)
@@ -216,7 +216,7 @@ def test_decompiler_delegation(test_catalog):
     assert "main" in direct_decompile
 
     # Verify Express Parser Decompile
-    express_fmt = ExpressFormat(catalog=test_catalog)
+    express_fmt = ExpressFormat([test_catalog])
     expr_parser = express_fmt.parser
     envelope = {
         "version": "v1.0",
@@ -328,9 +328,9 @@ def test_direct_json_prompt_describes_every_catalog():
 
     assert '"catalogId":"a"' in prompt
     assert '"catalogId":"b"' in prompt
-    assert direct_json_format.catalogs == tuple(catalogs)
-    assert direct_json_format.parser.catalogs == tuple(catalogs)
-    assert direct_json_format.create_stream_parser().catalogs == tuple(catalogs)
+    assert direct_json_format.catalogs == list(catalogs)
+    assert direct_json_format.parser.catalogs == list(catalogs)
+    assert direct_json_format.create_stream_parser().catalogs == list(catalogs)
 
 
 def test_direct_json_format_passes_all_catalogs_to_v1_0_parsers():
@@ -342,9 +342,9 @@ def test_direct_json_format_passes_all_catalogs_to_v1_0_parsers():
     ]
     direct_json_format = DirectJsonFormat(catalogs)
 
-    assert direct_json_format.catalogs == tuple(catalogs)
-    assert direct_json_format.parser.catalogs == tuple(catalogs)
-    assert direct_json_format.create_stream_parser().catalogs == tuple(catalogs)
+    assert direct_json_format.catalogs == list(catalogs)
+    assert direct_json_format.parser.catalogs == list(catalogs)
+    assert direct_json_format.create_stream_parser().catalogs == list(catalogs)
 
 
 _CUT_TEXT_CHUNK = (

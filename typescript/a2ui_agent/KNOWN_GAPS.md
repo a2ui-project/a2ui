@@ -27,6 +27,13 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** A v1.0 component can be emitted and checked against its surface's catalog before a later `catalogId` names the catalog it belongs to, and renderers can redraw a component while its properties are still arriving.
 - **Done looks like:** The stream processor holds a v1.0 component back until its object closes and emits the closed components of a list while the next one arrives, so `test_v1_0_streaming_component_catalog_id_arrives_late`, `test_v1_0_streaming_catalog_id_split_across_chunks` and `test_v1_0_streaming_component_on_surface_catalog_waits_until_closed` from `conformance/agent/legacy/streaming_parser.yaml` pass and leave `KNOWN_FAILURES` in `tests/conformance/loader.ts`. Tracked in #3030.
 
+### Express multi-catalog resolution still uses surface-level catalogId
+
+- **What it is:** With multiple active catalogs, Python's Express compiler omits `createSurface.catalogId`, resolves un-annotated components and function calls by name across active catalogs, and stamps `catalogId` on each compiled component and function call (#3031). The TypeScript Express compiler and decompiler still resolve a surface-level catalog from `surface("id", "cat")` or the first catalog.
+- **Why it exists:** Python updated its multi-catalog Express resolution in #3031, and the TypeScript compiler and decompiler have not followed yet.
+- **What it risks:** Multi-catalog Express compilation and decompilation differ between Python and TypeScript until ported.
+- **Done looks like:** The TypeScript Express compiler and decompiler implement name-based multi-catalog resolution and omit `createSurface.catalogId` when multiple catalogs are active, so `test_compile_express_surface_targeting_names_a_catalog` and `test_decompile_express_two_surfaces_in_two_catalogs` pass and leave `KNOWN_FAILURES` in `tests/conformance/express_conformance.test.ts`.
+
 ### Streamed payloads are not validated against catalogs
 
 - **What it is:** With a `ValidationConfig`, `DirectJsonStreamProcessorImpl` checks each completed envelope against the protocol schema and `allowedMessages`, but not against the active catalogs. A component type or property the catalog doesn't define passes through.
@@ -226,12 +233,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** The model may be told to use components or properties that the negotiated catalog does not have. This conflicts with the repository rule that inference formats stay catalog-agnostic.
 - **Done looks like:** Upstream Python rewrites its rules to be catalog-agnostic and regenerates the `express_base_rules.txt` golden.
 
-### Python's Express decompiles a check without a condition as `?None`
+### Express decompiles a check without a condition as `?None`
 
-- **What it is:** When the prompt generator rewrites catalog examples as Express, a check rule written as `{"call": "required"}` without the `condition` wrapper decompiles to `?None`. The v1.0 basic catalog has one such example, so the golden `express_catalog_instructions.txt` contains `?None` (line 197), and the port produces the same.
-- **Why it exists:** Python's decompiler reads `rc.get("condition", {}).get("call")` and formats the missing value as `None`.
-- **What it risks:** The model is shown an example that does not compile.
-- **Done looks like:** The catalog example is corrected, or Python's decompiler handles a bare call, and the golden is regenerated.
+- **What it is:** When the prompt generator rewrites catalog examples as Express, a check rule written as `{"call": "required"}` without the `condition` wrapper decompiles to `?None`. Python writes it as `?required` (#3031). The v1.0 basic catalog example now uses a valid `CheckRule` with a `condition`, so the `express_catalog_instructions.txt` golden no longer exercises this path and the unit test compares against it unchanged.
+- **Why it exists:** The port reproduced Python's earlier decompiler, which read `rc.get("condition", {}).get("call")` and formatted the missing value as `None`.
+- **What it risks:** A custom catalog whose examples use the bare form shows the model an example that does not compile.
+- **Done looks like:** The decompiler handles a bare call as Python does.
 
 ### Python's Express ignores common properties defined inside a v0.9 catalog
 

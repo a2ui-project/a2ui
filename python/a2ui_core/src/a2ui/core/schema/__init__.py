@@ -34,6 +34,12 @@ class A2uiProtocolVersion(str, Enum):
 
 ProtocolVersion = A2uiProtocolVersion
 
+# Re-exports from primary schema namespace for backwards compatibility
+from .v0_9.common_types import *
+from .v0_9.constants import *
+from .v0_9.server_to_client import *
+from .v0_9.client_to_server import *
+from .v0_9.client_capabilities import *
 
 # Multi-version envelope unions (v1.0+ primary terminology)
 AgentToRendererMessage = (
@@ -88,13 +94,6 @@ ClientToServerMessagePayload = RendererToAgentMessagePayload
 A2uiRendererAction = v0_9.A2uiRendererAction
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction
-
-# Re-exports from primary schema namespace for backwards compatibility
-from .v0_9.common_types import *
-from .v0_9.constants import *
-from .v0_9.server_to_client import *
-from .v0_9.client_to_server import *
-from .v0_9.client_capabilities import *
 
 from .agent_to_renderer_schema import (
     get_agent_to_renderer_schema_json,

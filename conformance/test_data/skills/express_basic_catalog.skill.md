@@ -200,7 +200,7 @@ $/form/rep = "John Doe"
 $/form/value = 1500.0
 root = Column([repField, valueField])
 repField = TextField("Representative", $/form/rep, "Enter name")
-valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required("Value is required"))
+valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required("Deal value is required."))
 </a2ui>
 ```
 

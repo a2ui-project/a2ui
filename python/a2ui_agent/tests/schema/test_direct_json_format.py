@@ -29,17 +29,17 @@ def test_direct_json_format_holds_its_catalogs():
     catalog = BasicCatalog(VERSION_0_8)
     direct_json_format = DirectJsonFormat([catalog])
 
-    assert direct_json_format.catalogs == (catalog,)
+    assert direct_json_format.catalogs == [catalog]
     assert "Text" in direct_json_format.catalogs[0].catalog_schema["components"]
 
 
 def test_direct_json_format_without_catalogs_is_an_error():
-    with pytest.raises(A2uiCatalogError, match="at least one catalog"):
+    with pytest.raises(A2uiCatalogError, match="At least one catalog"):
         DirectJsonFormat([])
 
 
 def test_direct_json_format_with_mixed_versions_is_an_error():
-    with pytest.raises(A2uiCatalogError, match="different protocol versions"):
+    with pytest.raises(A2uiCatalogError, match="incompatible protocol versions"):
         DirectJsonFormat([BasicCatalog(VERSION_0_8), BasicCatalog(VERSION_0_9)])
 
 

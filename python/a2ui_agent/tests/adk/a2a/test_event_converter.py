@@ -22,7 +22,9 @@ from a2ui.core.basic_catalog import BasicCatalog
 
 
 def test_event_converter_injects_catalog():
-    catalog_mock = MagicMock(spec=Catalog)
+    catalog_mock = MagicMock(
+        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
+    )
     event_mock = MagicMock()
     invocation_context_mock = MagicMock()
     # Correctly access session via mock
@@ -44,7 +46,7 @@ def test_event_converter_injects_catalog():
 
         assert effective_part_converter.__name__ == "convert"
         assert isinstance(effective_part_converter.__self__, A2uiPartConverter)
-        assert effective_part_converter.__self__._parser.catalogs == (catalog_mock,)
+        assert effective_part_converter.__self__._parser.catalogs == [catalog_mock]
 
 
 def test_event_converter_injects_catalog_sequence():
@@ -73,7 +75,7 @@ def test_event_converter_injects_catalog_sequence():
         effective_part_converter = args[4]
 
         assert isinstance(effective_part_converter.__self__, A2uiPartConverter)
-        assert effective_part_converter.__self__._parser.catalogs == tuple(catalogs)
+        assert effective_part_converter.__self__._parser.catalogs == list(catalogs)
 
 
 def test_event_converter_falls_back_without_catalog():
@@ -102,7 +104,9 @@ def test_event_converter_falls_back_without_catalog():
 
 
 def test_event_converter_propagates_fallback_text():
-    catalog_mock = MagicMock(spec=Catalog)
+    catalog_mock = MagicMock(
+        spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
+    )
     event_mock = MagicMock()
     invocation_context_mock = MagicMock()
     invocation_context_mock.session.state = {"system:a2ui_catalog": catalog_mock}

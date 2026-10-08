@@ -70,6 +70,37 @@ enum A2uiReturnType {
   }
 }
 
+/// Which side of the protocol may invoke a function: the `allowedCallers`
+/// of a catalog function definition.
+enum AllowedCallers {
+  /// Only the renderer, from its own dynamic values and actions. The default.
+  rendererOnly('rendererOnly'),
+
+  /// Only the agent, through `callRendererFunction`.
+  agentOnly('agentOnly'),
+
+  /// Either side.
+  rendererOrAgent('rendererOrAgent');
+
+  const AllowedCallers(this.jsonValue);
+
+  /// The value as it appears in a catalog document.
+  final String jsonValue;
+
+  /// Parses a catalog document value.
+  ///
+  /// Throws [A2uiCatalogError] for a value the protocol does not define.
+  static AllowedCallers fromJson(String value) {
+    for (final AllowedCallers candidate in values) {
+      if (candidate.jsonValue == value) return candidate;
+    }
+    throw A2uiCatalogError(
+      "Unknown allowedCallers value '$value'; expected one of "
+      '${values.map((v) => v.jsonValue).join(', ')}.',
+    );
+  }
+}
+
 /// A definition of a UI function's API.
 ///
 /// Declares a signature only, so it is what [Catalog.fromJson] produces
@@ -81,11 +112,21 @@ class FunctionApi {
   final Schema argumentSchema;
   final String? description;
 
+  /// Who may invoke this function. An agent's `callRendererFunction` is
+  /// refused unless this allows the agent.
+  final AllowedCallers allowedCallers;
+
+  /// Whether the function runs only from a user activation, such as an
+  /// action the user triggered, and not from a dynamic value.
+  final bool requiresUserActivation;
+
   const FunctionApi({
     required this.name,
     required this.argumentSchema,
     this.returnType = A2uiReturnType.any,
     this.description,
+    this.allowedCallers = AllowedCallers.rendererOnly,
+    this.requiresUserActivation = false,
   });
 }
 
@@ -96,6 +137,8 @@ abstract class FunctionImplementation extends FunctionApi {
     required super.argumentSchema,
     super.returnType,
     super.description,
+    super.allowedCallers,
+    super.requiresUserActivation,
   });
 
   /// Executes the function. Can return a static value or a [ReadonlySignal].
@@ -687,6 +730,16 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                 returnType: A2uiReturnType.fromJson(
                   entry['returnType'] as String? ?? 'any',
                 ),
+                allowedCallers: _parseAllowedCallers(
+                  entry['allowedCallers'],
+                  entry['name'] as String,
+                  catalogId,
+                ),
+                requiresUserActivation: _parseRequiresUserActivation(
+                  entry['requiresUserActivation'],
+                  entry['name'] as String,
+                  catalogId,
+                ),
               ),
       ];
     }
@@ -740,10 +793,62 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             _asSchemaMap(args ?? const <String, Object?>{}),
           ),
           returnType: A2uiReturnType.fromJson(returnTypeStr),
+          allowedCallers: _parseAllowedCallers(
+            schema['allowedCallers'],
+            fnName,
+            catalogId,
+          ),
+          requiresUserActivation: _parseRequiresUserActivation(
+            schema['requiresUserActivation'],
+            fnName,
+            catalogId,
+          ),
         ),
       );
     }
     return functions;
+  }
+
+  /// Reads a function's `allowedCallers`, defaulting to
+  /// [AllowedCallers.rendererOnly] as the catalog definition schema does.
+  static AllowedCallers _parseAllowedCallers(
+    Object? raw,
+    String functionName,
+    String catalogId,
+  ) {
+    if (raw == null) return AllowedCallers.rendererOnly;
+    if (raw is! String) {
+      throw A2uiCatalogError(
+        "Catalog function '$functionName' allowedCallers must be a string.",
+        catalogId: catalogId,
+      );
+    }
+    try {
+      return AllowedCallers.fromJson(raw);
+    } on A2uiCatalogError catch (error) {
+      throw A2uiCatalogError(
+        "Catalog function '$functionName': ${error.message}",
+        catalogId: catalogId,
+        cause: error,
+      );
+    }
+  }
+
+  /// Reads a function's `requiresUserActivation`, defaulting to false.
+  static bool _parseRequiresUserActivation(
+    Object? raw,
+    String functionName,
+    String catalogId,
+  ) {
+    if (raw == null) return false;
+    if (raw is! bool) {
+      throw A2uiCatalogError(
+        "Catalog function '$functionName' requiresUserActivation must be a "
+        'boolean.',
+        catalogId: catalogId,
+      );
+    }
+    return raw;
   }
 
   static Schema? _parseTheme(Map<String, Object?> json) {
@@ -854,6 +959,11 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     return <String, Object?>{
       'type': 'object',
       if (fn.description != null) 'description': fn.description,
+      // Emitted only when they differ from the schema defaults, so a
+      // document that never declared them round-trips unchanged.
+      if (fn.allowedCallers != AllowedCallers.rendererOnly)
+        'allowedCallers': fn.allowedCallers.jsonValue,
+      if (fn.requiresUserActivation) 'requiresUserActivation': true,
       'properties': <String, Object?>{
         callKey: <String, Object?>{'const': name},
         'args': argsValue,
