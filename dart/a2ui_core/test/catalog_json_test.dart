@@ -360,5 +360,62 @@ void main() {
       expect(defs.containsKey('ComponentId'), isTrue);
       expect(defs.containsKey('anyComponent'), isTrue);
     });
+
+    test('serializes a v1.0 catalogSchema with @call and no id', () {
+      final Catalog<ComponentApi, FunctionApi> catalog = Catalog(
+        id: 'https://example.com/custom-catalog',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: [
+          ComponentApi(
+            name: 'Button',
+            schema: Schema.fromMap({
+              'type': 'object',
+              'properties': {
+                'label': {r'$ref': r'#/$defs/DynamicString'},
+                'child': {r'$ref': r'#/$defs/Child'},
+              },
+              'required': ['label'],
+            }),
+          ),
+        ],
+        functions: [
+          FunctionApi(
+            name: 'f',
+            argumentSchema: Schema.object(
+              properties: {'value': Schema.string()},
+            ),
+            returnType: A2uiReturnType.string,
+          ),
+        ],
+      );
+
+      final Map<String, Object?> schema = catalog.catalogSchema;
+      expect(schema['protocolVersion'], '1.0');
+
+      final button =
+          (schema['components'] as Map<String, Object?>)['Button']
+              as Map<String, Object?>;
+      final props = button['properties'] as Map<String, Object?>;
+      expect(props.containsKey('id'), isFalse);
+      expect(props['component'], {'const': 'Button'});
+      expect(button['required'], ['label', 'component']);
+
+      final f = (schema['functions'] as Map<String, Object?>)['f']
+          as Map<String, Object?>;
+      final fProps = f['properties'] as Map<String, Object?>;
+      expect(fProps['@call'], {'const': 'f'});
+      expect(fProps.containsKey('call'), isFalse);
+      expect(f['required'], ['@call', 'args']);
+      expect(f.containsKey('unevaluatedProperties'), isFalse);
+
+      // Shared types are bundled from the v1.0 common_types.json, including
+      // what they reference in turn (Child points at ComponentId).
+      final defs = schema[r'$defs'] as Map<String, Object?>;
+      expect(defs.containsKey('Child'), isTrue);
+      expect(defs.containsKey('ComponentId'), isTrue);
+      expect(defs.containsKey('DataBinding'), isTrue);
+      expect(jsonEncode(defs['DataBinding']), contains('"@path"'));
+      expect(jsonEncode(defs['DataBinding']), isNot(contains('"path"')));
+    });
   });
 }

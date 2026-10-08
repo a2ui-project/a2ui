@@ -304,7 +304,8 @@ Object? followJsonPointer(Object? document, String pointer) {
   return current;
 }
 
-/// Checks if [name] is a standard A2UI common type definition.
+/// Checks if [name] is a standard A2UI common type definition, in either the
+/// v0.9 or the v1.0 `common_types.json`.
 bool isCommonTypeDef(String name) => const {
       'ComponentId',
       'DynamicString',
@@ -318,4 +319,12 @@ bool isCommonTypeDef(String name) => const {
       'Action',
       'CheckRule',
       'AccessibilityAttributes',
+      // Added in v1.0.
+      'Child',
+      'FunctionCommon',
+      'IndexSystemFunction',
+      'Surface',
+      'CallId',
+      'FunctionResponse',
+      'Extensions',
     }.contains(name);

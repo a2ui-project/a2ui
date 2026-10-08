@@ -214,6 +214,48 @@ void main() {
       expect(schema.validateSync({'@call': 'f'}), isEmpty);
       expect(schema.validateSync('text'), isEmpty);
     });
+
+    test('every builder names its common type in commonTypesRef', () {
+      final named = <String, Schema>{
+        'DynamicNumber': CommonSchemas.dynamicNumber,
+        'DynamicStringList': CommonSchemas.dynamicStringList,
+        'DynamicValue': CommonSchemas.dynamicValue,
+        'AccessibilityAttributes': CommonSchemas.accessibilityAttributes,
+        'CheckRule': CommonSchemas.checkRule,
+        'ComponentCommon': CommonSchemas.componentCommon,
+        'DataBinding': CommonSchemasV1.dataBinding,
+        'FunctionCall': CommonSchemasV1.functionCall,
+        'DynamicString': CommonSchemasV1.dynamicString,
+        'DynamicBoolean': CommonSchemasV1.dynamicBoolean,
+      };
+      for (final MapEntry<String, Schema> entry in named.entries) {
+        expect(
+          entry.value.value['commonTypesRef'],
+          'common_types.json#/\$defs/${entry.key}',
+          reason: entry.key,
+        );
+        expect(
+          entry.value.value['description'],
+          isNot(startsWith('REF:')),
+          reason: entry.key,
+        );
+      }
+      for (final Schema schema in [
+        CommonSchemasV1.dynamicNumber,
+        CommonSchemasV1.dynamicStringList,
+        CommonSchemasV1.dynamicValue,
+        CommonSchemasV1.accessibilityAttributes,
+        CommonSchemasV1.checkRule,
+        CommonSchemasV1.componentCommon,
+      ]) {
+        expect(schema.value['commonTypesRef'], startsWith('common_types.json'));
+        expect(schema.value['description'], isNot(startsWith('REF:')));
+      }
+      expect(
+        CommonSchemasV1.dataBinding.value['description'],
+        'A JSON Pointer path to a value in the data model.',
+      );
+    });
   });
 
   group('CommonSchemas.functionCall', () {

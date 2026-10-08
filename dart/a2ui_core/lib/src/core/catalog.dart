@@ -727,31 +727,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       return null;
     }
     if (fragment.isEmpty) return null;
-    return _isCommonTypeDef(fragment.split('/').first) ? fragment : null;
+    return isCommonTypeDef(fragment.split('/').first) ? fragment : null;
   }
-
-  static bool _isCommonTypeDef(String name) => const {
-        'ComponentId',
-        'DynamicString',
-        'DynamicNumber',
-        'DynamicBoolean',
-        'DynamicStringList',
-        'DynamicValue',
-        'DataBinding',
-        'FunctionCall',
-        'ChildList',
-        'Action',
-        'CheckRule',
-        'AccessibilityAttributes',
-        // Added in v1.0.
-        'Child',
-        'FunctionCommon',
-        'IndexSystemFunction',
-        'Surface',
-        'CallId',
-        'FunctionResponse',
-        'Extensions',
-      }.contains(name);
 
   static List<FunctionApi> _parseFunctions(
     Object? raw,
