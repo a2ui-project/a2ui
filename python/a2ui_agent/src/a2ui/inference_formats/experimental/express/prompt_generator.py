@@ -18,6 +18,8 @@ Compiles A2UI catalog schemas into compact plain-text signatures and
 instruction blocks.
 """
 
+from __future__ import annotations
+
 from collections.abc import Mapping, Sequence
 import json
 import re

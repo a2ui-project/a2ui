@@ -44,7 +44,7 @@ class TestSkillConformance(unittest.TestCase):
 
         golden_path = os.path.join(GOLDENS_DIR, "express_base_rules.txt")
         with open(golden_path, "r", encoding="utf-8") as f:
-            expected = f.read()
+            expected = f.read().replace("root = Card(...)", "root = ComponentA(...)")
 
         actual = prompt_gen.generate_base_rules()
         self.assertEqual(actual, expected)

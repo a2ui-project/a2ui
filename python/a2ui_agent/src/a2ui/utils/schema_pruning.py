@@ -120,7 +120,7 @@ def prune_messages_schema(
         for def_name, def_val in defs.items():
             if isinstance(def_val, dict):
                 props = def_val.get("properties")
-                if isinstance(props, dict) and any(k in allowed for k in props):
+                if isinstance(props, dict) and any(k in allowed_defs for k in props):
                     allowed_defs.add(def_name)
 
     one_of = pruned.get("oneOf")

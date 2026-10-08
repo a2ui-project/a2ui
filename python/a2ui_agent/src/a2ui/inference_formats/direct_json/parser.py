@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -252,6 +252,8 @@ class DirectJsonParser(Parser):
                     sid = delete_body.get("surfaceId")
                     if isinstance(sid, str):
                         trial_surfaces.pop(sid, None)
+                elif isinstance(delete_body, str):
+                    trial_surfaces.pop(delete_body, None)
                 models = to_message_models([envelope])
                 surfaces = trial_surfaces
                 ready.extend(models)

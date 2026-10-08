@@ -177,15 +177,17 @@ def _process_target_wrapper(
     resolved_catalog_path: str,
     surface_id: str,
     completion: str,
-    return_dict: dict,
+    conn: Any,
 ):
     try:
         res = _parse_and_validate_in_process(
             format_name, version, resolved_catalog_path, surface_id, completion
         )
-        return_dict["result"] = res
+        conn.send({"result": res})
     except Exception as e:
-        return_dict["error"] = f"{e}\n{traceback.format_exc()}"
+        conn.send({"error": f"{e}\n{traceback.format_exc()}"})
+    finally:
+        conn.close()
 
 
 def parse_with_hard_kill_timeout(
@@ -196,20 +198,23 @@ def parse_with_hard_kill_timeout(
     completion: str,
     timeout_sec: float = 5.0,
 ) -> dict[str, Any]:
-    with multiprocessing.Manager() as manager:
-        return_dict = manager.dict()
-        p = multiprocessing.Process(
-            target=_process_target_wrapper,
-            args=(
-                format_name,
-                version,
-                resolved_catalog_path,
-                surface_id,
-                completion,
-                return_dict,
-            ),
-        )
-        p.start()
+    start_method = "fork" if "fork" in multiprocessing.get_all_start_methods() else None
+    ctx = multiprocessing.get_context(start_method)
+    parent_conn, child_conn = ctx.Pipe(duplex=False)
+    p = ctx.Process(
+        target=_process_target_wrapper,
+        args=(
+            format_name,
+            version,
+            resolved_catalog_path,
+            surface_id,
+            completion,
+            child_conn,
+        ),
+    )
+    p.start()
+    child_conn.close()
+    try:
         p.join(timeout=timeout_sec)
         if p.is_alive():
             p.kill()
@@ -219,11 +224,15 @@ def parse_with_hard_kill_timeout(
                 " killed."
             )
 
-        if "error" in return_dict:
-            raise ValueError(return_dict["error"])
-        if "result" not in return_dict:
-            raise ValueError("Compilation produced no output.")
-        return return_dict["result"]
+        return_dict = parent_conn.recv() if parent_conn.poll() else {}
+    finally:
+        parent_conn.close()
+
+    if "error" in return_dict:
+        raise ValueError(return_dict["error"])
+    if "result" not in return_dict:
+        raise ValueError("Compilation produced no output.")
+    return return_dict["result"]
 
 
 @solver

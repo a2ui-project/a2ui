@@ -17,6 +17,8 @@ Translates standard JSON catalog schemas into TypeScript/TSX interface
 definitions and instruction blocks for on-device models.
 """
 
+from __future__ import annotations
+
 from collections.abc import Mapping, Sequence
 import json
 import re
@@ -669,14 +671,14 @@ class ElementalPromptGenerator(PromptGenerator):
 
     def generate(
         self,
-        role_description: str,
+        role_description: str = "",
         workflow_description: str = "",
         ui_description: str = "",
         client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
         allowed_components: Sequence[str] | None = None,
         allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = False,
-        include_examples: bool = False,
+        include_schema: bool = True,
+        include_examples: bool = True,
         validate_examples: bool = False,
     ) -> str:
         """Assembles the complete system instruction block for the LLM.
@@ -695,7 +697,7 @@ class ElementalPromptGenerator(PromptGenerator):
         Returns:
             The complete system prompt string explaining A2UI Elemental and its catalog.
         """
-        parts = [role_description]
+        parts = [role_description] if role_description else []
 
         rules = self.generate_base_rules()
         if workflow_description:

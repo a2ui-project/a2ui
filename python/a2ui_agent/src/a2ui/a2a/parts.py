@@ -161,7 +161,8 @@ def parse_response_to_parts(
     parts: list[Part] = []
     try:
         raw_parts = BlockLexer("a2ui-json").tokenize(content)
-        for part in raw_parts:
+        for raw_part in raw_parts:
+            part = raw_part.part
             if isinstance(part, TextPart) and part.text:
                 parts.append(Part(root=A2aTextPart(text=part.text)))
             elif isinstance(part, RawA2uiPart):
