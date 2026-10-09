@@ -15,7 +15,6 @@
 import 'dart:async';
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_core/src/core/contexts.dart';
 import 'package:a2ui_core/src/rendering/binder.dart';
 import 'package:json_schema_builder/json_schema_builder.dart'
     hide ValidationResult;
@@ -874,8 +873,8 @@ void main() {
       final children =
           binder.resolvedProps.value['children'] as List<ChildNode>;
       expect(children, [
-        ChildNode('todo-item', '/todos/0'),
-        ChildNode('todo-item', '/todos/1'),
+        ChildNode('todo-item', '/todos/0', index: 0),
+        ChildNode('todo-item', '/todos/1', index: 1),
       ]);
 
       v1Surface.dataModel.set('/todos', [
@@ -885,7 +884,7 @@ void main() {
       ]);
       final updated = binder.resolvedProps.value['children'] as List<ChildNode>;
       expect(updated, hasLength(3));
-      expect(updated[2], ChildNode('todo-item', '/todos/2'));
+      expect(updated[2], ChildNode('todo-item', '/todos/2', index: 2));
     });
 
     test(

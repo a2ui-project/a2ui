@@ -62,6 +62,9 @@ class _NodeRecord<T extends ComponentApi> {
   final RefFields refFields;
   final ComponentModel? componentModel;
 
+  /// The template iteration index this node was created with, if any.
+  final int? index;
+
   /// The deduplication entry this cyclic stand-in belongs to. Retirement must
   /// not clear a newer entry installed by a reentrant repair or replacement.
   final Set<String>? diagnosticCodes;
@@ -82,6 +85,7 @@ class _NodeRecord<T extends ComponentApi> {
     required this.parent,
     required this.refFields,
     this.componentModel,
+    this.index,
     this.diagnosticCodes,
   });
 }
@@ -148,6 +152,8 @@ class NodeResolver<T extends ComponentApi> {
   final Map<_DiagnosticScope, Set<String>> _dispatchedErrors = {};
   final Queue<String> _pendingWarnings = Queue();
   final Set<String> _warnedReferencePaths = {};
+  final Queue<A2uiWarning> _pendingSurfaceWarnings = Queue();
+  final Set<String> _warnedMissingDataPaths = {};
 
   /// Builds a resolver over [_surface], subscribing to its component model and
   /// resolving the existing tree if a root is already present.
@@ -156,7 +162,20 @@ class NodeResolver<T extends ComponentApi> {
   /// surface. The resolver holds listeners on the surface's component model
   /// and unregisters them on its own disposal, so tearing the surface down
   /// first leaves those listeners attached to a disposed model.
-  NodeResolver(this._surface) {
+  ///
+  /// When given, [catalog] must be the surface's
+  /// [SurfaceModel.defaultCatalog]; each component still resolves against the
+  /// catalog it names. Throws [A2uiStateError] for any other catalog.
+  NodeResolver(
+    this._surface, {
+    Catalog<T, FunctionImplementation>? catalog,
+  }) {
+    if (catalog != null && !identical(catalog, _surface.defaultCatalog)) {
+      throw A2uiStateError(
+        'NodeResolver requires the default catalog of surface '
+        "'${_surface.id}', not catalog '${catalog.id}'.",
+      );
+    }
     _onCreatedListener = (component) {
       _runUpdate(() => _onComponentCreated(component));
     };
@@ -186,6 +205,7 @@ class NodeResolver<T extends ComponentApi> {
     } catch (_) {
       _discardPendingErrors();
       _pendingWarnings.clear();
+      _pendingSurfaceWarnings.clear();
       rethrow;
     } finally {
       _updateDepth--;
@@ -230,6 +250,18 @@ class NodeResolver<T extends ComponentApi> {
     _pendingErrors.add(
       _QueuedError(ComponentContext.clientErrorFor(_surface, error)),
     );
+    _scheduleFallbackFlush();
+  }
+
+  // Bindings resolve while binders build, so the warning waits for the
+  // update's diagnostic boundary like an expression error.
+  void _reportMissingData(String path) {
+    if (_disposed || !_warnedMissingDataPaths.add(path)) return;
+    _pendingSurfaceWarnings.add(missingDataBindingWarning(path));
+    _scheduleFallbackFlush();
+  }
+
+  void _scheduleFallbackFlush() {
     if (_updateDepth == 0 && !_dispatchingErrors && !_errorFlushScheduled) {
       // Normally drained synchronously once the rebuild finishes; a rebuild
       // that changes no binding value emits nothing, so schedule a fallback.
@@ -258,9 +290,13 @@ class NodeResolver<T extends ComponentApi> {
     }
     _dispatchingErrors = true;
     try {
-      while (_pendingErrors.isNotEmpty || _pendingWarnings.isNotEmpty) {
+      while (_pendingErrors.isNotEmpty ||
+          _pendingSurfaceWarnings.isNotEmpty ||
+          _pendingWarnings.isNotEmpty) {
         if (_pendingErrors.isNotEmpty) {
           _surface.dispatchError(_pendingErrors.removeFirst().error);
+        } else if (_pendingSurfaceWarnings.isNotEmpty) {
+          _surface.dispatchWarning(_pendingSurfaceWarnings.removeFirst());
         } else {
           _log.warning(_pendingWarnings.removeFirst());
         }
@@ -268,6 +304,7 @@ class NodeResolver<T extends ComponentApi> {
     } finally {
       _discardPendingErrors();
       _pendingWarnings.clear();
+      _pendingSurfaceWarnings.clear();
       _dispatchingErrors = false;
     }
   }
@@ -304,6 +341,8 @@ class NodeResolver<T extends ComponentApi> {
       _pendingErrors.clear();
       _pendingWarnings.clear();
       _warnedReferencePaths.clear();
+      _pendingSurfaceWarnings.clear();
+      _warnedMissingDataPaths.clear();
     });
   }
 
@@ -403,6 +442,7 @@ class NodeResolver<T extends ComponentApi> {
     _EdgeKey edgeKey,
     MutableComponentNode<T>? parent, {
     int occurrence = 1,
+    int? index,
   }) {
     final ComponentModel? model = _surface.componentsModel.get(componentId);
     if (model == null) {
@@ -472,6 +512,15 @@ class NodeResolver<T extends ComponentApi> {
 
     _clearDispatched(componentId, dataPath);
     final Schema schema = api.schema;
+    final context = ComponentContext(
+      _surface,
+      model,
+      basePath: dataPath,
+      onError: _reportExpressionError,
+      parentDataContext: parent?.context?.dataContext,
+      index: index,
+      onMissingData: _reportMissingData,
+    );
     final _NodeRecord<T> record = _registerNode(
       MutableComponentNode<T>(
         _instanceIdFor(componentId, dataPath, occurrence),
@@ -480,24 +529,17 @@ class NodeResolver<T extends ComponentApi> {
         dataPath,
         const {},
         api,
-      ),
+      )..context = context,
       edgeKey: edgeKey,
       parent: parent,
       occurrence: occurrence,
       refFields: catalog.refMap.fieldsFor(model.type),
       componentModel: model,
+      index: index,
     );
     final GenericBinder binder;
     try {
-      binder = GenericBinder(
-        ComponentContext(
-          _surface,
-          model,
-          basePath: dataPath,
-          onError: _reportExpressionError,
-        ),
-        schema,
-      );
+      binder = GenericBinder(context, schema);
     } catch (_) {
       _disposeNode(record.node);
       rethrow;
@@ -565,6 +607,7 @@ class NodeResolver<T extends ComponentApi> {
     required int occurrence,
     required RefFields refFields,
     ComponentModel? componentModel,
+    int? index,
   }) {
     final record = _NodeRecord<T>(
       node: node,
@@ -573,6 +616,7 @@ class NodeResolver<T extends ComponentApi> {
       occurrence: occurrence,
       refFields: refFields,
       componentModel: componentModel,
+      index: index,
       diagnosticCodes: node.state == NodeState.cyclic
           ? _dispatchedErrors[(node.componentId, node.dataPath)]
           : null,
@@ -591,8 +635,9 @@ class NodeResolver<T extends ComponentApi> {
     String dataPath,
     _EdgeKey edgeKey,
     MutableComponentNode<T> parent,
-    int occurrence,
-  ) {
+    int occurrence, {
+    int? index,
+  }) {
     final MutableComponentNode<T>? existing = _nodesByEdge[edgeKey];
     if (_isCyclic(componentId, dataPath, parent)) {
       // Node identity is parent-scoped, so a cyclic payload would otherwise
@@ -635,6 +680,7 @@ class NodeResolver<T extends ComponentApi> {
       final bool upToDate = existing.componentId == componentId &&
           existing.dataPath == dataPath &&
           _records[existing]?.occurrence == occurrence &&
+          (existing.isPlaceholder || _records[existing]?.index == index) &&
           (existing.isPlaceholder
               ? (model == null && existing.state == NodeState.pending) ||
                   (model != null &&
@@ -660,6 +706,7 @@ class NodeResolver<T extends ComponentApi> {
       edgeKey,
       parent,
       occurrence: occurrence,
+      index: index,
     );
   }
 
@@ -698,8 +745,9 @@ class NodeResolver<T extends ComponentApi> {
     MutableComponentNode<T> resolveChild(
       _ChildSlot slot,
       String componentId,
-      String dataPath,
-    ) {
+      String dataPath, {
+      int? index,
+    }) {
       final occurrenceKey = (componentId, dataPath);
       final int occurrence = (occurrences[occurrenceKey] ?? 0) + 1;
       occurrences[occurrenceKey] = occurrence;
@@ -712,6 +760,7 @@ class NodeResolver<T extends ComponentApi> {
           edgeKey,
           record.node,
           occurrence,
+          index: index,
         );
       } catch (_) {
         // Children created earlier in this pass have no owner until the
@@ -759,7 +808,12 @@ class NodeResolver<T extends ComponentApi> {
           next[key] = List<Object?>.generate(count, (index) {
             final Object? item = value[index];
             if (item is ChildNode) {
-              return resolveChild((key, index, null), item.id, item.basePath);
+              return resolveChild(
+                (key, index, null),
+                item.id,
+                item.basePath,
+                index: item.index,
+              );
             }
             if (item is String && item.isNotEmpty) {
               return resolveChild(

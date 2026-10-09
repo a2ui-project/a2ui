@@ -26,7 +26,7 @@ export 'src/core/common.dart';
 export 'src/core/common_schemas.dart';
 export 'src/core/component_model.dart';
 // Rendering support.
-export 'src/core/contexts.dart' hide ComponentContext;
+export 'src/core/contexts.dart';
 // State management.
 export 'src/core/data_model.dart';
 export 'src/core/messages.dart';

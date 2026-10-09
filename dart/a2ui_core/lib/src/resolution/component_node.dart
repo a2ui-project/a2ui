@@ -15,6 +15,7 @@
 import 'package:logging/logging.dart';
 
 import '../core/catalog.dart';
+import '../core/contexts.dart' show ComponentContext;
 import '../primitives/event_notifier.dart';
 import '../primitives/reactivity.dart';
 import '../rendering/binder.dart' show ChildNode;
@@ -93,6 +94,13 @@ abstract interface class ComponentNode<T extends ComponentApi> {
   /// Why this node is or is not resolved.
   NodeState get state;
 
+  /// The context this node's properties resolve and dispatch actions
+  /// through; null for a placeholder.
+  ///
+  /// Its data context links to the parent node's data context and, for a
+  /// template child, records the item's iteration index.
+  ComponentContext? get context;
+
   /// Resolved, reactive properties. Read without subscribing via `peek()`.
   ///
   /// Published JSON containers, including binding values and the outer props
@@ -159,6 +167,9 @@ final class MutableComponentNode<T extends ComponentApi>
 
   @override
   EventListenable<void> get onDestroyed => _onDestroyed;
+
+  @override
+  ComponentContext? context;
 
   // Null once the cleanup pass has finished, before destruction notification.
   List<void Function()>? _cleanups = [];

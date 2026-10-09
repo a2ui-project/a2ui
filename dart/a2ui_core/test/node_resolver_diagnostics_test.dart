@@ -359,4 +359,86 @@ void main() {
       },
     );
   });
+
+  group('NodeResolver missing data bindings', () {
+    late SurfaceModel<ComponentApi> boundSurface;
+    late NodeResolver<ComponentApi> boundResolver;
+    late List<A2uiWarning> warnings;
+
+    setUp(() {
+      boundSurface = SurfaceModel<ComponentApi>(
+        'bound',
+        defaultCatalog: Catalog(
+          id: 'bound-catalog',
+          components: [
+            ComponentApi(
+              name: 'Label',
+              schema: Schema.object(
+                properties: {'text': CommonSchemas.dynamicString},
+              ),
+            ),
+            ComponentApi(
+              name: 'Column',
+              schema: Schema.object(
+                properties: {'children': CommonSchemas.childList},
+              ),
+            ),
+          ],
+        ),
+      );
+      warnings = [];
+      boundSurface.onWarning.addListener(warnings.add);
+      boundResolver = NodeResolver(boundSurface);
+      addTearDown(() {
+        boundResolver.dispose();
+        boundSurface.dispose();
+      });
+    });
+
+    test('warns once per unresolved path after the tree commits', () {
+      final rootsAtWarning = <ComponentNode?>[];
+      boundSurface.onWarning.addListener(
+        (_) => rootsAtWarning.add(boundResolver.rootNode.peek()),
+      );
+      boundSurface.dataModel.set('/present', 'here');
+      _add(boundSurface, 'a', 'Label', {
+        'text': {'path': '/missing'},
+      });
+      _add(boundSurface, 'b', 'Label', {
+        'text': {'path': '/missing'},
+      });
+      _add(boundSurface, 'c', 'Label', {
+        'text': {'path': '/present'},
+      });
+      _add(boundSurface, 'd', 'Label', {
+        'text': {'path': '/other'},
+      });
+      _add(boundSurface, 'root', 'Column', {
+        'children': ['a', 'b', 'c', 'd'],
+      });
+
+      expect(
+        [for (final warning in warnings) (warning.code, warning.path)],
+        [
+          ('MISSING_DATA_BINDING', '/missing'),
+          ('MISSING_DATA_BINDING', '/other')
+        ],
+      );
+      expect(warnings.first.surfaceId, 'bound');
+      expect(rootsAtWarning, everyElement(isNotNull));
+
+      // Rebuilding a binding to the same missing path does not warn again.
+      boundSurface.componentsModel.get('a')!.properties = {
+        'text': {'path': '/missing'},
+      };
+      expect(warnings, hasLength(2));
+    });
+
+    test('does not warn for a binding outside a mounted node', () {
+      _add(boundSurface, 'orphan', 'Label', {
+        'text': {'path': '/missing'},
+      });
+      expect(warnings, isEmpty);
+    });
+  });
 }
