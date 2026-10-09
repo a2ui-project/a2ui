@@ -5,7 +5,9 @@
 - (v0_9) **BREAKING CHANGE**: `@a2ui/react/v0_9` no longer ships a React implementation of the basic catalog. Import `basicCatalog` and the individual components from `@a2ui/web_core/v0_9/basic_catalog` instead; they render as W3C Custom Elements. [#2630](https://github.com/a2ui-project/a2ui/pull/2630)
 - (v0_9) **BREAKING CHANGE**: the basic catalog no longer server-renders, since custom elements produce no markup outside a browser. [#2630](https://github.com/a2ui-project/a2ui/pull/2630)
 - **BREAKING CHANGE**: (v0_9) Every catalog component now renders inside a custom element (`<a2ui-react-<name>>`, `display: contents`). [#2849](https://github.com/a2ui-project/a2ui/pull/2849)
-- (v0_9) A catalog can mix React implementations and universal Web Components (`WebComponentImplementation`), nested in either order. [#2849](https://github.com/a2ui-project/a2ui/pull/2849)
+- (v0_9) `A2uiSurface` bridges the `MarkdownRenderer` from `MarkdownContext` to `@a2ui/web_core`'s `setMarkdownRenderer`, allowing universal Web Component text components to render markdown provided via React context ([#2910](https://github.com/a2ui-project/a2ui/pull/2910)).
+- (v0_8) Protect `TextField` against ReDoS vulnerabilities by safely validating regex patterns before evaluation ([#2366](https://github.com/a2ui-project/a2ui/pull/2366)).
+- Enforce `noImplicitOverride: true` and forbid self-package imports ([#2878](https://github.com/a2ui-project/a2ui/pull/2878)).
 
 ## 0.12.0
 
