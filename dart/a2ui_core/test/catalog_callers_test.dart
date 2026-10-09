@@ -16,6 +16,19 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
+class _SchemaFn extends FunctionImplementation {
+  _SchemaFn(String name, Schema argumentSchema)
+      : super(name: name, argumentSchema: argumentSchema);
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) =>
+      args;
+}
+
 class _AgentOnlyFn extends FunctionImplementation {
   _AgentOnlyFn()
       : super(
@@ -165,7 +178,7 @@ void main() {
     test('Catalog.invoke rejects agentOnly functions', () {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'cat',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
         components: const [],
         functions: [_AgentOnlyFn()],
       );
@@ -177,6 +190,51 @@ void main() {
       );
       expect(
         () => catalog.invoke('agentOnlyFn', <String, dynamic>{}, context),
+        throwsA(isA<A2uiExpressionError>()),
+      );
+    });
+
+    test('Catalog.invoke resolves argument schema against commonTypesSchema',
+        () {
+      final fn = _SchemaFn(
+        'takeBinding',
+        Schema.object(
+          properties: {
+            'binding': Schema.fromMap(
+              {r'$ref': r'common_types.json#/$defs/DataBinding'},
+            ),
+          },
+          required: ['binding'],
+        ),
+      );
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'cat',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: const [],
+        functions: [fn],
+      );
+      final context = DataContext(
+        DataModel(),
+        catalog.invoke,
+        '/',
+        protocolVersion: 'v1.0',
+      );
+      expect(
+        () => catalog.invoke(
+            'takeBinding',
+            {
+              'binding': {'@path': '/user/name'},
+            },
+            context),
+        returnsNormally,
+      );
+      expect(
+        () => catalog.invoke(
+            'takeBinding',
+            {
+              'binding': {'path': '/user/name'},
+            },
+            context),
         throwsA(isA<A2uiExpressionError>()),
       );
     });

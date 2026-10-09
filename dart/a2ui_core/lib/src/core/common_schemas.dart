@@ -14,7 +14,21 @@
 
 import 'package:json_schema_builder/json_schema_builder.dart';
 
-/// Hand-built schemas for the v0.9 `common_types.json` wire shapes.
+const String _commonTypesUri = 'common_types.json#/\$defs';
+
+/// Marks [schema] as mirroring the common type [name] through
+/// `commonTypesRef` metadata, which is how a hand-built catalog tells
+/// `Catalog.refMap` and the prompt generators which shared type a property
+/// uses.
+Schema _withRef(Schema schema, String name) => Schema.fromMap(<String, Object?>{
+      ...schema.value,
+      'commonTypesRef': '$_commonTypesUri/$name',
+    });
+
+/// Dart builders for the v0.9 `common_types.json` definitions.
+///
+/// Each schema carries `commonTypesRef` metadata naming the definition it
+/// mirrors. [CommonSchemasV1] holds the v1.0 shapes.
 ///
 /// These describe what a v0.9 message may carry. `functionCall.returnType`
 /// therefore accepts only the seven v0.9 return types: v1.0 function calls
@@ -23,14 +37,6 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 /// common types. `A2uiReturnType` is the API-level counterpart and is not
 /// gated by version.
 class CommonSchemas {
-  static const String _commonTypesUri = 'common_types.json#/\$defs';
-
-  static Schema _withRef(Schema schema, String name) =>
-      Schema.fromMap(<String, Object?>{
-        ...schema.value,
-        'commonTypesRef': '$_commonTypesUri/$name',
-      });
-
   static final Schema dataBinding = _withRef(
     Schema.object(
       description: 'A JSON Pointer path to a value in the data model.',
@@ -150,5 +156,214 @@ class CommonSchemas {
       },
     ),
     'Checkable',
+  );
+
+  static final Schema dynamicNumber = _withRef(
+    Schema.combined(
+      description: 'A number value',
+      anyOf: [Schema.number(), dataBinding, functionCall],
+    ),
+    'DynamicNumber',
+  );
+
+  static final Schema dynamicStringList = _withRef(
+    Schema.combined(
+      description: 'A list of strings',
+      anyOf: [Schema.list(items: Schema.string()), dataBinding, functionCall],
+    ),
+    'DynamicStringList',
+  );
+
+  static final Schema dynamicValue = _withRef(
+    Schema.combined(
+      description: 'Any value',
+      anyOf: [
+        Schema.string(),
+        Schema.number(),
+        Schema.boolean(),
+        Schema.list(),
+        dataBinding,
+        functionCall,
+      ],
+    ),
+    'DynamicValue',
+  );
+
+  static final Schema accessibilityAttributes = _withRef(
+    Schema.object(
+      properties: {'label': dynamicString, 'description': dynamicString},
+    ),
+    'AccessibilityAttributes',
+  );
+
+  static final Schema checkRule = _withRef(
+    Schema.object(
+      properties: {'condition': dynamicBoolean, 'message': Schema.string()},
+      required: ['condition', 'message'],
+      additionalProperties: false,
+    ),
+    'CheckRule',
+  );
+
+  static final Schema componentCommon = _withRef(
+    Schema.object(
+      properties: {
+        'id': componentId,
+        'accessibility': accessibilityAttributes,
+      },
+      required: ['id'],
+    ),
+    'ComponentCommon',
+  );
+}
+
+/// Dart builders for the v1.0 `common_types.json` definitions.
+///
+/// v1.0 marks data bindings and function calls with the reserved `@path` and
+/// `@call` keys, so these differ from [CommonSchemas] wherever a value may be
+/// dynamic. A literal object in a [dynamicValue] may not use any other key
+/// starting with a single `@`; such keys are reserved for protocol directives
+/// and must be escaped as `@@`.
+class CommonSchemasV1 {
+  static final Schema dataBinding = _withRef(
+    Schema.object(
+      description: 'A JSON Pointer path to a value in the data model.',
+      properties: {
+        '@path': Schema.string(
+          description: 'A JSON Pointer path to a value in the data model.',
+        ),
+      },
+      required: ['@path'],
+      additionalProperties: false,
+    ),
+    'DataBinding',
+  );
+
+  static final Schema functionCall = _withRef(
+    Schema.object(
+      description: 'Invokes a named function.',
+      properties: {
+        '@call':
+            Schema.string(description: 'The name of the function to call.'),
+        'args': Schema.object(
+          description: 'Arguments passed to the function.',
+          additionalProperties: true,
+        ),
+        'catalogId': Schema.string(
+          description: 'The catalog ID for this function, overriding any '
+              'surface-level default catalogId.',
+        ),
+      },
+      required: ['@call'],
+    ),
+    'FunctionCall',
+  );
+
+  static final Schema dynamicString = _withRef(
+    Schema.combined(
+      description: 'Represents a string',
+      oneOf: [Schema.string(), dataBinding, functionCall],
+    ),
+    'DynamicString',
+  );
+
+  static final Schema dynamicNumber = _withRef(
+    Schema.combined(
+      description: 'A number value',
+      oneOf: [Schema.number(), dataBinding, functionCall],
+    ),
+    'DynamicNumber',
+  );
+
+  static final Schema dynamicBoolean = _withRef(
+    Schema.combined(
+      description: 'A boolean value',
+      oneOf: [Schema.boolean(), dataBinding, functionCall],
+    ),
+    'DynamicBoolean',
+  );
+
+  static final Schema dynamicStringList = _withRef(
+    Schema.combined(
+      description: 'A list of strings',
+      oneOf: [Schema.list(items: Schema.string()), dataBinding, functionCall],
+    ),
+    'DynamicStringList',
+  );
+
+  /// A literal, a data binding, or a function call returning any type.
+  ///
+  /// The literal-object alternative rejects reserved single-`@` keys and any
+  /// object carrying `@path` or `@call`, so exactly one alternative matches.
+  static final Schema dynamicValue = _withRef(
+    Schema.combined(
+      description: 'Any value',
+      oneOf: [
+        Schema.string(),
+        Schema.number(),
+        Schema.boolean(),
+        Schema.list(),
+        Schema.fromMap(<String, Object?>{
+          'type': 'object',
+          'propertyNames': <String, Object?>{
+            'not': <String, Object?>{'pattern': r'^@([^@]|$)'},
+          },
+          'not': <String, Object?>{
+            'anyOf': <Object?>[
+              <String, Object?>{
+                'required': <Object?>['@path'],
+              },
+              <String, Object?>{
+                'required': <Object?>['@call'],
+              },
+            ],
+          },
+        }),
+        dataBinding,
+        functionCall,
+      ],
+    ),
+    'DynamicValue',
+  );
+
+  static final Schema accessibilityAttributes = _withRef(
+    Schema.object(
+      properties: {
+        'label': dynamicString,
+        'description': dynamicString,
+        'live': Schema.string(enumValues: ['off', 'polite', 'assertive']),
+        'hidden': dynamicBoolean,
+      },
+      additionalProperties: false,
+    ),
+    'AccessibilityAttributes',
+  );
+
+  static final Schema checkRule = _withRef(
+    Schema.object(
+      properties: {
+        'condition': Schema.combined(oneOf: [dataBinding, functionCall]),
+        'message': Schema.string(),
+      },
+      required: ['condition'],
+      additionalProperties: false,
+    ),
+    'CheckRule',
+  );
+
+  static final Schema componentCommon = _withRef(
+    Schema.object(
+      properties: {
+        'id': CommonSchemas.componentId,
+        'catalogId': Schema.string(),
+        'accessibility': accessibilityAttributes,
+        'metadata': Schema.object(
+          properties: {'extensions': Schema.object(additionalProperties: true)},
+          additionalProperties: false,
+        ),
+      },
+      required: ['id'],
+    ),
+    'ComponentCommon',
   );
 }

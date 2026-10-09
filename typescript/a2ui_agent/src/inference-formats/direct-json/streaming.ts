@@ -36,7 +36,6 @@ import {
 } from '../../internal/web-core.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 import {A2uiCatalogError, A2uiIntegrityError, ParseError} from '../../errors.js';
-import {isInferredChildListKey, isInferredSingleChildKey} from '../../utils/inferred-child-refs.js';
 import {validateEnvelope} from '../../utils/envelope-validation.js';
 
 export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor {
@@ -93,7 +92,6 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
     this.cuttableKeys = new Set(options?.progressiveKeys ?? []);
     for (const catalog of catalogs) {
       const refMap = buildComponentRefMap(catalog, V10_CHILD_REF_OPTIONS);
-      this.inferMissingChildRefs(catalog, refMap);
       this.refMaps.set(catalog.id, refMap);
     }
   }
@@ -118,47 +116,6 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
     const catalog = this.catalogs.find(c => c.id === catalogId);
     if (catalog) {
       this.surfaceCatalogs[surfaceId] = catalog;
-    }
-  }
-
-  /**
-   * Infers child references from property names for components whose schema produced
-   * no formal references. `src/utils/inferred-child-refs.ts` explains when this applies
-   * and what has to change before it can go.
-   */
-  private inferMissingChildRefs(catalog: CatalogApi, refMap: ComponentRefMap) {
-    if (!catalog.components || typeof catalog.components.values !== 'function') {
-      return;
-    }
-    for (const compApi of catalog.components.values()) {
-      const existing = refMap[compApi.name];
-      // Gate: if the catalog produced any formal refs for this component type, use ONLY those.
-      if (existing && (existing.singleRefs.size > 0 || existing.listRefs.size > 0)) {
-        continue;
-      }
-
-      const singleRefs = new Set<string>(existing?.singleRefs ?? []);
-      const listRefs = new Set<string>(existing?.listRefs ?? []);
-
-      const schema = compApi.schema as unknown;
-      if (
-        schema &&
-        typeof schema === 'object' &&
-        'shape' in schema &&
-        typeof (schema as {shape?: unknown}).shape === 'object' &&
-        (schema as {shape?: unknown}).shape !== null
-      ) {
-        const shape = (schema as {shape: Record<string, unknown>}).shape;
-        for (const key of Object.keys(shape)) {
-          if (isInferredChildListKey(key)) {
-            listRefs.add(key);
-          } else if (isInferredSingleChildKey(key)) {
-            singleRefs.add(key);
-          }
-        }
-      }
-
-      refMap[compApi.name] = {singleRefs, listRefs};
     }
   }
 

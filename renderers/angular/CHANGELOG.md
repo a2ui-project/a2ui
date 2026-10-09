@@ -1,5 +1,8 @@
 ## Unreleased
 
+## 0.12.0
+
+- Bump dependencies for compatibility with `@a2ui/web_core: ^0.13.0`.
 - Migrate package root `@a2ui/angular` to export version-agnostic core services (`A2uiRendererService`, `SurfaceComponent`, `ComponentHostComponent`, etc.) and the v1.0 `BasicCatalog`.
   - **BREAKING CHANGE**: The package root no longer re-exports the v0.8 API (`export * from './v0_8/public-api'`) or the `A2UI_ANGULAR_VERSION` constant. v0.8 consumers must import from `@a2ui/angular/v0_8`.
 - Maintain `@a2ui/angular/v0_9` and `@a2ui/angular/v0_8` secondary entry points for version-specific components and catalogs.

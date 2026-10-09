@@ -18,7 +18,13 @@ from typing import Any
 
 import pytest
 
-from a2ui.core import A2uiCatalogError, A2uiIntegrityError, A2uiValidationError, Catalog
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiIntegrityError,
+    A2uiValidationError,
+    Catalog,
+    CatalogApi,
+)
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.utils import validate_payload
 
@@ -54,7 +60,7 @@ def _v08_update(*components: dict[str, Any]) -> dict[str, Any]:
 
 def _catalog(
     catalog_id: str, *components: str, protocol_version: str = "0.9"
-) -> Catalog:
+) -> CatalogApi:
     """Returns a catalog whose components each require a `text` string."""
     return Catalog.from_json(
         {
@@ -447,7 +453,7 @@ def test_created_surface_ignores_its_known_catalog():
 
 
 def test_typed_schema_models_are_accepted():
-    from a2ui.core.schema import v0_9
+    from a2ui.core.schema import v0_8, v0_9
 
     wrapper = v0_9.A2uiMessageListWrapper.model_validate({"messages": [_update(_TEXT)]})
     msg = wrapper.messages[0]
@@ -455,3 +461,32 @@ def test_typed_schema_models_are_accepted():
     validate_payload([_BASIC], msg)
     validate_payload([_BASIC], [msg])
     validate_payload([_BASIC], wrapper)
+
+    v08_wrapper = v0_8.A2uiMessageListWrapper.model_validate(
+        {"messages": [_v08_update(_V08_TEXT)]}
+    )
+    v08_msg = v08_wrapper.messages[0]
+    v08_basic = BasicCatalog("0.8")
+
+    validate_payload([v08_basic], v08_msg)
+    validate_payload([v08_basic], [v08_msg])
+    validate_payload([v08_basic], v08_wrapper)
+
+    null_data_wrapper = v0_9.A2uiMessageListWrapper.model_validate({
+        "messages": [{
+            "version": "v0.9",
+            "updateDataModel": {"surfaceId": "s", "path": "/user", "value": None},
+        }]
+    })
+    validate_payload([_BASIC], null_data_wrapper.messages[0])
+
+
+def test_v0_8_model_with_an_explicit_version_is_checked_without_it():
+    """A v0.8 model converts to its wire form, which carries no `version`."""
+    from a2ui.core.schema import v0_8
+
+    wrapper = v0_8.A2uiMessageListWrapper.model_validate(
+        {"messages": [{"version": "v0.8", **_v08_update(_V08_TEXT)}]}
+    )
+
+    validate_payload([BasicCatalog("0.8")], wrapper.messages[0])

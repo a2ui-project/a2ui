@@ -1,5 +1,8 @@
 ## Unreleased
 
+## 0.13.0
+
+- Bump dependencies for compatibility with `@a2ui/web_core: ^0.13.0`.
 - Promote version-agnostic `<a2ui-surface>`, `A2UIController`, `A2UILitElement`, `renderA2UINode`, and `BasicCatalog` to `@a2ui/lit` root package exports ([#2860](https://github.com/a2ui-project/a2ui/pull/2860)).
   - **BREAKING CHANGE**: The package root no longer exports legacy v0.8 UI custom elements or automatically registers them at import time (`v0_8` at package root now only re-exports the v0.8 core runtime to prevent custom element registration collisions). Consumers needing legacy v0.8 UI elements must import from `@a2ui/lit/v0_8`.
 - Enable `<a2ui-surface>` to look up component implementations across multiple catalogs and render universal custom elements via `UniversalElementRegistry` ([#2860](https://github.com/a2ui-project/a2ui/pull/2860)).

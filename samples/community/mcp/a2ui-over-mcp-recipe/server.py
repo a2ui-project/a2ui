@@ -19,7 +19,8 @@ from typing import Any
 import anyio
 import click
 import mcp.types as types
-from a2ui.schema import CatalogConfig, VERSION_0_9
+from a2ui.processor import CatalogConfig
+from a2ui.schema import VERSION_0_9
 from a2ui.utils import validate_payload
 from mcp.server.lowlevel import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents
@@ -59,10 +60,10 @@ def main(port: int, transport: str, bypass_verification: bool) -> int:
     )
 
     catalog_config = CatalogConfig.from_path(
-        name="basic_with_mcp",
         catalog_path=str(basic_with_mcp_catalog_path),
+        protocol_version=VERSION_0_9,
     )
-    selected_catalog = catalog_config.to_catalog(protocol_version=VERSION_0_9)
+    selected_catalog = catalog_config.transformed_catalog
 
     recipe_a2ui_json = json.loads(
         (pathlib.Path(__file__).resolve().parent / "recipe_a2ui.json").read_text()

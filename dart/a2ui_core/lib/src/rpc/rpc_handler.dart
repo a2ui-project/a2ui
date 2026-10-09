@@ -328,11 +328,14 @@ class RpcHandler {
     final String name = call.call;
     final Catalog<ComponentApi, FunctionImplementation> catalog =
         _resolveCatalog(call.catalogId, surface);
-    if (!isCatalogVersionCompatible(catalog.protocolVersion, message.version)) {
+    if (!isCatalogVersionCompatible(
+      catalog.protocolVersion?.jsonValue,
+      message.version,
+    )) {
       throw A2uiRpcError(
         "Catalog '${catalog.id}' protocol version "
-        "'${catalog.protocolVersion ?? 'unversioned'}' does not match message "
-        "protocol version '${message.version}'.",
+        "'${catalog.protocolVersion?.jsonValue ?? 'unversioned'}' does not "
+        "match message protocol version '${message.version}'.",
         RpcErrorCode.invalidFunctionCall,
       );
     }

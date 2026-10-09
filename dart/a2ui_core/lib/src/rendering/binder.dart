@@ -16,6 +16,7 @@ import 'package:collection/collection.dart';
 import 'package:json_schema_builder/json_schema_builder.dart'
     hide ValidationResult;
 
+import '../core/catalog.dart';
 import '../core/common.dart';
 import '../core/component_model.dart';
 import '../core/contexts.dart';
@@ -94,11 +95,12 @@ class GenericBinder {
   ReadonlySignal<Map<String, dynamic>> get resolvedProps => _resolvedProps;
 
   GenericBinder(this.context, this.schema) {
+    final Catalog<ComponentApi, FunctionImplementation> catalog =
+        context.surface.resolveCatalog(context.componentModel.catalog);
     _schemaReader = ReferenceSchemaReader(
       schema.value,
-      document: context.surface
-          .resolveCatalog(context.componentModel.catalog)
-          .catalogSchema,
+      document: catalog.catalogSchema,
+      commonTypes: catalog.commonTypesSchema,
     );
     _behaviorTree = _scrapeSchemaBehavior(schema.value);
     _resolvedProps = signal<Map<String, dynamic>>({});

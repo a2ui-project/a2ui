@@ -1,5 +1,8 @@
 ## Unreleased
 
+## 0.13.0
+
+- Bump dependencies for compatibility with `@a2ui/web_core: ^0.13.0`.
 - Migrate package root `@a2ui/react` to export the version-agnostic renderer runtime (`A2uiSurface`, `createComponentImplementation`, `createBinderlessComponentImplementation`, `useSignalValue`, `MarkdownContext`, `useMarkdownRenderer`), while maintaining `@a2ui/react/v0_9` and `@a2ui/react/v0_8` secondary entry points.
   - **BREAKING CHANGE**: The package root no longer re-exports the v0.8 API (`export * from './v0_8/index'`). v0.8 consumers must import from `@a2ui/react/v0_8`.
 - (v0_9) **BREAKING CHANGE**: `@a2ui/react/v0_9` no longer ships a React implementation of the basic catalog. Import `basicCatalog` and the individual components from `@a2ui/web_core/v0_9/basic_catalog` instead; they render as W3C Custom Elements. [#2630](https://github.com/a2ui-project/a2ui/pull/2630)

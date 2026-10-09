@@ -19,10 +19,8 @@ from pathlib import Path
 import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.schema import (
-    CatalogConfig,
-    VERSION_0_9,
-)
+from a2ui.processor import CatalogConfig
+from a2ui.schema import VERSION_0_9
 from a2ui.utils import validate_payload
 
 
@@ -34,14 +32,16 @@ SAMPLE_CONFIGS = [
         "name": "custom-components-example",
         "path": SAMPLES_DIR / "custom-components-example",
         "catalogs": [
-            CatalogConfig.from_path(
-                name="custom-components-example_inline_catalog",
-                catalog_path="inline_catalog_0.9.json",
-                examples_path=f"examples/{VERSION_0_9}",
+            (
+                lambda: CatalogConfig.from_path(
+                    catalog_path="inline_catalog_0.9.json",
+                    protocol_version=VERSION_0_9,
+                ),
+                f"examples/{VERSION_0_9}",
             ),
-            CatalogConfig.from_catalog(
-                "basic",
-                BasicCatalog(VERSION_0_9),
+            (
+                lambda: CatalogConfig(BasicCatalog(VERSION_0_9)),
+                None,
             ),
         ],
         "validate": True,
@@ -49,13 +49,10 @@ SAMPLE_CONFIGS = [
     {
         "name": "restaurant_finder",
         "path": SAMPLES_DIR / "restaurant_finder",
-        "catalogs": [
-            CatalogConfig.from_catalog(
-                "basic",
-                BasicCatalog(VERSION_0_9),
-                examples_path="examples/0.9",
-            )
-        ],
+        "catalogs": [(
+            lambda: CatalogConfig(BasicCatalog(VERSION_0_9)),
+            "examples/0.9",
+        )],
         "validate": True,
     },
 ]
@@ -70,14 +67,14 @@ def test_sample_examples_validation(config):
         sample_path
     )  # Change to sample dir to resolve relative catalog paths if any
 
-    sample_catalogs = [
-        catalog_config.to_catalog(protocol_version=VERSION_0_9)
-        for catalog_config in config["catalogs"]
+    loaded_entries = [
+        (factory().transformed_catalog, examples_path)
+        for factory, examples_path in config["catalogs"]
     ]
+    sample_catalogs = [catalog for catalog, _ in loaded_entries]
 
     # Iterate through each catalog and validate its examples
-    for catalog_config, catalog in zip(config["catalogs"], sample_catalogs):
-        examples_path = catalog_config.examples_path
+    for catalog, examples_path in loaded_entries:
         if not examples_path:
             continue
 

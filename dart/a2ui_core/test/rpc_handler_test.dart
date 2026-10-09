@@ -49,7 +49,9 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(
       id: id,
       components: const [],
       functions: functions,
-      protocolVersion: protocolVersion,
+      protocolVersion: protocolVersion != null
+          ? A2uiProtocolVersion.tryParseSemVer(protocolVersion)
+          : null,
     );
 
 CallRendererFunctionMessage _inbound(

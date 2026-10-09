@@ -12,31 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from . import constants as constants
-from .catalog import load_examples, resolve_examples_path
-from .constants import (
-    A2UI_CLIENT_CAPABILITIES_KEY,
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    CATALOG_COMPONENTS_KEY,
-    CATALOG_ID_KEY,
-    VERSION_0_8,
-    VERSION_0_9,
-    VERSION_0_9_1,
-    VERSION_1_0,
+"""Public facade for the A2UI processor and catalog management package."""
+
+from __future__ import annotations
+
+from .catalog_config import CatalogConfig
+from .catalog_providers import (
+    CatalogProvider,
+    FileSystemCatalogProvider,
+    InMemoryCatalogProvider,
 )
 
 __all__ = [
-    "A2UI_CLIENT_CAPABILITIES_KEY",
-    "A2UI_CLOSE_TAG",
-    "A2UI_OPEN_TAG",
-    "CATALOG_COMPONENTS_KEY",
-    "CATALOG_ID_KEY",
-    "VERSION_0_8",
-    "VERSION_0_9",
-    "VERSION_0_9_1",
-    "VERSION_1_0",
-    "constants",
-    "load_examples",
-    "resolve_examples_path",
+    "CatalogConfig",
+    "CatalogProvider",
+    "FileSystemCatalogProvider",
+    "InMemoryCatalogProvider",
 ]

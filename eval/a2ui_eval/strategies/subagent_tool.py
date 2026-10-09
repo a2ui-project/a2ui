@@ -36,7 +36,7 @@ from inspect_ai.util import store
 
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.parser import parse_response
-from a2ui.schema import CatalogConfig
+from a2ui.processor import CatalogConfig
 from ..shared.utils import GIT_ROOT, measured_generate
 
 PAYLOAD_STORE_KEY = "a2ui_payload"
@@ -56,10 +56,10 @@ def a2ui_specialist() -> Tool:
             raise ValueError("Catalog path is missing from the store.")
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
-        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        direct_json_format = DirectJsonFormat(
-            [catalog_config.to_catalog(protocol_version=version)]
+        catalog_config = CatalogConfig.from_path(
+            resolved_catalog_path, protocol_version=version
         )
+        direct_json_format = DirectJsonFormat([catalog_config.transformed_catalog])
 
         role_description = store().get("role_description")
         workflow_description = store().get("workflow_description")
