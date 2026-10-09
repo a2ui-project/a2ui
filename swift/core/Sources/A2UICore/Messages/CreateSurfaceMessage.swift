@@ -58,7 +58,13 @@ public struct CreateSurfaceMessage: Codable, Sendable, Equatable, ProtocolVersio
   public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     surfaceID = try container.decode(String.self, forKey: .surfaceID)
-    catalogID = try container.decodeIfPresent(String.self, forKey: .catalogID)
+    if version.isAtLeastV10 {
+      catalogID = try container.decodeIfPresent(String.self, forKey: .catalogID)
+    } else {
+      // Before v1.0 the server_to_client schema requires `catalogId`. Only from v1.0 may a
+      // surface have no default catalog.
+      catalogID = try container.decode(String.self, forKey: .catalogID)
+    }
     theme = try container.decodeIfPresent([String: JSONValue].self, forKey: .theme)
     shouldSendDataModel =
       try container.decodeIfPresent(

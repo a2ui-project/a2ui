@@ -759,3 +759,1950 @@
       expectError:
         category: "RecursionError"
         message: "Global recursion limit exceeded"
+
+# Catalog resolution (spec section "Catalog resolution"): a component or
+# function call uses the catalog it names, else the surface default catalog;
+# if neither exists, resolution fails.
+
+- name: test_v10_component_without_catalog_id_on_surface_without_default_errors
+  description: >-
+    A component that names no catalogId on a surface that names no default catalog cannot be resolved, so the update fails instead of falling back to the first registered catalog.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+  expectError:
+    category: "CatalogError"
+    message: "has no default catalogId"
+
+- name: test_v10_components_naming_catalogs_on_surface_without_default
+  description: >-
+    A surface without a default catalog accepts components that each name their catalog.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Column"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            children: ["greeting", "badge"]
+          - id: "greeting"
+            component: "Text"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            text: "Hello"
+          - id: "badge"
+            component: "Badge"
+            catalogId: "custom-v10"
+            label: "New"
+  expect:
+    surfaces:
+      s:
+        exists: true
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["greeting", "badge"]
+          - id: "greeting"
+            component: "Text"
+            text: "Hello"
+          - id: "badge"
+            component: "Badge"
+            label: "New"
+
+- name: test_v10_component_from_named_catalog_with_closed_schema_accepted
+  description: >-
+    A component's catalogId belongs to the component envelope (ComponentCommon), not to its properties. A catalog whose component schema is closed and declares no catalogId accepts a component that names that catalog.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogs:
+    - catalogId: "closed-v10"
+      protocolVersion: "v1.0"
+      components:
+        Tag:
+          type: object
+          properties:
+            label:
+              type: string
+          additionalProperties: false
+      functions: {}
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Tag"
+            catalogId: "closed-v10"
+            label: "Hello"
+  expect:
+    surfaces:
+      s:
+        exists: true
+        components:
+          - id: "root"
+            component: "Tag"
+            label: "Hello"
+
+- name: test_v10_function_call_naming_catalog_without_that_function_errors
+  description: >-
+    A function call that names a catalogId is validated against that catalog, which does not declare formatString.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "formatString"
+              catalogId: "custom-v10"
+              args:
+                value: "Hello"
+  expectError:
+    category: "ValidationError"
+    message: "Unrecognized function 'formatString'"
+
+- name: test_v10_function_call_naming_catalog_with_invalid_args_errors
+  description: >-
+    A function call that names a catalogId has its args validated against that catalog's function definition.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                phrase:
+                  type: string
+              required: ["phrase"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "shout"
+              catalogId: "custom-v10"
+              args:
+                phrase: 3
+  expectError:
+    category: "ValidationError"
+    message: "phrase"
+
+- name: test_v10_function_call_naming_catalog_with_valid_args
+  description: >-
+    A component from the surface default catalog may call a function from another catalog by naming its catalogId.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "shout"
+              catalogId: "custom-v10"
+              args:
+                value: "Hello"
+  expect:
+    surfaces:
+      s:
+        exists: true
+
+- name: test_v10_function_call_naming_unknown_catalog_errors
+  description: >-
+    A function call that names a catalogId the client does not have is rejected.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "shout"
+              catalogId: "missing-catalog"
+              args:
+                value: "Hello"
+  expectError:
+    category: "CatalogError"
+    message: "Catalog not found: missing-catalog"
+
+- name: test_v10_function_call_with_empty_catalog_id_errors
+  description: >-
+    A function call whose catalogId is an empty string names a catalog, so it does not fall back to the surface default. No catalog has an empty ID, so the call is rejected.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "formatString"
+              catalogId: ""
+              args:
+                value: "Hello"
+  expectError:
+    category: "CatalogError"
+    message: "Catalog not found"
+
+- name: test_v10_component_with_non_string_catalog_id_errors
+  description: >-
+    A component's catalogId must be a string. A number is rejected as invalid instead of being ignored, which would resolve the component to the surface default.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            catalogId: 123
+            text: "Hello"
+  expectError:
+    category: "ValidationError"
+    message: "catalogId"
+
+- name: test_v10_function_call_without_catalog_id_uses_surface_default
+  description: >-
+    A function call that names no catalogId resolves against the surface default catalog, not the catalog of the component that contains it. formatString is declared by the basic catalog only.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Badge"
+            catalogId: "custom-v10"
+            label:
+              "@call": "formatString"
+              args:
+                value: "Hello"
+  expect:
+    surfaces:
+      s:
+        exists: true
+
+- name: test_v10_function_call_without_catalog_id_to_unknown_function_errors
+  description: >-
+    A function call that names no catalogId is validated against the surface default catalog, which does not declare notAFunction.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "notAFunction"
+              args: {}
+  expectError:
+    category: "ValidationError"
+    message: "Unrecognized function 'notAFunction'"
+
+- name: test_v10_function_call_without_catalog_id_on_surface_without_default_errors
+  description: >-
+    A function call that names no catalogId on a surface without a default catalog cannot be resolved, even when the component's own catalog declares the function.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Badge"
+            catalogId: "custom-v10"
+            label:
+              "@call": "shout"
+              args:
+                value: "Hello"
+  expectError:
+    category: "CatalogError"
+    message: "has no default catalogId"
+
+- name: test_v10_index_function_on_surface_without_default
+  description: >-
+    @index is a universal system function that belongs to no catalog, so a template may call it without a catalogId on a surface that has no default catalog.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "List"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            children:
+              path: "/items"
+              componentId: "row"
+          - id: "row"
+            component: "Text"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            text:
+              "@call": "@index"
+              args:
+                offset: 1
+  expect:
+    surfaces:
+      s:
+        exists: true
+
+- name: test_v10_index_function_on_surface_with_default
+  description: >-
+    @index is accepted on a surface whose default catalog is the basic catalog; it is not looked up as a catalog function.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "List"
+            children:
+              path: "/items"
+              componentId: "row"
+          - id: "row"
+            component: "Text"
+            text:
+              "@call": "@index"
+              args:
+                offset: 1
+  expect:
+    surfaces:
+      s:
+        exists: true
+
+- name: test_v10_component_update_without_catalog_id_on_surface_without_default_errors
+  description: >-
+    An update that names no catalogId resolves against the surface default, not the catalog of the component's earlier version, so it fails on a surface without a default catalog.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            text: "Hello"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Goodbye"
+  expectError:
+    category: "CatalogError"
+    message: "has no default catalogId"
+
+- name: test_v10_component_update_without_catalog_id_uses_surface_default
+  description: >-
+    An update that names no catalogId resolves against the surface default catalog even when the component's earlier version named another catalog. The basic catalog declares no Badge, so the update is rejected.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s"
+            components:
+              - id: "root"
+                component: "Badge"
+                catalogId: "custom-v10"
+                label: "First"
+      expect:
+        surfaces:
+          s:
+            exists: true
+            components:
+              - id: "root"
+                component: "Badge"
+    - messages:
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s"
+            components:
+              - id: "root"
+                component: "Badge"
+                label: "Second"
+      expectError:
+        category: "ValidationError"
+        message: "'Badge'"
+
+# Catalog resolution, continued. A call resolves its catalog on its own
+# wherever it appears: in another call's args, in @index's args, or inside a
+# list. Resolution happens whether or not strictMode is on.
+
+- name: test_v10_nested_call_in_args_resolves_its_own_catalog
+  description: >-
+    A call nested in the args of another call resolves its catalog on its own and does not inherit the catalog of the call around it. The outer wrap names custom-v10; the inner shout names no catalogId, so it resolves to the surface default (the basic catalog), which declares no shout.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "wrap"
+              catalogId: "custom-v10"
+              args:
+                value:
+                  "@call": "shout"
+                  args:
+                    value: "hi"
+  expectError:
+    category: "ValidationError"
+    message: "Unrecognized function 'shout'"
+
+- name: test_v10_nested_call_in_args_naming_its_catalog
+  description: >-
+    A call nested in the args of another call is accepted when it names the catalog that declares it, even though the surface default (the basic catalog) does not declare it.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "wrap"
+              catalogId: "custom-v10"
+              args:
+                value:
+                  "@call": "shout"
+                  catalogId: "custom-v10"
+                  args:
+                    value: "hi"
+  expect:
+    surfaces:
+      s:
+        exists: true
+
+- name: test_v10_nested_call_in_args_on_surface_without_default_errors
+  description: >-
+    On a surface without a default catalog, a call nested in the args of a call that names custom-v10 cannot be resolved when it names no catalogId itself, even though custom-v10 declares it.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Badge"
+            catalogId: "custom-v10"
+            label:
+              "@call": "wrap"
+              catalogId: "custom-v10"
+              args:
+                value:
+                  "@call": "shout"
+                  args:
+                    value: "hi"
+  expectError:
+    category: "CatalogError"
+    message: "has no default catalogId"
+
+- name: test_v10_call_in_index_args_is_checked
+  description: >-
+    @index needs no catalog, but a call in its args is still resolved and checked. Here the offset calls notAFunction, which the surface default (the basic catalog) does not declare.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "List"
+            children:
+              path: "/items"
+              componentId: "row"
+          - id: "row"
+            component: "Text"
+            text:
+              "@call": "@index"
+              args:
+                offset:
+                  "@call": "notAFunction"
+                  args: {}
+  expectError:
+    category: "ValidationError"
+    message: "Unrecognized function 'notAFunction'"
+
+- name: test_v10_call_in_index_args_on_surface_without_default_errors
+  description: >-
+    On a surface without a default catalog, @index itself is accepted, but a call in its args that names no catalogId cannot be resolved.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "List"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            children:
+              path: "/items"
+              componentId: "row"
+          - id: "row"
+            component: "Text"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            text:
+              "@call": "@index"
+              args:
+                offset:
+                  "@call": "formatNumber"
+                  args:
+                    value: 1
+  expectError:
+    category: "CatalogError"
+    message: "has no default catalogId"
+
+- name: test_v10_calls_in_lists_naming_their_catalog
+  description: >-
+    Calls inside a list property, and inside objects nested in that list, are resolved one by one; each names custom-v10, which declares shout.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Tags"
+            catalogId: "custom-v10"
+            items:
+              - "@call": "shout"
+                catalogId: "custom-v10"
+                args:
+                  value: "a"
+              - nested:
+                  - "@call": "shout"
+                    catalogId: "custom-v10"
+                    args:
+                      value: "b"
+  expect:
+    surfaces:
+      s:
+        exists: true
+
+- name: test_v10_call_in_list_without_catalog_id_uses_surface_default
+  description: >-
+    A call inside an object nested in a list property is resolved like any other call: it names no catalogId, so it resolves to the surface default (the basic catalog), which declares no shout, even though the component and the list's first call use custom-v10.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Tags"
+            catalogId: "custom-v10"
+            items:
+              - "@call": "shout"
+                catalogId: "custom-v10"
+                args:
+                  value: "a"
+              - nested:
+                  - "@call": "shout"
+                    args:
+                      value: "b"
+  expectError:
+    category: "ValidationError"
+    message: "Unrecognized function 'shout'"
+
+- name: test_v10_call_in_list_with_invalid_args_errors
+  description: >-
+    A call inside an object nested in a list property has its args checked against the catalog it names; custom-v10's shout requires a string phrase.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                phrase:
+                  type: string
+              required: ["phrase"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Tags"
+            catalogId: "custom-v10"
+            items:
+              - nested:
+                  - "@call": "shout"
+                    catalogId: "custom-v10"
+                    args:
+                      phrase: 2
+  expectError:
+    category: "ValidationError"
+    message: "phrase"
+
+- name: test_v10_undefined_system_function_errors
+  description: >-
+    The @ namespace is reserved for system functions, and v1.0 defines only @index. A call to @foo is rejected rather than looked up in a catalog.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "@foo"
+  expectError:
+    category: "ValidationError"
+    message: "@foo"
+
+- name: test_v10_function_call_with_empty_name_errors
+  description: >-
+    A function call's name must be a UAX #31 identifier. An empty name is not one, so the call is rejected rather than skipped.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": ""
+  expectError:
+    category: "ValidationError"
+    message: "valid UAX #31 identifier"
+
+- name: test_v10_call_without_catalog_id_on_surface_without_default_errors_without_strict_mode
+  description: >-
+    Catalog resolution does not depend on strict validation. With strictMode off, a call that names no catalogId on a surface without a default catalog is still rejected.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: false
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            text:
+              "@call": "formatString"
+              args:
+                value: "hi"
+  expectError:
+    category: "CatalogError"
+    message: "has no default catalogId"
+
+- name: test_v10_call_naming_unknown_catalog_errors_without_strict_mode
+  description: >-
+    Catalog resolution does not depend on strict validation. With strictMode off, a call that names a catalogId the client does not have is still rejected.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: false
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "formatString"
+              catalogId: "missing-catalog"
+              args:
+                value: "hi"
+  expectError:
+    category: "CatalogError"
+    message: "Catalog not found: missing-catalog"
+
+- name: test_v10_call_naming_catalog_of_other_protocol_version_errors
+  description: >-
+    Every catalog a v1.0 surface uses must be built for v1.0. A call that names legacy-v09, a v0.9 catalog the client has, cannot be resolved on a v1.0 surface. The message check only requires the error to name the catalog, since SDKs word the reason differently.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+    - catalogId: "legacy-v09"
+      protocolVersion: "v0.9"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "formatString"
+              catalogId: "legacy-v09"
+              args:
+                value: "hi"
+  expectError:
+    category: "CatalogError"
+    message: "legacy-v09"
+
+- name: test_v10_call_with_non_string_catalog_id_errors
+  description: >-
+    A call's catalogId must be a string. A number is rejected as invalid instead of being ignored, which would resolve the call to the surface default.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "formatString"
+              catalogId: 3
+              args:
+                value: "hi"
+  expectError:
+    category: "ValidationError"
+
+- name: test_v10_component_naming_catalog_is_checked_against_that_catalog
+  description: >-
+    A component that names a catalogId is validated against that catalog, not the surface default. custom-v10 declares no Text, although the default (the basic catalog) does.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  catalogs:
+    - catalogId: "custom-v10"
+      protocolVersion: "v1.0"
+      components:
+        Badge:
+          type: object
+          properties:
+            component:
+              const: Badge
+            label:
+              $ref: "common_types.json#/$defs/DynamicString"
+          required: ["component", "label"]
+        Tags:
+          type: object
+          properties:
+            component:
+              const: Tags
+            items:
+              type: array
+          required: ["component", "items"]
+      functions:
+        shout:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: shout
+            args:
+              type: object
+              properties:
+                value:
+                  type: string
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+        wrap:
+          type: object
+          returnType: string
+          properties:
+            "@call":
+              const: wrap
+            args:
+              type: object
+              properties:
+                value: {}
+              required: ["value"]
+              additionalProperties: false
+          required: ["@call", "args"]
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            catalogId: "custom-v10"
+            text: "Hello"
+  expectError:
+    category: "ValidationError"
+    message: "Text"
+
+- name: test_v10_component_without_catalog_id_errors_with_a_single_catalog
+  description: >-
+    There is no fallback to the catalogs the client supports, even when the case supplies only one. A component that names no catalogId on a surface without a default catalog is rejected.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+  expectError:
+    category: "CatalogError"
+    message: "has no default catalogId"
+
+# Data model requests and surfaces without a default catalog. A surface keeps
+# the protocol version of the message that created it, so a surface with no
+# default catalog is still filtered by version.
+
+- name: test_v10_get_renderer_data_model_includes_surface_without_default
+  description: >-
+    A v1.0 surface created without a default catalog keeps the protocol version of the message that created it, so it is part of a v1.0 data model request. Its data model is empty.
+  action: get_renderer_data_model
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        sendDataModel: true
+  args:
+    version: "v1.0"
+  expect:
+    version: "v1.0"
+    surfaces:
+      s: {}
+
+- name: test_v10_get_renderer_data_model_excludes_surface_without_default_from_v09
+  description: >-
+    A v1.0 surface created without a default catalog is not part of a v0.9 data model request, so the request finds no surface to report.
+  action: get_renderer_data_model
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        sendDataModel: true
+  args:
+    version: "v0.9"
+  expect: null
+
+- name: test_v10_get_renderer_data_model_filters_by_surface_protocol_version
+  description: >-
+    With a v1.0 surface that has no default catalog and a v0.9 surface side by side, a v0.9 data model request reports only the v0.9 surface. The surfaces are created in separate steps, one batch per protocol version.
+  action: get_renderer_data_model
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s"
+            sendDataModel: true
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "t"
+            catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+            sendDataModel: true
+  args:
+    version: "v0.9"
+  expect:
+    version: "v0.9"
+    surfaces:
+      t: {}

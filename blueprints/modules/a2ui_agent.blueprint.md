@@ -370,7 +370,7 @@ reaches validation through the first of them:
 
 - **`MessageProcessor` (`a2ui.core.processing`)** is the entry point. It holds every
   active catalog, resolves each component and function call to the catalog it belongs to
-  (the item's own `catalogId`, else the surface default, else the sole catalog), and hands
+  (the item's own `catalogId`, else the surface default, else `A2uiCatalogError`), and hands
   the item to that catalog's validator. It also owns the checks that need more than one
   item: surface lifecycle, component uniqueness, root reachability, cycles, recursion
   depth caps, and data binding JSON Pointer syntax. A surface whose components come from

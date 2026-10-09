@@ -136,6 +136,15 @@ def system_functions_for(
     }
 
 
+def is_system_function_name(name: str) -> bool:
+    """Returns whether a function name is in the reserved `@` system namespace.
+
+    From v1.0 a call to such a name belongs to no catalog: it is resolved
+    against the system functions, never against a component catalog.
+    """
+    return name.startswith("@")
+
+
 __all__ = [
     "INDEX_FUNCTION_NAME",
     "INTRODUCED_IN",
@@ -143,5 +152,6 @@ __all__ = [
     "IndexApi",
     "IndexArgs",
     "IndexImplementation",
+    "is_system_function_name",
     "system_functions_for",
 ]

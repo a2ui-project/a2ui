@@ -22,6 +22,12 @@ import 'package:test/test.dart';
 import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
+/// Why the v1.0 catalog resolution cases are expected to fail: the Dart
+/// processor does not yet resolve each component and function call to the
+/// catalog it names, else the surface default, else an error.
+const String _v10CatalogResolutionPending =
+    'v1.0 catalog resolution is not implemented in Dart yet.';
+
 /// Cases in `core/message_processor_v1_0.yaml` expected to fail, with the
 /// reason each is currently failing.
 const Map<String, String> _v10ExpectedFailures = {
@@ -33,15 +39,55 @@ const Map<String, String> _v10ExpectedFailures = {
           "which the case's `btn1` omits.",
   'test_v10_create_surface_metadata_extension_key_must_be_identifier':
       'Metadata extension keys are not checked against the v1.0 schema yet.',
+  'test_v10_call_in_index_args_is_checked': _v10CatalogResolutionPending,
+  'test_v10_call_in_index_args_on_surface_without_default_errors':
+      _v10CatalogResolutionPending,
+  'test_v10_call_in_list_with_invalid_args_errors':
+      _v10CatalogResolutionPending,
+  'test_v10_call_in_list_without_catalog_id_uses_surface_default':
+      _v10CatalogResolutionPending,
+  'test_v10_calls_in_lists_naming_their_catalog': _v10CatalogResolutionPending,
+  'test_v10_call_without_catalog_id_on_surface_without_default_errors_'
+      'without_strict_mode': _v10CatalogResolutionPending,
+  'test_v10_component_naming_catalog_is_checked_against_that_catalog':
+      _v10CatalogResolutionPending,
+  'test_v10_components_naming_catalogs_on_surface_without_default':
+      _v10CatalogResolutionPending,
+  'test_v10_component_update_without_catalog_id_on_surface_without_'
+      'default_errors': _v10CatalogResolutionPending,
+  'test_v10_component_without_catalog_id_errors_with_a_single_catalog':
+      _v10CatalogResolutionPending,
+  'test_v10_component_without_catalog_id_on_surface_without_default_errors':
+      _v10CatalogResolutionPending,
+  'test_v10_function_call_naming_catalog_with_invalid_args_errors':
+      _v10CatalogResolutionPending,
+  'test_v10_function_call_naming_catalog_without_that_function_errors':
+      _v10CatalogResolutionPending,
+  'test_v10_function_call_naming_catalog_with_valid_args':
+      _v10CatalogResolutionPending,
+  'test_v10_function_call_with_empty_catalog_id_errors':
+      _v10CatalogResolutionPending,
+  'test_v10_function_call_with_empty_name_errors': _v10CatalogResolutionPending,
+  'test_v10_function_call_without_catalog_id_on_surface_without_default_errors':
+      _v10CatalogResolutionPending,
+  'test_v10_function_call_without_catalog_id_to_unknown_function_errors':
+      _v10CatalogResolutionPending,
+  'test_v10_function_call_without_catalog_id_uses_surface_default':
+      _v10CatalogResolutionPending,
+  'test_v10_get_renderer_data_model_filters_by_surface_protocol_version':
+      _v10CatalogResolutionPending,
+  'test_v10_nested_call_in_args_naming_its_catalog':
+      _v10CatalogResolutionPending,
+  'test_v10_nested_call_in_args_on_surface_without_default_errors':
+      _v10CatalogResolutionPending,
+  'test_v10_nested_call_in_args_resolves_its_own_catalog':
+      _v10CatalogResolutionPending,
+  'test_v10_undefined_system_function_errors': _v10CatalogResolutionPending,
 };
 
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to
 /// fail, with the reason each is currently failing.
-const Map<String, String> _reservedKeysExpectedFailures = {
-  'test_escaped_doubled_at_unescaping':
-      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
-          'surface has no default catalog to resolve its items against.',
-};
+const Map<String, String> _reservedKeysExpectedFailures = {};
 
 /// Runs the shared message-processor suites against [MessageProcessor] and
 /// [DataContext]: `core/message_processor_v0_9.yaml`,

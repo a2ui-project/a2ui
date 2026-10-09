@@ -148,6 +148,8 @@ const CATALOG_SCHEMA_NOT_SPEC_SHAPED =
   'web_core has no basic catalog whose catalogSchema reproduces the spec catalog: catalogSchema' +
   " emits components flat instead of as 'allOf' over the common types, and the catalog's $id," +
   ' function descriptions and common types $defs differ';
+const V10_CATALOG_RESOLUTION_PENDING =
+  'web_core does not implement v1.0 catalog resolution yet; the stacked TypeScript PR does';
 const KNOWN_DIVERGENCES = new Map([
   [
     'core/catalog.yaml',
@@ -180,14 +182,96 @@ const KNOWN_DIVERGENCES = new Map([
         'test_v10_published_basic_catalog_rejects_function_call_extra_key',
         FUNCTION_CALL_EXTRA_KEY_ACCEPTED,
       ],
+      [
+        'test_v10_published_basic_catalog_rejects_nested_call_bad_identifiers',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
     ]),
   ],
   [
     'core/message_processor_v1_0.yaml',
     new Map([
       [
+        'test_v10_component_without_catalog_id_on_surface_without_default_errors',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      [
+        'test_v10_function_call_naming_catalog_without_that_function_errors',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      [
+        'test_v10_function_call_naming_catalog_with_invalid_args_errors',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      ['test_v10_function_call_naming_unknown_catalog_errors', V10_CATALOG_RESOLUTION_PENDING],
+      ['test_v10_function_call_with_empty_catalog_id_errors', V10_CATALOG_RESOLUTION_PENDING],
+      [
+        'test_v10_function_call_without_catalog_id_uses_surface_default',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      [
+        'test_v10_function_call_without_catalog_id_on_surface_without_default_errors',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      [
+        'test_v10_component_update_without_catalog_id_on_surface_without_default_errors',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      [
+        'test_v10_nested_call_in_args_on_surface_without_default_errors',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      ['test_v10_call_in_index_args_is_checked', V10_CATALOG_RESOLUTION_PENDING],
+      [
+        'test_v10_call_in_index_args_on_surface_without_default_errors',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      [
+        'test_v10_call_in_list_without_catalog_id_uses_surface_default',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      [
+        'test_v10_call_without_catalog_id_on_surface_without_default_errors_without_strict_mode',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      [
+        'test_v10_call_naming_unknown_catalog_errors_without_strict_mode',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      [
+        'test_v10_call_naming_catalog_of_other_protocol_version_errors',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      [
+        'test_v10_component_without_catalog_id_errors_with_a_single_catalog',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      [
+        'test_v10_get_renderer_data_model_filters_by_surface_protocol_version',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      [
+        'test_v10_component_from_named_catalog_with_closed_schema_accepted',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      ['test_v10_function_call_with_empty_name_errors', V10_CATALOG_RESOLUTION_PENDING],
+      [
         'test_v10_create_surface_metadata_extension_key_must_be_identifier',
         'the v1.0 CreateSurface schema does not yet enforce UAX #31 identifier syntax on metadata.extensions keys',
+      ],
+    ]),
+  ],
+  [
+    'core/functions.yaml',
+    new Map([
+      [
+        'test_evaluate_function_v10_without_catalog_id_on_surface_without_default_errors',
+        V10_CATALOG_RESOLUTION_PENDING,
+      ],
+      ['test_evaluate_function_v10_unknown_catalog_id_errors', V10_CATALOG_RESOLUTION_PENDING],
+      [
+        'test_evaluate_function_v10_catalog_of_other_protocol_version_errors',
+        V10_CATALOG_RESOLUTION_PENDING,
       ],
     ]),
   ],

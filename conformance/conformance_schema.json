@@ -495,7 +495,22 @@
         "catalogPaths": {
           "type": "array",
           "items": {"type": "string"},
-          "description": "Catalog JSON fixture paths relative to repository root."
+          "description": "Catalog JSON fixture paths relative to repository root. With a surface block, the catalogs among them built for protocolVersion are the surface's available catalogs."
+        },
+        "surface": {
+          "type": "object",
+          "description": "Evaluates the function as a call on a surface built for protocolVersion, so the call goes through catalog resolution instead of invoking the implementation directly. Without this block, the function is invoked directly in the case's default catalog.",
+          "properties": {
+            "catalogId": {
+              "type": "string",
+              "description": "The surface default catalog, which must be one of the catalogs from catalogPaths. Omit it for a v1.0 surface without a default catalog."
+            }
+          },
+          "additionalProperties": false
+        },
+        "catalogId": {
+          "type": "string",
+          "description": "The catalogId the call itself names. Only meaningful with a surface block."
         },
         "function": {
           "type": "string",
@@ -521,6 +536,10 @@
         }
       },
       "required": ["name", "action", "function", "args"],
+      "dependentRequired": {
+        "surface": ["protocolVersion", "catalogPaths"],
+        "catalogId": ["surface"]
+      },
       "additionalProperties": false
     },
     "DispatchActionTest": {

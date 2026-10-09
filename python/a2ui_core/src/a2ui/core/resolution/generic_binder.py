@@ -223,7 +223,9 @@ def _schema_defs(catalog: Any, schema: Any) -> dict[str, Any]:
     return defs
 
 
-def _classify_value_fallback(key: str, val: Any, is_v10: bool = False) -> BehaviorNode:
+def _classify_value_fallback(
+    key: str, val: Any, at_least_v10: bool = False
+) -> BehaviorNode:
     """Fallback classification derived dynamically from property key and value shapes."""
     if key == "checks" or (
         isinstance(val, list)
@@ -238,7 +240,7 @@ def _classify_value_fallback(key: str, val: Any, is_v10: bool = False) -> Behavi
             return BehaviorNode(BehaviorType.CHECKABLE)
         if "componentId" in val and ("path" in val or "dataBinding" in val):
             return BehaviorNode(BehaviorType.STRUCTURAL)
-        if is_v10:
+        if at_least_v10:
             if "@path" in val or "@call" in val:
                 return BehaviorNode(BehaviorType.DYNAMIC)
         else:
@@ -247,13 +249,14 @@ def _classify_value_fallback(key: str, val: Any, is_v10: bool = False) -> Behavi
         if "event" in val or "functionCall" in val:
             return BehaviorNode(BehaviorType.ACTION)
         shape = {
-            k: _classify_value_fallback(k, v, is_v10=is_v10) for k, v in val.items()
+            k: _classify_value_fallback(k, v, at_least_v10=at_least_v10)
+            for k, v in val.items()
         }
         return BehaviorNode(BehaviorType.OBJECT, shape=shape)
 
     if isinstance(val, list):
         elem = (
-            _classify_value_fallback("", val[0], is_v10=is_v10)
+            _classify_value_fallback("", val[0], at_least_v10=at_least_v10)
             if val
             else BehaviorNode(BehaviorType.STATIC)
         )
@@ -340,7 +343,7 @@ class GenericBinder:
 
         for k, v in val_obj.items():
             child_behavior = shape.get(k) or _classify_value_fallback(
-                k, v, is_v10=self.context.data_context.is_v10
+                k, v, at_least_v10=self.context.data_context.at_least_v10
             )
             result[k] = self._resolve_and_bind(
                 v, child_behavior, result, k, [*path, k], is_sync
@@ -364,7 +367,7 @@ class GenericBinder:
             ) or (
                 raw_val is not None
                 and _classify_value_fallback(
-                    k, raw_val, is_v10=self.context.data_context.is_v10
+                    k, raw_val, at_least_v10=self.context.data_context.at_least_v10
                 ).type
                 == BehaviorType.DYNAMIC
             )
@@ -375,10 +378,13 @@ class GenericBinder:
     def _create_setter(self, raw_val: Any) -> Callable[[Any], None]:
         def setter(new_value: Any) -> None:
             if isinstance(raw_val, dict):
-                binding_key = "@path" if self.context.data_context.is_v10 else "path"
+                binding_key = (
+                    "@path" if self.context.data_context.at_least_v10 else "path"
+                )
                 path_val = raw_val.get(binding_key)
                 if isinstance(path_val, str) and (
-                    self.context.data_context.is_v10 or "componentId" not in raw_val
+                    self.context.data_context.at_least_v10
+                    or "componentId" not in raw_val
                 ):
                     self.context.data_context.set(path_val, new_value)
 

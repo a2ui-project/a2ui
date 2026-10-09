@@ -6,6 +6,74 @@
   no longer re-exports `AGENT_TO_RENDERER_DEFS`, `INLINE_DEF_MARKER`,
   `SchemaKeywords`, `def_ref` or `Annotated`, which leaked through the old
   star imports; import them from their defining modules (#3064).
+- **BREAKING** (v1_0): Components and function calls that name no
+  `catalogId` resolve against the surface's default catalog, and fail if the
+  surface has none, instead of falling back to the first registered catalog.
+  An updated component no longer keeps the catalog of its previous version.
+- **BREAKING** (v1_0): `MessageProcessor` checks each nested function call
+  against the catalog it resolves to, and a call whose catalog can't be
+  resolved raises `A2uiCatalogError`, as a component does, even without a
+  validation config. Argument errors from these checks are reported together
+  with the component schema errors of the same update, in one
+  `A2uiValidationError`, which reports a detail found by both checks once.
+- (v1_0) `PayloadValidator` fully checks a nested call when it runs in the
+  validator's catalog: when it names that catalog, or names no `catalogId` in
+  a component that names none either. Any other call runs in a catalog the
+  validator can't see, so only its envelope is checked: function and argument
+  identifiers, and `args` must be an object; `MessageProcessor` checks it against the catalog it resolves to.
+  `SurfaceComponentsModel.validate_components_update` applies the same rule,
+  using whether each component's catalog is the surface default. Nested calls
+  are checked even in a component whose type the catalog doesn't define and
+  the validation config allows (`allow_unknown_elements`).
+- **BREAKING**: `DataContext.is_v10` is renamed to `DataContext.at_least_v10`, since it is true for v1.0 and every later version.
+- **BREAKING**: `DataContext` reports a function call whose catalog can't be resolved on the surface error channel with code `CATALOG_ERROR` instead of `EXPRESSION_ERROR`. Other evaluation failures, including a function missing from its resolved catalog, keep `EXPRESSION_ERROR`.
+- (v1_0) `MessageProcessor` rejects a component whose `catalogId` is not a string with `A2uiValidationError`, as it does for a function call, instead of failing to find the catalog.
+- **BREAKING**: `ComponentModel` requires a catalog:
+  `ComponentModel(component_id, component_type, catalog, properties=None)`.
+  The legacy `ComponentModel(id, type, properties)` form and a `None` catalog
+  are no longer accepted. `MessageProcessor` raises `A2uiCatalogError` before
+  creating a model when neither the component nor the surface names a
+  catalog.
+- (v1_0) A component's JSON schema no longer judges the function or args of a
+  nested call: the published `FunctionCall` def, which ties every call to the
+  functions of the component's catalog, is replaced by its envelope (`@call`,
+  `args`, `catalogId`) during component validation. So a JSON catalog built
+  from the generated or published basic schema accepts a call that names
+  another catalog, and the call is judged by the nested-call checks above
+  instead. Nested-call errors are now reported at the call's location in the
+  component (for example `components.t1.text.args.value`) rather than as
+  `functions.<name>...`, without a second, vaguer schema error for the same
+  call.
+- (v1_0) An empty `catalogId` names a catalog, as any string does, so a
+  component or function call with `catalogId: ""` fails catalog resolution
+  instead of falling back to the surface default, and a direct
+  `PayloadValidator` treats it as another catalog. A non-string `catalogId`
+  on a nested call is a `type_mismatch` error.
+- (v1_0) Reserved `@` system functions such as `@index` need no catalog: they
+  are validated and run without catalog resolution, on any surface. A system
+  function call that names a `catalogId` is rejected (`extra_field`), and
+  `DataContext` reports it as an `EXPRESSION_ERROR` instead of running it.
+- (v1_0) A nested call with an empty `@call` name is rejected as an invalid
+  identifier instead of being skipped.
+- (v1_0) `catalogId` and `metadata` are component envelope keys, like `id` and
+  `component`: `PayloadValidator` leaves them out when a component's JSON
+  schema or Pydantic model doesn't declare them, so a closed schema accepts a
+  component that names its catalog. A `catalogId` left out this way must
+  still be a string.
+- **BREAKING** (v1_0): Every component in `updateComponents` must name its
+  `component` type, as the specification requires; an update of an existing
+  component that leaves it out is rejected.
+- (v0_9) A function call's `catalogId` is ignored, since v0.9 function calls
+  have no such field, so the call always runs in the surface catalog.
+  Previously a call naming a catalog the surface lacked raised
+  `A2uiCatalogError`. `PayloadValidator` likewise checks such a call against
+  its catalog instead of only checking its identifiers.
+- **BREAKING**: `SurfaceModel.default_catalog` and `SurfaceModel.catalog` are
+  now `CatalogApi | None`, since a v1.0 surface may have no default catalog.
+  New `SurfaceModel.protocol_version` holds the surface's version.
+- New `SurfaceModel.resolve_catalog`, which resolves the catalog a component
+  or function call runs in. New `validate_system_function`
+  (`a2ui.core.validation`) and `is_system_function_name` (`a2ui.core.catalog`).
 
 ## 0.3.0 (2026-10-08)
 

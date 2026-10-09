@@ -228,7 +228,7 @@ def _format_string(
         if context and hasattr(context, "resolve_dynamic_value"):
             dyn_part = (
                 _adapt_ast_part_for_v10(part)
-                if getattr(context, "is_v10", False)
+                if getattr(context, "at_least_v10", False)
                 else part
             )
             resolved = context.resolve_dynamic_value(dyn_part)

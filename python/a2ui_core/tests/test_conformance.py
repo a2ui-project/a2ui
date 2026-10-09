@@ -17,6 +17,7 @@ import glob
 import json
 import os
 import re
+import sys
 from typing import Any
 import pytest
 import yaml
@@ -1783,6 +1784,80 @@ def validate_dispatch_action_case(case: dict[str, Any]) -> None:
             assert data_model.data == expect_data_model
 
 
+def _normalize_version(version: Any) -> str:
+    text = str(getattr(version, "value", version) or "")
+    return text[1:] if text.startswith("v") else text
+
+
+def _load_catalog_path(path: str) -> CatalogApi:
+    """Loads a catalogPaths entry as the catalog built for its own protocol version.
+
+    The published basic catalogs map to the SDK's basic catalogs, which carry
+    the function implementations. Any other file is built from its JSON, for
+    the protocol version it declares.
+    """
+    full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", path))
+    with open(full_p, "r", encoding="utf-8") as f:
+        c_json = json.load(f)
+    c_id = c_json.get("catalogId")
+    for sdk_cat in (v08_catalog, v09_catalog, v10_catalog):
+        if c_id == sdk_cat.catalog_id:
+            return sdk_cat
+    return Catalog.from_json(
+        c_json,
+        catalog_id=c_id,
+        protocol_version=f"v{_normalize_version(c_json.get('protocolVersion'))}",
+    )
+
+
+class _RaisingSurfaceModel(SurfaceModel):
+    """A surface that raises evaluation errors rather than dispatching them.
+
+    A surface reports a failed function call as an error payload, which drops
+    the exception class. Re-raising the exception being handled lets a case
+    check the error category.
+    """
+
+    def dispatch_error(self, error: dict[str, Any]) -> None:
+        exc = sys.exc_info()[1]
+        if exc is None:
+            super().dispatch_error(error)
+            return
+        raise exc
+
+
+def _evaluate_function_on_surface(case: dict[str, Any]) -> Any:
+    """Evaluates the case's function as a call on a surface (the `surface` block).
+
+    The surface is built for the case's protocolVersion. Its available catalogs
+    are the catalogPaths entries built for that version, and its default
+    catalog is the one `surface.catalogId` names, if any. The call goes through
+    the SDK's catalog resolution, naming the case's call-level `catalogId`.
+    """
+    version = case["protocolVersion"]
+    available = {
+        cat.catalog_id: cat
+        for cat in (_load_catalog_path(p) for p in case["catalogPaths"])
+        if _normalize_version(cat.protocol_version) == _normalize_version(version)
+    }
+    default_id = case["surface"].get("catalogId")
+    default_cat = available[default_id] if default_id else None
+    surface = _RaisingSurfaceModel(
+        surface_id="main",
+        default_catalog=default_cat,
+        available_catalogs=available,
+        data_model=DataModel(case.get("dataModel") or {}),
+        protocol_version=version,
+    )
+    surface.locale = case.get("locale", "en-US")
+    context = DataContext(surface=surface, path="/")
+    call_key = "@call" if context.at_least_v10 else "call"
+    call: dict[str, Any] = {call_key: case["function"], "args": case["args"]}
+    if "catalogId" in case:
+        call["catalogId"] = case["catalogId"]
+    return context.resolve_dynamic_value(call)
+
+
 def validate_evaluate_function_case(case: dict[str, Any]) -> None:
     func_name = case["function"]
     args = case["args"]
@@ -1790,28 +1865,34 @@ def validate_evaluate_function_case(case: dict[str, Any]) -> None:
     locale = case.get("locale", "en-US")
     expect_error = case.get("expectError") or case.get("expect_error")
 
-    catalogs = get_catalogs_for_test_case(case)
-    default_cat = catalogs[0] if catalogs else v09_catalog
-    data_model = DataModel(data_model_dict)
-    surface = SurfaceModel(
-        surface_id="main",
-        default_catalog=default_cat,
-        data_model=data_model,
-    )
-    surface.locale = locale
-    context = DataContext(surface=surface, path="/")
+    if "surface" in case:
 
-    def _invoke() -> Any:
-        if (
-            default_cat
-            and hasattr(default_cat, "functions")
-            and func_name in default_cat.functions
-        ):
-            fn = default_cat.functions[func_name]
-            if getattr(fn, "execute_func", None) is not None:
-                return fn.execute_func(args, context)
-            return fn.execute(args, context)
-        return context.resolve_dynamic_value({"call": func_name, "args": args})
+        def _invoke() -> Any:
+            return _evaluate_function_on_surface(case)
+
+    else:
+        catalogs = get_catalogs_for_test_case(case)
+        default_cat = catalogs[0] if catalogs else v09_catalog
+        data_model = DataModel(data_model_dict)
+        surface = SurfaceModel(
+            surface_id="main",
+            default_catalog=default_cat,
+            data_model=data_model,
+        )
+        surface.locale = locale
+        context = DataContext(surface=surface, path="/")
+
+        def _invoke() -> Any:
+            if (
+                default_cat
+                and hasattr(default_cat, "functions")
+                and func_name in default_cat.functions
+            ):
+                fn = default_cat.functions[func_name]
+                if getattr(fn, "execute_func", None) is not None:
+                    return fn.execute_func(args, context)
+                return fn.execute(args, context)
+            return context.resolve_dynamic_value({"call": func_name, "args": args})
 
     if expect_error:
         with assert_raises(expect_error):

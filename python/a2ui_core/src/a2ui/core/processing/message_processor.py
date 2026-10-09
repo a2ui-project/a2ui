@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+from ..common import is_at_least_version, to_protocol_version
 from ..common.events import EventSource
 from .adapters import is_catalog_version_compatible
 from ..state import SurfaceGroupModel, SurfaceModel, ComponentModel
@@ -33,7 +34,11 @@ from ..validation import (
     ValidationConfig,
     STRICT_VALIDATION,
 )
-from ..catalog import CatalogApi
+from ..validation.payload_validator import (
+    nested_call_runs_in_catalog,
+    rebase_function_error_details,
+)
+from ..catalog import CatalogApi, is_system_function_name
 from ..exceptions import (
     A2uiCatalogError,
     A2uiError,
@@ -106,6 +111,46 @@ class CapabilitiesOptions:
     versions: Sequence[ProtocolVersion | str]
     include_inline_catalogs: bool = False
     component_envelope_ref: str | None = None
+
+
+def _version_label(version: ProtocolVersion | str) -> str:
+    """Returns a protocol version as a 'vX.Y' label, or as given if unknown."""
+    try:
+        return to_protocol_version(version).value
+    except ValueError:
+        return str(version)
+
+
+def _merge_validation_errors(
+    first: A2uiValidationError, second: A2uiValidationError
+) -> A2uiValidationError:
+    """Combines two validation errors without repeating a detail.
+
+    Both passes over an update can report the same detail (path, code and
+    message), such as a bad identifier in a call that runs in another
+    catalog. Such a detail is kept once, where it first appears. When
+    `second` repeats some of `first`'s details, its message is rebuilt from
+    the details it adds, and left out if it adds none.
+    """
+    seen: set[tuple[str, str, str]] = set()
+    details: list[A2uiErrorDetail] = []
+    added: list[A2uiErrorDetail] = []
+    for idx, detail in enumerate([*first.details, *second.details]):
+        key = (detail.path, detail.code, detail.message)
+        if key in seen:
+            continue
+        seen.add(key)
+        details.append(detail)
+        if idx >= len(first.details):
+            added.append(detail)
+    if len(added) == len(second.details):
+        message = f"{first}\n{second}"
+    elif added:
+        lines = "\n".join(f"{detail.path}: {detail.message}" for detail in added)
+        message = f"{first}\nValidation failed for component:\n{lines}"
+    else:
+        message = str(first)
+    return A2uiValidationError(message, details=details)
 
 
 class MessageProcessor:
@@ -321,7 +366,6 @@ class MessageProcessor:
                 "At least one protocol version must be provided in CapabilitiesOptions"
                 " to generate renderer capabilities."
             )
-        from ..common.semver import is_at_least_version
 
         effective_versions = options.versions
         effective_include_inline = options.include_inline_catalogs
@@ -385,24 +429,19 @@ class MessageProcessor:
             )
             surfaces = {}
             for surface in enabled_surfaces:
-                cat_ver = (
-                    surface.default_catalog.protocol_version
-                    if surface.default_catalog
-                    else None
-                )
-                if not cat_ver or is_catalog_version_compatible(cat_ver, ver_str):
+                surface_ver = surface.protocol_version
+                if not surface_ver or is_catalog_version_compatible(
+                    surface_ver, ver_str
+                ):
                     surfaces[surface.id] = surface.data_model.get("/")
             if not surfaces:
                 return None
             return {"version": ver_str, "surfaces": surfaces}
 
         versions_set = {
-            s.default_catalog.protocol_version.value
-            if isinstance(s.default_catalog.protocol_version, ProtocolVersion)
-            else str(s.default_catalog.protocol_version)
+            _version_label(s.protocol_version)
             for s in enabled_surfaces
-            if s.default_catalog
-            and getattr(s.default_catalog, "protocol_version", None)
+            if s.protocol_version
         }
 
         if len(versions_set) > 1:
@@ -490,12 +529,25 @@ class MessageProcessor:
         theme = op.theme or {}
         send_data_model = op.send_data_model
 
-        if catalog_id is None and self.catalogs:
-            # v0.8 fallback to the first catalog
+        msg_version = op.version or getattr(self, "version", None)
+        # From v1.0 the default catalog is optional: a surface that names none
+        # has none, and every component and function call on it names its own.
+        no_default_catalog = (
+            catalog_id is None
+            and msg_version is not None
+            and is_at_least_version(
+                to_protocol_version(msg_version), ProtocolVersion.V1_0
+            )
+        )
+        surface_catalog: Any
+        if no_default_catalog:
+            surface_catalog = None
+        elif catalog_id is None and self.catalogs:
+            # Before v1.0, fall back to the first catalog.
             surface_catalog = self.catalogs[0]
         else:
             surface_catalog = cast(Any, self._resolve_catalog(catalog_id))
-        if not surface_catalog:
+        if not surface_catalog and not no_default_catalog:
             if catalog_id is not None:
                 raise A2uiCatalogError(f"Catalog not found: {catalog_id}")
             raise A2uiCatalogError("No default catalog available for surface.")
@@ -503,7 +555,7 @@ class MessageProcessor:
         if self.model.get_surface(surface_id):
             raise A2uiIntegrityError(f"Surface {surface_id} already exists.")
 
-        if theme:
+        if theme and surface_catalog is not None:
             try:
                 PayloadValidator(
                     catalog=surface_catalog,
@@ -514,10 +566,14 @@ class MessageProcessor:
                     f"Validation failed for theme on surface '{surface_id}': {e}"
                 ) from e
 
-        surface_proto_ver = getattr(surface_catalog, "protocol_version", None)
-        msg_version = op.version or getattr(self, "version", None)
+        surface_proto_ver = getattr(surface_catalog, "protocol_version", None) or (
+            to_protocol_version(msg_version)
+            if no_default_catalog and msg_version
+            else None
+        )
         if (
-            surface_proto_ver
+            surface_catalog is not None
+            and surface_proto_ver
             and msg_version
             and not is_catalog_version_compatible(surface_proto_ver, msg_version)
         ):
@@ -542,6 +598,7 @@ class MessageProcessor:
             available_catalogs=matching_available_catalogs,
             theme=theme,
             send_data_model=send_data_model,
+            protocol_version=surface_proto_ver,
         )
         if op.root:
             new_surface.root_id = op.root
@@ -572,6 +629,10 @@ class MessageProcessor:
         if not isinstance(components, list):
             raise A2uiValidationError("Components payload must be a list.")
 
+        surface_at_least_v10 = bool(
+            surface.protocol_version
+            and is_at_least_version(surface.protocol_version, ProtocolVersion.V1_0)
+        )
         new_component_models: list[ComponentModel] = []
         for comp in components:
             comp_dict = (
@@ -594,15 +655,51 @@ class MessageProcessor:
                 raise A2uiValidationError(
                     f"Cannot create component {c_id} without a type."
                 )
+            if surface_at_least_v10 and not comp_type_raw:
+                # From v1.0 `component` is required on every component in
+                # updateComponents (spec `Component` schema), so an update
+                # cannot leave out the type of the component it replaces.
+                raise A2uiValidationError(
+                    f"Component {c_id} is missing the required 'component' field.",
+                    details=[
+                        A2uiErrorDetail(
+                            path=f"components.{c_id}.component",
+                            code="missing_field",
+                            message="'component' is a required property",
+                        )
+                    ],
+                )
             c_type = cast(str, comp_type_raw or (existing.type if existing else ""))
 
             comp_cat_id = comp_dict.get("catalogId")
-            if comp_cat_id:
+            if (
+                surface_at_least_v10
+                and comp_cat_id is not None
+                and not isinstance(comp_cat_id, str)
+            ):
+                # The spec types catalogId as a string. Ignoring a bad one
+                # would resolve the component to the surface default.
+                raise A2uiValidationError(
+                    f"Component {c_id} has a non-string 'catalogId'.",
+                    details=[
+                        A2uiErrorDetail(
+                            path=f"components.{c_id}.catalogId",
+                            code="type_mismatch",
+                            message="'catalogId' must be a string",
+                        )
+                    ],
+                )
+            # From v1.0 an empty catalogId names a catalog too (none has that
+            # ID); before v1.0 it counts as absent.
+            names_catalog = (
+                comp_cat_id is not None if surface_at_least_v10 else bool(comp_cat_id)
+            )
+            if names_catalog:
                 comp_catalog = self._resolve_catalog(comp_cat_id)
                 if not comp_catalog:
                     raise A2uiCatalogError(f"Catalog not found: {comp_cat_id}")
                 comp_ver = getattr(comp_catalog, "protocol_version", None)
-                surface_ver = getattr(surface.default_catalog, "protocol_version", None)
+                surface_ver = surface.protocol_version
                 if (
                     comp_ver
                     and surface_ver
@@ -610,13 +707,25 @@ class MessageProcessor:
                 ):
                     raise A2uiCatalogError(
                         f"Component {c_id} catalog '{comp_cat_id}' has different"
-                        f" protocol version {comp_ver} than default catalog"
-                        f" {surface_ver}."
+                        f" protocol version {_version_label(comp_ver)} than"
+                        f" surface {surface_id} ({_version_label(surface_ver)})."
                     )
-            elif existing and (not comp_type_raw or comp_type_raw == existing.type):
+            elif (
+                existing
+                and not surface_at_least_v10
+                and (not comp_type_raw or comp_type_raw == existing.type)
+            ):
+                # Before v1.0, an update that names no catalogId keeps the
+                # catalog of the component it replaces. From v1.0 it resolves
+                # like any other component: to the surface default, else error.
                 comp_catalog = existing.catalog
-            else:
+            elif surface.default_catalog is not None:
                 comp_catalog = surface.default_catalog
+            else:
+                raise A2uiCatalogError(
+                    f"Component {c_id} names no catalogId and surface"
+                    f" {surface_id} has no default catalogId."
+                )
 
             properties = {
                 k: v
@@ -627,11 +736,32 @@ class MessageProcessor:
             new_comp = ComponentModel(c_id, c_type, comp_catalog, properties)
             new_component_models.append(new_comp)
 
-        surface.components_model.validate_components_update(
-            new_component_models,
-            root_id=surface.root_id or "root",
-            config=self.validation_config,
-        )
+        # Catalog resolution errors are raised at once. Argument errors from
+        # the nested-call pass are reported together with the component schema
+        # errors, so neither hides the other.
+        nested_error: A2uiValidationError | None = None
+        if surface_at_least_v10:
+            try:
+                self._validate_nested_function_calls(surface, new_component_models)
+            except A2uiValidationError as e:
+                nested_error = e
+
+        try:
+            surface.components_model.validate_components_update(
+                new_component_models,
+                root_id=surface.root_id or "root",
+                config=self.validation_config,
+            )
+        except A2uiValidationError as e:
+            if nested_error is None:
+                raise
+            if type(e) is not A2uiValidationError:
+                # A different kind of failure (e.g. integrity); the nested-call
+                # errors come first, as they are found first.
+                raise nested_error from None
+            raise _merge_validation_errors(nested_error, e) from None
+        if nested_error is not None:
+            raise nested_error
 
         for new_comp in new_component_models:
             existing = surface.components_model.get(new_comp.id)
@@ -646,6 +776,125 @@ class MessageProcessor:
                     existing.properties = new_comp.properties
             else:
                 surface.components_model.add_component(new_comp)
+
+    def _validate_nested_function_calls(
+        self, surface: SurfaceModel, components: list[ComponentModel]
+    ) -> None:
+        """Checks each v1.0 nested function call against the catalog it runs in.
+
+        A call runs in the catalog it names, or else in the surface default
+        catalog, which need not be the catalog of the component that holds it.
+        This pass resolves each call's catalog. It checks the arguments of the
+        calls that run outside the component's catalog; component validation
+        (`PayloadValidator.validate_component`) checks the others, as decided
+        by `nested_call_runs_in_catalog`.
+        Reserved `@` system functions belong to no catalog and are skipped,
+        but the calls nested in their arguments are still checked.
+
+        Runs before any state is mutated.
+
+        Raises:
+            A2uiCatalogError: If a call's catalog cannot be resolved. Raised
+                even without a validation config, since the call could never
+                run.
+            A2uiValidationError: If a call has a non-string `catalogId`, or,
+                when a validation config is set, if a call's arguments do not
+                match its catalog's definition. Argument errors across the
+                batch are reported together.
+        """
+        errors: list[A2uiErrorDetail] = []
+        summaries: list[str] = []
+
+        def visit(comp: ComponentModel, node: Any, path: str) -> None:
+            if isinstance(node, list):
+                for idx, item in enumerate(node):
+                    visit(comp, item, f"{path}.{idx}")
+                return
+            if not isinstance(node, dict):
+                return
+            name = node.get("@call")
+            if isinstance(name, str) and not is_system_function_name(name):
+                self._validate_nested_function_call(
+                    surface, comp, name, node, path, errors, summaries
+                )
+            for key, value in node.items():
+                visit(comp, value, f"{path}.{key}")
+
+        for comp in components:
+            for key, value in comp.properties.items():
+                visit(comp, value, key)
+
+        if errors:
+            raise A2uiValidationError("\n".join(summaries), details=errors)
+
+    def _validate_nested_function_call(
+        self,
+        surface: SurfaceModel,
+        comp: ComponentModel,
+        name: str,
+        call: dict[str, Any],
+        path: str,
+        errors: list[A2uiErrorDetail],
+        summaries: list[str],
+    ) -> None:
+        """Resolves one nested call's catalog and checks its arguments.
+
+        Appends errors to `errors`, with paths rooted at the call's location
+        in the component, and a line describing them to `summaries`. An empty
+        `catalogId` names a catalog like any other string, so it does not fall
+        back to the surface default.
+        """
+        comp_id = comp.id
+        call_path = f"components.{comp_id}.{path}"
+        catalog_id = call.get("catalogId")
+        if catalog_id is not None and not isinstance(catalog_id, str):
+            if self.validation_config is not None:
+                # Component validation reports it.
+                return
+            summaries.append(
+                f"Function call '{name}' in component '{comp_id}' has a"
+                " non-string 'catalogId'."
+            )
+            errors.append(
+                A2uiErrorDetail(
+                    path=f"{call_path}.catalogId",
+                    code="type_mismatch",
+                    message="'catalogId' must be a string",
+                )
+            )
+            return
+        subject = f"Function call '{name}' in component '{comp_id}'"
+        try:
+            catalog = surface.resolve_catalog(catalog_id, subject=subject)
+        except A2uiCatalogError:
+            if catalog_id is not None and self._resolve_catalog(catalog_id) is not None:
+                raise A2uiCatalogError(
+                    f"Catalog '{catalog_id}' is not available on surface"
+                    f" {surface.id}: its protocol version does not match the"
+                    f" surface ({_version_label(surface.protocol_version or '')})."
+                ) from None
+            raise
+
+        if self.validation_config is None:
+            return
+        if nested_call_runs_in_catalog(
+            catalog_id,
+            comp.catalog.catalog_id,
+            catalog_is_default=comp.catalog is surface.default_catalog,
+        ):
+            # Component validation checks this call against the component's
+            # catalog.
+            return
+        try:
+            PayloadValidator(catalog, config=self.validation_config).validate_function(
+                name, call.get("args")
+            )
+        except A2uiValidationError as e:
+            summaries.append(
+                f"Validation failed for function call '{name}' in component"
+                f" '{comp_id}': {e}"
+            )
+            errors.extend(rebase_function_error_details(e, name, call_path))
 
     def _process_update_data_model_op(self, op: InternalUpdateDataModelOp) -> None:
         surface_id = op.surface_id

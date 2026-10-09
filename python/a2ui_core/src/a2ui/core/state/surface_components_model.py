@@ -13,21 +13,23 @@
 # limitations under the License.
 
 from collections.abc import ItemsView, KeysView, Mapping, ValuesView
-from ..catalog import Catalog, CatalogApi
+from ..catalog import CatalogApi
 from ..common.events import EventSource
+from ..common.semver import is_at_least_version
 from ..exceptions import (
     A2uiErrorDetail,
     A2uiIntegrityError,
     A2uiStateError,
     A2uiValidationError,
 )
+from ..schema import ProtocolVersion
 from .component_model import ComponentModel
 from .validation_helpers import (
     analyze_topology,
     validate_component_integrity,
     validate_composition_constraints,
 )
-from ..validation.payload_validator import ValidationConfig
+from ..validation.payload_validator import PayloadValidator, ValidationConfig
 
 
 class SurfaceComponentsModel:
@@ -104,15 +106,27 @@ class SurfaceComponentsModel:
         comp = self.get(component_id)
         if not comp:
             return []
-        fallback_cat = (
-            comp.catalog if isinstance(comp.catalog, Catalog) else self.default_catalog
-        )
-        return list(
-            comp.get_child_references(
-                set(self._components.keys()),
-                catalog=fallback_cat,
-            )
-        )
+        return list(comp.get_child_references(set(self._components.keys())))
+
+    def _validate_component(
+        self, comp: ComponentModel, config: ValidationConfig
+    ) -> None:
+        """Validates one component, telling the validator which catalog it is in.
+
+        From v1.0, a function call that names no `catalogId` runs in the surface
+        default catalog. When the component's catalog is another one, the
+        validator is given the component's `catalogId` so it leaves those calls
+        to `MessageProcessor`, which checks them against the surface default.
+        """
+        comp_dict = comp.component_tree
+        ver = comp.catalog.protocol_version
+        if (
+            comp.catalog is not self.default_catalog
+            and ver
+            and is_at_least_version(ver, ProtocolVersion.V1_0)
+        ):
+            comp_dict["catalogId"] = comp.catalog.catalog_id
+        PayloadValidator(comp.catalog, config=config).validate_component(comp_dict)
 
     def get_child_ids(self, component_id: str) -> list[str]:
         """Returns list of referenced child component IDs for a given component identifier."""
@@ -160,7 +174,13 @@ class SurfaceComponentsModel:
         root_id: str = "root",
         config: ValidationConfig | None = None,
     ) -> None:
-        """Validates inbound component models schema, composition constraints, and graph completeness BEFORE updating surface state."""
+        """Validates inbound component models schema, composition constraints, and graph completeness BEFORE updating surface state.
+
+        Args:
+            new_components: The inbound component models.
+            root_id: The surface root component id.
+            config: Validation settings; validation is skipped when None.
+        """
         if config is None:
             return
 
@@ -186,7 +206,7 @@ class SurfaceComponentsModel:
         comp_summaries: list[str] = []
         for comp_model in new_components:
             try:
-                comp_model.validate(config=config)
+                self._validate_component(comp_model, config)
             except A2uiValidationError as e:
                 all_errors.extend(e.details)
                 comp_type = comp_model.type
