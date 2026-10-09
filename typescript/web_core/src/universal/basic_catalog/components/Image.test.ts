@@ -104,6 +104,51 @@ describe('Image Component', () => {
     assert.strictEqual(img?.classList.contains('avatar'), true);
   });
 
+  it('should omit src when url uses a disallowed scheme', async () => {
+    const disallowedUrls = [
+      'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>',
+      'javascript:alert(1)',
+      'file:///etc/passwd',
+      'blob:https://example.com/123',
+      '//evil.example.com/pixel.png',
+    ];
+
+    const el = document.createElement('a2ui-image') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    for (const badUrl of disallowedUrls) {
+      processor.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'comp1',
+                component: 'Image',
+                url: badUrl,
+              },
+            ],
+          },
+        },
+      ]);
+
+      const context = new ComponentContext(surface, 'comp1');
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
+
+      const img = el.querySelector('img');
+      assert.notStrictEqual(img, null);
+      assert.strictEqual(
+        img?.getAttribute('src'),
+        null,
+        `Expected src to be omitted for ${badUrl}`,
+      );
+    }
+  });
+
   describe('ImageApi schema validation', () => {
     it('should parse valid image with description', () => {
       const validImage = {

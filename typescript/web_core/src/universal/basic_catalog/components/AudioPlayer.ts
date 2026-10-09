@@ -15,6 +15,7 @@
  */
 
 import {html, nothing, css} from 'lit';
+import {sanitizeMediaUrl} from '../../index.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {AudioPlayerSupportedApis} from './supported_apis.js';
 
@@ -48,12 +49,14 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<AudioPlay
     const props = this.controller.props;
     if (!props) return nothing;
 
+    const safeUrl = sanitizeMediaUrl(props.url);
+
     return html`
       <div class="a2ui-audio-player">
         ${props.description
           ? html`<div class="a2ui-audio-description">${props.description}</div>`
           : nothing}
-        <audio src=${props.url || nothing} controls class="a2ui-audio">
+        <audio src=${safeUrl ?? nothing} controls class="a2ui-audio">
           Your browser does not support the audio tag.
         </audio>
       </div>
