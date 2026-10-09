@@ -551,6 +551,94 @@ describe('MessageProcessor', () => {
       assert.strictEqual(responses[0].rendererFunctionResponse.error, undefined);
     });
 
+    it('targets the specified surfaceId data model when surfaceId is provided, uses an isolated empty model when omitted, and returns INVALID_FUNCTION_CALL when surfaceId does not exist', async () => {
+      const readModelApi = {
+        name: 'readUserName',
+        returnType: 'string' as const,
+        schema: z.object({}),
+        allowedCallers: 'rendererOrAgent' as const,
+      };
+      const readModelImpl = createFunctionImplementation(
+        readModelApi,
+        (_args: any, ctx: any) => ctx?.surface?.dataModel?.get('/user/name') ?? 'empty',
+      );
+      const cat = new Catalog('rpc-model-cat', '1.0', [], [readModelImpl]);
+      const proc = new MessageProcessor([cat]);
+
+      proc.processMessages([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'rpc-model-cat',
+            dataModel: {user: {name: 'Alice'}},
+          },
+        },
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's2',
+            catalogId: 'rpc-model-cat',
+            dataModel: {user: {name: 'Bob'}},
+          },
+        },
+      ]);
+
+      // 1. With surfaceId: 's2' -> resolves against s2's data model ('Bob')
+      const resWithSurface = await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          surfaceId: 's2',
+          functionCallId: 'rpc-surf-1',
+          callFunction: {
+            call: 'readUserName',
+            catalogId: 'rpc-model-cat',
+            args: {},
+          },
+        },
+      });
+      assert.strictEqual(resWithSurface.length, 1);
+      assert.strictEqual(resWithSurface[0].rendererFunctionResponse.value, 'Bob');
+
+      // 2. Without surfaceId -> resolves against isolated empty root model ('empty')
+      const resIsolated = await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-surf-2',
+          callFunction: {
+            call: 'readUserName',
+            catalogId: 'rpc-model-cat',
+            args: {},
+          },
+        },
+      });
+      assert.strictEqual(resIsolated.length, 1);
+      assert.strictEqual(resIsolated[0].rendererFunctionResponse.value, 'empty');
+
+      // 3. With non-existent surfaceId -> returns INVALID_FUNCTION_CALL
+      const resMissing = await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          surfaceId: 'non_existent_surface',
+          functionCallId: 'rpc-surf-3',
+          callFunction: {
+            call: 'readUserName',
+            catalogId: 'rpc-model-cat',
+            args: {},
+          },
+        },
+      });
+      assert.strictEqual(resMissing.length, 1);
+      assert.strictEqual(
+        resMissing[0].rendererFunctionResponse.error?.code,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+      );
+      assert.match(
+        resMissing[0].rendererFunctionResponse.error?.message ?? '',
+        /Surface not found: non_existent_surface/,
+      );
+    });
+
     it('enforces requiresUserActivation in processMessagesAsync via context options', async () => {
       const proc = new MessageProcessor([rpcCatalog]);
       proc.processMessages({

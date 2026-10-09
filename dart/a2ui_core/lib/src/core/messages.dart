@@ -136,9 +136,14 @@ abstract class AgentToRendererMessage {
           surfaceId: _required<String>(body, 'surfaceId', key),
         );
       case 'callRendererFunction':
-        _checkKeys(body, const {'functionCallId', 'callFunction'}, key);
+        _checkKeys(
+          body,
+          const {'surfaceId', 'functionCallId', 'callFunction'},
+          key,
+        );
         return CallRendererFunctionMessage(
           version: version,
+          surfaceId: _optional<String>(body, 'surfaceId', key),
           functionCallId: _required<String>(body, 'functionCallId', key),
           callFunction: _callFunction(body, key, requireCatalogId: true),
         );
@@ -704,6 +709,11 @@ class DeleteSurfaceMessage extends AgentToRendererMessage {
 /// The renderer answers with a [RendererFunctionResponseMessage] carrying the
 /// same [functionCallId].
 class CallRendererFunctionMessage extends AgentToRendererMessage {
+  /// Optional ID of the surface whose data model provides the evaluation
+  /// context for this call. If null, the function executes in a
+  /// surface-independent root context with an empty data model.
+  final String? surfaceId;
+
   /// Identifies this call; the renderer copies it into its response.
   final String functionCallId;
 
@@ -713,6 +723,7 @@ class CallRendererFunctionMessage extends AgentToRendererMessage {
 
   CallRendererFunctionMessage({
     required super.version,
+    this.surfaceId,
     required this.functionCallId,
     required this.callFunction,
   });
@@ -721,6 +732,7 @@ class CallRendererFunctionMessage extends AgentToRendererMessage {
   Map<String, dynamic> toJson() => {
         'version': version,
         'callRendererFunction': {
+          if (surfaceId != null) 'surfaceId': surfaceId,
           'functionCallId': functionCallId,
           'callFunction': callFunction,
         },

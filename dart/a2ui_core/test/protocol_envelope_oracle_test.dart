@@ -307,6 +307,22 @@ void main() {
             'callFunction': {'@call': 'f', 'catalogId': 'c'},
           },
         },
+        'callRendererFunction with surfaceId': {
+          'version': 'v1.0',
+          'callRendererFunction': {
+            'surfaceId': 's',
+            'functionCallId': 'c1',
+            'callFunction': {'@call': 'f', 'catalogId': 'c'},
+          },
+        },
+        'callRendererFunction with non-string surfaceId': {
+          'version': 'v1.0',
+          'callRendererFunction': {
+            'surfaceId': 123,
+            'functionCallId': 'c1',
+            'callFunction': {'@call': 'f', 'catalogId': 'c'},
+          },
+        },
         'callRendererFunction without catalogId': {
           'version': 'v1.0',
           'callRendererFunction': {

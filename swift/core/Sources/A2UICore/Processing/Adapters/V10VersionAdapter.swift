@@ -84,6 +84,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       return [
         .callRendererFunction(
           InternalCallRendererFunctionOp(
+            surfaceID: msg.surfaceID,
             functionCallID: msg.functionCallID,
             call: msg.callFunction.call,
             version: msg.version,
@@ -242,6 +243,22 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       ]
 
     case "callRendererFunction":
+      var surfaceID: String?
+      if let rawSurfaceID = actionObject["surfaceId"], rawSurfaceID != .null {
+        guard let str = rawSurfaceID.stringValue, !str.isEmpty else {
+          throw A2UIValidationError(
+            "Invalid v1.0 message: callRendererFunction.surfaceId must be a non-empty string",
+            details: [
+              A2UIErrorDetail(
+                path: "messages.0.callRendererFunction.surfaceId",
+                code: rawSurfaceID.stringValue == nil ? "type_mismatch" : "invalid_value",
+                message: "Field 'surfaceId' must be a non-empty string"
+              )
+            ]
+          )
+        }
+        surfaceID = str
+      }
       guard let functionCallID = actionObject["functionCallId"]?.stringValue,
         !functionCallID.isEmpty
       else {
@@ -290,6 +307,7 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
       return [
         .callRendererFunction(
           InternalCallRendererFunctionOp(
+            surfaceID: surfaceID,
             functionCallID: functionCallID,
             call: call,
             version: .v10,

@@ -256,8 +256,8 @@ public enum AgentToRendererMessage: Codable, Sendable, Equatable {
       return message.surfaceID
     case .deleteSurface(let message):
       return message.surfaceID
-    case .callRendererFunction:
-      return nil
+    case .callRendererFunction(let message):
+      return message.surfaceID
     case .agentFunctionResponse:
       return nil
     }

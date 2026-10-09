@@ -182,18 +182,22 @@ class MessageProcessor:
             is_user_activated = (
                 getattr(context, "is_user_activated", False) if context else False
             )
-            surface = next(iter(self.model.surfaces.values()), None)
-            data_context = DataContext(surface=surface, path="/") if surface else None
+            data_context = self._resolve_rpc_data_context(op)
             call_msg = CallRendererFunctionMessage(
                 version=cast(Any, op.version),
                 call_renderer_function=CallRendererFunction(  # type: ignore[call-arg]
                     functionCallId=op.function_call_id,
-                    # An unset catalogId stays absent: FunctionCall rejects
-                    # explicit nulls.
+                    # Optional fields stay absent when unset: SpecBaseModel
+                    # rejects explicit nulls.
                     callFunction=FunctionCall(  # type: ignore[call-arg]
                         call=op.call,
                         args=op.args,
                         **({"catalogId": op.catalog_id} if op.catalog_id else {}),
+                    ),
+                    **(
+                        {"surfaceId": op.surface_id}
+                        if op.surface_id is not None
+                        else {}
                     ),
                 ),
             )
@@ -436,6 +440,29 @@ class MessageProcessor:
             self._process_agent_function_response_op(op)
         return None
 
+    def _resolve_rpc_data_context(
+        self, op: InternalCallRendererFunctionOp
+    ) -> DataContext | None:
+        """Resolves the DataContext for an inbound callRendererFunction operation."""
+        if op.surface_id is not None:
+            surface = self.model.get_surface(op.surface_id)
+            return DataContext(surface=surface, path="/") if surface else None
+
+        target_catalog = cast(Any, self._resolve_catalog(op.catalog_id))
+        if target_catalog is None:
+            return None
+
+        available_catalogs = {
+            getattr(cat, "catalog_id", f"cat_{i}"): cat
+            for i, cat in enumerate(self.catalogs)
+        }
+        fallback_surface = SurfaceModel(
+            surface_id=f"_rpc_fallback_{op.function_call_id or 'default'}",
+            default_catalog=target_catalog,
+            available_catalogs=available_catalogs,
+        )
+        return DataContext(surface=fallback_surface, path="/")
+
     def _process_call_renderer_function_op(
         self,
         op: InternalCallRendererFunctionOp,
@@ -445,17 +472,17 @@ class MessageProcessor:
         is_user_activated = (
             getattr(context, "is_user_activated", False) if context else False
         )
-        surface = next(iter(self.model.surfaces.values()), None)
-        data_context = DataContext(surface=surface, path="/") if surface else None
+        data_context = self._resolve_rpc_data_context(op)
         call_msg = CallRendererFunctionMessage(
             version=cast(Any, op.version),
             call_renderer_function=CallRendererFunction(  # type: ignore[call-arg]
                 functionCallId=op.function_call_id,
                 callFunction=FunctionCall(  # type: ignore[call-arg]
                     call=op.call,
-                    catalogId=op.catalog_id,
                     args=op.args,
+                    **({"catalogId": op.catalog_id} if op.catalog_id else {}),
                 ),
+                **({"surfaceId": op.surface_id} if op.surface_id is not None else {}),
             ),
         )
         try:

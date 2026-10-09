@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- `CallRendererFunctionMessage` and `CallRendererFunctionOp` accept an optional
+  `surfaceId` (`String?`). When provided, `MessageProcessor` evaluates the
+  function call against that surface's root `DataContext` (returning
+  `INVALID_FUNCTION_CALL` if no such surface exists); when omitted, the call
+  executes against an isolated empty root data model.
 - `PayloadValidator` takes its rules from the catalog: `Catalog.protocolVersion`
   (parsed from the document's `protocolVersion`) selects the v1.0 rules for
   v1.0 and later and the v0.9 rules otherwise, and the embedded
@@ -23,7 +28,7 @@
   is removed; `PayloadValidator.commonTypesFor(A2uiProtocolVersion)` is the
   one entry point.
 - The package now embeds both `specification/v0_9/json/common_types.json` and
-  `specification/v1_0/json/common_types.json`. `CommonSchemas` gains
+  the updated `specification/v1_0/json/common_types.json`. `CommonSchemas` gains
   `dynamicNumber`, `dynamicStringList`, `dynamicValue`,
   `accessibilityAttributes`, `checkRule` and `componentCommon`, and the new
   `CommonSchemasV1` holds the v1.0 shapes keyed on `@path` and `@call`; its

@@ -66,6 +66,7 @@ class InternalCallRendererFunctionOp:
     function_call_id: str
     call: str
     version: str
+    surface_id: str | None = None
     catalog_id: str | None = None
     args: dict[str, Any] = field(default_factory=dict)
     is_user_activated: bool = False

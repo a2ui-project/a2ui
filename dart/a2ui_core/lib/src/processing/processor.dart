@@ -409,37 +409,20 @@ class MessageProcessor<T extends ComponentApi> {
     return null;
   }
 
-  /// Hands a `callRendererFunction` to [rpc], against the first surface whose
-  /// default catalog is the catalog the call names, else the first surface
-  /// that holds the catalog, else the first surface, else no surface at all,
-  /// in which case the function runs headless.
+  /// Hands a `callRendererFunction` to [rpc], targeting the surface named by
+  /// [CallRendererFunctionOp.surfaceId] when present, or no surface at all
+  /// (running against an isolated empty root data model) when omitted.
   Future<void> _callRendererFunction(
     CallRendererFunctionOp operation,
     bool isUserActivated,
   ) {
-    final Object? catalogId = operation.callFunction['catalogId'];
-    SurfaceModel<T>? target;
-    if (catalogId is String) {
-      for (final SurfaceModel<T> surface in groupModel.allSurfaces) {
-        if (surface.defaultCatalog?.id == catalogId) {
-          target = surface;
-          break;
-        }
-      }
-    }
-    if (target == null) {
-      for (final SurfaceModel<T> surface in groupModel.allSurfaces) {
-        target ??= surface;
-        if (catalogId is String &&
-            surface.availableCatalogs.containsKey(catalogId)) {
-          target = surface;
-          break;
-        }
-      }
-    }
+    final SurfaceModel<T>? target = operation.surfaceId != null
+        ? groupModel.getSurface(operation.surfaceId!)
+        : null;
     return rpc.handleCallRendererFunction(
       CallRendererFunctionMessage(
         version: operation.version.jsonValue,
+        surfaceId: operation.surfaceId,
         functionCallId: operation.functionCallId,
         callFunction: operation.callFunction,
       ),
