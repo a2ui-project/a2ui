@@ -29,6 +29,9 @@ from typing import Any, NoReturn, TypeVar
 
 _T = TypeVar("_T")
 _NUMBER_RE = re.compile(r"^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$")
+# Values that are never healed while they arrive: a cut URL is a different,
+# usually broken, address rather than a shorter version of the same text.
+_URL_PREFIXES = ("http://", "https://", "data:")
 
 
 def read_json(text: str) -> Any:
@@ -52,16 +55,35 @@ def read_partial_messages(
     whole_item_keys: Collection[str] = frozenset(),
 ) -> list[Any]:
     """Reads a partial JSON array or object into a list of candidate envelopes."""
+    return [
+        message
+        for message, _ in read_partial_message_items(
+            text, progressive_keys, whole_item_keys
+        )
+    ]
+
+
+def read_partial_message_items(
+    text: str,
+    progressive_keys: Collection[str],
+    whole_item_keys: Collection[str] = frozenset(),
+) -> list[tuple[Any, bool]]:
+    """Reads a partial JSON array or object into candidate envelopes.
+
+    Returns:
+      One `(envelope, closed)` pair per message, in order. `closed` is False
+      when the message's text was still arriving and the reader healed it.
+    """
     prog_set = set(progressive_keys)
     whole_set = set(whole_item_keys)
     try:
-        return _Reader(text, prog_set, whole_set).messages()
+        return _Reader(text, prog_set, whole_set).message_items()
     except ValueError:
         straight = _straighten_quotes(text)
         if straight == text:
             return []
         try:
-            return _Reader(straight, prog_set, whole_set).messages()
+            return _Reader(straight, prog_set, whole_set).message_items()
         except ValueError:
             return []
 
@@ -110,21 +132,23 @@ class _Reader:
             self._fail("unexpected text after the JSON value")
         return value
 
-    def messages(self) -> list[Any]:
+    def message_items(self) -> list[tuple[Any, bool]]:
         self._skip_space()
         if self._at_end:
             return []
         if self.text[self._i] != "[":
             try:
+                self._cut = False
                 message = self._value(healable=False)
+                closed = not self._cut
                 self._skip_space()
                 if not self._at_end:
                     self._fail("unexpected text after the JSON value")
-                return [message]
+                return [(message, closed)]
             except _Unfinished:
                 return []
         self._i += 1
-        messages: list[Any] = []
+        messages: list[tuple[Any, bool]] = []
         while True:
             self._skip_space()
             if self._at_end:
@@ -136,7 +160,9 @@ class _Reader:
                     self._fail("unexpected text after the JSON value")
                 return messages
             try:
-                messages.append(self._value(healable=False))
+                self._cut = False
+                message = self._value(healable=False)
+                messages.append((message, not self._cut))
             except _Unfinished:
                 return messages
             self._skip_space()
@@ -313,8 +339,12 @@ class _Reader:
                 self._fail(f"invalid escape '\\{escaped}'")
             self._i += 2
         if healable and self._partial:
-            self._cut = True
-            return "".join(buf)
+            value = "".join(buf)
+            # A URL that is still arriving names the wrong resource, so it
+            # waits for its closing quote like any value that can't heal.
+            if not value.startswith(_URL_PREFIXES):
+                self._cut = True
+                return value
         self._end()
 
     def _number(self) -> int | float:

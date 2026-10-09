@@ -26,7 +26,6 @@ from a2ui.inference_format import InferenceFormatFactory
 from a2ui.inference_formats._shared import check_catalogs
 from a2ui.inference_formats.direct_json.parser import DirectJsonParser
 from a2ui.inference_formats.direct_json.prompt_generator import DirectJsonPromptGenerator
-from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 
 
 class DirectJsonFormat(InferenceFormat):
@@ -71,18 +70,6 @@ class DirectJsonFormat(InferenceFormat):
     def supports_streaming(self) -> bool:
         """Direct JSON parsers read a response incrementally through parse_chunk."""
         return True
-
-    def create_stream_parser(self) -> DirectJsonStreamParser:
-        """Creates a streaming parser configured by this format.
-
-        Deprecated: use `create_parser()` and its `parse_chunk`. The returned
-        parser warns when it is created
-        (https://github.com/a2ui-project/a2ui/issues/3116).
-        """
-        return DirectJsonStreamParser(
-            self._catalogs,
-            progressive_keys=self._progressive_keys,
-        )
 
     @property
     def parser(self) -> DirectJsonParser:

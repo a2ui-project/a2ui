@@ -39,7 +39,7 @@ from a2ui.utils import validate_payload
 
 from .decompiler import DirectJsonDecompiler
 from .json_reader import read_json
-from .json_reader import read_partial_messages
+from .json_reader import read_partial_message_items
 
 _OPEN_TAG = "<a2ui-json>"
 _CLOSE_TAG = "</a2ui-json>"
@@ -50,6 +50,8 @@ _CLOSE_TAG_START_RE = re.compile(r"^</a2ui-json\s*$", re.IGNORECASE)
 _LEADING_FENCE_RE = re.compile(r"^```[a-zA-Z-]*\s*")
 _TRAILING_FENCE_RE = re.compile(r"\s*```[a-zA-Z-]*$")
 _STREAM_TRAILING_FENCE_RE = re.compile(r"\s*`{1,3}[a-zA-Z-]*\s*$")
+# Envelope keys of the messages that create a surface.
+_CREATE_KEYS = ("createSurface", "beginRendering")
 
 
 class DirectJsonParser(Parser):
@@ -227,16 +229,21 @@ class DirectJsonParser(Parser):
         v10 = is_at_least_version(
             self._catalogs[0].protocol_version, ProtocolVersion.V1_0
         )
-        candidates = read_partial_messages(
+        candidates = read_partial_message_items(
             content,
             self._progressive_keys,
             whole_item_keys={"components"} if v10 else frozenset(),
         )
         ready: list[AgentToRendererMessage] = []
         surfaces: dict[str, str] = {}
-        for envelope in candidates:
+        for envelope, closed in candidates:
             try:
                 if not isinstance(envelope, dict):
+                    break
+                # A renderer accepts a surface's create message only once, so
+                # it is held until its object closes rather than re-emitted as
+                # it grows. The messages after it wait with it.
+                if not closed and any(key in envelope for key in _CREATE_KEYS):
                     break
                 trial_surfaces = dict(surfaces)
                 validate_payload(

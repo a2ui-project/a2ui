@@ -173,7 +173,7 @@ def test_supports_streaming_property(test_catalog):
     assert elemental_fmt.create_parser().supports_streaming is False
 
 
-def test_process_chunk_raises_not_implemented(test_catalog):
+def test_parse_chunk_raises_not_implemented(test_catalog):
     express_parser = ExpressParser([test_catalog])
     with pytest.raises(NotImplementedError) as exc_info:
         express_parser.parse_chunk("chunk")
@@ -282,7 +282,6 @@ def test_direct_json_prompt_describes_every_catalog():
     assert '"catalogId":"b"' in prompt
     assert direct_json_format.catalogs == list(catalogs)
     assert direct_json_format.create_parser().catalogs == list(catalogs)
-    assert direct_json_format.create_stream_parser().catalogs == list(catalogs)
 
 
 def test_direct_json_format_passes_all_catalogs_to_v1_0_parsers():
@@ -296,7 +295,6 @@ def test_direct_json_format_passes_all_catalogs_to_v1_0_parsers():
 
     assert direct_json_format.catalogs == list(catalogs)
     assert direct_json_format.create_parser().catalogs == list(catalogs)
-    assert direct_json_format.create_stream_parser().catalogs == list(catalogs)
 
 
 _CUT_TEXT_CHUNK = (
@@ -311,23 +309,16 @@ _CUT_TEXT_CHUNK = (
     [(DEFAULT_PROGRESSIVE_KEYS, True), (frozenset(), False)],
     ids=["default", "healing_off"],
 )
-def test_direct_json_format_progressive_keys_reach_its_parsers(
-    progressive_keys, healed
-):
+def test_direct_json_format_progressive_keys_reach_its_parser(progressive_keys, healed):
     catalog = BasicCatalog("0.9")
     direct_json_format = DirectJsonFormat([catalog], progressive_keys=progressive_keys)
 
-    for parts in (
-        direct_json_format.create_parser().parse_chunk(
-            _CUT_TEXT_CHUNK % catalog.catalog_id
-        ),
-        direct_json_format.create_stream_parser().process_chunk(
-            _CUT_TEXT_CHUNK % catalog.catalog_id
-        ),
-    ):
-        messages = [
-            message.model_dump(by_alias=True, exclude_none=True)
-            for part in parts
-            for message in getattr(part, "a2ui", None) or []
-        ]
-        assert any("updateComponents" in message for message in messages) == healed
+    parts = direct_json_format.create_parser().parse_chunk(
+        _CUT_TEXT_CHUNK % catalog.catalog_id
+    )
+    messages = [
+        message.model_dump(by_alias=True, exclude_none=True)
+        for part in parts
+        for message in getattr(part, "a2ui", None) or []
+    ]
+    assert any("updateComponents" in message for message in messages) == healed
