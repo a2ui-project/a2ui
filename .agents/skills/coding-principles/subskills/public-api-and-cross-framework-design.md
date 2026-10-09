@@ -9,7 +9,6 @@ Activate this subskill when:
 - PR modifies renderer or SDK APIs, registration helpers, or adapters in `@a2ui/angular`, `@a2ui/lit`, `@a2ui/react`, `a2ui_flutter`, or `A2UISwiftUI`.
 - PR adds or modifies imports across sibling packages (e.g., between core packages and framework adapters).
 - PR modifies or introduces shared schemas, JSON fixtures, or examples in `specification/` or `catalogs/`.
-- PR adds or updates navigation, hotkeys, or layout capabilities in sample clients or framework explorers (`a2ui_explorer`).
 - PR adds new source files to any package.
 
 ---
@@ -153,15 +152,7 @@ registerCatalog({ name: 'main', isDefault: true, version: 'v0.9' });
 
 ---
 
-### 9. Synchronize Ergonomics and Feature Parity Across Sample Clients & Explorers
-
-- **Problem & Rationale**: Sample clients and explorer apps demonstrate reference implementations. Divergence in keyboard shortcuts, layout capabilities, or theme handling creates friction for developers testing multi-framework applications.
-- **Reviewer Checklist**:
-  - [ ] When UX or ergonomic features are introduced in one explorer or sample client, verify whether companion updates or follow-up tasks are needed across sibling clients.
-
----
-
-### 10. Scope `CHANGELOG.md` Strictly to Public Package Consumers
+### 9. Scope `CHANGELOG.md` Strictly to Public Package Consumers
 
 - **Problem & Rationale**: Package changelogs are published in package releases (`npm`, `PyPI`, `pub.dev`) for end users. Including internal refactorings, sample application changes, private types, or formatting sweeps creates noise for library consumers.
 - **Actionable Guidance**: Follow [`update-changelog.md`](update-changelog.md) (and [`a2ui-dart-versioning`](../../a2ui-dart-versioning/SKILL.md) for `dart/` packages).
@@ -174,7 +165,7 @@ registerCatalog({ name: 'main', isDefault: true, version: 'v0.9' });
 
 ---
 
-### 11. Keep PR Descriptions Synchronized with Public API Changes as the PR Evolves
+### 10. Keep PR Descriptions Synchronized with Public API Changes as the PR Evolves
 
 - **Problem & Rationale**: Pull requests often evolve through review feedback. If the PR description is written once and left stale after symbols are renamed or removed, reviewers and release notes become inaccurate.
 - **Reviewer Checklist**:
