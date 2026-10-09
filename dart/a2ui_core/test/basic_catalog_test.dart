@@ -80,7 +80,7 @@ void main() {
         'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
       );
       expect(v09.functions.keys.toSet(), _functionNames);
-      expect(v09.components, isEmpty);
+      expect(v09.protocolVersion, A2uiProtocolVersion.v0_9);
     });
 
     test('v1.0 matches the published catalog document', () {
@@ -89,7 +89,7 @@ void main() {
         'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
       );
       expect(v10.functions.keys.toSet(), _functionNames);
-      expect(v10.components, isEmpty);
+      expect(v10.protocolVersion, A2uiProtocolVersion.v1_0);
     });
 
     test('validators return booleans in v0.9 and results in v1.0', () {
@@ -160,6 +160,32 @@ void main() {
       ('v0.9', v09, 'specification/v0_9/catalogs/basic/catalog.json'),
       ('v1.0', v10, 'catalogs/basic/v1/catalog.json'),
     ]) {
+      test('$label declares every published component, in order', () {
+        final Map<String, Object?> document = published(path);
+        final components = document['components']! as Map<String, Object?>;
+
+        expect(catalog.components.keys.toList(), components.keys.toList());
+        for (final MapEntry<String, ComponentApi> entry
+            in catalog.components.entries) {
+          expect(entry.value.name, entry.key);
+        }
+      });
+
+      test('$label component schemas are the published ones', () {
+        final CatalogApi parsed = Catalog.fromJson(
+          published(path),
+          protocolVersion: catalog.protocolVersion,
+        );
+
+        for (final String name in parsed.components.keys) {
+          expect(
+            catalog.components[name]!.schema.value,
+            parsed.components[name]!.schema.value,
+            reason: name,
+          );
+        }
+      });
+
       test('$label implements every published function, and no other', () {
         final Map<String, Object?> document = published(path);
         final functions = document['functions']! as Map<String, Object?>;
@@ -172,7 +198,10 @@ void main() {
       });
 
       test('$label function signatures are the published ones', () {
-        final CatalogApi parsed = Catalog.fromJson(published(path));
+        final CatalogApi parsed = Catalog.fromJson(
+          published(path),
+          protocolVersion: catalog.protocolVersion,
+        );
 
         for (final String name in parsed.functions.keys) {
           final FunctionApi expected = parsed.functions[name]!;
@@ -186,15 +215,30 @@ void main() {
         }
       });
 
-      test('$label carries the published identity', () {
+      test('$label carries the published identity and theme', () {
         final Map<String, Object?> document = published(path);
+        final Object? defs = document[r'$defs'];
 
         expect(catalog.id, document['catalogId']);
         expect(catalog.schemaId, document[r'$id']);
         expect(catalog.title, document['title']);
         expect(catalog.description, document['description']);
+        expect(catalog.themeSchema?.value, (defs as Map?)?['theme']);
       });
     }
+
+    test('v1.0 components reference the shared types as the spec does', () {
+      final String text = jsonEncode(v10.components['Row']!.schema.value);
+
+      expect(text, contains('common_types.json#/\$defs/ChildList'));
+    });
+
+    test('each call builds an independent component map', () {
+      final _RendererCatalog other = BasicCatalog.v0_9();
+
+      expect(identical(other.components, v09.components), isFalse);
+      expect(other.components.keys, v09.components.keys);
+    });
   });
 
   group('truthiness', () {

@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- `BasicCatalog.v0_9()` and `BasicCatalog.v1_0()` now carry the basic
+  catalog's 18 components (`Text`, `Image`, `Icon`, `Video`, `AudioPlayer`,
+  `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`, `Button`,
+  `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`) as
+  schema-only `ComponentApi`s, plus the catalog's theme and `protocolVersion`
+  (`v0.9` for the v0.9 catalog, whose document declares none). Component
+  schemas, like the function signatures, come from the embedded copy of the
+  published document and reference the shared types through
+  `common_types.json`, as the published documents do.
+- **Behavior change:** from protocol 1.0, `Catalog.catalogSchema` declares a
+  function's return type as a top-level `returnType` keyword and no longer
+  sets `properties.returnType`, matching the published v1 catalogs. Entries
+  before 1.0 are unchanged.
+- The `conformance/core/catalog.yaml` cases run against the basic catalog, and
+  the `validate` cases of `conformance/core/functions.yaml` run in the
+  message-processor conformance runner.
 - `PayloadValidator` takes its rules from the catalog: `Catalog.protocolVersion`
   (parsed from the document's `protocolVersion`) selects the v1.0 rules for
   v1.0 and later and the v0.9 rules otherwise, and the embedded
@@ -354,8 +370,7 @@
   `email`, `formatString`, `formatNumber`, `formatCurrency`, `formatDate`,
   `pluralize`, `openUrl`, `and`, `or`, `not`). Each function's argument schema
   and return type are read from an embedded copy of the published catalog
-  document, so they cannot drift from it. Components follow in a later
-  release.
+  document, so they cannot drift from it.
   - v0.9 validation rules return `bool`; v1.0 rules return a
     `ValidationResult` with a failure message.
   - In v1.0, `and`, `or`, and `not` read the validity of a `ValidationResult`
@@ -378,9 +393,7 @@
   it coerces a non-string `value` instead of throwing, renders integral
   doubles without `.0`, and resolves template bindings and calls on a v1.0
   surface.
-- Added a conformance runner for `conformance/core/functions.yaml`. Its
-  `validate` cases are skipped until basic-catalog components and v1.0
-  message processing land.
+- Added a conformance runner for `conformance/core/functions.yaml`.
 - Add `DataContext.isDataBinding`, `DataContext.isFunctionCall`, `DataContext.bindingFor`, and `DataContext.adaptExpressionPart` for protocol-version-aware binding and function-call detection; adapt `FormatStringFunction` parser AST nodes (`@path`/`@call`) in v1.0 mode, pre-build function argument signals outside `computed` in `DataContext.resolveListenable`, skip binding/call validation inside `updateDataModel.value` in `checkPathsAndRecursion`, and report unrecognized or invalid action payloads on `SurfaceModel.onError` with code `INVALID_ACTION`.
 - Add `DataContext.resolveAction` method for resolving dynamic values inside action payloads.
 - Added `actions_conformance_test.dart` running the shared `conformance/core/actions.yaml` suite.

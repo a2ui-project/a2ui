@@ -25,6 +25,18 @@ import 'conformance_harness.dart';
 /// Cases in `core/message_processor_v1_0.yaml` expected to fail, with the
 /// reason each is currently failing.
 const Map<String, String> _v10ExpectedFailures = {
+  'test_batch_atomic_rollback_on_candidate_topology_cycle':
+      'A cycle in the candidate topology raises `A2uiRecursionError`, where '
+          'the case expects an `IntegrityError`.',
+  'test_batch_multi_stage_lifecycle_pipeline':
+      'The v1.0 basic catalog requires `child` and `action` on `Button`, '
+          "which the case's `btn1` omits.",
+  'test_composition_constraints_preserved_on_partial_parent_update':
+      'The v1.0 basic catalog requires `child` and `action` on `Button`, '
+          "which the case's `btn_child` omits.",
+  'test_permissive_mode_allows_orphan_components':
+      'The v1.0 basic catalog requires `child` and `action` on `Button`, '
+          "which the case's `orphan_comp` omits.",
   'test_v10_component_catalog_override':
       "The case's inline catalogs declare no components, so `children` is "
           'not known as a child reference and reads back null.',
@@ -43,10 +55,15 @@ const Map<String, String> _reservedKeysExpectedFailures = {
           'surface has no default catalog to resolve its items against.',
 };
 
+/// The `validate` cases in `core/functions.yaml` expected to fail, with the
+/// reason each is currently failing.
+const Map<String, String> _functionsExpectedFailures = {};
+
 /// Runs the shared message-processor suites against [MessageProcessor] and
 /// [DataContext]: `core/message_processor_v0_9.yaml`,
-/// `core/message_processor_v1_0.yaml`, and the `process_messages` cases of
-/// `core/reserved_keys.yaml`.
+/// `core/message_processor_v1_0.yaml`, the `process_messages` cases of
+/// `core/reserved_keys.yaml`, and the `validate` cases of
+/// `core/functions.yaml`, which render basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
   _registerSuite(
@@ -57,6 +74,11 @@ void main() {
     'core/reserved_keys.yaml',
     onlyAction: 'process_messages',
     expectedFailures: _reservedKeysExpectedFailures,
+  );
+  _registerSuite(
+    'core/functions.yaml',
+    onlyAction: 'validate',
+    expectedFailures: _functionsExpectedFailures,
   );
 }
 
@@ -104,6 +126,11 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
         strictMode ? ValidationConfig.strict : ValidationConfig.relaxed,
   );
 
+  if (testCase['steps'] case final List<Object?> steps) {
+    _runSteps(processor, testCase, steps.cast<Map<String, Object?>>());
+    return;
+  }
+
   final Object? expectError = testCase['expectError'];
   if (expectError != null) {
     expect(
@@ -119,6 +146,38 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
   final Map<String, Object?> expected =
       (testCase['expect'] as Map<String, Object?>?) ?? const {};
   _checkSurfaces(processor, expected, name);
+}
+
+/// Processes each step's payload in turn, as the validator harness does.
+///
+/// A step's own `expectError` applies to that step, and the case's applies to
+/// the last one. The case's `expect` is checked once every step has run.
+void _runSteps(
+  MessageProcessor<ComponentApi> processor,
+  Map<String, Object?> testCase,
+  List<Map<String, Object?>> steps,
+) {
+  final name = testCase['name']! as String;
+  for (var index = 0; index < steps.length; index++) {
+    final Map<String, Object?> step = steps[index];
+    final Object? payload = step['messages'] ?? step['payload'];
+    final Object? expectError = step['expectError'] ??
+        (index == steps.length - 1 ? testCase['expectError'] : null);
+    if (expectError != null) {
+      expect(
+        () => processor.processMessages(payload),
+        throwsA(_matchesError(expectError as Map<String, Object?>)),
+        reason: '$name: step $index',
+      );
+    } else {
+      processor.processMessages(payload);
+    }
+  }
+  _checkSurfaces(
+    processor,
+    (testCase['expect'] as Map<String, Object?>?) ?? const {},
+    name,
+  );
 }
 
 void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
@@ -190,9 +249,10 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
           rendererCatalog(item, protocolVersion: version),
     ];
   }
-  // v0.9 cases run over the permissive catalog below rather than the
-  // documents they name, as they always have here: they test processing, and
-  // the schema checks have their own suite.
+  // v0.9 cases naming documents run over the basic catalog with its schema
+  // checks relaxed (see [_permissive]): they test processing, the schema
+  // checks have their own suite, and several of them send a `Button` with
+  // only a `label`, which the v0.9 `Button` schema rejects.
   if (testCase['catalogPaths'] case final List<Object?> paths
       when compareVersions(version, 'v1.0') >= 0) {
     final List<Map<String, Object?>> documents = [
@@ -220,7 +280,9 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
         ),
     ];
   }
-  if (testCase['catalog'] case final Map<String, Object?> document) {
+  if (testCase['catalog'] case final Map<String, Object?> document
+      when document.containsKey('components') ||
+          document.containsKey('catalogId')) {
     return [
       rendererCatalog(
         document,
@@ -229,11 +291,20 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
       ),
     ];
   }
+  // A case naming no catalog document, or only a protocol version, runs
+  // against the basic catalog of its version, under whichever id its
+  // messages use. A case expecting a missing catalog gets one under another
+  // id.
   final expectError = testCase['expectError'] as Map<String, Object?>?;
-  if (expectError?['category'] == 'CatalogError') {
-    return [_ConformanceCatalog('test-catalog', version)];
-  }
-  return [_ConformanceCatalog(_catalogIdOf(testCase), version)];
+  final Catalog<ComponentApi, FunctionImplementation> basic = basicCatalogFor(
+    version,
+    asCatalogId: expectError?['category'] == 'CatalogError'
+        ? 'test-catalog'
+        : _catalogIdOf(testCase),
+  );
+  return [
+    if (testCase.containsKey('catalogPaths')) _permissive(basic) else basic,
+  ];
 }
 
 /// The protocol version a case targets: the one it declares, else the one
@@ -254,8 +325,14 @@ Set<String> _catalogIdsOf(Map<String, Object?> testCase) => <String>{
     };
 
 /// The messages a case processes, accepting both the bare list and the
-/// `{messages: [...]}` wrapper the protocol allows.
+/// `{messages: [...]}` wrapper the protocol allows, across all of its steps.
 List<Map<String, Object?>> _messagesOf(Map<String, Object?> testCase) {
+  if (testCase['steps'] case final List<Object?> steps) {
+    return [
+      for (final Object? step in steps)
+        ..._messagesOf((step! as Map).cast<String, Object?>()),
+    ];
+  }
   final Object? raw = testCase['messages'] ?? testCase['payload'];
   if (raw == null) return const [];
   final Object? list = raw is Map<String, Object?> ? raw['messages'] : raw;
@@ -348,6 +425,9 @@ void _checkSurfaces(
         surface!,
         _normalizeExpectedComponents(expectations['components']),
         '$name: $surfaceId',
+        // A map of expectations names the components it checks; a list
+        // names every component the surface holds.
+        exhaustive: expectations['components'] is List,
       );
     }
   });
@@ -379,13 +459,17 @@ List<Map<String, Object?>> _normalizeExpectedComponents(Object? raw) {
 void _checkComponents(
   SurfaceModel<ComponentApi> surface,
   List<Map<String, Object?>> expected,
-  String reason,
-) {
+  String reason, {
+  bool exhaustive = true,
+}) {
+  final Set<String> actualIds =
+      surface.componentsModel.all.map((c) => c.id).toSet();
+  final Set<Object?> expectedIds = {
+    for (final Map<String, Object?> entry in expected) entry['id'],
+  };
   expect(
-    surface.componentsModel.all.map((c) => c.id).toSet(),
-    {
-      for (final Map<String, Object?> entry in expected) entry['id'],
-    },
+    actualIds,
+    exhaustive ? equals(expectedIds) : containsAll(expectedIds),
     reason: '$reason: component ids',
   );
 
@@ -515,29 +599,18 @@ String _align(String pattern) {
   return pattern;
 }
 
-class _ConformanceCatalog
-    extends Catalog<ComponentApi, FunctionImplementation> {
-  _ConformanceCatalog(String id, String protocolVersion)
-      : super(
-          id: id,
-          protocolVersion: A2uiProtocolVersion.tryParseSemVer(protocolVersion),
-          components: [
-            ComponentApi(
-              name: 'Text',
-              schema: Schema.fromMap({'type': 'object'}),
-            ),
-            ComponentApi(
-              name: 'Button',
-              schema: Schema.fromMap({'type': 'object'}),
-            ),
-            ComponentApi(
-              name: 'Label',
-              schema: Schema.fromMap({'type': 'object'}),
-            ),
-            MinimalRowApi(),
-            MinimalColumnApi(),
-            MinimalTextFieldApi(),
-          ],
-          functions: [CapitalizeFunction()],
-        );
-}
+/// [catalog] with every component schema replaced by one that accepts any
+/// object, so its components and functions stay but payloads are not
+/// schema-checked.
+Catalog<ComponentApi, FunctionImplementation> _permissive(
+  Catalog<ComponentApi, FunctionImplementation> catalog,
+) =>
+    Catalog<ComponentApi, FunctionImplementation>(
+      id: catalog.id,
+      protocolVersion: catalog.protocolVersion,
+      components: [
+        for (final String name in catalog.components.keys)
+          ComponentApi(name: name, schema: Schema.fromMap({'type': 'object'})),
+      ],
+      functions: catalog.functions.values.toList(),
+    );

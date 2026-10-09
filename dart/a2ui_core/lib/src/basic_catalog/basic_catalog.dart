@@ -24,15 +24,25 @@ export 'function_support.dart' show OpenUrlCallback;
 /// The A2UI basic catalog, with evaluable functions, for each protocol
 /// version.
 ///
-/// Each catalog carries the 14 functions of the published catalog document:
+/// Each catalog carries the 18 components of the published catalog document,
+/// `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`, `Row`, `Column`, `List`,
+/// `Card`, `Tabs`, `Modal`, `Divider`, `Button`, `TextField`, `CheckBox`,
+/// `ChoicePicker`, `Slider` and `DateTimeInput`, as schema-only
+/// [ComponentApi]s read from an embedded copy of that document. Its
+/// identity (`$id`, `title`, `description`), its theme and its
+/// `protocolVersion` come from the same document; v0.9 documents declare no
+/// `protocolVersion`, so the v0.9 catalog takes `v0.9`.
+///
+/// Component schemas reference the shared types the way the published
+/// document does, through `common_types.json`; the validator resolves those
+/// references against the embedded common types of the catalog's version.
+///
+/// Each catalog also carries the 14 functions of the published document,
+/// with the argument schemas and return types the document declares:
 /// the validation rules `required`, `regex`, `length`, `numeric` and
 /// `email`; the formatters `formatString`, `formatNumber`,
 /// `formatCurrency`, `formatDate` and `pluralize`; `openUrl`; and the logic
-/// functions `and`, `or` and `not`. Their argument schemas and return types
-/// are read from an embedded copy of that document
-/// (`specification/v0_9/catalogs/basic/catalog.json` and
-/// `catalogs/basic/v1/catalog.json`), so they cannot drift from it. It has
-/// no components yet.
+/// functions `and`, `or` and `not`.
 ///
 /// Formatting follows the BCP 47 `locale` tag, `en-US` by default; an
 /// unknown tag falls back to `en-US`. `openUrl` passes validated URLs to
@@ -68,8 +78,8 @@ abstract final class BasicCatalog {
         basicFunctionBodiesV1_0(locale: locale, openUrl: openUrl),
       );
 
-  /// The [published] document's identity and function signatures, each
-  /// function evaluated by its entry in [bodies].
+  /// The [published] document's components, theme, identity and function
+  /// signatures, each function evaluated by its entry in [bodies].
   ///
   /// Throws [StateError] when the document and [bodies] do not name the same
   /// functions, so a change to either cannot go unnoticed.
@@ -95,7 +105,7 @@ abstract final class BasicCatalog {
       description: published.description,
       protocolVersion: published.protocolVersion,
       instructions: published.instructions,
-      components: const [],
+      components: published.components.values.toList(),
       functions: [
         for (final FunctionApi signature in published.functions.values)
           BasicFunction(
@@ -107,6 +117,7 @@ abstract final class BasicCatalog {
             body: bodies[signature.name]!,
           ),
       ],
+      themeSchema: published.themeSchema,
     );
   }
 }

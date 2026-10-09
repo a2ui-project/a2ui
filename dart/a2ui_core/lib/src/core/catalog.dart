@@ -1130,7 +1130,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   ///
   /// `anyFunction` and every `DynamicString` reach these through
   /// `#/functions/<name>`, so a different shape would silently stop matching.
-  /// From v1.0 a call names its function under `@call`, and v1.0's
+  /// From v1.0 a call names its function under `@call`, the return type is a
+  /// keyword of the entry rather than a property of the call, and v1.0's
   /// `FunctionCall` closes the object itself after adding `catalogId` from
   /// `FunctionCommon`, so only the v0.9 form closes it here.
   static Map<String, Object?> _serializeFunction(
@@ -1144,6 +1145,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     return <String, Object?>{
       'type': 'object',
       if (fn.description != null) 'description': fn.description,
+      if (v1) 'returnType': fn.returnType.jsonValue,
       // Emitted only when they differ from the schema defaults, so a
       // document that never declared them round-trips unchanged.
       if (fn.allowedCallers != AllowedCallers.rendererOnly)
@@ -1152,9 +1154,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       'properties': <String, Object?>{
         callKey: <String, Object?>{'const': name},
         'args': argsValue,
-        'returnType': <String, Object?>{
-          'const': fn.returnType.jsonValue,
-        },
+        if (!v1)
+          'returnType': <String, Object?>{
+            'const': fn.returnType.jsonValue,
+          },
       },
       // A call to a function without required parameters may omit `args`
       // altogether.

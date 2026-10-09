@@ -16,20 +16,23 @@ import 'dart:convert';
 
 import '../../core/catalog.dart';
 import '../../core/validation_result.dart';
+import '../../primitives/protocol_version.dart';
 import '../function_support.dart';
 import '../locale_formatting.dart';
 import 'catalog.g.dart';
 
 /// The published v1.0 basic catalog, read through [Catalog.fromJson].
 ///
-/// The function signatures come from this document rather than from a
-/// hand-written copy, so every argument schema and return type is the
-/// published one, and `tool/generate_basic_catalogs.dart` refreshes it.
+/// The components and function signatures come from this document rather than
+/// from a hand-written copy, so every component schema, argument schema and
+/// return type is the published one, and `tool/generate_basic_catalogs.dart`
+/// refreshes it.
 ///
 /// Parsed on each call, so each catalog owns its schemas and a caller that
 /// edits one cannot change another.
 CatalogApi publishedBasicCatalogV1_0() => Catalog.fromJson(
       jsonDecode(basicCatalogV1_0Json) as Map<String, Object?>,
+      protocolVersion: A2uiProtocolVersion.v1_0,
     );
 
 /// The behaviour of the v1.0 basic catalog functions, formatting for
