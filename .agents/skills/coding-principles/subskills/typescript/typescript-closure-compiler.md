@@ -26,11 +26,11 @@ Activate this subskill when:
 
 ```typescript
 // BROKEN: Minifiers rename 'props' to 'a', breaking runtime input binding
-[inputs] =
-  // SAFE & DOCUMENTED: Quoted keys survive renaming; intent is documented for future readers
-  // Quoted to prevent property renaming during minification:
-  '{ props: props(), surfaceId: surfaceId() }'[inputs] =
-    "{ 'props': props(), 'surfaceId': surfaceId() }";
+const brokenInputs = {props: this.props(), surfaceId: this.surfaceId()};
+
+// SAFE & DOCUMENTED: Quoted keys survive renaming; intent is documented for future readers
+// Quoted to prevent property renaming during minification:
+const safeInputs = {'props': this.props(), 'surfaceId': this.surfaceId()};
 
 // SAFE: Bracket notation on dynamic protocol properties satisfies TS4111 and minifiers
 const variant = this.props()['variant'];
