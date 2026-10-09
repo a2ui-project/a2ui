@@ -48,7 +48,7 @@ public struct A2UIText: View {
   public var body: some View {
     textForVariant(textContent, variant: variant)
       .accessibilityIdentifier("A2UIText_\(node.id)")
-      .accessibilityLabel(accessibilityLabel.isEmpty ? textContent : accessibilityLabel)
+      .a2uiAccessibilityElement(for: node, children: .combine)
   }
 
   @ViewBuilder
@@ -77,15 +77,6 @@ public struct A2UIText: View {
     default:
       MarkdownBlockView(text: text)
     }
-  }
-
-  private var accessibilityLabel: String {
-    if let accessibility = node.jsonValue(for: "accessibility"),
-      let label = accessibility["label"]?.stringValue
-    {
-      return label
-    }
-    return textContent
   }
 }
 

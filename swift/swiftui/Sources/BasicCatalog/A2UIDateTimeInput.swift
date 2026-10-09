@@ -109,6 +109,7 @@ public struct A2UIDateTimeInput: View {
       datePickerView
         .padding(.vertical, 2)
         .accessibilityIdentifier("A2UIDateTimeInput_\(node.id)")
+        .a2uiAccessibilityControl(for: node)
 
       if let firstError = validationErrors.first {
         Text(firstError)
