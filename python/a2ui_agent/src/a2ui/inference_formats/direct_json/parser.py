@@ -245,6 +245,13 @@ class DirectJsonParser(Parser):
                 # it grows. The messages after it wait with it.
                 if not closed and any(key in envelope for key in _CREATE_KEYS):
                     break
+                if (
+                    v10
+                    and not closed
+                    and isinstance(envelope.get("updateComponents"), dict)
+                    and not envelope["updateComponents"].get("components")
+                ):
+                    break
                 trial_surfaces = dict(surfaces)
                 validate_payload(
                     self._catalogs,
@@ -270,6 +277,14 @@ class DirectJsonParser(Parser):
                 surfaces = trial_surfaces
                 ready.extend(models)
             except A2uiError:
+                if v10 and (
+                    closed
+                    or (
+                        isinstance(envelope.get("updateComponents"), dict)
+                        and bool(envelope["updateComponents"].get("components"))
+                    )
+                ):
+                    raise
                 break
             except Exception:
                 break
