@@ -23,7 +23,7 @@
   is removed; `PayloadValidator.commonTypesFor(A2uiProtocolVersion)` is the
   one entry point.
 - The package now embeds both `specification/v0_9/json/common_types.json` and
-  `specification/v1_0/json/common_types.json`. `CommonSchemas` gains
+  the updated `specification/v1_0/json/common_types.json`. `CommonSchemas` gains
   `dynamicNumber`, `dynamicStringList`, `dynamicValue`,
   `accessibilityAttributes`, `checkRule` and `componentCommon`, and the new
   `CommonSchemasV1` holds the v1.0 shapes keyed on `@path` and `@call`; its
