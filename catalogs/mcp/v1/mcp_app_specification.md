@@ -1,4 +1,4 @@
-# A2UI MCP App Component Specification (v0.9)
+# A2UI MCP App Component Specification (v1.0)
 
 ## A Specification for Sandboxed, Model Context Protocol Components in the Agent-to-UI Protocol
 
@@ -10,7 +10,7 @@ Status: In progress
 This specification defines the A2UI MCP App Component (`McpApp`) for the secure, sandboxed rendering of Model Context Protocol (MCP) applications in the Agent-to-UI (A2UI) protocol. This document has two purposes:
 
 1. **Platform implementation blueprint:** It provides client-side platform developers with instructions to implement compliant `McpApp` components in any native rendering framework (such as Lit or Angular) while maintaining security guarantees.
-2. **Interoperable application standard:** It defines the communication interface and message schemas between the A2UI host and the sandboxed MCP application. It uses the `@modelcontextprotocol/ext-apps/app-bridge` specification to support A2UI v0.9 capabilities, including local client-side function execution and two-way local data binding.
+2. **Interoperable application standard:** It defines the communication interface and message schemas between the A2UI host and the sandboxed MCP application. It uses the `@modelcontextprotocol/ext-apps/app-bridge` specification to support A2UI v1.0 capabilities, including local client-side function execution and two-way local data binding.
 
 # 1. Introduction and motivation
 
@@ -22,7 +22,7 @@ The A2UI protocol is designed to stream structured, type-safe JSON component tre
 
 The `McpApp` component resolves these needs. It runs the embedded application inside a sandboxed double-iframe proxy using the `@modelcontextprotocol/ext-apps/app-bridge` library.
 
-In A2UI v0.9, the following features are integrated into the MCP App Bridge:
+In A2UI v1.0, the following features are integrated into the MCP App Bridge:
 
 1. **Local client-side function execution:** Allowing the sandboxed application to trigger local host functions (such as system checks or opening links) that are registered in the A2UI catalog.
 2. **Two-way local data binding:** Synchronizing state between the MCP application's internal model and the parent A2UI local Data Model without requiring round-trips to the remote agent.
@@ -53,21 +53,27 @@ All communications between the host, the sandbox proxy, and the embedded app use
 
 ### Protocol Methods Summary
 
-The following table outlines the protocol methods used in the `McpApp` lifecycle and whether they are standard MCP Apps protocol methods or A2UI-specific extensions introduced to support A2UI v0.9 capabilities.
+The following table outlines the protocol methods used in the `McpApp` lifecycle and whether they are standard MCP Apps protocol methods or A2UI-specific extensions introduced to support A2UI v1.0 capabilities.
 
-| Method                                    | Direction                | Type         | Origin             | Purpose                                 |
-| ----------------------------------------- | ------------------------ | ------------ | ------------------ | --------------------------------------- |
-| `ui/initialize`                           | App $\rightarrow$ Host   | Request      | **Standard MCP**   | Handshake & capability negotiation      |
-| `ui/notifications/initialized`            | App $\rightarrow$ Host   | Notification | **Standard MCP**   | Handshake completion                    |
-| `tools/call`                              | App $\rightarrow$ Host   | Request      | **Standard MCP**   | Remote tool execution                   |
-| `ui/notifications/size-changed`           | App $\rightarrow$ Host   | Notification | **Standard MCP**   | Dynamic frame resizing                  |
-| `notifications/message`                   | App $\rightarrow$ Host   | Notification | **Standard MCP**   | Diagnostic logging                      |
-| `ui/notifications/sandbox-proxy-ready`    | Proxy $\rightarrow$ Host | Notification | **Standard MCP**   | Proxy frame ready signal                |
-| `ui/notifications/sandbox-resource-ready` | Host $\rightarrow$ Proxy | Notification | **Standard MCP**   | Provide HTML for inner frame            |
-| `ui/notifications/data-model-change`      | App $\rightarrow$ Host   | Notification | **A2UI Extension** | Two-way local data binding              |
-| `ui/notifications/data-model-update`      | Host $\rightarrow$ App   | Notification | **A2UI Extension** | Two-way local data binding              |
-| `ui/requests/function-call`               | App $\rightarrow$ Host   | Request      | **A2UI Extension** | Local client-side function execution    |
-| `ui/notifications/host-context-changed`   | Host $\rightarrow$ App   | Notification | **Standard MCP**   | Host context (dimensions, theme) update |
+| Method                                    | Direction                | Type         | Origin             | Purpose                                              |
+| ----------------------------------------- | ------------------------ | ------------ | ------------------ | ---------------------------------------------------- |
+| `ui/initialize`                           | App $\rightarrow$ Host   | Request      | **Standard MCP**   | Handshake & capability negotiation                   |
+| `ui/notifications/initialized`            | App $\rightarrow$ Host   | Notification | **Standard MCP**   | Handshake completion                                 |
+| `tools/call`                              | App $\rightarrow$ Host   | Request      | **Standard MCP**   | Remote tool execution & A2UI action dispatch         |
+| `ui/notifications/tool-input`             | Host $\rightarrow$ App   | Notification | **Standard MCP**   | Deliver initial/updated tool arguments (`toolInput`) |
+| `ui/notifications/tool-result`            | Host $\rightarrow$ App   | Notification | **Standard MCP**   | Deliver tool execution output (`toolResult`)         |
+| `ui/update-model-context`                 | App $\rightarrow$ Host   | Request      | **Standard MCP**   | Synchronize widget context (`modelContext`)          |
+| `ui/open-link`                            | App $\rightarrow$ Host   | Request      | **Standard MCP**   | Open a validated `http:`/`https:` URL in a new tab   |
+| `ui/message`                              | App $\rightarrow$ Host   | Request      | **Standard MCP**   | Send a chat/follow-up message as an A2UI action      |
+| `ui/request-display-mode`                 | App $\rightarrow$ Host   | Request      | **Standard MCP**   | Negotiate display mode (`inline`)                    |
+| `ui/notifications/size-changed`           | App $\rightarrow$ Host   | Notification | **Standard MCP**   | Dynamic frame resizing                               |
+| `notifications/message`                   | App $\rightarrow$ Host   | Notification | **Standard MCP**   | Diagnostic logging                                   |
+| `ui/notifications/sandbox-proxy-ready`    | Proxy $\rightarrow$ Host | Notification | **Standard MCP**   | Proxy frame ready signal                             |
+| `ui/notifications/sandbox-resource-ready` | Host $\rightarrow$ Proxy | Notification | **Standard MCP**   | Provide HTML, CSP, and permissions for inner frame   |
+| `ui/notifications/data-model-change`      | App $\rightarrow$ Host   | Notification | **A2UI Extension** | Two-way local data binding                           |
+| `ui/notifications/data-model-update`      | Host $\rightarrow$ App   | Notification | **A2UI Extension** | Two-way local data binding                           |
+| `ui/requests/function-call`               | App $\rightarrow$ Host   | Request      | **A2UI Extension** | Local client-side function execution                 |
+| `ui/notifications/host-context-changed`   | Host $\rightarrow$ App   | Notification | **Standard MCP**   | Host context (dimensions, theme) update              |
 
 ## 3.1. Handshake lifecycle
 
@@ -163,11 +169,17 @@ Dispatched when the embedded application requests an MCP tool execution (represe
 ```
 
 **Host action**  
-The host checks if the requested tool name is in the component's `allowedTools` list. If it is authorized, the host dispatches the tool call as an A2UI action to the agent backend. If not, it rejects the tool call and returns a JSON-RPC error response.
+The host checks if the requested tool name is in the component's `allowedTools` list. If it is authorized, the host dispatches the tool call as an A2UI action to the agent backend, and when a direct MCP `callTool` executor is configured on the component or bridge, invokes the MCP tool and returns its `CallToolResult` directly to the embedded application. If the tool is not in `allowedTools`, the host rejects the tool call and returns a JSON-RPC error response.
 
-### B. Reactive state synchronization (`ui/notifications/data-model-change`)
+### B. Reactive state synchronization (`ui/notifications/data-model-change` and reserved `data.paths` keys)
 
 Dispatched when the embedded application updates its internal state and wants to write it back to the parent A2UI Data Model.
+
+In addition to custom state keys, `data.paths` recognizes three reserved keys that bridge standard MCP Apps notifications and requests to the A2UI surface data model:
+
+- **`toolInput`**: Bound data model values and updates are sent to the embedded app as standard `ui/notifications/tool-input` notifications (`{arguments}`).
+- **`toolResult`**: Bound data model values and updates are wrapped into an MCP `CallToolResult` (`{content, structuredContent}`) and sent to the embedded app as standard `ui/notifications/tool-result` notifications.
+- **`modelContext`**: When the embedded app sends a standard `ui/update-model-context` request (`{structuredContent, content}`), the host writes `structuredContent ?? content` to the bound `modelContext` path in the surface data model.
 
 **Message schema**
 
@@ -200,7 +212,7 @@ To avoid infinite update loops and redundant echoes, both sides should implement
 
 ### C. Local client-side function execution (`ui/requests/function-call`)
 
-Dispatched when the embedded app wants to execute a registered local A2UI v0.9 function.
+Dispatched when the embedded app wants to execute a registered local A2UI v1.0 function.
 
 **Message schema**
 
@@ -219,7 +231,7 @@ Dispatched when the embedded app wants to execute a registered local A2UI v0.9 f
 ```
 
 **Host action**  
-The host checks if the target function is listed in the component's `allowedFunctions` list. If verified, it evaluates the function using the A2UI client catalog engine and returns the result (or error) to the app.
+The host checks if the target function is a key of the component's `allowedFunctions` map and validates `args` against the JSON Schema stored under that key. If verified, it evaluates the function using the A2UI client catalog engine and returns the result (or error) to the app.
 
 ### D. Frame resize request (`ui/notifications/size-changed`)
 
@@ -260,6 +272,18 @@ Dispatched when the embedded app publishes diagnostic logging, following standar
 
 **Host action**  
 The host logs the diagnostic message to the developer console.
+
+### F. External link navigation (`ui/open-link`)
+
+Dispatched when the embedded app requests opening an external URL. The host validates that the URL uses `http:` or `https:` (rejecting other schemes such as `javascript:` or `data:` with `InvalidParams`) and opens it in a new tab with `noopener,noreferrer` (or delegates to a host-supplied `openLink` callback).
+
+### G. Chat message request (`ui/message`)
+
+Dispatched when the embedded app requests sending a message into the host conversation. The host dispatches an A2UI action named `ui/message` carrying `{role, content}`.
+
+### H. Display mode negotiation (`ui/request-display-mode`)
+
+Dispatched when the embedded app requests a display mode change. The host responds with `{mode: 'inline'}`.
 
 ## 3.3. Incoming messages (Host to embedded app)
 
@@ -392,11 +416,12 @@ The `McpApp` component is registered in the A2UI Component Catalog.
         "description": "The list of MCP tools the embedded application is authorized to request."
       },
       "allowedFunctions": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        },
-        "description": "The list of local client-side functions the embedded application is authorized to call."
+        "type": "object",
+        "description": "A map of authorized local client-side function names to the JSON Schema of their arguments.",
+        "additionalProperties": {
+          "type": "object",
+          "description": "A valid JSON Schema definition."
+        }
       },
       "data": {
         "type": "object",
@@ -415,9 +440,17 @@ The `McpApp` component is registered in the A2UI Component Catalog.
       "title": {
         "$ref": "common_types.json#/$defs/DynamicString",
         "description": "The title attribute for accessibility."
+      },
+      "csp": {
+        "$ref": "#/$defs/McpAppCsp",
+        "description": "Per-resource Content Security Policy domain allowlists from `_meta.ui.csp`."
+      },
+      "permissions": {
+        "$ref": "#/$defs/McpAppPermissions",
+        "description": "Browser capability permissions delegated to the inner sandboxed iframe from `_meta.ui.permissions`."
       }
     },
-    "required": ["id", "component"],
+    "required": ["id", "component", "htmlContent"],
     "unevaluatedProperties": false
   }
 }
