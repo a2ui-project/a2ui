@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- pub.dev now recognizes the license. The package `LICENSE` linked
+  `https://` where the Apache text has `http://`, which pana does not match,
+  and carried the root's notice for `eval/bin/transcrypt`, a file outside
+  this package. Also a longer `description` and an example.
 - `PayloadValidator` takes its rules from the catalog: `Catalog.protocolVersion`
   (parsed from the document's `protocolVersion`) selects the v1.0 rules for
   v1.0 and later and the v0.9 rules otherwise, and the embedded
