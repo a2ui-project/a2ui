@@ -67,13 +67,17 @@ const Map<String, String> _knownGaps = {
       'Multi-catalog Express in Dart compiles to v0.9 and has not been updated '
       'to omit createSurface.catalogId and stamp catalogId per component.',
   'test_decompile_express_check_with_arg_omits_default_message':
-      'Does not decompile check rules when value is not bound on the component '
+      'Wraps single check rules in brackets [?check] instead of bare ?check '
       '(https://github.com/a2ui-project/a2ui/issues/3100).',
   'test_decompile_express_check_with_custom_message':
-      'Does not decompile check rules when value is not bound on the component '
+      'Wraps single check rules in brackets [?check] instead of bare ?check '
       '(https://github.com/a2ui-project/a2ui/issues/3100).',
   'test_decompile_express_check_with_default_message_omits_parens':
-      'Does not decompile check rules when value is not bound on the component '
+      'Wraps single check rules in brackets [?check] instead of bare ?check '
+      '(https://github.com/a2ui-project/a2ui/issues/3100).',
+  'test_decompile_express_check_without_bound_component_value_'
+          'writes_explicit_path':
+      'Wraps single check rules in brackets [?check] instead of bare ?check '
       '(https://github.com/a2ui-project/a2ui/issues/3100).',
   'test_decompile_express_event_action_with_nested_context':
       'Does not recursively format nested maps in Event context '
@@ -82,7 +86,8 @@ const Map<String, String> _knownGaps = {
       'Does not emit raw triple-quoted strings for multiline backslash strings '
       '(https://github.com/a2ui-project/a2ui/issues/3100).',
   'test_decompile_express_several_checks_in_one_list':
-      'Does not decompile check rules when value is not bound on the component '
+      'Default check message in Dart ends with a period ("Required check '
+      'failed."), so "Required check failed" is written as a custom message '
       '(https://github.com/a2ui-project/a2ui/issues/3100).',
   'test_decompile_express_two_surfaces_in_two_catalogs':
       'Multi-catalog Express in Dart compiles to v0.9 and has not been updated '
@@ -217,6 +222,16 @@ void _checkDecompiled(Map<String, Object?> testCase, String output) {
         join: true,
       ),
       testCase['messages'],
+      reason: 'Express written:\n$output',
+    );
+  }
+  if (testCase['expect_recompiled'] case final Object expected) {
+    expect(
+      liftMessages(
+        _format(testCase).createParser().compile(output),
+        join: true,
+      ),
+      expected,
       reason: 'Express written:\n$output',
     );
   }

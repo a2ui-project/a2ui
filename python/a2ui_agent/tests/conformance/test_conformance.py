@@ -190,26 +190,6 @@ KNOWN_GAPS: dict[str, str] = {
         "ExpressCompiler does not reject inline child IDs that collide with"
         " assigned variables (https://github.com/a2ui-project/a2ui/issues/3099)"
     ),
-    "test_decompile_express_check_with_arg_omits_default_message": (
-        "ExpressDecompiler emits an explicit value path in ?check when value is"
-        " not bound on the component"
-        " (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_decompile_express_check_with_custom_message": (
-        "ExpressDecompiler emits an explicit value path in ?check when value is"
-        " not bound on the component"
-        " (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_decompile_express_check_with_default_message_omits_parens": (
-        "ExpressDecompiler emits an explicit value path in ?check when value is"
-        " not bound on the component"
-        " (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_decompile_express_several_checks_in_one_list": (
-        "ExpressDecompiler emits an explicit value path in ?check when value is"
-        " not bound on the component"
-        " (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
     "test_decompile_express_update_data_model_map_at_path": (
         "ExpressDecompiler does not flatten map values in updateDataModel at a"
         " non-root path into per-leaf assignments"
@@ -458,6 +438,11 @@ def test_decompiler_conformance(name, test_case):
 
     if test_case.get("expect_round_trip"):
         assert to_message_dicts(parser.compile(notation)) == messages
+
+    if "expect_recompiled" in test_case:
+        assert (
+            to_message_dicts(parser.compile(notation)) == test_case["expect_recompiled"]
+        )
 
 
 # --- Response Parser Conformance ---
