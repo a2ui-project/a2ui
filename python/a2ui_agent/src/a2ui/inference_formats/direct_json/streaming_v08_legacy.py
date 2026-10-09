@@ -134,6 +134,10 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
             val = obj[MSG_TYPE_BEGIN_RENDERING]
             if isinstance(val, dict):
                 surface_id = val.get(SURFACE_ID_KEY) or surface_id
+        elif MSG_TYPE_DATA_MODEL_UPDATE in obj:
+            val = obj[MSG_TYPE_DATA_MODEL_UPDATE]
+            if isinstance(val, dict):
+                surface_id = val.get(SURFACE_ID_KEY) or surface_id
         elif MSG_TYPE_DELETE_SURFACE in obj:
             val = obj[MSG_TYPE_DELETE_SURFACE]
             if isinstance(val, str):
@@ -145,8 +149,16 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
         sid = self.surface_id or 'unknown'
 
         if MSG_TYPE_DELETE_SURFACE in obj:
-            if sid in self._yielded_surfaces_set or self._buffered_start_message:
-                self._delete_surface(sid)
+            if (
+                sid not in self._yielded_surfaces_set
+                and not self._buffered_start_message
+            ):
+                self._pending_messages.setdefault(sid, []).append(obj)
+                return True
+            self.add_msg_type(MSG_TYPE_DELETE_SURFACE)
+            self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
+            self._delete_surface(sid)
+            return True
         else:
             # v0.8 has no createSurface, so any other message for a deleted
             # surface starts it over.
@@ -156,7 +168,7 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
             return True
 
         if (
-            (MSG_TYPE_SURFACE_UPDATE in obj or MSG_TYPE_DELETE_SURFACE in obj)
+            MSG_TYPE_SURFACE_UPDATE in obj
             and sid not in self._yielded_surfaces_set
             and not self._buffered_start_message
         ):
@@ -168,21 +180,21 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
         if MSG_TYPE_BEGIN_RENDERING in obj:
             br_val = obj[MSG_TYPE_BEGIN_RENDERING]
             if isinstance(br_val, dict):
-                self.surface_id = br_val.get(SURFACE_ID_KEY, self.surface_id)
                 self._record_surface_catalog(sid, br_val)
-            self.root_id = br_val.get('root', self.root_id or DEFAULT_ROOT_ID)
-            self._buffered_start_message = obj
+                self.root_id = br_val.get('root', self.root_id or DEFAULT_ROOT_ID)
 
             # Yield beginRendering immediately when it completes
             if sid not in self._yielded_start_messages:
                 self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
                 self._yielded_start_messages.add(sid)
                 self._yielded_surfaces_set.add(sid)
-                self._buffered_start_message = None
+            self._buffered_start_message = None
 
             if sid in self._pending_messages:
                 pending_list = self._pending_messages.pop(sid)
                 for pending_msg in pending_list:
+                    if MSG_TYPE_DELETE_SURFACE in pending_msg:
+                        continue
                     self._handle_complete_object(pending_msg, sid, messages)
 
             self.yield_reachable(messages)
@@ -202,10 +214,6 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
             self.update_data_model(obj[MSG_TYPE_DATA_MODEL_UPDATE], messages)
             self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
             self.yield_reachable(messages, check_root=False, raise_on_orphans=False)
-            return True
-
-        if MSG_TYPE_DELETE_SURFACE in obj:
-            self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
             return True
 
         # If unknown, let base class yield it or yield it here

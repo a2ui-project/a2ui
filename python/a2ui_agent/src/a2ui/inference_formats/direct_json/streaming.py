@@ -37,6 +37,7 @@ from a2ui.inference_formats._shared import check_catalogs
 from a2ui.parser import ResponsePart
 from a2ui.parser.constants import (
     MSG_TYPE_CREATE_SURFACE,
+    MSG_TYPE_DELETE_SURFACE,
     MSG_TYPE_SURFACE_UPDATE,
     MSG_TYPE_UPDATE_COMPONENTS,
 )
@@ -497,6 +498,16 @@ class DirectJsonStreamParser:
             seen_su = set()
             # Iterate backwards to keep only the last (most complete) surfaceUpdate for each surface
             for m in reversed(part.a2ui_json):
+                if isinstance(m, dict) and MSG_TYPE_DELETE_SURFACE in m:
+                    del_val = m[MSG_TYPE_DELETE_SURFACE]
+                    del_sid = (
+                        del_val.get(SURFACE_ID_KEY)
+                        if isinstance(del_val, dict)
+                        else del_val
+                    )
+                    if isinstance(del_sid, str):
+                        seen_su.discard(del_sid)
+
                 is_su = False
                 sid = None
                 if isinstance(m, dict) and MSG_TYPE_SURFACE_UPDATE in m:
@@ -945,6 +956,13 @@ class DirectJsonStreamParser:
             comp: The parsed component dictionary.
             messages: The list to append any renderable partial messages to.
         """
+        if (
+            self._version != VERSION_0_8
+            and self.surface_id
+            and self.surface_id in self._deleted_surfaces
+            and MSG_TYPE_CREATE_SURFACE not in self._msg_types
+        ):
+            return
         comp_id = comp.get("id")
         if not comp_id:
             return

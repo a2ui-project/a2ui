@@ -207,13 +207,20 @@ class DirectJsonStreamParserModern(DirectJsonStreamParser):
                 val = obj[msg_type]
                 if isinstance(val, dict):
                     surface_id = val.get(SURFACE_ID_KEY) or surface_id
+                elif msg_type == MSG_TYPE_DELETE_SURFACE and isinstance(val, str):
+                    surface_id = val
                 break
 
         self.surface_id = surface_id
         sid = self.surface_id or 'unknown'
 
+        if sid in self._deleted_surfaces and MSG_TYPE_CREATE_SURFACE not in obj:
+            return True
+
         if MSG_TYPE_CREATE_SURFACE in obj:
-            self._deleted_surfaces.discard(sid)
+            if sid in self._deleted_surfaces:
+                self._deleted_surfaces.discard(sid)
+                self._components_by_surface.pop(sid, None)
             val = obj[MSG_TYPE_CREATE_SURFACE]
             if isinstance(val, dict):
                 self._record_surface_catalog(sid, val)
@@ -324,6 +331,8 @@ class DirectJsonStreamParserModern(DirectJsonStreamParser):
                                 or self._surface_id
                                 or 'default'
                             )
+                            if sid in self._deleted_surfaces:
+                                return
                             delta_msg_payload = {
                                 SURFACE_ID_KEY: sid,
                                 'value': delta,
