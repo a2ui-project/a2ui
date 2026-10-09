@@ -528,6 +528,34 @@ struct MessageProcessorTests {
     } else {
       Issue.record("Expected .rendererFunctionResponse with error")
     }
+
+    // Calling with omitted surfaceId runs against an isolated empty root data model
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v1.0",
+          "callRendererFunction": {
+            "functionCallId": "rpc-3",
+            "callFunction": {
+              "@call": "echo",
+              "catalogId": "default",
+              "args": {
+                "text": "hello"
+              }
+            }
+          }
+        }
+        """))
+
+    try await Task.sleep(nanoseconds: 20_000_000)
+    #expect(capturedOutbound.count == 3)
+    if case .rendererFunctionResponse(let resp3) = capturedOutbound.last {
+      #expect(resp3.functionCallID == "rpc-3")
+      #expect(resp3.value?.stringValue == "hello")
+    } else {
+      Issue.record("Expected .rendererFunctionResponse with value")
+    }
   }
 
   @Test func outboundListenerReceivesSurfaceErrorsAndDisposeClearsSurfaces() throws {
