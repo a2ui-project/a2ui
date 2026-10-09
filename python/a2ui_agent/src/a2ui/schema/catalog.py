@@ -19,23 +19,23 @@ import glob
 import json
 import logging
 import os
-from urllib.parse import unquote, urlparse
 
 from a2ui.core import A2uiCatalogError, A2uiError, CatalogApi
 from a2ui.utils import validate_payload
+from a2ui.utils._paths import to_local_path
 
 from .constants import ENCODING
 
 
 def resolve_examples_path(path: str | None) -> str | None:
-    if path:
-        parsed = urlparse(path)
-        if not parsed.scheme:
-            return parsed.path
-        if parsed.scheme == "file":
-            return unquote(parsed.path)
-        raise A2uiCatalogError(f"Unsupported examples URL scheme: {path}")
-    return None
+    """Returns the local path that an examples path or `file://` URL names.
+
+    Raises:
+      A2uiCatalogError: If `path` is a URL with a scheme other than `file`.
+    """
+    if not path:
+        return None
+    return to_local_path(path, kind="examples")
 
 
 def load_examples(

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from functools import cached_property
 
 from a2ui.catalog_transformers import CatalogTransformer
 from a2ui.core import CatalogApi
@@ -26,20 +27,27 @@ from a2ui.core.schema import ProtocolVersion
 from .catalog_providers import FileSystemCatalogProvider
 
 
-@dataclass
+@dataclass(frozen=True)
 class CatalogConfig:
     """Configuration model associating a component catalog definition with its transformations.
+
+    A config is immutable, so its transformed catalog is computed once, on
+    first use, and reused for every request that resolves it.
 
     Attributes:
         catalog: Base Catalog instance loaded via a CatalogProvider.
         transformers: Optional sequence of CatalogTransformer rules to apply
-          sequentially.
+          sequentially. It is stored as a tuple.
     """
 
     catalog: CatalogApi
     transformers: Sequence[CatalogTransformer] | None = None
 
-    @property
+    def __post_init__(self) -> None:
+        if self.transformers is not None:
+            object.__setattr__(self, "transformers", tuple(self.transformers))
+
+    @cached_property
     def transformed_catalog(self) -> CatalogApi:
         """Returns the Catalog after applying all configured transformers sequentially."""
         current = self.catalog

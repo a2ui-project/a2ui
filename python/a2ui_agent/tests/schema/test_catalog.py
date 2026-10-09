@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
+
 import pytest
 
 from a2ui.catalog_transformers import (
@@ -141,6 +143,28 @@ def test_catalog_config_transformed_catalog_applies_transformers():
     assert "Button" in base.components
 
 
+def test_catalog_config_transforms_the_catalog_once():
+    """The transformed catalog is computed on first use and then reused."""
+    calls = []
+
+    class CountingTransformer(ComponentPruningTransformer):
+
+        def transform(self, catalog):
+            calls.append(catalog)
+            return super().transform(catalog)
+
+    transformers = [CountingTransformer(["Text"])]
+    config = CatalogConfig(BasicCatalog(VERSION_0_9), transformers=transformers)
+    # Changing the caller's list afterwards doesn't change the config.
+    transformers.append(FunctionPruningTransformer([]))
+
+    assert config.transformed_catalog is config.transformed_catalog
+    assert len(calls) == 1
+    assert len(config.transformers) == 1
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        config.catalog = BasicCatalog(VERSION_0_9)  # type: ignore[misc]
+
+
 def test_resolve_examples_path_handling():
     assert resolve_examples_path(None) is None
     assert resolve_examples_path("/absolute/examples") == "/absolute/examples"
@@ -152,6 +176,19 @@ def test_resolve_examples_path_handling():
 
     with pytest.raises(A2uiCatalogError, match="Unsupported examples URL scheme"):
         resolve_examples_path("https://a2ui.org/examples")
+
+    # A Windows drive letter is a path, not a URL scheme.
+    assert resolve_examples_path("C:/examples") == "C:/examples"
+
+
+def test_file_urls_with_a_windows_drive_resolve_to_the_drive(monkeypatch):
+    """`file:///C:/...` drops the slash before the drive, as Windows expects."""
+    import nturl2path
+
+    # Decode file URLs the way `urllib.request.url2pathname` does on Windows.
+    monkeypatch.setattr("a2ui.utils._paths.url2pathname", nturl2path.url2pathname)
+
+    assert resolve_examples_path("file:///C:/my%20examples") == "C:\\my examples"
 
 
 def test_basic_catalog_id_retrieval_methods():

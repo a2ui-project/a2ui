@@ -17,7 +17,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, cast
+
+from pydantic import BaseModel
 
 from a2ui.core import (
     A2uiCatalogError,
@@ -30,7 +32,12 @@ from a2ui.core import (
     ValidationConfig,
 )
 from a2ui.core.common import to_protocol_version
-from a2ui.core.schema import AgentToRendererMessagePayload, ProtocolVersion
+from a2ui.core.schema import (
+    AgentToRendererMessage,
+    AgentToRendererMessagePayload,
+    ProtocolVersion,
+)
+from a2ui.parser import to_message_dicts
 
 # The `version` values that messages for each protocol version's catalogs
 # state, spelled as the specification spells them. A v0.8 message has no
@@ -152,7 +159,14 @@ def validate_payload(
 def _extract_messages(
     payload: AgentToRendererMessagePayload,
 ) -> list[dict[str, Any]]:
-    """Normalizes a payload into a list of message dictionaries."""
+    """Normalizes a payload into a list of message dictionaries.
+
+    Message models are converted with `to_message_dicts`, so the check sees
+    exactly the dictionaries that go on the wire. The conversion keeps an
+    explicitly set `None`, since a `null` can be meaningful there (v1.0
+    deletes a data model key with an `updateDataModel` value of `null`), so an
+    optional field set to `None` is checked as `null` rather than dropped.
+    """
     raw: Any = payload
     if hasattr(raw, "model_dump") and isinstance(getattr(raw, "messages", None), list):
         raw = raw.messages
@@ -163,15 +177,8 @@ def _extract_messages(
     )
     messages: list[dict[str, Any]] = []
     for index, item in enumerate(raw_messages):
-        if hasattr(item, "model_dump"):
-            version = getattr(item, "version", None)
-            d = item.model_dump(mode="json", by_alias=True, exclude_unset=True)
-            if isinstance(d, Mapping):
-                if version == "v0.8":
-                    d = {k: v for k, v in d.items() if k != "version"}
-                elif version is not None and "version" not in d:
-                    d = {"version": version, **d}
-            item = d
+        if isinstance(item, BaseModel):
+            item = to_message_dicts(cast(AgentToRendererMessage, item))[0]
         if not isinstance(item, Mapping):
             raise A2uiValidationError(f"Message {index} is not a JSON object.")
         messages.append(dict(item))

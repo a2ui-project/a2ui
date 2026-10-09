@@ -479,3 +479,14 @@ def test_typed_schema_models_are_accepted():
         }]
     })
     validate_payload([_BASIC], null_data_wrapper.messages[0])
+
+
+def test_v0_8_model_with_an_explicit_version_is_checked_without_it():
+    """A v0.8 model converts to its wire form, which carries no `version`."""
+    from a2ui.core.schema import v0_8
+
+    wrapper = v0_8.A2uiMessageListWrapper.model_validate(
+        {"messages": [{"version": "v0.8", **_v08_update(_V08_TEXT)}]}
+    )
+
+    validate_payload([BasicCatalog("0.8")], wrapper.messages[0])
