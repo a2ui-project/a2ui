@@ -60,7 +60,6 @@ Evaluate the cross-language subskills below against the diff and read any activa
   - Imports between sibling packages change.
   - Files under `specification/` or `catalogs/` (schemas, catalog fixtures, or examples) are modified or added.
   - Breaking changes or public API deprecations are introduced.
-  - Sample client or explorer applications receive new navigation, hotkeys, or layout capabilities.
   - A new source file is added (verify it has a single responsibility rather than acting as a catch-all `types.*` or `utils.*` file).
 
 #### 3. Updating Changelogs (`CHANGELOG.md`)
