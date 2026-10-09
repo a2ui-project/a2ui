@@ -43,8 +43,12 @@ class InferenceFormat(ABC):
 
     @property
     def supports_streaming(self) -> bool:
-        """Returns whether parsers created by this format support streaming."""
-        return self.create_parser().supports_streaming
+        """Returns whether parsers created by this format support streaming.
+
+        False by default. A format whose parsers implement `parse_chunk`
+        overrides it, so callers can ask without creating a parser.
+        """
+        return False
 
 
 class InferenceFormatFactory(ABC):

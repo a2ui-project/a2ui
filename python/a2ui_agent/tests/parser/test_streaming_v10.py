@@ -106,6 +106,15 @@ def test_v10_parser_class_selection(basic_catalog_v10):
     assert type(parser_v08) is DirectJsonStreamParserV08Legacy
 
 
+def test_stream_parsers_are_deprecated(basic_catalog_v10):
+    """Each stream parser warns once that DirectJsonParser replaces it."""
+    with pytest.warns(DeprecationWarning, match="DirectJsonParser.parse_chunk") as w:
+        DirectJsonStreamParser([basic_catalog_v10])
+    assert len(w) == 1
+    with pytest.warns(DeprecationWarning, match="DirectJsonStreamParserV08Legacy"):
+        DirectJsonStreamParserV08Legacy([BasicCatalog("v0.8")])
+
+
 def test_v10_basic_catalog_id_matches_fixture(basic_catalog_v10):
     assert basic_catalog_v10.catalog_id == BASIC_ID
 

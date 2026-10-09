@@ -44,7 +44,7 @@ class TestSkillConformance(unittest.TestCase):
 
         golden_path = os.path.join(GOLDENS_DIR, "express_base_rules.txt")
         with open(golden_path, "r", encoding="utf-8") as f:
-            expected = f.read().replace("root = Card(...)", "root = ComponentA(...)")
+            expected = f.read()
 
         actual = prompt_gen.generate_base_rules()
         self.assertEqual(actual, expected)
@@ -105,9 +105,7 @@ class TestSkillConformance(unittest.TestCase):
                     expected_rel = case["expected_file"]
                     expected_abs = os.path.join(REPO_ROOT, expected_rel)
                     with open(expected_abs, "r", encoding="utf-8") as gf:
-                        expected_content = gf.read().replace(
-                            "root = Card(...)", "root = ComponentA(...)"
-                        )
+                        expected_content = gf.read()
                     self.assertEqual(skill_obj.to_markdown(), expected_content)
 
                 elif action == "core_syntax":
@@ -116,9 +114,7 @@ class TestSkillConformance(unittest.TestCase):
                     expected_rel = case["expected_file"]
                     expected_abs = os.path.join(REPO_ROOT, expected_rel)
                     with open(expected_abs, "r", encoding="utf-8") as gf:
-                        expected_content = gf.read().replace(
-                            "root = Card(...)", "root = ComponentA(...)"
-                        )
+                        expected_content = gf.read()
                     self.assertEqual(skill_obj.to_markdown(), expected_content)
 
                 elif action == "from_catalog":

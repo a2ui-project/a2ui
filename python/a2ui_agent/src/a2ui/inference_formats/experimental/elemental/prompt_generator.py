@@ -30,11 +30,14 @@ from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
     build_catalog_helpers,
     catalogs_defining,
+    check_mixed_catalogs,
     catalogs_protocol_version,
     normalize_prompt_example_messages,
     surface_catalog_id,
+    to_message_dicts,
 )
 from a2ui.prompt import PromptGenerator
+from a2ui.utils import validate_payload
 
 from .compiler import UPDATE_ATTR
 from .parser import ElementalParser
@@ -136,13 +139,19 @@ class ElementalPromptGenerator(PromptGenerator):
         *,
         surface_id: str = "main",
     ):
-        from a2ui.inference_formats._shared import check_mixed_catalogs
+        """Initializes the Elemental prompt generator.
 
+        Args:
+            catalogs: The active catalogs.
+            examples: Optional prompt example turns, each a list of messages.
+            allowed_messages: Accepted so every format's prompt generator takes
+                the same arguments. Elemental doesn't filter its rules by
+                message type, so the value is not used.
+            surface_id: The surface ID given to the Elemental parser that this
+                generator uses.
+        """
         self._catalogs = list(check_mixed_catalogs(catalogs))
         self._examples = [list(t) for t in examples] if examples is not None else None
-        self._allowed_messages = (
-            list(allowed_messages) if allowed_messages is not None else None
-        )
         self._surface_id = surface_id
         self.helpers: dict[str, CatalogSchemaHelper] = build_catalog_helpers(
             self._catalogs
@@ -317,9 +326,6 @@ class ElementalPromptGenerator(PromptGenerator):
                 catalog,
                 *(c for c in active_catalogs if c is not catalog),
             ]
-        from a2ui.inference_formats._shared import to_message_dicts
-        from a2ui.utils import validate_payload
-
         parser = self._get_parser()
         blocks = []
         for turn in self._examples:

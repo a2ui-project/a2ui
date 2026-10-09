@@ -17,33 +17,21 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-import json
-import re
 from typing import Any, Literal
 
-from a2ui.core import A2uiValidationError, CatalogApi
+from a2ui.core import CatalogApi
 from a2ui.core.common import is_at_least_version
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
     build_catalog_helpers,
     catalogs_defining,
-    catalogs_protocol_version,
-    normalize_prompt_example_messages,
-    surface_catalog_id,
+    check_mixed_catalogs,
+    to_message_dicts,
 )
 from a2ui.prompt import PromptGenerator
+from a2ui.utils import validate_payload
 
 from .decompiler import AtomDecompiler
-
-# Top-level keys that mark a JSON object as an A2UI message.
-_EXAMPLE_MESSAGE_KEYS = (
-    "createSurface",
-    "updateComponents",
-    "updateDataModel",
-    "deleteSurface",
-    "callFunction",
-    "callRendererFunction",
-)
 
 ATOM_RULES = r"""Output the user interface using compact A2UI Atom S-Expression notation.
 You MUST surround the entire A2UI Atom block with sentinel tags `<a2ui>` and `</a2ui>`. Do NOT output raw JSON messages.
@@ -140,13 +128,17 @@ class AtomPromptGenerator(PromptGenerator):
         examples: Sequence[Sequence[Any]] | None = None,
         allowed_messages: Sequence[str] | None = None,
     ):
-        from a2ui.inference_formats._shared import check_mixed_catalogs
+        """Initializes the Atom prompt generator.
 
+        Args:
+            catalogs: The active catalogs.
+            examples: Optional prompt example turns, each a list of messages.
+            allowed_messages: Accepted so every format's prompt generator takes
+                the same arguments. Atom doesn't filter its rules by message
+                type, so the value is not used.
+        """
         self._catalogs = list(check_mixed_catalogs(catalogs))
         self._examples = [list(t) for t in examples] if examples is not None else None
-        self._allowed_messages = (
-            list(allowed_messages) if allowed_messages is not None else None
-        )
         self.schema_helpers: dict[str, CatalogSchemaHelper] = build_catalog_helpers(
             self._catalogs
         )
@@ -299,9 +291,6 @@ class AtomPromptGenerator(PromptGenerator):
                 catalog,
                 *(c for c in active_catalogs if c is not catalog),
             ]
-        from a2ui.inference_formats._shared import to_message_dicts
-        from a2ui.utils import validate_payload
-
         decompiler = AtomDecompiler(self.catalogs)
         blocks = []
         for turn in self._examples:
@@ -310,70 +299,6 @@ class AtomPromptGenerator(PromptGenerator):
             dsl = decompiler.decompile(turn)
             blocks.append(decompiler.wrap_decompiled_blocks([dsl]))
         return "\n\n".join(blocks)
-
-    def _decompile_example_json(self, json_content: str) -> str | None:
-        """Decompiles one JSON example block into a sentinel-wrapped Atom block.
-
-        The whole payload is decompiled at once, so an update in it is read
-        against the catalog of the surface the payload created.
-
-        Returns:
-            The Atom block, or None when the JSON does not parse or is not a
-            payload of A2UI messages.
-        """
-        try:
-            parsed = json.loads(json_content)
-        except json.JSONDecodeError:
-            return None
-        messages = [parsed] if isinstance(parsed, dict) else parsed
-        if not isinstance(messages, list) or not messages:
-            return None
-        if not all(
-            isinstance(msg, dict) and any(k in msg for k in _EXAMPLE_MESSAGE_KEYS)
-            for msg in messages
-        ):
-            return None
-        catalogs = self.catalogs
-        try:
-            normalized = normalize_prompt_example_messages(
-                messages,
-                version=catalogs_protocol_version(catalogs),
-                default_catalog_id=surface_catalog_id(catalogs),
-            )
-        except A2uiValidationError:
-            # Example JSON that is not a valid message payload stays as JSON.
-            return None
-        decompiler = AtomDecompiler(self.catalogs)
-        return decompiler.wrap_decompiled_blocks([decompiler.decompile(normalized)])
-
-    def _replace_json_block(self, match: re.Match[str]) -> str:
-        res = self._decompile_example_json(match.group(1).strip())
-        return res if res is not None else str(match.group(0))
-
-    def _replace_begin_end_block(self, match: re.Match[str]) -> str:
-        name = match.group(1)
-        res = self._decompile_example_json(match.group(2).strip())
-        if res is None:
-            return str(match.group(0))
-        return f"---BEGIN {name}---\n{res}\n---END {name}---"
-
-    def transform_examples(self, raw_examples_markdown: str) -> str:
-        """Transforms JSON blocks in raw markdown into Atom S-expression syntax."""
-        triple_backticks = chr(96) * 3
-        pattern = rf"{triple_backticks}json\s*\n(.*?)\n{triple_backticks}"
-        result = re.sub(
-            pattern,
-            self._replace_json_block,
-            raw_examples_markdown,
-            flags=re.DOTALL,
-        )
-        begin_end_pattern = r"---BEGIN ([^\n]+)---\n(.*?)\n---END \1---"
-        return re.sub(
-            begin_end_pattern,
-            self._replace_begin_end_block,
-            result,
-            flags=re.DOTALL,
-        )
 
     def generate(self) -> str:
         """Generates the prompt snippet for Atom S-expression UI generation."""

@@ -107,6 +107,35 @@ The host compiler will compile your A2UI Express output into the correct JSON en
     surface("dashboard-surface-1")
     root = ComponentA(...)'''
 
+# Rule 15's example line. `generate_base_rules` replaces its placeholder name
+# with a component the active catalogs define.
+_ROOT_EXAMPLE_LINE = "root = ComponentA(...)"
+
+
+def _example_root_component(catalogs: Sequence[CatalogApi]) -> str | None:
+    """Picks the component that rule 15's `root = ...(...)` example names.
+
+    The name is read from the catalogs, so the example never shows a component
+    the model can't use. It is the first component that holds a single child
+    reference, as a container such as a card does, or else the first
+    component.
+
+    Args:
+        catalogs: The active catalogs, in order.
+
+    Returns:
+        The component name, or None if the catalogs define no component.
+    """
+    for catalog in catalogs:
+        for name in catalog.components:
+            spec = catalog.component_ref_map.get(name)
+            if spec is not None and spec.single_refs:
+                return name
+    for catalog in catalogs:
+        for name in catalog.components:
+            return name
+    return None
+
 
 def _multi_catalog_rules(helpers: Mapping[str, CatalogSchemaHelper]) -> str:
     """Builds the rules that explain how to use several catalogs.
@@ -305,6 +334,9 @@ class ExpressPromptGenerator(PromptGenerator):
             if effective_allowed is None
             else _filter_express_rules(effective_allowed)
         )
+        root_component = _example_root_component(self.catalogs)
+        if root_component is not None:
+            base = base.replace(_ROOT_EXAMPLE_LINE, f"root = {root_component}(...)")
         if len(self.catalogs) <= 1:
             return base
         if effective_allowed is not None:

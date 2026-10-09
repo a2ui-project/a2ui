@@ -20,6 +20,7 @@ import json
 import logging
 import re
 from typing import Any
+import warnings
 
 from a2ui.core import (
     A2uiIntegrityError,
@@ -63,6 +64,11 @@ logger = logging.getLogger(__name__)
 class DirectJsonStreamParser:
     """Parses a stream of text for A2UI JSON messages with fine-grained component yielding.
 
+    Deprecated: use `DirectJsonParser.parse_chunk`, from a parser that
+    `DirectJsonFormat.create_parser()` returns. This class and its
+    version-specific subclasses will be removed
+    (https://github.com/a2ui-project/a2ui/issues/3116).
+
     This class acts as a factory that returns a version-specific parser instance
     depending on the catalogs' protocol version: `DirectJsonStreamParserV08Legacy`
     for v0.8 and `DirectJsonStreamParserModern` for v0.9 and later.
@@ -93,6 +99,14 @@ class DirectJsonStreamParser:
                     catalogs=checked,
                     progressive_keys=progressive_keys,
                 )
+        # Only the version-specific subclasses get here, once per parser.
+        warnings.warn(
+            f"{cls.__name__} is deprecated; use DirectJsonParser.parse_chunk from"
+            " DirectJsonFormat.create_parser() instead. See"
+            " https://github.com/a2ui-project/a2ui/issues/3116.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return super().__new__(cls)
 
     def __init__(

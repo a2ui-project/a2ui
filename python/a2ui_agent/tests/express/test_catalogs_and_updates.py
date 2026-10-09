@@ -734,7 +734,11 @@ def test_standalone_call_resolves_by_name(parser: ExpressParser) -> None:
 def test_single_catalog_prompt_rules_are_the_base_rules() -> None:
     fmt = ExpressFormat([_primary()])
     rules = fmt.prompt_generator.generate_base_rules()
-    assert rules == EXPRESS_RULES
+    # Rule 15's example names a component of the catalog. `_primary` has no
+    # component with a single child reference, so it names the first one.
+    assert rules == EXPRESS_RULES.replace(
+        "root = ComponentA(...)", "root = Column(...)"
+    )
     assert "surface(" in rules
     assert "Multiple Catalogs" not in rules
 
@@ -743,7 +747,11 @@ def test_multi_catalog_prompt_rules_explain_catalog_selection() -> None:
     fmt = ExpressFormat([_primary(), _secondary()])
     gen = fmt.prompt_generator
     rules = gen.generate_base_rules()
-    assert rules.startswith(EXPRESS_RULES)
+    # The example names the first component, across the catalogs, that holds a
+    # single child reference.
+    assert rules.startswith(
+        EXPRESS_RULES.replace("root = ComponentA(...)", "root = Panel(...)")
+    )
     assert "## Multiple Catalogs" in rules
     assert f"- `{PRIMARY}`\n" in rules
     assert f"- `{SECONDARY}`\n" in rules
