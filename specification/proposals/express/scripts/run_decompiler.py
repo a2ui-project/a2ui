@@ -16,8 +16,9 @@
 
 """Command-line script to decompile A2UI JSON examples into A2UI Express.
 
-Loads an A2UI JSON example file, extracts its component updates, parses them
-against the catalog schema, and decompiles them to A2UI Express DSL on stdout.
+Loads an A2UI JSON example file and decompiles its whole message sequence
+(surface creation, incremental updates, deletes and renderer function calls)
+against the catalog schema, printing the A2UI Express DSL on stdout.
 """
 
 import argparse
@@ -40,13 +41,16 @@ sys.path.insert(
         )
     ),
 )
-import json
-from a2ui.core.catalog import Catalog
-from a2ui.inference_formats.experimental.express.parser import ExpressParser
+from a2ui.core import Catalog
+from a2ui.inference_formats import to_message_models
+from a2ui.inference_formats.experimental.express import ExpressDecompiler
 
 
 def decompile_example(example_path: str, catalog_path: str) -> str:
     """Decompiles an A2UI JSON example file to A2UI Express DSL.
+
+    The example is either an object with a `messages` list, a bare list of
+    messages, or a single message.
 
     Args:
         example_path: Path to the A2UI JSON example file.
@@ -57,7 +61,7 @@ def decompile_example(example_path: str, catalog_path: str) -> str:
 
     Raises:
         FileNotFoundError: If the example or catalog file does not exist.
-        ValueError: If the example JSON does not contain components updates.
+        ValueError: If the example JSON contains no messages.
     """
     if not os.path.exists(example_path):
         raise FileNotFoundError(f"Example file not found: {example_path}")
@@ -67,37 +71,20 @@ def decompile_example(example_path: str, catalog_path: str) -> str:
     with open(example_path, "r", encoding="utf-8") as f:
         ex_data = json.load(f)
 
-    messages = ex_data.get("messages", [])
-    components_list = None
-    surface_id = "test_surf"
-    catalog_id = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-
-    # Extract components from the updateComponents message
-    for msg in messages:
-        if "updateComponents" in msg:
-            components_list = msg["updateComponents"].get("components", [])
-            surface_id = msg["updateComponents"].get("surfaceId", surface_id)
-            break
-
-    if not components_list:
-        raise ValueError(
-            f"Could not find any 'updateComponents' message in {example_path}"
-        )
-
-    envelope = {
-        "version": "v1.0",
-        "createSurface": {
-            "surfaceId": surface_id,
-            "catalogId": catalog_id,
-            "components": components_list,
-        },
-    }
+    if isinstance(ex_data, list):
+        messages = ex_data
+    elif isinstance(ex_data, dict) and "messages" in ex_data:
+        messages = ex_data["messages"]
+    else:
+        messages = [ex_data]
+    if not messages:
+        raise ValueError(f"Could not find any A2UI messages in {example_path}")
 
     with open(catalog_path, "r", encoding="utf-8") as f:
         catalog_dict = json.load(f)
-    catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
-    decompiler = ExpressParser(catalog)
-    return decompiler.decompile(envelope)
+    catalog = Catalog.from_json(catalog_dict)
+    decompiler = ExpressDecompiler([catalog])
+    return decompiler.decompile(to_message_models(messages))
 
 
 def main():

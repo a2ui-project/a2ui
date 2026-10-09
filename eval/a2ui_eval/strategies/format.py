@@ -62,16 +62,16 @@ def _get_strategy(
         from a2ui.inference_formats.experimental.express import ExpressFormat
 
         return ExpressFormat(
-            catalog=catalog, surface_id=surface_id, version=formatted_version
+            [catalog], surface_id=surface_id, version=formatted_version
         )
     elif format_name == "elemental":
         from a2ui.inference_formats.experimental.elemental import ElementalFormat
 
-        return ElementalFormat(catalog=catalog, surface_id=surface_id)
+        return ElementalFormat([catalog], surface_id=surface_id)
     elif format_name == "atom":
         from a2ui.inference_formats.experimental.atom import AtomFormat
 
-        return AtomFormat(catalog=catalog, surface_id=surface_id)
+        return AtomFormat([catalog], surface_id=surface_id)
     else:
         raise ValueError(f"Unknown format strategy: {format_name}")
 
@@ -132,11 +132,7 @@ def _parse_and_validate_in_process(
         catalog_config,
         surface_id=surface_id,
     )
-    catalog = (
-        strategy.catalogs[0]
-        if isinstance(strategy, DirectJsonFormat)
-        else getattr(strategy, "catalog")
-    )
+    catalogs = strategy.catalogs
 
     parts = strategy.parser.parse_response(completion)
     compiled_jsons = []
@@ -157,7 +153,7 @@ def _parse_and_validate_in_process(
         )
 
     MessageProcessor(
-        [catalog],
+        list(catalogs),
         options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
     ).process_messages(compiled_jsons)
     return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}

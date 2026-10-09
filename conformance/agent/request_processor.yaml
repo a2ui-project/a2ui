@@ -345,3 +345,66 @@
     input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Chart", "values": [1, 2, 3]}]}}]</a2ui-json>'
     expect_error:
       category: ValidationError
+
+- name: test_express_format_binds_multiple_catalogs_and_examples
+  description: An Express format bound to two catalogs renders both catalog schemas and decompiles examples belonging to each catalog into Express notation.
+  action: create_format
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    examples:
+      - "test_data/examples/greeting_surface.json"
+      - "test_data/examples/chart_series.json"
+  expect:
+    prompt_snippet_contains:
+      - "conformance/simplified"
+      - "conformance/custom"
+      - "Text("
+      - "Chart("
+      - 'root = Text("Hello")'
+      - "root = Chart([1, 2, 3])"
+
+- name: test_processor_parses_multi_catalog_express_response
+  description: A processor negotiated with two active catalogs and Express format parses a response that creates surfaces with components from both catalogs.
+  action: create_processor
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified", "conformance/custom"]
+  expect:
+    active_catalog_ids: ["conformance/simplified", "conformance/custom"]
+    prompt_snippet_contains: ["conformance/simplified", "conformance/custom", "Text(", "Chart("]
+  then_parse:
+    input: |
+      Here are both views.<a2ui>
+      surface("s1")
+      root = Text("Summary")
+      surface("s2")
+      root = Chart([1, 2], "Q1")
+      </a2ui>
+    expect:
+      - text: "Here are both views."
+      - a2ui:
+          - version: "v1.0"
+            createSurface:
+              surfaceId: "s1"
+              components:
+                - id: "root"
+                  component: "Text"
+                  catalogId: "conformance/simplified"
+                  text: "Summary"
+          - version: "v1.0"
+            createSurface:
+              surfaceId: "s2"
+              components:
+                - id: "root"
+                  component: "Chart"
+                  catalogId: "conformance/custom"
+                  values: [1, 2]
+                  caption: "Q1"

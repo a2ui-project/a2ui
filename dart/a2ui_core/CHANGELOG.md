@@ -64,6 +64,84 @@
   `@call` shapes.
 - Validation errors carry JSON Pointer `path`s and per-error `errors` details;
   a dangling reference reports `/components/<index>/children/<n>`.
+- Added `MessageProcessor.getRendererCapabilities(CapabilitiesOptions)`,
+  which returns an `A2uiRendererCapabilities` with one entry per requested
+  version and raises `A2uiValidationError` for an empty version list. Inline
+  catalogs use the legacy shape below v1.0 and a copy of the standalone
+  catalog schema document from v1.0.
+- **Breaking:** `A2uiVersionCapabilities.toJson` takes a required `version`
+  and shapes inline catalogs for it; `A2uiRendererCapabilities.toJson` and
+  `getRendererCapabilities` use the same code.
+- **Behavior change:** Legacy inline catalogs are derived from
+  `Catalog.catalogSchema`, so a component's properties and required list
+  match the catalog document (which merges `allOf` members). `id` and
+  `component` are left to the `ComponentCommon` envelope, bundled common-type
+  refs become `common_types.json#/$defs/...` refs again, other local refs are
+  inlined when they resolve and dropped otherwise, and function entries carry
+  `description`.
+- **Breaking:** Removed `MessageProcessor.getClientCapabilities` and
+  `getClientDataModel`. Use
+  `getRendererCapabilities(CapabilitiesOptions(versions: [A2uiProtocolVersion.v0_9], includeInlineCatalogs: ...)).toJson()`
+  and `getRendererDataModel()`.
+- **Behavior change:** `getRendererDataModel` takes an optional `version`.
+  With one, it returns only the surfaces compatible with that version. Without
+  one, it reports the version the surfaces share, defaults to `v1.0` when none
+  records a version, and raises `A2uiValidationError` when the surfaces record
+  different versions. It returns `Map<String, Object?>?`.
+- Added the RPC layer: `RpcHandler` sends `callAgentFunction` messages
+  through an `OutboundMessageListener` and settles them from
+  `agentFunctionResponse`, and answers `callRendererFunction` with a
+  `rendererFunctionResponse`. `CallOptions` sets a call's `functionCallId`,
+  `timeout`, envelope `version` and `CancellationSignal`; `ExecutionContext`
+  says whether an inbound call runs within a user activation. `RpcErrorCode`
+  lists the protocol's codes and `A2uiRpcError` carries one with the
+  `functionCallId` and any agent-reported details. An inbound call is refused
+  with `INVALID_FUNCTION_CALL` when its catalog or function is missing, the
+  catalog's protocol version does not match the message's, the function is
+  `rendererOnly`, it requires a user activation the call lacks, or its
+  arguments fail the schema; a function that throws answers `EXECUTION_ERROR`.
+- `MessageProcessor` owns an `RpcHandler` as `rpc`, takes an
+  `outboundListener` (`OutboundMessageListener`) for the messages it sends
+  and a `defaultTimeout` for outbound calls, mirrors `callAgentFunction`, and
+  adds `dispose`, which cancels pending calls and disposes every surface.
+  **Behavior change:** `callRendererFunction` and `agentFunctionResponse`
+  messages are now executed rather than ignored. `processMessages` and
+  `processMessagesAsync` take `isUserActivated`; the latter completes once
+  every `callRendererFunction` in the payload has been answered.
+- `FunctionApi` adds `allowedCallers` (`AllowedCallers.rendererOnly`,
+  `agentOnly` or `rendererOrAgent`, default `rendererOnly`) and
+  `requiresUserActivation`, read by `Catalog.fromJson` from both function
+  forms and emitted by `catalogSchema` when they differ from the defaults.
+  `BasicFunction` carries them, so `BasicCatalog.v1_0().functions['openUrl']`
+  requires a user activation.
+- On a v1.0 surface, a function call that no available catalog implements
+  (an unknown catalog, no default catalog, or an unknown function; never an
+  argument or execution failure) is sent to the agent as `callAgentFunction`
+  through the new `SurfaceModel.callAgentFunction` (`AgentFunctionCaller`)
+  hook, which `MessageProcessor` wires to its `RpcHandler`. A dynamic value
+  resolves to null until the response arrives and then updates; a `checks`
+  rule that is waiting is left out of `isValid`, `validationErrors` and
+  `validationResults`, and the resolved props gain `validationPending`, true
+  while any rule waits. An action awaits the agent's result. An agent error
+  or timeout (`A2uiRpcError`) is reported on `SurfaceModel.onError` as
+  `EXECUTION_ERROR` with the `functionCallId`, and a non-RPC listener
+  exception in a dynamic value or check as `EXPRESSION_ERROR`; the value
+  stays null and a waiting rule then fails with its message. v0.9 and v0.9.1
+  surfaces keep reporting `EXPRESSION_ERROR`. `A2uiCatalogResolutionError`, a
+  subclass of `A2uiCatalogError`, is what `SurfaceModel.resolveCatalog` and
+  `Catalog.invoke` throw for such a lookup miss.
+- `DataContext` adds `isUserActivated`, `withUserActivation()`,
+  `evaluateFunctionCall` (what an action runs: locally when possible,
+  otherwise through the agent), `isPendingAgentCall` and
+  `resolveListenableWithPending` (returning a signal of `DynamicValueState`),
+  and takes `callAgentFunction` (`AgentFunctionCaller`).
+  `CatalogInvokerExtension.argumentErrors` returns a function's argument
+  schema failures without throwing. **Behavior change:** `Catalog.invoke`
+  refuses a function that is `agentOnly`, or one with `requiresUserActivation`
+  unless the context is user activated. The binder runs actions with
+  `withUserActivation()`, so `openUrl` works from an action and is refused
+  from a dynamic value.
+
 - **Breaking:** `MessageProcessor` routes each message through the
   `VersionAdapter` for the version it declares, so one processor holds v0.9,
   v0.9.1 and v1.0 surfaces side by side. The required `protocolVersion`
@@ -295,7 +373,7 @@
     which a binder reports as `EXECUTION_ERROR`.
   - The embedded v1.0 document matches `catalogs/basic/v1/catalog.json`,
     whose instruction examples write bindings and calls as `@path` and
-    `@call`.
+    `@call` and use full `CheckRule` objects.
 - `FormatStringFunction` now delegates to the basic catalog's `formatString`:
   it coerces a non-string `value` instead of throwing, renders integral
   doubles without `.0`, and resolves template bindings and calls on a v1.0
@@ -385,7 +463,6 @@
   entry and tracks nested bindings reactively; previously a container holding
   bindings (such as a function argument list or a nested `{path}` value) was
   passed through as a static literal.
-  > > > > > > > upstream/main
 
 ## 0.2.2
 

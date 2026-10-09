@@ -45,7 +45,15 @@ const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
  * Conformance cases that fail because TS follows Python's behavior.
  * Registered with test.fails and Python's reason.
  */
-const KNOWN_FAILURES = new Map<string, string>([]);
+const KNOWN_FAILURES = new Map<string, string>([
+  ...[
+    'test_compile_express_surface_targeting_names_a_catalog',
+    'test_decompile_express_two_surfaces_in_two_catalogs',
+  ].map((name): [string, string] => [
+    name,
+    'multi-catalog Express resolves components by name across active catalogs and omits createSurface.catalogId',
+  ]),
+]);
 
 /**
  * Cases Python skips as UNSUPPORTED.

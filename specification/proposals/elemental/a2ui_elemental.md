@@ -30,8 +30,9 @@ A2UI Elemental UI blocks are enclosed in standard `<body>` tags:
 </body>
 ```
 
-- The `id` attribute on `<body>` maps to the `surfaceId` in the `createSurface` payload.
-- The `<link rel="catalog">` tag is optional. Its `href` attribute maps to the `catalogId`. If omitted, the compiler defaults to its pre-configured catalog.
+- The `id` attribute on `<body>` maps to the `surfaceId` of the surface. Without it, the compiler uses the surface ID it was given.
+- A `<body>` compiles to a `createSurface`. With the `update` attribute, `<body id="..." update>` changes a surface that already exists instead; see [Updating a surface](#updating-a-surface).
+- The `<link rel="catalog">` tag is optional when a single catalog is registered, where its `href` must match that catalog's ID. When multiple catalogs are registered, `<link rel="catalog">` is rejected and `createSurface` omits `catalogId`. See [Catalogs](#catalogs).
 
 ### Component declarations
 
@@ -212,7 +213,15 @@ If the model needs to perform a lifecycle operation or invoke an RPC function wi
   ```html
   <ui-call-function id="call_1" name="openUrl" url="https://example.com" want-response="{true}" />
   ```
-  This maps to the v1.0 `CallFunctionMessage`. The `id` attribute maps to `functionCallId` (auto-generated if omitted), and `want-response` maps to `wantResponse`.
+  This maps to the v1.0 `callRendererFunction` message. The `id` attribute maps to `functionCallId` (`call_<n>` for the n-th call in the document if omitted), `want-response` maps to `wantResponse`, `name` maps to the function, and the other attributes are the function's arguments. Literal JSON arguments go in script slots: a `<script type="application/json" slot="args">` holds an object of arguments, and a script with any other slot name holds the argument of that name:
+  ```html
+  <ui-call-function id="call_2" name="openUrl">
+    <script type="application/json" slot="args">
+      {"url": "https://example.com"}
+    </script>
+  </ui-call-function>
+  ```
+  The function resolves against the element's `catalog-id` attribute when provided, or else by function name across the active catalogs. The compiled call always names its `catalogId`. When the function's `args` schema disallows extra properties (`additionalProperties` or `unevaluatedProperties` is `false`), an attribute or script slot that names an undeclared argument is a compile error. `callRendererFunction` exists only in v1.0, so for v0.9 and v0.9.1 catalogs the compiler rejects `<ui-call-function>`.
 
 ---
 
@@ -236,7 +245,76 @@ To populate or initialize values within the shared data model directly from the 
 </body>
 ```
 
-The compiler parses this JSON and includes it in the `dataModel` field of the resulting `createSurface` payload. If the document contains only the script block and no UI elements, the compiler produces a standalone `updateDataModel` protocol message.
+The compiler parses this JSON and includes it in the `dataModel` field of the resulting `createSurface` payload. If the document contains only the script block and no UI elements, the compiler produces a standalone `updateDataModel` message for the root path.
+
+A data script with a `path` attribute holds the value for that path and compiles to its own `updateDataModel` message:
+
+```html
+<script type="application/json" path="/user/name">
+  "Ada"
+</script>
+```
+
+## Updating a surface
+
+To change a surface that already exists, add the `update` attribute to its `<body>`. The body holds only the components to add or replace and the data to change:
+
+```html
+<body id="notification-card" update>
+  <ui-text id="title" text="Notifications enabled" />
+  <script type="application/json" path="/user/name">
+    "Ada"
+  </script>
+</body>
+```
+
+The components compile to one `updateComponents` message, each data script to an `updateDataModel` message, and the compiler emits no `createSurface`:
+
+```json
+[
+  {
+    "version": "v1.0",
+    "updateComponents": {
+      "surfaceId": "notification-card",
+      "components": [{"id": "title", "component": "Text", "text": "Notifications enabled"}]
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateDataModel": {
+      "surfaceId": "notification-card",
+      "path": "/user/name",
+      "value": "Ada"
+    }
+  }
+]
+```
+
+In an update body, a data script without a `path` replaces the whole data model. The decompiler writes an `updateComponents` or `updateDataModel` that it cannot fold into an earlier `createSurface` as an update body, and keeps the `path` of a data model update.
+
+## Catalogs
+
+With a single catalog, `createSurface` carries that catalog's `catalogId` (and `<link rel="catalog" href="...">` is optional). With multiple catalogs (supported in v1.0 and newer), `createSurface` omits `catalogId`, `<link rel="catalog">` is rejected, and every compiled component and function call carries its own `catalogId`. A component or function call written without a catalog override resolves by name across the active catalogs when exactly one catalog defines it, and requires an explicit override when multiple catalogs define that name:
+
+```html
+<ui-chart id="sales_chart" catalog-id="https://example.com/charts.json" data="{$/sales}" />
+<ui-text
+  id="share_label"
+  text="{shortLink(url: $/url, catalogId: 'https://example.com/links.json')}"
+/>
+```
+
+- A component takes a `catalog-id` attribute.
+- A function call takes a `catalogId` named argument.
+- A `<ui-call-function>` takes a `catalog-id` attribute.
+
+The v0.9 and v0.9.1 schemas allow `catalogId` only on `createSurface`, so multiple catalogs and per-component/per-function catalog overrides require v1.0 or newer.
+
+## Protocol versions and binding keys
+
+The messages use the protocol version of the catalogs, and the compiler rejects v0.8 catalogs. For v1.0, a new surface compiles to one `createSurface` that carries the `components` and `dataModel`, and the compiler writes data bindings as `{"@path": ...}` and function calls as `{"@call": ..., "args": ...}`, the reserved keys of the v1.0 common types. For v0.9 and v0.9.1, a new surface compiles to a `createSurface` with only `surfaceId` and `catalogId`, followed by an `updateComponents` and, if the body has data, an `updateDataModel` for the root path; bindings and calls use `path` and `call`, and every message carries `"version": "v0.9"` or `"v0.9.1"`.
+
+The decompiler HTML-escapes attribute values (`&`, `<`, `>` and `"`), including surface IDs, component IDs, catalog IDs and expressions, and the compiler's HTML parser unescapes them, so IDs and strings with quotes round-trip unchanged.
 
 ---
 
@@ -400,7 +478,7 @@ Because HTML parsers are forgiving, syntax errors are rarely fatal. However, sem
         "component": "Text",
         "variant": "h3",
         "text": {
-          "call": "formatString",
+          "@call": "formatString",
           "args": {
             "value": "Welcome back, ${/user/name}!"
           },
@@ -412,7 +490,7 @@ Because HTML parsers are forgiving, syntax errors are rarely fatal. However, sem
         "component": "Text",
         "variant": "body",
         "text": {
-          "call": "formatString",
+          "@call": "formatString",
           "args": {
             "value": "Your balance is: ${formatCurrency(value: /user/balance, currency: 'USD')}"
           },
@@ -432,7 +510,7 @@ Because HTML parsers are forgiving, syntax errors are rarely fatal. However, sem
         "id": "comp_5",
         "component": "List",
         "path": {
-          "path": "/transactions"
+          "@path": "/transactions"
         },
         "template": ["comp_6"]
       },
@@ -445,16 +523,16 @@ Because HTML parsers are forgiving, syntax errors are rarely fatal. However, sem
         "id": "comp_7",
         "component": "Text",
         "text": {
-          "path": "description"
+          "@path": "description"
         }
       },
       {
         "id": "comp_8",
         "component": "Text",
         "text": {
-          "call": "formatCurrency",
+          "@call": "formatCurrency",
           "args": {
-            "value": {"path": "amount"},
+            "value": {"@path": "amount"},
             "currency": "USD"
           },
           "returnType": "string"

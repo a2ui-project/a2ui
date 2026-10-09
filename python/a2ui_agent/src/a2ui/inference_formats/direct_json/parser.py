@@ -18,8 +18,9 @@ from collections.abc import Sequence
 from typing import Any
 
 from a2ui.core import A2uiParseError, CatalogApi
-from a2ui.inference_formats.direct_json._parser_catalogs import check_parser_catalogs
-from a2ui.inference_formats.direct_json.decompiler import _DirectJsonDecompiler
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats._shared import check_catalogs, to_message_models
+from a2ui.inference_formats.direct_json.decompiler import DirectJsonDecompiler
 from a2ui.parser import Parser, ResponsePart, parse_and_fix
 from a2ui.schema import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS
@@ -92,14 +93,14 @@ class DirectJsonParser(Parser):
             A2uiCatalogError: If no catalog is given, or the catalogs target
                 different protocol versions.
         """
-        self._catalogs = check_parser_catalogs(catalogs)
+        self._catalogs = check_catalogs(catalogs)
         self._progressive_keys = progressive_keys
         self._stream_parser: Any | None = None
 
     @property
-    def catalogs(self) -> tuple[CatalogApi, ...]:
-        """The catalogs the parser holds, in the order it received them."""
-        return self._catalogs
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the catalogs the parser holds, in the order it received them."""
+        return list(self._catalogs)
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         if complete:
@@ -119,28 +120,31 @@ class DirectJsonParser(Parser):
 
     def compile(
         self, format_content: str, *, is_final: bool = True
-    ) -> list[dict[str, Any]]:
+    ) -> list[AgentToRendererMessage]:
         """Validates and compiles raw A2UI JSON schema content.
 
         A final payload is checked with `validate_payload`, which runs it
         through a `MessageProcessor` holding the catalogs, as the stream parser
-        checks its messages. A partial payload isn't checked, since it may be
-        cut mid-message.
+        checks its messages. A partial payload isn't checked against the
+        catalogs, since it may be cut mid-message, but every payload must still
+        parse into protocol message models. The messages are converted without
+        adding or dropping any field.
 
         Args:
             format_content: The raw A2UI JSON string.
             is_final: Whether the content is the complete payload.
 
         Returns:
-            A list of compiled A2UI message dictionaries.
+            A list of compiled AgentToRendererMessage objects.
 
         Raises:
-            A2uiValidationError: If the payload fails validation.
+            A2uiValidationError: If the payload fails catalog validation, or
+                (final or not) does not match the protocol message schema.
         """
         json_data = parse_and_fix(format_content)
         if is_final:
             validate_payload(self._catalogs, json_data)
-        return json_data
+        return to_message_models(json_data)
 
     @property
     def supports_streaming(self) -> bool:
@@ -164,10 +168,10 @@ class DirectJsonParser(Parser):
             )
         return self._stream_parser.process_chunk(chunk)
 
-    def decompile(self, val: dict[str, Any]) -> str:
-        """Decompiles a structured A2UI payload into this format's raw notation."""
-        return _DirectJsonDecompiler().decompile(val)
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
+        """Decompiles structured A2UI payload messages into this format's raw notation."""
+        return DirectJsonDecompiler().decompile(a2ui_payload)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
-        return _DirectJsonDecompiler().wrap_decompiled_blocks(blocks)
+        return DirectJsonDecompiler().wrap_decompiled_blocks(blocks)

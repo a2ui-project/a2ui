@@ -14,13 +14,13 @@
 
 """Unit tests for A2UI Express CLI tools/scripts."""
 
+import json
 import os
 import sys
-import json
-import urllib.error
-import unittest
 import tempfile
-from unittest.mock import patch, MagicMock
+import unittest
+from unittest.mock import MagicMock, patch
+import urllib.error
 
 from a2ui.schema.utils import (
     find_repo_root,
@@ -48,6 +48,8 @@ SPEC_DIR = get_spec_dir("v1_0")
 CATALOGS_DIR = os.path.join(REPO_ROOT, "catalogs", "basic")
 CATALOG_PATH = os.path.join(CATALOGS_DIR, "v1", "catalog.json")
 EXAMPLES_DIR = os.path.join(CATALOGS_DIR, "v1", "examples")
+with open(CATALOG_PATH, "r", encoding="utf-8") as _catalog_file:
+    BASIC_CATALOG_ID = json.load(_catalog_file)["catalogId"]
 
 
 class TestCliTools(unittest.TestCase):
@@ -70,7 +72,7 @@ class TestCliTools(unittest.TestCase):
                             "version": "v1.0",
                             "createSurface": {
                                 "surfaceId": "test_surface",
-                                "catalogId": "my_catalog",
+                                "catalogId": BASIC_CATALOG_ID,
                             },
                         },
                         {
@@ -104,14 +106,23 @@ class TestCliTools(unittest.TestCase):
 
     def test_compiler_dsl_file_compilation(self):
         """Verifies compilation of a DSL file."""
+        with open(CATALOG_PATH, "r", encoding="utf-8") as f:
+            catalog_id = json.load(f)["catalogId"]
         res = run_compiler.compile_dsl_file(
-            self.dsl_file, CATALOG_PATH, "my_surface", "my_catalog"
+            self.dsl_file, CATALOG_PATH, "my_surface", catalog_id
         )
         self.assertIsInstance(res, list)
         envelope = res[0]
         self.assertEqual(envelope["version"], "v1.0")
         self.assertEqual(envelope["createSurface"]["surfaceId"], "my_surface")
-        self.assertEqual(envelope["createSurface"]["catalogId"], "my_catalog")
+        self.assertEqual(envelope["createSurface"]["catalogId"], catalog_id)
+
+        # A catalog id that names no active catalog is rejected, even when only
+        # one catalog is active.
+        with self.assertRaisesRegex(ValueError, "Unknown catalog 'my_catalog'"):
+            run_compiler.compile_dsl_file(
+                self.dsl_file, CATALOG_PATH, "my_surface", "my_catalog"
+            )
 
         # Verifies missing files raise FileNotFoundError
         with self.assertRaises(FileNotFoundError):
@@ -162,13 +173,29 @@ class TestCliTools(unittest.TestCase):
     def test_decompiler_example(self):
         """Verifies decompilation of a JSON layout example file."""
         dsl = run_decompiler.decompile_example(self.json_file, CATALOG_PATH)
-        self.assertIn("welcome = Text", dsl)
-        self.assertIn("root = Column", dsl)
+        self.assertEqual(
+            dsl,
+            'surface("test_surface")\nwelcome = Text("Hello World")\nroot ='
+            " Column([welcome])",
+        )
 
         with self.assertRaises(FileNotFoundError):
             run_decompiler.decompile_example("missing_example.json", CATALOG_PATH)
         with self.assertRaises(FileNotFoundError):
             run_decompiler.decompile_example(self.json_file, "missing_catalog.json")
+
+    def test_decompiler_example_decompiles_whole_message_sequence(self):
+        """Verifies every message of a multi-message example is decompiled."""
+        example = os.path.join(EXAMPLES_DIR, "31_incremental-dashboard.json")
+        dsl = run_decompiler.decompile_example(example, CATALOG_PATH)
+        lines = dsl.splitlines()
+        self.assertEqual(lines[0], 'surface("gallery-incremental-dashboard")')
+        self.assertEqual(lines.count('surface("gallery-incremental-dashboard")'), 4)
+        self.assertIn(
+            'content_grid = Row([left_panel, right_panel], id="content-grid")',
+            lines,
+        )
+        self.assertTrue(lines[-1].startswith("$/logs = ["))
 
     @patch("sys.stdout")
     def test_decompiler_main_cli(self, mock_stdout):

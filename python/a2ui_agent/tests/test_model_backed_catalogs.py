@@ -30,9 +30,11 @@ from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.experimental.express import ExpressCompiler, ExpressFormat
 
 _FORMATS: dict[str, Callable[[CatalogApi], Any]] = {
-    "atom": AtomFormat,
-    "elemental": ElementalFormat,
-    "express": lambda catalog: ExpressFormat(catalog, version=catalog.protocol_version),
+    "atom": lambda catalog: AtomFormat([catalog]),
+    "elemental": lambda catalog: ElementalFormat([catalog]),
+    "express": lambda catalog: ExpressFormat(
+        [catalog], version=catalog.protocol_version
+    ),
 }
 
 
@@ -62,9 +64,15 @@ def test_catalog_instructions_are_the_same_for_model_and_json_catalogs(
 
 
 def test_express_compiler_accepts_weight_with_the_v0_9_basic_catalog():
-    compiler = ExpressCompiler(BasicCatalog("0.9"), "v0.9")
+    from a2ui.inference_formats import (
+        to_message_dicts,
+    )
 
-    messages = compiler.compile('root = Column([t])\nt = Text("hi", weight=2)')
+    compiler = ExpressCompiler([BasicCatalog("0.9")], "v0.9")
+
+    messages = to_message_dicts(
+        compiler.compile('root = Column([t])\nt = Text("hi", weight=2)')
+    )
 
     components = messages[1]["updateComponents"]["components"]
     assert {"id": "t", "component": "Text", "text": "hi", "weight": 2} in components
@@ -75,8 +83,16 @@ def test_schema_helpers_keep_checkable_for_model_and_json_catalogs(version):
     catalog = BasicCatalog(version)
     for candidate in (catalog, _from_json(catalog)):
         helpers = (
-            AtomFormat(candidate).prompt_generator.schema_helper,
-            ExpressFormat(candidate, version=version).prompt_generator.helper,
+            next(
+                iter(AtomFormat([candidate]).prompt_generator.schema_helpers.values())
+            ),
+            next(
+                iter(
+                    ExpressFormat(
+                        [candidate], version=version
+                    ).prompt_generator.helpers.values()
+                )
+            ),
         )
         for helper in helpers:
             assert helper.component_is_checkable["TextField"]

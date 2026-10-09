@@ -58,9 +58,6 @@ def _resolve_catalogs_list(
     defaults: list[CatalogApi] = []
     if hasattr(fmt, "catalogs") and fmt.catalogs:
         defaults.extend(fmt.catalogs)
-    if hasattr(fmt, "catalog") and fmt.catalog:
-        if fmt.catalog not in defaults:
-            defaults.append(fmt.catalog)
 
     return defaults
 
