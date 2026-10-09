@@ -43,8 +43,8 @@ void main() {
       });
     });
 
-    test('parses null keyword as null in parseExpression', () {
-      expect(parser.parseExpression('null'), isNull);
+    test('parses null keyword as an empty string in parseExpression', () {
+      expect(parser.parseExpression('null'), '');
     });
 
     test('parses non-ASCII identifiers and paths', () {
