@@ -15,6 +15,7 @@
 """Dynamic, version-agnostic automated generator for Pydantic v2 schemas and basic catalogs across any A2UI spec version."""
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -485,13 +486,9 @@ def update_root_schema_init(
         if "v0_9" in s2c_compat_dirs
         else (s2c_compat_dirs[-1] if s2c_compat_dirs else latest_dir)
     )
-    legacy_reexports = f"""# Re-exports from primary schema namespace for backwards compatibility
-from .{preferred_reexport}.common_types import *
-from .{preferred_reexport}.constants import *
-from .{preferred_reexport}.server_to_client import *
-from .{preferred_reexport}.client_to_server import *
-from .{preferred_reexport}.client_capabilities import *
-"""
+    # Filled in once the rest of the file is known, so the explicit re-exports
+    # can leave out the names this file defines itself.
+    legacy_reexports = "{LEGACY_REEXPORTS}"
     target_dir = preferred_reexport
 
     has_action = False
@@ -621,8 +618,67 @@ ClientToServerMessagePayload = RendererToAgentMessagePayload
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction
 {schema_helpers_section}"""
+    content = content.replace(
+        legacy_reexports,
+        _legacy_reexports(o_root, preferred_reexport, _defined_names(content)),
+    )
     with open(os.path.join(o_root, "schema/__init__.py"), "w", encoding="utf-8") as f:
         f.write(content)
+
+
+def _defined_names(source: str) -> set[str]:
+    """Returns the names that module-level assignments in `source` define."""
+    return set(re.findall(r"^([A-Za-z_]\w*) = ", source, flags=re.MULTILINE))
+
+
+def _public_type_names(path: str) -> list[str]:
+    """Returns the public classes and type aliases a generated module defines.
+
+    ALL_CAPS constants, such as the `*_DEFS` manifests, are left out.
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        tree = ast.parse(f.read())
+    names: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            names.append(node.name)
+        elif isinstance(node, ast.Assign):
+            names.extend(t.id for t in node.targets if isinstance(t, ast.Name))
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            names.append(node.target.id)
+    return [n for n in names if not n.startswith("_") and not n.isupper()]
+
+
+def _legacy_reexports(o_root: str, module_dir: str, defined: set[str]) -> str:
+    """Re-exports the primary version's models from the multi-version package.
+
+    Common types and constants are re-exported whole. The message and
+    capability models are named one by one, leaving out the names the package
+    defines itself, so the multi-version unions are not shadowed by the
+    primary version's own envelope types.
+    """
+    lines = [
+        "# Re-exports from primary schema namespace for backwards compatibility",
+        f"from .{module_dir}.common_types import *",
+        f"from .{module_dir}.constants import *",
+    ]
+    for module in ("server_to_client", "client_to_server", "client_capabilities"):
+        path = os.path.join(o_root, "schema", module_dir, f"{module}.py")
+        if not os.path.exists(path):
+            continue
+        names = sorted(set(_public_type_names(path)) - defined)
+        if module == "server_to_client":
+            lines.extend([
+                (
+                    "# The envelope names (`AgentToRendererMessage`, `A2uiMessage` and"
+                    " the like)"
+                ),
+                "# are left out: the multi-version unions below define them.",
+            ])
+        lines.append(f"from .{module_dir}.{module} import (")
+        lines.extend(f"    {name}," for name in names)
+        lines.append(")")
+    return "\n".join(lines) + "\n"
 
 
 def main():

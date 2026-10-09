@@ -21,7 +21,6 @@
 - `validate_payload` accepts a payload that creates a surface whose
   components name children that a later message in the payload adds, and a
   v0.8 payload that deletes a surface and starts it over.
-
 - **BREAKING**: Implement `A2uiGenerator`, `A2uiRequestProcessor`, `CatalogConfig`,
   `CatalogProvider` (`FileSystemCatalogProvider`, `InMemoryCatalogProvider`),
   `InferenceFormatFactory` (`DirectJsonFormatFactory`, `ExpressFormatFactory`,

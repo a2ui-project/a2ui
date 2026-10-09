@@ -38,11 +38,11 @@ The following directories contain the base protocol logic, parsing, and schema o
 
 ### Parser (`src/a2ui/parser`)
 
-- **`parser.py`**: Defines the `Parser` (`A2uiStreamParser`) abstract base class and `parse_response` / `split_response` helpers.
+- **`parser.py`**: Defines the `Parser` abstract base class (`wrap`, `unwrap`, `compile`, `decompile`, `parse_response`, and `parse_chunk` for formats whose `supports_streaming` is true).
 - **`response_part.py`**: Defines `ResponsePart` (`TextPart` / `A2uiPart`) and `RawResponsePart` (`RawA2uiPart`).
 - **`lexer.py`**: Defines `BlockLexer` for sentinel-tag tokenization (`<a2ui-json>...</a2ui-json>`).
 - **`errors.py`**: Defines `A2uiParseError` and `A2uiTargetNotFoundError`.
-- **`streaming.py`**: Incremental streaming parsers with automatic JSON healing and validation.
+- **`messages.py`**: `to_message_models` and `to_message_dicts` convert between message dictionaries and typed models.
 - **`payload_fixer.py`**: Utilities to automatically correct common LLM output
   issues in A2UI payloads.
 
@@ -50,7 +50,7 @@ The following directories contain the base protocol logic, parsing, and schema o
 
 - **`prompt/generator.py`**: Defines the `PromptGenerator` (`A2uiPromptGenerator`) abstract base class (`generate_base_rules`, `generate_catalog_instructions`, `generate_examples`, `generate`).
 - **`inference_format.py`**: Defines `InferenceFormat` and `InferenceFormatFactory`.
-- **`inference_formats/`**: Format implementations and factories for Direct JSON (`direct_json/`), Express (`express/`), and experimental Elemental and Atom (`experimental/`) formats.
+- **`inference_formats/`**: Format implementations and factories for Direct JSON (`direct_json/`), Express (`express/`), and experimental Elemental and Atom (`experimental/`) formats. Direct JSON is the format that streams: `DirectJsonParser.parse_chunk` heals the partial JSON of each chunk (`direct_json/json_reader.py`) and emits the messages that are ready.
 
 ## A2A (`src/a2ui/a2a`)
 

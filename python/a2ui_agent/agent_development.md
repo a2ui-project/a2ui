@@ -86,7 +86,7 @@ snippet, and combine it with your agent's role/workflow instructions and
 optional few-shot examples loaded via `load_examples`.
 
 ```python
-from a2ui.prompt import load_examples
+from a2ui.schema import load_examples
 
 examples = load_examples(
     processor.active_catalogs,
@@ -310,7 +310,7 @@ at runtime (e.g., during session preparation) to negotiate the active catalogs
 and store the selected catalog in the session state.
 
 ```python
-from a2ui.prompt import load_examples
+from a2ui.schema import load_examples
 
 # In your AgentExecutor subclass
 async def _prepare_session(self, context, run_request, runner):
