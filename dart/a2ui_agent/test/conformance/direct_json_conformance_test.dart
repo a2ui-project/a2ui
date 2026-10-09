@@ -203,7 +203,7 @@ Object? _perform(Map<String, Object?> testCase) {
 void _runChunks(Map<String, Object?> testCase) {
   final args = testCase['args']! as Map<String, Object?>;
   final bool wrapped = args['wrapped'] as bool? ?? true;
-  final bool asWritten = caseCatalogVersion(args) == '0.9';
+  final asWritten = caseCatalogVersion(args) == '0.9';
   final String? catalogId = asWritten ? null : injectedCatalogId(testCase);
   List<Object?> lift(List<ResponsePart> parts) => asWritten
       ? _partsAsWritten(parts)
