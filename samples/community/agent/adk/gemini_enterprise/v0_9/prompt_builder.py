@@ -14,8 +14,7 @@
 
 import os
 
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.processor import CatalogConfig
+from a2ui.processor import A2uiRequestProcessor, CatalogConfig
 from a2ui.schema import VERSION_0_9
 
 COMPOSITE_CATALOG_PATH = os.path.join(
@@ -133,20 +132,20 @@ def get_text_prompt() -> str:
 if __name__ == "__main__":
     from a2ui.schema import load_examples
 
-    # Example of how to use the Direct JSON format to generate a system prompt.
+    # Example of how to use A2uiRequestProcessor to generate a system prompt.
     version = VERSION_0_9
     catalog = CatalogConfig.from_path(
         catalog_path=COMPOSITE_CATALOG_PATH,
         protocol_version=version,
     ).transformed_catalog
-    direct_json_format = DirectJsonFormat([catalog])
+    processor = A2uiRequestProcessor([catalog])
     examples = load_examples(
-        direct_json_format.catalogs, f"examples/{version}", validate=True
+        processor.active_catalogs, f"examples/{version}", validate=True
     )
     prompt_parts = [
         ROLE_DESCRIPTION,
         f"## UI Description:\n{UI_DESCRIPTION}",
-        direct_json_format.prompt_generator.generate(),
+        processor.prompt_snippet,
     ]
     if examples:
         prompt_parts.append(f"### Examples:\n{examples}")

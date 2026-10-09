@@ -172,16 +172,7 @@ DEFAULT_CATALOG = "test_data/catalogs/simplified_catalog_v1_0.json"
 
 # Cases the suites fix and this SDK does not yet satisfy. Marked strict so that
 # fixing the implementation fails the marker instead of passing silently.
-KNOWN_GAPS: dict[str, str] = {
-    # Request processor (addressed in Breakdown PR 3).
-    "test_absent_capabilities_is_an_error": (
-        "resolve_catalogs treats absent renderer capabilities as activating"
-        " every registered catalog rather than raising CatalogError"
-    ),
-    "test_example_using_an_unknown_component_fails_at_creation": (
-        "A2uiGenerator.create_processor is implemented in Breakdown PR 3"
-    ),
-}
+KNOWN_GAPS: dict[str, str] = {}
 
 # Cases this SDK has no API to run at all, as opposed to running and
 # disagreeing.
@@ -731,26 +722,81 @@ def _expect_catalog(catalog, expected):
         assert sorted(catalog.functions) == sorted(set(expected["functions"]))
 
 
+def _factory_for(format_name, allowed_messages=None, progressive_keys=None):
+    from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
+    from a2ui.inference_formats.experimental.atom import AtomFormatFactory
+    from a2ui.inference_formats.experimental.elemental import ElementalFormatFactory
+    from a2ui.inference_formats.experimental.express import ExpressFormatFactory
+
+    if format_name == "express":
+        return ExpressFormatFactory(
+            allowed_messages=allowed_messages,
+            surface_id=CONFORMANCE_SURFACE_ID,
+        )
+    if format_name == "elemental":
+        return ElementalFormatFactory(
+            allowed_messages=allowed_messages,
+            surface_id=CONFORMANCE_SURFACE_ID,
+        )
+    if format_name == "atom":
+        return AtomFormatFactory(
+            allowed_messages=allowed_messages,
+            surface_id=CONFORMANCE_SURFACE_ID,
+        )
+    if format_name == "direct_json":
+        kwargs = {}
+        if progressive_keys is not None:
+            kwargs["progressive_keys"] = frozenset(progressive_keys)
+        return DirectJsonFormatFactory(
+            allowed_messages=allowed_messages,
+            **kwargs,
+        )
+    raise ValueError(f"Unknown inference format: {format_name}")
+
+
 def run_create_processor_case(test_case, tmp_path):
+    from a2ui.processor import A2uiGenerator
+
     args = test_case["args"]
     configs = [catalog_config_from_document(entry) for entry in args["catalogs"]]
     before = _describe_configs(configs)
-    format_name = args.get("format_override") or args.get("format", "direct_json")
+    loaded_examples = stage_examples(args.get("examples", []), tmp_path)
+    base_factory = _factory_for(
+        args.get("format", "direct_json"),
+        allowed_messages=args.get("allowed_messages"),
+        progressive_keys=args.get("progressive_keys"),
+    )
+    override_factory = (
+        _factory_for(
+            args["format_override"],
+            allowed_messages=args.get("allowed_messages"),
+            progressive_keys=args.get("progressive_keys"),
+        )
+        if "format_override" in args
+        else None
+    )
+    generator = A2uiGenerator(
+        catalogs=configs,
+        examples=loaded_examples,
+        inference_format_factory=base_factory,
+        accepts_inline_catalogs=args.get("accepts_inline_catalogs", False),
+    )
 
     def create():
-        active = resolve_catalogs(configs, args.get("renderer_capabilities"))
-        fmt = make_format(
-            args, tmp_path=tmp_path, catalogs=active, format_name=format_name
+        processor = generator.create_processor(
+            args.get("renderer_capabilities"),
+            inference_format_factory=override_factory,
         )
-        snippet = fmt.prompt_generator.generate()
-        return active, fmt, snippet
+        snippet = processor.prompt_snippet
+        return processor, snippet
 
     if "expect_error" in test_case:
         with assert_raises(test_case["expect_error"]):
             create()
         return
 
-    active, fmt, snippet = create()
+    processor, snippet = create()
+    active = processor.active_catalogs
     expect = test_case.get("expect", {})
     if "active_catalog_ids" in expect:
         assert [c.catalog_id for c in active] == expect["active_catalog_ids"]
@@ -762,16 +808,17 @@ def run_create_processor_case(test_case, tmp_path):
         expect.get("prompt_snippet_absent", []),
     )
     if expect.get("generator_catalogs_unchanged"):
-        assert _describe_configs(configs) == before
+        assert _describe_configs(generator.catalogs) == before
 
     parse = test_case.get("then_parse")
     if parse is not None:
-        parser = fmt.create_parser()
         if "expect_error" in parse:
             with assert_raises(parse["expect_error"]):
-                parser.parse_response(parse["input"])
+                processor.parse_response(parse["input"])
         else:
-            assert_parts_match(parser.parse_response(parse["input"]), parse["expect"])
+            assert_parts_match(
+                processor.parse_response(parse["input"]), parse["expect"]
+            )
 
 
 @pytest.mark.parametrize("name, test_case", cases_request_processor)
