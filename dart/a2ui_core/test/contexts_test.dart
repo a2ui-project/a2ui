@@ -227,6 +227,90 @@ void main() {
       addTearDown(surface.dispose);
     });
 
+    group('from v1.0', () {
+      late List<A2uiClientError> v1Errors;
+
+      SurfaceModel<ComponentApi> v1Surface({bool withDefault = true}) {
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            MinimalCatalog()
+                .copyWith(protocolVersion: A2uiProtocolVersion.v1_0);
+        final s = SurfaceModel<ComponentApi>(
+          'surf-v1',
+          defaultCatalog: withDefault ? catalog : null,
+          availableCatalogs: [catalog],
+          protocolVersion: 'v1.0',
+        );
+        v1Errors = [];
+        s.onError.addListener(v1Errors.add);
+        addTearDown(s.dispose);
+        return s;
+      }
+
+      Object? resolve(SurfaceModel<ComponentApi> s, Object? value) {
+        final root = ComponentModel(
+          'root',
+          'Text',
+          {},
+        );
+        return ComponentContext(s, root).dataContext.resolveSync(value);
+      }
+
+      test('dispatches CATALOG_ERROR for a call naming an unknown catalog', () {
+        final SurfaceModel<ComponentApi> s = v1Surface();
+
+        expect(
+          resolve(s, {
+            '@call': 'capitalize',
+            'catalogId': 'https://example.com/missing.json',
+            'args': <String, Object?>{},
+          }),
+          isNull,
+        );
+        expect(v1Errors, hasLength(1));
+        expect(v1Errors.single.code, 'CATALOG_ERROR');
+        expect(v1Errors.single.message, contains('Catalog not found'));
+      });
+
+      test(
+          'dispatches CATALOG_ERROR for a call naming no catalog on a surface '
+          'without a default', () {
+        final SurfaceModel<ComponentApi> s = v1Surface(withDefault: false);
+
+        expect(
+          resolve(s, {'@call': 'capitalize', 'args': <String, Object?>{}}),
+          isNull,
+        );
+        expect(v1Errors, hasLength(1));
+        expect(v1Errors.single.code, 'CATALOG_ERROR');
+        expect(v1Errors.single.message, contains('no default catalogId'));
+      });
+
+      test(
+          'dispatches EXPRESSION_ERROR for a function missing from the '
+          'resolved catalog', () {
+        final SurfaceModel<ComponentApi> s = v1Surface();
+
+        expect(
+          resolve(s, {'@call': 'missing', 'args': <String, Object?>{}}),
+          isNull,
+        );
+        expect(v1Errors, hasLength(1));
+        expect(v1Errors.single.code, 'EXPRESSION_ERROR');
+        expect(v1Errors.single.message, contains('Function not found'));
+      });
+
+      test('dispatches EXPRESSION_ERROR for an unknown system function', () {
+        final SurfaceModel<ComponentApi> s = v1Surface(withDefault: false);
+
+        expect(
+          resolve(s, {'@call': '@missing', 'args': <String, Object?>{}}),
+          isNull,
+        );
+        expect(v1Errors, hasLength(1));
+        expect(v1Errors.single.code, 'EXPRESSION_ERROR');
+      });
+    });
+
     test('dispatches an expression error immediately by default', () {
       final componentContext = ComponentContext(surface, component);
 
@@ -402,14 +486,14 @@ void main() {
       );
     });
 
-    test('isV10 matches versions >= 1.0 semantically', () {
+    test('atLeastV10 matches versions >= 1.0 semantically', () {
       final ctx1 = DataContext(
         dataModel,
         mockInvoker,
         '/',
         protocolVersion: 'v1.1',
       );
-      expect(ctx1.isV10, isTrue);
+      expect(ctx1.atLeastV10, isTrue);
 
       final ctx2 = DataContext(
         dataModel,
@@ -417,7 +501,7 @@ void main() {
         '/',
         protocolVersion: '2.0.0',
       );
-      expect(ctx2.isV10, isTrue);
+      expect(ctx2.atLeastV10, isTrue);
 
       final ctx3 = DataContext(
         dataModel,
@@ -425,7 +509,7 @@ void main() {
         '/',
         protocolVersion: 'v0.9.1',
       );
-      expect(ctx3.isV10, isFalse);
+      expect(ctx3.atLeastV10, isFalse);
     });
 
     test('bindingFor returns version-appropriate binding map', () {
@@ -747,8 +831,10 @@ void main() {
         'CatalogInvokerExtension.invoke throws A2uiCatalogError on unknown '
         'function', () {
       final componentContext = ComponentContext(surface, component);
+      final Catalog<ComponentApi, FunctionImplementation> catalog =
+          surface.defaultCatalog!;
       expect(
-        () => surface.defaultCatalog!.invoke(
+        () => catalog.invoke(
           'unknownFn',
           const <String, dynamic>{},
           componentContext.dataContext,
@@ -757,7 +843,7 @@ void main() {
           isA<A2uiCatalogError>().having(
             (e) => e.catalogId,
             'catalogId',
-            surface.defaultCatalog!.id,
+            catalog.id,
           ),
         ),
       );

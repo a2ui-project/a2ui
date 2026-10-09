@@ -45,7 +45,14 @@ void main() {
 String? _skipReason(Map<String, Object?> testCase) {
   final String? version = caseVersion(testCase);
   if (version != null && version != '0.9' && version != '0.9.1') {
-    return 'Targets protocol v$version; this harness runs v0.9 cases only.';
+    final expected = testCase['expect'] as Map<String, Object?>?;
+    final bool validatesComponents = testCase['action'] == 'from_json' &&
+        (expected?.containsKey('validComponents') == true ||
+            expected?.containsKey('invalidComponents') == true);
+    if (!validatesComponents) {
+      return 'Targets protocol v$version; this harness runs v0.9 cases '
+          'and, from v1.0, the from_json cases that validate components.';
+    }
   }
   if (testCase.containsKey('expectCatalog')) {
     return 'expectCatalog checks the SDK implementation of the basic '
@@ -123,6 +130,50 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
   if (expected['theme'] case final Map<String, Object?> expectedTheme) {
     if (expectedTheme.isNotEmpty) {
       expect(catalog.themeSchema, isNotNull, reason: '$name: themeSchema');
+    }
+  }
+  _checkComponents(testCase, catalog, expected, name);
+}
+
+/// Validates the case's `validComponents` and `invalidComponents` against
+/// [catalog] alone, with a validator for the case's protocol version.
+void _checkComponents(
+  Map<String, Object?> testCase,
+  CatalogApi catalog,
+  Map<String, Object?> expected,
+  String name,
+) {
+  final Object? valid = expected['validComponents'];
+  final Object? invalid = expected['invalidComponents'];
+  if (valid is! List<Object?> && invalid is! List<Object?>) return;
+
+  final A2uiProtocolVersion version = A2uiProtocolVersion.fromJson(
+    'v${caseVersion(testCase) ?? '0.9'}',
+  );
+  final validator = PayloadValidator<ComponentApi, FunctionApi>(
+    catalog: catalog,
+    protocolVersion: version,
+    // This package embeds the v0.9 common types only.
+    commonTypesSchema: version.isAtLeast(A2uiProtocolVersion.v1_0)
+        ? readConformanceJson('specification/v1_0/json/common_types.json')
+        : null,
+  );
+  if (valid is List<Object?>) {
+    for (final Object? component in valid) {
+      expect(
+        () => validator.validateComponent(component! as Map<String, Object?>),
+        returnsNormally,
+        reason: '$name: valid component $component',
+      );
+    }
+  }
+  if (invalid is List<Object?>) {
+    for (final Object? component in invalid) {
+      expect(
+        () => validator.validateComponent(component! as Map<String, Object?>),
+        throwsA(isA<A2uiValidationError>()),
+        reason: '$name: invalid component $component',
+      );
     }
   }
 }

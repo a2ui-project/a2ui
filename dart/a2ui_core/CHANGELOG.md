@@ -164,7 +164,7 @@
   is no fallback to the processor's catalogs. A v0.9 `createSurface` without
   a `catalogId` is rejected, as the v0.9 schema requires one.
 - `SurfaceModel.protocolVersion` is the version of the message that created
-  the surface, so `DataContext.isV10` follows each surface's own version.
+  the surface, so `DataContext.atLeastV10` follows each surface's own version.
 - New `InternalOperation` (`CreateSurfaceOp`, `UpdateComponentsOp`,
   `UpdateDataModelOp`, `DeleteSurfaceOp`, `CallRendererFunctionOp`,
   `AgentFunctionResponseOp`), `VersionAdapter`, `V0_9Adapter` (v0.9 and
@@ -178,18 +178,22 @@
 - **Breaking:** `SurfaceModel.catalog` is replaced by a nullable
   `defaultCatalog`, and the constructor's `catalog:` argument by
   `defaultCatalog:`. `SurfaceModel` adds `availableCatalogs`, `metadata`,
-  `onWarning`/`dispatchWarning` (with the new `A2uiWarning`), and
-  `resolveCatalog(catalogId)`, which resolves an item's own `catalogId`, then
-  the default, and otherwise throws `A2uiCatalogError`. There is no fallback to
-  a sole catalog. A catalog whose `protocolVersion` is incompatible with the
+  `onWarning`/`dispatchWarning` (with the new `A2uiWarning`),
+  `catalogForComponent`, which returns a component's `ComponentModel.catalog`
+  typed for the surface, and `resolveCatalog(catalogId, {subject})`, which
+  resolves an item's own `catalogId`, then the default, and otherwise throws
+  `A2uiCatalogError`: `Catalog not found: <id>. ...` for a catalog the surface
+  doesn't have, or `... has no default catalogId.` when the item names none.
+  `subject` names the item in the message. There is no fallback to a sole
+  catalog. A catalog whose `protocolVersion` is incompatible with the
   surface's throws `A2uiCatalogError` at construction. A catalog without a
   `protocolVersion` is pre-v1.0: a v0.9 or v0.9.1 surface accepts it and a
   v1.0 or later surface rejects it.
-- **Behavior change:** `NodeResolver`, `GenericBinder` and `DataContext`
-  resolve components and function calls through `surface.resolveCatalog`, so a
-  component or function call naming another catalog's `catalogId` renders or
-  runs with that catalog. `FunctionCall` adds `catalogId`, and `DataContext`
-  adds `invokerForCatalog`.
+- **Behavior change:** `NodeResolver` and `GenericBinder` render each
+  component with its `ComponentModel.catalog`. From v1.0, `DataContext` runs a
+  function call naming a `catalogId` in that catalog, through the new
+  `invokerForCatalog`; before v1.0 a call's `catalogId` is ignored and the call
+  runs in the default catalog. `FunctionCall` adds `catalogId`.
 - **Behavior change:** `MessageProcessor` gives each surface the processor
   catalogs compatible with its protocol version as `availableCatalogs`, and
   `createSurface` without a `catalogId` creates a surface with no default
@@ -217,10 +221,19 @@
   `args` only for functions with required parameters.
 - **Breaking:** `Catalog.fromJson` inlines and flattens `allOf` component envelopes (`ComponentCommon`, `CatalogComponentCommon`, `Checkable`), maps `accessibility` and `checks` mixins, omits envelope keys (`id`, `component`, `catalogId`) from `ComponentApi.schema`, and replaces `REF:` description prefixes in `CommonSchemas` with `commonTypesRef` metadata.
 - Adds `Catalog.protocolVersion`, `FunctionApi.description`, and `FunctionImplementation.description`, and updates `Catalog.catalogSchema` to rebuild component envelopes, emit `anyComponent.discriminator` and function `description`, and restore `common_types.json#/$defs/...` references.
-- Allows the `catalogId` envelope property during component validation in `PayloadValidator`.
 - Resolves local `#/...` pointers that are absent from the catalog document against `commonTypes` in `resolveSchemaRefs`.
 - Support non-ASCII data model keys in templates.
 - `A2uiVersionCapabilities.fromJson` throws `A2uiCatalogError` when `inlineCatalogs` is present but isn't an array, or contains an entry that isn't an object.
+- **Breaking** (v1.0): An empty `catalogId` (`""`) names a catalog like any other, so it never falls back to the default: `MessageProcessor` rejects it with `A2uiCatalogError` (`Catalog not found`).
+- **Breaking** (v1.0): Every component in `updateComponents` must name its `component` type, as the specification requires; `MessageProcessor` no longer lets an update omit it and keep the previous type. An update that names no `catalogId` resolves to the surface's default catalog, like any other component, instead of keeping the catalog of the component it replaces. An update that changes a component's catalog, even with the same type, replaces its `ComponentModel` rather than updating the existing one in place.
+- `PayloadValidator` (v1.0): a nested function call is fully checked against the validator's catalog when it runs there: when it names that catalog, or names no `catalogId` while the component is in the surface default catalog, including calls nested in the arguments of a call that runs elsewhere. Called directly, the validator takes a component that names no `catalogId` to be in the surface default. These calls are checked before the component's own schema, so the error names the function and argument. Any other call runs in a catalog the validator can't see, so it is checked only for its names: function and argument names must be UAX #31 identifiers (so an empty function name is rejected rather than skipped), and the only `@`-prefixed name allowed is `@index`. An empty `catalogId` names a catalog too, and a non-string `catalogId` is rejected. `validateFunction` judges the calls in its arguments as in a component that names no `catalogId`. The calls are checked even in a component whose type the catalog doesn't declare, when `allowUnknownElements` lets that component through. A call that omits `args` is read as passing `{}`, so it is accepted when the function requires no argument. `MessageProcessor` decides whether a component is in the surface default from the catalog it resolves to, so a component that explicitly names the default catalog has its catalogless calls checked like one that names none. It resolves every nested call's catalog and checks the calls the component's validator leaves unjudged against the catalog they resolve to, and rejects a component whose `catalogId` is not a string with `A2uiValidationError` instead of resolving it to the default.
+- `PayloadValidator` normalizes untyped map and list literals (such as `{'args': {}}`) before schema validation, so they fail validation with `A2uiValidationError` instead of throwing a `TypeError`.
+- **Behavior change:** `MessageProcessor.getClientDataModel` and `getRendererDataModel` take an optional `version` and report that version, else the processor's `defaultVersion`, in the envelope instead of always `v0.9`. The envelope holds only the surfaces whose protocol version is compatible with it. With neither version set, every surface is reported under `v0.9`, as before.
+- **Breaking:** `ComponentModel` requires the catalog the component resolved to: `ComponentModel(id, type, properties, catalog: catalog)`, exposed as `ComponentModel.catalog`. `MessageProcessor` sets it to the catalog the component's `catalogId` names, else the surface default, so the node resolver and binder no longer re-derive it from the properties. An update that resolves to a different catalog replaces the model. `ComponentModel.toJson` is unchanged: it emits `catalogId` only when the payload named one.
+- **Breaking:** `DataContext.isV10` is renamed `DataContext.atLeastV10`, since it is true for v1.0 and every later version. No alias is kept.
+- **Breaking:** A function call whose catalog can't be resolved (it names a catalog the surface doesn't have, or names none on a surface without a default) is reported on the surface error channel with code `CATALOG_ERROR` instead of `EXPRESSION_ERROR`, by `ComponentContext` and `NodeResolver` alike; a `DataContext` error reporter receives an `A2uiExpressionError` whose `code` is `CATALOG_ERROR`. Every other evaluation failure, including a function missing from the catalog the call resolved to and an unknown system function, keeps `EXPRESSION_ERROR`.
+- The reserved `@index` system function (v1.0) belongs to no catalog: `MessageProcessor` validates it without resolving a catalog and rejects it if it names a `catalogId`, and `@`-prefixed names other than `@index` are rejected. This SDK does not evaluate system functions yet: evaluating an `@index` call throws `A2uiExpressionError` (or reports it to the `DataContext` error reporter). A system function call that names a `catalogId`, whatever its value, fails the same way with code `EXPRESSION_ERROR`, rather than with an `A2uiValidationError` from parsing the call.
+- `PayloadValidator.validateComponent` treats `id`, `component`, `catalogId` and `metadata` as component envelope keys and leaves each one out of what the component schema sees unless the schema declares it, so a closed schema (`additionalProperties: false`) accepts a component that names its catalog, and a schema that declares `catalogId` checks it with its own rule. A `catalogId` left out this way must still be a string.
 - **Breaking:** `UpdateDataModelMessage` adds `hasValue` (defaulting to `true`) so `toJson()` emits `'value': null` for explicit null deletions while `fromJson()` distinguishes an omitted `value` from an explicit `null`.
 - **Breaking:** `SurfaceModel.dispatchAction` records action timestamps in UTC (`DateTime.now().toUtc()`) and `A2uiClientAction.toJson()` serializes timestamps in UTC (`timestamp.toUtc().toIso8601String()`) so serialized timestamps always end with `Z` per RFC 3339.
 - **Breaking:** `A2uiClientError` validates in its constructor (not only in debug assertions) that a `VALIDATION_FAILED` error provides a non-empty `path`, throwing `A2uiValidationError`.
@@ -239,7 +252,7 @@
 - `EventNotifier.emit` isolates listener exceptions, logging them via
   `Logger('a2ui.EventNotifier')` and continuing delivery to remaining
   listeners.
-- Validate `DataBinding`, `FunctionCall`, `Action`, and `ChildListTemplate` fields during JSON deserialization (`A2uiValidationError`), preserve `reservedKeys` (`@path`/`@call`) and `catalogId` across `toJson` (the `@call` form omits `returnType`, which the v1.0 schema does not declare), default `FunctionCall.returnType` to `A2uiReturnType.any`, treat a non-list `checks` value as no rules (as web_core and the Python core do) and guard dynamic map casts against `TypeError`, and throw `A2uiStateError` from `ComponentContext.childContext` and `A2uiCatalogError` from `CatalogInvokerExtension.invoke`.
+- Validate `DataBinding`, `FunctionCall`, `Action`, and `ChildListTemplate` fields during JSON deserialization (`A2uiValidationError`), preserve `reservedKeys` (`@path`/`@call`) across `toJson`, and `catalogId` in the `@call` form (which omits `returnType`, as the v1.0 schema declares none; the v0.9 `call` form has no `catalogId`), default `FunctionCall.returnType` to `A2uiReturnType.any`, treat a non-list `checks` value as no rules (as web_core and the Python core do) and guard dynamic map casts against `TypeError`, and throw `A2uiStateError` from `ComponentContext.childContext` and `A2uiExpressionError` from `CatalogInvokerExtension.invoke` when the catalog has no such function.
 - Add `isValidUax31Identifier` and `assertUax31Identifier` for UAX #31 identifier validation, `A2uiErrorDetail`, `cause` chaining on `A2uiError` subclasses, and `code`/`path`/`errors` on `A2uiValidationError`. `A2uiError` now takes `code` as a named parameter, and `A2uiValidationError` aligns its default code to `'VALIDATION_FAILED'`.
 - Add `Catalog.refMap`, a cached `ComponentRefMap` of each component type's
   child-reference properties. `MessageProcessor` graph validation and
@@ -280,17 +293,22 @@
 - `ValidationConfig` adds `allowUnknownElements`, `targetVersion`,
   `allowedMessages`, `rootId` and `maxDepth`. `ValidationConfig.relaxed` now
   also sets `allowUnknownElements`.
-- An `updateComponents` entry that omits `component` is checked against the
-  existing component's type and catalog schema; its properties still replace
-  the existing ones.
-- `ComponentModel` adds `catalog` (the component's `catalogId`) and `metadata`,
-  and `properties` no longer holds `catalogId` or `metadata`. A component whose
-  `catalogId` changes is recreated, as for a change of type.
+- Before v1.0, an `updateComponents` entry that omits `component` is checked
+  against the existing component's type and catalog schema, and keeps its
+  `catalogId` and `metadata` when it omits those too; its properties still
+  replace the existing ones.
+- `ComponentModel` adds `catalogId` (the `catalogId` the payload named, or
+  null) and `metadata`, and `properties` no longer holds `catalogId` or
+  `metadata`. A component whose type or resolved `ComponentModel.catalog`
+  changes is recreated (`onDeleted`, then `onCreated`).
 - `SurfaceModel` adds `rootId`, defaulting to `root` or to
   `ValidationConfig.rootId`, and `NodeResolver` roots the tree at it.
 - `SurfaceComponentsModel` adds `getAll()`, `has()`, `size`, `entries`, `keys`,
   `values`, `getChildIds()`, `validateTopology()`, `detectCycles()`,
-  `validateReferences()` and `validateComponentsUpdate()`.
+  `validateReferences()` and `validateComponentsUpdate()`. The graph queries
+  read each component's child references through its own
+  `ComponentModel.catalog`, so a surface that mixes catalogs or has no default
+  catalog is walked correctly.
 - Added `ValidationResult` and `A2uiReturnType.validationResult` for structured
   client-side validation outcomes (`valid`, `message`, `code`, `severity`), and
   exposed `validationResults` alongside `isValid` and `validationErrors` on
@@ -447,7 +465,8 @@
   before its surface. Node props and container-valued bindings are detached,
   recursively unmodifiable snapshots.
 - Node bindings report a missing or failing catalog function as an
-  `EXPRESSION_ERROR` client error on the surface and resolve to null.
+  `EXPRESSION_ERROR` client error on the surface, and a call whose catalog
+  can't be resolved as `CATALOG_ERROR`, and resolve to null.
 - Validation and node resolution recognize wire/local `$ref` pointers and
   `REF:` description markers. Resolution additionally recognizes unmarked
   structural `ChildList` schemas, which validation deliberately ignores so a

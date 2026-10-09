@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
@@ -22,67 +19,14 @@ import 'package:test/test.dart';
 import '../support/renderer_catalog.dart';
 import 'conformance_harness.dart';
 
-/// Why the v1.0 catalog resolution cases are expected to fail: the Dart
-/// processor does not yet resolve each component and function call to the
-/// catalog it names, else the surface default, else an error.
-const String _v10CatalogResolutionPending =
-    'v1.0 catalog resolution is not implemented in Dart yet.';
-
 /// Cases in `core/message_processor_v1_0.yaml` expected to fail, with the
 /// reason each is currently failing.
 const Map<String, String> _v10ExpectedFailures = {
-  'test_v10_component_catalog_override':
-      "The case's inline catalogs declare no components, so `children` is "
-          'not known as a child reference and reads back null.',
   'test_v10_create_surface_inline_initialization':
-      'The v1.0 basic catalog requires `child` and `action` on `Button`, '
-          "which the case's `btn1` omits.",
+      "The case's Button lacks the action and child the basic catalog "
+          'requires, and this SDK validates inline createSurface components.',
   'test_v10_create_surface_metadata_extension_key_must_be_identifier':
       'Metadata extension keys are not checked against the v1.0 schema yet.',
-  'test_v10_call_in_index_args_is_checked': _v10CatalogResolutionPending,
-  'test_v10_call_in_index_args_on_surface_without_default_errors':
-      _v10CatalogResolutionPending,
-  'test_v10_call_in_list_with_invalid_args_errors':
-      _v10CatalogResolutionPending,
-  'test_v10_call_in_list_without_catalog_id_uses_surface_default':
-      _v10CatalogResolutionPending,
-  'test_v10_calls_in_lists_naming_their_catalog': _v10CatalogResolutionPending,
-  'test_v10_call_without_catalog_id_on_surface_without_default_errors_'
-      'without_strict_mode': _v10CatalogResolutionPending,
-  'test_v10_component_naming_catalog_is_checked_against_that_catalog':
-      _v10CatalogResolutionPending,
-  'test_v10_components_naming_catalogs_on_surface_without_default':
-      _v10CatalogResolutionPending,
-  'test_v10_component_update_without_catalog_id_on_surface_without_'
-      'default_errors': _v10CatalogResolutionPending,
-  'test_v10_component_without_catalog_id_errors_with_a_single_catalog':
-      _v10CatalogResolutionPending,
-  'test_v10_component_without_catalog_id_on_surface_without_default_errors':
-      _v10CatalogResolutionPending,
-  'test_v10_function_call_naming_catalog_with_invalid_args_errors':
-      _v10CatalogResolutionPending,
-  'test_v10_function_call_naming_catalog_without_that_function_errors':
-      _v10CatalogResolutionPending,
-  'test_v10_function_call_naming_catalog_with_valid_args':
-      _v10CatalogResolutionPending,
-  'test_v10_function_call_with_empty_catalog_id_errors':
-      _v10CatalogResolutionPending,
-  'test_v10_function_call_with_empty_name_errors': _v10CatalogResolutionPending,
-  'test_v10_function_call_without_catalog_id_on_surface_without_default_errors':
-      _v10CatalogResolutionPending,
-  'test_v10_function_call_without_catalog_id_to_unknown_function_errors':
-      _v10CatalogResolutionPending,
-  'test_v10_function_call_without_catalog_id_uses_surface_default':
-      _v10CatalogResolutionPending,
-  'test_v10_get_renderer_data_model_filters_by_surface_protocol_version':
-      _v10CatalogResolutionPending,
-  'test_v10_nested_call_in_args_naming_its_catalog':
-      _v10CatalogResolutionPending,
-  'test_v10_nested_call_in_args_on_surface_without_default_errors':
-      _v10CatalogResolutionPending,
-  'test_v10_nested_call_in_args_resolves_its_own_catalog':
-      _v10CatalogResolutionPending,
-  'test_v10_undefined_system_function_errors': _v10CatalogResolutionPending,
 };
 
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to
@@ -146,6 +90,7 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
   final strictMode = testCase['strictMode'] == true;
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
+    commonTypesSchema: _commonTypesFor(testCase),
     validationConfig:
         strictMode ? ValidationConfig.strict : ValidationConfig.relaxed,
   );
@@ -167,14 +112,23 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
   _checkSurfaces(processor, expected, name);
 }
 
+/// Runs a data model request, after the case's `messages` or, one batch per
+/// step, its `steps`. `args.version` is the version requested.
 void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
     defaultVersion: A2uiProtocolVersion.v0_9,
+    commonTypesSchema: _commonTypesFor(testCase),
     validationConfig: ValidationConfig.relaxed,
   );
-  _process(processor, testCase);
+  if (testCase['steps'] case final List<Object?> steps) {
+    for (final step in steps) {
+      _process(processor, step! as Map<String, Object?>);
+    }
+  } else {
+    _process(processor, testCase);
+  }
 
   final Map<String, Object?> args =
       (testCase['args'] as Map<String, Object?>?) ?? const {};
@@ -225,36 +179,43 @@ void _runResolvePathCase(Map<String, Object?> testCase) {
   expect(context.resolvePath(path), equals(testCase['expect']), reason: name);
 }
 
+/// The `common_types.json` a case's processor validates against: the
+/// published v1.0 document for a case targeting v1.0 or later, which this
+/// package does not embed yet, and otherwise the embedded copy.
+Map<String, Object?>? _commonTypesFor(Map<String, Object?> testCase) =>
+    compareVersions(_versionOf(testCase), 'v1.0') >= 0
+        ? readConformanceJson('specification/v1_0/json/common_types.json')
+        : null;
+
+/// The catalogs a case registers.
+///
+/// A case targeting v1.0 or later registers the documents its
+/// `catalogPaths` name together with its inline `catalogs`. A document that
+/// declares no `protocolVersion` is pre-v1.0, as `Catalog` reads it; an
+/// inline catalog that declares none targets the case's version. A case
+/// declaring one document and no inline catalog names it by whichever id
+/// its messages use, as the validator harness does.
+///
+/// v0.9 cases run over inline `catalogs`, a single inline `catalog`, or else
+/// the permissive catalog below rather than the documents they name, as they
+/// always have here: they test processing, and the schema checks have their
+/// own suite.
 List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
   Map<String, Object?> testCase,
 ) {
   final String version = _versionOf(testCase);
-  if (testCase['catalogs'] case final List<Object?> rawCatalogs) {
-    return [
+  final List<Map<String, Object?>> inline = [
+    if (testCase['catalogs'] case final List<Object?> rawCatalogs)
       for (final Object? item in rawCatalogs)
-        if (item is Map<String, Object?>)
-          rendererCatalog(item, protocolVersion: version),
-    ];
-  }
-  // v0.9 cases run over the permissive catalog below rather than the
-  // documents they name, as they always have here: they test processing, and
-  // the schema checks have their own suite.
-  if (testCase['catalogPaths'] case final List<Object?> paths
-      when compareVersions(version, 'v1.0') >= 0) {
-    final List<Map<String, Object?>> documents = [
+        if (item is Map<String, Object?>) item,
+  ];
+  final List<Map<String, Object?>> documents = [
+    if (testCase['catalogPaths'] case final List<Object?> paths
+        when compareVersions(version, 'v1.0') >= 0)
       for (final Object? path in paths)
-        if (path is String)
-          jsonDecode(File(resolveConformancePath(path)).readAsStringSync())
-              as Map<String, Object?>,
-    ];
-    if (documents.length > 1) {
-      return [
-        for (final document in documents)
-          rendererCatalog(document, protocolVersion: version),
-      ];
-    }
-    // A case declaring one document names it by whichever id its messages
-    // use, as the validator harness does.
+        if (path is String) readConformanceJson(path),
+  ];
+  if (documents.length == 1 && inline.isEmpty) {
     final Set<String> ids = _catalogIdsOf(testCase);
     if (ids.isEmpty) ids.add(documents.single['catalogId']! as String);
     return [
@@ -264,6 +225,13 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
           asCatalogId: id,
           protocolVersion: version,
         ),
+    ];
+  }
+  if (documents.isNotEmpty || inline.isNotEmpty) {
+    return [
+      for (final document in documents) rendererCatalog(document),
+      for (final document in inline)
+        rendererCatalog(document, protocolVersion: version),
     ];
   }
   if (testCase['catalog'] case final Map<String, Object?> document) {
@@ -420,8 +388,8 @@ List<Map<String, Object?>> _normalizeExpectedComponents(Object? raw) {
 /// Properties are compared on the resolved node tree, as the reference
 /// harness does: each [ResolvedBinding] is read once for its value and each
 /// child node stands for its component id. A component no node renders, such
-/// as one unreachable from the root, falls back to its raw
-/// [ComponentModel.properties].
+/// as one unreachable from the root, and one whose type no catalog declares
+/// fall back to its raw [ComponentModel.properties].
 void _checkComponents(
   SurfaceModel<ComponentApi> surface,
   List<Map<String, Object?>> expected,
@@ -466,7 +434,7 @@ void _checkComponents(
         return;
       }
       expect(
-        node == null
+        node == null || node.state == NodeState.unknownType
             ? component!.properties[key]
             : _plain(node.props.peek()[key]),
         equals(value),
@@ -524,6 +492,10 @@ Matcher _matchesError(Map<String, Object?> expectError) {
 String _align(String pattern) {
   if (pattern.contains('Catalog not found:')) {
     return '($pattern|is not supported by this processor)';
+  }
+  if (RegExp(r"Unrecognized function '([^']*)'").firstMatch(pattern)
+      case final RegExpMatch match) {
+    return "($pattern|declares no function named '${match[1]}')";
   }
   if (pattern.contains('without a type')) {
     return "($pattern|without a 'component' type)";
