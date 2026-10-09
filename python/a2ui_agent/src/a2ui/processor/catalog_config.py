@@ -37,7 +37,7 @@ class CatalogConfig:
     Attributes:
         catalog: Base Catalog instance loaded via a CatalogProvider.
         transformers: Optional sequence of CatalogTransformer rules to apply
-          sequentially. It is stored as a tuple.
+          sequentially. The config keeps its own copy as a list.
     """
 
     catalog: CatalogApi
@@ -45,7 +45,7 @@ class CatalogConfig:
 
     def __post_init__(self) -> None:
         if self.transformers is not None:
-            object.__setattr__(self, "transformers", tuple(self.transformers))
+            object.__setattr__(self, "transformers", list(self.transformers))
 
     @cached_property
     def transformed_catalog(self) -> CatalogApi:
