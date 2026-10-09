@@ -305,12 +305,12 @@ This message is sent by the agent to execute a function registered on the render
   - `functionCallId` (string, required): A unique identifier for this invocation instance. The renderer MUST copy this ID verbatim into the subsequent `rendererFunctionResponse` message.
   - `callFunction` (object, required): The description of the function call.
     - `@call` (string, required): The registered name of the function to execute.
-    - `catalogId` (string, optional): The catalog ID defining the function to execute. Because `callRendererFunction` is surface-independent, agents SHOULD explicitly specify `catalogId`; if omitted when no default catalog can be resolved, the renderer rejects the call with `code: "INVALID_FUNCTION_CALL"`.
+    - `catalogId` (string, required): The catalog ID defining the function to execute. Because `callRendererFunction` is surface-independent, `catalogId` MUST be specified; if omitted or unregistered, the renderer rejects the call with `code: "INVALID_FUNCTION_CALL"`.
     - `args` (object, optional): Arguments passed to the function, as defined by its schema in the catalog.
 
 **Evaluation Scope and Ordering:**
 
-- **Surface-Independent Scope**: `callRendererFunction` has no `surfaceId` and executes in a surface-independent root context with an empty data model (`{}`). Agents SHOULD pass static literal values in `args`. Any `DataBinding` (`{"@path": "..."}`) inside `args` resolves against the empty root model (`null` / `undefined`), and calling `{"@call": "@index"}` outside a list template fails with `code: "INVALID_FUNCTION_CALL"`.
+- **Surface-Independent Scope**: `callRendererFunction` has no `surfaceId` and executes in a surface-independent root context with an empty data model (`{}`). Renderers MUST NOT resolve it against any existing surface's data model. Agents SHOULD pass static literal values in `args`. Any `DataBinding` (`{"@path": "..."}`) inside `args` resolves against the empty root model (`null` / `undefined`), and calling `{"@call": "@index"}` outside a list template fails with `code: "EXECUTION_ERROR"`.
 - **Envelope Dispatch Ordering**: Message envelopes in a stream or batch are dispatched in arrival order. Synchronous surface mutations (`createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface`) that precede a `callRendererFunction` or `agentFunctionResponse` envelope take effect before that RPC envelope is dispatched, while asynchronous `callRendererFunction` execution completes without blocking subsequent envelopes in the stream.
 
 **Security Boundaries and Verification:**
@@ -1094,7 +1094,7 @@ To allow validation functions (`required`, `email`, `regex`, `length`, `numeric`
 2. **`boolean` → `ValidationResult` in `CheckRule.condition`**:
    - When a `CheckRule.condition` evaluates to `true`, the renderer coerces it to `{"valid": true}`.
    - When a `CheckRule.condition` evaluates to `false`, the renderer coerces it to `{"valid": false, "message": <CheckRule.message>, "severity": "error"}`.
-   - When a `CheckRule.condition` evaluates to a `ValidationResult` with `valid: false`, `CheckRule.message` (if present) overrides `ValidationResult.message`, and `severity` defaults to `"error"` if omitted.
+   - When a `CheckRule.condition` evaluates to a `ValidationResult` with `valid: false`, `CheckRule.message` is used as a fallback if `ValidationResult.message` is omitted, and `severity` defaults to `"error"` if omitted.
 
 _Example Component Definition:_
 
