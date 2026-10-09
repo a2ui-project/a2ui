@@ -24,6 +24,16 @@ Contribute the fix to the code and/or table below if:
 
 Have you built and open-sourced a sample using A2UI? Show it on our [Community Showcase](https://a2ui.org/ecosystem/community/#community-showcase).
 
+| Sample                | Agent | Renderer | e2e           | Video                  |
+| --------------------- | ----- | -------- | ------------- | ---------------------- |
+| [Quincena][qc-readme] | Dart  | Flutter  | [yes][qc-e2e] | [2026-10-09][qc-video] |
+
+<!-- Quincena, Flutter -->
+
+[qc-video]: https://github.com/user-attachments/assets/71224a9a-b152-4557-b62d-31985e54b1b6
+[qc-readme]: https://github.com/diegolopezrm/quincena/blob/main/README.md
+[qc-e2e]: https://github.com/diegolopezrm/quincena/blob/main/integration_test/flows_test.dart
+
 <!-- Restaurant finder, Flutter -->
 
 [rf-f-video]: https://github.com/user-attachments/assets/a2ac7024-e56e-4502-9db4-29ab37d8eef3
@@ -62,8 +72,11 @@ Have you built and open-sourced a sample using A2UI? Show it on our [Community S
 | --------------------------------- | -------- | ---------------------------- |
 | [Catalog Gallery][gallery-readme] | Flutter  | [2026-06-17][gallery-video]  |
 | [Composer][composer-readme]       | Flutter  | [2026-06-17][composer-video] |
+| [genui_gen][gg-readme]            | Flutter  | [2026-10-09][gg-video]       |
 
 [gallery-readme]: https://github.com/flutter/genui/blob/main/dev_tools/catalog_gallery/README.md
 [gallery-video]: https://github.com/user-attachments/assets/0cc82b93-5a27-490a-b960-f3fa6ee8280d
 [composer-readme]: https://github.com/flutter/genui/blob/main/dev_tools/composer/README.md
 [composer-video]: https://github.com/user-attachments/assets/18745f7c-e563-4a1b-80c1-39f1bc3ac606
+[gg-readme]: https://github.com/diegolopezrm/genui_gen/blob/main/README.md
+[gg-video]: https://github.com/user-attachments/assets/71224a9a-b152-4557-b62d-31985e54b1b6
