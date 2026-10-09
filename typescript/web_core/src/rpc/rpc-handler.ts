@@ -147,7 +147,17 @@ export class RpcHandler {
     }
 
     const {version, callRendererFunction} = message;
-    const {functionCallId, callFunction} = callRendererFunction;
+    const {surfaceId, functionCallId, callFunction} = callRendererFunction;
+    if (surfaceId !== undefined && context?.surface?.id !== surfaceId) {
+      const errorResponse = this.createResponseError(
+        functionCallId,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        `Surface not found: ${surfaceId}`,
+        version,
+      );
+      await this.emitOutboundResponse(errorResponse);
+      return errorResponse;
+    }
     const call = ((callFunction as any)['@call'] ?? callFunction.call) as string;
     const {catalogId, args} = callFunction;
 

@@ -52,6 +52,17 @@ public final class RPCHandler {
     let callName = message.callFunction.call
     let targetCatalogID = message.callFunction.catalogID ?? defaultCatalogID
 
+    if let surfaceID = message.surfaceID, dataContext == nil {
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: FunctionErrorPayload(
+          code: .invalidFunctionCall,
+          message: "Surface not found: \(surfaceID)"
+        ),
+        version: message.version
+      )
+    }
+
     func lookupCatalog(_ id: String) -> AnyCatalog? {
       if let exact = catalogs[id] { return exact }
       if let v10Match = catalogs.values.first(where: {

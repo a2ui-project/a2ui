@@ -505,6 +505,22 @@ class RpcHandler:
         version = str(message.version)
         call_req = message.call_renderer_function
         call_id = call_req.function_call_id or "unknown"
+        surface_id = getattr(call_req, "surface_id", None)
+        if surface_id is not None:
+            ctx_surface = getattr(context, "surface", None) if context else None
+            if ctx_surface is None or getattr(ctx_surface, "id", None) != surface_id:
+                error_response = self._create_response_error(
+                    call_id,
+                    RpcErrorCode.INVALID_FUNCTION_CALL,
+                    f"Surface not found: {surface_id}",
+                    version=version,
+                )
+                res_dict = error_response.model_dump(
+                    by_alias=True, exclude_none=True, exclude_unset=True
+                )
+                self._emit_outbound_response(res_dict)
+                return _PreparedRendererCall(early_error_response=res_dict)
+
         call_fn = call_req.call_function
         call_name = call_fn.call
         catalog_id = call_fn.catalog_id

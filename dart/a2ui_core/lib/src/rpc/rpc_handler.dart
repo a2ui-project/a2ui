@@ -319,6 +319,13 @@ class RpcHandler {
     if (_disposed) {
       throw A2uiRpcError('RpcHandler is disposed.', RpcErrorCode.disposed);
     }
+    if (message.surfaceId != null &&
+        (surface == null || surface.id != message.surfaceId)) {
+      throw A2uiRpcError(
+        'Surface not found: ${message.surfaceId}',
+        RpcErrorCode.invalidFunctionCall,
+      );
+    }
     final FunctionCall call;
     try {
       call = FunctionCall.fromJson(message.callFunction);

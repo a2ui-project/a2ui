@@ -136,6 +136,7 @@ class V1Point0Adapter(BaseVersionAdapter):
                     function_call_id=crf.function_call_id,
                     call=cf.call,
                     version=ver_str,
+                    surface_id=crf.surface_id,
                     catalog_id=cf.catalog_id,
                     args=cf.args or {},
                 )

@@ -140,6 +140,12 @@ export const CallRendererFunctionMessageSchema = z
     'version': z.literal('v1.0'),
     'callRendererFunction': z
       .object({
+        'surfaceId': z
+          .string()
+          .describe(
+            'Optional ID of the surface whose data model provides the evaluation context for this call. If omitted, the function executes in a surface-independent root context with an empty data model.',
+          )
+          .optional(),
         'functionCallId': CallIdSchema,
         'callFunction': z.intersection(FunctionCallSchema, z.any()),
       })

@@ -478,12 +478,13 @@ struct MessageProcessorTests {
         {
           "version": "v1.0",
           "callRendererFunction": {
+            "surfaceId": "s1",
             "functionCallId": "rpc-1",
             "callFunction": {
-              "call": "echo",
+              "@call": "echo",
               "catalogId": "default",
               "args": {
-                "text": { "path": "/user/name" }
+                "text": { "@path": "/user/name" }
               }
             }
           }
@@ -497,6 +498,35 @@ struct MessageProcessorTests {
       #expect(resp.value == .string("Alice"))
     } else {
       Issue.record("Expected .rendererFunctionResponse")
+    }
+
+    // Calling with a non-existent surfaceId returns INVALID_FUNCTION_CALL
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v1.0",
+          "callRendererFunction": {
+            "surfaceId": "missing_surface",
+            "functionCallId": "rpc-2",
+            "callFunction": {
+              "@call": "echo",
+              "catalogId": "default",
+              "args": {
+                "text": "hello"
+              }
+            }
+          }
+        }
+        """))
+
+    try await Task.sleep(nanoseconds: 20_000_000)
+    #expect(capturedOutbound.count == 2)
+    if case .rendererFunctionResponse(let resp2) = capturedOutbound.last {
+      #expect(resp2.functionCallID == "rpc-2")
+      #expect(resp2.error?.code == FunctionErrorPayload.Code.invalidFunctionCall.rawValue)
+    } else {
+      Issue.record("Expected .rendererFunctionResponse with error")
     }
   }
 
