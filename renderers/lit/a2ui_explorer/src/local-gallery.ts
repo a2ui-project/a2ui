@@ -20,11 +20,13 @@ import {customElement, state} from 'lit/decorators.js';
 import {MessageProcessor} from '@a2ui/web_core/v1_0';
 import type {A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {Context} from '@a2ui/lit';
+import {mcpCatalog} from '@a2ui/catalog-mcp';
 import {basicCatalog as basicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {demoCatalog} from './demo-catalog.js';
 import {getDemoItems, DemoItem, ExplorerMessage, SpecVersion} from './examples';
 import {appStyles} from './local-gallery.css';
+import {handleMcpToolAction, observeMcpApps} from './mcp/index.js';
 
 /** Structured log entry displayed in the Action Logs inspector section. */
 export interface ExplorerLogEntry {
@@ -67,14 +69,16 @@ export class LocalGallery extends LitElement {
   private markdownRenderer = renderMarkdown;
 
   private processor = new MessageProcessor(
-    [demoCatalog, basicCatalogV10],
+    [demoCatalog, basicCatalogV10, mcpCatalog],
     (action: A2uiClientAction) => {
       this.log(`Action dispatched: ${action.surfaceId}`, action, action.name || 'Action');
       this.actionLog.push(action);
+      void handleMcpToolAction(action, this.processor);
     },
   );
 
   private dataModelSubscription?: {unsubscribe: () => void};
+  private stopMcpResizeObserver?: () => void;
 
   static override styles = [appStyles];
 
@@ -122,6 +126,7 @@ export class LocalGallery extends LitElement {
 
     window.addEventListener('keydown', this.handleKeyDown);
     window.addEventListener('hashchange', this.handleHashChange);
+    this.stopMcpResizeObserver = observeMcpApps(() => this.renderRoot);
 
     this.processor.model.onSurfaceCreated.subscribe(surface => {
       surface.onError.subscribe((err: {message?: string}) => {
@@ -136,6 +141,8 @@ export class LocalGallery extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('hashchange', this.handleHashChange);
+    this.stopMcpResizeObserver?.();
+    this.stopMcpResizeObserver = undefined;
   }
 
   private handleHashChange = () => {
@@ -383,7 +390,7 @@ export class LocalGallery extends LitElement {
    */
   private applyPrimaryColorToMessages(messages: ExplorerMessage[]): ExplorerMessage[] {
     return messages.map(msg => {
-      if ('createSurface' in msg && this.primaryColor && msg.version !== 'v1.0') {
+      if (msg.version === 'v0.9' && 'createSurface' in msg && this.primaryColor) {
         return {
           ...msg,
           createSurface: {

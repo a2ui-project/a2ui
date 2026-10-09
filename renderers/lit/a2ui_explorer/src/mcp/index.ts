@@ -14,22 +14,13 @@
  * limitations under the License.
  */
 
-import parentConfig from '../eslint.config.mjs';
-
-export default [
-  ...parentConfig,
-  {
-    rules: {
-      'no-restricted-imports': 'off',
-    },
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.app.json', './tsconfig.spec.json', './tsconfig.node.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-  },
-  {
-    ignores: ['public/a2ui-sandbox/**', 'src/generated/**', 'dist/**', 'node_modules/**'],
-  },
-];
+export {
+  DEFAULT_MCP_NETWORK_LATENCY_MS,
+  MockMcpServer,
+  simulateMcpNetworkDelay,
+  type MockMcpToolDescriptor,
+  type MockMcpToolExecution,
+  type MockMcpUiResource,
+} from './mock-mcp-server.js';
+export {enhanceMcpAppElement, observeMcpApps, scanAndEnhanceMcpApps} from './mcp-app-resizer.js';
+export {handleMcpToolAction, mockMcpServer} from './mcp-tool-actions.js';

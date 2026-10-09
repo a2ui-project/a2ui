@@ -25,6 +25,20 @@ const V10_EXAMPLES_DIR = path.resolve(
   import.meta.dirname,
   '../../../../catalogs/basic/v1/examples',
 );
+const EXTRA_EXAMPLES = [
+  {
+    key: 'mcp-app-order-summary.json',
+    relativePath: '../../../../../catalogs/mcp/v1/examples/mcp-app-order-summary.json',
+  },
+  {
+    key: 'mcp-app-sheet-music.json',
+    relativePath: '../../../../../catalogs/mcp/v1/examples/mcp-app-sheet-music.json',
+  },
+  {
+    key: 'mcp-app-3d-geometry.json',
+    relativePath: '../../../../../catalogs/mcp/v1/examples/mcp-app-3d-geometry.json',
+  },
+];
 const OUT_FILE = path.resolve(import.meta.dirname, '../src/generated/examples-list.ts');
 
 /**
@@ -74,6 +88,13 @@ function generateExamplesBundle() {
 
     imports.push(`import ${variableName} from '${relativePath}';`);
     v10Entries.push(`  '${file}': { default: ${variableName} }`);
+  });
+
+  EXTRA_EXAMPLES.forEach((extra, index) => {
+    const variableName = `extra_example_${index}`;
+    imports.push(`import ${variableName} from '${extra.relativePath}';`);
+    v09Entries.push(`  '${extra.key}': { default: ${variableName} }`);
+    v10Entries.push(`  '${extra.key}': { default: ${variableName} }`);
   });
 
   const content = `/**

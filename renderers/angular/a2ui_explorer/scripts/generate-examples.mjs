@@ -48,6 +48,55 @@ Options:
   -h, --help             Show this help message
 `;
 
+const MCP_EXAMPLES = [
+  {
+    filePath: '../../../catalogs/mcp/v1/examples/mcp-app-order-summary.json',
+    catalog: 'mcp',
+  },
+  {
+    filePath: '../../../catalogs/mcp/v1/examples/mcp-app-sheet-music.json',
+    catalog: 'mcp',
+  },
+  {
+    filePath: '../../../catalogs/mcp/v1/examples/mcp-app-3d-geometry.json',
+    catalog: 'mcp',
+  },
+];
+
+function readExampleFile(filePath, catalog, version) {
+  const file = path.basename(filePath);
+  const content = fs.readFileSync(filePath, 'utf-8');
+  try {
+    const data = JSON.parse(content);
+    const nameFromFile = file
+      .replace('.json', '')
+      .replace(/^[0-9]+_/, '')
+      .replace(/[-_]/g, ' ')
+      .replace(/\b\w/g, l => l.toUpperCase());
+
+    if (Array.isArray(data)) {
+      return {
+        filename: file,
+        version: version,
+        name: version === '0.8' ? `${nameFromFile} (${catalog})` : nameFromFile,
+        description: `Example from ${catalog} catalog`,
+        messages: data,
+      };
+    }
+    return {
+      ...data,
+      filename: file,
+      version: version,
+      name:
+        version === '0.8' ? `${data.name || nameFromFile} (${catalog})` : data.name || nameFromFile,
+      description: data.description || `Example from ${catalog} catalog`,
+      messages: data.messages || [],
+    };
+  } catch (e) {
+    throw new Error(`Error parsing ${filePath}`, {cause: e});
+  }
+}
+
 /**
  * Reads examples for a given version and catalogs.
  */
@@ -71,43 +120,7 @@ function readExamples(specPath, catalogs, version) {
         .sort();
       for (const file of files) {
         const filePath = path.join(examplesDir, file);
-        const content = fs.readFileSync(filePath, 'utf-8');
-        try {
-          const data = JSON.parse(content);
-          let example;
-
-          const nameFromFile = file
-            .replace('.json', '')
-            .replace(/^[0-9]+_/, '')
-            .replace(/[-_]/g, ' ')
-            .replace(/\b\w/g, l => l.toUpperCase());
-
-          if (Array.isArray(data)) {
-            example = {
-              filename: file,
-              version: version,
-              name: version === '0.8' ? `${nameFromFile} (${catalog})` : nameFromFile,
-              description: `Example from ${catalog} catalog`,
-              messages: data,
-            };
-          } else {
-            example = {
-              ...data,
-              filename: file,
-              version: version,
-              name:
-                version === '0.8'
-                  ? `${data.name || nameFromFile} (${catalog})`
-                  : data.name || nameFromFile,
-              description: data.description || `Example from ${catalog} catalog`,
-              messages: data.messages || [],
-            };
-          }
-
-          examples.push(example);
-        } catch (e) {
-          throw new Error(`Error parsing ${filePath}`, {cause: e});
-        }
+        examples.push(readExampleFile(filePath, catalog, version));
       }
     }
   }
@@ -136,8 +149,14 @@ async function main() {
   const catalogs = values.catalog;
 
   const examplesV08 = readExamples('../../../specification/v0_8/json/catalogs', catalogs, '0.8');
-  const examplesV09 = readExamples('../../../specification/v0_9/catalogs', catalogs, '0.9');
-  const examplesV10 = readExamples('../../../../catalogs/basic/v1/examples', catalogs, '1.0');
+  const examplesV09 = [
+    ...readExamples('../../../specification/v0_9/catalogs', catalogs, '0.9'),
+    ...MCP_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '0.9')),
+  ];
+  const examplesV10 = [
+    ...readExamples('../../../../catalogs/basic/v1/examples', catalogs, '1.0'),
+    ...MCP_EXAMPLES.map(({filePath, catalog}) => readExampleFile(filePath, catalog, '1.0')),
+  ];
 
   // Generate the file now!
   const tsContent = `/**

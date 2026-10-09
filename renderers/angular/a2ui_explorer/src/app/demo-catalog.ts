@@ -18,6 +18,7 @@ import {Injectable} from '@angular/core';
 import {AngularCatalog, BASIC_COMPONENTS, BASIC_FUNCTIONS} from '@a2ui/angular/v0_9';
 import {BasicCatalogThemeSchema} from '@a2ui/web_core/v0_9/basic_catalog';
 import {BasicCatalogBase as BasicCatalogBaseV10} from '@a2ui/angular';
+import {mcpCatalog} from '@a2ui/catalog-mcp';
 import {customSliderComponentDeclaration} from './custom-slider.component';
 import {customGridComponentDeclaration} from './custom-grid.component';
 
@@ -50,5 +51,24 @@ export class DemoCatalogV10 extends BasicCatalogBaseV10 {
     super({
       extraComponents: [customSliderComponentDeclaration, customGridComponentDeclaration],
     });
+  }
+}
+
+/**
+ * `mcpCatalog` as an `AngularCatalog`, which is what the renderer configuration takes. Its
+ * components are universal Web Components, so the renderer needs `useUniversalComponents: true`
+ * to render them.
+ */
+@Injectable({
+  providedIn: 'root',
+})
+export class McpDemoCatalog extends AngularCatalog {
+  constructor() {
+    super(
+      mcpCatalog.id,
+      mcpCatalog.protocolVersion,
+      [...mcpCatalog.components.values()],
+      [...mcpCatalog.functions.values()],
+    );
   }
 }
