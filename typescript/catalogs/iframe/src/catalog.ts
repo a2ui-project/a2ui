@@ -14,5 +14,20 @@
  * limitations under the License.
  */
 
+import {Catalog, type WebComponentImplementation} from '@a2ui/web_core/v1_0';
+import {A2uiWebAppFrameSrcdoc} from './components/web_app_frame_srcdoc.js';
+import {A2uiWebAppFrameUrl} from './components/web_app_frame_url.js';
+
 /** `$id` of the iframe catalog schema (`catalogs/iframe/catalog.json`). */
 export const IFRAME_CATALOG_ID = 'https://a2ui.org/specification/v1_0/catalogs/iframe/catalog.json';
+
+/**
+ * The iframe catalog: `WebAppFrameUrl` and `WebAppFrameSrcdoc`, ready to hand to a
+ * `MessageProcessor`. A surface that mixes them with other components needs one catalog holding
+ * every component it uses; build it with `new Catalog(id, '1.0', [...])` from this catalog's
+ * `components` and the others'.
+ */
+export const iframeCatalog = new Catalog<WebComponentImplementation>(IFRAME_CATALOG_ID, '1.0', [
+  A2uiWebAppFrameUrl,
+  A2uiWebAppFrameSrcdoc,
+]);
