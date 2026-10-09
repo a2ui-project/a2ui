@@ -519,7 +519,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       segment.replaceAll('~', '~0').replaceAll('/', '~1');
 
   /// The property names [schema] declares at the component level: its own
-  /// `properties` and those of its `allOf` branches.
+  /// `properties` and those of its `allOf`, `anyOf` and `oneOf` branches.
   static Set<String> _declaredProperties(Map<String, Object?> schema) {
     final names = <String>{};
     final Map<String, Object?> defs = switch (schema[r'$defs']) {
@@ -532,8 +532,10 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       if (node['properties'] case final Map<Object?, Object?> properties) {
         names.addAll(properties.keys.whereType<String>());
       }
-      if (node['allOf'] case final List<Object?> branches) {
-        branches.forEach(visit);
+      for (final key in const ['allOf', 'anyOf', 'oneOf']) {
+        if (node[key] case final List<Object?> branches) {
+          branches.forEach(visit);
+        }
       }
       if (node[r'$ref'] case final String ref
           when ref.startsWith(r'#/$defs/')) {

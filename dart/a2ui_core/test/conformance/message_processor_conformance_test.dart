@@ -520,7 +520,7 @@ class _ConformanceCatalog
   _ConformanceCatalog(String id, String protocolVersion)
       : super(
           id: id,
-          protocolVersion: A2uiProtocolVersion.tryParse(protocolVersion),
+          protocolVersion: A2uiProtocolVersion.tryParseSemVer(protocolVersion),
           components: [
             ComponentApi(
               name: 'Text',

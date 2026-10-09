@@ -19,7 +19,6 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
-import '../validation/common_types.g.dart';
 import '../validation/component_graph.dart' show maxFunctionCallArgs;
 import '../validation/schema_resolution.dart';
 import 'catalog.dart';
@@ -896,10 +895,6 @@ class ComponentContext {
 final Expando<Map<FunctionImplementation, Map<String, Object?>>>
     _resolvedArgumentSchemas = Expando();
 
-/// The `common_types.json` this package embeds, decoded once.
-final Map<String, Object?> _embeddedCommonTypes =
-    jsonDecode(commonTypesV0_9Json) as Map<String, Object?>;
-
 extension CatalogInvokerExtension
     on Catalog<ComponentApi, FunctionImplementation> {
   /// Invokes a catalog function by name with the given arguments.
@@ -960,7 +955,7 @@ extension CatalogInvokerExtension
     return byFunction[fn] ??= resolveSchemaRefs(
       fn.argumentSchema.value,
       catalogSchema,
-      commonTypes: _embeddedCommonTypes,
+      commonTypes: commonTypesSchema,
     );
   }
 

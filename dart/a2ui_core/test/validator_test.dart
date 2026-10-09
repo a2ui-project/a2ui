@@ -15,6 +15,8 @@
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/validation/component_graph.dart';
 import 'package:a2ui_core/src/validation/component_refs.dart';
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
 import 'package:test/test.dart';
 
 import 'support/renderer_catalog.dart';
@@ -982,6 +984,67 @@ void v1RulesTests() {
           'extra': 1,
         }),
         throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('recognizes accessibility declared within anyOf and oneOf branches',
+        () {
+      final anyOfComponent = ComponentApi(
+        name: 'AnyOfButton',
+        schema: Schema.fromMap({
+          'type': 'object',
+          'anyOf': [
+            {
+              'properties': {
+                'accessibility': {'type': 'string'},
+              },
+            },
+          ],
+          'properties': {
+            'component': {'const': 'AnyOfButton'},
+          },
+        }),
+      );
+      final oneOfComponent = ComponentApi(
+        name: 'OneOfButton',
+        schema: Schema.fromMap({
+          'type': 'object',
+          'oneOf': [
+            {
+              'properties': {
+                'accessibility': {'type': 'string'},
+              },
+            },
+          ],
+          'properties': {
+            'component': {'const': 'OneOfButton'},
+          },
+        }),
+      );
+      final catalog = Catalog<ComponentApi, FunctionApi>(
+        id: 'custom_a11y',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: [anyOfComponent, oneOfComponent],
+      );
+      final validator = PayloadValidator<ComponentApi, FunctionApi>(
+        catalog: catalog,
+      );
+
+      expect(
+        () => validator.validateComponent({
+          'id': 'b1',
+          'component': 'AnyOfButton',
+          'accessibility': 'Custom label string',
+        }),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateComponent({
+          'id': 'b2',
+          'component': 'OneOfButton',
+          'accessibility': 'Custom label string',
+        }),
+        returnsNormally,
       );
     });
 
