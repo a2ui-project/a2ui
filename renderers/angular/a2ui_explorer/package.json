@@ -22,15 +22,17 @@
   },
   "wireit": {
     "copy-sandbox": {
-      "command": "rm -rf public/a2ui-sandbox && mkdir -p public && cp -R ../../../typescript/catalogs/mcp/dist/sandbox public/a2ui-sandbox",
+      "command": "rm -rf public/a2ui-sandbox public/a2ui-fixtures && mkdir -p public/a2ui-fixtures/apps && cp -R ../../../typescript/catalogs/mcp/dist/sandbox public/a2ui-sandbox && cp ../../../typescript/catalogs/iframe/tests/fixtures/apps/order_tracker.html public/a2ui-fixtures/apps/order_tracker.html",
       "dependencies": [
         "../../../typescript/catalogs/mcp:build"
       ],
       "files": [
-        "../../../typescript/catalogs/mcp/dist/sandbox/**"
+        "../../../typescript/catalogs/mcp/dist/sandbox/**",
+        "../../../typescript/catalogs/iframe/tests/fixtures/apps/order_tracker.html"
       ],
       "output": [
-        "public/a2ui-sandbox/**"
+        "public/a2ui-sandbox/**",
+        "public/a2ui-fixtures/**"
       ]
     },
     "build:deps": {
@@ -89,7 +91,7 @@
       ]
     },
     "clean": {
-      "command": "rm -rf dist .tsbuildinfo .wireit src/app/generated public/a2ui-sandbox"
+      "command": "rm -rf dist .tsbuildinfo .wireit src/app/generated public/a2ui-sandbox public/a2ui-fixtures"
     }
   },
   "dependencies": {
