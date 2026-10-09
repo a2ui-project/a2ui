@@ -63,6 +63,13 @@ Evaluate the cross-language subskills below against the diff and read any activa
   - Sample client or explorer applications receive new navigation, hotkeys, or layout capabilities.
   - A new source file is added (verify it has a single responsibility rather than acting as a catch-all `types.*` or `utils.*` file).
 
+#### 3. Updating Changelogs (`CHANGELOG.md`)
+
+- **Document**: [`subskills/update-changelog.md`](subskills/update-changelog.md)
+- **Activate if**:
+  - Any `CHANGELOG.md` is modified or a published package's public API or consumer-observable behavior changes.
+  - Breaking changes are introduced that require `**BREAKING CHANGE**:` (or `Breaking:` in Dart) annotations and migration notes.
+
 ---
 
 ### Step 3: Route by Language for Language-Dependent Principles

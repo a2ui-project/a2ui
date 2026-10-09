@@ -164,7 +164,7 @@ registerCatalog({ name: 'main', isDefault: true, version: 'v0.9' });
 ### 10. Scope `CHANGELOG.md` Strictly to Public Package Consumers
 
 - **Problem & Rationale**: Package changelogs are published in package releases (`npm`, `PyPI`, `pub.dev`) for end users. Including internal refactorings, sample application changes, private types, or formatting sweeps creates noise for library consumers.
-- **Actionable Guidance**: Follow [`update-changelog`](../../update-changelog/SKILL.md) (and [`a2ui-dart-versioning`](../../a2ui-dart-versioning/SKILL.md) for `dart/` packages).
+- **Actionable Guidance**: Follow [`update-changelog.md`](update-changelog.md) (and [`a2ui-dart-versioning`](../../a2ui-dart-versioning/SKILL.md) for `dart/` packages).
 - **Reviewer Checklist**:
   - [ ] Only document changes that alter published APIs, consumer-observable behavior, or dependencies.
   - [ ] Never add changelog entries for internal demo/explorer apps in library package changelogs.

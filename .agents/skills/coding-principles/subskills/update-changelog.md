@@ -1,15 +1,12 @@
----
-name: update-changelog
-description: >-
-  Updates CHANGELOG.md files across A2UI packages under the Unreleased heading, preserving version
-  headers and annotating breaking API or behavioral changes. Use when adding or reviewing
-  CHANGELOG.md entries for modified packages. Don't use for publishing packages without changelog
-  edits.
----
+# Subskill: Updating Changelogs (`CHANGELOG.md`)
 
-# Skill: update-changelog
+## Activation Criteria
 
-**Purpose**: Standard rules and language-aware routing for maintaining and updating `CHANGELOG.md` files across packages in the A2UI repository.
+Activate this subskill when:
+
+- Any `CHANGELOG.md` file is added or modified.
+- A PR adds, modifies, deprecates, or removes public exports, component schemas, properties, or consumer-observable behavior in a published package.
+- Resolving merge conflicts in a package's `CHANGELOG.md`.
 
 ---
 
@@ -18,9 +15,9 @@ description: >-
 Before editing a `CHANGELOG.md` file, check which language directory the modified package belongs to:
 
 - **Dart / Flutter packages (`dart/*/CHANGELOG.md`)**:
-  - Load and follow [`a2ui-dart-versioning`](../a2ui-dart-versioning/SKILL.md), which defines Dart-specific `Breaking:` annotations, `## Unreleased` consolidation rules, and `pubspec.yaml` versioning conventions.
+  - Load and follow [`a2ui-dart-versioning`](../../a2ui-dart-versioning/SKILL.md), which defines Dart-specific `Breaking:` annotations, `## Unreleased` consolidation rules, and `pubspec.yaml` versioning conventions.
 - **Python packages (`python/*/CHANGELOG.md`)**:
-  - Follow the core rules below for `## Unreleased` entries during feature or bugfix PRs. When cutting a Python package release, load [`a2ui-release-python`](../a2ui-release-python/SKILL.md).
+  - Follow the core rules below for `## Unreleased` entries during feature or bugfix PRs. When cutting a Python package release, load [`a2ui-release-python`](../../a2ui-release-python/SKILL.md).
 - **TypeScript / Web packages (`typescript/*/CHANGELOG.md`, `renderers/*/CHANGELOG.md`)**:
   - Follow all core rules, formatting conventions, and workflows in this document.
 
@@ -113,7 +110,7 @@ Before editing a `CHANGELOG.md` file, check which language directory the modifie
 ## Step-by-Step Workflow
 
 1. **Identify Affected Packages**:
-   Find the `CHANGELOG.md` in the root of each published package modified in the PR (e.g. `typescript/web_core/CHANGELOG.md`, `renderers/angular/CHANGELOG.md`, `renderers/lit/CHANGELOG.md`, `renderers/react/CHANGELOG.md`, `dart/a2ui_core/CHANGELOG.md`). If modifying a Dart package under `dart/`, follow [`a2ui-dart-versioning`](../a2ui-dart-versioning/SKILL.md).
+   Find the `CHANGELOG.md` in the root of each published package modified in the PR (e.g. `typescript/web_core/CHANGELOG.md`, `renderers/angular/CHANGELOG.md`, `renderers/lit/CHANGELOG.md`, `renderers/react/CHANGELOG.md`, `dart/a2ui_core/CHANGELOG.md`). If modifying a Dart package under `dart/`, follow [`a2ui-dart-versioning`](../../a2ui-dart-versioning/SKILL.md).
 
 2. **Retrieve Current PR Number**:
 
@@ -128,7 +125,7 @@ Before editing a `CHANGELOG.md` file, check which language directory the modifie
    git diff main --stat
    ```
 
-   Determine whether the diff introduces a public API change or a meaningful change in behavior that requires a `**BREAKING CHANGE**:` annotation (or `Breaking:` for Dart packages). For TypeScript packages, see [Inspecting TypeScript Public API (AST Approach)](../coding-principles/subskills/typescript/references/inspecting-typescript-public-api.md).
+   Determine whether the diff introduces a public API change or a meaningful change in behavior that requires a `**BREAKING CHANGE**:` annotation (or `Breaking:` for Dart packages). For TypeScript packages, see [Inspecting TypeScript Public API (AST Approach)](typescript/references/inspecting-typescript-public-api.md).
 
 4. **Add or Update the `## Unreleased` Entry**:
    Draft concise, complete descriptions following the core rules above, and append `[#<pr-number>](https://github.com/a2ui-project/a2ui/pull/<pr-number>)`.
