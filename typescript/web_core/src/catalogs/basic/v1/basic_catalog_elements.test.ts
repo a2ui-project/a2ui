@@ -111,6 +111,12 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     input.dispatchEvent(new Event('change'));
     await new Promise(resolve => setTimeout(resolve, 0));
     assert.strictEqual(surface.dataModel.get('/time'), '10:45');
+
+    input.value = '18:45';
+    assert.strictEqual(input.checkValidity(), false);
+    input.dispatchEvent(new Event('change'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(surface.dataModel.get('/time'), '18:45');
   });
 
   it('keeps DateTimeInput data in sync when a date is outside picker bounds', async () => {
