@@ -79,6 +79,7 @@ public struct A2UISlider: View {
         value: sliderBinding,
         in: minValue...max(minValue + 0.001, maxValue)
       )
+      .a2uiAccessibilityControl(for: node)
 
       if let firstError = node.validationErrors.first {
         Text(firstError)

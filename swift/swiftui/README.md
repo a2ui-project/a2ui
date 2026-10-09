@@ -72,6 +72,32 @@ let customProfileImplementation = ComponentImplementation(api: UserCardAPI()) { 
 
 2. Register the `ComponentImplementation` in a `Catalog<ComponentImplementation>` and pass it to `Surface(viewModel:catalogs:)`.
 
+### Accessibility
+
+`ComponentNodeView` applies each component's A2UI `accessibility` attributes to the rendered view,
+so custom components get them without extra work:
+
+- `label`: `accessibilityLabel`
+- `description`: `accessibilityHint`
+- `hidden`: `accessibilityHidden` for the whole subtree
+- `live` (`polite` / `assertive`) announces the component's visible text, preceded by the explicit
+  label, whenever that text changes
+
+Only values the agent sets are applied, so SwiftUI keeps inferring labels from visible text.
+
+SwiftUI applies a label set on a stack to every element inside it. If your component's root is a
+stack:
+
+- with one focusable control (like a text field with a title and an error line), call
+  `.a2uiAccessibilityControl(for: node)` on the control, so the label and hint reach the element
+  that VoiceOver focuses;
+- otherwise, call `.a2uiAccessibilityElement(for: node, children: .contain)` on the root (or
+  `.combine` for read-only content), so the label describes the component as a whole.
+
+Limitations: SwiftUI drops an accessibility hint on a group, so `description` has no effect on
+layout containers or other `.contain` groups (for example `ChoicePicker`). A `live` component
+without visible text of its own, such as a `Column`, announces nothing.
+
 ---
 
 ## 4. Development and testing
