@@ -131,8 +131,8 @@ class DirectJsonStreamParser:
 
         self._components_by_surface: dict[str, dict[str, dict[str, Any]]] = {}
 
-        # Track data model for path resolution
-        self._yielded_data_model: dict[str, Any] = {}
+        # Track in-flight sniffed data model values per (surfaceId, path)
+        self._yielded_data_model: dict[tuple[str, str], dict[str | None, Any]] = {}
         self._deleted_surfaces: set[str] = set()
 
         # Set of unique component IDs yielded per surface to prevent duplicate yielding
@@ -398,6 +398,21 @@ class DirectJsonStreamParser:
             else:
                 messages.append(ResponsePart(a2ui_json=[m]))
 
+    @staticmethod
+    def _values_equal(a: Any, b: Any) -> bool:
+        """Compares two JSON values for equality, distinguishing bool from int/float."""
+        if type(a) is not type(b):
+            return False
+        if isinstance(a, dict):
+            if a.keys() != b.keys():
+                return False
+            return all(DirectJsonStreamParser._values_equal(a[k], b[k]) for k in a)
+        if isinstance(a, list):
+            if len(a) != len(b):
+                return False
+            return all(DirectJsonStreamParser._values_equal(x, y) for x, y in zip(a, b))
+        return bool(a == b)
+
     def _delete_surface(self, sid: str) -> None:
         """Clears all state related to a specific surface."""
         self._pending_messages.pop(sid, None)
@@ -406,9 +421,12 @@ class DirectJsonStreamParser:
         self._surface_catalog_ids.pop(sid, None)
         self._root_ids.pop(sid, None)
 
-        # Clear contents for this surface
+        # Clear contents and data model tracking for this surface
         self._yielded_contents = {
             k: v for k, v in self._yielded_contents.items() if k[0] != sid
+        }
+        self._yielded_data_model = {
+            k: v for k, v in self._yielded_data_model.items() if k[0] != sid
         }
         self._yielded_surfaces_set.discard(sid)
         self._yielded_start_messages.discard(sid)
@@ -529,6 +547,7 @@ class DirectJsonStreamParser:
         self._string_escaped = False
         self._msg_types = []
         self._found_valid_json_in_block = False
+        self._yielded_data_model.clear()
         # Note: we do NOT reset _active_msg_type or _yielded_contents here
 
         # so re-yielding works between blocks
@@ -810,17 +829,24 @@ class DirectJsonStreamParser:
                         contents_dict = self._parse_contents_to_dict(raw_contents)
 
                         if contents_dict:
+                            sid = (
+                                dm_obj.get(SURFACE_ID_KEY)
+                                or self._surface_id
+                                or "default"
+                            )
+                            dm_path = dm_obj.get("path") or "/"
+                            yielded_for_target = self._yielded_data_model.setdefault(
+                                (sid, dm_path), {}
+                            )
                             delta = {}
                             for k, v in contents_dict.items():
-                                if self._yielded_data_model.get(k) != v:
+                                if (
+                                    k not in yielded_for_target
+                                    or not self._values_equal(yielded_for_target[k], v)
+                                ):
                                     delta[k] = v
 
                             if delta:
-                                sid = (
-                                    dm_obj.get(SURFACE_ID_KEY)
-                                    or self._surface_id
-                                    or "default"
-                                )
                                 # Deduplicate delta_contents by only keeping the LATEST entry for each dirty key
                                 delta_contents: list[dict[str, Any]] | dict[str, Any]
                                 if isinstance(raw_contents, list):
@@ -860,7 +886,7 @@ class DirectJsonStreamParser:
                                     [delta_msg], messages, config=RELAXED_VALIDATION
                                 )
 
-                                self._yielded_data_model.update(contents_dict)
+                                yielded_for_target.update(contents_dict)
                                 # Update internal model for path resolution
                                 self.update_data_model(dm_obj, messages)
 

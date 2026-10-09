@@ -312,29 +312,36 @@ class DirectJsonStreamParserModern(DirectJsonStreamParser):
                 if isinstance(dm_obj, dict) and 'value' in dm_obj:
                     value_map = dm_obj['value']
                     if isinstance(value_map, dict):
+                        sid = (
+                            dm_obj.get(SURFACE_ID_KEY) or self._surface_id or 'default'
+                        )
+                        dm_path = dm_obj.get('path') or '/'
+                        yielded_for_target = self._yielded_data_model.setdefault(
+                            (sid, dm_path), {}
+                        )
                         # Find delta against yielded data model
                         delta = {}
                         for k, v in value_map.items():
-                            if self._yielded_data_model.get(k) != v:
+                            if k not in yielded_for_target or not self._values_equal(
+                                yielded_for_target[k], v
+                            ):
                                 delta[k] = v
 
                         if delta:
-                            sid = (
-                                dm_obj.get(SURFACE_ID_KEY)
-                                or self._surface_id
-                                or 'default'
-                            )
                             delta_msg_payload = {
                                 SURFACE_ID_KEY: sid,
                                 'value': delta,
                             }
+                            if 'path' in dm_obj:
+                                delta_msg_payload['path'] = dm_obj['path']
                             delta_msg = self._construct_sniffed_data_model_message(
                                 msg_type, delta_msg_payload
                             )
                             self._yield_messages(
                                 [delta_msg], messages, config=RELAXED_VALIDATION
                             )
-                            self._yielded_data_model.update(delta)
+                            yielded_for_target.pop(None, None)
+                            yielded_for_target.update(delta)
 
     def _record_inline_components(self, sid: str, components: Any) -> None:
         """Records inline components from createSurface as already yielded."""
@@ -383,18 +390,47 @@ class DirectJsonStreamParserModern(DirectJsonStreamParser):
         if MSG_TYPE_UPDATE_DATA_MODEL in m:
             udm = m[MSG_TYPE_UPDATE_DATA_MODEL]
             if isinstance(udm, dict):
-                is_new = False
-                for k, v in udm.items():
+                sid = udm.get(SURFACE_ID_KEY) or self.surface_id or 'default'
+                dm_path = udm.get('path') or '/'
+                yielded_for_target = self._yielded_data_model.setdefault(
+                    (sid, dm_path), {}
+                )
+                if 'value' in udm and isinstance(udm['value'], dict):
+                    val_dict = udm['value']
+                    if not val_dict:
+                        if (
+                            len(yielded_for_target) == 1
+                            and None in yielded_for_target
+                            and self._values_equal(yielded_for_target[None], {})
+                        ):
+                            return False
+                        yielded_for_target.clear()
+                        yielded_for_target[None] = {}
+                        return True
+                    is_new = False
+                    for k, v in val_dict.items():
+                        if k not in yielded_for_target or not self._values_equal(
+                            yielded_for_target[k], v
+                        ):
+                            is_new = True
+                            break
+                    if not is_new:
+                        return False
+                    yielded_for_target.pop(None, None)
+                    yielded_for_target.update(val_dict)
+                else:
+                    has_value = 'value' in udm
+                    raw_val = udm.get('value')
+                    marker = (has_value, raw_val)
                     if (
-                        k not in (SURFACE_ID_KEY, 'root')
-                        and self._yielded_data_model.get(k) != v
+                        len(yielded_for_target) == 1
+                        and None in yielded_for_target
+                        and isinstance(yielded_for_target[None], tuple)
+                        and len(yielded_for_target[None]) == 2
+                        and yielded_for_target[None][0] == has_value
+                        and self._values_equal(yielded_for_target[None][1], raw_val)
                     ):
-                        is_new = True
-                        break
-                if not is_new:
-                    return False
-                # Update yielded model
-                for k, v in udm.items():
-                    if k not in (SURFACE_ID_KEY, 'root'):
-                        self._yielded_data_model[k] = v
+                        return False
+                    yielded_for_target.clear()
+                    yielded_for_target[None] = marker
         return True

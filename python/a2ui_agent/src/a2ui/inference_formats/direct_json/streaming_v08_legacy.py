@@ -134,6 +134,10 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
             val = obj[MSG_TYPE_BEGIN_RENDERING]
             if isinstance(val, dict):
                 surface_id = val.get(SURFACE_ID_KEY) or surface_id
+        elif MSG_TYPE_DATA_MODEL_UPDATE in obj:
+            val = obj[MSG_TYPE_DATA_MODEL_UPDATE]
+            if isinstance(val, dict):
+                surface_id = val.get(SURFACE_ID_KEY) or surface_id
         elif MSG_TYPE_DELETE_SURFACE in obj:
             val = obj[MSG_TYPE_DELETE_SURFACE]
             if isinstance(val, str):
@@ -145,8 +149,16 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
         sid = self.surface_id or 'unknown'
 
         if MSG_TYPE_DELETE_SURFACE in obj:
-            if sid in self._yielded_surfaces_set or self._buffered_start_message:
-                self._delete_surface(sid)
+            if (
+                sid not in self._yielded_surfaces_set
+                and not self._buffered_start_message
+            ):
+                self._pending_messages.setdefault(sid, []).append(obj)
+                return True
+            self.add_msg_type(MSG_TYPE_DELETE_SURFACE)
+            self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
+            self._delete_surface(sid)
+            return True
         else:
             # v0.8 has no createSurface, so any other message for a deleted
             # surface starts it over.
@@ -156,7 +168,7 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
             return True
 
         if (
-            (MSG_TYPE_SURFACE_UPDATE in obj or MSG_TYPE_DELETE_SURFACE in obj)
+            MSG_TYPE_SURFACE_UPDATE in obj
             and sid not in self._yielded_surfaces_set
             and not self._buffered_start_message
         ):
@@ -183,6 +195,8 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
             if sid in self._pending_messages:
                 pending_list = self._pending_messages.pop(sid)
                 for pending_msg in pending_list:
+                    if MSG_TYPE_DELETE_SURFACE in pending_msg:
+                        continue
                     self._handle_complete_object(pending_msg, sid, messages)
 
             self.yield_reachable(messages)
@@ -202,10 +216,6 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
             self.update_data_model(obj[MSG_TYPE_DATA_MODEL_UPDATE], messages)
             self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
             self.yield_reachable(messages, check_root=False, raise_on_orphans=False)
-            return True
-
-        if MSG_TYPE_DELETE_SURFACE in obj:
-            self._yield_messages([obj], messages, config=RELAXED_VALIDATION)
             return True
 
         # If unknown, let base class yield it or yield it here
@@ -235,30 +245,24 @@ class DirectJsonStreamParserV08Legacy(DirectJsonStreamParser):
     def _deduplicate_data_model(self, m: dict[str, Any]) -> bool:
         if MSG_TYPE_DATA_MODEL_UPDATE in m:
             dm = m[MSG_TYPE_DATA_MODEL_UPDATE]
-            raw_contents = dm.get('contents', {})
-            contents_dict = {}
-            if isinstance(raw_contents, list):
-                for entry in raw_contents:
-                    if isinstance(entry, dict) and 'key' in entry:
-                        key = entry['key']
-                        val = (
-                            entry.get('valueString')
-                            or entry.get('valueNumber')
-                            or entry.get('valueBoolean')
-                            or entry.get('valueMap')
-                        )
-                        if key and val is not None:
-                            contents_dict[key] = val
-            elif isinstance(raw_contents, dict):
-                contents_dict = raw_contents
+            if isinstance(dm, dict):
+                sid = dm.get(SURFACE_ID_KEY) or self.surface_id or 'default'
+                dm_path = dm.get('path') or '/'
+                yielded_for_target = self._yielded_data_model.setdefault(
+                    (sid, dm_path), {}
+                )
+                raw_contents = dm.get('contents', {})
+                contents_dict = self._parse_contents_to_dict(raw_contents)
 
-            if contents_dict:
-                is_new = False
-                for k, v in contents_dict.items():
-                    if self._yielded_data_model.get(k) != v:
-                        is_new = True
-                        break
-                if not is_new:
-                    return False
-                self._yielded_data_model.update(contents_dict)
+                if contents_dict:
+                    is_new = False
+                    for k, v in contents_dict.items():
+                        if k not in yielded_for_target or not self._values_equal(
+                            yielded_for_target[k], v
+                        ):
+                            is_new = True
+                            break
+                    if not is_new:
+                        return False
+                    yielded_for_target.update(contents_dict)
         return True
