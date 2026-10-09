@@ -16,9 +16,10 @@
 
 import unittest
 from unittest.mock import patch
+
 from a2ui.core import A2uiCatalogError
-from a2ui.schema import (
-    A2uiCatalogProvider,
+from a2ui.processor import (
+    CatalogProvider,
     FileSystemCatalogProvider,
 )
 from a2ui.schema.utils import (
@@ -114,9 +115,9 @@ class TestSchemaUtils(unittest.TestCase):
         self.assertEqual(deep_update(base, update), expected)
 
     def test_catalog_provider_abstract(self):
-        """Verifies abstract A2uiCatalogProvider load pass."""
+        """Verifies abstract CatalogProvider load pass."""
 
-        class DummyProvider(A2uiCatalogProvider):
+        class DummyProvider(CatalogProvider):
 
             def load(self):
                 return super().load()
@@ -124,11 +125,11 @@ class TestSchemaUtils(unittest.TestCase):
         self.assertIsNone(DummyProvider().load())
 
     def test_file_system_catalog_provider_error(self):
-        """Verifies FileSystemCatalogProvider load raises IOError on failure."""
+        """Verifies FileSystemCatalogProvider load raises A2uiCatalogError on failure."""
         provider = FileSystemCatalogProvider("non_existent_file.json")
-        with self.assertRaises(IOError) as ctx:
+        with self.assertRaises(A2uiCatalogError) as ctx:
             provider.load()
-        self.assertIn("Could not load schema", str(ctx.exception))
+        self.assertIn("Cannot read the catalog document", str(ctx.exception))
 
     def test_catalog_schema_helper_extended(self):
         from a2ui.core import Catalog

@@ -35,7 +35,7 @@ from a2ui.core import (
     STRICT_VALIDATION,
 )
 from a2ui.parser import parse_response
-from a2ui.schema import CatalogConfig
+from a2ui.processor import CatalogConfig
 from .shared.utils import GIT_ROOT
 
 
@@ -62,8 +62,10 @@ def a2ui_scorer(version: str) -> Scorer:
         catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
-        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        catalog = catalog_config.to_catalog(protocol_version=version)
+        catalog_config = CatalogConfig.from_path(
+            resolved_catalog_path, protocol_version=version
+        )
+        catalog = catalog_config.transformed_catalog
 
         answer_text = state.output.completion or ""
 

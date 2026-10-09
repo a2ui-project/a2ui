@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import Any, TYPE_CHECKING, TypeAlias
 
 from pydantic import BaseModel, ValidationError
 
@@ -26,9 +26,7 @@ from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import ProtocolVersion, v0_8, v0_9, v1_0
 
 if TYPE_CHECKING:
-    # Only used in annotations, which aren't evaluated at runtime. A runtime
-    # import would be circular, since `a2ui.schema` imports `a2ui.utils`.
-    from a2ui.schema import CatalogConfig
+    from a2ui.processor import CatalogConfig
 
 _RendererCapabilities: TypeAlias = (
     Mapping[str, Any]
@@ -89,7 +87,7 @@ def resolve_catalogs(
       A2uiValidationError: If the capabilities have no valid entry for the
         protocol version of the registered catalogs.
     """
-    registered = [config.to_catalog() for config in catalogs]
+    registered = [config.transformed_catalog for config in catalogs]
     if renderer_capabilities is None:
         return registered
     if not registered:
