@@ -257,6 +257,63 @@ def test_v10_deleted_surface_can_be_recreated_on_another_catalog(
     }
 
 
+def test_v10_invalid_component_raises_when_it_closes(basic_catalog_v10):
+    """An invalid v1.0 component raises on its chunk instead of stalling the stream.
+
+    A closed component can't become valid later, so the parser doesn't hold
+    back the components after it until the block ends.
+    """
+    parser = DirectJsonParser([basic_catalog_v10])
+
+    parser.parse_chunk(
+        A2UI_OPEN_TAG
+        + '[{"version": "v1.0", "createSurface": {"surfaceId": "main",'
+        f' "catalogId": "{basic_catalog_v10.catalog_id}"}}}}, '
+    )
+    parts = parser.parse_chunk(
+        '{"version": "v1.0", "updateComponents": {"surfaceId": "main",'
+        ' "components": [{"id": "root", "component": "Column",'
+        ' "children": ["a", "b"]}, '
+    )
+    messages = [
+        message
+        for part in parts
+        if isinstance(part, A2uiPart)
+        for message in to_message_dicts(part.a2ui)
+    ]
+    assert "root" in [c["id"] for c in _components_for(messages, "main")]
+
+    with pytest.raises(A2uiValidationError, match="Unrecognized component type"):
+        parser.parse_chunk('{"id": "a", "component": "Bogus"}, ')
+
+
+def test_v10_components_before_surface_id_waits_for_surface_id(basic_catalog_v10):
+    """When components arrive before surfaceId in updateComponents, the parser waits."""
+    parser = DirectJsonParser([basic_catalog_v10])
+
+    parser.parse_chunk(
+        A2UI_OPEN_TAG
+        + '[{"version": "v1.0", "createSurface": {"surfaceId": "main",'
+        f' "catalogId": "{basic_catalog_v10.catalog_id}"}}}}, '
+    )
+    parts = parser.parse_chunk(
+        '{"version": "v1.0", "updateComponents": {"components": [{"id": "root",'
+        ' "component": "Text", "text": "hi"}], '
+    )
+    assert parts == []
+
+    parts = parser.parse_chunk('"surfaceId": "main"}}]' + A2UI_CLOSE_TAG)
+    messages = [
+        message
+        for part in parts
+        if isinstance(part, A2uiPart)
+        for message in to_message_dicts(part.a2ui)
+    ]
+    assert _components_for(messages, "main") == [
+        {"id": "root", "component": "Text", "text": "hi"}
+    ]
+
+
 def test_v08_deleted_surface_can_be_recreated():
     """v0.8 has no createSurface, so a surface is started over after deleteSurface."""
     parser = DirectJsonParser([BasicCatalog("v0.8")])
