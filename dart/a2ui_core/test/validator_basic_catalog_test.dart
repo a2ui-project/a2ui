@@ -85,9 +85,14 @@ void main() {
         ...bounds,
       };
 
-  for (final MapEntry(key: catalogName, value: validator)
+  for (final MapEntry(key: catalogName, value: newValidator)
       in dateTimeValidators.entries) {
     group('DateTimeInput bounds in the $catalogName basic catalog', () {
+      // Built on first use and shared by the group's tests, so the catalog is
+      // read and resolved once.
+      late final PayloadValidator<ComponentApi, FunctionApi> validator =
+          newValidator();
+
       for (final bound in [
         '2026-01-01',
         '09:00:00',
@@ -95,7 +100,7 @@ void main() {
       ]) {
         test('accept the literal $bound', () {
           expect(
-            () => validator().validateComponent(
+            () => validator.validateComponent(
               dateTimeInput({'min': bound, 'max': bound}),
             ),
             returnsNormally,
@@ -105,7 +110,7 @@ void main() {
 
       test('accept a data binding', () {
         expect(
-          () => validator().validateComponent(
+          () => validator.validateComponent(
             dateTimeInput({
               // v1.0 renamed the binding key to `@path`.
               'min': {catalogName == 'v1' ? '@path' : 'path': '/earliest'},
@@ -118,7 +123,7 @@ void main() {
       for (final bound in ['tomorrow', '2026/01/01', '']) {
         test('reject the literal "$bound"', () {
           expect(
-            () => validator().validateComponent(dateTimeInput({'max': bound})),
+            () => validator.validateComponent(dateTimeInput({'max': bound})),
             throwsA(isA<A2uiValidationError>()),
           );
         });
