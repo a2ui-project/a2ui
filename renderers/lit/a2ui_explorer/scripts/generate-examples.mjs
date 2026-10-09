@@ -38,6 +38,10 @@ const EXTRA_EXAMPLES = [
     key: 'mcp-app-3d-geometry.json',
     relativePath: '../../../../../catalogs/mcp/v1/examples/mcp-app-3d-geometry.json',
   },
+  {
+    key: 'srcdoc-tip-calculator.json',
+    relativePath: '../../../../../catalogs/iframe/examples/srcdoc-tip-calculator.json',
+  },
 ];
 const OUT_FILE = path.resolve(import.meta.dirname, '../src/generated/examples-list.ts');
 

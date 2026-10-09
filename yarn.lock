@@ -77,6 +77,7 @@ __metadata:
   resolution: "@a2ui/angular-explorer@workspace:renderers/angular/a2ui_explorer"
   dependencies:
     "@a2ui/angular": "workspace:*"
+    "@a2ui/catalog-iframe": "workspace:*"
     "@a2ui/catalog-mcp": "workspace:*"
     "@a2ui/markdown-it": "npm:*"
     "@a2ui/web_core": "workspace:*"
@@ -162,7 +163,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/catalog-iframe@workspace:typescript/catalogs/iframe":
+"@a2ui/catalog-iframe@workspace:*, @a2ui/catalog-iframe@workspace:typescript/catalogs/iframe":
   version: 0.0.0-use.local
   resolution: "@a2ui/catalog-iframe@workspace:typescript/catalogs/iframe"
   dependencies:
@@ -264,6 +265,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui/lit-explorer@workspace:renderers/lit/a2ui_explorer"
   dependencies:
+    "@a2ui/catalog-iframe": "workspace:*"
     "@a2ui/catalog-mcp": "workspace:*"
     "@a2ui/lit": "workspace:*"
     "@a2ui/markdown-it": "workspace:*"
@@ -359,6 +361,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui/react-explorer@workspace:renderers/react/a2ui_explorer"
   dependencies:
+    "@a2ui/catalog-iframe": "workspace:*"
     "@a2ui/catalog-mcp": "workspace:*"
     "@a2ui/markdown-it": "workspace:*"
     "@a2ui/react": "workspace:*"
