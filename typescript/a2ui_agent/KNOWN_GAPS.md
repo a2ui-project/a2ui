@@ -15,7 +15,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Streaming follows the legacy suite
 
-- **What it is:** `DirectJsonStreamProcessorImpl` was written against `conformance/agent/legacy/streaming_parser.yaml`. The harness now runs `conformance/agent/direct_json/response_streaming.yaml`, which replaced it, and 52 of its 79 v0.9 and v1.0 cases fail. The processor adds `loading_*` placeholder components and prunes a message that is still arriving where the suite withholds it until it reads whole; emits a message only once the block closes; keeps the whitespace at the edges of text; raises on an invalid message as it arrives, and a cycle as `A2uiRecursionError`, where the suite raises a validation error when the block closes; drops or accepts messages for a surface the block has not created and drops orphans, where the suite reports them; and heals cut numbers and escape sequences.
+- **What it is:** `DirectJsonStreamProcessorImpl` was written against `conformance/agent/legacy/streaming_parser.yaml`. The harness now runs `conformance/agent/direct_json/response_streaming.yaml`, which replaced it, and 47 of its 79 v0.9 and v1.0 cases fail. The processor adds `loading_*` placeholder components and prunes a message that is still arriving where the suite withholds it until it reads whole; emits a message only once the block closes; keeps the whitespace at the edges of text; raises on an invalid message as it arrives, and a cycle as `A2uiRecursionError`, where the suite raises a validation error when the block closes; drops or accepts messages for a surface the block has not created and drops orphans, where the suite reports them; and heals cut numbers and escape sequences.
 - **Why it exists:** The new suite was written with Python's `DirectJsonParser.parse_chunk`, which replaced the Python stream parser this processor was ported from.
 - **What it risks:** Streamed output differs from Python's and Dart's for the same model output, and a renderer can receive placeholder components and pruned messages.
 - **Done looks like:** The stream processor follows `response_streaming.yaml`, every case leaves `KNOWN_FAILURES` in `tests/conformance/direct-json-response-streaming.test.ts`, and the v0.8 cases stay skipped since this package does not implement v0.8.
@@ -27,12 +27,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Multi-catalog Express compilation and decompilation differ between Python and TypeScript until ported.
 - **Done looks like:** The TypeScript Express compiler and decompiler implement name-based multi-catalog resolution and omit `createSurface.catalogId` when multiple catalogs are active, so `test_compile_express_surface_targeting_names_a_catalog` and `test_decompile_express_two_surfaces_in_two_catalogs` pass and leave `KNOWN_FAILURES` in `tests/conformance/express_conformance.test.ts`.
 
-### Streamed payloads are not validated against catalogs
+### Streamed component properties are not validated against catalogs
 
-- **What it is:** With a `ValidationConfig`, `DirectJsonStreamProcessorImpl` checks each completed envelope against the protocol schema and `allowedMessages`, but not against the active catalogs. A component type or property the catalog doesn't define passes through.
-- **Why it exists:** Catalog validation lives in `A2uiRequestProcessor`, and streaming isn't available through that facade yet. Callers construct the stream processor themselves.
-- **What it risks:** Streaming callers can forward components a renderer's catalog can't render.
-- **Done looks like:** The stream processor validates completed messages against the catalog each component resolves to, for example through web_core's `MessageProcessor`, or streaming moves behind `A2uiRequestProcessor` and is validated there. Whether to do this is decided in #3030.
+- **What it is:** With a `ValidationConfig`, `DirectJsonStreamProcessorImpl` checks each completed envelope against the protocol schema and `allowedMessages`, and checks that each reachable component's `component` type exists in its resolved catalog, but does not validate component properties against the catalog schema during streaming.
+- **Why it exists:** Full schema validation against component catalogs lives in `A2uiRequestProcessor`, and streaming isn't available through that facade yet. Callers construct the stream processor themselves.
+- **What it risks:** Streaming callers can forward components with invalid or unknown properties to a renderer.
+- **Done looks like:** The stream processor validates completed component properties against the catalog each component resolves to, for example through web_core's `MessageProcessor`, or streaming moves behind `A2uiRequestProcessor` and is validated there.
 
 ### `resolveCatalogs` can't tell when capabilities omit the catalogs' version
 

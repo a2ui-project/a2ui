@@ -623,25 +623,35 @@ describe('Direct JSON Streaming with several catalogs', () => {
     [
       {
         name: 'CustomMetric',
-        schema: z.object({id: z.string(), component: z.literal('CustomMetric'), value: z.number()}),
+        schema: z.object({
+          id: z.string(),
+          component: z.literal('CustomMetric'),
+          value: z.number(),
+          caption: z.string().optional(),
+        }),
       } as unknown as ComponentApi,
     ],
     [],
   );
 
-  test('resolves catalog per component in v1.0 streaming', () => {
-    const processor = new DirectJsonStreamProcessorImpl([catalogBasicV10, catalogCustomV10]);
+  test('resolves catalog per component in v1.0 streaming for required props and child refs', () => {
+    const processor = new DirectJsonStreamProcessorImpl([catalogBasicV10, catalogCustomV10], {
+      validationConfig: STRICT_VALIDATION,
+    });
     overrideRefMap(processor, catalogBasicV10, {
       Column: {singleRefs: new Set(), listRefs: new Set(['children'])},
       Text: {singleRefs: new Set(), listRefs: new Set()},
+    });
+    overrideRefMap(processor, catalogCustomV10, {
+      CustomMetric: {singleRefs: new Set(['caption']), listRefs: new Set()},
     });
     const messages = processor
       .processChunk(
         '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, ' +
           '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [' +
-          '{"id": "root", "component": "Column", "children": ["t1", "m1"]}, ' +
-          '{"id": "t1", "component": "Text", "text": "Users"}, ' +
-          '{"id": "m1", "catalogId": "https://a2ui.org/catalogs/custom", "component": "CustomMetric", "value": 42}' +
+          '{"id": "root", "component": "Column", "children": ["m1"]}, ' +
+          '{"id": "m1", "catalogId": "https://a2ui.org/catalogs/custom", "component": "CustomMetric", "value": 42, "caption": "c1"}, ' +
+          '{"id": "c1", "component": "Text", "text": "Users"}' +
           ']}}]</a2ui-json>',
       )
       .filter(p => p.type === 'a2ui')
@@ -658,21 +668,78 @@ describe('Direct JSON Streaming with several catalogs', () => {
       catalogId: 'https://a2ui.org/catalogs/custom',
       component: 'CustomMetric',
       value: 42,
+      caption: 'c1',
+    });
+    // c1 is only reachable via CustomMetric.caption in catalogCustomV10's refMap
+    expect(allComps.find(c => c.id === 'c1')).toEqual({
+      id: 'c1',
+      component: 'Text',
+      text: 'Users',
     });
   });
 
-  test('throws A2uiValidationError for unknown component catalogId in v1.0', () => {
-    const processor = new DirectJsonStreamProcessorImpl([catalogBasicV10, catalogCustomV10]);
-    processor.processChunk(
-      '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, ',
-    );
-    expect(() =>
-      processor.processChunk(
-        '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [' +
-          '{"id": "root", "catalogId": "https://a2ui.org/catalogs/unknown", "component": "Text", "text": "Hi"}' +
+  test('falls back to surface catalog when component catalogId is not in active catalogs', () => {
+    const processor = new DirectJsonStreamProcessorImpl([catalogBasicV10, catalogCustomV10], {
+      validationConfig: STRICT_VALIDATION,
+    });
+    const messages = processor
+      .processChunk(
+        '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, ' +
+          '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [' +
+          '{"id": "root", "catalogId": "https://a2ui.org/catalogs/inactive", "component": "Text", "text": "Hi"}' +
           ']}}]</a2ui-json>',
-      ),
-    ).toThrow(A2uiValidationError);
+      )
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui);
+    const allComps = messages
+      .filter(
+        (m): m is {updateComponents: {components: Array<Record<string, unknown>>}} =>
+          'updateComponents' in m,
+      )
+      .flatMap(m => m.updateComponents.components);
+    expect(allComps).toEqual([
+      {
+        id: 'root',
+        catalogId: 'https://a2ui.org/catalogs/inactive',
+        component: 'Text',
+        text: 'Hi',
+      },
+    ]);
+  });
+
+  test('skips component type check when validationConfig is omitted and checks when provided', () => {
+    const unvalidated = new DirectJsonStreamProcessorImpl([catalogBasicV10]);
+    overrideRefMap(unvalidated, catalogBasicV10, {
+      Column: {singleRefs: new Set(), listRefs: new Set(['children'])},
+      Text: {singleRefs: new Set(), listRefs: new Set()},
+    });
+    const payload =
+      '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "main", "catalogId": "https://a2ui.org/catalogs/basic"}}, ' +
+      '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": [' +
+      '{"id": "root", "component": "Column", "children": ["u1", "t1"]}, ' +
+      '{"id": "u1", "component": "UnknownWidget"}, ' +
+      '{"id": "t1", "component": "Text", "text": "Sibling"}' +
+      ']}}]</a2ui-json>';
+
+    const parts = unvalidated.processChunk(payload);
+    const comps = parts
+      .filter(p => p.type === 'a2ui')
+      .flatMap(p => p.a2ui)
+      .filter(
+        (m): m is {updateComponents: {components: Array<Record<string, unknown>>}} =>
+          'updateComponents' in m,
+      )
+      .flatMap(m => m.updateComponents.components);
+    expect(comps.map(c => c.id)).toEqual(['root', 't1', 'u1']);
+
+    const validated = new DirectJsonStreamProcessorImpl([catalogBasicV10], {
+      validationConfig: STRICT_VALIDATION,
+    });
+    overrideRefMap(validated, catalogBasicV10, {
+      Column: {singleRefs: new Set(), listRefs: new Set(['children'])},
+      Text: {singleRefs: new Set(), listRefs: new Set()},
+    });
+    expect(() => validated.processChunk(payload)).toThrow(A2uiValidationError);
   });
 
   test('holds v1.0 components until their JSON object closes', () => {
@@ -691,7 +758,7 @@ describe('Direct JSON Streaming with several catalogs', () => {
     expect(updateMsgs1).toEqual([]);
 
     // Now send the late catalogId and close the component object
-    const chunk2 = ', "catalogId": "https://a2ui.org/catalogs/custom"}}]}}]</a2ui-json>';
+    const chunk2 = ', "catalogId": "https://a2ui.org/catalogs/custom"}]}}]</a2ui-json>';
     const parts2 = processor.processChunk(chunk2);
     const updateMsgs2 = parts2
       .filter(p => p.type === 'a2ui')

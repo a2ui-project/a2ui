@@ -62,6 +62,7 @@ const KNOWN_FAILURES = new Map<string, string>([
       'test_chunk_partial_component_name_withholds',
       'test_chunk_partial_data_binding_path_withholds',
       'test_chunk_payload_withheld_until_it_parses',
+      'test_chunk_progressive_key_inside_a_component_waits',
       'test_chunk_progressive_keys_name_the_healable_properties',
       'test_chunk_string_holding_a_close_tag_split_across_chunks',
       'test_chunk_unwrapped_stream_compiles_the_body',
@@ -70,10 +71,11 @@ const KNOWN_FAILURES = new Map<string, string>([
   ...group(
     'a message still arriving is pruned or given placeholder components, rather than withheld until it reads whole',
     [
+      'test_chunk_closed_components_emit_while_the_next_arrives',
       'test_chunk_data_model_key_without_a_value_withholds',
-      'test_chunk_payload_reassembled_from_small_deltas',
       'test_stream_child_before_root_v09',
       'test_stream_children_list_v09',
+      'test_stream_component_catalog_id_arrives_late_v10',
       'test_stream_concurrent_surfaces_v09',
       'test_stream_cut_escape_sequence_v09',
       'test_stream_cut_number_withholds_v09',
@@ -85,6 +87,7 @@ const KNOWN_FAILURES = new Map<string, string>([
       'test_stream_data_model_updates_after_components_v09',
       'test_stream_data_model_value_cut_at_key_withholds_v09',
       'test_stream_incremental_yielding_v09',
+      'test_stream_multi_catalog_resolution_v10',
       'test_stream_no_placeholder_components_v09',
       'test_stream_open_children_object_withholds_v09',
       'test_stream_open_nested_object_withholds_v09',
@@ -109,19 +112,6 @@ const KNOWN_FAILURES = new Map<string, string>([
       'test_stream_delete_surface_before_create_surface_v09',
       'test_stream_orphan_component_fails_v09',
       'test_stream_update_before_create_surface_fails_v09',
-    ],
-  ),
-  ...group(
-    'v1.0 components are healed before their object closes and resolved against the surface catalog only (#3030)',
-    [
-      'test_chunk_closed_components_emit_while_the_next_arrives',
-      'test_chunk_component_on_the_surface_catalog_waits',
-      'test_chunk_progressive_key_inside_a_component_waits',
-      'test_stream_catalog_id_split_across_chunks_v10',
-      'test_stream_component_catalog_id_arrives_late_v10',
-      'test_stream_component_on_surface_catalog_waits_until_closed_v10',
-      'test_stream_component_without_catalog_uses_surface_catalog_v10',
-      'test_stream_multi_catalog_resolution_v10',
     ],
   ),
 ]);

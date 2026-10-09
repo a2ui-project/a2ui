@@ -113,9 +113,6 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
     if (catalogId) {
       const found = this.catalogs.find(c => c.id === catalogId);
       if (found) return found;
-      throw new A2uiValidationError(
-        `Unknown catalog ID '${catalogId}' for component '${comp?.id ?? 'unknown'}'`,
-      );
     }
     return this.catalog;
   }
@@ -1076,7 +1073,8 @@ export class DirectJsonStreamProcessorImpl implements DirectJsonStreamProcessor 
   }
 
   private yieldReachable(messages: ResponsePart[], checkRoot: boolean, raiseOnOrphans: boolean) {
-    const shouldValidate = checkRoot || this.buffersIncompleteComponents;
+    const shouldValidate =
+      this.options?.validationConfig && (checkRoot || this.buffersIncompleteComponents);
     const activeMsgType = this.getActiveMsgTypeForComponents();
     if (!this.getRootId() || !activeMsgType) return;
     if (!this.surfaceId) return;
