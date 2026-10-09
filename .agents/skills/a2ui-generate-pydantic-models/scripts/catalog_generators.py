@@ -68,18 +68,55 @@ def generate_basic_catalog_components(
         f"from {common_module_path} import (\n" + "\n".join(import_lines) + "\n)"
     )
 
+    names = []
+    defs = catalog_data.get("$defs", {})
+    custom_leaf_defs = {
+        k: v
+        for k, v in defs.items()
+        if k not in ("anyComponent", "anyFunction", "CatalogComponentCommon")
+        and k not in common_def_names
+        and isinstance(v, dict)
+    }
+    for def_name in custom_leaf_defs:
+        codegen.local_def_symbols[def_name] = to_pascal_case(def_name)
+
+    type_alias_import = (
+        "from typing_extensions import TypeAliasType\n" if custom_leaf_defs else ""
+    )
     comp_blocks = [
         (
             f"{FILE_HEADER}\n"
             "from typing import Annotated, Any, Literal\n"
+            f"{type_alias_import}"
             "from pydantic import BaseModel, Field, ConfigDict\n"
             f"{common_import_stmt}\n"
             "from ...catalog.components import ModelComponentApi"
         ),
     ]
 
-    names = []
-    defs = catalog_data.get("$defs", {})
+    for def_name, def_spec in custom_leaf_defs.items():
+        py_sym = codegen.local_def_symbols[def_name]
+        base_py_type = codegen.map_json_type_to_python(def_name, def_spec)
+        field_kwargs: list[str] = []
+        if "description" in def_spec:
+            field_kwargs.append(
+                f"description={python_literal(def_spec['description'])}"
+            )
+        if "default" in def_spec:
+            field_kwargs.append(
+                "json_schema_extra={'default':"
+                f" {python_literal(def_spec['default'])}}}"
+            )
+        annotated_expr = (
+            f"Annotated[{base_py_type}, Field({', '.join(field_kwargs)})]"
+            if field_kwargs
+            else base_py_type
+        )
+        comp_blocks.append(
+            f"{py_sym} = TypeAliasType({python_literal(py_sym)}, {annotated_expr})"
+        )
+        names.append(py_sym)
+
     has_catalog_common = "CatalogComponentCommon" in defs
     base_comp_class = (
         "CatalogComponentCommon" if has_catalog_common else "ComponentCommon"

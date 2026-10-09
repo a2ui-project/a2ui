@@ -138,12 +138,25 @@ export function generatePrimitiveZod(propSchema) {
 /**
  * Generates Zod code for object schemas with child properties.
  */
-export function generateObjectSchemaZod(schema, commonDefs, usedImports, indent = '      ') {
+export function generateObjectSchemaZod(
+  schema,
+  commonDefs,
+  usedImports,
+  indent = '      ',
+  catalogDefs = {},
+) {
   if (!schema.properties) return 'z.record(z.any())';
   const objProps = [];
   const itemReq = schema.required || [];
   for (const [subKey, subSchema] of Object.entries(schema.properties)) {
-    const subCode = generatePropertyZod(subKey, subSchema, itemReq, commonDefs, usedImports);
+    const subCode = generatePropertyZod(
+      subKey,
+      subSchema,
+      itemReq,
+      commonDefs,
+      usedImports,
+      catalogDefs,
+    );
     objProps.push(`${indent}'${subKey}': ${subCode}`);
   }
   return `z.object({\n${objProps.join(',\n')},\n${indent.substring(2)}})`;
@@ -152,8 +165,15 @@ export function generateObjectSchemaZod(schema, commonDefs, usedImports, indent 
 /**
  * Generates Zod code for array schemas.
  */
-export function generateArrayZod(propSchema, commonDefs, usedImports) {
-  const items = propSchema.items;
+export function generateArrayZod(propSchema, commonDefs, usedImports, catalogDefs = {}) {
+  let items = propSchema.items;
+  if (items && typeof items.$ref === 'string' && items.$ref.startsWith('#/$defs/')) {
+    const refName = extractRefName(items.$ref);
+    if (refName && catalogDefs && catalogDefs[refName] && !commonDefs[refName]) {
+      items = {...catalogDefs[refName], ...items};
+      delete items.$ref;
+    }
+  }
   let itemsCode = 'z.any()';
   if (items) {
     const itemDefName = findReferencedDefName(items, commonDefs);
@@ -169,7 +189,13 @@ export function generateArrayZod(propSchema, commonDefs, usedImports) {
     } else if (items.type === 'number' || items.type === 'integer') {
       itemsCode = 'z.number()';
     } else if (items.type === 'object' && items.properties) {
-      itemsCode = generateObjectSchemaZod(items, commonDefs, usedImports, '          ');
+      itemsCode = generateObjectSchemaZod(
+        items,
+        commonDefs,
+        usedImports,
+        '          ',
+        catalogDefs,
+      );
     }
   }
   let code = `z.array(${itemsCode})`;
@@ -192,9 +218,10 @@ export function generateUnionPropertyZod(
   isRequired,
   commonDefs,
   usedImports,
+  catalogDefs = {},
 ) {
   const generatedBranches = branches.map(branch =>
-    generatePropertyZod('', branch, [''], commonDefs, usedImports),
+    generatePropertyZod('', branch, [''], commonDefs, usedImports, catalogDefs),
   );
   const unionCode =
     generatedBranches.length === 1
@@ -212,7 +239,24 @@ export function generatePropertyZod(
   requiredList = [],
   commonDefs,
   usedImports,
+  catalogDefs = {},
 ) {
+  if (propSchema && typeof propSchema.$ref === 'string' && propSchema.$ref.startsWith('#/$defs/')) {
+    const refName = extractRefName(propSchema.$ref);
+    if (refName && catalogDefs && catalogDefs[refName] && !(commonDefs && commonDefs[refName])) {
+      const resolved = {...catalogDefs[refName], ...propSchema};
+      delete resolved.$ref;
+      return generatePropertyZod(
+        propName,
+        resolved,
+        requiredList,
+        commonDefs,
+        usedImports,
+        catalogDefs,
+      );
+    }
+  }
+
   const isRequired = requiredList.includes(propName);
   const desc = propSchema.description;
 
@@ -225,13 +269,20 @@ export function generatePropertyZod(
   // 2. OneOf / AnyOf unions
   const unionBranches = propSchema.oneOf || propSchema.anyOf;
   if (Array.isArray(unionBranches) && unionBranches.length > 0) {
-    return generateUnionPropertyZod(unionBranches, propSchema, isRequired, commonDefs, usedImports);
+    return generateUnionPropertyZod(
+      unionBranches,
+      propSchema,
+      isRequired,
+      commonDefs,
+      usedImports,
+      catalogDefs,
+    );
   }
 
   // 3. Arrays
   if (propSchema.type === 'array') {
     return applyModifiers(
-      generateArrayZod(propSchema, commonDefs, usedImports),
+      generateArrayZod(propSchema, commonDefs, usedImports, catalogDefs),
       propSchema,
       isRequired,
     );
@@ -252,7 +303,7 @@ export function generatePropertyZod(
   // 6. Objects
   if (propSchema.type === 'object') {
     return applyModifiers(
-      generateObjectSchemaZod(propSchema, commonDefs, usedImports),
+      generateObjectSchemaZod(propSchema, commonDefs, usedImports, '      ', catalogDefs),
       propSchema,
       isRequired,
     );
@@ -376,7 +427,14 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
       if (propName === discriminatorProp || propName === idProp) {
         continue;
       }
-      const zodCode = generatePropertyZod(propName, propDef, required, commonDefs, usedImports);
+      const zodCode = generatePropertyZod(
+        propName,
+        propDef,
+        required,
+        commonDefs,
+        usedImports,
+        catalogDefs,
+      );
       bodyCode += `      '${propName}': ${zodCode},\n`;
     }
 
@@ -437,7 +495,14 @@ export function generateFunctionsFile(version, catalogJson, commonDefs, options 
     bodyCode += `  schema: z.object({\n`;
 
     for (const [argName, argDef] of Object.entries(argsProps)) {
-      const zodCode = generatePropertyZod(argName, argDef, argsRequired, commonDefs, usedImports);
+      const zodCode = generatePropertyZod(
+        argName,
+        argDef,
+        argsRequired,
+        commonDefs,
+        usedImports,
+        catalogDefs,
+      );
       bodyCode += `    '${argName}': ${zodCode},\n`;
     }
 

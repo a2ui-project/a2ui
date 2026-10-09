@@ -102,6 +102,26 @@ def _find_referenced_models(
     return models
 
 
+def _find_referenced_type_aliases(tp: Any, visited: set[Any] | None = None) -> set[str]:
+    """Recursively finds names of TypeAliasType definitions referenced by a field."""
+    if visited is None:
+        visited = set()
+    if tp in visited:
+        return set()
+    visited.add(tp)
+    aliases: set[str] = set()
+    alias_name = getattr(tp, "__name__", None)
+    alias_val = getattr(tp, "__value__", None)
+    if isinstance(alias_name, str) and alias_val is not None and not _is_model(tp):
+        aliases.add(alias_name)
+        aliases.update(_find_referenced_type_aliases(alias_val, visited))
+    origin = get_origin(tp)
+    if origin is not None:
+        for arg in get_args(tp):
+            aliases.update(_find_referenced_type_aliases(arg, visited))
+    return aliases
+
+
 def _object_schema(
     model: type[BaseModel], description: str | None = None
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -211,6 +231,12 @@ class SpecShaper:
         # v0.9 description on the object of its own properties.
         inner, defs = _object_schema(model, None if self._v1 else description)
         model_defs.update(defs)
+        for field_name in _own_fields(model):
+            for alias_name in _find_referenced_type_aliases(
+                model.model_fields[field_name].annotation
+            ):
+                if alias_name not in self.common_symbols and alias_name in model_defs:
+                    catalog_defs[alias_name] = model_defs.pop(alias_name)
         properties = inner["properties"]
         properties[_COMPONENT_KEY] = {"const": name}
         required = inner.setdefault("required", [])

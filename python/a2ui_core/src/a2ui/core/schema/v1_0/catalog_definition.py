@@ -126,7 +126,7 @@ class ValidationResult(StrictBaseModel):
 
 
 class CatalogDefs(BaseModel):
-    """Standardized schema definitions referenced from outside the catalog file."""
+    """Standardized schema definitions referenced from outside the catalog file, and custom leaf definitions."""
 
     model_config = ConfigDict(populate_by_name=True)
     any_component: Any = Field(
@@ -163,6 +163,9 @@ class CatalogDefinition(StrictBaseModel):
     )
     catalog_id: str = Field(
         ..., alias="catalogId", description="Unique identifier for this catalog."
+    )
+    metadata: Extensions | None = Field(
+        default=None, description="Optional catalog-level metadata."
     )
     instructions: str | None = Field(
         default=None,
