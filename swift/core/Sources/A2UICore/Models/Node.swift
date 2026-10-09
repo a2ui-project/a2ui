@@ -214,9 +214,7 @@ extension Node {
   /// Renderers apply these on top of the label their platform already infers from visible
   /// content, so that an explicit value overrides the inferred one.
   public var explicitAccessibilityAttributes: AccessibilityAttributes? {
-    let accessibilityDictionary =
-      (properties["accessibility"] as? ResolvedDictionary)
-      ?? dictionary(for: "accessibility").map { ResolvedDictionary($0) }
+    let accessibilityDictionary = properties["accessibility"] as? ResolvedDictionary
     let accessibilityJSON = properties["accessibility"] as? JSONValue
 
     let label =

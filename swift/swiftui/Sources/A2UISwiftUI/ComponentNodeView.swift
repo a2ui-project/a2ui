@@ -50,7 +50,13 @@ public struct ComponentNodeView: View {
         A2UIAccessibilityModifier(node: node, appliesLabelAndHint: !controlCarriesLabel)
       )
       .onPreferenceChange(A2UIAccessibilityControlKey.self) { carriesLabel in
-        Task { @MainActor in controlCarriesLabel = carriesLabel }
+        // SwiftUI delivers preference changes on the main thread. Updating synchronously avoids
+        // a frame where both the root and the control carry the label.
+        MainActor.assumeIsolated {
+          if controlCarriesLabel != carriesLabel {
+            controlCarriesLabel = carriesLabel
+          }
+        }
       }
       // A nested component's control must not affect its ancestors.
       .transformPreference(A2UIAccessibilityControlKey.self) { $0 = false }
