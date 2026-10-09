@@ -54,19 +54,6 @@ const String _noV08 = 'Targets v0.8, which a2ui_core does not implement.';
 
 /// Cases whose expected outcome Dart does not produce, with the reason.
 const Map<String, String> _knownDivergences = {
-  // See #2994: PayloadValidator._resolutionDocument appends the v1.0 catch-all
-  // branch to anyFunction so undeclared agent-bound function calls pass payload
-  // validation and are forwarded to the agent, whereas Catalog.validationSchema
-  // omits the catch-all branch.
-  'test_v10_published_basic_catalog_validates_function_calls':
-      'From v1.0, PayloadValidator accepts a call to a function the catalog '
-          'does not declare, because the renderer forwards it to the agent.',
-  'test_v10_published_basic_catalog_validates_nested_calls':
-      'Dart PayloadValidator has not yet implemented v1.0 cross-catalog '
-          'nested call resolution.',
-  'test_v10_published_basic_catalog_rejects_nested_call_bad_identifiers':
-      'Dart PayloadValidator has not yet implemented v1.0 cross-catalog '
-          'nested call identifier checks.',
   'test_v10_uax31_invalid_argument_name':
       "Catalog.fromJson reads a map-form function's 'parameters' as a JSON "
           'schema, so it checks the names under its properties; the case '
