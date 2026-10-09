@@ -1,5 +1,18 @@
 ## Unreleased
 
+- **BREAKING**: `a2ui.core.schema.AgentToRendererMessage`,
+  `RendererToAgentMessage`, and their legacy aliases now expose the full
+  v0.8–v1.0 union instead of being overwritten by v0.9 re-exports. The facade
+  no longer re-exports `AGENT_TO_RENDERER_DEFS`, `INLINE_DEF_MARKER`,
+  `SchemaKeywords`, `def_ref` or `Annotated`, which leaked through the old
+  star imports; import them from their defining modules (#3064).
+
+## 0.3.0 (2026-10-08)
+
+- `inline_local_refs` is exported from `a2ui.core`. It writes a schema's local
+  `#/` references inline, keeping references to common types, as
+  `Catalog.from_json` does
+  ([#2966](https://github.com/a2ui-project/a2ui/pull/2966)).
 - (v1_0) The basic catalog's `and`, `or` and `not` read a ValidationResult
   operand by its `valid` member instead of treating every non-empty dict as
   truthy, so the v1.0 specification's nested
@@ -16,7 +29,6 @@
   `FunctionImplementation.execute` no longer validates its arguments; callers
   that invoke it directly validate the written arguments first, with
   `PayloadValidator.validate_function` or the function's schema model.
-
 - **BREAKING**: `ComponentModel.component_tree` names the component under
   `component`, as an `updateComponents` message does, instead of `type`. A
   property named `type` no longer replaces the component type in the tree,

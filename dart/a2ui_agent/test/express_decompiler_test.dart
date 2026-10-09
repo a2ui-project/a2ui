@@ -296,10 +296,10 @@ void main() {
           {'id': 'main-title', 'component': 'Text', 'text': 'x'},
         ]),
       ],
-      'a property every component shares': [
+      'an undeclared component property': [
         create('s'),
         components('s', [
-          {'id': 'root', 'component': 'Text', 'text': 'x', 'weight': 1},
+          {'id': 'root', 'component': 'Text', 'text': 'x', 'unknownProp': 1},
         ]),
       ],
       'a null property': [
@@ -431,7 +431,12 @@ void main() {
             messages([
               create('s'),
               components('s', [
-                {'id': 'root', 'component': 'Text', 'text': 'x', 'weight': 1},
+                {
+                  'id': 'root',
+                  'component': 'Text',
+                  'text': 'x',
+                  'unknownProp': 1,
+                },
               ]),
             ]),
           ],

@@ -15,6 +15,7 @@
 import 'dart:convert';
 
 import '../../core/catalog.dart';
+import '../../primitives/protocol_version.dart';
 import '../function_support.dart';
 import '../locale_formatting.dart';
 import 'catalog.g.dart';
@@ -30,7 +31,7 @@ import 'catalog.g.dart';
 /// edits one cannot change another.
 CatalogApi publishedBasicCatalogV0_9() => Catalog.fromJson(
       jsonDecode(basicCatalogV0_9Json) as Map<String, Object?>,
-      protocolVersion: 'v0.9',
+      protocolVersion: A2uiProtocolVersion.v0_9,
     );
 
 /// The behaviour of the v0.9 basic catalog functions, formatting for

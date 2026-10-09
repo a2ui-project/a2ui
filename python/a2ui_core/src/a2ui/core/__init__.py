@@ -19,6 +19,7 @@ from a2ui.core.catalog import (
     get_agent_to_renderer_schema_map as get_agent_to_renderer_schema_map,
     get_common_types_schema_json as get_common_types_schema_json,
     get_common_types_schema_map as get_common_types_schema_map,
+    inline_local_refs as inline_local_refs,
     is_valid_uax31_identifier as is_valid_uax31_identifier,
 )
 from a2ui.core.exceptions import (
@@ -90,5 +91,6 @@ __all__ = [
     "get_agent_to_renderer_schema_map",
     "get_common_types_schema_json",
     "get_common_types_schema_map",
+    "inline_local_refs",
     "is_valid_uax31_identifier",
 ]

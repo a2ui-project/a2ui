@@ -16,6 +16,11 @@ from .errors import (
     A2uiCompilationParseError,
     A2uiCompilationValidationError,
 )
+from .messages import (
+    normalize_prompt_example_messages,
+    to_message_dicts,
+    to_message_models,
+)
 from .parser import Parser, parse_response
 from .payload_fixer import parse_and_fix
 from .response_part import ResponsePart
@@ -26,6 +31,9 @@ __all__ = [
     "A2uiCompilationValidationError",
     "Parser",
     "ResponsePart",
+    "normalize_prompt_example_messages",
     "parse_and_fix",
     "parse_response",
+    "to_message_dicts",
+    "to_message_models",
 ]

@@ -29,11 +29,15 @@ from a2ui.a2a import (
     parse_response_to_parts,
 )
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.core.parser.parser import parse_response
-from a2ui.core.schema.common_modifiers import remove_strict_validation
-from a2ui.core.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig
+from a2ui.parser import parse_response
+from a2ui.schema import (
+    A2UI_CLOSE_TAG,
+    A2UI_OPEN_TAG,
+    CatalogConfig,
+    VERSION_0_8,
+)
+from a2ui.utils import validate_payload
 import dotenv
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
@@ -78,29 +82,24 @@ class ContactAgent:
 
     def _build_inference_format(self, version: str) -> DirectJsonFormat:
         # Gemini Enerprise only supports VERSION_0_8 for now.
+        catalog = CatalogConfig.from_catalog("basic", BasicCatalog(version)).to_catalog(
+            protocol_version=version
+        )
         return DirectJsonFormat(
-            version=version,
-            catalogs=[
-                CatalogConfig.from_catalog(
-                    "basic",
-                    BasicCatalog(version),
-                    examples_path=os.path.join(
-                        os.path.dirname(__file__), f"examples/{version}"
-                    ),
-                )
-            ],
-            schema_modifiers=[remove_strict_validation],
+            [catalog],
+            examples_path=os.path.join(
+                os.path.dirname(__file__), f"examples/{version}"
+            ),
         )
 
     def _build_agent_card(self) -> AgentCard:
         """Builds the AgentCard for this agent, describing its capabilities and skills."""
         extensions = []
         if self._inference_formats:
-            for version, sm in self._inference_formats.items():
+            for version, fmt in self._inference_formats.items():
                 ext = get_a2ui_agent_extension(
                     version,
-                    sm.accepts_inline_catalogs,
-                    sm.supported_catalog_ids,
+                    supported_catalog_ids=[c.catalog_id for c in fmt.catalogs],
                 )
                 extensions.append(ext)
 
@@ -188,7 +187,7 @@ class ContactAgent:
             runner = self._ui_runners[ui_version]
             inference_format = self._inference_formats[ui_version]
             selected_catalog = (
-                inference_format.get_selected_catalog() if inference_format else None
+                inference_format.catalogs[0] if inference_format else None
             )
         else:
             runner = self._text_runner
@@ -325,14 +324,13 @@ class ContactAgent:
                             is_valid = True
                         else:
                             # --- Validation Steps ---
-                            # Check if it validates against the A2UI_SCHEMA
-                            # This will raise jsonschema.exceptions.ValidationError if it
-                            # fails
+                            # Check the payload against the selected catalog. This
+                            # raises A2uiValidationError, a ValueError, if it fails.
                             print(
                                 "--- ContactAgent.fetch_response: Validating against"
                                 " A2UI_SCHEMA... ---"
                             )
-                            selected_catalog.validate_components(parsed_json_data)
+                            validate_payload([selected_catalog], parsed_json_data)
                             # --- End Validation Steps ---
 
                             print(

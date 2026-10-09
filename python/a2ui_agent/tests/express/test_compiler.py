@@ -22,7 +22,7 @@ These unit tests specifically cover Python language-specific aspects that
 conformance suites leave to the SDK implementation:
 - Multi-threaded execution and compiler thread safety
 - Custom Python exception hierarchies and error properties (e.g. ExpressCompilerError subclasses)
-- Catalog polymorphism (accepting Catalog models, A2uiCatalog instances, and raw dictionaries)
+- Catalog initialization from Catalog models
 - Python schema helper initialization validation and feature flag gating
 """
 
@@ -31,20 +31,19 @@ import os
 import unittest
 
 from a2ui.core import Catalog
-from a2ui.schema import A2uiCatalog, CatalogConfig
-from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
-from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper
-from a2ui.inference_formats.experimental.express.parser import ExpressParser
-from a2ui.inference_formats.experimental.express.errors import (
-    ExpressUnknownPropertyError,
-    ExpressDuplicatePropertyError,
-    ExpressInvalidParamError,
+from a2ui.inference_formats import to_message_dicts
+from a2ui.inference_formats._shared import CatalogSchemaHelper
+from a2ui.inference_formats.experimental.express import (
+    ExpressCompiler,
     ExpressDuplicateParamError,
+    ExpressDuplicatePropertyError,
     ExpressForbiddenDatabindingError,
+    ExpressInvalidParamError,
+    ExpressParser,
+    ExpressPromptGenerator,
     ExpressUndefinedRootError,
+    ExpressUnknownPropertyError,
 )
-
 from a2ui.schema.utils import find_repo_root, get_spec_dir
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
@@ -61,14 +60,14 @@ class TestExpressCompiler(unittest.TestCase):
         self.catalog_path = CATALOG_PATH
         with open(self.catalog_path, "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
-        self.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
+        self.catalog = Catalog.from_json(catalog_dict, protocol_version="1.0")
         self.helper = CatalogSchemaHelper(self.catalog)
 
     def test_compiler_concurrency(self):
         """Verifies that ExpressCompiler is thread-safe and supports concurrent compilation."""
         import threading
 
-        compiler = ExpressCompiler(self.catalog)
+        compiler = ExpressCompiler([self.catalog])
         errors = []
 
         dsl_1 = """
@@ -83,7 +82,7 @@ btnLabel = Text("Click Thread 2")
 
         def compile_worker(dsl: str, expected_id: str):
             try:
-                res = compiler.compile(dsl, surface_id="test_surf")[0]
+                res = to_message_dicts(compiler.compile(dsl, surface_id="test_surf"))[0]
                 components = res["createSurface"]["components"]
                 child = next((c for c in components if c["id"] == expected_id), None)
                 self.assertIsNotNone(child)
@@ -109,14 +108,14 @@ btnLabel = Text("Click Thread 2")
 
     def test_semicolons_and_trailing_commas_and_line_continuation(self):
         """Verifies that optional semicolons, trailing commas, and line continuations compile correctly."""
-        compiler = ExpressCompiler(self.catalog)
+        compiler = ExpressCompiler([self.catalog])
 
         # 1. Test optional semicolons at the end of statements
         semicolon_dsl = """
     root = Column([btn1]);
     btn1 = Button("Click Me", action=Event("click"));
     """
-        envelope = compiler.compile(semicolon_dsl)[0]
+        envelope = to_message_dicts(compiler.compile(semicolon_dsl))[0]
         self.assertEqual(len(envelope["createSurface"]["components"]), 2)
 
         # 2. Test trailing commas in lists, maps, component calls, and checks
@@ -126,7 +125,7 @@ btnLabel = Text("Click Thread 2")
     btn2 = TextField("Input", $/val, "placeholder", _, ?numeric(1, 10,),);
     myAction = Event("click", {a: 1, b: 2,},);
     """
-        envelope2 = compiler.compile(trailing_comma_dsl)[0]
+        envelope2 = to_message_dicts(compiler.compile(trailing_comma_dsl))[0]
         components = envelope2["createSurface"]["components"]
         self.assertEqual(len(components), 3)
 
@@ -142,26 +141,15 @@ btnLabel = Text("Click Thread 2")
       )
     btn1 = Text("Hello World")
     """
-        envelope3 = compiler.compile(continuation_dsl)[0]
+        envelope3 = to_message_dicts(compiler.compile(continuation_dsl))[0]
         self.assertEqual(len(envelope3["createSurface"]["components"]), 2)
 
-    def test_polymorphic_catalog_initialization(self):
-        """Verifies compiler, decompiler, prompt generator, and parser with polymorphic catalogs."""
-        # 1. Load raw dict
+    def test_catalog_initialization(self):
+        """Verifies compiler, decompiler, prompt generator, and parser with Catalog."""
         with open(self.catalog_path, "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
 
-        # 2. Construct Catalog model
-        core_catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
-
-        # 3. Construct A2uiCatalog model
-        a2ui_catalog = A2uiCatalog(
-            version="0.9.1",
-            name="basic_catalog",
-            s2c_schema={},
-            common_types_schema={},
-            catalog_schema=catalog_dict,
-        )
+        core_catalog = Catalog.from_json(catalog_dict, protocol_version="1.0")
 
         dsl = """root = Column([repField, valueField])
 repField = TextField("Representative", $/form/rep, "Enter name")
@@ -169,36 +157,33 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
 
         expected_components_count = 3
 
-        # Test with each polymorphic input
-        for cat_input in [core_catalog, a2ui_catalog]:
-            # Compiler
-            compiler = ExpressCompiler(cat_input)
-            envelope = compiler.compile(dsl, surface_id="test_surf")[0]
-            self.assertEqual(
-                len(envelope["createSurface"]["components"]), expected_components_count
-            )
+        # Compiler
+        compiler = ExpressCompiler([core_catalog])
+        compiled_models = compiler.compile(dsl, surface_id="test_surf")
+        envelope = to_message_dicts(compiled_models)[0]
+        self.assertEqual(
+            len(envelope["createSurface"]["components"]), expected_components_count
+        )
 
-            # Decompiler
-            decompiler = ExpressParser(cat_input)
-            decompiled_dsl = decompiler.decompile(envelope)
-            self.assertIn("repField = TextField(", decompiled_dsl)
+        # Decompiler
+        decompiler = ExpressParser([core_catalog])
+        decompiled_dsl = decompiler.decompile(compiled_models)
+        self.assertIn("repField = TextField(", decompiled_dsl)
 
-            # Prompt Generator
-            from a2ui.inference_formats.experimental.express.format import ExpressFormat
+        # Prompt Generator
+        from a2ui.inference_formats.experimental.express import ExpressFormat
 
-            fmt = ExpressFormat(catalog=cat_input)
-            prompt = fmt.prompt_generator.generate(
-                role_description="", include_schema=True
-            )
-            self.assertIn("TextField(", prompt)
+        fmt = ExpressFormat([core_catalog])
+        prompt = fmt.prompt_generator.generate(role_description="", include_schema=True)
+        self.assertIn("TextField(", prompt)
 
-            # Parser
-            response = f"<a2ui>\n{dsl}\n</a2ui>"
-            parts = ExpressParser(cat_input, surface_id="test_surf").parse_response(
-                response
-            )
-            self.assertEqual(len(parts), 1)
-            self.assertIsNotNone(parts[0].a2ui_json)
+        # Parser
+        response = f"<a2ui>\n{dsl}\n</a2ui>"
+        parts = ExpressParser([core_catalog], surface_id="test_surf").parse_response(
+            response
+        )
+        self.assertEqual(len(parts), 1)
+        self.assertIsNotNone(parts[0].a2ui_json)
 
     def test_catalog_schema_helper_initialization_errors(self):
         """Verifies that CatalogSchemaHelper raises correct errors for invalid initialization inputs."""
@@ -218,7 +203,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
 
     def test_custom_exception_types(self):
         """Verifies specific ExpressCompilerError subclasses are raised for invalid DSL constructs."""
-        compiler = ExpressCompiler(self.catalog)
+        compiler = ExpressCompiler([self.catalog])
 
         # 1. Unknown component property
         with self.assertRaises(ExpressUnknownPropertyError) as ctx:

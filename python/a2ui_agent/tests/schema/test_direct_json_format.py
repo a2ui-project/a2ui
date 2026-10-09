@@ -18,7 +18,6 @@ from a2ui.core import A2uiCatalogError
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
 from a2ui.schema import (
-    CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
     VERSION_0_9_1,
@@ -26,39 +25,39 @@ from a2ui.schema import (
 )
 
 
-def test_schema_manager_init_valid_version():
-    direct_json_format = DirectJsonFormat(
-        VERSION_0_8,
-        catalogs=[CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_8))],
-    )
+def test_direct_json_format_holds_its_catalogs():
+    catalog = BasicCatalog(VERSION_0_8)
+    direct_json_format = DirectJsonFormat([catalog])
 
-    assert "properties" in direct_json_format._server_to_client_schema
-    assert len(direct_json_format._supported_catalogs) >= 1
-    catalog = direct_json_format._supported_catalogs[0]
-    assert "Text" in catalog.catalog_schema["components"]
+    assert direct_json_format.catalogs == [catalog]
+    assert "Text" in direct_json_format.catalogs[0].catalog_schema["components"]
 
 
-def test_schema_manager_init_invalid_version():
-    with pytest.raises(A2uiCatalogError, match="Unknown A2UI specification version"):
-        DirectJsonFormat("invalid_version")
+def test_direct_json_format_without_catalogs_is_an_error():
+    with pytest.raises(A2uiCatalogError, match="At least one catalog"):
+        DirectJsonFormat([])
+
+
+def test_direct_json_format_with_mixed_versions_is_an_error():
+    with pytest.raises(A2uiCatalogError, match="incompatible protocol versions"):
+        DirectJsonFormat([BasicCatalog(VERSION_0_8), BasicCatalog(VERSION_0_9)])
 
 
 @pytest.mark.parametrize(
     "version", [VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0]
 )
-def test_schema_manager_init_supported_versions(version):
-    direct_json_format = DirectJsonFormat(version)
+def test_direct_json_format_supports_each_version(version):
+    catalog = BasicCatalog(version)
+    direct_json_format = DirectJsonFormat([catalog])
 
-    assert direct_json_format._server_to_client_schema["type"] == "object"
+    assert [c.catalog_id for c in direct_json_format.catalogs] == [catalog.catalog_id]
+    assert direct_json_format.parser is direct_json_format.parser
 
 
 def test_direct_json_parser_methods():
-    tf = DirectJsonFormat(
-        VERSION_0_8,
-        catalogs=[CatalogConfig.from_catalog("basic", BasicCatalog(VERSION_0_8))],
-    )
-    cat = tf._supported_catalogs[0]
-    parser = DirectJsonParser(cat)
+    tf = DirectJsonFormat([BasicCatalog(VERSION_0_8)])
+    cat = tf.catalogs[0]
+    parser = DirectJsonParser([cat])
 
     # 1. has_format_content
     assert parser.has_format_content("<a2ui-json>", complete=True) is False
@@ -89,8 +88,10 @@ def test_direct_json_parser_methods():
     )
 
 
-def test_direct_json_parser_no_supported_catalogs():
-    direct_json_format = DirectJsonFormat(VERSION_0_8)
-    direct_json_format._supported_catalogs = []
-    with pytest.raises(A2uiCatalogError, match="No supported catalogs configured"):
-        _ = direct_json_format.parser
+def test_generate_with_client_capabilities_is_an_error():
+    direct_json_format = DirectJsonFormat([BasicCatalog(VERSION_0_9)])
+
+    with pytest.raises(A2uiCatalogError, match="resolve_catalogs"):
+        direct_json_format.prompt_generator.generate(
+            "Role", client_ui_capabilities={"v0.9": {"supportedCatalogIds": []}}
+        )

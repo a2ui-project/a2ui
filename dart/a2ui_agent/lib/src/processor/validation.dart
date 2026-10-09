@@ -81,10 +81,7 @@ Catalog<ComponentApi, FunctionImplementation> _signed(CatalogApi catalog) =>
       components: catalog.components.values.toList(),
       functions: catalog.functions.values.map(_SignatureOnly.new).toList(),
       themeSchema: catalog.themeSchema,
-      // The payloads checked here are v0.9, so a catalog document written
-      // before v1.0, which declares no version, is taken as v0.9.
-      protocolVersion:
-          catalog.protocolVersion ?? A2uiProtocolVersion.v0_9.jsonValue,
+      protocolVersion: catalog.protocolVersion,
       schemaId: catalog.schemaId,
       title: catalog.title,
       description: catalog.description,

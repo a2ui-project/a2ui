@@ -16,11 +16,13 @@ import 'package:collection/collection.dart';
 import 'package:json_schema_builder/json_schema_builder.dart'
     hide ValidationResult;
 
+import '../core/catalog.dart';
 import '../core/common.dart';
 import '../core/component_model.dart';
 import '../core/contexts.dart';
 import '../core/messages.dart';
 import '../core/validation_result.dart';
+import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
 import '../resolution/resolved_binding.dart';
@@ -93,9 +95,12 @@ class GenericBinder {
   ReadonlySignal<Map<String, dynamic>> get resolvedProps => _resolvedProps;
 
   GenericBinder(this.context, this.schema) {
+    final Catalog<ComponentApi, FunctionImplementation> catalog =
+        context.surface.resolveCatalog(context.componentModel.catalog);
     _schemaReader = ReferenceSchemaReader(
       schema.value,
-      document: context.surface.catalog.catalogSchema,
+      document: catalog.catalogSchema,
+      commonTypes: catalog.commonTypesSchema,
     );
     _behaviorTree = _scrapeSchemaBehavior(schema.value);
     _resolvedProps = signal<Map<String, dynamic>>({});
@@ -298,14 +303,17 @@ class GenericBinder {
         // PayloadValidator at message time, not of the binder.
         final List<Object?> rules =
             value is List ? value.cast<Object?>() : const <Object?>[];
-        final ruleResults = <ValidationResult>[];
+        // A null slot is a rule whose condition awaits an agent response: it
+        // neither passes nor fails until the response arrives, and
+        // `validationPending` says so.
+        final ruleResults = <ValidationResult?>[];
 
         void applyValidationState(
           void Function(String key, Object value) write,
         ) {
           final failedResults = <ValidationResult>[
-            for (final ValidationResult r in ruleResults)
-              if (!r.valid) r,
+            for (final ValidationResult? r in ruleResults)
+              if (r != null && !r.valid) r,
           ];
           final errors = <String>[
             for (final ValidationResult r in failedResults)
@@ -315,6 +323,7 @@ class GenericBinder {
           write('isValid', errors.isEmpty);
           write('validationErrors', errors);
           write('validationResults', failedResults);
+          write('validationPending', ruleResults.any((r) => r == null));
         }
 
         void updateValidationState() {
@@ -354,23 +363,28 @@ class GenericBinder {
           final int slot = ruleResults.length;
           ruleResults.add(const ValidationResult(valid: true));
 
-          final Object? initialVal = isSync
-              ? context.dataContext.resolveSync(condition)
+          ValidationResult? resultOf(DynamicValueState state) => state.pending
+              ? null
+              : ValidationResult.fromEvaluation(
+                  state.value,
+                  fallbackMessage: fallbackMessage,
+                );
+
+          final Object? initial = isSync
+              ? (
+                  value: context.dataContext.resolveSync(condition),
+                  pending: context.dataContext.isPendingAgentCall(condition),
+                )
               : _subscribe(
-                  context.dataContext.resolveListenable(condition),
+                  context.dataContext.resolveListenableWithPending(condition),
                   (newValue) {
-                    ruleResults[slot] = ValidationResult.fromEvaluation(
-                      newValue,
-                      fallbackMessage: fallbackMessage,
-                    );
+                    ruleResults[slot] =
+                        resultOf(newValue! as DynamicValueState);
                     updateValidationState();
                   },
                 );
           if (_disposed) return null;
-          ruleResults[slot] = ValidationResult.fromEvaluation(
-            initialVal,
-            fallbackMessage: fallbackMessage,
-          );
+          ruleResults[slot] = resultOf(initial! as DynamicValueState);
         }
 
         if (!_disposed && parentResult != null) {
@@ -572,22 +586,31 @@ class GenericBinder {
     return BehaviorNode(Behavior.static);
   }
 
-  /// Runs a local function action against the component's data context.
+  /// Runs a function action against the component's data context, within a
+  /// user activation, and awaits its result.
   ///
-  /// A function that throws, returns a failing `Future`, or is missing from
-  /// the catalog is reported through `SurfaceModel.dispatchError`, so the
-  /// error does not escape a renderer callback that doesn't await the action.
+  /// On a v1.0 surface a function no catalog implements is sent to the agent
+  /// and awaited. Synchronous lookup, argument, and execution errors are
+  /// reported through the context's error reporter; a function that returns a
+  /// failing `Future` or an agent call that fails is reported through
+  /// `SurfaceModel.dispatchError` as `EXECUTION_ERROR`, naming the
+  /// `functionCallId` when there is one, so the error does not escape a
+  /// renderer callback that doesn't await the action.
   Future<void> _runLocalFunction(Map<String, dynamic> functionCall) async {
     try {
-      final Object? result = context.dataContext.resolveSync(functionCall);
-      if (result is Future<Object?>) await result;
+      await context.dataContext
+          .withUserActivation()
+          .evaluateFunctionCall(functionCall);
     } catch (e) {
       final Object? fnName = functionCall['@call'] ?? functionCall['call'];
+      final String? functionCallId =
+          e is A2uiRpcError ? e.functionCallId : null;
       await context.surface.dispatchError(
         A2uiClientError(
           code: 'EXECUTION_ERROR',
-          surfaceId: context.surface.id,
-          message: "Local function '$fnName' failed in component "
+          surfaceId: functionCallId == null ? context.surface.id : null,
+          functionCallId: functionCallId,
+          message: "Function '$fnName' failed in component "
               "'${context.componentModel.id}': $e",
         ),
       );

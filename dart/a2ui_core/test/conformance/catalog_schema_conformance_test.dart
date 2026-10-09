@@ -153,52 +153,61 @@ void _runCatalogSchemaCase(Map<String, Object?> testCase) {
   final CatalogApi catalog = Catalog.fromJson(source);
 
   final Map<String, Object?> document = catalog.catalogSchema;
-  final expect_ = testCase['expect']! as Map<String, Object?>;
+  final Map<String, Object?> expect_;
+  if (testCase.containsKey('expectFile')) {
+    final String expFile =
+        resolveConformancePath(testCase['expectFile']! as String);
+    expect_ =
+        jsonDecode(File(expFile).readAsStringSync()) as Map<String, Object?>;
+  } else {
+    expect_ = (testCase['expect'] as Map<String, Object?>?) ?? const {};
+  }
   final name = testCase['name']! as String;
 
-  if (expect_.containsKey('metadata') ||
-      expect_.containsKey('unions_cover_all')) {
-    _checkMetadata(document, expect_, name);
-    _checkMembers(document, expect_, name);
-  } else {
-    if (expect_[r'$schema'] case final String expectedSchema) {
-      expect(document[r'$schema'], expectedSchema, reason: '$name: \$schema');
-    }
-    if (expect_['catalogId'] case final String expectedId) {
-      expect(document['catalogId'], expectedId, reason: '$name: catalogId');
-    }
-    if (expect_['components'] case final Map<String, Object?> expectedComps) {
+  if (expect_[r'$schema'] case final String expectedSchema) {
+    expect(document[r'$schema'], expectedSchema, reason: '$name: \$schema');
+  }
+  if (expect_['catalogId'] case final String expectedId) {
+    expect(document['catalogId'], expectedId, reason: '$name: catalogId');
+  }
+  if (expect_['protocolVersion'] case final String expectedVer) {
+    expect(
+      document['protocolVersion'],
+      expectedVer,
+      reason: '$name: protocolVersion',
+    );
+  }
+  if (expect_['components'] case final Map<String, Object?> expectedComps) {
+    expect(
+      document['components'],
+      equals(expectedComps),
+      reason: '$name: components',
+    );
+  }
+  if (expect_['functions'] case final Map<String, Object?> expectedFuncs) {
+    final Map<String, Object?> actualFuncs =
+        (document['functions'] as Map?)?.cast<String, Object?>() ?? const {};
+    expect(
+      actualFuncs.keys.toList()..sort(),
+      expectedFuncs.keys.toList()..sort(),
+      reason: '$name: function names',
+    );
+  }
+  if (expect_[r'$defs'] case final Map<String, Object?> expectedDefs) {
+    final Map<String, Object?> actualDefs =
+        (document[r'$defs'] as Map?)?.cast<String, Object?>() ?? const {};
+    if (expectedDefs.containsKey('theme')) {
       expect(
-        document['components'],
-        equals(expectedComps),
-        reason: '$name: components',
+        actualDefs['theme'],
+        equals(expectedDefs['theme']),
+        reason: '$name: \$defs.theme',
       );
-    }
-    if (expect_['functions'] case final Map<String, Object?> expectedFuncs) {
-      final Map<String, Object?> actualFuncs =
-          (document['functions'] as Map?)?.cast<String, Object?>() ?? const {};
+    } else {
       expect(
-        actualFuncs.keys.toList()..sort(),
-        expectedFuncs.keys.toList()..sort(),
-        reason: '$name: function names',
+        actualDefs.containsKey('theme'),
+        isFalse,
+        reason: '$name: \$defs.theme should be omitted',
       );
-    }
-    if (expect_[r'$defs'] case final Map<String, Object?> expectedDefs) {
-      final Map<String, Object?> actualDefs =
-          (document[r'$defs'] as Map?)?.cast<String, Object?>() ?? const {};
-      if (expectedDefs.containsKey('theme')) {
-        expect(
-          actualDefs['theme'],
-          equals(expectedDefs['theme']),
-          reason: '$name: \$defs.theme',
-        );
-      } else {
-        expect(
-          actualDefs.containsKey('theme'),
-          isFalse,
-          reason: '$name: \$defs.theme should be omitted',
-        );
-      }
     }
   }
 
@@ -226,10 +235,10 @@ void _runExpectCatalogCase(
     final Object? other => fail('$name: no SDK implementation of $other.'),
   };
   expect(
-    compareVersions(catalog.protocolVersion!, caseVersion(testCase)!),
-    0,
+    catalog.protocolVersion,
+    A2uiProtocolVersion.tryParseSemVer(caseVersion(testCase)!),
     reason: '$name: ${catalog.id} implements protocol '
-        '${catalog.protocolVersion}',
+        '${catalog.protocolVersion?.jsonValue}',
   );
 
   final Map<String, Object?> commonTypes = _document(spec['commonTypesPath']);
@@ -249,12 +258,8 @@ void _runExpectCatalogCase(
 ///   `anyComponent` and `anyFunction` unions, are inlined where referenced
 ///   and dropped, because [Catalog.fromJson] inlines them and
 ///   [Catalog.catalogSchema] emits only those three.
-/// - `$id`, `title`, `description`, `protocolVersion` and `instructions` are
-///   dropped. The reference harness drops the first four; [Catalog] does not
-///   carry an `instructions` field yet.
-/// - A function's own `description` and `requiresUserActivation` (the v1.0
-///   `openUrl` declares it) are dropped, because [FunctionApi] carries
-///   neither for [Catalog.catalogSchema] to emit.
+/// - `$id`, `title`, `description` and `protocolVersion` are dropped, as the
+///   reference harness drops them.
 /// - `enum` and `required` lists are sorted, since their order has no
 ///   meaning.
 Map<String, Object?> _consolidate(
@@ -262,13 +267,7 @@ Map<String, Object?> _consolidate(
   Map<String, Object?> commonTypes,
 ) {
   final consolidated = _localize(document)! as Map<String, Object?>;
-  for (final key in [
-    r'$id',
-    'title',
-    'description',
-    'protocolVersion',
-    'instructions',
-  ]) {
+  for (final key in [r'$id', 'title', 'description', 'protocolVersion']) {
     consolidated.remove(key);
   }
 
@@ -282,14 +281,6 @@ Map<String, Object?> _consolidate(
   defs.removeWhere((key, _) => own.containsKey(key));
   final inlined = _inlineDefs(consolidated, own)! as Map<String, Object?>;
   inlined[r'$defs'] = defs;
-
-  if (inlined['functions'] case final Map<String, Object?> functions) {
-    for (final Object? function in functions.values) {
-      (function! as Map<String, Object?>)
-        ..remove('description')
-        ..remove('requiresUserActivation');
-    }
-  }
 
   final commonDefs = (_localize(commonTypes)!
       as Map<String, Object?>)[r'$defs']! as Map<String, Object?>;
@@ -365,58 +356,6 @@ Object? _sortSetKeywords(Object? node) {
             ..sort((a, b) => jsonEncode(a).compareTo(jsonEncode(b))))
           : _sortSetKeywords(entry.value),
   };
-}
-
-/// Top-level keys the rebuilt document must carry, and must not carry.
-void _checkMetadata(
-  Map<String, Object?> document,
-  Map<String, Object?> expect_,
-  String name,
-) {
-  final metadata = expect_['metadata'] as Map<String, Object?>?;
-  if (metadata != null) {
-    for (final MapEntry<String, Object?> entry in metadata.entries) {
-      expect(
-        document[entry.key],
-        entry.value,
-        reason: '$name: document ${entry.key}',
-      );
-    }
-  }
-  final Object? absent = expect_['absent_metadata'];
-  if (absent is List<Object?>) {
-    for (final Object? key in absent) {
-      expect(
-        document.containsKey(key),
-        isFalse,
-        reason: '$name: document should not declare $key',
-      );
-    }
-  }
-}
-
-/// The document declares exactly the expected components and functions.
-void _checkMembers(
-  Map<String, Object?> document,
-  Map<String, Object?> expect_,
-  String name,
-) {
-  final Object? components = expect_['components'];
-  if (components is List<Object?>) {
-    expect(
-      ((document['components'] as Map?) ?? const {}).keys.toList()..sort(),
-      components.cast<String>().toList()..sort(),
-      reason: '$name: components',
-    );
-  }
-  final Object? functions = expect_['functions'];
-  if (functions is List<Object?>) {
-    expect(
-      ((document['functions'] as Map?) ?? const {}).keys.toList()..sort(),
-      functions.cast<String>().toList()..sort(),
-      reason: '$name: functions',
-    );
-  }
 }
 
 /// `anyComponent` and `anyFunction` cover exactly what the document declares.

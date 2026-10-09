@@ -13,14 +13,13 @@
 // limitations under the License.
 
 import A2UICore
-#if canImport(Combine)
+import BasicCatalog
 import Combine
-#endif
 import Foundation
 import OrderedJSON
 import Testing
 
-/// Runs the shared `conformance/core/data_model.yaml` suite.
+/// Runs the shared `conformance/core/data_model.yaml` and `conformance/core/data_deletion.yaml` suites.
 @MainActor
 struct DataModelConformanceTests {
   @MainActor
@@ -29,17 +28,17 @@ struct DataModelConformanceTests {
     var changeCount = 0
     var currentValue: JSONValue?
     #if canImport(Combine)
-    private var cancellable: AnyCancellable?
+      private var cancellable: AnyCancellable?
     #endif
 
     init(model: DataModel, path: String) throws {
       self.path = path
       self.currentValue = model.get(path)
       #if canImport(Combine)
-      self.cancellable = try model.watch(path) { [weak self] newValue in
-        self?.changeCount += 1
-        self?.currentValue = newValue
-      }
+        self.cancellable = try model.watch(path) { [weak self] newValue in
+          self?.changeCount += 1
+          self?.currentValue = newValue
+        }
       #endif
     }
   }
@@ -167,6 +166,38 @@ struct DataModelConformanceTests {
       model.dispose()
     default:
       Issue.record("\(location): unknown op")
+    }
+  }
+
+  @Test func dataDeletionConformance() throws {
+    let rawYaml = try ConformanceTestHelper.loadYAML(filename: "core/data_deletion.yaml")
+    let testCases = ConformanceTestHelper.parseTestCases(from: rawYaml)
+
+    #expect(!testCases.isEmpty, "Should load test cases from data_deletion.yaml")
+
+    for testCase in testCases {
+      let processor = MessageProcessor(
+        catalogs: BasicCatalog.allCatalogs,
+        validationConfig: ValidationConfig(targetVersion: "v1.0")
+      )
+
+      for step in testCase.steps {
+        guard let payload = step.payload else { continue }
+        let messages = try ConformanceTestHelper.parsePayload(payload)
+        processor.process(messages: messages)
+      }
+
+      if let expectSurfaces = testCase.expect?["surfaces"]?.objectValue {
+        for (surfaceID, expectedSurface) in expectSurfaces {
+          if let expectedDataModel = expectedSurface["dataModel"] {
+            let actualDataModel = processor.getRendererDataModel(surfaceID: surfaceID)
+            #expect(
+              actualDataModel == expectedDataModel,
+              "[\(testCase.name)] Data model for \(surfaceID) did not match expected"
+            )
+          }
+        }
+      }
     }
   }
 }

@@ -14,94 +14,87 @@
 
 from __future__ import annotations
 
-import collections
+from collections.abc import Sequence
 import copy
+from dataclasses import dataclass
 import glob
 import json
 import logging
 import os
-from collections.abc import Iterator, Mapping, Sequence
-from dataclasses import dataclass, replace
-from functools import cached_property
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
-from a2ui.core import (
-    A2uiCatalogError,
-    A2uiErrorDetail,
-    A2uiValidationError,
-    Catalog,
-    PayloadValidator,
-    STRICT_VALIDATION,
-)
 
-if TYPE_CHECKING:
-    # Only used in annotations, which aren't evaluated at runtime.
-    from a2ui.core import CatalogApi
+from a2ui.core import A2uiCatalogError, A2uiError, Catalog, CatalogApi
+from a2ui.core.common import to_protocol_version
+from a2ui.utils import validate_payload
 
 from .catalog_provider import (
     A2uiCatalogProvider,
     FileSystemCatalogProvider,
     InMemoryCatalogProvider,
 )
-from .constants import (
-    A2UI_SCHEMA_BLOCK_START,
-    A2UI_SCHEMA_BLOCK_END,
-    CATALOG_COMPONENTS_KEY,
-    CATALOG_ID_KEY,
-    DEFAULT_CUTTABLE_KEYS,
-    VERSION_0_8,
-    ENCODING,
-)
+from .constants import CATALOG_ID_KEY, ENCODING
+
+if TYPE_CHECKING:
+    # Only used in annotations, which aren't evaluated at runtime.
+    from a2ui.catalog_transformers import CatalogTransformer
 
 
-def _iter_payload_components(payload: Any) -> Iterator[dict[str, Any]]:
-    """Yields every component dictionary reachable in an A2UI payload.
-
-    Understands a bare component, an `updateComponents` envelope, a bare
-    `components` list holder, and a list of any of those.
-
-    Args:
-      payload: A component dict, a message envelope, or a list of either.
-
-    Yields:
-      Each component dictionary found, in payload order.
-    """
-    items = payload if isinstance(payload, list) else [payload]
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        update = item.get("updateComponents")
-        if isinstance(update, dict):
-            comps = update.get("components", [])
-            if isinstance(comps, list):
-                yield from (c for c in comps if isinstance(c, dict))
-        elif isinstance(item.get("components"), list):
-            yield from (c for c in item["components"] if isinstance(c, dict))
-        elif "component" in item or "type" in item:
-            yield item
-
-
-@dataclass
+@dataclass(init=False)
 class CatalogConfig:
     """Configuration for a catalog of components.
 
-    A catalog consists of a provider that knows how to load the schema,
-    and optionally a path or glob pattern to examples.
+    A catalog consists of a provider or an `a2ui.core.Catalog` instance,
+    optionally a path or glob pattern to examples, and the transformers that
+    shape it before it reaches a prompt or a validator.
 
     Attributes:
       name: The name of the catalog.
       provider: The provider to use to load the catalog schema.
       examples_path: The path or glob pattern to the examples.
-      custom_cuttable_keys: The optional custom set of cuttable keys.
+      catalog: Optional `a2ui.core.Catalog` instance.
+      transformers: The transformers that `to_catalog` applies, in order.
     """
 
     name: str
     provider: A2uiCatalogProvider
     examples_path: str | None = None
-    custom_cuttable_keys: frozenset[str] | None = None
+    catalog: CatalogApi | None = None
+    transformers: tuple[CatalogTransformer, ...] = ()
 
-    def __post_init__(self) -> None:
-        self.examples_path = resolve_examples_path(self.examples_path)
+    def __init__(
+        self,
+        name: str,
+        provider: A2uiCatalogProvider | None = None,
+        examples_path: str | None = None,
+        *,
+        catalog: CatalogApi | None = None,
+        transformers: Sequence[CatalogTransformer] = (),
+    ) -> None:
+        """Initializes the configuration.
+
+        Args:
+          name: The name of the catalog.
+          provider: The provider to load the catalog schema from. Defaults to an
+            in-memory provider of `catalog`'s schema.
+          examples_path: The path or glob pattern to the examples.
+          catalog: The catalog instance to use as is.
+          transformers: The transformers to apply to the catalog, in order. For
+            example, `ComponentPruningTransformer` limits the components that
+            prompts describe and validation accepts.
+
+        Raises:
+          TypeError: If neither `provider` nor `catalog` is given.
+        """
+        if catalog is not None and provider is None:
+            provider = InMemoryCatalogProvider(catalog.catalog_schema)
+        if provider is None:
+            raise TypeError("CatalogConfig requires either 'provider' or 'catalog'.")
+        self.name = name
+        self.provider = provider
+        self.examples_path = resolve_examples_path(examples_path)
+        self.catalog = catalog
+        self.transformers = tuple(transformers)
 
     @classmethod
     def from_catalog(
@@ -109,14 +102,15 @@ class CatalogConfig:
         name: str,
         catalog: CatalogApi,
         examples_path: str | None = None,
-        custom_cuttable_keys: frozenset[str] | None = None,
+        *,
+        transformers: Sequence[CatalogTransformer] = (),
     ) -> CatalogConfig:
-        """Returns a CatalogConfig backed by an a2ui_core Catalog instance."""
+        """Returns a CatalogConfig backed by an `a2ui.core.Catalog` instance."""
         return cls(
             name=name,
-            provider=InMemoryCatalogProvider(catalog.catalog_schema),
             examples_path=examples_path,
-            custom_cuttable_keys=custom_cuttable_keys,
+            catalog=catalog,
+            transformers=transformers,
         )
 
     @classmethod
@@ -125,7 +119,8 @@ class CatalogConfig:
         name: str,
         catalog_path: str,
         examples_path: str | None = None,
-        custom_cuttable_keys: frozenset[str] | None = None,
+        *,
+        transformers: Sequence[CatalogTransformer] = (),
     ) -> CatalogConfig:
         """Returns a CatalogConfig that loads from a local path or 'file://' URI."""
         parsed = urlparse(catalog_path)
@@ -139,8 +134,60 @@ class CatalogConfig:
         return cls(
             name=name,
             provider=catalog_provider,
-            examples_path=examples_path,
-            custom_cuttable_keys=custom_cuttable_keys,
+            examples_path=resolve_examples_path(examples_path),
+            transformers=transformers,
+        )
+
+    def to_catalog(self, protocol_version: str | None = None) -> CatalogApi:
+        """Loads and returns a core Catalog instance from this configuration.
+
+        A configured `catalog` is used as is unless it targets a different
+        protocol version. Otherwise the provider's schema is parsed with
+        `Catalog.from_json`. The transformers are applied last, in order.
+
+        Args:
+          protocol_version: The protocol version of the returned catalog. Defaults
+            to the configured catalog's version, then to the schema's
+            `protocolVersion`, then to 1.0.
+
+        Returns:
+          The catalog, with the transformers applied.
+
+        Raises:
+          A2uiCatalogError: If the schema lacks a string `catalogId`.
+        """
+        catalog = self._load_catalog(protocol_version)
+        for transformer in self.transformers:
+            catalog = transformer.transform(catalog)
+        return catalog
+
+    def _load_catalog(self, protocol_version: str | None) -> CatalogApi:
+        """Returns the catalog before the transformers are applied."""
+        if self.catalog is not None and (
+            protocol_version is None
+            or to_protocol_version(self.catalog.protocol_version)
+            == to_protocol_version(protocol_version)
+        ):
+            return self.catalog
+
+        catalog_schema = copy.deepcopy(dict(self.provider.load()))
+
+        if CATALOG_ID_KEY not in catalog_schema:
+            raise A2uiCatalogError(f"Catalog '{self.name}' is missing 'catalogId'")
+        catalog_id = catalog_schema[CATALOG_ID_KEY]
+        if not isinstance(catalog_id, str):
+            raise A2uiCatalogError(f"Catalog '{self.name}' catalogId is not a string")
+
+        if protocol_version is None:
+            protocol_version = (
+                self.catalog.protocol_version
+                if self.catalog is not None
+                else str(catalog_schema.get("protocolVersion", "1.0"))
+            )
+        return Catalog.from_json(
+            catalog_schema=catalog_schema,
+            protocol_version=protocol_version,
+            catalog_id=catalog_id,
         )
 
 
@@ -154,376 +201,70 @@ def resolve_examples_path(path: str | None) -> str | None:
     return None
 
 
-def _collect_refs(obj: Any) -> set[str]:
-    """Recursively collects all $ref values from a JSON object."""
-    refs = set()
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            if k == "$ref" and isinstance(v, str):
-                refs.add(v)
-            else:
-                refs.update(_collect_refs(v))
-    elif isinstance(obj, list):
-        for item in obj:
-            refs.update(_collect_refs(item))
-    return refs
-
-
-def _prune_defs_by_reachability(
-    defs: Mapping[str, Any],
-    root_def_names: Sequence[str],
-    internal_ref_prefix: str = "#/$defs/",
-) -> dict[str, Any]:
-    """Prunes definitions not reachable from the provided roots.
+def load_examples(
+    catalogs: Sequence[CatalogApi], path: str | None, validate: bool = False
+) -> str:
+    """Loads few-shot examples from a directory or a glob pattern.
 
     Args:
-      defs: The dictionary of definitions to prune.
-      root_def_names: The names of the definitions to start the traversal from.
-      internal_ref_prefix: The prefix used for internal references.
+      catalogs: The catalogs that the examples are validated against. Each
+        surface is checked against the catalog its `catalogId` names, so pass
+        every catalog that the examples use.
+      path: A directory of `.json` files, or a glob pattern.
+      validate: Whether to check each example with
+        `a2ui.utils.validate_payload`.
 
     Returns:
-      A new dictionary containing only reachable definitions.
+      The examples, each between `---BEGIN <name>---` and `---END <name>---`
+      lines, or an empty string if there are none.
+
+    Raises:
+      A2uiCatalogError: If `validate` is set and an example isn't valid JSON or
+        fails validation.
     """
-    visited_defs = set()
-    refs_queue = collections.deque(root_def_names)
+    if not path:
+        return ""
 
-    while refs_queue:
-        def_name = refs_queue.popleft()
-        if def_name in defs and def_name not in visited_defs:
-            visited_defs.add(def_name)
+    # If it's a directory, support backward compatibility by appending /*.json
+    if os.path.isdir(path):
+        pattern = os.path.join(path, "*.json")
+    else:
+        pattern = path
 
-            internal_refs = _collect_refs(defs[def_name])
-            for ref in internal_refs:
-                if ref.startswith(internal_ref_prefix):
-                    refs_queue.append(ref.split(internal_ref_prefix)[-1])
+    # Use glob to find files
+    matched_files = glob.glob(pattern, recursive=True)
 
-    return {k: v for k, v in defs.items() if k in visited_defs}
-
-
-@dataclass(frozen=True)
-class A2uiCatalog:
-    """Represents a processed component catalog with its schema.
-
-    Attributes:
-      version: The version of the catalog.
-      name: The name of the catalog.
-      s2c_schema: The server-to-client schema.
-      common_types_schema: The common types schema, as generated by a2ui-core
-        (see `a2ui.schema.utils.load_common_types_schema`).
-      catalog_schema: The catalog schema.
-      custom_cuttable_keys: The optional set of keys whose string values can be safely auto-closed
-        (healed) if fragmented in the stream. If None, the default set is used.
-    """
-
-    version: str
-    name: str
-    s2c_schema: Mapping[str, Any]
-    common_types_schema: Mapping[str, Any]
-    catalog_schema: Mapping[str, Any]
-    custom_cuttable_keys: frozenset[str] | None = None
-    experiments: frozenset[str] | None = None
-
-    @classmethod
-    def from_config(cls, config: CatalogConfig, version: str = "1.0") -> A2uiCatalog:
-        """Constructs an A2uiCatalog from a loaded CatalogConfig."""
-        from a2ui.schema.utils import (
-            load_agent_to_renderer_schema,
-            load_common_types_schema,
-        )
-
-        s2c_schema = load_agent_to_renderer_schema(version)
-        common_types_schema = load_common_types_schema(version)
-        catalog_schema = config.provider.load()
-        return cls(
-            version=version,
-            name=config.name,
-            catalog_schema=catalog_schema,
-            s2c_schema=s2c_schema,
-            common_types_schema=common_types_schema,
-            custom_cuttable_keys=config.custom_cuttable_keys,
-        )
-
-    @classmethod
-    def from_json_file(cls, path: str, name: str | None = None) -> A2uiCatalog:
-        """Constructs an A2uiCatalog from a JSON file path."""
-        cat_name = name or os.path.basename(path).replace(".json", "")
-        config = CatalogConfig.from_path(cat_name, path)
-        return cls.from_config(config)
-
-    @property
-    def cuttable_keys(self) -> frozenset[str]:
-        if self.custom_cuttable_keys is not None:
-            return frozenset(self.custom_cuttable_keys)
-        return DEFAULT_CUTTABLE_KEYS
-
-    @property
-    def catalog_id(self) -> str:
-        if CATALOG_ID_KEY not in self.catalog_schema:
-            raise A2uiCatalogError(f"Catalog '{self.name}' missing catalogId")
-        val = self.catalog_schema[CATALOG_ID_KEY]
-        if isinstance(val, str):
-            return val
-        raise A2uiCatalogError(f"Catalog '{self.name}' catalogId is not a string")
-
-    @property
-    def core_catalog(self) -> CatalogApi:
-        return Catalog.from_json(
-            catalog_schema=self.catalog_schema,
-            protocol_version=self.version,
-            catalog_id=self.catalog_id,
-        )
-
-    @property
-    def validator(self) -> PayloadValidator:
-        return PayloadValidator(self.core_catalog, config=STRICT_VALIDATION)
-
-    def validate_components(self, payload: Any) -> list[A2uiErrorDetail]:
-        """Validates every component reachable in an A2UI payload against this catalog.
-
-        Accepts a single component, a single message envelope, or a list of
-        either, and collects the schema errors for each component found.
-
-        Args:
-          payload: A component dict, a message envelope, or a list of either.
-
-        Returns:
-          The accumulated validation errors, empty when the payload is valid.
-        """
-        validator = self.validator
-        errors: list[A2uiErrorDetail] = []
-        for comp in _iter_payload_components(payload):
-            try:
-                validator.validate_component(comp)
-            except A2uiValidationError as e:
-                errors.extend(e.details)
-        return errors
-
-    def validate(self, messages: Any) -> None:
-        """Validates payload messages using MessageProcessor."""
-        from a2ui.core import MessageProcessor, MessageProcessorOptions
-
-        msg_list = messages if isinstance(messages, list) else [messages]
-        MessageProcessor(
-            [self.core_catalog],
-            options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
-        ).process_messages(msg_list)
-
-    def _with_pruned_components(self, allowed_components: Sequence[str]) -> A2uiCatalog:
-        """Returns a new catalog with only allowed components.
-
-        Args:
-          allowed_components: List of component names to include.
-
-        Returns:
-          A copy of the catalog with only allowed components.
-        """
-
-        if not allowed_components:
-            return self
-
-        schema_copy = copy.deepcopy(dict(self.catalog_schema))
-
-        if CATALOG_COMPONENTS_KEY in schema_copy and isinstance(
-            schema_copy[CATALOG_COMPONENTS_KEY], dict
-        ):
-            all_comps = schema_copy[CATALOG_COMPONENTS_KEY]
-            schema_copy[CATALOG_COMPONENTS_KEY] = {
-                k: v for k, v in all_comps.items() if k in allowed_components
-            }
-
-        # Filter anyComponent oneOf if it exists
-        # Path: $defs -> anyComponent -> oneOf
-        if "$defs" in schema_copy and "anyComponent" in schema_copy["$defs"]:
-            any_comp = schema_copy["$defs"]["anyComponent"]
-            if "oneOf" in any_comp and isinstance(any_comp["oneOf"], list):
-                filtered_one_of = []
-                for item in any_comp["oneOf"]:
-                    if "$ref" in item:
-                        ref = item["$ref"]
-                        if ref.startswith(f"#/{CATALOG_COMPONENTS_KEY}/"):
-                            comp_name = ref.split("/")[-1]
-                            if comp_name in allowed_components:
-                                filtered_one_of.append(item)
-                        else:
-                            logging.warning(f"Skipping unknown ref format: {ref}")
-                    else:
-                        logging.warning(
-                            f"Skipping non-ref item in anyComponent oneOf: {item}"
-                        )
-
-                any_comp["oneOf"] = filtered_one_of
-
-        return replace(self, catalog_schema=schema_copy)
-
-    def _with_pruned_messages(self, allowed_messages: Sequence[str]) -> A2uiCatalog:
-        """Returns a new catalog with only allowed messages.
-
-        Args:
-          allowed_messages: List of message names to include in s2c_schema.
-
-        Returns:
-          A copy of the catalog with only allowed messages.
-        """
-        if not allowed_messages:
-            return self
-
-        s2c_schema_copy = copy.deepcopy(dict(self.s2c_schema))
-
-        if self.version == VERSION_0_8:
-            # 0.8 style: Messages are in root properties.
-            if "properties" in s2c_schema_copy and isinstance(
-                s2c_schema_copy["properties"], dict
-            ):
-                s2c_schema_copy["properties"] = _prune_defs_by_reachability(
-                    defs=s2c_schema_copy["properties"],
-                    root_def_names=allowed_messages,
-                    internal_ref_prefix="#/properties/",
-                )
-        else:
-            # 0.9+ style: Messages are in $defs and referenced via oneOf.
-            if "oneOf" in s2c_schema_copy and isinstance(
-                s2c_schema_copy["oneOf"], list
-            ):
-                s2c_schema_copy["oneOf"] = [
-                    item
-                    for item in s2c_schema_copy["oneOf"]
-                    if "$ref" in item
-                    and item["$ref"].startswith("#/$defs/")
-                    and item["$ref"].split("/")[-1] in allowed_messages
-                ]
-
-            if "$defs" in s2c_schema_copy and isinstance(
-                s2c_schema_copy["$defs"], dict
-            ):
-                s2c_schema_copy["$defs"] = _prune_defs_by_reachability(
-                    defs=s2c_schema_copy["$defs"],
-                    root_def_names=allowed_messages,
-                    internal_ref_prefix="#/$defs/",
-                )
-
-        return replace(self, s2c_schema=s2c_schema_copy)
-
-    def with_pruning(
-        self,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-    ) -> A2uiCatalog:
-        """Returns a new catalog with pruned components and messages.
-
-        Args:
-          allowed_components: List of component names to include.
-          allowed_messages: List of message names to include in s2c_schema.
-
-        Returns:
-          A copy of the catalog with pruned components and messages.
-        """
-        catalog = self
-        if allowed_components:
-            catalog = catalog._with_pruned_components(allowed_components)
-
-        if allowed_messages:
-            catalog = catalog._with_pruned_messages(allowed_messages)
-
-        return catalog._with_pruned_common_types()
-
-    def _with_pruned_common_types(self) -> A2uiCatalog:
-        """Returns a new catalog with unused common types pruned from the schema."""
-        if not self.common_types_schema or "$defs" not in self.common_types_schema:
-            return self
-
-        # Initialize roots with ONLY refs targeting common_types.json from external schemas
-        external_refs = _collect_refs(self.catalog_schema)
-        external_refs.update(_collect_refs(self.s2c_schema))
-
-        root_common_types = []
-        for ref in external_refs:
-            if "common_types.json#/$defs/" in ref or ref.startswith("#/$defs/"):
-                root_common_types.append(ref.split("#/$defs/")[-1])
-
-        new_common_types_schema = copy.deepcopy(dict(self.common_types_schema))
-        new_common_types_schema["$defs"] = _prune_defs_by_reachability(
-            defs=new_common_types_schema["$defs"],
-            root_def_names=root_common_types,
-        )
-
-        return replace(self, common_types_schema=new_common_types_schema)
-
-    def render_as_llm_instructions(self) -> str:
-        """Renders the catalog and schema as LLM instructions."""
-        all_schemas = []
-        all_schemas.append(A2UI_SCHEMA_BLOCK_START)
-
-        server_client_str = (
-            json.dumps(self.s2c_schema, separators=(",", ":"))
-            if self.s2c_schema
-            else "{}"
-        )
-        all_schemas.append(f"### Server To Client Schema:\n{server_client_str}")
-
-        if (
-            self.common_types_schema
-            and "$defs" in self.common_types_schema
-            and self.common_types_schema["$defs"]
-        ):
-            common_str = json.dumps(self.common_types_schema, separators=(",", ":"))
-            all_schemas.append(f"### Common Types Schema:\n{common_str}")
-
-        catalog_str = json.dumps(self.catalog_schema, separators=(",", ":"))
-        all_schemas.append(f"### Catalog Schema:\n{catalog_str}")
-
-        all_schemas.append(A2UI_SCHEMA_BLOCK_END)
-
-        return "\n\n".join(all_schemas)
-
-    def load_examples(self, path: str | None, validate: bool = False) -> str:
-        """Loads and validates examples from a directory or a glob pattern."""
-        if not path:
-            return ""
-
-        # If it's a directory, support backward compatibility by appending /*.json
-        if os.path.isdir(path):
-            pattern = os.path.join(path, "*.json")
-        else:
-            pattern = path
-
-        # Use glob to find files
-        matched_files = glob.glob(pattern, recursive=True)
-
-        if not matched_files:
-            if not os.path.isdir(path) and not any(c in path for c in "*?[]"):
-                logging.warning(
-                    f"Example path {path} is neither a directory nor a valid glob"
-                    " pattern"
-                )
-            return ""
-
-        # Sort for determinism
-        matched_files.sort()
-
-        merged_examples = []
-        for full_path in matched_files:
-            if not os.path.isfile(full_path):
-                continue
-            basename = os.path.splitext(os.path.basename(full_path))[0]
-            with open(full_path, "r", encoding=ENCODING) as f:
-                content = f.read()
-
-            if validate:
-                self._validate_example(full_path, content)
-
-            merged_examples.append(
-                f"---BEGIN {basename}---\n{content}\n---END {basename}---"
+    if not matched_files:
+        if not os.path.isdir(path) and not any(c in path for c in "*?[]"):
+            logging.warning(
+                f"Example path {path} is neither a directory nor a valid glob pattern"
             )
+        return ""
 
-        if not merged_examples:
-            return ""
-        return "\n\n".join(merged_examples)
+    # Sort for determinism
+    matched_files.sort()
 
-    def _validate_example(self, full_path: str, content: str) -> None:
-        try:
-            json_data = json.loads(content)
-            self.validate(json_data)
-        except Exception as e:
-            raise A2uiCatalogError(
-                f"Failed to validate example {full_path}: {e}"
-            ) from e
+    merged_examples = []
+    for full_path in matched_files:
+        if not os.path.isfile(full_path):
+            continue
+        basename = os.path.splitext(os.path.basename(full_path))[0]
+        with open(full_path, "r", encoding=ENCODING) as f:
+            content = f.read()
+
+        if validate:
+            try:
+                json_data = json.loads(content)
+                validate_payload(catalogs, json_data)
+            except (json.JSONDecodeError, A2uiError) as e:
+                raise A2uiCatalogError(
+                    f"Failed to validate example {full_path}: {e}"
+                ) from e
+
+        merged_examples.append(
+            f"---BEGIN {basename}---\n{content}\n---END {basename}---"
+        )
+
+    if not merged_examples:
+        return ""
+    return "\n\n".join(merged_examples)

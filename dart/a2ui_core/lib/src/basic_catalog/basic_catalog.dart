@@ -34,9 +34,8 @@ export 'function_support.dart' show OpenUrlCallback;
 /// `protocolVersion`, so the v0.9 catalog takes `v0.9`.
 ///
 /// Component schemas reference the shared types the way the published
-/// document does, through `common_types.json`. The validator resolves those
-/// references for v0.9; the v1.0 shared types are not embedded yet, so a
-/// v1.0 surface on this catalog cannot be validated.
+/// document does, through `common_types.json`; the validator resolves those
+/// references against the embedded common types of the catalog's version.
 ///
 /// Each catalog also carries the 14 functions of the published document,
 /// with the argument schemas and return types the document declares:
@@ -105,6 +104,7 @@ abstract final class BasicCatalog {
       title: published.title,
       description: published.description,
       protocolVersion: published.protocolVersion,
+      instructions: published.instructions,
       components: published.components.values.toList(),
       functions: [
         for (final FunctionApi signature in published.functions.values)
@@ -112,6 +112,8 @@ abstract final class BasicCatalog {
             name: signature.name,
             argumentSchema: signature.argumentSchema,
             returnType: signature.returnType,
+            allowedCallers: signature.allowedCallers,
+            requiresUserActivation: signature.requiresUserActivation,
             body: bodies[signature.name]!,
           ),
       ],

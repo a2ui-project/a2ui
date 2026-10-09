@@ -25,97 +25,67 @@ import 'conformance_harness.dart';
 const Map<String, String> _v09ExpectedFailures = {};
 
 /// Cases in `core/validator_v1_0.yaml` expected to fail.
-const Map<String, String> _v10ExpectedFailures = {
-  'test_custom_catalog_1_0':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_component_nesting_depth_limit_exceeded_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_component_nesting_depth_within_limit':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_data_model_nesting_depth_limit_exceeded_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_incremental_update_circular_reference_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_incremental_update_duplicate_component_id_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_incremental_update_same_component_id_across_messages':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_incremental_update_self_reference_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_incremental_update_without_root':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_multi_surface_independent_roots':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_multi_surface_missing_root_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_topology_circular_reference_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_topology_dangling_child_reference_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_topology_missing_root_component_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_topology_orphaned_component_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_topology_plain_string_property_not_treated_as_child_ref':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_topology_self_reference_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_topology_structured_array_item_dangling_child_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_topology_template_child_reachable':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_topology_template_dangling_reference_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_v10_uax31_invalid_identifier_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
-  'test_validator_1_0':
-      'The v1.0 common types and validator rules are not embedded yet.',
-};
+const Map<String, String> _v10ExpectedFailures = {};
 
 /// The `validate` cases in `core/reserved_keys.yaml` expected to fail.
 const Map<String, String> _reservedKeysExpectedFailures = {
   'test_escaped_doubled_at_unescaping':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
+          'surface has no default catalog to resolve its items against.',
   'test_plain_object_escaped_doubled_at_key':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
+          'surface has no default catalog to resolve its items against.',
   'test_plain_object_with_literal_path_and_call':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
+          'surface has no default catalog to resolve its items against.',
   'test_reserved_at_call_index':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
+          'surface has no default catalog to resolve its items against.',
   'test_reserved_at_call_valid':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
+          'surface has no default catalog to resolve its items against.',
   'test_reserved_at_path_valid':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
+          'surface has no default catalog to resolve its items against.',
 };
 
 /// Cases in `core/composition_constraints.yaml` expected to fail.
 const Map<String, String> _compositionExpectedFailures = {
   'test_composition_surface_implicit_parent_container':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
   'test_composition_unallowed_child_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, and does not read its inline `catalogSchema`.',
   'test_composition_unallowed_parent_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, and does not read its inline `catalogSchema`.',
 };
 
 /// Cases in `core/validation_result.yaml` expected to fail.
 const Map<String, String> _validationResultExpectedFailures = {
   'test_validation_result_boolean_fallback':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
   'test_validation_result_dynamic_object_return':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
 };
 
 /// Cases in `core/index_function.yaml` expected to fail.
 const Map<String, String> _indexFunctionExpectedFailures = {
   'test_index_function_in_collection_loop':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
   'test_index_function_nested_path':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
   'test_index_function_outside_loop_error':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
   'test_index_function_with_offset':
-      'The v1.0 common types and validator rules are not embedded yet.',
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
 };
 
 /// Runs the shared validator suites against [MessageProcessor.processMessages],

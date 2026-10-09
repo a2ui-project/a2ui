@@ -18,26 +18,19 @@ import json
 import os
 import tempfile
 import unittest
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import VERSION_1_0
-from a2ui.inference_formats.experimental.express.format import ExpressFormat
+
+from a2ui.core import Catalog
+from a2ui.inference_formats.experimental.express import ExpressFormat
+from a2ui.schema import VERSION_1_0
 
 
 class TestExpressPromptGenerator(unittest.TestCase):
     """Test suite covering Express prompt generation, examples pruning, and validation."""
 
     def setUp(self):
-        self.catalog = A2uiCatalog(
-            version=VERSION_1_0,
-            name="test_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={
-                "$id": (
-                    "https://a2ui.org/specification/v1_0/json/agent_to_renderer.json"
-                ),
-                "$schema": "https://json-schema.org/draft/2020-12/schema",
-            },
-            common_types_schema={},
+        self.catalog = Catalog.from_json(
+            protocol_version=VERSION_1_0,
+            catalog_id="https://a2ui.org/test_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/test_catalog",
                 "components": {
@@ -58,7 +51,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
         self.tmp_dir.cleanup()
 
     def test_express_prompt_generator_property(self):
-        express_format = ExpressFormat(catalog=self.catalog)
+        express_format = ExpressFormat([self.catalog])
         generator = express_format.prompt_generator
 
         prompt = generator.generate(
@@ -72,20 +65,22 @@ class TestExpressPromptGenerator(unittest.TestCase):
         self.assertIn("Text(", prompt)
 
     def test_catalog_description_before_generate(self):
-        express_format = ExpressFormat(catalog=self.catalog)
+        express_format = ExpressFormat([self.catalog])
         generator = express_format.prompt_generator
         desc = generator.generate_catalog_instructions(include_schema=True)
         self.assertIn("Text(", desc)
 
     def test_express_allowed_components_pruning(self):
-        express_format = ExpressFormat(catalog=self.catalog)
+        from a2ui.catalog_transformers import ComponentPruningTransformer
+
+        pruned_catalog = ComponentPruningTransformer(["Button"]).transform(self.catalog)
+        express_format = ExpressFormat([pruned_catalog])
         generator = express_format.prompt_generator
 
         # Only allow other component tags, Text should be pruned out
         prompt = generator.generate(
             role_description="Test role",
             include_schema=True,
-            allowed_components=["Button"],
         )
         self.assertNotIn("Text(", prompt)
 
@@ -108,7 +103,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
             f.write(md_content)
 
         # Initialize ExpressFormat with examples.md path
-        express_format = ExpressFormat(catalog=self.catalog, examples_path=md_file_path)
+        express_format = ExpressFormat([self.catalog], examples_path=md_file_path)
         generator = express_format.prompt_generator
 
         prompt = generator.generate(
@@ -128,13 +123,13 @@ class TestExpressPromptGenerator(unittest.TestCase):
         self.assertIn("### Examples:", prompt)
         self.assertIn('root = Text("Hello World")', prompt)
 
-    @unittest.skip("TODO: validation package was removed from a2ui_agent library")
     def test_express_examples_validation(self):
         # Write a valid standard A2UI JSON example file
         example_payload = {
-            "version": "1.0",
+            "version": "v1.0",
             "createSurface": {
                 "surfaceId": "welcome",
+                "catalogId": self.catalog.catalog_id,
                 "components": [
                     {"id": "root", "component": "Text", "text": "Hello World"}
                 ],
@@ -145,9 +140,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
             json.dump(example_payload, f)
 
         # Initialize ExpressFormat with directory path
-        express_format = ExpressFormat(
-            catalog=self.catalog, examples_path=self.tmp_dir.name
-        )
+        express_format = ExpressFormat([self.catalog], examples_path=self.tmp_dir.name)
         generator = express_format.prompt_generator
 
         prompt = generator.generate(
@@ -161,7 +154,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
 
     def test_express_transform_examples_edge_cases(self):
         """Test transform_examples with JSON array blocks, non-A2UI JSON, and invalid JSON."""
-        express_format = ExpressFormat(catalog=self.catalog)
+        express_format = ExpressFormat([self.catalog])
         generator = express_format.prompt_generator
 
         # 1. JSON array block
@@ -179,18 +172,11 @@ class TestExpressPromptGenerator(unittest.TestCase):
         invalid_md = "```json\n{invalid}\n```"
         self.assertEqual(generator.transform_examples(invalid_md), invalid_md)
 
-        # 4. catalog=None
-        generator.catalog = None
-        self.assertEqual(generator.transform_examples("raw text"), "raw text")
-
     def test_express_signatures_with_object_properties(self):
         """Test component signatures generation for object properties with map keys."""
-        cat_map_obj = A2uiCatalog(
-            version=VERSION_1_0,
-            name="map_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        cat_map_obj = Catalog.from_json(
+            protocol_version=VERSION_1_0,
+            catalog_id="https://a2ui.org/map_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/map_catalog",
                 "components": {
@@ -210,20 +196,19 @@ class TestExpressPromptGenerator(unittest.TestCase):
                 },
             },
         )
-        fmt = ExpressFormat(catalog=cat_map_obj)
+        fmt = ExpressFormat([cat_map_obj])
         sigs = fmt.prompt_generator._generate_component_signatures()
         self.assertIn("MapComp", sigs)
         self.assertIn("Map with keys:", sigs)
 
     def test_express_schema_helper_methods(self):
-        from a2ui.inference_formats.experimental.express.schema_helper import CatalogSchemaHelper as ExpressCatalogSchemaHelper
+        from a2ui.inference_formats._shared import (
+            CatalogSchemaHelper as ExpressCatalogSchemaHelper,
+        )
 
-        cat = A2uiCatalog(
-            version=VERSION_1_0,
-            name="express_helper_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        cat = Catalog.from_json(
+            protocol_version=VERSION_1_0,
+            catalog_id="test",
             catalog_schema={
                 "catalogId": "test",
                 "components": {

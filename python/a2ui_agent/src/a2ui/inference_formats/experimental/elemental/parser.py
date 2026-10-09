@@ -14,29 +14,57 @@
 
 """Parser utilities to extract and compile A2UI Elemental HTML from LLM responses."""
 
-from typing import Any
-from a2ui.core import CatalogApi
-from a2ui.parser import Parser, ResponsePart
-from a2ui.schema import A2uiCatalog
+from collections.abc import Sequence
+
 from google.adk.utils.feature_decorator import experimental
-from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
+
+from a2ui.core import CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats._shared import check_mixed_catalogs
+from a2ui.parser import (
+    A2uiCompilationError,
+    A2uiCompilationParseError,
+    A2uiCompilationValidationError,
+    Parser,
+    ResponsePart,
+)
+from a2ui.parser.lexer import BlockLexer
+from a2ui.schema.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
+
 from .compiler import ElementalCompiler
-from .decompiler import _ElementalDecompiler
+from .decompiler import ElementalDecompiler
 
 
 @experimental
 class ElementalParser(Parser):
     """Concrete parser implementation for A2UI Elemental TSX/HTML5 responses."""
 
-    def __init__(self, catalog: CatalogApi | A2uiCatalog, surface_id: str = "main"):
-        """Initializes the parser with a component catalog and target surface ID.
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi],
+        surface_id: str = "main",
+    ):
+        """Initializes the parser with one or more component catalogs and target surface ID.
 
         Args:
-            catalog: The component catalog containing valid A2UI elements.
+            catalogs: A sequence of catalogs containing valid A2UI elements.
+                Several catalogs need A2UI v1.0 or later.
             surface_id: The surface identifier for layout targeting.
+
+        Raises:
+            A2uiCatalogError: If `check_mixed_catalogs` rejects the catalogs.
         """
-        self.catalog = catalog
+        self._catalogs = check_mixed_catalogs(catalogs)
         self.surface_id = surface_id
+        # The compiler and decompiler precompute per-catalog schema data, so
+        # they are built once instead of once per call.
+        self._compiler = ElementalCompiler(self._catalogs)
+        self._decompiler = ElementalDecompiler(self._catalogs)
+
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the catalogs the parser holds, in the order it received them."""
+        return list(self._catalogs)
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         """Checks if the content contains any A2UI Elemental sentinel tags.
@@ -64,8 +92,6 @@ class ElementalParser(Parser):
         Returns:
             A list of response parts containing conversational or raw HTML text.
         """
-        from a2ui.parser.lexer import BlockLexer
-
         lexer = BlockLexer(
             open_tag=A2UI_INFERENCE_OPEN_TAG,
             close_tag=A2UI_INFERENCE_CLOSE_TAG,
@@ -76,37 +102,36 @@ class ElementalParser(Parser):
 
     def compile(
         self, format_content: str, *, is_final: bool = True
-    ) -> list[dict[str, Any]]:
+    ) -> list[AgentToRendererMessage]:
         """Compiles raw Elemental HTML into structured A2UI layout operation messages.
 
-        For partial streams (when `is_final` is False), missing trailing tags (like
-        `</body>` or `</a2ui>`) are automatically appended to ensure successful DOM parsing.
+        For partial streams (when `is_final` is False), a missing trailing
+        `</body>` tag is appended to ensure successful DOM parsing.
 
         Args:
             format_content: The raw unwrapped Elemental HTML snippet to compile.
             is_final: Whether this represents the final complete snippet.
 
         Returns:
-            A list of compiled A2UI operation dictionaries (e.g. createSurface).
+            A list of compiled AgentToRendererMessage objects.
 
         Raises:
             A2uiCompilationError: If compilation or schema validation fails.
         """
-        from a2ui.parser import A2uiCompilationError
-
         if not is_final:
             stripped = format_content.strip()
             if "<body" in stripped and not stripped.endswith("</body>"):
                 format_content = format_content + "\n</body>"
 
-        compiler = ElementalCompiler(self.catalog)
         try:
-            compiled_json = compiler.compile(
-                format_content, surface_id=self.surface_id, is_final=is_final
-            )
-            return [compiled_json]
+            return self._compiler.compile(format_content, surface_id=self.surface_id)
         except Exception as e:
-            raise A2uiCompilationError(
+            err_cls = A2uiCompilationError
+            if isinstance(e, SyntaxError):
+                err_cls = A2uiCompilationParseError
+            elif isinstance(e, ValueError):
+                err_cls = A2uiCompilationValidationError
+            raise err_cls(
                 message=str(e),
                 raw_content=format_content,
                 help_message=(
@@ -115,10 +140,16 @@ class ElementalParser(Parser):
                 ),
             ) from e
 
-    def decompile(self, val: dict[str, Any]) -> str:
-        """Decompiles a structured A2UI payload into this format's raw notation."""
-        return _ElementalDecompiler(self.catalog).decompile(val)
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
+        """Decompiles structured A2UI payload messages into this format's raw notation."""
+        return self._decompiler.decompile(a2ui_payload)
+
+    def decompile_blocks(
+        self, a2ui_payload: Sequence[AgentToRendererMessage]
+    ) -> list[str]:
+        """Decompiles a payload into one Elemental block per coalesced message."""
+        return self._decompiler.decompile_blocks(a2ui_payload)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
-        return _ElementalDecompiler(self.catalog).wrap_decompiled_blocks(blocks)
+        return self._decompiler.wrap_decompiled_blocks(blocks)

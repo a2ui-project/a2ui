@@ -71,6 +71,12 @@ export async function cleanup() {
     }
   }
   document.getElementById(TEST_CONTAINER_ID)?.remove();
+  try {
+    localStorage.clear();
+    window.history.replaceState(null, '', window.location.pathname);
+  } catch {
+    // Ignore in restricted environments
+  }
 }
 
 /**

@@ -51,13 +51,13 @@ from a2ui.schema import (
     CatalogConfig,
     VERSION_0_8,
     VERSION_0_9,
-    remove_strict_validation,
 )
 from a2ui.a2a import (
     get_a2ui_agent_extension,
     parse_response_to_parts,
     stream_response_to_parts,
 )
+from a2ui.utils import validate_payload
 
 logger = logging.getLogger(__name__)
 
@@ -91,26 +91,18 @@ class RestaurantAgent:
         return self._agent_card
 
     def _build_inference_format(self, version: str) -> DirectJsonFormat:
-        return DirectJsonFormat(
-            version=version,
-            catalogs=[
-                CatalogConfig.from_catalog(
-                    "basic",
-                    BasicCatalog(version),
-                    examples_path=f"examples/{version}",
-                )
-            ],
-            schema_modifiers=[remove_strict_validation],
+        catalog = CatalogConfig.from_catalog("basic", BasicCatalog(version)).to_catalog(
+            protocol_version=version
         )
+        return DirectJsonFormat([catalog], examples_path=f"examples/{version}")
 
     def _build_agent_card(self) -> AgentCard:
         extensions = []
         if self._inference_formats:
-            for version, sm in self._inference_formats.items():
+            for version, fmt in self._inference_formats.items():
                 ext = get_a2ui_agent_extension(
                     version,
-                    sm.accepts_inline_catalogs,
-                    sm.supported_catalog_ids,
+                    supported_catalog_ids=[c.catalog_id for c in fmt.catalogs],
                 )
                 extensions.append(ext)
 
@@ -200,7 +192,7 @@ class RestaurantAgent:
             runner = self._ui_runners[ui_version]
             inference_format = self._inference_formats[ui_version]
             selected_catalog = (
-                inference_format.get_selected_catalog() if inference_format else None
+                inference_format.catalogs[0] if inference_format else None
             )
         else:
             runner = self._text_runner
@@ -281,15 +273,11 @@ class RestaurantAgent:
                                 full_content_list.append(p.text)
                                 yield p.text
 
-            if selected_catalog:
-                from a2ui.inference_formats.direct_json import DirectJsonStreamParser
-
+            if inference_format and selected_catalog:
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = DirectJsonStreamParser(
-                        catalog=selected_catalog
-                    )
+                    self._parsers[session_id] = inference_format.create_stream_parser()
                     if len(self._parsers) > self._max_parsers:
                         self._parsers.popitem(last=False)
 
@@ -330,13 +318,13 @@ class RestaurantAgent:
                         parsed_json_data = part.a2ui_json
 
                         # --- Validation Steps ---
-                        # Check if it validates against the A2UI_SCHEMA
-                        # This will raise jsonschema.exceptions.ValidationError if it fails
+                        # Check the payload against the selected catalog. This
+                        # raises A2uiValidationError, a ValueError, if it fails.
                         logger.info(
                             "--- RestaurantAgent.stream: Validating against"
                             " A2UI_SCHEMA... ---"
                         )
-                        selected_catalog.validate_components(parsed_json_data)
+                        validate_payload([selected_catalog], parsed_json_data)
                         # --- End Validation Steps ---
 
                         logger.info(

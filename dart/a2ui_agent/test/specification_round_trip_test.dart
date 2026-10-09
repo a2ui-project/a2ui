@@ -42,15 +42,7 @@ void main() {
         ..sort((a, b) => a.path.compareTo(b.path));
 
   const expressCannotWrite = {
-    '00_complex-layout.json':
-        "sets 'weight', which Express has no notation for",
     '00_incremental.json': 'updates the data model below its root',
-    '30_live-invitation-builder.json':
-        "sets 'weight', which Express has no notation for",
-    '31_incremental-dashboard.json':
-        "sets 'weight', which Express has no notation for",
-    '33_financial-data-grid.json':
-        "sets 'weight', which Express has no notation for",
   };
 
   test('finds the examples', () => expect(examples, isNotEmpty));
@@ -146,7 +138,7 @@ Map<String, Object?> _render(
     for (final SurfaceModel<ComponentApi> surface
         in renderer.groupModel.allSurfaces)
       surface.id: {
-        'catalog': surface.catalog.id,
+        'catalog': surface.defaultCatalog?.id,
         'components': {
           for (final ComponentModel component in surface.componentsModel.all)
             component.id: component.toJson(),
@@ -162,7 +154,7 @@ Catalog<ComponentApi, FunctionImplementation> _rendererCatalog(
   CatalogApi catalog,
 ) => Catalog<ComponentApi, FunctionImplementation>(
   id: catalog.id,
-  protocolVersion: catalog.protocolVersion ?? 'v0.9',
+  protocolVersion: catalog.protocolVersion ?? A2uiProtocolVersion.v0_9,
   components: catalog.components.values.toList(),
   functions: catalog.functions.values.map(_Signature.new).toList(),
   themeSchema: catalog.themeSchema,

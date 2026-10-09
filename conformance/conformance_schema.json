@@ -76,7 +76,6 @@
             "process_messages",
             "provide_catalog",
             "prune",
-            "remove_strict_validation",
             "render",
             "resolve_catalogs",
             "resolve_path",
@@ -154,13 +153,6 @@
         },
         "format": {
           "description": "Inference format configuration or name."
-        },
-        "modifiers": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Modifiers applied during test execution."
         },
         "strictMode": {
           "type": "boolean",
@@ -1120,7 +1112,12 @@
           "type": "object",
           "properties": {
             "format": {"$ref": "#/$defs/InferenceFormatName"},
-            "catalog": {"$ref": "#/$defs/AgentCatalogRef"}
+            "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/AgentCatalogRef"},
+              "description": "For cases where the decompiler needs more than one active catalog."
+            }
           },
           "required": ["format"],
           "additionalProperties": false
@@ -1132,6 +1129,7 @@
         },
         "expect_output": {"type": "string"},
         "expect_contains": {"type": "array", "items": {"type": "string"}},
+        "expect_absent": {"type": "array", "items": {"type": "string"}},
         "expect_round_trip": {
           "type": "boolean",
           "description": "Compiling the output returns the messages the case supplied."

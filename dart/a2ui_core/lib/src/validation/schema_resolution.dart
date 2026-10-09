@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import '../primitives/errors.dart';
+
 /// The file name a catalog refers to for the shared type definitions, however
 /// the reference spells the rest of the URL.
 const String _commonTypesDocument = 'common_types.json';
@@ -19,6 +21,12 @@ const String _commonTypesDocument = 'common_types.json';
 /// The file name `common_types.json` refers back to for the catalog's own
 /// definitions, however the reference spells the rest of the URL.
 const String _catalogDocument = 'catalog.json';
+
+/// The unions a catalog document may omit when it declares nothing for them.
+const Set<String> _catalogUnions = {
+  r'/$defs/anyFunction',
+  r'/$defs/anyComponent'
+};
 
 /// Rewrites a component schema so it can be validated without any I/O.
 ///
@@ -34,17 +42,27 @@ const String _catalogDocument = 'catalog.json';
 /// because `DynamicString` and its neighbours reach their alternatives
 /// through local pointers.
 ///
-/// A reference this SDK cannot reach — an unsupplied `common_types.json`, or
-/// a document it would have to fetch — is dropped, leaving that subschema
-/// unconstrained. The surrounding constraints still apply. Validation
-/// therefore never rejects a payload because a schema was unreachable, and
-/// never blocks on I/O.
+/// A reference to a document this SDK does not hold — an unsupplied or empty
+/// `common_types.json`, or a document it would have to fetch — is dropped,
+/// leaving that subschema unconstrained. The surrounding constraints still
+/// apply, and validation never blocks on I/O.
+///
+/// A pointer into `common_types.json` that [commonTypes] does not define is
+/// looked up in [fallbackCommonTypes] next, so a catalog that declares no
+/// version can still use a type only the other protocol version defines (the
+/// v1.0 `Child`, say).
+///
+/// A pointer into a document this SDK does hold must name something: one that
+/// does not throws [A2uiCatalogError], because silently dropping it would
+/// widen the schema. Pointers follow array indices, as in
+/// `#/$defs/DynamicString/oneOf/0`.
 Map<String, Object?> resolveSchemaRefs(
   Map<String, Object?> schema,
   Map<String, Object?> document, {
   Map<String, Object?>? commonTypes,
+  Map<String, Object?>? fallbackCommonTypes,
 }) {
-  final resolver = _RefResolver(document, commonTypes);
+  final resolver = _RefResolver(document, commonTypes, fallbackCommonTypes);
   final Map<String, Object?> rewritten = resolver.rewrite(
     schema,
     _DocumentRef(document, 'catalog'),
@@ -71,6 +89,7 @@ class _DocumentRef {
 class _RefResolver {
   final Map<String, Object?> _document;
   final Map<String, Object?>? _commonTypes;
+  final Map<String, Object?>? _fallbackCommonTypes;
 
   /// Definitions hoisted onto the result, keyed by their `$defs` name.
   final Map<String, Object?> defs = {};
@@ -78,7 +97,7 @@ class _RefResolver {
   /// The `$defs` name already assigned to a document and pointer.
   final Map<String, String> _names = {};
 
-  _RefResolver(this._document, this._commonTypes);
+  _RefResolver(this._document, this._commonTypes, this._fallbackCommonTypes);
 
   Map<String, Object?> rewrite(Map<String, Object?> node, _DocumentRef base) =>
       _walk(node, base) as Map<String, Object?>;
@@ -113,14 +132,42 @@ class _RefResolver {
     final String pointer = hash < 0 ? '' : ref.substring(hash + 1);
 
     final _DocumentRef? source = _documentFor(target, base);
-    if (source == null || pointer.isEmpty) return null;
+    if (source == null) return null;
+    if (pointer.isEmpty || pointer == '/') {
+      throw A2uiCatalogError("Unresolvable schema reference: '$ref'");
+    }
 
     final key = '${source.name}$pointer';
     final String? known = _names[key];
     if (known != null) return known;
 
-    final Object? found = _follow(source.schema, pointer);
-    if (found is! Map) return null;
+    Object? found = followJsonPointer(source.schema, pointer);
+    _DocumentRef origin = source;
+    final bool localShared = found is! Map &&
+        target.isEmpty &&
+        source.name == 'catalog' &&
+        pointer.startsWith(r'/$defs/');
+    if (localShared) {
+      // Catalogs may spell a shared type as a local `#/$defs/<Name>`, relying
+      // on `common_types.json` to supply it.
+      final Map<String, Object?>? commonTypes = _commonTypes;
+      if (commonTypes == null || commonTypes.isEmpty) return null;
+      origin = _DocumentRef(commonTypes, 'commonTypes');
+      found = followJsonPointer(commonTypes, pointer);
+    }
+    if (found is! Map && _catalogUnions.contains(pointer)) {
+      // A catalog without functions declares no `anyFunction`, which
+      // `common_types.json` still reaches from every dynamic value.
+      return null;
+    }
+    final Map<String, Object?>? fallback = _fallbackCommonTypes;
+    if (found is! Map && origin.name == 'commonTypes' && fallback != null) {
+      origin = _DocumentRef(fallback, 'fallbackCommonTypes');
+      found = followJsonPointer(fallback, pointer);
+    }
+    if (found is! Map) {
+      throw A2uiCatalogError("Unresolvable schema reference: '$ref'");
+    }
 
     final String name = _defName(key);
     // Registered before the copy is walked, so a definition that reaches
@@ -132,7 +179,7 @@ class _RefResolver {
       // move the base every reference below it resolves against.
       ..remove(r'$id')
       ..remove(r'$schema');
-    defs[name] = _walk(copy, source);
+    defs[name] = _walk(copy, origin);
     return name;
   }
 
@@ -141,7 +188,7 @@ class _RefResolver {
     if (target.isEmpty) return base;
     if (target.endsWith(_commonTypesDocument)) {
       final Map<String, Object?>? commonTypes = _commonTypes;
-      return commonTypes == null
+      return commonTypes == null || commonTypes.isEmpty
           ? null
           : _DocumentRef(commonTypes, 'commonTypes');
     }
@@ -151,16 +198,6 @@ class _RefResolver {
       return _DocumentRef(_document, 'catalog');
     }
     return null;
-  }
-
-  Object? _follow(Map<String, Object?> root, String pointer) {
-    Object? current = root;
-    for (final String raw in pointer.split('/').skip(1)) {
-      final String segment = raw.replaceAll('~1', '/').replaceAll('~0', '~');
-      if (current is! Map || !current.containsKey(segment)) return null;
-      current = current[segment];
-    }
-    return current;
   }
 
   String _defName(String key) {
@@ -185,6 +222,12 @@ class _RefResolver {
 /// A pointer already being expanded is left as a reference rather than
 /// followed again, so a recursive definition terminates instead of growing
 /// without bound.
+///
+/// Throws [A2uiCatalogError] for a local pointer that names nothing. A
+/// `#/$defs/<Name>` pointer the document does not define is left as a
+/// reference instead, because catalogs use that spelling for shared types
+/// that `common_types.json` supplies; `resolveSchemaRefs` resolves it later
+/// and throws if neither document defines it.
 Object? inlineLocalRefs(
   Object? node,
   Map<String, Object?> rootCatalog, [
@@ -204,10 +247,16 @@ Object? inlineLocalRefs(
   final Object? ref = object[r'$ref'];
 
   if (ref is String && ref.startsWith('#/')) {
+    if (ref.startsWith(r'#/$defs/') && isCommonTypeDef(ref.split('/').last)) {
+      return object;
+    }
     if (visited.contains(ref)) return object;
 
-    final Object? target = _followLocalPointer(ref, rootCatalog);
-    if (target is! Map) return object;
+    final Object? target = followJsonPointer(rootCatalog, ref.substring(1));
+    if (target is! Map) {
+      if (ref.startsWith(r'#/$defs/')) return object;
+      throw A2uiCatalogError("Unresolvable schema reference: '$ref'");
+    }
 
     final Object? resolved = inlineLocalRefs(
       target.cast<String, Object?>(),
@@ -231,13 +280,51 @@ Object? inlineLocalRefs(
   };
 }
 
-/// Follows a `#/a/b` pointer through [document], or null if it names nothing.
-Object? _followLocalPointer(String ref, Map<String, Object?> document) {
-  Object? current = document;
-  for (final String segment in ref.substring(2).split('/')) {
-    final String key = segment.replaceAll('~1', '/').replaceAll('~0', '~');
-    if (current is! Map || !current.containsKey(key)) return null;
-    current = current[key];
+/// Follows a JSON Pointer such as `/a/b/0` through [document], or returns
+/// null if it names nothing.
+///
+/// A segment indexes into a list when it is a decimal index within range.
+Object? followJsonPointer(Object? document, String pointer) {
+  if (pointer.isEmpty) return document;
+  if (!pointer.startsWith('/')) return null;
+  var current = document;
+  for (final String raw in pointer.split('/').skip(1)) {
+    final String segment = raw.replaceAll('~1', '/').replaceAll('~0', '~');
+    if (current is Map) {
+      if (!current.containsKey(segment)) return null;
+      current = current[segment];
+    } else if (current is List) {
+      final int? index = int.tryParse(segment);
+      if (index == null || index < 0 || index >= current.length) return null;
+      current = current[index];
+    } else {
+      return null;
+    }
   }
   return current;
 }
+
+/// Checks if [name] is a standard A2UI common type definition, in either the
+/// v0.9 or the v1.0 `common_types.json`.
+bool isCommonTypeDef(String name) => const {
+      'ComponentId',
+      'DynamicString',
+      'DynamicNumber',
+      'DynamicBoolean',
+      'DynamicStringList',
+      'DynamicValue',
+      'DataBinding',
+      'FunctionCall',
+      'ChildList',
+      'Action',
+      'CheckRule',
+      'AccessibilityAttributes',
+      // Added in v1.0.
+      'Child',
+      'FunctionCommon',
+      'IndexSystemFunction',
+      'Surface',
+      'CallId',
+      'FunctionResponse',
+      'Extensions',
+    }.contains(name);

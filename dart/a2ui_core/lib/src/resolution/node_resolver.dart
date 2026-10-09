@@ -94,8 +94,8 @@ class _NodeRecord<T extends ComponentApi> {
 /// torn down when its parent stops referencing it or the resolver is
 /// disposed.
 ///
-/// Child references are recognized by wire `$ref` pointers, Dart `REF:`
-/// descriptions, local aliases, and structural `ChildList` shapes (an object
+/// Child references are recognized by wire `$ref` pointers, `commonTypesRef`
+/// metadata, local aliases, and structural `ChildList` shapes (an object
 /// schema declaring `componentId` and `path`). An unmarked string property is
 /// not a child reference.
 ///
@@ -228,14 +228,7 @@ class NodeResolver<T extends ComponentApi> {
   void _reportExpressionError(A2uiExpressionError error) {
     if (_disposed) return;
     _pendingErrors.add(
-      _QueuedError(
-        A2uiClientError(
-          code: 'EXPRESSION_ERROR',
-          surfaceId: _surface.id,
-          message: error.message,
-          details: error.details,
-        ),
-      ),
+      _QueuedError(ComponentContext.clientErrorFor(_surface, error)),
     );
     if (_updateDepth == 0 && !_dispatchingErrors && !_errorFlushScheduled) {
       // Normally drained synchronously once the rebuild finishes; a rebuild
@@ -432,14 +425,34 @@ class NodeResolver<T extends ComponentApi> {
       return record.node;
     }
 
-    final T? api = _surface.catalog.components[model.type];
+    final Catalog<T, FunctionImplementation> catalog;
+    try {
+      catalog = _surface.resolveCatalog(model.catalog);
+    } on A2uiCatalogError catch (error) {
+      _reportOnce('UNKNOWN_CATALOG', componentId, dataPath, error.message);
+      return _registerNode(
+        _placeholderNode(
+          componentId,
+          dataPath,
+          NodeState.unknownType,
+          type: model.type,
+          occurrence: occurrence,
+        ),
+        edgeKey: edgeKey,
+        parent: parent,
+        occurrence: occurrence,
+        refFields: const {},
+        componentModel: model,
+      ).node;
+    }
+    final T? api = catalog.components[model.type];
     if (api == null) {
       _reportOnce(
         'UNKNOWN_COMPONENT_TYPE',
         componentId,
         dataPath,
         "Component '$componentId' has type '${model.type}', which is "
-            "not in catalog '${_surface.catalog.id}'.",
+            "not in catalog '${catalog.id}'.",
       );
       return _registerNode(
         _placeholderNode(
@@ -471,7 +484,7 @@ class NodeResolver<T extends ComponentApi> {
       edgeKey: edgeKey,
       parent: parent,
       occurrence: occurrence,
-      refFields: _surface.catalog.refMap.fieldsFor(model.type),
+      refFields: catalog.refMap.fieldsFor(model.type),
       componentModel: model,
     );
     final GenericBinder binder;
@@ -515,6 +528,16 @@ class NodeResolver<T extends ComponentApi> {
       record.binderUnsubscribe = unsubscribe;
     }
     return record.node;
+  }
+
+  /// The api for [model]'s type in the catalog [model] resolves to, or null
+  /// when that catalog is not available on the surface or lacks the type.
+  T? _componentApiFor(ComponentModel model) {
+    try {
+      return _surface.resolveCatalog(model.catalog).components[model.type];
+    } on A2uiCatalogError {
+      return null;
+    }
   }
 
   MutableComponentNode<T> _placeholderNode(
@@ -602,8 +625,7 @@ class NodeResolver<T extends ComponentApi> {
     }
     if (existing != null && !existing.disposed) {
       final ComponentModel? model = _surface.componentsModel.get(componentId);
-      final T? api =
-          model == null ? null : _surface.catalog.components[model.type];
+      final T? api = model == null ? null : _componentApiFor(model);
       // A placeholder stays up to date only while its own state's
       // preconditions hold, so a pending node whose definition arrives with
       // an unknown type is replaced (once) by an unknown-type node, and

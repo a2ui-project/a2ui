@@ -26,7 +26,7 @@ import {UserAction} from '@a2ui/web_core/types/client-event';
  */
 interface UpdatePropertyContext {
   path: string;
-  value: any;
+  value: unknown;
   surfaceId?: string;
 }
 
@@ -43,6 +43,7 @@ export class AgentStubV08Service extends AgentStubService {
   override surfaceId = signal<string>('demo-surface', {equal: () => false});
   override currentCreateSurfaceMessage = signal<ServerToClientMessage[] | null>(null);
   private actionSub?: {unsubscribe: () => void};
+  private activeSurfaceId = 'demo-surface';
 
   override dataModel = computed(() => {
     const surfaceId = this.surfaceId();
@@ -66,8 +67,6 @@ export class AgentStubV08Service extends AgentStubService {
   }
 
   private handleAction(action: UserAction) {
-    console.log('[AgentStubV08] handleAction action:', action);
-
     setTimeout(() => {
       const {context} = action;
       if (action.name === 'update_property' && action.context) {
@@ -98,6 +97,7 @@ export class AgentStubV08Service extends AgentStubService {
       | ServerToClientMessage
       | undefined;
     const newSurfaceId = surfaceUpdate?.surfaceUpdate?.surfaceId ?? 'demo-surface';
+    this.activeSurfaceId = newSurfaceId;
     this.currentCreateSurfaceMessage.set(clonedMessages);
 
     this.eventsLog.set([]);
@@ -122,6 +122,28 @@ export class AgentStubV08Service extends AgentStubService {
     setTimeout(() => {
       this.surfaceId.set(newSurfaceId);
     }, 0);
+  }
+
+  override resetSurface(_messages: ServerToClientMessage[]) {
+    this.eventsLog.set([]);
+    this.surfaceId.set('');
+    this.messageProcessorV08.clearSurfaces();
+  }
+
+  override processIncrementalMessages(messagesToProcess: ServerToClientMessage[]) {
+    if (messagesToProcess.length === 0) return;
+    const clonedMessages = JSON.parse(JSON.stringify(messagesToProcess)) as ServerToClientMessage[];
+    this.themeV08.update(this.getDefault08Theme());
+
+    const surfaceUpdate = clonedMessages.find(m => 'surfaceUpdate' in m) as
+      | ServerToClientMessage
+      | undefined;
+    if (surfaceUpdate?.surfaceUpdate?.surfaceId) {
+      this.activeSurfaceId = surfaceUpdate.surfaceUpdate.surfaceId;
+    }
+
+    this.messageProcessorV08.processMessages(clonedMessages);
+    this.surfaceId.set(this.activeSurfaceId);
   }
 
   private userActionToClientAction(action: UserAction): A2uiClientAction {

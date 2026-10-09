@@ -13,11 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# /// script
-# dependencies = [
-#   "google-genai",
-# ]
-# ///
 """Command-line tool to run AI inference evaluating the A2UI Express prompt.
 
 Loads a standard A2UI JSON example, generates its A2UI Express prompt contract,
@@ -56,10 +51,11 @@ sys.path.insert(
 )
 
 # pylint: disable=import-error, wrong-import-position
-import json
-from a2ui.core.catalog import Catalog
-from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
+from a2ui.core import Catalog
+from a2ui.inference_formats.experimental.express import (
+    ExpressCompiler,
+    ExpressPromptGenerator,
+)
 # pylint: enable=import-error, wrong-import-position
 
 
@@ -103,7 +99,7 @@ def run_inference_and_validate(
 
     with open(catalog_path, "r", encoding="utf-8") as f:
         catalog_dict = json.load(f)
-    catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
+    catalog = Catalog.from_json(catalog_dict)
 
     # 1. Load the original example JSON to extract target component list
     with open(example_path, "r", encoding="utf-8") as f:
@@ -124,7 +120,7 @@ def run_inference_and_validate(
     # 2. Generate prompt contract instructions
     from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
-    express_format = ExpressFormat(catalog=catalog)
+    express_format = ExpressFormat([catalog])
     system_instruction = express_format.prompt_generator.generate(
         role_description=(
             "You are a helpful UI assistant that outputs interfaces using A2UI Express"
@@ -239,9 +235,13 @@ Do not wrap the output in markdown formatting blocks, do not include explanation
         dsl_output = "\n".join(lines).strip()
 
     # 5. Run compilation to validate correctness of model-generated DSL
-    compiler = ExpressCompiler(catalog)
+    from a2ui.inference_formats import to_message_dicts
+
+    compiler = ExpressCompiler([catalog])
     try:
-        compiled_json = compiler.compile(dsl_output, surface_id="ai_surface")
+        compiled_json = to_message_dicts(
+            compiler.compile(dsl_output, surface_id="ai_surface")
+        )
     except Exception as ex:  # pylint: disable=broad-exception-caught
         raise ValueError(
             f"Generated A2UI Express DSL failed compilation: {ex}\n"

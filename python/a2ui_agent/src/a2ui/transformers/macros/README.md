@@ -84,8 +84,8 @@ The decorator maps Python type hints to canonical A2UI JSON schema definitions:
 
 `MacroExpander` implements the three canonical transformer methods:
 
-1. **`transform_to_inference_catalog(base_catalog: A2uiCatalog) -> A2uiCatalog`**:
-   Derives an authoring catalog by augmenting the base catalog with the synthesized macro component schemas. Fails fast with `ValueError` if any macro name collides with an existing primitive in the base catalog.
+1. **`transform_to_inference_catalog(base_catalog: Catalog) -> Catalog`**:
+   Derives an authoring catalog by augmenting the base catalog with the synthesized macro component schemas. Fails fast with `A2uiCatalogError` if any macro name collides with an existing primitive in the base catalog.
 2. **`transform_to_transport(messages: Sequence[AgentToRendererMessage]) -> list[AgentToRendererMessage]`**:
    Lowers outbound envelopes (`createSurface`, `updateComponents`, `surfaceUpdate`) emitted by the LLM by recursively expanding all macro components into primitive subtrees.
 3. **`transform_to_inference(messages: Sequence[AgentToRendererMessage]) -> list[AgentToRendererMessage]`**:
@@ -98,10 +98,8 @@ The decorator maps Python type hints to canonical A2UI JSON schema definitions:
 Until the full `TransformerPipeline` and `CatalogConfig` abstractions land in the shared core SDK, developers wire `MacroExpander` manually in two simple steps:
 
 ```python
-from pydantic import TypeAdapter
-from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats.experimental.express import ExpressFormat
 from a2ui.transformers.macros import MacroExpander, macro
-from a2ui.inference_formats.express.format import ExpressFormat
 
 # 1. Initialize the expander with your macros
 expander = MacroExpander([product_card])
@@ -111,16 +109,15 @@ inference_catalog = expander.transform_to_inference_catalog(base_catalog)
 
 # 3. Configure any standard inference format with the inference catalog
 # (ExpressFormat, DirectJsonFormat, ElementalFormat, etc.)
-format_strategy = ExpressFormat(catalog=inference_catalog, surface_id="main")
+format_strategy = ExpressFormat([inference_catalog], surface_id="main")
 system_prompt = format_strategy.prompt_generator.generate()
 
 # 4. Invoke your LLM with system_prompt...
-# When the model outputs Express DSL, parse it with the standard parser:
-raw_messages = format_strategy.parser.compile(llm_output)
+# When the model outputs Express DSL, parse it with the standard parser. It
+# returns typed AgentToRendererMessage models:
+typed_messages = format_strategy.parser.compile(llm_output)
 
 # 5. Lower the typed messages to transport primitives using the expander:
-message_adapter = TypeAdapter(AgentToRendererMessage)
-typed_messages = [message_adapter.validate_python(m) for m in raw_messages]
 transport_messages = expander.transform_to_transport(typed_messages)
 
 # 6. Deliver transport_messages (containing primitive Card, Column, Text) to the client renderer!

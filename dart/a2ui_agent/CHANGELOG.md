@@ -2,16 +2,24 @@
 
 ## Unreleased
 
-- Payload validation builds its `MessageProcessor` with `defaultVersion`, and
-  gives a catalog that declares no `protocolVersion` the v0.9 it validates
-  against, now that `a2ui_core` rejects a catalog without one.
+- Payload validation builds its `MessageProcessor` with `defaultVersion`.
+- Validation forwards `catalog.protocolVersion` when constructing its
+  signature-only `Catalog` for `MessageProcessor`.
+- Include common mixin properties (`accessibility`, `weight`) at the end of
+  Express component signatures (after component-specific properties) so
+  positional arguments map to component properties while supporting common
+  properties via keyword arguments; previously they were omitted.
 - `A2uiRequestProcessor` checks each example as one render: a surface may
   arrive across several `updateComponents` messages of the example, and must
   have a root, resolved references and every component reachable from the
   root once the whole example is applied. Undeclared component types,
   duplicate ids, cycles and malformed data-model paths are still rejected per
   message.
-
+- `DirectJsonParser`, `DirectJsonFormat` and `DirectJsonFormatFactory` take
+  `bufferIncompleteComponents`. When it is true, a streamed component is
+  emitted only once its JSON object closes, as v1.0 requires, and progressive
+  keys heal only values outside components. It is false by default, which keeps
+  the v0.9 behavior of healing a component while it streams.
 - The Direct JSON message reader and the Express decompiler continue to
   reject a `createSurface` message without a `catalogId` with
   `A2uiValidationError`. The check moved into the agent SDK now that

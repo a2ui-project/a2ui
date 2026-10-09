@@ -25,26 +25,12 @@ import 'conformance_harness.dart';
 /// Cases in `core/message_processor_v1_0.yaml` expected to fail, with the
 /// reason each is currently failing.
 const Map<String, String> _v10ExpectedFailures = {
-  'test_batch_atomic_rollback_on_candidate_topology_cycle':
-      'The v1.0 common types are not embedded yet.',
-  'test_batch_duplicate_component_ids_in_same_message_error':
-      'The v1.0 common types are not embedded yet.',
-  'test_batch_multi_stage_lifecycle_pipeline':
-      'The v1.0 common types are not embedded yet.',
-  'test_composition_constraints_preserved_on_partial_parent_update':
-      'The v1.0 common types are not embedded yet.',
-  'test_permissive_mode_allows_dangling_references':
-      'The v1.0 common types are not embedded yet.',
-  'test_permissive_mode_allows_orphan_components':
-      'The v1.0 common types are not embedded yet.',
   'test_v10_component_catalog_override':
-      'The v1.0 common types are not embedded yet.',
+      "The case's inline catalogs declare no components, so `children` is "
+          'not known as a child reference and reads back null.',
   'test_v10_create_surface_inline_initialization':
-      'The v1.0 common types are not embedded yet.',
-  'test_v10_update_components_mismatched_catalog_protocol_version_error':
-      'The v1.0 common types are not embedded yet.',
-  'test_v10_get_renderer_capabilities':
-      'getRendererCapabilities does not emit v1.0 capabilities yet.',
+      'The v1.0 basic catalog requires `child` and `action` on `Button`, '
+          "which the case's `btn1` omits.",
   'test_v10_create_surface_metadata_extension_key_must_be_identifier':
       'Metadata extension keys are not checked against the v1.0 schema yet.',
 };
@@ -53,22 +39,13 @@ const Map<String, String> _v10ExpectedFailures = {
 /// fail, with the reason each is currently failing.
 const Map<String, String> _reservedKeysExpectedFailures = {
   'test_escaped_doubled_at_unescaping':
-      'The v1.0 common types are not embedded yet, so the inline '
-          'component cannot be validated.',
+      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
+          'surface has no default catalog to resolve its items against.',
 };
 
 /// The `validate` cases in `core/functions.yaml` expected to fail, with the
 /// reason each is currently failing.
-const Map<String, String> _functionsExpectedFailures = {
-  'test_function_format_currency_locale_and_symbol':
-      'The v1.0 common types are not embedded yet.',
-  'test_function_format_date_tr35_tokens':
-      'The v1.0 common types are not embedded yet.',
-  'test_function_logical_and_or_not':
-      'The v1.0 common types are not embedded yet.',
-  'test_function_pluralize_categories':
-      'The v1.0 common types are not embedded yet.',
-};
+const Map<String, String> _functionsExpectedFailures = {};
 
 /// Runs the shared message-processor suites against [MessageProcessor] and
 /// [DataContext]: `core/message_processor_v0_9.yaml`,
@@ -217,11 +194,40 @@ void _runGetRendererCapabilitiesCase(Map<String, Object?> testCase) {
   );
   final Map<String, Object?> args =
       (testCase['args'] as Map<String, Object?>?) ?? const {};
-  final includeInlineCatalogs = args['includeInlineCatalogs'] == true;
-
-  final Map<String, dynamic> actual = processor.getClientCapabilities(
-    includeInlineCatalogs: includeInlineCatalogs,
+  final Object? version = args['version'];
+  final Map<String, Object?>? actual = processor.getRendererDataModel(
+    version: version is String ? A2uiProtocolVersion.parse(version) : null,
   );
+  final Object? expected = testCase['expect'];
+  if (expected == null) {
+    expect(actual, isNull, reason: name);
+  } else {
+    expect(actual, equals(expected), reason: name);
+  }
+}
+
+void _runGetRendererCapabilitiesCase(Map<String, Object?> testCase) {
+  final name = testCase['name']! as String;
+  final processor = MessageProcessor<ComponentApi>(
+    catalogs: _catalogsFor(testCase),
+    defaultVersion: A2uiProtocolVersion.v0_9,
+  );
+  final Map<String, Object?> args =
+      (testCase['args'] as Map<String, Object?>?) ?? const {};
+  final Object? version = args['version'];
+  final Map<String, Object?> actual = processor
+      .getRendererCapabilities(
+        CapabilitiesOptions(
+          versions: [
+            if (version is String)
+              A2uiProtocolVersion.parse(version)
+            else
+              A2uiProtocolVersion.v0_9,
+          ],
+          includeInlineCatalogs: args['includeInlineCatalogs'] == true,
+        ),
+      )
+      .toJson();
   expect(actual, equals(testCase['expect']), reason: name);
 }
 
@@ -370,9 +376,23 @@ void _checkSurfaces(
 
     if (expectations.containsKey('catalogId')) {
       expect(
-        surface!.catalog.id,
+        surface!.defaultCatalog?.id,
         expectations['catalogId'],
         reason: '$name: $surfaceId catalogId',
+      );
+    }
+    if (expectations.containsKey('rootId')) {
+      expect(
+        surface!.rootId,
+        expectations['rootId'],
+        reason: '$name: $surfaceId rootId',
+      );
+    }
+    if (expectations.containsKey('metadata')) {
+      expect(
+        surface!.metadata,
+        equals(expectations['metadata']),
+        reason: '$name: $surfaceId metadata',
       );
     }
     if (expectations.containsKey('theme')) {

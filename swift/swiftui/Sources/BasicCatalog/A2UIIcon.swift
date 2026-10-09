@@ -266,25 +266,28 @@ public struct A2UIIcon: View {
   }
 
   public var iconSource: IconSource {
-    // 1. Resolved dictionary with svgPath
+    // 1. Resolved dictionary with svgPath (v1.0) or path (v0.8/v0.9)
     if let dict = node.dictionary(for: "name") {
-      if let pathStr = (dict["svgPath"] as? String)
-        ?? (dict["svgPath"] as? DataBinding<String>)?.value, !pathStr.isEmpty
+      let rawVal = dict["svgPath"] ?? dict["path"]
+      if let pathStr = (rawVal as? String)
+        ?? (rawVal as? DataBinding<String>)?.value, !pathStr.isEmpty
       {
         return .svg(pathStr)
       }
     }
 
     if let dict = node.properties["name"] as? ResolvedDictionary {
-      if let pathStr = (dict["svgPath"] as? String)
-        ?? (dict["svgPath"] as? DataBinding<String>)?.value, !pathStr.isEmpty
+      let rawVal = dict["svgPath"] ?? dict["path"]
+      if let pathStr = (rawVal as? String)
+        ?? (rawVal as? DataBinding<String>)?.value, !pathStr.isEmpty
       {
         return .svg(pathStr)
       }
     }
 
     if let dict = node.properties["name"] as? [String: Any],
-      let pathStr = dict["svgPath"] as? String, !pathStr.isEmpty
+      let pathStr = (dict["svgPath"] as? String) ?? (dict["path"] as? String),
+      !pathStr.isEmpty
     {
       return .svg(pathStr)
     }
@@ -295,7 +298,8 @@ public struct A2UIIcon: View {
       if trimmed.starts(with: "{") {
         if let data = trimmed.data(using: .utf8),
           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          let svgPath = obj["svgPath"] as? String, !svgPath.isEmpty
+          let svgPath = (obj["svgPath"] as? String) ?? (obj["path"] as? String),
+          !svgPath.isEmpty
         {
           return .svg(svgPath)
         }
@@ -315,7 +319,7 @@ public struct A2UIIcon: View {
         }
         return .sfSymbol(str)
       }
-      if let svgPath = json["svgPath"]?.stringValue, !svgPath.isEmpty {
+      if let svgPath = (json["svgPath"] ?? json["path"])?.stringValue, !svgPath.isEmpty {
         return .svg(svgPath)
       }
     }

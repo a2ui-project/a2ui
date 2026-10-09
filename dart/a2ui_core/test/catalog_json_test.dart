@@ -17,7 +17,11 @@ import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/core/contexts.dart' show ComponentContext;
+import 'package:a2ui_core/src/primitives/reference_schema.dart'
+    show ReferenceSchemaReader;
 import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
@@ -33,8 +37,131 @@ Map<String, Object?> loadBasicCatalogJson() => jsonDecode(
       File(resolveConformancePath(basicCatalogPath)).readAsStringSync(),
     ) as Map<String, Object?>;
 
+/// The published v1.0 basic catalog, which declares `protocolVersion: "1.0"`.
+const String basicCatalogV1Path = '../catalogs/basic/v1/catalog.json';
+
+Map<String, Object?> loadBasicCatalogV1Json() => jsonDecode(
+      File(resolveConformancePath(basicCatalogV1Path)).readAsStringSync(),
+    ) as Map<String, Object?>;
+
 void main() {
+  group('Catalog.commonTypesSchema', () {
+    Map<String, Object?> defsOf(CatalogApi catalog) =>
+        (catalog.commonTypesSchema[r'$defs']! as Map).cast<String, Object?>();
+
+    /// The `CheckRule` schema that `common_types.json#/$defs/Checkable`
+    /// leads to when read against [catalog]'s documents, the way
+    /// `Catalog.refMap` and `GenericBinder` read it.
+    Map<String, Object?> checkRuleOf(CatalogApi catalog) {
+      final reader = ReferenceSchemaReader(
+        <String, Object?>{},
+        document: catalog.catalogSchema,
+        commonTypes: catalog.commonTypesSchema,
+      );
+      final List<Map<String, Object?>> checkable = reader.schemas(
+        <String, Object?>{r'$ref': r'common_types.json#/$defs/Checkable'},
+      );
+      final List<Map<String, Object?>> checks = reader.schemas(
+        reader.properties(checkable)['checks'],
+      );
+      expect(reader.isCheckable(checks), isTrue);
+      return reader.schemas(reader.items(checks)).firstWhere(
+            (Map<String, Object?> schema) => schema.containsKey('required'),
+          );
+    }
+
+    test('is the v0.9 document for a catalog declaring no version', () {
+      final CatalogApi catalog = Catalog.fromJson(loadBasicCatalogJson());
+
+      expect(catalog.protocolVersion, isNull);
+      expect(
+        catalog.commonTypesSchema[r'$id'],
+        'https://a2ui.org/specification/v0_9/common_types.json',
+      );
+      expect(defsOf(catalog), isNot(contains('Child')));
+      expect(checkRuleOf(catalog)['required'], ['condition', 'message']);
+    });
+
+    test('is the v1.0 document for the published v1.0 basic catalog', () {
+      final CatalogApi catalog = Catalog.fromJson(loadBasicCatalogV1Json());
+
+      expect(catalog.protocolVersion, A2uiProtocolVersion.v1_0);
+      expect(
+        catalog.commonTypesSchema[r'$id'],
+        'https://a2ui.org/specification/v1_0/common_types.json',
+      );
+      expect(defsOf(catalog), contains('Child'));
+      final Map<String, Object?> rule = checkRuleOf(catalog);
+      expect(rule['required'], ['condition']);
+      expect(
+        ((rule['properties']! as Map)['condition'] as Map)['oneOf'],
+        hasLength(2),
+      );
+    });
+
+    test('is decoded once per catalog', () {
+      final CatalogApi catalog = Catalog.fromJson(loadBasicCatalogV1Json());
+      expect(
+        identical(catalog.commonTypesSchema, catalog.commonTypesSchema),
+        isTrue,
+      );
+    });
+  });
+
   group('Catalog.fromJson', () {
+    test('reads protocolVersion as a semantic version', () {
+      for (final spelling in ['1.0', 'v1.0', '1.0.0', '1.0.0-rc.1']) {
+        final CatalogApi catalog = Catalog.fromJson({
+          'catalogId': 'versioned',
+          'protocolVersion': spelling,
+          'components': <String, Object?>{},
+        });
+        expect(
+          catalog.protocolVersion,
+          A2uiProtocolVersion.v1_0,
+          reason: spelling,
+        );
+      }
+      expect(
+        Catalog.fromJson({
+          'catalogId': 'versioned',
+          'protocolVersion': 'v0.9.1',
+          'components': <String, Object?>{},
+        }).protocolVersion,
+        A2uiProtocolVersion.v0_9_1,
+      );
+    });
+
+    test('rejects a protocolVersion this SDK does not implement', () {
+      for (final Object spelling in ['2.0', '0.8', 'latest', 1.0]) {
+        expect(
+          () => Catalog.fromJson({
+            'catalogId': 'versioned',
+            'protocolVersion': spelling,
+            'components': <String, Object?>{},
+          }),
+          throwsA(
+            isA<A2uiCatalogError>()
+                .having((e) => e.catalogId, 'catalogId', 'versioned'),
+          ),
+          reason: '$spelling',
+        );
+      }
+    });
+
+    test('writes protocolVersion back as the bare semantic version', () {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'versioned',
+        'protocolVersion': 'v1.0',
+        'components': <String, Object?>{},
+      });
+      expect(catalog.catalogSchema['protocolVersion'], '1.0');
+      expect(
+        Catalog.fromJson(catalog.catalogSchema).protocolVersion,
+        A2uiProtocolVersion.v1_0,
+      );
+    });
+
     test('parses the published basic catalog document', () {
       final CatalogApi catalog = Catalog.fromJson(loadBasicCatalogJson());
 
@@ -70,6 +197,7 @@ void main() {
     test('parses and round-trips validationResult function returnType', () {
       final CatalogApi catalog = Catalog.fromJson({
         'catalogId': 'https://example.com/v1_validation_catalog',
+        'protocolVersion': '1.0',
         'functions': {
           'checkEmail': {
             'type': 'object',
@@ -120,6 +248,96 @@ void main() {
     });
 
     test(
+      'rejects validationResult function returnType when effective '
+      'protocolVersion is below 1.0',
+      () {
+        Map<String, Object?> docWithVersion(String? protocolVersion) => {
+              'catalogId': 'https://example.com/pre_v1_validation_catalog',
+              if (protocolVersion != null) 'protocolVersion': protocolVersion,
+              'functions': {
+                'checkEmail': {
+                  'returnType': 'validationResult',
+                  'parameters': {
+                    'type': 'object',
+                    'properties': {
+                      'value': {'type': 'string'},
+                    },
+                  },
+                },
+              },
+            };
+
+        for (final String? badVersion in [null, '0.9', 'v0.9', '0.9.1']) {
+          expect(
+            () => Catalog.fromJson(docWithVersion(badVersion)),
+            throwsA(
+              isA<A2uiCatalogError>().having(
+                (e) => e.message,
+                'message',
+                allOf(
+                  contains('checkEmail'),
+                  contains('validationResult'),
+                ),
+              ),
+            ),
+            reason: 'Catalog.fromJson with protocolVersion=$badVersion',
+          );
+          expect(
+            () => Catalog<ComponentApi, FunctionApi>(
+              id: 'https://example.com/pre_v1_validation_catalog',
+              protocolVersion: badVersion == null
+                  ? null
+                  : A2uiProtocolVersion.tryParseSemVer(badVersion),
+              components: const [],
+              functions: [
+                FunctionApi(
+                  name: 'checkEmail',
+                  argumentSchema: S.object(),
+                  returnType: A2uiReturnType.validationResult,
+                ),
+              ],
+            ),
+            throwsA(
+              isA<A2uiCatalogError>().having(
+                (e) => e.message,
+                'message',
+                allOf(
+                  contains('checkEmail'),
+                  contains('validationResult'),
+                ),
+              ),
+            ),
+            reason: 'Catalog(...) constructor with protocolVersion=$badVersion',
+          );
+        }
+
+        for (final goodVersion in ['1.0', 'v1.0']) {
+          expect(
+            Catalog.fromJson(docWithVersion(goodVersion))
+                .functions['checkEmail']!
+                .returnType,
+            A2uiReturnType.validationResult,
+          );
+          expect(
+            Catalog<ComponentApi, FunctionApi>(
+              id: 'https://example.com/v1_validation_catalog',
+              protocolVersion: A2uiProtocolVersion.tryParseSemVer(goodVersion),
+              components: const [],
+              functions: [
+                FunctionApi(
+                  name: 'checkEmail',
+                  argumentSchema: S.object(),
+                  returnType: A2uiReturnType.validationResult,
+                ),
+              ],
+            ).functions['checkEmail']!.returnType,
+            A2uiReturnType.validationResult,
+          );
+        }
+      },
+    );
+
+    test(
       'GenericBinder evaluates checks on a JSON-loaded catalog referencing '
       'common_types.json#/\$defs/Checkable',
       () {
@@ -131,7 +349,7 @@ void main() {
         );
         final surface = SurfaceModel<ComponentApi>(
           's-json',
-          catalog: rendererCatalog,
+          defaultCatalog: rendererCatalog,
         );
         addTearDown(surface.dispose);
 
@@ -196,7 +414,7 @@ void main() {
   });
 
   group('catalogSchema function call key', () {
-    Map<String, Object?> functionSchema(String? protocolVersion) {
+    Map<String, Object?> functionSchema(A2uiProtocolVersion? protocolVersion) {
       final function = CapitalizeFunction();
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'c',
@@ -209,24 +427,22 @@ void main() {
     }
 
     test('is @call from protocol 1.0', () {
-      for (final version in ['1.0', 'v1.0', 'v1.1']) {
-        final Map<String, Object?> schema = functionSchema(version);
-        expect(
-          (schema['properties']! as Map).keys,
-          containsAll(<String>['@call', 'args']),
-          reason: version,
-        );
-        expect(
-          (schema['properties']! as Map).containsKey('call'),
-          isFalse,
-          reason: version,
-        );
-        expect(schema['required'], ['@call', 'args'], reason: version);
-      }
+      final Map<String, Object?> schema =
+          functionSchema(A2uiProtocolVersion.v1_0);
+      expect(
+        (schema['properties']! as Map).keys,
+        containsAll(<String>['@call', 'args']),
+      );
+      expect((schema['properties']! as Map).containsKey('call'), isFalse);
+      expect(schema['required'], ['@call', 'args']);
     });
 
     test('is call before protocol 1.0 or without a version', () {
-      for (final String? version in ['v0.9', 'v0.9.1', null]) {
+      for (final A2uiProtocolVersion? version in [
+        A2uiProtocolVersion.v0_9,
+        A2uiProtocolVersion.v0_9_1,
+        null,
+      ]) {
         final Map<String, Object?> schema = functionSchema(version);
         expect(
           (schema['properties']! as Map).containsKey('call'),
@@ -243,15 +459,15 @@ void main() {
         'protocolVersion': '1.0',
         'components': <String, Object?>{},
       });
-      expect(parsed.protocolVersion, '1.0');
+      expect(parsed.protocolVersion, A2uiProtocolVersion.v1_0);
       expect(parsed.catalogSchema['protocolVersion'], '1.0');
       expect(
         Catalog.fromJson({
           'catalogId': 'c',
           'components': <String, Object?>{},
-        }, protocolVersion: 'v0.9')
+        }, protocolVersion: A2uiProtocolVersion.v0_9)
             .protocolVersion,
-        'v0.9',
+        A2uiProtocolVersion.v0_9,
       );
       expect(
         () => Catalog.fromJson({'catalogId': 'c', 'protocolVersion': 1}),
@@ -259,4 +475,277 @@ void main() {
       );
     });
   });
+
+  group('Catalog hygiene', () {
+    ComponentApi component(String name) =>
+        ComponentApi(name: name, schema: Schema.object());
+
+    test('rejects two components with one name', () {
+      expect(
+        () => CatalogApi(
+          id: 'c',
+          components: [component('Text'), component('Text')],
+        ),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('rejects two functions with one name', () {
+      final fn = FunctionApi(name: 'now', argumentSchema: Schema.object());
+      expect(
+        () => CatalogApi(id: 'c', components: const [], functions: [fn, fn]),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('rejects the reserved component name Surface', () {
+      expect(
+        () => CatalogApi(id: 'c', components: [component('Surface')]),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(
+        () => Catalog.fromJson({
+          'catalogId': 'c',
+          'components': {
+            'Surface': {'type': 'object'},
+          },
+        }),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('rejects a custom function whose name starts with @', () {
+      expect(
+        () => Catalog.fromJson({
+          'catalogId': 'c',
+          'components': <String, Object?>{},
+          'functions': [
+            {'name': '@custom', 'returnType': 'string'},
+          ],
+        }),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('reads instructions and protocolVersion from a document', () {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'c',
+        'protocolVersion': 'v1.0',
+        'instructions': 'Prefer cards.',
+        'components': <String, Object?>{},
+      });
+
+      expect(catalog.instructions, 'Prefer cards.');
+      expect(catalog.protocolVersion, A2uiProtocolVersion.v1_0);
+      expect(catalog.catalogSchema['instructions'], 'Prefer cards.');
+      expect(catalog.copyWith().instructions, 'Prefer cards.');
+      expect(catalog.copyWith().protocolVersion, A2uiProtocolVersion.v1_0);
+    });
+
+    test('requires args in catalogSchema only for required parameters', () {
+      final CatalogApi catalog = CatalogApi(
+        id: 'c',
+        components: const [],
+        functions: [
+          FunctionApi(name: 'now', argumentSchema: Schema.object()),
+          FunctionApi(
+            name: 'upper',
+            argumentSchema: Schema.object(
+              properties: {'value': Schema.string()},
+              required: ['value'],
+            ),
+          ),
+        ],
+      );
+      final functions =
+          catalog.catalogSchema['functions']! as Map<String, Object?>;
+
+      expect((functions['now']! as Map)['required'], ['call']);
+      expect((functions['upper']! as Map)['required'], ['call', 'args']);
+    });
+
+    test('invoke checks arguments against the function schema', () {
+      final catalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: 'c',
+        components: const [],
+        functions: [_EchoFunction()],
+      );
+      final context = DataContext(DataModel(), (_, __, ___) => null, '/');
+
+      expect(catalog.invoke('echo', {'value': 'hi'}, context), 'hi');
+      expect(
+        () => catalog.invoke('echo', {'value': 3}, context),
+        throwsA(isA<A2uiExpressionError>()),
+      );
+      expect(
+        () => catalog.invoke('echo', <String, dynamic>{}, context),
+        throwsA(isA<A2uiExpressionError>()),
+      );
+      // A null argument is unresolved data, which the function handles.
+      expect(catalog.invoke('echo', {'value': null}, context), isNull);
+    });
+
+    group('invoke resolves argument schema references', () {
+      final context = DataContext(DataModel(), (_, __, ___) => null, '/');
+
+      Catalog<ComponentApi, FunctionImplementation> catalogWith(String ref) =>
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: 'c',
+            components: const [],
+            functions: [
+              _EchoFunction(
+                argumentSchema: Schema.fromMap({
+                  'type': 'object',
+                  'properties': {
+                    'value': {r'$ref': ref},
+                  },
+                  'required': ['value'],
+                }),
+              ),
+            ],
+          );
+
+      test('to the shared common types', () {
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            catalogWith(r'common_types.json#/$defs/DynamicNumber');
+
+        expect(catalog.invoke('echo', {'value': 3}, context), 3);
+        expect(
+          () => catalog.invoke('echo', {'value': 'abc'}, context),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+
+      test('to definitions the catalog document bundles', () {
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            catalogWith(r'#/$defs/DynamicNumber');
+
+        expect(catalog.invoke('echo', {'value': 3}, context), 3);
+        expect(
+          () => catalog.invoke('echo', {'value': 'abc'}, context),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+    });
+  });
+
+  group('Catalog code-defined', () {
+    test('serializes catalogSchema with id and component envelopes', () {
+      final Catalog<ComponentApi, FunctionApi> catalog = Catalog(
+        id: 'https://example.com/custom-catalog',
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        components: [
+          ComponentApi(
+            name: 'Button',
+            schema: Schema.fromMap({
+              'type': 'object',
+              'properties': {
+                'label': {'type': 'string'},
+              },
+              'required': ['label'],
+            }),
+          ),
+        ],
+      );
+
+      final Map<String, Object?> schema = catalog.catalogSchema;
+      expect(schema[r'$schema'], Catalog.jsonSchemaDialect);
+      expect(schema['catalogId'], 'https://example.com/custom-catalog');
+      expect(schema['protocolVersion'], '0.9');
+
+      final comps = schema['components'] as Map<String, Object?>;
+      expect(comps.containsKey('Button'), isTrue);
+
+      final button = comps['Button'] as Map<String, Object?>;
+      final props = button['properties'] as Map<String, Object?>;
+      expect(props['id'], {r'$ref': r'#/$defs/ComponentId'});
+      expect(props['component'], {'const': 'Button'});
+      expect(props['label'], {'type': 'string'});
+
+      expect(button['required'], ['id', 'label', 'component']);
+
+      final defs = schema[r'$defs'] as Map<String, Object?>;
+      expect(defs.containsKey('ComponentId'), isTrue);
+      expect(defs.containsKey('anyComponent'), isTrue);
+    });
+
+    test('serializes a v1.0 catalogSchema with @call and no id', () {
+      final Catalog<ComponentApi, FunctionApi> catalog = Catalog(
+        id: 'https://example.com/custom-catalog',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: [
+          ComponentApi(
+            name: 'Button',
+            schema: Schema.fromMap({
+              'type': 'object',
+              'properties': {
+                'label': {r'$ref': r'#/$defs/DynamicString'},
+                'child': {r'$ref': r'#/$defs/Child'},
+              },
+              'required': ['label'],
+            }),
+          ),
+        ],
+        functions: [
+          FunctionApi(
+            name: 'f',
+            argumentSchema: Schema.object(
+              properties: {'value': Schema.string()},
+              required: ['value'],
+            ),
+            returnType: A2uiReturnType.string,
+          ),
+        ],
+      );
+
+      final Map<String, Object?> schema = catalog.catalogSchema;
+      expect(schema['protocolVersion'], '1.0');
+
+      final button = (schema['components'] as Map<String, Object?>)['Button']
+          as Map<String, Object?>;
+      final props = button['properties'] as Map<String, Object?>;
+      expect(props.containsKey('id'), isFalse);
+      expect(props['component'], {'const': 'Button'});
+      expect(button['required'], ['label', 'component']);
+
+      final f = (schema['functions'] as Map<String, Object?>)['f']
+          as Map<String, Object?>;
+      final fProps = f['properties'] as Map<String, Object?>;
+      expect(fProps['@call'], {'const': 'f'});
+      expect(fProps.containsKey('call'), isFalse);
+      expect(f['required'], ['@call', 'args']);
+      expect(f.containsKey('unevaluatedProperties'), isFalse);
+
+      // Shared types are bundled from the v1.0 common_types.json, including
+      // what they reference in turn (Child points at ComponentId).
+      final defs = schema[r'$defs'] as Map<String, Object?>;
+      expect(defs.containsKey('Child'), isTrue);
+      expect(defs.containsKey('ComponentId'), isTrue);
+      expect(defs.containsKey('DataBinding'), isTrue);
+      expect(jsonEncode(defs['DataBinding']), contains('"@path"'));
+      expect(jsonEncode(defs['DataBinding']), isNot(contains('"path"')));
+    });
+  });
+}
+
+/// Returns its `value` argument, which its schema requires to be a string
+/// unless another [argumentSchema] is given.
+class _EchoFunction extends FunctionImplementation {
+  _EchoFunction({Schema? argumentSchema})
+      : super(
+          name: 'echo',
+          argumentSchema: argumentSchema ??
+              Schema.object(
+                properties: {'value': Schema.string()},
+                required: ['value'],
+              ),
+        );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) =>
+      args['value'];
 }

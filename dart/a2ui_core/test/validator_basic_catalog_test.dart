@@ -109,8 +109,6 @@ void main() {
     '../catalogs/basic/v1/examples',
     BasicCatalog.v1_0,
     A2uiProtocolVersion.v1_0,
-    skip: 'The v1.0 common types the v1.0 component schemas '
-        'reference are not embedded yet.',
   );
 }
 

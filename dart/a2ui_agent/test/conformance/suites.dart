@@ -23,7 +23,8 @@
 /// - A `version` of `v1.0` becomes `v0.9`, and one of `v0.9` becomes
 ///   `v1.0`. A case written with `v0.9` means a version other than its
 ///   catalog's, which for this SDK is v1.0.
-/// - A catalog document's `protocolVersion` of `1.0` becomes `0.9`.
+/// - A catalog document's `protocolVersion` of `1.0` becomes `0.9`, and any
+///   function `returnType` of `validationResult` becomes `boolean`.
 /// - Capabilities keyed by `v1.0` are keyed by `v0.9`.
 /// - v1.0 lets `createSurface` name no catalog and v0.9 does not, so a case
 ///   that never names a catalog has the first catalog of the case named in
@@ -98,6 +99,24 @@ List<CatalogApi> caseCatalogs(Map<String, Object?> args) => [
       catalogConfig(entry).transformedCatalog,
 ];
 
+bool _isVersionAtLeast1_0(Object? versionStr) =>
+    versionStr is String && compareVersions(versionStr, '1.0') >= 0;
+
+/// Whether a catalog the case names in `args` declares v1.0 or later before it
+/// is lowered, which turns on what this SDK does only for a v1.0+ agent.
+bool caseDeclaresV1(Map<String, Object?> args) =>
+    [
+      if (args['catalog'] case final Object catalog) catalog,
+      ...?(args['catalogs'] as List<Object?>?),
+    ].any((Object? entry) {
+      final Object? path = entry is Map ? entry['catalog'] : entry;
+      if (path is! String) return false;
+      final document =
+          jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
+              as Map<String, Object?>;
+      return _isVersionAtLeast1_0(document['protocolVersion']);
+    });
+
 CatalogTransformer _transformer(Object? spec) => switch (spec) {
   {'component_pruning': final List<Object?> names} =>
     ComponentPruningTransformer(names.cast<String>()),
@@ -126,11 +145,36 @@ CatalogApi loadCatalog(String path) => _catalogCache.putIfAbsent(path, () {
   ).load();
 });
 
-/// [document] with a `protocolVersion` of `1.0` stated as `0.9`.
-Map<String, Object?> lowerCatalogDocument(Map<String, Object?> document) => {
-  ...document,
-  if (document['protocolVersion'] == '1.0') 'protocolVersion': '0.9',
-};
+/// [document] with a `protocolVersion` of `1.0` or later stated as `0.9`, and
+/// any `validationResult` function return type stated as `boolean`.
+Map<String, Object?> lowerCatalogDocument(Map<String, Object?> document) {
+  if (!_isVersionAtLeast1_0(document['protocolVersion'])) {
+    return {...document};
+  }
+  return {
+    ...document,
+    'protocolVersion': '0.9',
+    if (document['functions'] case final Map<Object?, Object?> functions)
+      'functions': {
+        for (final MapEntry<Object?, Object?> entry in functions.entries)
+          entry.key.toString(): switch (entry.value) {
+            final Map<Object?, Object?> fn => {
+              ...fn,
+              if (fn['returnType'] == 'validationResult')
+                'returnType': 'boolean',
+              if (fn['properties'] case final Map<Object?, Object?> props
+                  when (props['returnType'] as Map?)?['const'] ==
+                      'validationResult')
+                'properties': {
+                  ...props,
+                  'returnType': {'const': 'boolean'},
+                },
+            },
+            final Object? other => other,
+          },
+      },
+  };
+}
 
 /// [version] swapped between the suite's version and this SDK's, in either
 /// spelling; any other value is returned as it is.

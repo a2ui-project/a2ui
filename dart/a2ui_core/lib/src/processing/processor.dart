@@ -12,16 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
 import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../core/catalog.dart';
+import '../core/common.dart';
 import '../core/component_model.dart';
 import '../core/messages.dart';
+import '../core/renderer_capabilities.dart';
 import '../core/surface_group_model.dart';
 import '../core/surface_model.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/semver.dart';
+import '../rpc/rpc_handler.dart';
 import '../validation/component_graph.dart';
 import '../validation/component_refs.dart';
 import '../validation/validation_config.dart';
@@ -126,6 +131,22 @@ class MessageProcessor<T extends ComponentApi> {
   /// Each catalog's child-reference fields, by catalog id, built on first use.
   final Map<String, Map<String, ComponentRefFields>> _refFields = {};
 
+  /// The RPC layer: it answers the `callRendererFunction` messages this
+  /// processor receives, settles its `agentFunctionResponse`s, and sends the
+  /// `callAgentFunction`s made through [callAgentFunction] or by a surface's
+  /// fallback for a function no catalog implements.
+  late final RpcHandler rpc = RpcHandler(
+    catalogs: catalogs,
+    outboundListener: _outboundListener,
+    defaultTimeout: _defaultTimeout,
+  );
+
+  final OutboundMessageListener? _outboundListener;
+  final Duration _defaultTimeout;
+
+  /// [outboundListener] receives every message the RPC layer sends to the
+  /// agent, and [defaultTimeout] bounds how long [callAgentFunction] waits
+  /// for an answer; see [RpcHandler].
   MessageProcessor({
     required this.catalogs,
     this.defaultVersion,
@@ -133,8 +154,12 @@ class MessageProcessor<T extends ComponentApi> {
     this.commonTypesSchema,
     VersionAdapterRegistry? adapterRegistry,
     void Function(A2uiClientAction)? onAction,
+    OutboundMessageListener? outboundListener,
+    Duration defaultTimeout = const Duration(seconds: 30),
   })  : adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
-        groupModel = SurfaceGroupModel<T>() {
+        groupModel = SurfaceGroupModel<T>(),
+        _outboundListener = outboundListener,
+        _defaultTimeout = defaultTimeout {
     final A2uiProtocolVersion? target = validationConfig?.targetVersion;
     final A2uiProtocolVersion? defaultVersion = this.defaultVersion;
     if (target != null && defaultVersion != null && target != defaultVersion) {
@@ -174,7 +199,8 @@ class MessageProcessor<T extends ComponentApi> {
           protocolVersion: version,
           // Without a config nothing is being validated against the graph,
           // and an undeclared type is tolerated too.
-          allowUnknownElements: validationConfig?.allowUnknownElements ?? true,
+          config: validationConfig ??
+              const ValidationConfig(allowUnknownElements: true),
         ),
       );
 
@@ -223,22 +249,59 @@ class MessageProcessor<T extends ComponentApi> {
   /// config for a cycle or an over-deep chain; and [A2uiCatalogError] for a
   /// catalog this processor does not support, or one whose `protocolVersion`
   /// is missing or incompatible with the message creating a surface.
-  void processMessages(Object? payload) {
+  ///
+  /// A `callRendererFunction` is answered through [rpc] after this returns;
+  /// [isUserActivated] tells it whether the payload is being handled within
+  /// a user activation, which a function that requires one needs. Use
+  /// [processMessagesAsync] to wait for the answer.
+  void processMessages(Object? payload, {bool isUserActivated = false}) {
     final List<_RoutedMessage> routed = [
       for (final Object? item in _itemsOf(payload)) _route(item),
     ];
     for (final message in routed) {
-      _apply(message);
+      for (final Future<void>? work in _apply(message, isUserActivated)) {
+        // Never fails: handleCallRendererFunction answers errors instead.
+        if (work != null) unawaited(work);
+      }
     }
   }
 
   /// [processMessages], for messages whose operations complete
   /// asynchronously.
   ///
-  /// No operation completes asynchronously yet, so this completes once
-  /// [processMessages] returns, and fails with what it throws.
-  Future<void> processMessagesAsync(Object? payload) async =>
-      processMessages(payload);
+  /// Completes once every `callRendererFunction` in [payload] has been run
+  /// and its `rendererFunctionResponse` emitted; the other operations are
+  /// applied as [processMessages] applies them, and a failure of theirs fails
+  /// the returned future.
+  Future<void> processMessagesAsync(
+    Object? payload, {
+    bool isUserActivated = false,
+  }) async {
+    final List<_RoutedMessage> routed = [
+      for (final Object? item in _itemsOf(payload)) _route(item),
+    ];
+    for (final message in routed) {
+      for (final Future<void>? work in _apply(message, isUserActivated)) {
+        if (work != null) await work;
+      }
+    }
+  }
+
+  /// Sends [call] to the agent on behalf of [surfaceId] and completes with
+  /// its result. The same as `rpc.callAgentFunction`, which needs no setup
+  /// this processor would otherwise do first.
+  Future<Object?> callAgentFunction(
+    String surfaceId,
+    FunctionCall call, {
+    CallOptions? options,
+  }) =>
+      rpc.callAgentFunction(surfaceId, call, options: options);
+
+  /// Disposes the RPC layer, failing its pending calls, and every surface.
+  void dispose() {
+    rpc.dispose();
+    groupModel.dispose();
+  }
 
   /// Alias for [processMessages] for cross-SDK ergonomics.
   void process(Object? payload) => processMessages(payload);
@@ -291,7 +354,9 @@ class MessageProcessor<T extends ComponentApi> {
     }
   }
 
-  void _apply(_RoutedMessage message) {
+  /// Applies [message]'s operations in order and returns, for each, the
+  /// asynchronous work it started, or null for one that completed in place.
+  List<Future<void>?> _apply(_RoutedMessage message, bool isUserActivated) {
     final List<String>? allowed = validationConfig?.allowedMessages;
     if (allowed != null) {
       for (final InternalOperation operation in message.operations) {
@@ -311,12 +376,13 @@ class MessageProcessor<T extends ComponentApi> {
       checkPathsAndRecursion(message.json);
     }
 
-    for (final InternalOperation operation in message.operations) {
-      _execute(operation);
-    }
+    return [
+      for (final InternalOperation operation in message.operations)
+        _execute(operation, isUserActivated),
+    ];
   }
 
-  void _execute(InternalOperation operation) {
+  Future<void>? _execute(InternalOperation operation, bool isUserActivated) {
     switch (operation) {
       case CreateSurfaceOp():
         _createSurface(operation);
@@ -331,11 +397,55 @@ class MessageProcessor<T extends ComponentApi> {
         // and the TypeScript and Python SDKs.
         groupModel.deleteSurface(operation.surfaceId);
       case CallRendererFunctionOp():
+        return _callRendererFunction(operation, isUserActivated);
       case AgentFunctionResponseOp():
-        // Function calls across the wire are answered by an RPC layer, which
-        // this processor does not have; the operations change no surface.
-        break;
+        rpc.handleAgentFunctionResponse(
+          AgentFunctionResponseMessage(
+            version: operation.version.jsonValue,
+            response: operation.response,
+          ),
+        );
     }
+    return null;
+  }
+
+  /// Hands a `callRendererFunction` to [rpc], against the first surface whose
+  /// default catalog is the catalog the call names, else the first surface
+  /// that holds the catalog, else the first surface, else no surface at all,
+  /// in which case the function runs headless.
+  Future<void> _callRendererFunction(
+    CallRendererFunctionOp operation,
+    bool isUserActivated,
+  ) {
+    final Object? catalogId = operation.callFunction['catalogId'];
+    SurfaceModel<T>? target;
+    if (catalogId is String) {
+      for (final SurfaceModel<T> surface in groupModel.allSurfaces) {
+        if (surface.defaultCatalog?.id == catalogId) {
+          target = surface;
+          break;
+        }
+      }
+    }
+    if (target == null) {
+      for (final SurfaceModel<T> surface in groupModel.allSurfaces) {
+        target ??= surface;
+        if (catalogId is String &&
+            surface.availableCatalogs.containsKey(catalogId)) {
+          target = surface;
+          break;
+        }
+      }
+    }
+    return rpc.handleCallRendererFunction(
+      CallRendererFunctionMessage(
+        version: operation.version.jsonValue,
+        functionCallId: operation.functionCallId,
+        callFunction: operation.callFunction,
+      ),
+      surface: target,
+      context: ExecutionContext(isUserActivated: isUserActivated),
+    );
   }
 
   /// The envelope fields of a component message, which a [ComponentModel]
@@ -348,15 +458,15 @@ class MessageProcessor<T extends ComponentApi> {
   };
 
   /// Creates a surface: its data model first, as one root write, then its
-  /// components, then its metadata.
+  /// components.
   ///
   /// The inline components are checked before the surface is added, so a
   /// `createSurface` they fail creates nothing.
   void _createSurface(CreateSurfaceOp operation) {
-    final Catalog<T, FunctionImplementation> catalog = _surfaceCatalog(
+    final Catalog<T, FunctionImplementation>? catalog = _surfaceCatalog(
       operation,
     );
-    _checkCatalogVersion(catalog, operation);
+    if (catalog != null) _checkCatalogVersion(catalog, operation);
 
     if (groupModel.getSurface(operation.surfaceId) != null) {
       throw A2uiIntegrityError(
@@ -365,18 +475,30 @@ class MessageProcessor<T extends ComponentApi> {
 
     // The theme arrives once, with the surface, so it is checked here rather
     // than on every later message. v1.0 has no theme.
-    if (!operation.version.isAtLeast(A2uiProtocolVersion.v1_0)) {
+    if (catalog != null &&
+        !operation.version.isAtLeast(A2uiProtocolVersion.v1_0)) {
       validatorFor(catalog, version: operation.version)
           .validateTheme(operation.theme);
     }
 
     final surface = SurfaceModel<T>(
       operation.surfaceId,
-      catalog: catalog,
+      defaultCatalog: catalog,
+      availableCatalogs: [
+        for (final Catalog<T, FunctionImplementation> candidate in catalogs)
+          if (isCatalogVersionCompatible(
+            candidate.protocolVersion?.jsonValue,
+            operation.version.jsonValue,
+          ))
+            candidate,
+      ],
       theme: operation.theme ?? {},
       sendDataModel: operation.sendDataModel,
       protocolVersion: operation.version.jsonValue,
       rootId: validationConfig?.rootId ?? 'root',
+      metadata: operation.metadata,
+      callAgentFunction: (call) =>
+          rpc.callAgentFunction(operation.surfaceId, call),
     );
 
     _CheckedBatch? batch;
@@ -396,7 +518,6 @@ class MessageProcessor<T extends ComponentApi> {
         surface.dataModel.set('/', dataModel);
       }
       if (batch != null) _applyComponents(surface, batch);
-      surface.metadata = operation.metadata;
     } catch (_) {
       // Do not leave a half-initialized surface registered.
       groupModel.deleteSurface(operation.surfaceId);
@@ -404,12 +525,18 @@ class MessageProcessor<T extends ComponentApi> {
     }
   }
 
-  /// The default catalog of the surface [operation] creates.
+  /// The default catalog of the surface [operation] creates, or null when a
+  /// v1.0 message names none.
+  ///
+  /// From v1.0 `catalogId` is optional on `createSurface`: a surface without
+  /// one has no default catalog, so each item on it must name its own, and
+  /// one that does not is rejected by [SurfaceModel.resolveCatalog]. There is
+  /// no fallback to the catalogs this processor supports, even when it
+  /// supports exactly one.
   ///
   /// Throws [A2uiValidationError] for a message before v1.0 that names no
-  /// catalog, and [A2uiCatalogError] for a v1.0 message that names none when
-  /// this processor supports more than one.
-  Catalog<T, FunctionImplementation> _surfaceCatalog(
+  /// catalog, as those versions require one.
+  Catalog<T, FunctionImplementation>? _surfaceCatalog(
     CreateSurfaceOp operation,
   ) {
     if (operation.catalogId case final String catalogId) {
@@ -421,68 +548,29 @@ class MessageProcessor<T extends ComponentApi> {
         'no catalogId.',
       );
     }
-    // From v1.0 a surface may name no catalog. Until a surface can exist
-    // without a default catalog, it takes the sole one this processor
-    // supports.
-    if (catalogs.length == 1) return catalogs.single;
-    throw A2uiCatalogError(
-      "Message 'createSurface' for surface '${operation.surfaceId}' names no "
-      'catalogId, and this processor supports several: '
-      '${catalogs.map((c) => c.id).join(', ')}.',
-    );
+    return null;
   }
 
   /// Throws [A2uiCatalogError] unless [catalog] declares a protocol version
   /// compatible with the message creating a surface on it.
   ///
-  /// Fails closed: a catalog that declares no version is rejected rather than
-  /// assumed to match.
+  /// A catalog that declares no version is pre-v1.0 (see
+  /// [isCatalogVersionCompatible]): it serves a message below 1.0 and is
+  /// rejected for one from 1.0 on.
   void _checkCatalogVersion(
     Catalog<T, FunctionImplementation> catalog,
     CreateSurfaceOp operation,
   ) {
     final String messageVersion = operation.version.jsonValue;
-    final String? catalogVersion = catalog.protocolVersion;
-    if (catalogVersion == null) {
-      throw A2uiCatalogError(
-        "Catalog '${catalog.id}' declares no protocolVersion, so it cannot be "
-        "checked against the '$messageVersion' message creating surface "
-        "'${operation.surfaceId}'.",
-        catalogId: catalog.id,
-      );
-    }
-    if (!isCatalogVersionCompatible(catalogVersion, messageVersion)) {
-      throw A2uiCatalogError(
-        "Catalog '${catalog.id}' targets protocol version '$catalogVersion', "
-        "which is incompatible with the '$messageVersion' message creating "
-        "surface '${operation.surfaceId}'.",
-        catalogId: catalog.id,
-      );
-    }
-  }
-
-  /// The catalog one component is checked against.
-  ///
-  /// Settled in order: the [catalogId] the component names for itself, which
-  /// v1.0 allows so that one surface can mix catalogs; then the surface's
-  /// default, from `createSurface`; then the sole catalog this processor
-  /// supports, which is the agent case, where a catalog is negotiated before
-  /// anything is generated.
-  ///
-  /// Throws [A2uiCatalogError] when none of those settles it. Skipping the
-  /// component instead would report a payload valid that nothing had checked.
-  Catalog<T, FunctionImplementation> _catalogForComponent(
-    String id,
-    String? catalogId,
-    String? surfaceCatalogId,
-  ) {
-    final String? declared = catalogId ?? surfaceCatalogId;
-    if (declared != null) return catalogFor(declared);
-    if (catalogs.length == 1) return catalogs.single;
+    final String? catalogVersion = catalog.protocolVersion?.jsonValue;
+    if (isCatalogVersionCompatible(catalogVersion, messageVersion)) return;
+    final declared = catalogVersion == null
+        ? 'declares no protocolVersion, so it is pre-v1.0,'
+        : "targets protocol version '$catalogVersion',";
     throw A2uiCatalogError(
-      "Component '$id' names no catalog and its surface has none, so the "
-      'catalog to check it against is ambiguous among: '
-      '${catalogs.map((c) => c.id).join(', ')}.',
+      "Catalog '${catalog.id}' $declared which is incompatible with the "
+      "'$messageVersion' message creating surface '${operation.surfaceId}'.",
+      catalogId: catalog.id,
     );
   }
 
@@ -495,16 +583,16 @@ class MessageProcessor<T extends ComponentApi> {
   /// Each catalog's fields come from its [Catalog.refMap], the map the node
   /// resolver mounts children from.
   Map<String, ComponentRefFields> _refFieldsFor(
-    String? surfaceCatalogId,
+    SurfaceModel<T> surface,
     Iterable<String?> componentCatalogIds,
   ) {
     final ids = <String>{
-      if (surfaceCatalogId != null) surfaceCatalogId,
+      if (surface.defaultCatalog case final catalog?) catalog.id,
       for (final String? id in componentCatalogIds)
         if (id != null) id,
     };
     final Iterable<Catalog<T, FunctionImplementation>> involved =
-        ids.isEmpty ? catalogs : ids.map(catalogFor);
+        ids.map(surface.resolveCatalog);
 
     final merged = <String, ComponentRefFields>{};
     for (final catalog in involved) {
@@ -514,6 +602,30 @@ class MessageProcessor<T extends ComponentApi> {
             (String type, ComponentRefFields fields) =>
                 merged.putIfAbsent(type, () => fields),
           );
+    }
+    return merged;
+  }
+
+  /// The composition constraints of the catalogs [components] draw on,
+  /// merged the way [_refFieldsFor] merges reference fields.
+  Map<String, CompositionRule> _compositionRulesFor(
+    SurfaceModel<T> surface,
+    Iterable<Map<String, Object?>> components,
+  ) {
+    final ids = <String>{
+      if (surface.defaultCatalog case final catalog?) catalog.id,
+      for (final Map<String, Object?> component in components)
+        if (component['catalogId'] case final String id) id,
+    };
+    final Iterable<Catalog<T, FunctionImplementation>> involved =
+        ids.map(surface.resolveCatalog);
+
+    final merged = <String, CompositionRule>{};
+    for (final catalog in involved) {
+      extractCompositionRules(catalog).forEach(
+        (String type, CompositionRule rule) =>
+            merged.putIfAbsent(type, () => rule),
+      );
     }
     return merged;
   }
@@ -554,7 +666,7 @@ class MessageProcessor<T extends ComponentApi> {
     ];
 
     final Map<String, ComponentRefFields> refFields = _refFieldsFor(
-      surface.catalog.id,
+      surface,
       [
         for (final ComponentModel c in model.all) c.catalog,
         for (final Map<String, Object?> c in resolved)
@@ -572,6 +684,23 @@ class MessageProcessor<T extends ComponentApi> {
         defaultRootId: surface.rootId,
       );
     }
+    // Composition constraints (`allowedParents` / `allowedChildren`) over the
+    // surface this batch would leave behind. An edge whose child has not
+    // arrived yet is skipped, so this holds without a config too.
+    final List<Map<String, Object?>> existing = [
+      for (final ComponentModel c in model.all)
+        if (!resolved.any((Map<String, Object?> r) => r['id'] == c.id))
+          c.toJson(),
+    ];
+    checkCompositionConstraints(
+      resolved,
+      refFields,
+      _compositionRulesFor(surface, [...resolved, ...existing]),
+      existing: existing,
+      rootId: surface.rootId,
+      surfaceId: surface.id,
+    );
+
     return (resolved: resolved, refFields: refFields);
   }
 
@@ -676,127 +805,102 @@ class MessageProcessor<T extends ComponentApi> {
       if (metadata != null) 'metadata': metadata,
     };
 
-    final Catalog<T, FunctionImplementation> catalog = _catalogForComponent(
-      id,
-      catalogId,
-      surface.catalog.id,
-    );
+    final Catalog<T, FunctionImplementation> catalog =
+        surface.resolveCatalog(catalogId);
     validatorFor(catalog, version: version).validateComponent(full);
     return full;
   }
 
-  /// Generates client capabilities.
-  Map<String, dynamic> getClientCapabilities({
-    bool includeInlineCatalogs = false,
-  }) {
-    final v09 = <String, dynamic>{
-      'supportedCatalogIds': catalogs.map((c) => c.id).toList(),
-    };
-
-    if (includeInlineCatalogs) {
-      v09['inlineCatalogs'] = catalogs.map(_generateInlineCatalog).toList();
-    }
-
-    return {'v0.9': v09};
-  }
-
-  Map<String, dynamic> _generateInlineCatalog(
-    Catalog<T, FunctionImplementation> catalog,
+  /// The capabilities object this processor's renderer advertises, with one
+  /// entry per version in [CapabilitiesOptions.versions].
+  ///
+  /// Each entry lists the id of every catalog in [catalogs]. With
+  /// [CapabilitiesOptions.includeInlineCatalogs] it also carries the catalogs
+  /// themselves, shaped for that entry's version as
+  /// [A2uiVersionCapabilities.toJson] describes: the legacy inline catalog
+  /// below v1.0, the standalone catalog schema document from v1.0.
+  ///
+  /// Throws [A2uiValidationError] if [CapabilitiesOptions.versions] is empty.
+  A2uiRendererCapabilities getRendererCapabilities(
+    CapabilitiesOptions options,
   ) {
-    final components = <String, dynamic>{};
-    for (final MapEntry<String, T> entry in catalog.components.entries) {
-      final Map<String, dynamic> jsonSchema = entry.value.schema.toJsonMap();
-      _processRefs(jsonSchema);
+    if (options.versions.isEmpty) {
+      throw A2uiValidationError(
+        'At least one protocol version must be provided in '
+        'CapabilitiesOptions to generate renderer capabilities.',
+      );
+    }
+    final List<String> catalogIds = List.unmodifiable([
+      for (final Catalog<T, FunctionImplementation> catalog in catalogs)
+        catalog.id,
+    ]);
+    final List<CatalogApi> inlineCatalogs =
+        options.includeInlineCatalogs ? List.unmodifiable(catalogs) : const [];
+    return A2uiRendererCapabilities(
+      versions: {
+        for (final A2uiProtocolVersion version in options.versions)
+          version: A2uiVersionCapabilities(
+            supportedCatalogIds: catalogIds,
+            inlineCatalogs: inlineCatalogs,
+          ),
+      },
+    );
+  }
 
-      // Wrap in A2UI envelope
-      components[entry.key] = {
-        'allOf': [
-          {'\$ref': 'common_types.json#/\$defs/ComponentCommon'},
-          {
-            'properties': {
-              'component': {'const': entry.key},
-              ...?(jsonSchema['properties'] as Map<String, dynamic>?),
-            },
-            'required': ['component', ...?(jsonSchema['required'] as List?)],
-          },
-        ],
+  /// The data models of the surfaces created with `sendDataModel`, in the
+  /// shape of the `a2uiClientDataModel` object the renderer sends with each
+  /// message: `{'version': ..., 'surfaces': {<surfaceId>: <data model>}}`.
+  ///
+  /// With a [version], only surfaces whose protocol version is compatible
+  /// with it (see [isCatalogVersionCompatible]) are included, along with
+  /// surfaces that record no version. Without one, the version is the one
+  /// the surfaces share, or v1.0 when none records a version.
+  ///
+  /// Returns null when no surface qualifies. Throws [A2uiValidationError] if
+  /// [version] is omitted and the surfaces record different versions.
+  Map<String, Object?>? getRendererDataModel({A2uiProtocolVersion? version}) {
+    final List<SurfaceModel<T>> enabled = [
+      for (final SurfaceModel<T> surface in groupModel.allSurfaces)
+        if (surface.sendDataModel) surface,
+    ];
+    if (enabled.isEmpty) return null;
+
+    if (version != null) {
+      final surfaces = <String, Object?>{
+        for (final SurfaceModel<T> surface in enabled)
+          if (surface.protocolVersion == null ||
+              isCatalogVersionCompatible(
+                surface.protocolVersion!,
+                version.jsonValue,
+              ))
+            surface.id: surface.dataModel.get('/'),
       };
+      if (surfaces.isEmpty) return null;
+      return {'version': version.jsonValue, 'surfaces': surfaces};
     }
 
-    final List<Map<String, Object>> functions = catalog.functions.values.map((
-      f,
-    ) {
-      final Map<String, dynamic> jsonSchema = f.argumentSchema.toJsonMap();
-      _processRefs(jsonSchema);
-      return {
-        'name': f.name,
-        'returnType': f.returnType.jsonValue,
-        'parameters': jsonSchema,
-      };
-    }).toList();
-
-    Map<String, dynamic>? theme;
-    if (catalog.themeSchema != null) {
-      theme = catalog.themeSchema!.toJsonMap();
-      _processRefs(theme);
-      theme = theme['properties'] as Map<String, dynamic>?;
+    final Set<String> versions = {
+      for (final SurfaceModel<T> surface in enabled)
+        if (surface.protocolVersion case final String declared)
+          A2uiProtocolVersion.tryParse(declared)?.jsonValue ?? declared,
+    };
+    if (versions.length > 1) {
+      throw A2uiValidationError(
+        'Multiple protocol versions detected among active surfaces: '
+        '${(versions.toList()..sort()).join(', ')}. Specify a target '
+        'protocol version in getRendererDataModel(version).',
+      );
     }
-
     return {
-      'catalogId': catalog.id,
-      if (components.isNotEmpty) 'components': components,
-      if (functions.isNotEmpty) 'functions': functions,
-      if (theme != null) 'theme': theme,
+      'version': versions.isEmpty
+          ? A2uiProtocolVersion.v1_0.jsonValue
+          : versions.single,
+      'surfaces': <String, Object?>{
+        for (final SurfaceModel<T> surface in enabled)
+          surface.id: surface.dataModel.get('/'),
+      },
     };
   }
-
-  void _processRefs(Object? node) {
-    if (node is! Map) return;
-
-    if (node['description'] is String &&
-        (node['description'] as String).startsWith('REF:')) {
-      final desc = node['description'] as String;
-      final List<String> parts = desc.substring(4).split('|');
-      final String ref = parts[0];
-      final String? actualDesc = parts.length > 1 ? parts[1] : null;
-
-      node.clear();
-      node['\$ref'] = ref;
-      if (actualDesc != null) {
-        node['description'] = actualDesc;
-      }
-      return;
-    }
-
-    node.forEach((key, value) {
-      if (value is Map) {
-        _processRefs(value);
-      } else if (value is List) {
-        for (final Object? item in value) {
-          if (item is Map) {
-            _processRefs(item);
-          }
-        }
-      }
-    });
-  }
-
-  /// Aggregates data models for surfaces with sendDataModel enabled.
-  Map<String, dynamic>? getClientDataModel() {
-    final surfaces = <String, dynamic>{};
-    for (final SurfaceModel<T> surface in groupModel.allSurfaces) {
-      if (surface.sendDataModel) {
-        surfaces[surface.id] = surface.dataModel.get('/');
-      }
-    }
-
-    if (surfaces.isEmpty) return null;
-
-    return {'version': 'v0.9', 'surfaces': surfaces};
-  }
-
-  /// Alias for [getClientDataModel] for cross-SDK ergonomics.
-  Map<String, dynamic>? getRendererDataModel() => getClientDataModel();
 }
 
 extension SchemaExtension on Schema {

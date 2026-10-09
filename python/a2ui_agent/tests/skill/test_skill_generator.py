@@ -19,8 +19,9 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock
 
+from a2ui.core import Catalog
 from a2ui.inference_formats.experimental.express import ExpressFormat
-from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
+from a2ui.schema import CatalogConfig
 from a2ui.skill import SkillGenerator
 
 from a2ui.schema.utils import find_repo_root
@@ -38,8 +39,8 @@ class TestSkillGenerator(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.catalog_config = CatalogConfig.from_path("basic", CATALOG_PATH)
-        self.catalog = A2uiCatalog.from_config(self.catalog_config)
-        self.express_fmt = ExpressFormat(catalog=self.catalog)
+        self.catalog = self.catalog_config.to_catalog()
+        self.express_fmt = ExpressFormat([self.catalog])
         self.generator = SkillGenerator(self.express_fmt)
 
     def tearDown(self):
@@ -158,9 +159,9 @@ class TestSkillGenerator(unittest.TestCase):
     def test_generate_with_explicit_catalogs_override(self):
         """Verifies methods accept explicit catalog arguments overriding format defaults."""
         testing_catalog_path = os.path.join(SPEC_DIR, "test", "testing_catalog.json")
-        testing_catalog = A2uiCatalog.from_config(
-            CatalogConfig.from_path("testing", testing_catalog_path)
-        )
+        testing_catalog = CatalogConfig.from_path(
+            "testing", testing_catalog_path
+        ).to_catalog()
 
         # 1. generate_catalog_skill with explicit catalog generates for that catalog
         cat_skill = self.generator.generate_catalog_skill(testing_catalog)
@@ -195,6 +196,31 @@ class TestSkillGenerator(unittest.TestCase):
         gen = SkillGenerator(mock_fmt)
         skill = gen.generate_catalog_skill(self.catalog)
         self.assertEqual(skill.content, "\n")
+
+    def test_examples_shared_by_catalogs_are_added_once(self):
+        """Verifies examples the format returns for every catalog aren't repeated."""
+        other = Catalog.from_json(
+            catalog_schema={"catalogId": "https://a2ui.org/other", "components": {}},
+            protocol_version="1.0",
+        )
+        mock_fmt = MagicMock()
+        mock_fmt.catalogs = [self.catalog, other]
+        mock_fmt.prompt_generator.generate_base_rules.return_value = "RULES"
+        mock_fmt.prompt_generator.generate_catalog_instructions.return_value = "INST"
+        mock_fmt.prompt_generator.generate_examples.return_value = "SHARED EXAMPLES"
+        gen = SkillGenerator(mock_fmt)
+
+        skill = gen.generate_skill()
+        self.assertEqual(skill.content.count("SHARED EXAMPLES"), 1)
+
+        mock_fmt.prompt_generator.generate_examples.reset_mock()
+        skill_set = gen.generate_skillset()
+        examples_per_skill = [
+            text.count("SHARED EXAMPLES") for text in skill_set.to_dict().values()
+        ]
+        self.assertEqual(sorted(examples_per_skill), [0, 0, 1])
+        # Each catalog's examples are loaded and transformed once.
+        self.assertEqual(mock_fmt.prompt_generator.generate_examples.call_count, 2)
 
 
 if __name__ == "__main__":

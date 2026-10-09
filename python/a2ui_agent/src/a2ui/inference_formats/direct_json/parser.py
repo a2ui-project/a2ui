@@ -14,14 +14,17 @@
 
 """Parser and compiler implementation for standard A2UI JSON schema responses."""
 
+from collections.abc import Sequence
 from typing import Any
-from a2ui.parser.parser import Parser
-from a2ui.parser.response_part import ResponsePart
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
-from a2ui.core import A2uiParseError
-from a2ui.parser.payload_fixer import parse_and_fix
-from a2ui.inference_formats.direct_json.decompiler import _DirectJsonDecompiler
+
+from a2ui.core import A2uiParseError, CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats._shared import check_catalogs, to_message_models
+from a2ui.inference_formats.direct_json.decompiler import DirectJsonDecompiler
+from a2ui.parser import Parser, ResponsePart, parse_and_fix
+from a2ui.schema import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.schema.constants import DEFAULT_PROGRESSIVE_KEYS
+from a2ui.utils import validate_payload
 
 
 def unwrap_response(content: str) -> list[ResponsePart]:
@@ -72,22 +75,34 @@ def unwrap_response(content: str) -> list[ResponsePart]:
 class DirectJsonParser(Parser):
     """Concrete parser implementation for standard A2UI JSON schema responses (Direct JSON Format)."""
 
-    def __init__(self, catalog: A2uiCatalog, validator: Any = None):
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi],
+        *,
+        progressive_keys: frozenset[str] = DEFAULT_PROGRESSIVE_KEYS,
+    ):
         """Initializes the DirectJsonParser.
 
         Args:
-            catalog: The A2uiCatalog mapping schema identifiers.
-            validator: Optional callable invoked with the parsed payload. It may
-                return a list of `A2uiErrorDetail`, which `compile` raises as an
-                `A2uiValidationError`, or raise on its own.
+            catalogs: The catalogs that payloads are validated against. They
+                must share a protocol version.
+            progressive_keys: Keys whose string values the stream parser may
+                auto-close when cut. An empty set turns healing off.
+
+        Raises:
+            A2uiCatalogError: If no catalog is given, or the catalogs target
+                different protocol versions.
         """
-        self._catalog = catalog
-        self._validator = validator
+        self._catalogs = check_catalogs(catalogs)
+        self._progressive_keys = progressive_keys
         self._stream_parser: Any | None = None
 
-    def has_format_content(self, content: str, *, complete: bool = False) -> bool:
-        from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the catalogs the parser holds, in the order it received them."""
+        return list(self._catalogs)
 
+    def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         if complete:
             return A2UI_OPEN_TAG in content and A2UI_CLOSE_TAG in content
         return A2UI_OPEN_TAG in content
@@ -105,27 +120,31 @@ class DirectJsonParser(Parser):
 
     def compile(
         self, format_content: str, *, is_final: bool = True
-    ) -> list[dict[str, Any]]:
+    ) -> list[AgentToRendererMessage]:
         """Validates and compiles raw A2UI JSON schema content.
+
+        A final payload is checked with `validate_payload`, which runs it
+        through a `MessageProcessor` holding the catalogs, as the stream parser
+        checks its messages. A partial payload isn't checked against the
+        catalogs, since it may be cut mid-message, but every payload must still
+        parse into protocol message models. The messages are converted without
+        adding or dropping any field.
 
         Args:
             format_content: The raw A2UI JSON string.
+            is_final: Whether the content is the complete payload.
 
         Returns:
-            A list of compiled A2UI message dictionaries.
+            A list of compiled AgentToRendererMessage objects.
+
+        Raises:
+            A2uiValidationError: If the payload fails catalog validation, or
+                (final or not) does not match the protocol message schema.
         """
         json_data = parse_and_fix(format_content)
-        # TODO: Leverage MessageProcessor to validate the json data.
-        if self._validator:
-            from a2ui.core import A2uiValidationError
-
-            errs = self._validator(json_data)
-            if isinstance(errs, list) and errs:
-                raise A2uiValidationError(
-                    f"Validation failed with {len(errs)} error(s)",
-                    details=errs,
-                )
-        return json_data
+        if is_final:
+            validate_payload(self._catalogs, json_data)
+        return to_message_models(json_data)
 
     @property
     def supports_streaming(self) -> bool:
@@ -143,13 +162,16 @@ class DirectJsonParser(Parser):
         from a2ui.inference_formats.direct_json.streaming import DirectJsonStreamParser
 
         if not self._stream_parser:
-            self._stream_parser = DirectJsonStreamParser(self._catalog)
+            self._stream_parser = DirectJsonStreamParser(
+                self._catalogs,
+                progressive_keys=self._progressive_keys,
+            )
         return self._stream_parser.process_chunk(chunk)
 
-    def decompile(self, val: dict[str, Any]) -> str:
-        """Decompiles a structured A2UI payload into this format's raw notation."""
-        return _DirectJsonDecompiler().decompile(val)
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
+        """Decompiles structured A2UI payload messages into this format's raw notation."""
+        return DirectJsonDecompiler().decompile(a2ui_payload)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps multiple decompiled blocks with the format's enclosing tags/markers."""
-        return _DirectJsonDecompiler().wrap_decompiled_blocks(blocks)
+        return DirectJsonDecompiler().wrap_decompiled_blocks(blocks)
