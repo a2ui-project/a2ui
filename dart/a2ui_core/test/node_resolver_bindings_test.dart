@@ -428,6 +428,7 @@ void main() {
     setUp(() {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'scope-catalog',
+        protocolVersion: A2uiProtocolVersion.v1_0,
         components: [
           ComponentApi(
             name: 'List',
