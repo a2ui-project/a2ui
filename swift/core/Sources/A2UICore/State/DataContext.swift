@@ -152,6 +152,8 @@ public final class DataContext {
       let function = functionHandler?.function(named: callName, catalogID: catalogID)
         ?? (callName == "@index" ? IndexFunction() : nil)
     else {
+      functionHandler?.handleFunctionError(
+        FunctionError.functionNotFound(callName), functionName: callName)
       return .null
     }
 

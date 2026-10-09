@@ -18,6 +18,8 @@ public struct GenericError: Error, Equatable, Codable, Sendable, ProtocolVersion
   public let surfaceID: String?
   public let functionCallID: String?
   public let message: String
+  /// The expression that failed, e.g. the function name of an `EXPRESSION_ERROR`.
+  public let expression: String?
   public var version: A2UIProtocolVersion
 
   private enum CodingKeys: String, CodingKey {
@@ -25,18 +27,21 @@ public struct GenericError: Error, Equatable, Codable, Sendable, ProtocolVersion
     case surfaceID = "surfaceId"
     case functionCallID = "functionCallId"
     case message
+    case expression
   }
 
   public init(
     code: String,
     surfaceID: String,
     message: String,
+    expression: String? = nil,
     version: A2UIProtocolVersion
   ) {
     self.code = code
     self.surfaceID = surfaceID
     self.functionCallID = nil
     self.message = message
+    self.expression = expression
     self.version = version
   }
 
@@ -44,12 +49,14 @@ public struct GenericError: Error, Equatable, Codable, Sendable, ProtocolVersion
     code: String,
     functionCallID: String,
     message: String,
+    expression: String? = nil,
     version: A2UIProtocolVersion
   ) {
     self.code = code
     self.surfaceID = nil
     self.functionCallID = functionCallID
     self.message = message
+    self.expression = expression
     self.version = version
   }
 
@@ -58,12 +65,14 @@ public struct GenericError: Error, Equatable, Codable, Sendable, ProtocolVersion
     surfaceID: String? = nil,
     functionCallID: String? = nil,
     message: String,
+    expression: String? = nil,
     version: A2UIProtocolVersion
   ) {
     self.code = code
     self.surfaceID = surfaceID
     self.functionCallID = functionCallID
     self.message = message
+    self.expression = expression
     self.version = version
   }
 
@@ -73,6 +82,7 @@ public struct GenericError: Error, Equatable, Codable, Sendable, ProtocolVersion
     surfaceID = try container.decodeIfPresent(String.self, forKey: .surfaceID)
     functionCallID = try container.decodeIfPresent(String.self, forKey: .functionCallID)
     message = try container.decode(String.self, forKey: .message)
+    expression = try container.decodeIfPresent(String.self, forKey: .expression)
     self.version = version
 
     let hasSurface = surfaceID != nil
@@ -94,5 +104,6 @@ public struct GenericError: Error, Equatable, Codable, Sendable, ProtocolVersion
     try container.encodeIfPresent(surfaceID, forKey: .surfaceID)
     try container.encodeIfPresent(functionCallID, forKey: .functionCallID)
     try container.encode(message, forKey: .message)
+    try container.encodeIfPresent(expression, forKey: .expression)
   }
 }
