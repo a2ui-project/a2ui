@@ -1,22 +1,21 @@
-# Express DSL `surface()` Design Proposal
+# Express DSL `surface()` Design
 
-## Executive Summary
+## Summary
 
-A2UI Express DSL is a compact declarative syntax designed for generative user interface models. Standard A2UI wire protocol distinguishes between initializing a surface (`createSurface`) and updating components on an existing surface (`updateComponents`).
-
-To prevent unnecessary model complexity and state tracking errors, Express DSL abstracts this protocol distinction behind a single top-level `surface()` directive. The model uses `surface("surface_id")` to specify the target surface for subsequent component definitions. The host-side compiler automatically resolves whether to emit a `createSurface` or `updateComponents` wire protocol envelope based on session state and context.
+A2UI Express DSL is a compact declarative syntax designed for generative user interface models. The `surface("surface_id")` top-level statement allows an LLM to explicitly declare, target, or update a specific surface, while `deleteSurface("surface_id")` destroys an existing surface.
 
 ---
 
-## Key Design Principles
+## Design Principles
 
-1. **Model Simplicity**: The model does not need to track surface lifecycle state across turns. A single `surface("id")` call sets the target surface for component assignments.
-2. **Compiler State Handling**: The compiler handles wire protocol mapping:
-   - Initial rendering emits a `createSurface` message payload.
-   - Subsequent updates emit an `updateComponents` message payload.
-3. **Multi-Surface Support**: A single `<a2ui>` DSL block can target or switch between multiple surfaces using sequential `surface("id")` calls.
-4. **Backward Compatibility**: If `surface()` is omitted from a DSL block, the compiler uses the default `surface_id` parameter (default `"default_surface"`).
-5. **Protocol Verbs**: `deleteSurface("id")` remains an explicit standalone command for destroying a surface.
+1. **Unified Surface Targeting**: `surface("surface_id")` is the single directive used to declare a new surface or target an existing surface for updates.
+   - By default, a scope that defines `root` compiles to a `createSurface` message, while a scope that defines components without `root` compiles to an `updateComponents` message.
+   - An explicit `update=true` argument (e.g. `surface("surface_id", update=true)`) forces the scope to compile to an `updateComponents` message even when redefining or updating the `root` component.
+2. **Multi-Surface Support**: A single `<a2ui>` DSL block can target or switch between multiple surfaces using sequential `surface("id")` calls.
+3. **Backward Compatibility**: If `surface()` is omitted from a DSL block, the compiler uses the default `surface_id` parameter (default `"default_surface"`).
+4. **Protocol Verbs**: `deleteSurface("id")` remains an explicit standalone command for destroying a surface.
+5. **Catalogs**: With a single catalog, `createSurface` carries that catalog's `catalogId`. With multiple catalogs, `createSurface` omits `catalogId` and each component and function call carries its own `catalogId`, resolved by name across active catalogs or via an explicit `catalogId` override.
+6. **Model Simplicity**: Generative models only need to know which surface they are targeting (`surface("id")`). By inferring `createSurface` vs `updateComponents` structurally from the presence of `root` (with `update=true` available for explicit root updates), the DSL eliminates the need for models to track complex session state.
 
 ---
 
@@ -25,21 +24,25 @@ To prevent unnecessary model complexity and state tracking errors, Express DSL a
 `surface` is a top-level statement with positional or keyword parameters:
 
 ```ebnf
-surfaceStatement = "surface(" surfaceId [ "," catalogId ] ")" ;
+surfaceStatement = "surface(" surfaceId [ "," [ catalogId ] ] [ "," [ "update=" Boolean ] ] [ "," [ "sendDataModel=" Boolean ] ] ")" ;
 ```
 
 ### Signatures
 
 - `surface(surfaceId)`
-- `surface(surfaceId, catalogId)`
-- `surface(surfaceId="id", catalogId="uri")`
+- `surface(surfaceId, catalogId)` (single-catalog mode only)
+- `surface(surfaceId, update=true)`
+- `surface(surfaceId="id", catalogId="uri")` (single-catalog mode only)
+- `surface(surfaceId="id", update=true)`
 
 ### Parameters
 
-| Parameter   | Type   | Required | Description                                      |
-| :---------- | :----- | :------- | :----------------------------------------------- |
-| `surfaceId` | String | Yes      | Unique string identifier for the target surface. |
-| `catalogId` | String | No       | Component catalog schema URI or identifier.      |
+| Parameter       | Type    | Required | Description                                                                                                                                              |
+| :-------------- | :------ | :------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `surfaceId`     | String  | Yes      | Unique string identifier for the target surface.                                                                                                         |
+| `catalogId`     | String  | No       | Optional ID of the sole active catalog in single-catalog mode. Rejected when multiple catalogs exist.                                                    |
+| `update`        | Boolean | No       | If `true`, the scope compiles to an `updateComponents` payload even if `root` is defined, allowing updates to the root container of an existing surface. |
+| `sendDataModel` | Boolean | No       | Optional flag for `createSurface` messages indicating whether the data model should be sent.                                                             |
 
 ---
 
@@ -101,11 +104,11 @@ metric_card = Card(Text("$12,450"))
 
 ### Subsequent Turn / Component Update
 
-If a subsequent turn outputs DSL targeting the same surface ID:
+If a subsequent turn outputs DSL updating the components (including `root`) on an existing surface ID, it specifies `update=true`:
 
 ```express
 <a2ui>
-surface("dashboard-surface-1")
+surface("dashboard-surface-1", update=true)
 root = Card(main_column)
 main_column = Column([title, metric_card, status_text])
 title = Text("Sales Dashboard", "h2")
@@ -201,8 +204,10 @@ flowchart TD
 1. **Scope Initialization**: A `surface("id")` statement opens a surface scope for `"id"`.
 2. **Scope Termination**: A scope ends when another `surface("id")` call, a `deleteSurface("id")` call, or the end of the DSL block is reached.
 3. **Protocol Mapping**:
-   - If the compiler is configured in single-pass / fresh surface mode (or if `"id"` has not been created yet in the active session), it emits a `createSurface` envelope.
-   - If the surface already exists in the active session, it emits an `updateComponents` envelope.
+   - If the scope specifies `update=true`, it compiles to an `updateComponents` envelope (even if `root` is defined).
+   - Otherwise, if the scope defines `root`, it compiles to a `createSurface` envelope (or for v0.9/v0.9.1 targets, `createSurface` followed by `updateComponents`).
+   - If the scope defines components without `root` (and without `update=true`), it compiles to an `updateComponents` envelope targeting the existing surface.
+   - If the scope contains only data path assignments (`$/...`), it compiles to an `updateDataModel` envelope.
 4. **Backward Compatibility**: If no `surface()` call is present before variable assignments begin, the compiler creates an implicit scope using the default `surface_id` compiler parameter (`"default_surface"`).
 
 ---

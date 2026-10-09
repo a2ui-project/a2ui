@@ -14,20 +14,17 @@
 
 """Format definition for A2UI Atom (S-Expression AST inference format)."""
 
-from a2ui.schema.catalog import A2uiCatalog
+from collections.abc import Sequence
+
+from google.adk.utils.feature_decorator import experimental
+
+from a2ui.core import CatalogApi
 from a2ui.inference_format import InferenceFormat
-from a2ui.parser.parser import Parser
+from a2ui.inference_formats._shared import check_mixed_catalogs
+from a2ui.parser import Parser
 
-try:
-    from google.adk.utils.feature_decorator import experimental
-except ImportError:
-
-    def experimental(cls):
-        return cls
-
-
-from .prompt_generator import AtomPromptGenerator
 from .parser import AtomParser
+from .prompt_generator import AtomPromptGenerator
 
 
 @experimental
@@ -38,49 +35,47 @@ class AtomFormat(InferenceFormat):
     and parsing A2UI user interfaces.
 
     Attributes:
-        catalog: The catalog containing component and function schemas.
+        catalogs: The sequence of active catalogs.
         surface_id: The target surface identifier.
         examples_path: The filesystem path to prompt example definitions.
     """
 
     def __init__(
         self,
-        catalog: A2uiCatalog | None = None,
+        catalogs: Sequence[CatalogApi],
         surface_id: str = "main",
         examples_path: str | None = None,
     ):
         """Initializes an AtomFormat strategy instance.
 
         Args:
-            catalog: The catalog containing component and function schemas.
+            catalogs: A sequence of catalogs containing component and function schemas.
             surface_id: The target surface identifier. Defaults to "main".
             examples_path: The filesystem path to prompt example definitions.
+
+        Raises:
+            A2uiCatalogError: If no catalog is given, two catalogs share an
+                ID, the catalogs target different protocol versions, or there
+                are several catalogs and they target a version before v1.0.
         """
-        self.catalog = catalog
+        self._catalogs = check_mixed_catalogs(catalogs)
         self.surface_id = surface_id
         self.examples_path = examples_path
         self._prompt_generator: AtomPromptGenerator | None = None
-        self._parser: AtomParser | None = None
 
-    def _ensure_catalog(self) -> None:
-        """Ensures a valid catalog is set."""
-        if not self.catalog:
-            raise ValueError(
-                "Catalog is required for parsing and decompiling in atom format."
-            )
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the active catalogs, in the order the format received them."""
+        return list(self._catalogs)
 
     @property
     def prompt_generator(self) -> AtomPromptGenerator:
         """The prompt generator instance configured for Atom format."""
         if self._prompt_generator is None:
-            self._ensure_catalog()
             self._prompt_generator = AtomPromptGenerator(self)
         return self._prompt_generator
 
     @property
     def parser(self) -> Parser:
         """The parser instance configured for Atom format."""
-        if self._parser is None:
-            self._ensure_catalog()
-            self._parser = AtomParser(self.catalog, self.surface_id)
-        return self._parser
+        return AtomParser(self._catalogs, self.surface_id)

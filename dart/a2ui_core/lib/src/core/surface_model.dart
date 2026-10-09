@@ -18,6 +18,7 @@ import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
 import '../primitives/semver.dart';
 import 'catalog.dart';
+import 'common.dart';
 import 'component_model.dart';
 import 'data_model.dart';
 import 'messages.dart';
@@ -47,6 +48,13 @@ class A2uiWarning {
   @override
   String toString() => 'A2uiWarning($code: $message)';
 }
+
+/// Sends a function call the surface cannot run locally to the agent, as a
+/// `callAgentFunction`, and completes with the agent's result.
+///
+/// Fails with an `A2uiRpcError` when the agent reports an error, the call
+/// times out, or the message cannot be sent.
+typedef AgentFunctionCaller = Future<Object?> Function(FunctionCall call);
 
 /// The state model for a single UI surface.
 class SurfaceModel<T extends ComponentApi> {
@@ -80,6 +88,14 @@ class SurfaceModel<T extends ComponentApi> {
   final DataModel dataModel;
   final SurfaceComponentsModel componentsModel;
 
+  /// Sends a function call this surface cannot resolve locally to the agent.
+  ///
+  /// On a v1.0 surface, a dynamic value, check, or action naming a function
+  /// no available catalog implements is routed here instead of failing. Null,
+  /// the default, keeps such a call a local `EXPRESSION_ERROR`.
+  /// `MessageProcessor` wires it to its `RpcHandler`.
+  final AgentFunctionCaller? callAgentFunction;
+
   final _onAction = EventNotifier<A2uiClientAction>();
   final _onError = EventNotifier<A2uiClientError>();
   final _onWarning = EventNotifier<A2uiWarning>();
@@ -112,6 +128,7 @@ class SurfaceModel<T extends ComponentApi> {
     this.protocolVersion,
     this.rootId = 'root',
     this.metadata,
+    this.callAgentFunction,
   })  : availableCatalogs = Map.unmodifiable(
           _indexCatalogs(
             id,
@@ -142,13 +159,15 @@ class SurfaceModel<T extends ComponentApi> {
           catalogId: catalog.id,
         );
       }
-      final String? catalogVersion = catalog.protocolVersion;
+      final String? catalogVersion = catalog.protocolVersion?.jsonValue;
       if (protocolVersion != null &&
-          catalogVersion != null &&
           !isCatalogVersionCompatible(catalogVersion, protocolVersion)) {
+        final described = catalogVersion == null
+            ? "unversioned catalog '${catalog.id}'"
+            : "catalog '${catalog.id}' ($catalogVersion)";
         throw A2uiCatalogError(
-          "Protocol version mismatch: cannot mix catalog '${catalog.id}' "
-          '($catalogVersion) with surface version $protocolVersion.',
+          'Protocol version mismatch: cannot mix $described with surface '
+          'version $protocolVersion.',
           catalogId: catalog.id,
         );
       }
@@ -164,18 +183,18 @@ class SurfaceModel<T extends ComponentApi> {
   /// [availableCatalogs]; otherwise [defaultCatalog]. There is no fallback to
   /// a sole available catalog.
   ///
-  /// Throws [A2uiCatalogError] when [catalogId] is not in
+  /// Throws [A2uiCatalogResolutionError] when [catalogId] is not in
   /// [availableCatalogs], or when it is null and the surface has no default.
   Catalog<T, FunctionImplementation> resolveCatalog(String? catalogId) {
     if (catalogId != null) {
       return availableCatalogs[catalogId] ??
-          (throw A2uiCatalogError(
+          (throw A2uiCatalogResolutionError(
             "Catalog '$catalogId' is not supported by surface '$id'.",
             catalogId: catalogId,
           ));
     }
     return defaultCatalog ??
-        (throw A2uiCatalogError(
+        (throw A2uiCatalogResolutionError(
           "Surface '$id' has no default catalog, so an item that names no "
           'catalogId cannot be resolved.',
         ));

@@ -98,8 +98,8 @@ class _NodeRecord<T extends ComponentApi> {
 /// torn down when its parent stops referencing it or the resolver is
 /// disposed.
 ///
-/// Child references are recognized by wire `$ref` pointers, Dart `REF:`
-/// descriptions, local aliases, and structural `ChildList` shapes (an object
+/// Child references are recognized by wire `$ref` pointers, `commonTypesRef`
+/// metadata, local aliases, and structural `ChildList` shapes (an object
 /// schema declaring `componentId` and `path`). An unmarked string property is
 /// not a child reference.
 ///
@@ -248,14 +248,7 @@ class NodeResolver<T extends ComponentApi> {
   void _reportExpressionError(A2uiExpressionError error) {
     if (_disposed) return;
     _pendingErrors.add(
-      _QueuedError(
-        A2uiClientError(
-          code: 'EXPRESSION_ERROR',
-          surfaceId: _surface.id,
-          message: error.message,
-          details: error.details,
-        ),
-      ),
+      _QueuedError(ComponentContext.clientErrorFor(_surface, error)),
     );
     _scheduleFallbackFlush();
   }

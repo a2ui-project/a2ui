@@ -28,11 +28,13 @@ import 'package:a2ui_core/a2ui_core.dart';
 Catalog<ComponentApi, FunctionImplementation> rendererCatalog(
   Map<String, Object?> document, {
   String? asCatalogId,
+  String protocolVersion = 'v0.9',
 }) {
   final CatalogApi catalog = Catalog.fromJson(
     asCatalogId == null
         ? document
         : <String, Object?>{...document, 'catalogId': asCatalogId},
+    protocolVersion: A2uiProtocolVersion.tryParseSemVer(protocolVersion),
   );
   return Catalog<ComponentApi, FunctionImplementation>(
     id: catalog.id,
@@ -42,6 +44,7 @@ Catalog<ComponentApi, FunctionImplementation> rendererCatalog(
     schemaId: catalog.schemaId,
     title: catalog.title,
     description: catalog.description,
+    protocolVersion: catalog.protocolVersion,
   );
 }
 

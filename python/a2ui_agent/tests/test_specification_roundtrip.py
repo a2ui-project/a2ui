@@ -17,13 +17,14 @@
 import glob
 import json
 import os
+
 import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.schema import A2uiCatalog
-from a2ui.inference_formats.experimental.express.format import ExpressFormat
-from a2ui.inference_formats.experimental.elemental.format import ElementalFormat
-from a2ui.inference_formats.experimental.atom.format import AtomFormat
+from a2ui.inference_formats import to_message_dicts, to_message_models
+from a2ui.inference_formats.experimental.atom import AtomFormat
+from a2ui.inference_formats.experimental.elemental import ElementalFormat
+from a2ui.inference_formats.experimental.express import ExpressFormat
 
 
 def _find_specification_example_files():
@@ -57,7 +58,7 @@ def _assert_recompiled_matches_payload(
     recompiled, expected_surface_id, expected_components
 ):
     assert recompiled, "Recompiled payload must not be empty"
-    messages = recompiled if isinstance(recompiled, list) else [recompiled]
+    messages = to_message_dicts(recompiled)
     recompiled_components = []
     found_surface_id = None
     for msg in messages:
@@ -109,16 +110,10 @@ class TestSpecificationRoundtripAllFormats:
     @pytest.fixture(autouse=True)
     def setup_catalog(self):
         # Load standard basic catalog containing all specification components
-        self.catalog = A2uiCatalog(
-            version="0.9",
-            name="basic_catalog",
-            s2c_schema={},
-            common_types_schema={},
-            catalog_schema=BasicCatalog("0.9").catalog_schema,
-        )
-        self.express_fmt = ExpressFormat(catalog=self.catalog)
-        self.elemental_fmt = ElementalFormat(catalog=self.catalog)
-        self.atom_fmt = AtomFormat(catalog=self.catalog)
+        self.catalog = BasicCatalog("0.9")
+        self.express_fmt = ExpressFormat([self.catalog])
+        self.elemental_fmt = ElementalFormat([self.catalog])
+        self.atom_fmt = AtomFormat([self.catalog])
 
     @pytest.mark.parametrize(
         "json_file", EXAMPLE_FILES, ids=lambda p: os.path.basename(p)
@@ -156,13 +151,14 @@ class TestSpecificationRoundtripAllFormats:
         if not all_components:
             pytest.skip(f"No components in {os.path.basename(json_file)}")
 
-        surface_payload = {
+        surface_payload = to_message_models({
             "version": "v1.0",
             "createSurface": {
                 "surfaceId": surface_id,
+                "catalogId": self.catalog.catalog_id,
                 "components": all_components,
             },
-        }
+        })
 
         processed = 0
 

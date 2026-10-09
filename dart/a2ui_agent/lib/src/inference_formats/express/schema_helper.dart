@@ -39,10 +39,9 @@ class CatalogSchemaHelper {
 
   /// The properties a positional argument can fill, in schema order.
   ///
-  /// Only the properties the component declares itself count. Properties it
-  /// shares with every component, such as `id`, `accessibility` and `weight`,
-  /// are left out, so that the first argument is the component's own first
-  /// property.
+  /// Specific component properties come first, followed by common mixin
+  /// properties such as `accessibility` and `weight`. Structural properties
+  /// (`id`, `component`, `checks`) are excluded.
   List<String> properties(String component) => _signature(component).properties;
 
   /// The properties the component requires, beyond `component` and `id`.
@@ -100,34 +99,36 @@ class CatalogSchemaHelper {
         final Map<String, Object?> schema =
             catalog.components[component]!.schema.value;
         final List<Map<String, Object?>> subschemas = _subschemas(schema);
-        // The subschema declaring `component` is the component's own. The
-        // others are shared definitions, which the catalog parser has inlined.
-        final List<Map<String, Object?>> own = [
-          for (final Map<String, Object?> sub in subschemas)
-            if (_properties(sub).containsKey('component')) sub,
-        ];
         final schemas = <String, Map<String, Object?>>{};
         final required = <String>[];
         var isCheckable = false;
-        for (final sub in own.isEmpty ? subschemas : own) {
+        for (final sub in subschemas) {
           _properties(sub).forEach((name, value) {
             if (value is Map) schemas[name] = value.cast<String, Object?>();
           });
           for (final Object? name in sub['required'] as List<Object?>? ?? []) {
             required.add(name! as String);
           }
-        }
-        for (final sub in subschemas) {
           if (_refName(sub)?.endsWith('Checkable') ?? false) isCheckable = true;
           if (_properties(sub).containsKey('checks')) isCheckable = true;
         }
         const structural = {'component', 'id', 'checks'};
         schemas.removeWhere((name, _) => structural.contains(name));
+        const commonKeys = {'accessibility', 'weight'};
+        final List<String> specificProperties = [
+          for (final key in schemas.keys)
+            if (!commonKeys.contains(key)) key,
+        ];
+        final List<String> commonProperties = [
+          for (final key in const ['accessibility', 'weight'])
+            if (schemas.containsKey(key)) key,
+        ];
+        final orderedProperties = [...specificProperties, ...commonProperties];
         return _ComponentSignature(
-          properties: [...schemas.keys],
+          properties: orderedProperties,
           required: [
-            for (final String name in required)
-              if (!structural.contains(name)) name,
+            for (final String name in orderedProperties)
+              if (required.contains(name)) name,
           ],
           schemas: schemas,
           isCheckable: isCheckable,

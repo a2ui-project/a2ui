@@ -20,6 +20,8 @@
 /// on which catalogs can serve a message.
 library;
 
+import 'package:meta/meta.dart';
+
 /// For each protocol version a message may declare (key), the protocol
 /// versions a catalog may declare in its `protocolVersion` and still serve
 /// that message (value), beyond an exact match.
@@ -113,8 +115,17 @@ String? _canonical(String version) {
 /// A string that is not a semantic version (a custom identifier such as
 /// `'custom'`) matches only the same identifier, ignoring a leading `v` or
 /// `V`. An empty string matches nothing.
-bool isCatalogVersionCompatible(String catalogVersion, String messageVersion) {
-  if (catalogVersion.isEmpty || messageVersion.isEmpty) return false;
+///
+/// A null [catalogVersion] is an unversioned catalog, which predates the
+/// field and so is pre-v1.0: it serves any message below 1.0 and none from
+/// 1.0 on. Catalogs targeting v1.0 or later must declare their version.
+bool isCatalogVersionCompatible(String? catalogVersion, String messageVersion) {
+  if (messageVersion.isEmpty) return false;
+  if (catalogVersion == null) {
+    final _SemVer? message = _parse(messageVersion);
+    return message != null && message.major < 1;
+  }
+  if (catalogVersion.isEmpty) return false;
   final String? catalogCanonical = _canonical(catalogVersion);
   final String? messageCanonical = _canonical(messageVersion);
   if (catalogCanonical != null && messageCanonical != null) {
@@ -150,6 +161,27 @@ int compareVersions(String a, String b) {
   if (versionA.minor != versionB.minor) return versionA.minor - versionB.minor;
   if (versionA.patch != versionB.patch) return versionA.patch - versionB.patch;
   return _comparePrerelease(versionA.prerelease, versionB.prerelease);
+}
+
+/// Whether [version] is [minimum] or later by [compareVersions] precedence.
+///
+/// A null [version], or one that is not a semantic version, is never at least
+/// [minimum]. Spellings are normalized as in [isCatalogVersionCompatible], so
+/// `isVersionAtLeast('1.0', 'v1.0')` is true.
+bool isVersionAtLeast(String? version, String minimum) =>
+    version != null && compareVersions(version, minimum) >= 0;
+
+/// The release numbers of [version] as `(major, minor, patch)`, or null when
+/// it is not a semantic version.
+///
+/// Spellings are normalized as in [isCatalogVersionCompatible], a missing
+/// patch number is zero, and pre-release and build suffixes are dropped, so
+/// `'v1.0'`, `'1.0.0'` and `'1.0.0-rc.1'` all give `(1, 0, 0)`.
+@internal
+(int major, int minor, int patch)? releaseNumbers(String version) {
+  final _SemVer? parsed = _parse(version);
+  if (parsed == null) return null;
+  return (parsed.major, parsed.minor, parsed.patch);
 }
 
 /// Compares pre-release identifier lists (SemVer 2.0.0 rules 11.3 and 11.4).

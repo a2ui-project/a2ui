@@ -15,22 +15,99 @@
 """Compilation engine for A2UI Elemental.
 
 Parses A2UI Elemental HTML5-like markup into a DOM tree, resolves reactive
-bindings and validation checks, and compiles it into standard A2UI v1.0 JSON.
+bindings and validation checks, and compiles it into A2UI message envelopes.
+
+Catalog resolution:
+
+- With a single catalog, every component and function call comes from it, and
+  `createSurface` names it. A `<link rel="catalog">` may name it too.
+- With several catalogs (A2UI v1.0 and later), `createSurface` names no
+  catalog, so the surface has no default catalog and every compiled component
+  and function call carries its own `catalogId`. A component or function the
+  markup writes without `catalog-id` / `catalogId` is looked up by name across
+  the catalogs; a name that several catalogs define must name its catalog.
+  A `<link rel="catalog">` is an error, since there is no surface catalog.
 """
 
+from collections.abc import Mapping, Sequence
+from html.parser import HTMLParser
 import json
 import re
-from html.parser import HTMLParser
-from typing import Any
-from a2ui.core import CatalogApi
-from a2ui.schema import A2uiCatalog
-from a2ui.inference_formats.experimental.express.schema_helper import (
+from typing import Any, Literal
+
+from a2ui.core import A2uiCatalogError, CatalogApi
+from a2ui.core.common import is_at_least_version, to_protocol_version
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
+    build_catalog_helpers,
+    catalogs_defining,
+    check_mixed_catalogs,
+    surface_catalog_id,
+    to_message_models,
 )
 from a2ui.inference_formats.experimental.express.constants import SurfaceOperation
+
 from .expression_parser import ElementalExpressionParser
 
 TAG_PREFIX = "ui-"
+
+# Attribute on `<body>` that marks the block as an update of an existing
+# surface (`updateComponents` / `updateDataModel`) instead of a new surface.
+UPDATE_ATTR = "update"
+
+_JSON_SCRIPT_TYPE = "application/json"
+_CATALOG_ID_ATTRS = ("catalog-id", "catalogid")
+_STRUCTURAL_CONTAINER_TAGS = frozenset({"root", "body", "template"})
+_VOID_TAGS = frozenset({
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
+})
+
+
+def _kebab_to_camel(name: str) -> str:
+    parts = name.split("-")
+    return parts[0] + "".join(p.capitalize() for p in parts[1:])
+
+
+def _component_tag(comp_name: str) -> str:
+    s1 = re.sub("(.)([A-Z][a-z]+)", r"\1-\2", comp_name)
+    return TAG_PREFIX + re.sub("([a-z0-9])([A-Z])", r"\1-\2", s1).lower()
+
+
+def _attr_catalog_id(attrs: Mapping[str, str | None]) -> str | None:
+    for key in _CATALOG_ID_ATTRS:
+        val = attrs.get(key)
+        if val:
+            return val
+    return None
+
+
+def _is_catalog_link(node: "Node") -> bool:
+    return node.tag == "link" and node.attrs.get("rel") == "catalog"
+
+
+def _is_json_script(node: "Node") -> bool:
+    return node.tag == "script" and node.attrs.get("type") == _JSON_SCRIPT_TYPE
+
+
+def _is_flag_set(attrs: Mapping[str, str | None], name: str) -> bool:
+    if name not in attrs:
+        return False
+    val = attrs[name]
+    return val is None or val.strip().lower() in ("", "true", "{true}")
 
 
 def _is_action_property(prop_schema: Any) -> bool:
@@ -57,55 +134,76 @@ def _is_action_property(prop_schema: Any) -> bool:
 class Node:
     """A simple DOM node representing an HTML element or text."""
 
-    def __init__(self, tag: str, attrs: list[tuple[str, str]]):
+    def __init__(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+        is_container: bool = True,
+    ):
         self.tag = tag.lower()
-        self.attrs = dict(attrs)
+        self.attrs: dict[str, Any] = dict(attrs)
         self.children: list[Node] = []
         self.text = ""
+        self.is_container = is_container
 
 
 class DomBuilder(HTMLParser):
-    """A forgiving HTML parser that builds a simple DOM tree."""
+    """A forgiving HTML parser that builds a simple DOM tree.
 
-    def __init__(self, container_tags: set[str] | None = None):
+    A component element that cannot hold child components is closed
+    automatically when the next component element starts. Whether a component
+    can hold children is looked up in the catalog that its `catalog-id`
+    attribute names, or else in the catalogs that define it.
+    """
+
+    def __init__(
+        self,
+        container_tags_by_catalog: Mapping[str, set[str]] | None = None,
+    ):
         super().__init__()
         self.root: Node | None = None
         self.stack: list[Node] = []
-        self.container_tags = container_tags or set()
+        self.container_tags_by_catalog = dict(container_tags_by_catalog or {})
+        # A tag without `catalog-id` is a container if a catalog that defines
+        # it as a container exists. A tag that several catalogs define fails
+        # compilation unless it names its catalog.
+        self._unannotated_container_tags: set[str] = set().union(
+            *self.container_tags_by_catalog.values()
+        )
 
-    def handle_starttag(self, tag, attrs):
+    def _new_node(self, tag: str, attrs: list[tuple[str, str | None]]) -> Node:
         tag_lower = tag.lower()
-        # Auto-close top of stack if it is a leaf component and we are starting a new component tag
-        if tag_lower.startswith(TAG_PREFIX):
-            while (
-                self.stack
-                and self.stack[-1].tag.startswith(TAG_PREFIX)
-                and self.stack[-1].tag not in self.container_tags
-            ):
-                self.stack.pop()
+        if not tag_lower.startswith(TAG_PREFIX):
+            return Node(tag_lower, attrs, is_container=True)
+        cat_id = _attr_catalog_id(dict(attrs))
+        container_tags = (
+            self.container_tags_by_catalog.get(cat_id, set())
+            if cat_id
+            else self._unannotated_container_tags
+        )
+        return Node(tag_lower, attrs, is_container=tag_lower in container_tags)
 
-        node = Node(tag_lower, attrs)
+    def _close_leaf_components(self) -> None:
+        while (
+            self.stack
+            and self.stack[-1].tag.startswith(TAG_PREFIX)
+            and not self.stack[-1].is_container
+        ):
+            self.stack.pop()
+
+    def _attach(self, node: Node) -> None:
         if not self.root:
             self.root = node
         if self.stack:
             self.stack[-1].children.append(node)
+
+    def handle_starttag(self, tag, attrs):
+        node = self._new_node(tag, attrs)
+        if node.tag.startswith(TAG_PREFIX):
+            self._close_leaf_components()
+        self._attach(node)
         # Do not push void elements to the stack since they do not have closing tags
-        if tag_lower not in {
-            "area",
-            "base",
-            "br",
-            "col",
-            "embed",
-            "hr",
-            "img",
-            "input",
-            "link",
-            "meta",
-            "param",
-            "source",
-            "track",
-            "wbr",
-        }:
+        if node.tag not in _VOID_TAGS:
             self.stack.append(node)
 
     def handle_endtag(self, tag):
@@ -121,20 +219,10 @@ class DomBuilder(HTMLParser):
                     break
 
     def handle_startendtag(self, tag, attrs):
-        tag_lower = tag.lower()
-        if tag_lower.startswith(TAG_PREFIX):
-            while (
-                self.stack
-                and self.stack[-1].tag.startswith(TAG_PREFIX)
-                and self.stack[-1].tag not in self.container_tags
-            ):
-                self.stack.pop()
-
-        node = Node(tag_lower, attrs)
-        if not self.root:
-            self.root = node
-        if self.stack:
-            self.stack[-1].children.append(node)
+        node = self._new_node(tag, attrs)
+        if node.tag.startswith(TAG_PREFIX):
+            self._close_leaf_components()
+        self._attach(node)
 
     def handle_data(self, data):
         if self.stack:
@@ -300,6 +388,31 @@ def _property_schema_accepts_components(schema: Any) -> bool:
     return False
 
 
+def _function_allows_extra_args(fn_schema: Any) -> bool:
+    """Whether a function schema accepts arguments it does not declare.
+
+    The arguments are closed when the `args` object schema, at the top level
+    of the function schema or in one of its `allOf` parts, sets
+    `additionalProperties` or `unevaluatedProperties` to false. A function
+    without a schema is treated as open.
+    """
+    if not isinstance(fn_schema, dict):
+        return True
+    sub_schemas = [fn_schema, *fn_schema.get("allOf", [])]
+    for sub in sub_schemas:
+        if not isinstance(sub, dict) or not isinstance(sub.get("properties"), dict):
+            continue
+        args_schema = sub["properties"].get("args")
+        if not isinstance(args_schema, dict):
+            continue
+        if (
+            args_schema.get("additionalProperties") is False
+            or args_schema.get("unevaluatedProperties") is False
+        ):
+            return False
+    return True
+
+
 class _CompileContext:
     """Holds mutable state during compilation."""
 
@@ -315,32 +428,213 @@ class _CompileContext:
 class ElementalCompiler:
     """Compilation pipeline for A2UI Elemental HTML."""
 
-    def __init__(self, catalog: CatalogApi | A2uiCatalog):
-        self.helper = CatalogSchemaHelper(catalog)
+    def __init__(self, catalogs: Sequence[CatalogApi]):
+        """Initializes the compiler.
+
+        Args:
+            catalogs: The catalogs to resolve components and functions against.
+                Several catalogs need A2UI v1.0 or later.
+
+        Raises:
+            A2uiCatalogError: If no catalog is given, two catalogs share an ID,
+                the catalogs target different protocol versions, there are
+                several catalogs before v1.0, or they target v0.8.
+        """
+        self._catalogs = check_mixed_catalogs(catalogs)
+        # The messages use the catalogs' protocol version: v1.0 emits one
+        # `createSurface` carrying the components and data model, while v0.9
+        # and v0.9.1 emit `createSurface`, `updateComponents` and
+        # `updateDataModel`.
+        self.version = to_protocol_version(self._catalogs[0].protocol_version)
+        if not is_at_least_version(self._catalogs[0].protocol_version, "0.9"):
+            raise A2uiCatalogError(
+                "The Elemental format requires catalogs for protocol v0.9 or"
+                f" later, got {self._catalogs[0].protocol_version}."
+            )
+        self.helpers = build_catalog_helpers(self._catalogs)
+        # With several catalogs, the surface has no default catalog: every
+        # compiled component and function call names its own catalog.
+        self._multi = len(self._catalogs) > 1
         self.expr_parser = ElementalExpressionParser()
 
-        # Pre-compute container tags for forgiving parsing
-        self.container_tags = {"root", "body", "template"}
-        for comp_name in self.helper.components:
-            properties = self.helper.get_component_properties(comp_name)
-            has_slotted_children = False
-            for prop_name in properties:
-                prop_schema = self.helper.get_property_schema(comp_name, prop_name)
-                if _property_schema_accepts_components(prop_schema):
-                    has_slotted_children = True
-                    break
-            if has_slotted_children:
-                # Convert PascalCase to kebab-case
-                s1 = re.sub("(.)([A-Z][a-z]+)", r"\1-\2", comp_name)
-                kebab_name = (
-                    TAG_PREFIX + re.sub("([a-z0-9])([A-Z])", r"\1-\2", s1).lower()
+        # From v1.0 on, components and function calls may name their own
+        # catalog, and data bindings / function calls inside component values
+        # use the `@path` / `@call` keys.
+        self.at_least_v10 = is_at_least_version(
+            self._catalogs[0].protocol_version, "1.0"
+        )
+        self._path_key = "@path" if self.at_least_v10 else "path"
+        self._call_key = "@call" if self.at_least_v10 else "call"
+
+        # Tags of the components that hold child components, per catalog, for
+        # forgiving parsing of unclosed leaf components.
+        self.container_tags_by_catalog: dict[str, set[str]] = {}
+        for cat_id, helper in self.helpers.items():
+            tags: set[str] = set()
+            for comp_name in helper.components:
+                for prop_name in helper.get_component_properties(comp_name):
+                    prop_schema = helper.get_property_schema(comp_name, prop_name)
+                    if _property_schema_accepts_components(prop_schema):
+                        tags.add(_component_tag(comp_name))
+                        break
+            self.container_tags_by_catalog[cat_id] = tags
+
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the catalogs, in the order the compiler received them."""
+        return list(self._catalogs)
+
+    def _resolve_helper(self, catalog_id: str) -> CatalogSchemaHelper:
+        """Returns the helper for a catalog ID.
+
+        Raises:
+            ValueError: If `catalog_id` names no configured catalog.
+        """
+        if catalog_id in self.helpers:
+            return self.helpers[catalog_id]
+        raise ValueError(
+            f"Unknown catalogId '{catalog_id}'. Available catalogs: "
+            f"{list(self.helpers.keys())}"
+        )
+
+    def _resolve_override(self, catalog_id: str, kind: str) -> CatalogSchemaHelper:
+        """Resolves a per-component or per-function catalog override.
+
+        Raises:
+            ValueError: If the catalogs target a protocol version that does not
+                allow overrides, or `catalog_id` names no configured catalog.
+        """
+        if not self.at_least_v10:
+            raise ValueError(
+                f"A {kind} catalogId override ('{catalog_id}') requires protocol"
+                " v1.0 or later, but the catalogs target"
+                f" '{self._catalogs[0].protocol_version}'. Only the surface may"
+                " name a catalog."
+            )
+        return self._resolve_helper(catalog_id)
+
+    def _sole_helper(self) -> CatalogSchemaHelper:
+        return next(iter(self.helpers.values()))
+
+    def _catalog_defining(
+        self, kind: Literal["component", "function"], name: str
+    ) -> str:
+        """Returns the one catalog that defines an un-annotated name.
+
+        Raises:
+            ValueError: If no catalog or several catalogs define `name`.
+        """
+        matches = catalogs_defining(self.helpers, kind, name)
+        if len(matches) == 1:
+            return matches[0]
+        if not matches:
+            raise ValueError(
+                f"Unknown {kind} '{name}': none of the catalogs"
+                f" {list(self.helpers)} defines it."
+            )
+        raise ValueError(
+            f"The {kind} '{name}' is defined in several catalogs: {matches}. Name"
+            " its catalog with a `catalog-id` attribute on the element, or a"
+            " `catalogId` argument in a function call."
+        )
+
+    def _resolve_component(
+        self, comp_name: str, tag: str, explicit_catalog_id: str | None
+    ) -> tuple[CatalogSchemaHelper, str | None]:
+        """Finds the catalog of a component element.
+
+        Returns:
+            The catalog's helper, and the `catalogId` to write on the compiled
+            component: the explicit one, the catalog found by name when there
+            are several catalogs, or None with a single catalog.
+
+        Raises:
+            ValueError: If the catalog does not define the component, or, with
+                several catalogs, no catalog or several catalogs define an
+                un-annotated component.
+        """
+        if explicit_catalog_id:
+            helper = self._resolve_override(explicit_catalog_id, "component")
+            write_id: str | None = explicit_catalog_id
+        elif self._multi:
+            write_id = self._catalog_defining("component", comp_name)
+            helper = self.helpers[write_id]
+        else:
+            helper, write_id = self._sole_helper(), None
+        if comp_name not in helper.components:
+            raise ValueError(
+                f"Unknown component '{comp_name}' for tag '{tag}' in catalog"
+                f" '{self._catalog_id_of(helper)}'."
+            )
+        return helper, write_id
+
+    def _resolve_function(
+        self, fn_name: str, explicit_catalog_id: str | None
+    ) -> tuple[CatalogSchemaHelper, str | None]:
+        """Finds the catalog of a function call.
+
+        With a single catalog, an un-annotated call resolves against it even
+        if the catalog does not declare the function.
+
+        Returns:
+            The catalog's helper, and the `catalogId` to write on the compiled
+            call: the explicit one, the catalog found by name when there are
+            several catalogs, or None with a single catalog.
+
+        Raises:
+            ValueError: If an explicit catalog does not define the function,
+                or, with several catalogs, no catalog or several catalogs
+                define an un-annotated function.
+        """
+        if explicit_catalog_id:
+            helper = self._resolve_override(explicit_catalog_id, "function")
+            if fn_name not in helper.functions:
+                raise ValueError(
+                    f"Unknown function '{fn_name}' in catalog '{explicit_catalog_id}'."
                 )
-                self.container_tags.add(kebab_name)
+            return helper, explicit_catalog_id
+        if self._multi:
+            cat_id = self._catalog_defining("function", fn_name)
+            return self.helpers[cat_id], cat_id
+        return self._sole_helper(), None
+
+    def _stamp_literal_calls(self, value: Any) -> Any:
+        """Names the catalog of each function call in literal slot JSON.
+
+        With several catalogs every compiled call must carry a `catalogId`, so
+        a `@call` object without one gets the catalog found by its name.
+
+        Raises:
+            ValueError: If no catalog or several catalogs define such a call.
+        """
+        if not self._multi:
+            return value
+        if isinstance(value, list):
+            return [self._stamp_literal_calls(v) for v in value]
+        if not isinstance(value, dict):
+            return value
+        stamped = {k: self._stamp_literal_calls(v) for k, v in value.items()}
+        fn_name = stamped.get(self._call_key)
+        if isinstance(fn_name, str) and not stamped.get("catalogId"):
+            stamped["catalogId"] = self._catalog_defining("function", fn_name)
+        return stamped
+
+    def _load_slot_json(self, text: str, what: str) -> Any:
+        return self._stamp_literal_calls(self._load_json(text, what))
+
+    @staticmethod
+    def _catalog_id_of(helper: CatalogSchemaHelper) -> str:
+        return helper.catalog_model.catalog_id
 
     def _resolve_action_property_name(
-        self, name: str, comp_name: str, properties: list[str]
+        self,
+        name: str,
+        comp_name: str,
+        properties: list[str],
+        helper: CatalogSchemaHelper,
     ) -> str:
         """Maps React-like event names (onclick, onSubmitAction) back to catalog properties (action, submitAction)."""
+        h = helper
         if name in properties:
             return name
 
@@ -350,7 +644,7 @@ class ElementalCompiler:
 
         action_props = []
         for p in properties:
-            p_schema = self.helper.get_property_schema(comp_name, p)
+            p_schema = h.get_property_schema(comp_name, p)
             if p_schema and _is_action_property(p_schema):
                 action_props.append(p)
 
@@ -379,10 +673,25 @@ class ElementalCompiler:
         self,
         html_text: str,
         surface_id: str = "default_surface",
-        catalog_id: str = "",
-        is_final: bool = True,
-    ) -> dict:
-        """Compiles A2UI Elemental HTML into standard A2UI v1.0 wire JSON."""
+    ) -> list[AgentToRendererMessage]:
+        """Compiles A2UI Elemental HTML into A2UI message models.
+
+        Args:
+            html_text: The Elemental markup of one block.
+            surface_id: The surface ID to use when `<body>` has no `id`.
+
+        Returns:
+            The compiled messages. A `<body>` compiles to a `createSurface`, or,
+            with the `update` attribute, to `updateComponents` and
+            `updateDataModel` messages for an existing surface.
+
+        Raises:
+            ValueError: If the markup is invalid, names an unknown catalog,
+                component or function, has a `<link rel="catalog">` while
+                there are several catalogs, writes without a catalog a name
+                that several catalogs define, or does not match the catalog
+                schemas.
+        """
         escaped_html = _escape_nested_script_tags(html_text)
         # Wrap in a virtual <root> container to handle multiple top-level
         # siblings gracefully (such as `<link rel="catalog">` and `<body>`). The
@@ -392,231 +701,339 @@ class ElementalCompiler:
         # output.
         wrapped_html = f"<root>{escaped_html}</root>"
 
-        builder = DomBuilder(self.container_tags)
+        builder = DomBuilder(self.container_tags_by_catalog)
         builder.feed(wrapped_html)
         virtual_root = builder.root
 
         if not virtual_root or not virtual_root.children:
             raise ValueError("A2UI Elemental document is empty.")
 
-        # Find the actual active root element inside the virtual root
-        root = None
+        # Collect operations in document order
+        operations: list[Node] = []
         for child in virtual_root.children:
-            if child.tag in [
+            if child.tag in (
                 "body",
                 f"{TAG_PREFIX}delete-surface",
                 f"{TAG_PREFIX}call-function",
-            ]:
-                root = child
-                break
+            ):
+                if child.tag == "body":
+                    standalone_children = [
+                        c
+                        for c in child.children
+                        if c.tag
+                        in (f"{TAG_PREFIX}delete-surface", f"{TAG_PREFIX}call-function")
+                    ]
+                    has_components = any(
+                        c.tag.startswith(TAG_PREFIX)
+                        and c.tag
+                        not in (
+                            f"{TAG_PREFIX}delete-surface",
+                            f"{TAG_PREFIX}call-function",
+                        )
+                        for c in child.children
+                    )
+                    has_data_scripts = any(
+                        _is_json_script(c) and "slot" not in c.attrs
+                        for c in child.children
+                    )
+                    if (
+                        standalone_children
+                        and not has_components
+                        and not has_data_scripts
+                    ):
+                        operations.extend(standalone_children)
+                    else:
+                        operations.append(child)
+                else:
+                    operations.append(child)
 
-        if not root:
-            # If no explicit body/op tag, default to body if ui-components are present,
-            # or raise an error.
+        if not operations:
             raise ValueError(
                 "A2UI Elemental document must have a <body>,"
                 f" <{TAG_PREFIX}delete-surface>, or <{TAG_PREFIX}call-function> root"
                 " element."
             )
 
-        if root.tag == "body":
-            # If there is a standalone operation inside body, treat it as the root
-            standalone = None
-            for child in root.children:
-                if child.tag in [
-                    f"{TAG_PREFIX}delete-surface",
-                    f"{TAG_PREFIX}call-function",
-                ]:
-                    standalone = child
-                    break
-            if standalone:
-                root = standalone
+        link_nodes = [c for c in virtual_root.children if _is_catalog_link(c)]
+        for op in operations:
+            if op.tag == "body":
+                link_nodes.extend(c for c in op.children if _is_catalog_link(c))
+        self._check_catalog_links(link_nodes)
 
-        if root.tag == f"{TAG_PREFIX}delete-surface":
-            surf_id = root.attrs.get("surface-id", "")
-            return {
-                "version": "v1.0",
-                SurfaceOperation.DELETE: {"surfaceId": surf_id},
-            }
-
-        if root.tag == f"{TAG_PREFIX}call-function":
-            call_name = root.attrs.get("name", "")
-            func_call_id = root.attrs.get("id", "")
-            want_resp_val = root.attrs.get("want-response", "")
-            want_response = False
-            if want_resp_val:
-                parsed_want_resp = self.expr_parser.parse(want_resp_val)
-                if isinstance(parsed_want_resp, bool):
-                    want_response = parsed_want_resp
-                else:
-                    want_response = str(parsed_want_resp).lower() == "true"
-
-            args = {}
-            for attr_name, attr_val in root.attrs.items():
-                if attr_name in ["id", "name", "want-response"]:
-                    continue
-                # Map kebab-case attribute names to camelCase property names
-                prop_parts = attr_name.split("-")
-                prop_name = prop_parts[0] + "".join(
-                    p.capitalize() for p in prop_parts[1:]
+        messages: list[dict[str, Any]] = []
+        call_count = 0
+        for op in operations:
+            if op.tag == f"{TAG_PREFIX}delete-surface":
+                surf_id = op.attrs.get("surface-id", "")
+                messages.append(
+                    self._envelope({SurfaceOperation.DELETE: {"surfaceId": surf_id}})
                 )
-                args[prop_name] = self.expr_parser.parse(attr_val)
+            elif op.tag == f"{TAG_PREFIX}call-function":
+                call_count += 1
+                messages.append(self._compile_call_function(op, call_index=call_count))
+            elif op.tag == "body":
+                messages.extend(self._compile_body(op, virtual_root, surface_id))
 
-            call_op = {
-                "call": call_name,
-                "args": args,
-            }
+        return to_message_models(messages)
 
-            envelope = {
-                "version": "v1.0",
-                SurfaceOperation.CALL_FUNC: call_op,
-            }
-            if want_response:
-                envelope["wantResponse"] = True
-            if func_call_id:
-                envelope["functionCallId"] = func_call_id
-            return envelope
+    def _check_catalog_links(self, link_nodes: Sequence[Node]) -> None:
+        """Checks the document's `<link rel="catalog">` elements.
 
-        # 1. Surface ID from body
-        surface_id = root.attrs.get("id", surface_id)
+        A link names the surface catalog, which exists only with a single
+        catalog, so it may only name that catalog.
 
-        # 2. Extract catalog ID and data model from children of both virtual_root and body
-        catalog_id_from_link = ""
-        data_model = {}
-        remaining_children = []
+        Raises:
+            ValueError: If there are links and several catalogs, a link has no
+                href, or a link names a catalog other than the single one.
+        """
+        if not link_nodes:
+            return
+        if self._multi:
+            raise ValueError(
+                '<link rel="catalog"> names a surface catalog, which only a single'
+                f" catalog allows. With several catalogs ({list(self.helpers)}),"
+                " the surface has no default catalog: components and functions"
+                " are found by name, and a name that several catalogs define"
+                " needs a `catalog-id` attribute or `catalogId` argument."
+            )
+        for node in link_nodes:
+            href = node.attrs.get("href")
+            if not href:
+                raise ValueError('A <link rel="catalog"> element must have an href.')
+            self._resolve_helper(href)
 
-        def extract_metadata(nodes):
-            nonlocal catalog_id_from_link, data_model
-            for child in nodes:
-                if child.tag == "link" and child.attrs.get("rel") == "catalog":
-                    catalog_id_from_link = child.attrs.get("href", "")
-                elif (
-                    child.tag == "script"
-                    and child.attrs.get("type") == "application/json"
-                ):
-                    if "slot" not in child.attrs:
-                        try:
-                            text_content = child.text.strip() if child.text else ""
-                            data_model = (
-                                json.loads(text_content) if text_content else {}
-                            )
-                        except json.JSONDecodeError as e:
-                            raise ValueError(
-                                f"Invalid JSON in dataModel script: {e}"
-                            ) from e
+    def _compile_call_function(self, root: Node, call_index: int = 1) -> dict[str, Any]:
+        """Compiles a `<ui-call-function>` element into a callRendererFunction.
 
-        extract_metadata(virtual_root.children)
-        extract_metadata(root.children)
+        The function's catalog is the element's `catalog-id`, or else the
+        single catalog, or, with several catalogs, the one catalog that
+        defines the function. The compiled call always names its catalog.
 
-        # Collect component children (children of body that are not link or root dataModel script)
-        for child in root.children:
-            if child.tag == "link" and child.attrs.get("rel") == "catalog":
-                continue
-            if (
-                child.tag == "script"
-                and child.attrs.get("type") == "application/json"
-                and "slot" not in child.attrs
-            ):
-                continue
-            remaining_children.append(child)
-
-        if not catalog_id:
-            catalog_id = catalog_id_from_link or self.helper.catalog.get(
-                "catalogId", "https://a2ui.org/catalog.json"
+        Raises:
+            ValueError: If the catalogs target a protocol version before v1.0,
+                which has no `callRendererFunction`, the function is unknown or
+                defined in several catalogs without a `catalog-id`, or an
+                argument is not declared by a function whose arguments schema
+                disallows extra properties.
+        """
+        call_name = root.attrs.get("name", "")
+        if not self.at_least_v10:
+            raise ValueError(
+                f"<{TAG_PREFIX}call-function> requires protocol v1.0; the catalogs"
+                f" target {self.version.value}."
+            )
+        func_call_id = root.attrs.get("id", "")
+        fn_helper, _ = self._resolve_function(call_name, _attr_catalog_id(root.attrs))
+        if call_name not in fn_helper.functions:
+            raise ValueError(
+                f"Unknown function '{call_name}' in catalog"
+                f" '{self._catalog_id_of(fn_helper)}'."
             )
 
-        ctx = _CompileContext()
+        args: dict[str, Any] = {}
+        for attr_name, attr_val in root.attrs.items():
+            if attr_name in ("id", "name", *_CATALOG_ID_ATTRS):
+                continue
+            args[_kebab_to_camel(attr_name)] = self._compile_value(
+                self.expr_parser.parse(attr_val or "")
+            )
 
-        # If the document contains ONLY a data model and no components, output updateDataModel
-        # Note: we filter out any empty text nodes or non-component nodes
-        component_children = [
-            c for c in remaining_children if c.tag.startswith(TAG_PREFIX)
-        ]
+        # Literal JSON arguments: `<script type="application/json" slot="args">`
+        # holds an object of arguments, and any other slot holds one argument.
+        for child in root.children:
+            if not _is_json_script(child) or not child.attrs.get("slot"):
+                continue
+            slot_name = child.attrs["slot"]
+            value = self._load_slot_json(
+                child.text, f"script slot '{slot_name}' of function '{call_name}'"
+            )
+            if slot_name == "args":
+                if not isinstance(value, dict):
+                    raise ValueError(
+                        f"The 'args' script slot of function '{call_name}' must"
+                        " hold a JSON object."
+                    )
+                args.update(value)
+            else:
+                args[_kebab_to_camel(slot_name)] = value
 
-        if not component_children and data_model:
-            return {
-                "version": "v1.0",
-                SurfaceOperation.UPDATE_DATA: {
-                    "surfaceId": surface_id,
-                    "path": "/",
-                    "value": data_model,
+        self._check_function_args(fn_helper, call_name, args)
+
+        return self._envelope({
+            "callRendererFunction": {
+                "functionCallId": func_call_id or f"call_{call_index}",
+                "callFunction": {
+                    "catalogId": self._catalog_id_of(fn_helper),
+                    self._call_key: call_name,
+                    "args": args,
                 },
-            }
+            },
+        })
 
-        # 3. Compile components recursively
+    def _check_function_args(
+        self, helper: CatalogSchemaHelper, fn_name: str, args: Mapping[str, Any]
+    ) -> None:
+        """Rejects arguments that a function's closed arguments schema lacks.
+
+        Raises:
+            ValueError: If the function's arguments schema disallows extra
+                properties and `args` has a key it does not declare.
+        """
+        if _function_allows_extra_args(helper.functions.get(fn_name)):
+            return
+        declared = helper.get_function_properties(fn_name)
+        unknown = [name for name in args if name not in declared]
+        if unknown:
+            raise ValueError(
+                f"Function '{fn_name}' in catalog '{self._catalog_id_of(helper)}'"
+                f" does not accept the argument(s) {unknown}. Valid arguments:"
+                f" {declared}."
+            )
+
+    def _envelope(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Adds the catalogs' protocol version to a message body."""
+        return {"version": self.version.value, **body}
+
+    @staticmethod
+    def _load_json(text: str, what: str) -> Any:
+        try:
+            return json.loads(text.strip())
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in {what}: {e}") from e
+
+    def _compile_body(
+        self,
+        root: Node,
+        virtual_root: Node,
+        surface_id: str,
+    ) -> list[dict[str, Any]]:
+        """Compiles a `<body>` element into surface messages."""
+        surface_id = root.attrs.get("id") or surface_id
+        is_update = _is_flag_set(root.attrs, UPDATE_ATTR)
+
+        # Data scripts: one without a `path` holds the whole data model; one
+        # with a `path` holds the value for that path.
+        root_data: Any = None
+        path_updates: list[tuple[str, Any]] = []
+        for child in [*virtual_root.children, *root.children]:
+            if not _is_json_script(child) or "slot" in child.attrs:
+                continue
+            path = child.attrs.get("path")
+            if path:
+                if not child.text.strip():
+                    raise ValueError(f"The data script for path '{path}' is empty.")
+                path_updates.append(
+                    (path, self._load_json(child.text, f"data script '{path}'"))
+                )
+            else:
+                text = child.text.strip()
+                root_data = self._load_json(text, "dataModel script") if text else {}
+
+        remaining_children = [
+            c
+            for c in root.children
+            if not _is_catalog_link(c)
+            and not (_is_json_script(c) and "slot" not in c.attrs)
+        ]
         for child in remaining_children:
             if not child.tag.startswith(TAG_PREFIX):
                 raise ValueError(
-                    f"Invalid element tag '{child.tag}' under <a2ui>. Only"
+                    f"Invalid element tag '{child.tag}' under <body>. Only"
                     f" '{TAG_PREFIX}*' components are supported inside A2UI surfaces."
                 )
 
-        for child in component_children:
+        ctx = _CompileContext()
+        for child in remaining_children:
             self._compile_node(child, ctx)
 
-        # Wrap in standard envelope
-        envelope = {
-            "version": "v1.0",
-            SurfaceOperation.CREATE: {
+        data_messages: list[dict[str, Any]] = []
+        if root_data is not None and (is_update or not ctx.components):
+            if root_data or is_update:
+                data_messages.append(
+                    self._update_data_message(surface_id, "/", root_data)
+                )
+        data_messages.extend(
+            self._update_data_message(surface_id, path, value)
+            for path, value in path_updates
+        )
+
+        if is_update:
+            messages: list[dict[str, Any]] = []
+            if ctx.components:
+                messages.append(self._update_components_message(surface_id, ctx))
+            messages.extend(data_messages)
+            if not messages:
+                raise ValueError(
+                    f"The update of surface '{surface_id}' has no components or"
+                    " data scripts."
+                )
+            return messages
+
+        # A body with only data scripts updates the data model of the surface.
+        if not ctx.components and data_messages:
+            return data_messages
+
+        create: dict[str, Any] = {"surfaceId": surface_id}
+        # With several catalogs, `createSurface` names none: the surface has no
+        # default catalog, and every component and call names its own.
+        create_catalog_id = surface_catalog_id(self._catalogs)
+        if create_catalog_id is not None:
+            create["catalogId"] = create_catalog_id
+        if self.at_least_v10:
+            create["components"] = ctx.components
+            if root_data:
+                create["dataModel"] = root_data
+            return [
+                self._envelope({SurfaceOperation.CREATE: create}),
+                *data_messages,
+            ]
+
+        # Before v1.0, `createSurface` carries neither components nor a data
+        # model; they follow in `updateComponents` and `updateDataModel`.
+        messages = [
+            self._envelope({SurfaceOperation.CREATE: create}),
+            self._update_components_message(surface_id, ctx),
+        ]
+        if root_data:
+            messages.append(self._update_data_message(surface_id, "/", root_data))
+        messages.extend(data_messages)
+        return messages
+
+    def _update_components_message(
+        self, surface_id: str, ctx: _CompileContext
+    ) -> dict[str, Any]:
+        return self._envelope({
+            SurfaceOperation.UPDATE_COMPONENTS: {
                 "surfaceId": surface_id,
-                "catalogId": catalog_id,
                 "components": ctx.components,
             },
-        }
-        if data_model:
-            envelope[SurfaceOperation.CREATE]["dataModel"] = data_model
+        })
 
-        return envelope
+    def _update_data_message(
+        self, surface_id: str, path: str, value: Any
+    ) -> dict[str, Any]:
+        return self._envelope({
+            SurfaceOperation.UPDATE_DATA: {
+                "surfaceId": surface_id,
+                "path": path,
+                "value": value,
+            },
+        })
 
     def _compile_value(self, val: Any, is_action: bool = False) -> Any:
-        """Recursively post-processes parsed expressions to match A2UI JSON structures."""
+        """Recursively post-processes parsed expressions to match A2UI JSON structures.
+
+        Args:
+            val: The parsed expression.
+            is_action: Whether the value is an Action property.
+        """
         if isinstance(val, dict):
-            if "path" in val:
+            if "path" in val or self._path_key in val:
+                if set(val) == {"path"}:
+                    return {self._path_key: val["path"]}
                 return val
             if "call" in val:
-                fn_name = val["call"]
-                fn_args = val.get("args", {})
-
-                # Translate Event signature
-                if fn_name == "Event":
-                    event_name = ""
-                    context = {}
-                    if isinstance(fn_args, list):
-                        if len(fn_args) > 0:
-                            event_name = self._compile_value(fn_args[0], is_action)
-                        if len(fn_args) > 1:
-                            raw_ctx = self._compile_value(fn_args[1], is_action)
-                            if isinstance(raw_ctx, dict):
-                                context.update(raw_ctx)
-                    elif isinstance(fn_args, dict):
-                        if "name" in fn_args:
-                            event_name = self._compile_value(fn_args["name"], is_action)
-                        if "context" in fn_args:
-                            raw_ctx = self._compile_value(fn_args["context"], is_action)
-                            if isinstance(raw_ctx, dict):
-                                context.update(raw_ctx)
-                    return {"event": {"name": event_name, "context": context}}
-
-                # Translate catalog functions
-                if fn_name in self.helper.functions:
-                    fn_props = self.helper.get_function_properties(fn_name)
-                    compiled_args = {}
-                    if isinstance(fn_args, dict):
-                        for k, v in fn_args.items():
-                            compiled_args[k] = self._compile_value(v, is_action)
-                    elif isinstance(fn_args, list):
-                        for idx, v in enumerate(fn_args):
-                            if idx < len(fn_props):
-                                compiled_args[fn_props[idx]] = self._compile_value(
-                                    v, is_action
-                                )
-
-                    if is_action:
-                        return {
-                            "functionCall": {"call": fn_name, "args": compiled_args}
-                        }
-
-                    return {"call": fn_name, "args": compiled_args}
+                return self._compile_call(val, is_action)
 
             return {k: self._compile_value(v, is_action) for k, v in val.items()}
 
@@ -624,6 +1041,101 @@ class ElementalCompiler:
             return [self._compile_value(item, is_action) for item in val]
 
         return val
+
+    def _compile_call(self, val: dict[str, Any], is_action: bool) -> Any:
+        """Compiles a parsed function call (or `Event(...)`) expression.
+
+        The call's catalog is its `catalogId` argument, or else the single
+        catalog, or, with several catalogs, the one catalog that defines the
+        function, which the compiled call then names.
+
+        Raises:
+            ValueError: If the call names an unknown catalog, its catalog does
+                not define it, or, with several catalogs, no catalog or several
+                catalogs define a call without a `catalogId`.
+        """
+        fn_name = val["call"]
+        fn_args = val.get("args", {})
+
+        # Translate Event signature
+        if fn_name == "Event":
+            event_name = ""
+            context = {}
+            if isinstance(fn_args, list):
+                if len(fn_args) > 0:
+                    event_name = self._compile_value(fn_args[0], is_action)
+                if len(fn_args) > 1:
+                    raw_ctx = self._compile_value(fn_args[1], is_action)
+                    if isinstance(raw_ctx, dict):
+                        context.update(raw_ctx)
+            elif isinstance(fn_args, dict):
+                if "name" in fn_args:
+                    event_name = self._compile_value(fn_args["name"], is_action)
+                if "context" in fn_args:
+                    raw_ctx = self._compile_value(fn_args["context"], is_action)
+                    if isinstance(raw_ctx, dict):
+                        context.update(raw_ctx)
+            return {"event": {"name": event_name, "context": context}}
+
+        explicit_fn_catalog_id: str | None = val.get("catalogId")
+        # A `catalogId` argument names the call's catalog unless a function of
+        # that name declares an argument called `catalogId`.
+        candidates = (
+            [
+                self.helpers[c]
+                for c in catalogs_defining(self.helpers, "function", fn_name)
+            ]
+            if self._multi
+            else [self._sole_helper()]
+        )
+        declares_catalog_id_arg = any(
+            "catalogId" in h.get_function_properties(fn_name)
+            for h in candidates
+            if fn_name in h.functions
+        )
+        if (
+            isinstance(fn_args, dict)
+            and "catalogId" in fn_args
+            and not declares_catalog_id_arg
+            and isinstance(fn_args.get("catalogId"), str)
+        ):
+            explicit_fn_catalog_id = fn_args["catalogId"]
+            fn_args = {k: v for k, v in fn_args.items() if k != "catalogId"}
+        elif (
+            isinstance(fn_args, list)
+            and fn_args
+            and isinstance(fn_args[-1], dict)
+            and set(fn_args[-1].keys()) == {"catalogId"}
+            and isinstance(fn_args[-1].get("catalogId"), str)
+            and not declares_catalog_id_arg
+        ):
+            explicit_fn_catalog_id = fn_args[-1]["catalogId"]
+            fn_args = fn_args[:-1]
+
+        fn_helper, write_catalog_id = self._resolve_function(
+            fn_name, explicit_fn_catalog_id
+        )
+
+        call_dict: dict[str, Any] = {self._call_key: fn_name}
+        if fn_name in fn_helper.functions:
+            fn_props = fn_helper.get_function_properties(fn_name)
+            compiled_args = {}
+            if isinstance(fn_args, dict):
+                for k, v in fn_args.items():
+                    compiled_args[k] = self._compile_value(v, is_action)
+            elif isinstance(fn_args, list):
+                for idx, v in enumerate(fn_args):
+                    if idx < len(fn_props):
+                        compiled_args[fn_props[idx]] = self._compile_value(v, is_action)
+            call_dict["args"] = compiled_args
+        else:
+            call_dict["args"] = self._compile_value(fn_args, is_action)
+        if write_catalog_id:
+            call_dict["catalogId"] = write_catalog_id
+
+        if is_action:
+            return {"functionCall": call_dict}
+        return call_dict
 
     def _compile_node(self, node: Node, ctx: _CompileContext) -> str | None:
         """Compiles a DOM node into a component and returns its ID."""
@@ -637,16 +1149,15 @@ class ElementalCompiler:
         comp_name = "".join(
             word.capitalize() for word in node.tag.replace(TAG_PREFIX, "").split("-")
         )
-
-        if comp_name not in self.helper.components:
-            raise ValueError(
-                f"Unknown component '{comp_name}' for tag '{node.tag}' in the loaded"
-                " catalog."
-            )
-        properties = self.helper.get_component_properties(comp_name)
+        comp_helper, comp_catalog_id = self._resolve_component(
+            comp_name, node.tag, _attr_catalog_id(node.attrs)
+        )
+        properties = comp_helper.get_component_properties(comp_name)
         comp_id = node.attrs.get("id") or ctx.next_auto_id()
 
-        comp_dict = {"id": comp_id, "component": comp_name}
+        comp_dict: dict[str, Any] = {"id": comp_id, "component": comp_name}
+        if comp_catalog_id:
+            comp_dict["catalogId"] = comp_catalog_id
 
         # Track sibling value path for implicit validation injection
         sibling_value_path = None
@@ -656,7 +1167,7 @@ class ElementalCompiler:
 
         # 1. Map attributes to properties
         for attr_name, attr_val in node.attrs.items():
-            if attr_name in ["id", "slot"]:
+            if attr_name in ["id", "slot", "catalog-id", "catalogid"]:
                 continue
             if attr_name == "path" and template_node:
                 continue
@@ -667,25 +1178,25 @@ class ElementalCompiler:
 
             # Map TS/HTML action names back to catalog properties
             prop_name = self._resolve_action_property_name(
-                prop_name, comp_name, properties
+                prop_name, comp_name, properties, helper=comp_helper
             )
 
-            if comp_name in self.helper.components and prop_name not in properties:
+            if comp_name in comp_helper.components and prop_name not in properties:
                 continue
 
             # Parse value
             if attr_val is None or attr_val == "":
                 # HTML boolean attribute shorthand (e.g., <ui-button disabled>)
-                prop_schema = self.helper.get_property_schema(comp_name, prop_name)
+                prop_schema = comp_helper.get_property_schema(comp_name, prop_name)
                 if prop_schema and prop_schema.get("type") == "boolean":
-                    parsed_val = True
+                    parsed_val: Any = True
                 else:
                     parsed_val = ""
             else:
                 parsed_val = self.expr_parser.parse(attr_val)
 
             # Retrieve property schema for type coercion/coaxing
-            prop_schema = self.helper.get_property_schema(comp_name, prop_name)
+            prop_schema = comp_helper.get_property_schema(comp_name, prop_name)
 
             if isinstance(parsed_val, str) and prop_schema:
                 prop_type = _get_primitive_property_type(prop_schema)
@@ -721,13 +1232,19 @@ class ElementalCompiler:
                     except Exception:
                         pass
 
-            # Post-process expression value (events, functions, etc.)
+            # Post-process expression value (events, functions, etc.). A
+            # function call resolves on its own, not against this component's
+            # catalog.
             parsed_val = self._compile_value(
-                parsed_val, is_action=(prop_name in ["action", "submitAction"])
+                parsed_val,
+                is_action=(
+                    prop_name in ["action", "submitAction"]
+                    or _is_action_property(prop_schema)
+                ),
             )
 
             # Handle option auto-expansion
-            prop_schema = self.helper.get_property_schema(comp_name, prop_name)
+            prop_schema = comp_helper.get_property_schema(comp_name, prop_name)
             if (
                 prop_schema
                 and isinstance(parsed_val, list)
@@ -771,7 +1288,7 @@ class ElementalCompiler:
             if (
                 prop_name == "value"
                 and isinstance(parsed_val, dict)
-                and "path" in parsed_val
+                and self._path_key in parsed_val
             ):
                 sibling_value_path = parsed_val
 
@@ -820,15 +1337,12 @@ class ElementalCompiler:
                     slot_name = child.attrs.get("slot")
                     if slot_name:
                         slot_name = self._resolve_action_property_name(
-                            slot_name, comp_name, properties
+                            slot_name, comp_name, properties, helper=comp_helper
                         )
-                        try:
-                            comp_dict[slot_name] = json.loads(child.text.strip())
-                        except json.JSONDecodeError as e:
-                            raise ValueError(
-                                f"Invalid JSON in script slot '{slot_name}' of"
-                                f" component '{comp_id}': {e}"
-                            ) from e
+                        comp_dict[slot_name] = self._load_slot_json(
+                            child.text,
+                            f"script slot '{slot_name}' of component '{comp_id}'",
+                        )
         else:
             # Normal child processing
             for child in node.children:
@@ -839,15 +1353,12 @@ class ElementalCompiler:
                     slot_name = child.attrs.get("slot")
                     if slot_name:
                         slot_name = self._resolve_action_property_name(
-                            slot_name, comp_name, properties
+                            slot_name, comp_name, properties, helper=comp_helper
                         )
-                        try:
-                            comp_dict[slot_name] = json.loads(child.text.strip())
-                        except json.JSONDecodeError as e:
-                            raise ValueError(
-                                f"Invalid JSON in script slot '{slot_name}' of"
-                                f" component '{comp_id}': {e}"
-                            ) from e
+                        comp_dict[slot_name] = self._load_slot_json(
+                            child.text,
+                            f"script slot '{slot_name}' of component '{comp_id}'",
+                        )
                 else:
                     child_id = self._compile_node(child, ctx)
                     if not child_id:
@@ -855,10 +1366,10 @@ class ElementalCompiler:
                     slot_name = child.attrs.get("slot")
                     if slot_name:
                         slot_name = self._resolve_action_property_name(
-                            slot_name, comp_name, properties
+                            slot_name, comp_name, properties, helper=comp_helper
                         )
                         if slot_name in properties:
-                            slot_schema = self.helper.get_property_schema(
+                            slot_schema = comp_helper.get_property_schema(
                                 comp_name, slot_name
                             )
                             if slot_schema and slot_schema.get("type") == "array":
@@ -877,10 +1388,17 @@ class ElementalCompiler:
         if "checks" in comp_dict and isinstance(comp_dict["checks"], list):
             wrapped_checks = []
             for check in comp_dict["checks"]:
-                if isinstance(check, dict) and "call" in check:
-                    fn_name = check["call"]
+                if isinstance(check, dict) and self._call_key in check:
+                    fn_name = check[self._call_key]
                     fn_args = check.get("args", {})
-                    fn_props = self.helper.get_function_properties(fn_name)
+                    check_helper, _ = self._resolve_function(
+                        fn_name, check.get("catalogId")
+                    )
+                    fn_props = (
+                        check_helper.get_function_properties(fn_name)
+                        if fn_name in check_helper.functions
+                        else []
+                    )
 
                     # Extract message if it was incorrectly placed inside the function call dict
                     msg = "Invalid input"
@@ -917,10 +1435,17 @@ class ElementalCompiler:
                     wrapped_checks.append({"condition": check, "message": msg})
                 elif isinstance(check, dict) and "condition" in check:
                     cond = check["condition"]
-                    if isinstance(cond, dict) and "call" in cond:
-                        fn_name = cond["call"]
+                    if isinstance(cond, dict) and self._call_key in cond:
+                        fn_name = cond[self._call_key]
                         fn_args = cond.get("args", {})
-                        fn_props = self.helper.get_function_properties(fn_name)
+                        check_helper, _ = self._resolve_function(
+                            fn_name, cond.get("catalogId")
+                        )
+                        fn_props = (
+                            check_helper.get_function_properties(fn_name)
+                            if fn_name in check_helper.functions
+                            else []
+                        )
 
                         # Extract message if it was incorrectly placed inside the condition function call
                         msg_from_cond = None
@@ -968,10 +1493,10 @@ class ElementalCompiler:
             del comp_dict["children"]
 
         # Inject default action for any required Action property if missing (required by schema)
-        required_props = self.helper.get_component_required(comp_name)
+        required_props = comp_helper.get_component_required(comp_name)
         for prop_name in required_props:
             if prop_name not in comp_dict:
-                p_schema = self.helper.get_property_schema(comp_name, prop_name)
+                p_schema = comp_helper.get_property_schema(comp_name, prop_name)
                 if p_schema and _is_action_property(p_schema):
                     comp_dict[prop_name] = {
                         "event": {

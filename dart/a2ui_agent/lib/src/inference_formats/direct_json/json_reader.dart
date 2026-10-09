@@ -46,15 +46,23 @@ Object? readJson(String text) {
 /// with no value yet, since each of those could still become something else;
 /// it is then left out.
 ///
+/// A list that is the value of a key in [wholeItemKeys] holds only the items
+/// that have closed: an item still arriving is left out of the list rather
+/// than healed.
+///
 /// Returns no messages if [text] cannot be the start of a JSON document.
-List<Object?> readPartialMessages(String text, Set<String> progressiveKeys) {
+List<Object?> readPartialMessages(
+  String text,
+  Set<String> progressiveKeys, {
+  Set<String> wholeItemKeys = const {},
+}) {
   try {
-    return _Reader(text, progressiveKeys).messages();
+    return _Reader(text, progressiveKeys, wholeItemKeys).messages();
   } on FormatException {
     final String straight = _straightenQuotes(text);
     if (straight == text) return const [];
     try {
-      return _Reader(straight, progressiveKeys).messages();
+      return _Reader(straight, progressiveKeys, wholeItemKeys).messages();
     } on FormatException {
       return const [];
     }
@@ -73,7 +81,7 @@ class _Unfinished implements Exception {
 }
 
 class _Reader {
-  _Reader(this.text, this.progressiveKeys);
+  _Reader(this.text, this.progressiveKeys, [this.wholeItemKeys = const {}]);
 
   final String text;
 
@@ -81,7 +89,14 @@ class _Reader {
   /// must be complete.
   final Set<String>? progressiveKeys;
 
+  /// The keys whose list value holds only the items that have closed.
+  final Set<String> wholeItemKeys;
+
   int _i = 0;
+
+  /// Whether the value last read was closed early because [text] ended in
+  /// it.
+  bool _cut = false;
 
   bool get _partial => progressiveKeys != null;
 
@@ -175,7 +190,10 @@ class _Reader {
       if (text[_i] != ':') _fail("expected ':' after key '$key'");
       _i++;
       _skipSpace();
-      map[key] = _value(healable: progressiveKeys?.contains(key) ?? false);
+      map[key] =
+          !_atEnd && text[_i] == '[' && _partial && wholeItemKeys.contains(key)
+          ? _array(wholeItems: true)
+          : _value(healable: progressiveKeys?.contains(key) ?? false);
       _skipSpace();
       if (_atEnd) return _healed(map);
       if (text[_i] == ',') {
@@ -186,7 +204,9 @@ class _Reader {
     }
   }
 
-  List<Object?> _array() {
+  /// Reads a list. When [wholeItems] is true, an item the text ends in is
+  /// left out rather than healed.
+  List<Object?> _array({bool wholeItems = false}) {
     _i++;
     final list = <Object?>[];
     while (true) {
@@ -197,7 +217,21 @@ class _Reader {
         return list;
       }
       // An item has no key, so a string item is never closed early.
-      list.add(_value(healable: false));
+      if (wholeItems) {
+        final bool cutBefore = _cut;
+        _cut = false;
+        final Object? item;
+        try {
+          item = _value(healable: false);
+        } on _Unfinished {
+          return _healed(list);
+        }
+        if (_cut) return _healed(list);
+        _cut = cutBefore;
+        list.add(item);
+      } else {
+        list.add(_value(healable: false));
+      }
       _skipSpace();
       if (_atEnd) return _healed(list);
       if (text[_i] == ',') {
@@ -211,6 +245,7 @@ class _Reader {
   /// [value] closed where the text ends, which only a partial read allows.
   T _healed<T>(T value) {
     if (!_partial) _end();
+    _cut = true;
     return value;
   }
 
@@ -265,7 +300,10 @@ class _Reader {
     }
     // The text ended inside the string, possibly inside an escape, which is
     // left out.
-    if (healable && _partial) return buffer.toString();
+    if (healable && _partial) {
+      _cut = true;
+      return buffer.toString();
+    }
     _end();
   }
 

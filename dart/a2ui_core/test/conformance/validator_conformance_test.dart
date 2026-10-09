@@ -24,9 +24,75 @@ import 'conformance_harness.dart';
 /// Conformance cases in `core/validator_v0_9.yaml` that are expected to fail.
 const Map<String, String> _v09ExpectedFailures = {};
 
-/// Runs the shared `conformance/core/validator_v0_9.yaml` suite against
-/// [MessageProcessor.processMessages], the entry point for checking a payload
-/// on its own.
+/// Cases in `core/validator_v1_0.yaml` expected to fail.
+const Map<String, String> _v10ExpectedFailures = {};
+
+/// The `validate` cases in `core/reserved_keys.yaml` expected to fail.
+const Map<String, String> _reservedKeysExpectedFailures = {
+  'test_escaped_doubled_at_unescaping':
+      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
+          'surface has no default catalog to resolve its items against.',
+  'test_plain_object_escaped_doubled_at_key':
+      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
+          'surface has no default catalog to resolve its items against.',
+  'test_plain_object_with_literal_path_and_call':
+      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
+          'surface has no default catalog to resolve its items against.',
+  'test_reserved_at_call_index':
+      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
+          'surface has no default catalog to resolve its items against.',
+  'test_reserved_at_call_valid':
+      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
+          'surface has no default catalog to resolve its items against.',
+  'test_reserved_at_path_valid':
+      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
+          'surface has no default catalog to resolve its items against.',
+};
+
+/// Cases in `core/composition_constraints.yaml` expected to fail.
+const Map<String, String> _compositionExpectedFailures = {
+  'test_composition_surface_implicit_parent_container':
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
+  'test_composition_unallowed_child_error':
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, and does not read its inline `catalogSchema`.',
+  'test_composition_unallowed_parent_error':
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, and does not read its inline `catalogSchema`.',
+};
+
+/// Cases in `core/validation_result.yaml` expected to fail.
+const Map<String, String> _validationResultExpectedFailures = {
+  'test_validation_result_boolean_fallback':
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
+  'test_validation_result_dynamic_object_return':
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
+};
+
+/// Cases in `core/index_function.yaml` expected to fail.
+const Map<String, String> _indexFunctionExpectedFailures = {
+  'test_index_function_in_collection_loop':
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
+  'test_index_function_nested_path':
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
+  'test_index_function_outside_loop_error':
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
+  'test_index_function_with_offset':
+      'The harness reads the case\'s `catalog` map as the catalog document '
+          'itself, which declares no components.',
+};
+
+/// Runs the shared validator suites against [MessageProcessor.processMessages],
+/// the entry point for checking a payload on its own: the `validate` cases of
+/// `core/validator_v0_9.yaml`, `core/validator_v1_0.yaml`,
+/// `core/reserved_keys.yaml`, `core/composition_constraints.yaml`,
+/// `core/validation_result.yaml` and `core/index_function.yaml`.
 ///
 /// Cases targeting a protocol version this SDK does not implement are skipped
 /// with a reason, so the suite doubles as the implementation checklist.
@@ -35,13 +101,38 @@ void main() {
     'core/validator_v0_9.yaml',
     expectedFailures: _v09ExpectedFailures,
   );
+  _registerValidatorSuite(
+    'core/validator_v1_0.yaml',
+    expectedFailures: _v10ExpectedFailures,
+  );
+  _registerValidatorSuite(
+    'core/reserved_keys.yaml',
+    expectedFailures: _reservedKeysExpectedFailures,
+  );
+  _registerValidatorSuite(
+    'core/composition_constraints.yaml',
+    expectedFailures: _compositionExpectedFailures,
+  );
+  _registerValidatorSuite(
+    'core/validation_result.yaml',
+    expectedFailures: _validationResultExpectedFailures,
+  );
+  _registerValidatorSuite(
+    'core/index_function.yaml',
+    expectedFailures: _indexFunctionExpectedFailures,
+  );
 }
 
 void _registerValidatorSuite(
   String suite, {
   Map<String, String> expectedFailures = const {},
 }) {
-  final List<ConformanceTestCase> cases = loadConformanceSuite(suite);
+  // Other actions in a shared suite, such as `process_messages`, run in the
+  // message-processor harness.
+  final List<ConformanceTestCase> cases = [
+    for (final ConformanceTestCase testCase in loadConformanceSuite(suite))
+      if ((testCase['action'] ?? 'validate') == 'validate') testCase,
+  ];
 
   group('conformance $suite', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
@@ -58,8 +149,8 @@ void _registerValidatorSuite(
 /// Why a case cannot run yet, or null when it can.
 String? _skipReason(ConformanceTestCase testCase) {
   final String? version = caseVersion(testCase);
-  if (version != null && version != '0.9') {
-    return 'Targets protocol v$version; this harness runs v0.9 cases only.';
+  if (version != null && compareVersions(version, 'v0.9') < 0) {
+    return 'Targets protocol v$version, which this SDK does not implement.';
   }
   return null;
 }
@@ -72,9 +163,13 @@ void _runCase(Map<String, Object?> testCase) {
         for (final Object? item in raw) (item as Map).cast<String, Object?>(),
   ];
 
+  final String version = _versionOf(testCase, allPayloads);
   final processor = MessageProcessor<ComponentApi>(
-    catalogs: _catalogsFor(_documentsFor(testCase), allPayloads),
-    protocolVersion: A2uiProtocolVersion.v0_9,
+    catalogs: _catalogsFor(
+      _documentsFor(testCase, version),
+      allPayloads,
+      version,
+    ),
     commonTypesSchema: _commonTypesFor(testCase),
     // The validator cases are about what a renderer rejects, so the graph
     // checks are on, as in the other SDKs' harnesses.
@@ -95,14 +190,7 @@ void _runCase(Map<String, Object?> testCase) {
         (stepIndex == steps.length - 1
             ? (testCase['expectError'] ?? testCase['expect_error'])
             : null);
-    void run() {
-      processor.processMessages(
-        AgentToRendererMessage.parseAll(
-          payload,
-          protocolVersion: A2uiProtocolVersion.v0_9,
-        ),
-      );
-    }
+    void run() => processor.processMessages(payload);
 
     if (expectError != null) {
       expect(
@@ -122,7 +210,10 @@ void _runCase(Map<String, Object?> testCase) {
 /// `catalog`, which is the document itself unless it carries a
 /// `catalog_schema` path. A case naming none is checked against the v0.9
 /// basic catalog.
-List<Map<String, Object?>> _documentsFor(Map<String, Object?> testCase) {
+List<Map<String, Object?>> _documentsFor(
+  Map<String, Object?> testCase,
+  String version,
+) {
   final List<Map<String, Object?>> documents = [];
   if (testCase['catalogPaths'] case final List<Object?> paths) {
     for (final path in paths) {
@@ -137,9 +228,30 @@ List<Map<String, Object?>> _documentsFor(Map<String, Object?> testCase) {
   }
 
   if (documents.isEmpty) {
-    documents.add(_document('specification/v0_9/catalogs/basic/catalog.json'));
+    documents.add(
+      _document(
+        compareVersions(version, 'v1.0') >= 0
+            ? 'catalogs/basic/v1/catalog.json'
+            : 'specification/v0_9/catalogs/basic/catalog.json',
+      ),
+    );
   }
   return documents;
+}
+
+/// The protocol version a case's payloads declare, else the one the case
+/// declares, else v0.9.
+///
+/// A catalog document written before v1.0 declares no version, so the
+/// catalogs a case builds take this one.
+String _versionOf(
+  Map<String, Object?> testCase,
+  List<Map<String, Object?>> payloads,
+) {
+  for (final envelope in payloads) {
+    if (envelope['version'] case final String version) return version;
+  }
+  return caseVersion(testCase) ?? 'v0.9';
 }
 
 /// The shared common-types document a case declares, or null to use the copy
@@ -189,11 +301,12 @@ Map<String, Object?> _document(Object? value) {
 List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
   List<Map<String, Object?>> documents,
   List<Map<String, Object?>> payload,
+  String version,
 ) {
   if (documents.length > 1) {
     return [
       for (final Map<String, Object?> document in documents)
-        rendererCatalog(document),
+        rendererCatalog(document, protocolVersion: version),
     ];
   }
 
@@ -203,7 +316,8 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
     ids.add(document['catalogId'] as String? ?? 'standard');
   }
   return [
-    for (final String id in ids) rendererCatalog(document, asCatalogId: id),
+    for (final String id in ids)
+      rendererCatalog(document, asCatalogId: id, protocolVersion: version),
   ];
 }
 

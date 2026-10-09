@@ -24,12 +24,14 @@ struct MessageErrorMapperTests {
     let error = GenericError(
       code: "TEST_ERROR",
       surfaceID: "s1",
-      message: "Something went wrong"
+      message: "Something went wrong",
+      version: .v10
     )
-    let result = mapper.map(error, surfaceID: "s1")
+    let result = mapper.map(error, surfaceID: "s1", version: .v10)
     if case .generic(let generic) = result {
       #expect(generic.code == "TEST_ERROR")
       #expect(generic.surfaceID == "s1")
+      #expect(generic.version == .v10)
     } else {
       Issue.record("Expected .generic")
     }
@@ -37,10 +39,11 @@ struct MessageErrorMapperTests {
 
   @Test func mapUnknownErrorToGeneric() {
     struct CustomError: Error {}
-    let result = mapper.map(CustomError(), surfaceID: "s1")
+    let result = mapper.map(CustomError(), surfaceID: "s1", version: .v10)
     if case .generic(let generic) = result {
       #expect(generic.code == "PARSING_FAILED")
       #expect(generic.surfaceID == "s1")
+      #expect(generic.version == .v10)
     } else {
       Issue.record("Expected .generic")
     }
@@ -50,13 +53,15 @@ struct MessageErrorMapperTests {
     let error = ValidationFailedError(
       surfaceID: "s1",
       path: "/theme/primaryColor",
-      message: "Type mismatch"
+      message: "Type mismatch",
+      version: .v10
     )
-    let result = mapper.map(error, surfaceID: "s1")
+    let result = mapper.map(error, surfaceID: "s1", version: .v10)
     if case .validationFailed(let valError) = result {
       #expect(valError.surfaceID == "s1")
       #expect(valError.path == "/theme/primaryColor")
       #expect(valError.message == "Type mismatch")
+      #expect(valError.version == .v10)
     } else {
       Issue.record("Expected .validationFailed")
     }
@@ -73,11 +78,12 @@ struct MessageErrorMapperTests {
         )
       ]
     )
-    let result = mapper.map(error, surfaceID: "s1")
+    let result = mapper.map(error, surfaceID: "s1", version: .v091)
     if case .validationFailed(let valError) = result {
       #expect(valError.surfaceID == "s1")
       #expect(valError.path == "/theme/primaryColor")
       #expect(valError.message == "Expected string, got number")
+      #expect(valError.version == .v091)
     } else {
       Issue.record("Expected .validationFailed")
     }
@@ -94,11 +100,12 @@ struct MessageErrorMapperTests {
         )
       ]
     )
-    let result = mapper.map(error, surfaceID: "s1")
+    let result = mapper.map(error, surfaceID: "s1", version: .v10)
     if case .generic(let generic) = result {
       #expect(generic.code == "SURFACE_EXISTS")
       #expect(generic.surfaceID == "s1")
       #expect(generic.message == "Surface s1 already exists.")
+      #expect(generic.version == .v10)
     } else {
       Issue.record("Expected .generic")
     }
@@ -106,11 +113,12 @@ struct MessageErrorMapperTests {
 
   @Test func mapA2UIRecursionError() {
     let error = A2UIRecursionError("Function depth limit exceeded")
-    let result = mapper.map(error, surfaceID: "s1")
+    let result = mapper.map(error, surfaceID: "s1", version: .v10)
     if case .generic(let generic) = result {
       #expect(generic.code == "RECURSION_LIMIT_EXCEEDED")
       #expect(generic.surfaceID == "s1")
       #expect(generic.message == "Function depth limit exceeded")
+      #expect(generic.version == .v10)
     } else {
       Issue.record("Expected .generic")
     }
@@ -118,11 +126,12 @@ struct MessageErrorMapperTests {
 
   @Test func mapA2UICatalogError() {
     let error = A2UICatalogError("Catalog not found: unknown")
-    let result = mapper.map(error, surfaceID: "s1")
+    let result = mapper.map(error, surfaceID: "s1", version: .v10)
     if case .generic(let generic) = result {
       #expect(generic.code == "CATALOG_NOT_FOUND")
       #expect(generic.surfaceID == "s1")
       #expect(generic.message == "Catalog not found: unknown")
+      #expect(generic.version == .v10)
     } else {
       Issue.record("Expected .generic")
     }

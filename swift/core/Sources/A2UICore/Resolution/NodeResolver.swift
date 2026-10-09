@@ -35,10 +35,13 @@ public final class NodeResolver: Sendable {
   public let protocolVersion: String?
 
   public var isV10: Bool {
-    guard let version = protocolVersion else { return false }
-    let core = version.hasPrefix("v") ? String(version.dropFirst()) : version
-    guard let major = Int(core.split(separator: ".").first ?? "") else { return false }
-    return major >= 1
+    if let version = protocolVersion {
+      let core = version.hasPrefix("v") ? String(version.dropFirst()) : version
+      if let major = Int(core.split(separator: ".").first ?? "") {
+        return major >= 1
+      }
+    }
+    return catalog.isAtLeastV10
   }
 
   /// The primary default catalog associated with this resolver.
@@ -81,7 +84,7 @@ public final class NodeResolver: Sendable {
       componentsModel: surface.componentsModel,
       dataModel: surface.dataModel,
       actionHandler: actionHandler ?? surface.actionHandler,
-      protocolVersion: protocolVersion ?? surface.protocolVersion
+      protocolVersion: protocolVersion ?? surface.nodeResolver.protocolVersion
     )
   }
 
@@ -112,8 +115,21 @@ public final class NodeResolver: Sendable {
   /// Resolves a catalog by ID, falling back to the default catalog.
   public func getCatalog(id: String? = nil) -> AnyCatalog? {
     let targetCatalogID = id ?? defaultCatalogID
-    if let targetCatalogID, let catalog = catalogs[targetCatalogID] {
-      return catalog
+    if let targetCatalogID {
+      if let catalog = catalogs[targetCatalogID] {
+        return catalog
+      }
+      if let catalog = catalogs.values.first(where: {
+        $0.id.hasSuffix("/\(targetCatalogID)/catalog.json")
+          && $0.isAtLeastV10
+      }) {
+        return catalog
+      }
+      if let catalog = catalogs.values.first(where: {
+        $0.id.hasSuffix("/\(targetCatalogID)/catalog.json")
+      }) {
+        return catalog
+      }
     }
     if id == nil {
       return catalogs.values.first
@@ -150,6 +166,8 @@ public final class NodeResolver: Sendable {
     definitionID: String,
     instanceID: String,
     basePath: String? = nil,
+    index: Int? = nil,
+    instanceSuffix: String? = nil,
     visited: Set<String> = [],
     components: [String: ComponentModel],
     data: JSONValue
@@ -177,7 +195,9 @@ public final class NodeResolver: Sendable {
       let propSchema = propertiesSchema[key] ?? .boolean(true)
       let propType = classifySchema(propSchema)
       if propType == .checks {
-        componentChecks.append(contentsOf: resolveChecks(val, basePath: basePath, data: data))
+        componentChecks.append(
+          contentsOf: resolveChecks(val, basePath: basePath, index: index, data: data)
+        )
       }
     }
 
@@ -191,6 +211,8 @@ public final class NodeResolver: Sendable {
         schema: propSchema,
         type: propType,
         basePath: basePath,
+        index: index,
+        instanceSuffix: instanceSuffix,
         componentID: instanceID,
         propertyKey: key,
         visited: visited,
@@ -240,7 +262,7 @@ public final class NodeResolver: Sendable {
       case "CheckRule", "Checkable": return .checks
       case "Action": return .action
       case "ChildList": return .childList
-      case "ComponentId": return .componentID
+      case "Child", "ComponentId": return .componentID
       default: break
       }
     }
@@ -295,7 +317,10 @@ public final class NodeResolver: Sendable {
     }
     if let ref = schemaJSON["$ref"]?.stringValue {
       let typeName = ref.split(separator: "/").last.map(String.init) ?? ""
-      if let def = A2UICommonSchema.document["$defs"]?.objectValue?[typeName] {
+      let def =
+        A2UICommonSchema.v10Document["$defs"]?.objectValue?[typeName]
+        ?? A2UICommonSchema.document["$defs"]?.objectValue?[typeName]
+      if let def {
         let defProps = extractPropertiesSchema(from: def)
         for (k, v) in defProps {
           result[k] = v
@@ -336,6 +361,8 @@ public final class NodeResolver: Sendable {
     schema: JSONValue,
     type: PropertyType,
     basePath: String?,
+    index: Int? = nil,
+    instanceSuffix: String? = nil,
     componentID: String,
     propertyKey: String,
     visited: Set<String>,
@@ -345,22 +372,23 @@ public final class NodeResolver: Sendable {
   ) -> (any Resolved)? {
     switch type {
     case .dynamicBoolean:
-      return resolveDynamicBoolean(value, basePath: basePath, data: data)
+      return resolveDynamicBoolean(value, basePath: basePath, index: index, data: data)
     case .dynamicString:
-      return resolveDynamicString(value, basePath: basePath, data: data)
+      return resolveDynamicString(value, basePath: basePath, index: index, data: data)
     case .dynamicNumber:
-      return resolveDynamicNumber(value, basePath: basePath, data: data)
+      return resolveDynamicNumber(value, basePath: basePath, index: index, data: data)
     case .dynamicValue:
-      return resolveDynamicValueBinding(value, basePath: basePath, data: data)
+      return resolveDynamicValueBinding(value, basePath: basePath, index: index, data: data)
     case .dynamicStringList:
-      return resolveDynamicStringList(value, basePath: basePath, data: data)
+      return resolveDynamicStringList(value, basePath: basePath, index: index, data: data)
     case .checks:
-      return resolveChecks(value, basePath: basePath, data: data)
+      return resolveChecks(value, basePath: basePath, index: index, data: data)
     case .action:
       return resolveAction(
         value,
         checks: checks,
         basePath: basePath,
+        index: index,
         componentID: componentID,
         data: data
       )
@@ -368,6 +396,8 @@ public final class NodeResolver: Sendable {
       return resolveChildList(
         value,
         basePath: basePath,
+        index: index,
+        instanceSuffix: instanceSuffix,
         componentID: componentID,
         propertyKey: propertyKey,
         visited: visited,
@@ -376,10 +406,14 @@ public final class NodeResolver: Sendable {
       )
     case .componentID:
       guard let childID = value.stringValue else { return nil }
+      let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
+      let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
       return resolveNode(
         definitionID: childID,
-        instanceID: childID,
+        instanceID: childInstanceID,
         basePath: basePath,
+        index: index,
+        instanceSuffix: effectiveSuffix,
         visited: visited,
         components: components,
         data: data
@@ -393,7 +427,7 @@ public final class NodeResolver: Sendable {
         let itemsSchema = schema["items"] ?? .boolean(true)
         let itemType = classifySchema(itemsSchema)
         if itemType == .checks {
-          return resolveChecks(value, basePath: basePath, data: data)
+          return resolveChecks(value, basePath: basePath, index: index, data: data)
         }
         let resolvedArray = array.compactMap { item in
           if let resolved = resolveProperty(
@@ -401,6 +435,8 @@ public final class NodeResolver: Sendable {
             schema: itemsSchema,
             type: itemType,
             basePath: basePath,
+            index: index,
+            instanceSuffix: instanceSuffix,
             componentID: componentID,
             propertyKey: propertyKey,
             visited: visited,
@@ -436,6 +472,8 @@ public final class NodeResolver: Sendable {
               schema: nestedPropSchema,
               type: nestedPropType,
               basePath: basePath,
+              index: index,
+              instanceSuffix: instanceSuffix,
               componentID: componentID,
               propertyKey: k,
               visited: visited,
@@ -465,13 +503,15 @@ public final class NodeResolver: Sendable {
 
   private func evaluateDynamicValue(
     _ value: JSONValue,
-    basePath: String?
+    basePath: String?,
+    index: Int? = nil
   ) -> JSONValue {
     let context = DataContext(
       dataModel: dataModel,
       path: basePath ?? "",
       functionHandler: self,
-      protocolVersion: protocolVersion
+      protocolVersion: protocolVersion ?? catalog.protocolVersion,
+      index: index
     )
     return context.resolveDynamicValue(value)
   }
@@ -506,6 +546,7 @@ public final class NodeResolver: Sendable {
   private func resolveDynamicBoolean(
     _ value: JSONValue,
     basePath: String?,
+    index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<Bool> {
     let bindingKey = isV10 ? "@path" : "path"
@@ -522,7 +563,7 @@ public final class NodeResolver: Sendable {
         }
       )
     }
-    let resolvedValue = evaluateDynamicValue(value, basePath: basePath).boolValue
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, index: index).boolValue
     return DataBinding<Bool>(
       identity: .literal(value),
       value: resolvedValue,
@@ -533,6 +574,7 @@ public final class NodeResolver: Sendable {
   private func resolveDynamicString(
     _ value: JSONValue,
     basePath: String?,
+    index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<String> {
     let bindingKey = isV10 ? "@path" : "path"
@@ -549,7 +591,7 @@ public final class NodeResolver: Sendable {
         }
       )
     }
-    let evaluated = evaluateDynamicValue(value, basePath: basePath)
+    let evaluated = evaluateDynamicValue(value, basePath: basePath, index: index)
     let resolvedValue = coerceToString(evaluated)
     return DataBinding<String>(
       identity: .literal(value),
@@ -561,6 +603,7 @@ public final class NodeResolver: Sendable {
   private func resolveDynamicNumber(
     _ value: JSONValue,
     basePath: String?,
+    index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<Double> {
     let bindingKey = isV10 ? "@path" : "path"
@@ -577,7 +620,7 @@ public final class NodeResolver: Sendable {
         }
       )
     }
-    let resolvedValue = evaluateDynamicValue(value, basePath: basePath).doubleValue
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, index: index).doubleValue
     return DataBinding<Double>(
       identity: .literal(value),
       value: resolvedValue,
@@ -588,6 +631,7 @@ public final class NodeResolver: Sendable {
   private func resolveDynamicValueBinding(
     _ value: JSONValue,
     basePath: String?,
+    index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<JSONValue> {
     let bindingKey = isV10 ? "@path" : "path"
@@ -604,7 +648,7 @@ public final class NodeResolver: Sendable {
         }
       )
     }
-    let resolvedValue = evaluateDynamicValue(value, basePath: basePath)
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, index: index)
     return DataBinding<JSONValue>(
       identity: .literal(value),
       value: resolvedValue,
@@ -615,6 +659,7 @@ public final class NodeResolver: Sendable {
   private func resolveDynamicStringList(
     _ value: JSONValue,
     basePath: String?,
+    index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<[String]> {
     let bindingKey = isV10 ? "@path" : "path"
@@ -631,9 +676,10 @@ public final class NodeResolver: Sendable {
         }
       )
     }
-    let resolvedValue = evaluateDynamicValue(value, basePath: basePath).arrayValue?.compactMap {
-      self.coerceToString($0)
-    }
+    let resolvedValue = evaluateDynamicValue(value, basePath: basePath, index: index).arrayValue?
+      .compactMap {
+        self.coerceToString($0)
+      }
     return DataBinding<[String]>(
       identity: .literal(value),
       value: resolvedValue,
@@ -646,21 +692,97 @@ public final class NodeResolver: Sendable {
   private func resolveChecks(
     _ value: JSONValue,
     basePath: String?,
+    index: Int? = nil,
     data: JSONValue
   ) -> [ResolvedCheck] {
-    if let array = value.arrayValue {
-      return array.compactMap { ruleJSON in
-        guard let ruleDict = ruleJSON.dictionaryValue else { return nil }
-        let conditionJSON = ruleDict["condition"] ?? ruleJSON
-        let message = ruleDict["message"]?.stringValue ?? "Validation failed"
-        let condition = resolveDynamicBoolean(conditionJSON, basePath: basePath, data: data)
-        return ResolvedCheck(condition: condition, message: message)
+    let parseRule: (JSONValue) -> ResolvedCheck? = { [weak self] ruleJSON in
+      guard let self else { return nil }
+      let ruleDict = ruleJSON.dictionaryValue
+      let conditionJSON = ruleDict?["condition"] ?? ruleJSON
+      let fallbackMessage = ruleDict?["message"]?.stringValue ?? "Validation failed"
+
+      let bindingKey = self.isV10 ? "@path" : "path"
+      if let dict = conditionJSON.dictionaryValue, let pathStr = dict[bindingKey]?.stringValue {
+        let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+        let rawVal = data[absPath]
+        if let rawDict = rawVal?.objectValue, let valid = rawDict["valid"]?.boolValue {
+          let code = rawDict["code"]?.stringValue
+          let msg = rawDict["message"]?.stringValue ?? fallbackMessage
+          let severity = rawDict["severity"]?.stringValue.flatMap {
+            ValidationSeverity(rawValue: $0)
+          }
+          let result = ValidationResult(valid: valid, code: code, message: msg, severity: severity)
+          return ResolvedCheck(
+            condition: DataBinding(identity: .path(absPath), value: valid, set: { _ in }),
+            message: msg,
+            validationResult: result
+          )
+        } else {
+          let valid = rawVal?.boolValue ?? false
+          let result = ValidationResult(
+            valid: valid,
+            code: nil,
+            message: fallbackMessage,
+            severity: .error
+          )
+          return ResolvedCheck(
+            condition: DataBinding(
+              identity: .path(absPath),
+              value: valid,
+              set: { [weak self] newValue in
+                self?.dataModel.set(absPath, value: .boolean(newValue))
+              }
+            ),
+            message: fallbackMessage,
+            validationResult: result
+          )
+        }
       }
-    } else if let ruleDict = value.dictionaryValue {
-      let conditionJSON = ruleDict["condition"] ?? value
-      let message = ruleDict["message"]?.stringValue ?? "Validation failed"
-      let condition = resolveDynamicBoolean(conditionJSON, basePath: basePath, data: data)
-      return [ResolvedCheck(condition: condition, message: message)]
+
+      let evaluated = self.evaluateDynamicValue(conditionJSON, basePath: basePath, index: index)
+      if let evalDict = evaluated.objectValue, let valid = evalDict["valid"]?.boolValue {
+        let code = evalDict["code"]?.stringValue
+        let msg = evalDict["message"]?.stringValue ?? fallbackMessage
+        let severity = evalDict["severity"]?.stringValue.flatMap {
+          ValidationSeverity(rawValue: $0)
+        }
+        let result = ValidationResult(valid: valid, code: code, message: msg, severity: severity)
+        return ResolvedCheck(
+          condition: DataBinding(identity: .literal(conditionJSON), value: valid, set: { _ in }),
+          message: msg,
+          validationResult: result
+        )
+      } else if let b = evaluated.boolValue {
+        let result = ValidationResult(
+          valid: b,
+          code: nil,
+          message: fallbackMessage,
+          severity: .error
+        )
+        return ResolvedCheck(
+          condition: DataBinding(identity: .literal(conditionJSON), value: b, set: { _ in }),
+          message: fallbackMessage,
+          validationResult: result
+        )
+      } else {
+        let result = ValidationResult(
+          valid: false,
+          code: nil,
+          message: fallbackMessage,
+          severity: .error
+        )
+        return ResolvedCheck(
+          condition: DataBinding(identity: .literal(conditionJSON), value: false, set: { _ in }),
+          message: fallbackMessage,
+          validationResult: result
+        )
+      }
+    }
+
+    if let array = value.arrayValue {
+      return array.compactMap(parseRule)
+    } else if value.dictionaryValue != nil {
+      return [parseRule(value)].compactMap { $0 }
     }
     return []
   }
@@ -671,6 +793,7 @@ public final class NodeResolver: Sendable {
     _ value: JSONValue,
     checks: [ResolvedCheck] = [],
     basePath: String?,
+    index: Int? = nil,
     componentID: String,
     data: JSONValue
   ) -> ResolvedAction? {
@@ -685,10 +808,11 @@ public final class NodeResolver: Sendable {
       eventObj = nil
     }
 
+    let callKey = isV10 ? "@call" : "call"
     let funcCallVal: JSONValue?
     if let wrapped = value["functionCall"], wrapped.dictionaryValue != nil {
       funcCallVal = wrapped
-    } else if dict["call"]?.stringValue != nil {
+    } else if dict[callKey]?.stringValue != nil {
       funcCallVal = value
     } else {
       funcCallVal = nil
@@ -696,23 +820,34 @@ public final class NodeResolver: Sendable {
 
     if let eventObj, let name = eventObj["name"]?.stringValue {
       let contextDict = eventObj["context"]?.dictionaryValue
+      let userMessageVal = eventObj["userMessage"]
+      let initialUserMessage = userMessageVal.flatMap {
+        self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
+      }
       let unresolvedIdentity = ResolvedAction.Identity.event(
         name: name,
-        context: contextDict
+        context: contextDict,
+        userMessage: initialUserMessage
       )
 
       return ResolvedAction(
         identity: unresolvedIdentity,
+        sourceComponentID: componentID,
         trigger: { [weak self] in
           guard let self else { return }
 
           let failedChecks = checks.filter { !$0.isValid }
           if !failedChecks.isEmpty {
             let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
+            let version = self.catalog.a2uiProtocolVersion ?? .v10
             self.actionHandler?.handle(
               error: .validationFailed(
                 ValidationFailedError(
-                  surfaceID: self.surfaceID, path: componentID, message: errorMsg)
+                  surfaceID: self.surfaceID,
+                  path: componentID,
+                  message: errorMsg,
+                  version: version
+                )
               ),
               from: self.surfaceID
             )
@@ -722,12 +857,18 @@ public final class NodeResolver: Sendable {
           var resolvedContext: [String: JSONValue] = [:]
           if let contextDict {
             for (key, val) in contextDict {
-              resolvedContext[key] = self.evaluateDynamicValue(val, basePath: basePath)
+              resolvedContext[key] = self.evaluateDynamicValue(
+                val, basePath: basePath, index: index)
             }
+          }
+          let resolvedUserMessage = userMessageVal.flatMap {
+            self.evaluateDynamicValue($0, basePath: basePath, index: index).stringValue
           }
 
           let triggerAction = ResolvedAction(
-            identity: .event(name: name, context: resolvedContext),
+            identity: .event(
+              name: name, context: resolvedContext, userMessage: resolvedUserMessage),
+            sourceComponentID: componentID,
             trigger: {}
           )
 
@@ -735,7 +876,7 @@ public final class NodeResolver: Sendable {
         }
       )
     } else if let funcCallVal, let funcCallDict = funcCallVal.dictionaryValue,
-      let call = funcCallDict["call"]?.stringValue
+      let call = funcCallDict[callKey]?.stringValue
     {
       let argsDict = funcCallDict["args"]?.dictionaryValue
       let unresolvedIdentity = ResolvedAction.Identity.function(
@@ -745,23 +886,29 @@ public final class NodeResolver: Sendable {
 
       return ResolvedAction(
         identity: unresolvedIdentity,
+        sourceComponentID: componentID,
         trigger: { [weak self] in
           guard let self else { return }
 
           let failedChecks = checks.filter { !$0.isValid }
           if !failedChecks.isEmpty {
             let errorMsg = failedChecks.map(\.message).joined(separator: ", ")
+            let version = self.catalog.a2uiProtocolVersion ?? .v10
             self.actionHandler?.handle(
               error: .validationFailed(
                 ValidationFailedError(
-                  surfaceID: self.surfaceID, path: componentID, message: errorMsg)
+                  surfaceID: self.surfaceID,
+                  path: componentID,
+                  message: errorMsg,
+                  version: version
+                )
               ),
               from: self.surfaceID
             )
             return
           }
 
-          _ = self.evaluateDynamicValue(funcCallVal, basePath: basePath)
+          _ = self.evaluateDynamicValue(funcCallVal, basePath: basePath, index: index)
         }
       )
     }
@@ -774,6 +921,8 @@ public final class NodeResolver: Sendable {
   private func resolveChildList(
     _ value: JSONValue,
     basePath: String?,
+    index: Int? = nil,
+    instanceSuffix: String? = nil,
     componentID: String,
     propertyKey: String,
     visited: Set<String>,
@@ -782,13 +931,17 @@ public final class NodeResolver: Sendable {
   ) -> [Node]? {
     switch value {
     case .array(let arr):
+      let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
       var resolvedNodes: [Node] = []
       for item in arr {
         guard let childID = item.stringValue else { continue }
+        let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
         if let childNode = resolveNode(
           definitionID: childID,
-          instanceID: childID,
+          instanceID: childInstanceID,
           basePath: basePath,
+          index: index,
+          instanceSuffix: effectiveSuffix,
           visited: visited,
           components: components,
           data: data
@@ -818,14 +971,18 @@ public final class NodeResolver: Sendable {
 
       var expandedNodes: [Node] = []
 
-      for (index, _) in dataItems.enumerated() {
-        let itemID = "\(templateID)_\(index)"
-        let itemBasePath = "\(absPath)/\(index)"
+      for (itemIndex, _) in dataItems.enumerated() {
+        let itemSuffix =
+          instanceSuffix.map { "\($0)_\(itemIndex)" } ?? "\(itemIndex)"
+        let itemID = "\(templateID)_\(itemSuffix)"
+        let itemBasePath = "\(absPath)/\(itemIndex)"
 
         if let itemNode = resolveNode(
           definitionID: templateID,
           instanceID: itemID,
           basePath: itemBasePath,
+          index: itemIndex,
+          instanceSuffix: itemSuffix,
           visited: visited,
           components: components,
           data: data
@@ -846,6 +1003,9 @@ public final class NodeResolver: Sendable {
 
 extension NodeResolver: FunctionHandler {
   public func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
+    if name == "@index" {
+      return IndexFunction()
+    }
     let callCatalogID = catalogID ?? defaultCatalogID
     var targetFunction = getCatalog(id: callCatalogID)?.functions[name]
     if targetFunction == nil && catalogID == nil {
@@ -857,5 +1017,18 @@ extension NodeResolver: FunctionHandler {
       }
     }
     return targetFunction
+  }
+
+  public func handleFunctionError(_ error: any Error, functionName: String) {
+    let version =
+      protocolVersion.flatMap(A2UIProtocolVersion.init(rawValue:))
+      ?? catalog.a2uiProtocolVersion
+      ?? (isV10 ? .v10 : .v09)
+    let rendererError = MessageErrorMapper().map(
+      error,
+      surfaceID: surfaceID,
+      version: version
+    )
+    actionHandler?.handle(error: rendererError, from: surfaceID)
   }
 }

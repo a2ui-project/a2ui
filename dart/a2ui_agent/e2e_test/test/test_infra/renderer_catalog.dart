@@ -36,6 +36,7 @@ Catalog<ComponentApi, FunctionImplementation> rendererCatalog(
   CatalogApi catalog,
 ) => Catalog<ComponentApi, FunctionImplementation>(
   id: catalog.id,
+  protocolVersion: catalog.protocolVersion ?? A2uiProtocolVersion.v0_9,
   components: catalog.components.values.toList(),
   functions: catalog.functions.values.map(_UncallableFunction.new).toList(),
   themeSchema: catalog.themeSchema,

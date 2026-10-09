@@ -73,15 +73,22 @@ final class ComponentRefMap {
   /// Classifies every schema in [componentSchemas], keyed by component type.
   ///
   /// Local pointers that a component schema does not define resolve against
-  /// [document].
+  /// [document], and then against [commonTypes], the `common_types.json`
+  /// document that also resolves external `common_types.json#/$defs/...`
+  /// pointers (the embedded v0.9 document when null; see
+  /// [ReferenceSchemaReader.commonTypes]).
   ComponentRefMap(
     Map<String, Map<String, Object?>> componentSchemas, {
     Map<String, Object?> document = const {},
+    Map<String, Object?>? commonTypes,
   }) : _byType = Map.unmodifiable({
           for (final MapEntry<String, Map<String, Object?>> entry
               in componentSchemas.entries)
-            entry.key:
-                ReferenceSchemaReader(entry.value, document: document).fields(),
+            entry.key: ReferenceSchemaReader(
+              entry.value,
+              document: document,
+              commonTypes: commonTypes,
+            ).fields(),
         });
 
   /// The reference properties of each component type, by type name.
@@ -96,8 +103,8 @@ final class ComponentRefMap {
 ///
 /// Local pointers resolve against the component root first, then the catalog
 /// document, and finally the `common_types.json` document supplied by the
-/// caller (the embedded v0.9 document by default). Wire pointers and Dart
-/// `REF:` descriptions identify the same common types. Local pointer and
+/// caller (the embedded v0.9 document by default). Wire pointers and
+/// `commonTypesRef` metadata identify the same common types. Local pointer and
 /// combinator cycles are bounded by schema-map identity; reading never fetches
 /// external documents over I/O.
 class ReferenceSchemaReader {
@@ -320,7 +327,7 @@ class ReferenceSchemaReader {
 
 bool _marks(List<Map<String, Object?>> schemas, String pointer) {
   for (final schema in schemas) {
-    final Object? ref = schema[r'$ref'];
+    final Object? ref = schema['commonTypesRef'] ?? schema[r'$ref'];
     if (ref is String && ref.endsWith(pointer)) return true;
     final Object? description = schema['description'];
     if (description is String && description.startsWith('REF:')) {
@@ -352,7 +359,7 @@ bool _isCheckRuleShape(Map<String, Object?> schema) {
 }
 
 /// Recognizes a child-list template by its shape, for catalogs that declare
-/// one without a `$ref` or `REF:` marker. The test is deliberately
+/// one without a `$ref` or `commonTypesRef` marker. The test is deliberately
 /// structural, so it also matches any unrelated object schema that declares
 /// both property names.
 bool _isChildListShape(Map<String, Object?> schema) {

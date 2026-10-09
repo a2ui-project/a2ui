@@ -84,8 +84,11 @@ All Swift code must strictly follow
    // See the License for the specific language governing permissions and
    // limitations under the License.
    ```
-5. **Safe optional handling**: Never use force-unwrapping (`!`) or forced tries (`try!`). Use
-   optional bindings (`if let`, `guard let`) or propagate throwing errors.
+5. **Safe optional handling**: Never use force-unwrapping (`!`) or forced tries (`try!`) on
+   runtime or external data; use optional bindings (`if let`, `guard let`) or propagate throwing
+   errors. Using `try!` or `!` is permitted for hardcoded compile-time constants (e.g., static
+   regular expressions or embedded JSON Schema literals) that can only fail due to a developer
+   error in transcribing the static string.
 
 ---
 

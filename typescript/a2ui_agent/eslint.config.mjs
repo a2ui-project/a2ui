@@ -46,7 +46,7 @@ export default [
   },
   {
     files: ['**/*.ts'],
-    ignores: ['src/internal/web_core.ts'],
+    ignores: ['src/internal/web-core.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -55,7 +55,7 @@ export default [
             {
               group: ['@a2ui/web_core/v0_9', '@a2ui/web_core/v0_9/**', '@a2ui/web_core/v0_9*'],
               message:
-                'Importing version-specific web_core subpaths outside src/internal/web_core.ts is prohibited.',
+                'Importing version-specific web_core subpaths outside src/internal/web-core.ts is prohibited.',
             },
           ],
         },

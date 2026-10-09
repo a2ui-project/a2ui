@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export type {ProtocolVersion} from './internal/web_core.js';
+export type {ProtocolVersion} from './internal/web-core.js';

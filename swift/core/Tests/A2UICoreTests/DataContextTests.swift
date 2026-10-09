@@ -89,23 +89,63 @@ struct DataContextTests {
     #expect(result.stringValue == "Hello, World!")
   }
 
-  @Test func resolveDynamicValuePassesThroughNonBindingContainers() {
+  @Test func resolveDynamicValueRecursesIntoArraysAndDictionaries() {
     let mockHandler = MockFunctionHandler()
+    mockHandler.functionToReturn = ConcatFunction()
     let dataModel = DataModel()
     dataModel.set("/item", value: "apple")
+    dataModel.set("/suffix", value: " World!")
     let context = DataContext(dataModel: dataModel, path: "/", functionHandler: mockHandler)
 
-    let literalObject: JSONValue = [
+    let nestedContainer: JSONValue = [
       "list": [
         "static",
         ["path": "item"],
-      ]
+      ],
+      "config": [
+        "greeting": [
+          "call": "concat",
+          "args": [
+            "a": "Hello,",
+            "b": ["path": "suffix"],
+          ],
+        ]
+      ],
     ]
-    #expect(context.resolveDynamicValue(literalObject) == literalObject)
+    let expected: JSONValue = [
+      "list": ["static", "apple"],
+      "config": ["greeting": "Hello, World!"],
+    ]
+    #expect(context.resolveDynamicValue(nestedContainer) == expected)
+    #expect(mockHandler.lastRequestedName == "concat")
 
-    let literalWithCall: JSONValue = ["config": ["call": "concat"]]
-    #expect(context.resolveDynamicValue(literalWithCall) == literalWithCall)
-    #expect(mockHandler.lastRequestedName == nil)
+    let v10Context = DataContext(
+      dataModel: dataModel,
+      path: "/",
+      functionHandler: mockHandler,
+      protocolVersion: "v1.0"
+    )
+    let v10Nested: JSONValue = [
+      "list": [
+        ["@path": "item"],
+        ["path": "item"],
+      ],
+      "style": [
+        "@@path": "literal",
+        "nested": ["@path": "suffix"],
+      ],
+    ]
+    let v10Expected: JSONValue = [
+      "list": [
+        "apple",
+        ["path": "item"],
+      ],
+      "style": [
+        "@path": "literal",
+        "nested": " World!",
+      ],
+    ]
+    #expect(v10Context.resolveDynamicValue(v10Nested) == v10Expected)
   }
 
   @Test func v10ProtocolVersionGatingResolvesAtDirectivesAndEscaping() throws {

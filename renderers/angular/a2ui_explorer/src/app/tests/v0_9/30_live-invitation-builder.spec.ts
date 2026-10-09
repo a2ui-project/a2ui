@@ -73,12 +73,12 @@ describe('Example: Live Invitation Builder', () => {
   });
 
   it('should render inputs', async () => {
-    const inputs = [...fixture.nativeElement.querySelectorAll('input')] as HTMLInputElement[];
+    const inputs = [...getCanvas().querySelectorAll('input')] as HTMLInputElement[];
     expect(inputs.length).toBeGreaterThanOrEqual(2);
   });
 
   it('should update preview when changing Event Name input', async () => {
-    const inputs = [...fixture.nativeElement.querySelectorAll('input')] as HTMLInputElement[];
+    const inputs = [...getCanvas().querySelectorAll('input')] as HTMLInputElement[];
     const textInputs = inputs.filter(i => i.type === 'text' || !i.type);
     expect(textInputs.length).toBeGreaterThanOrEqual(2);
 
@@ -100,7 +100,7 @@ describe('Example: Live Invitation Builder', () => {
   });
 
   it('should update preview when changing Guest of Honor input', async () => {
-    const inputs = [...fixture.nativeElement.querySelectorAll('input')] as HTMLInputElement[];
+    const inputs = [...getCanvas().querySelectorAll('input')] as HTMLInputElement[];
     const textInputs = inputs.filter(i => i.type === 'text' || !i.type);
     expect(textInputs.length).toBeGreaterThanOrEqual(2);
 

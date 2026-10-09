@@ -84,6 +84,7 @@ function readExamples(specPath, catalogs, version) {
 
           if (Array.isArray(data)) {
             example = {
+              filename: file,
               version: version,
               name: version === '0.8' ? `${nameFromFile} (${catalog})` : nameFromFile,
               description: `Example from ${catalog} catalog`,
@@ -92,6 +93,7 @@ function readExamples(specPath, catalogs, version) {
           } else {
             example = {
               ...data,
+              filename: file,
               version: version,
               name:
                 version === '0.8'

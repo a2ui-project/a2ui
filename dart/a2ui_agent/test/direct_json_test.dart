@@ -49,8 +49,14 @@ void main() {
     },
   });
 
-  DirectJsonParser parser({Set<String> progressiveKeys = const {}}) =>
-      DirectJsonParser([basic, custom], progressiveKeys: progressiveKeys);
+  DirectJsonParser parser({
+    Set<String> progressiveKeys = const {},
+    bool bufferIncompleteComponents = false,
+  }) => DirectJsonParser(
+    [basic, custom],
+    progressiveKeys: progressiveKeys,
+    bufferIncompleteComponents: bufferIncompleteComponents,
+  );
 
   /// The messages one payload compiles to, as JSON.
   List<Map<String, Object?>> compile(String payload) => [
@@ -300,9 +306,13 @@ void main() {
     List<List<Object?>> stream(
       List<String> chunks, {
       Set<String> progressiveKeys = const {},
+      bool bufferIncompleteComponents = false,
       bool wrapped = true,
     }) {
-      final DirectJsonParser reader = parser(progressiveKeys: progressiveKeys);
+      final DirectJsonParser reader = parser(
+        progressiveKeys: progressiveKeys,
+        bufferIncompleteComponents: bufferIncompleteComponents,
+      );
       return [
         for (final String chunk in chunks)
           [
@@ -366,6 +376,109 @@ void main() {
       expect(textOf(steps[2]), 'Tab\té');
     });
 
+    const partialText =
+        '<a2ui-json>[{"version": "v0.9", "updateComponents": {"surfaceId": '
+        '"s", "components": [{"id": "root", "component": "Text", "text": "Hel';
+
+    test('heals a component while it arrives by default, as v0.9 does', () {
+      expect(
+        stream(
+          [partialText, 'lo"}]}}]</a2ui-json>'],
+          progressiveKeys: {'text'},
+        ),
+        [
+          [
+            [
+              jsonDecode(
+                update('s', [
+                  {'id': 'root', 'component': 'Text', 'text': 'Hel'},
+                ]),
+              ),
+            ],
+          ],
+          [
+            [
+              jsonDecode(
+                update('s', [
+                  {'id': 'root', 'component': 'Text', 'text': 'Hello'},
+                ]),
+              ),
+            ],
+          ],
+        ],
+      );
+    });
+
+    test('holds a component back until it closes when buffering', () {
+      expect(
+        stream(
+          [partialText, 'lo"}', ']}}]</a2ui-json>'],
+          progressiveKeys: {'text'},
+          bufferIncompleteComponents: true,
+        ),
+        [
+          <Object?>[],
+          [
+            [
+              jsonDecode(
+                update('s', [
+                  {'id': 'root', 'component': 'Text', 'text': 'Hello'},
+                ]),
+              ),
+            ],
+          ],
+          <Object?>[],
+        ],
+      );
+    });
+
+    test('drops only the component cut in its id when buffering', () {
+      expect(
+        stream([
+          '<a2ui-json>[{"version": "v0.9", "updateComponents": {"surfaceId": '
+              '"s", "components": [{"id": "root", "component": "Text", '
+              '"text": "A"}, {"id": "ro',
+        ], bufferIncompleteComponents: true),
+        [
+          [
+            [
+              jsonDecode(
+                update('s', [
+                  {'id': 'root', 'component': 'Text', 'text': 'A'},
+                ]),
+              ),
+            ],
+          ],
+        ],
+      );
+    });
+
+    test('still heals a data model when buffering components', () {
+      expect(
+        stream(
+          [
+            '<a2ui-json>[{"version": "v0.9", "updateDataModel": {"surfaceId": '
+                '"s", "value": {"greeting": "Hel',
+          ],
+          progressiveKeys: {'greeting'},
+          bufferIncompleteComponents: true,
+        ),
+        [
+          [
+            [
+              {
+                'version': 'v0.9',
+                'updateDataModel': {
+                  'surfaceId': 's',
+                  'value': {'greeting': 'Hel'},
+                },
+              },
+            ],
+          ],
+        ],
+      );
+    });
+
     test('reads a block wrapped in a markdown fence', () {
       expect(
         stream(['<a2ui-json>\n``', '`json\n[${create('s')}]\n```</a2ui-json>']),
@@ -419,6 +532,18 @@ void main() {
       expect(first.supportsStreaming, isTrue);
       first.parseChunk('<a2ui-json>[');
       expect(format.createParser().parseChunk('Hello'), [isA<TextPart>()]);
+    });
+
+    test('passes bufferIncompleteComponents from the factory to parsers', () {
+      final Parser buffering = const DirectJsonFormatFactory(
+        progressiveKeys: {'text'},
+        bufferIncompleteComponents: true,
+      ).createFormat([basic]).createParser();
+      expect(buffering.parseChunk(partialText), isEmpty);
+      final Parser healing = const DirectJsonFormatFactory(
+        progressiveKeys: {'text'},
+      ).createFormat([basic]).createParser();
+      expect(healing.parseChunk(partialText), [isA<A2uiPart>()]);
     });
   });
 

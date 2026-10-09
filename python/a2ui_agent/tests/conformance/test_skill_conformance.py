@@ -16,13 +16,15 @@
 
 import os
 import unittest
+
 import yaml
 
+from a2ui.inference_formats.experimental.atom import AtomFormat
+from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.experimental.express import ExpressFormat
-from a2ui.schema.catalog import A2uiCatalog, CatalogConfig
-from a2ui.skill import Skill, SkillGenerator, SkillSet
-
+from a2ui.schema import CatalogConfig
 from a2ui.schema.utils import find_repo_root
+from a2ui.skill import SkillGenerator
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_YAML_PATH = os.path.join(REPO_ROOT, "conformance", "agent", "skill.yaml")
@@ -36,8 +38,8 @@ class TestSkillConformance(unittest.TestCase):
         """Asserts prompt_generator.generate_base_rules() matches golden file exactly."""
         cat_path = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
         cat_config = CatalogConfig.from_path("basic", cat_path)
-        catalog = A2uiCatalog.from_config(cat_config)
-        express_fmt = ExpressFormat(catalog=catalog)
+        catalog = cat_config.to_catalog()
+        express_fmt = ExpressFormat([catalog])
         prompt_gen = express_fmt.prompt_generator
 
         golden_path = os.path.join(GOLDENS_DIR, "express_base_rules.txt")
@@ -51,8 +53,8 @@ class TestSkillConformance(unittest.TestCase):
         """Asserts prompt_generator.generate_catalog_instructions() matches golden file exactly."""
         cat_path = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
         cat_config = CatalogConfig.from_path("basic", cat_path)
-        catalog = A2uiCatalog.from_config(cat_config)
-        express_fmt = ExpressFormat(catalog=catalog)
+        catalog = cat_config.to_catalog()
+        express_fmt = ExpressFormat([catalog])
         prompt_gen = express_fmt.prompt_generator
 
         golden_path = os.path.join(GOLDENS_DIR, "express_catalog_instructions.txt")
@@ -83,25 +85,15 @@ class TestSkillConformance(unittest.TestCase):
                 if cat_rel_path:
                     abs_cat_path = os.path.join(REPO_ROOT, cat_rel_path)
                     cat_config = CatalogConfig.from_path("basic", abs_cat_path)
-                    catalog = A2uiCatalog.from_config(cat_config)
+                    catalog = cat_config.to_catalog()
 
                 fmt_name = args.get("format", "express")
                 if fmt_name == "express":
-                    fmt = ExpressFormat(catalog=catalog) if catalog else ExpressFormat()
+                    fmt = ExpressFormat([catalog]) if catalog else ExpressFormat()
                 elif fmt_name == "atom":
-                    from a2ui.inference_formats.experimental.atom import AtomFormat
-
-                    fmt = AtomFormat(catalog=catalog) if catalog else AtomFormat()
+                    fmt = AtomFormat([catalog]) if catalog else AtomFormat()
                 elif fmt_name == "elemental":
-                    from a2ui.inference_formats.experimental.elemental import (
-                        ElementalFormat,
-                    )
-
-                    fmt = (
-                        ElementalFormat(catalog=catalog)
-                        if catalog
-                        else ElementalFormat()
-                    )
+                    fmt = ElementalFormat([catalog]) if catalog else ElementalFormat()
                 else:
                     raise ValueError(f"Unsupported format: {fmt_name}")
 

@@ -15,15 +15,14 @@
 """Unit tests to ensure all prompt rules syntax examples parse cleanly through format compilers."""
 
 import re
+
 import pytest
 
 from a2ui.core import Catalog
-from a2ui.inference_formats.experimental.atom.compiler import AtomCompiler
-from a2ui.inference_formats.experimental.atom.format import AtomFormat
-from a2ui.inference_formats.experimental.atom.prompt_generator import ATOM_RULES
-from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.format import ExpressFormat
-from a2ui.inference_formats.experimental.express.prompt_generator import EXPRESS_RULES
+from a2ui.inference_formats import to_message_dicts
+from a2ui.inference_formats.experimental.atom import AtomCompiler, AtomFormat
+from a2ui.inference_formats.experimental.express import ExpressCompiler, ExpressFormat
+from a2ui.schema import VERSION_0_9
 
 
 def _extract_a2ui_examples(rules_text: str) -> list[str]:
@@ -37,19 +36,14 @@ def _extract_a2ui_examples(rules_text: str) -> list[str]:
     return cleaned
 
 
-from a2ui.schema import A2uiCatalog, VERSION_0_9
-
-
 class TestPromptExamplesValidity:
     """Verifies that all prompt generator example blocks compile with zero syntax/parser errors."""
 
     @pytest.fixture(autouse=True)
     def setup_catalog(self):
-        self.catalog = A2uiCatalog(
-            version=VERSION_0_9,
-            name="test_catalog",
-            s2c_schema={},
-            common_types_schema={},
+        self.catalog = Catalog.from_json(
+            protocol_version=VERSION_0_9,
+            catalog_id="test_catalog",
             catalog_schema={
                 "catalogId": "test_catalog",
                 "components": {
@@ -119,35 +113,33 @@ class TestPromptExamplesValidity:
 
     def test_atom_prompt_generator_examples(self):
         """Verifies Atom format examples parse cleanly."""
-        examples = _extract_a2ui_examples(ATOM_RULES)
-        assert len(examples) > 0, "No <a2ui> examples found in ATOM_RULES"
+        # The base rules of a single-catalog format are the fixed Atom rules.
+        rules = AtomFormat([self.catalog]).prompt_generator.generate_base_rules()
+        examples = _extract_a2ui_examples(rules)
+        assert len(examples) > 0, "No <a2ui> examples found in the Atom base rules"
 
-        compiler = AtomCompiler(catalog=self.catalog)
+        compiler = AtomCompiler([self.catalog])
         for i, example in enumerate(examples):
             try:
                 clean_ex = example.strip()
                 if clean_ex.startswith("```"):
                     clean_ex = re.sub(r"^```[a-z]*\n?", "", clean_ex)
                     clean_ex = re.sub(r"\n?```$", "", clean_ex)
-                parsed = compiler.compile(clean_ex)
+                raw_parsed = compiler.compile(clean_ex)
                 assert isinstance(
-                    parsed, dict
-                ), f"Atom Example {i+1} returned non-dict payload"
+                    raw_parsed, list
+                ), f"Atom Example {i+1} returned non-list payload"
+                assert raw_parsed, f"Atom Example {i+1} returned empty message list"
                 components = []
-                if "createSurface" in parsed:
-                    create_surface = parsed["createSurface"]
-                    assert isinstance(
-                        create_surface, dict
-                    ), f"createSurface must be a dict in Atom Example {i+1}"
-                    if "components" in create_surface:
-                        components.extend(create_surface["components"])
-                if "updateComponents" in parsed:
-                    update_components = parsed["updateComponents"]
-                    assert isinstance(
-                        update_components, dict
-                    ), f"updateComponents must be a dict in Atom Example {i+1}"
-                    if "components" in update_components:
-                        components.extend(update_components["components"])
+                for parsed in to_message_dicts(raw_parsed):
+                    for op in ("createSurface", "updateComponents"):
+                        if op not in parsed:
+                            continue
+                        body = parsed[op]
+                        assert isinstance(
+                            body, dict
+                        ), f"{op} must be a dict in Atom Example {i+1}"
+                        components.extend(body.get("components", []))
                 assert len(components) > 0, f"Atom Example {i+1} compiled 0 components"
                 for comp in components:
                     assert isinstance(
@@ -161,21 +153,24 @@ class TestPromptExamplesValidity:
 
     def test_express_prompt_generator_examples(self):
         """Verifies Express format examples parse cleanly."""
-        examples = _extract_a2ui_examples(EXPRESS_RULES)
-        compiler = ExpressCompiler(catalog=self.catalog)
+        # The base rules of a single-catalog format are the fixed Express rules.
+        rules = ExpressFormat([self.catalog]).prompt_generator.generate_base_rules()
+        examples = _extract_a2ui_examples(rules)
+        compiler = ExpressCompiler([self.catalog])
         for i, example in enumerate(examples):
             try:
                 clean_ex = example.strip()
                 if clean_ex.startswith("```"):
                     clean_ex = re.sub(r"^```[a-z]*\n?", "", clean_ex)
                     clean_ex = re.sub(r"\n?```$", "", clean_ex)
-                parsed = compiler.compile(clean_ex)
+                raw_parsed = compiler.compile(clean_ex)
                 assert isinstance(
-                    parsed, list
+                    raw_parsed, list
                 ), f"Express Example {i+1} returned non-list payload"
                 assert (
-                    len(parsed) > 0
+                    len(raw_parsed) > 0
                 ), f"Express Example {i+1} returned empty message list"
+                parsed = to_message_dicts(raw_parsed)
                 components = []
                 for msg in parsed:
                     assert isinstance(

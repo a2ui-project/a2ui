@@ -16,12 +16,12 @@
 
 import {describe, test, expect} from 'vitest';
 import {A2uiGenerator} from '../../../src/processor/generator.js';
-import {CatalogConfig} from '../../../src/processor/catalog_config.js';
+import {CatalogConfig} from '../../../src/processor/catalog-config.js';
 import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 import {A2uiCatalogError, A2uiValidationError} from '../../../src/errors.js';
-import {V10RendererCapabilities} from '../../../src/internal/web_core.js';
+import {V10RendererCapabilities} from '../../../src/internal/web-core.js';
 
-const basicCatalogV10 = await loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('v1.0');
 
 describe('A2uiGenerator', () => {
   const mockCapabilities: V10RendererCapabilities = {

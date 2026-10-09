@@ -13,21 +13,18 @@
 # limitations under the License.
 
 from . import constants as constants
-from .catalog import A2uiCatalog, CatalogConfig
+from .catalog import CatalogConfig, load_examples
 from .catalog_provider import (
     A2uiCatalogProvider,
     FileSystemCatalogProvider,
     InMemoryCatalogProvider,
 )
-from .common_modifiers import remove_strict_validation
 from .constants import (
+    A2UI_CLIENT_CAPABILITIES_KEY,
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
-    A2UI_CLIENT_CAPABILITIES_KEY,
-    BASE_SCHEMA_URL,
     CATALOG_COMPONENTS_KEY,
     CATALOG_ID_KEY,
-    CATALOG_SCHEMA_KEY,
     VERSION_0_8,
     VERSION_0_9,
     VERSION_0_9_1,
@@ -35,15 +32,12 @@ from .constants import (
 )
 
 __all__ = [
+    "A2UI_CLIENT_CAPABILITIES_KEY",
     "A2UI_CLOSE_TAG",
     "A2UI_OPEN_TAG",
-    "A2UI_CLIENT_CAPABILITIES_KEY",
-    "A2uiCatalog",
     "A2uiCatalogProvider",
-    "BASE_SCHEMA_URL",
     "CATALOG_COMPONENTS_KEY",
     "CATALOG_ID_KEY",
-    "CATALOG_SCHEMA_KEY",
     "CatalogConfig",
     "FileSystemCatalogProvider",
     "InMemoryCatalogProvider",
@@ -52,5 +46,5 @@ __all__ = [
     "VERSION_0_9_1",
     "VERSION_1_0",
     "constants",
-    "remove_strict_validation",
+    "load_examples",
 ]

@@ -77,6 +77,45 @@ void main() {
         expect(isCatalogVersionCompatible(catalog, message), isFalse);
       });
     }
+
+    group('an unversioned catalog', () {
+      test('serves pre-v1.0 surfaces', () {
+        for (final message in ['v0.8', 'v0.9', 'v0.9.1', '0.9']) {
+          expect(isCatalogVersionCompatible(null, message), isTrue,
+              reason: message);
+        }
+      });
+
+      test('does not serve v1.0 or later surfaces', () {
+        for (final message in ['v1.0', '1.0.0', 'v1.1', 'v2.0']) {
+          expect(isCatalogVersionCompatible(null, message), isFalse,
+              reason: message);
+        }
+      });
+
+      test('does not serve a custom identifier or an empty version', () {
+        expect(isCatalogVersionCompatible(null, 'custom'), isFalse);
+        expect(isCatalogVersionCompatible(null, ''), isFalse);
+      });
+    });
+  });
+
+  group('isVersionAtLeast', () {
+    test('accepts the minimum and later versions in any spelling', () {
+      expect(isVersionAtLeast('v1.0', 'v1.0'), isTrue);
+      expect(isVersionAtLeast('1.0', 'v1.0'), isTrue);
+      expect(isVersionAtLeast('1.0.0', 'v1.0'), isTrue);
+      expect(isVersionAtLeast('v1.2', 'v1.0'), isTrue);
+      expect(isVersionAtLeast('2.0', 'v1.0'), isTrue);
+    });
+
+    test('rejects earlier, null, and non-semantic versions', () {
+      expect(isVersionAtLeast('v0.9', 'v1.0'), isFalse);
+      expect(isVersionAtLeast('v0.9.1', 'v1.0'), isFalse);
+      expect(isVersionAtLeast(null, 'v1.0'), isFalse);
+      expect(isVersionAtLeast('custom', 'v1.0'), isFalse);
+      expect(isVersionAtLeast('', 'v1.0'), isFalse);
+    });
   });
 
   group('compareVersions', () {

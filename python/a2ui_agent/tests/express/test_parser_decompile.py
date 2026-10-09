@@ -28,12 +28,10 @@ conformance suites leave to the SDK implementation:
 import json
 import os
 import unittest
+
 from a2ui.core import Catalog
-from a2ui.schema import A2uiCatalog, VERSION_1_0
-
-from a2ui.inference_formats.experimental.express.compiler import ExpressCompiler
-from a2ui.inference_formats.experimental.express.parser import ExpressParser
-
+from a2ui.inference_formats import to_message_dicts
+from a2ui.inference_formats.experimental.express import ExpressCompiler, ExpressParser
 from a2ui.schema.utils import find_repo_root, get_spec_dir
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
@@ -50,16 +48,16 @@ class TestExpressParser(unittest.TestCase):
         self.catalog_path = CATALOG_PATH
         with open(self.catalog_path, "r", encoding="utf-8") as f:
             catalog_dict = json.load(f)
-        self.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
+        self.catalog = Catalog.from_json(catalog_dict, protocol_version="1.0")
 
     def test_string_quoting_and_escaping(self):
         """Verifies parsing, compilation, and decompilation of various string quoting forms."""
-        compiler = ExpressCompiler(self.catalog)
-        decompiler = ExpressParser(self.catalog)
+        compiler = ExpressCompiler([self.catalog])
+        decompiler = ExpressParser([self.catalog])
 
         def get_compiled_text(dsl_body: str) -> str:
             dsl = f"root = Column([t1])\nt1 = Text({dsl_body})"
-            res = compiler.compile(dsl)[0]
+            res = to_message_dicts(compiler.compile(dsl))[0]
             return res["createSurface"]["components"][1]["text"]
 
         # 1. Standard Single-Quoted Strings & Escaping
@@ -136,7 +134,7 @@ class TestExpressParser(unittest.TestCase):
         with self.assertRaises(SyntaxError):
             compiler.compile(incomplete_dsl)
 
-        res_partial = compiler.compile(incomplete_dsl, is_final=False)
+        res_partial = to_message_dicts(compiler.compile(incomplete_dsl, is_final=False))
         self.assertEqual(res_partial[0]["updateDataModel"]["value"]["foo"], 123)
         self.assertNotIn("bar", res_partial[0]["updateDataModel"]["value"])
 
@@ -192,7 +190,7 @@ class TestExpressParser(unittest.TestCase):
 
     def test_has_format_content_and_unwrap_tags(self):
         """Test has_format_content checks and unwrap tag tokenization."""
-        parser = ExpressParser(self.catalog)
+        parser = ExpressParser([self.catalog])
         self.assertTrue(
             parser.has_format_content("<a2ui>root = Text('Hi')</a2ui>", complete=True)
         )

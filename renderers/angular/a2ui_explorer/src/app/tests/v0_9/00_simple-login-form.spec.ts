@@ -35,7 +35,7 @@ describe('Example: Simple Login Form', () => {
   it('should dispatch login_submitted action with the form contents on button click', async () => {
     const component = fixture.componentInstance;
 
-    const inputs = fixture.nativeElement.querySelectorAll('input') as NodeListOf<HTMLInputElement>;
+    const inputs = getCanvas().querySelectorAll('input') as NodeListOf<HTMLInputElement>;
     expect(inputs.length).toBeGreaterThanOrEqual(2);
 
     inputs[0].value = 'testuser';

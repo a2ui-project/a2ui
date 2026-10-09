@@ -14,20 +14,23 @@
 
 """Parser utilities to extract and compile A2UI Atom S-Expressions from LLM responses."""
 
-from typing import Any
+from collections.abc import Sequence
+
+from google.adk.utils.feature_decorator import experimental
+
 from a2ui.core import CatalogApi
-from a2ui.parser import Parser, ResponsePart
-from a2ui.schema import A2uiCatalog
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats._shared import check_mixed_catalogs
+from a2ui.parser import (
+    A2uiCompilationError,
+    A2uiCompilationParseError,
+    A2uiCompilationValidationError,
+    Parser,
+    ResponsePart,
+)
+from a2ui.parser.lexer import BlockLexer
+from a2ui.schema.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 
-try:
-    from google.adk.utils.feature_decorator import experimental
-except ImportError:
-
-    def experimental(cls):
-        return cls
-
-
-from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG, A2UI_INFERENCE_CLOSE_TAG
 from .compiler import AtomCompiler
 from .decompiler import AtomDecompiler
 
@@ -37,19 +40,33 @@ class AtomParser(Parser):
     """Parses, unwraps, compiles, and decompiles A2UI Atom S-expression responses.
 
     Attributes:
-        catalog: The component catalog containing element definitions.
+        catalogs: The sequence of active catalogs.
         surface_id: The target surface identifier.
     """
 
-    def __init__(self, catalog: CatalogApi | A2uiCatalog, surface_id: str = "main"):
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi],
+        surface_id: str = "main",
+    ):
         """Initializes an AtomParser instance.
 
         Args:
-            catalog: The component catalog containing element definitions.
+            catalogs: A sequence of catalogs containing element definitions.
             surface_id: The target surface identifier. Defaults to "main".
+
+        Raises:
+            A2uiCatalogError: If no catalog is given, two catalogs share an
+                ID, the catalogs target different protocol versions, or there
+                are several catalogs and they target a version before v1.0.
         """
-        self.catalog = catalog
+        self._catalogs = check_mixed_catalogs(catalogs)
         self.surface_id = surface_id
+
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the catalogs the parser holds, in the order it received them."""
+        return list(self._catalogs)
 
     def has_format_content(self, content: str, *, complete: bool = False) -> bool:
         """Determines whether content contains Atom format sentinel tags.
@@ -77,8 +94,6 @@ class AtomParser(Parser):
         Returns:
             A list of tokenized response parts.
         """
-        from a2ui.parser.lexer import BlockLexer
-
         lexer = BlockLexer(
             open_tag=A2UI_INFERENCE_OPEN_TAG,
             close_tag=A2UI_INFERENCE_CLOSE_TAG,
@@ -89,29 +104,32 @@ class AtomParser(Parser):
 
     def compile(
         self, format_content: str, *, is_final: bool = True
-    ) -> list[dict[str, Any]]:
-        """Compiles raw Atom S-expression syntax into structured A2UI JSON messages.
+    ) -> list[AgentToRendererMessage]:
+        """Compiles raw Atom S-expression syntax into structured A2UI messages.
 
         Args:
             format_content: The raw Atom format text string to compile.
-            is_final: Whether this is the final stream chunk.
+            is_final: Whether this is the final stream chunk. Atom compiles
+                each complete block, so the flag does not change the result.
 
         Returns:
-            A list of compiled A2UI JSON surface update payloads.
+            A list of compiled AgentToRendererMessage payloads.
 
         Raises:
             A2uiCompilationError: If compilation or token parsing fails.
         """
-        from a2ui.parser.errors import A2uiCompilationError
-
-        compiler = AtomCompiler(self.catalog)
+        del is_final  # Part of the Parser interface; see Args.
         try:
-            compiled_json = compiler.compile(
-                format_content, surface_id=self.surface_id, is_final=is_final
+            return AtomCompiler(self._catalogs).compile(
+                format_content, surface_id=self.surface_id
             )
-            return [compiled_json]
         except Exception as e:
-            raise A2uiCompilationError(
+            err_cls = A2uiCompilationError
+            if isinstance(e, SyntaxError):
+                err_cls = A2uiCompilationParseError
+            elif isinstance(e, ValueError):
+                err_cls = A2uiCompilationValidationError
+            raise err_cls(
                 message=str(e),
                 raw_content=format_content,
                 help_message=(
@@ -119,16 +137,16 @@ class AtomParser(Parser):
                 ),
             ) from e
 
-    def decompile(self, val: dict[str, Any]) -> str:
-        """Decompiles a structured A2UI JSON payload into Atom S-expression syntax.
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
+        """Decompiles structured A2UI messages into Atom S-expression syntax.
 
         Args:
-            val: The A2UI JSON message payload dictionary.
+            a2ui_payload: A sequence of A2UI AgentToRendererMessage payloads.
 
         Returns:
             The decompiled Atom S-expression text.
         """
-        return AtomDecompiler(self.catalog).decompile(val)
+        return AtomDecompiler(self._catalogs).decompile(a2ui_payload)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps decompiled Atom S-expression blocks within <a2ui> sentinel tags.
@@ -139,4 +157,4 @@ class AtomParser(Parser):
         Returns:
             The formatted text block enclosed in sentinel tags.
         """
-        return AtomDecompiler(self.catalog).wrap_decompiled_blocks(blocks)
+        return AtomDecompiler(self._catalogs).wrap_decompiled_blocks(blocks)

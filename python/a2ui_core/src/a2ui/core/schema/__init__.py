@@ -34,6 +34,38 @@ class A2uiProtocolVersion(str, Enum):
 
 ProtocolVersion = A2uiProtocolVersion
 
+# Re-exports from primary schema namespace for backwards compatibility
+from .v0_9.common_types import *
+from .v0_9.constants import *
+# The envelope names (`AgentToRendererMessage`, `A2uiMessage` and the like)
+# are left out: the multi-version unions below define them.
+from .v0_9.server_to_client import (
+    A2uiMessageListWrapper,
+    Component,
+    ComponentsList,
+    CreateSurface,
+    CreateSurfaceMessage,
+    DeleteSurface,
+    DeleteSurfaceMessage,
+    UpdateComponents,
+    UpdateComponentsMessage,
+    UpdateDataModel,
+    UpdateDataModelMessage,
+)
+from .v0_9.client_to_server import (
+    A2uiClientActionMessage,
+    A2uiClientDataModel,
+    A2uiClientMessageList,
+    A2uiClientMessageListWrapper,
+    A2uiClientUserActionMessage,
+    A2uiGenericError,
+    A2uiRendererActionMessage,
+    A2uiRendererError,
+    A2uiRendererErrorMessage,
+    A2uiValidationError,
+    ActionPayload,
+)
+from .v0_9.client_capabilities import *
 
 # Multi-version envelope unions (v1.0+ primary terminology)
 AgentToRendererMessage = (
@@ -88,13 +120,6 @@ ClientToServerMessagePayload = RendererToAgentMessagePayload
 A2uiRendererAction = v0_9.A2uiRendererAction
 A2uiClientAction = A2uiRendererAction
 A2uiClientUserAction = A2uiRendererAction
-
-# Re-exports from primary schema namespace for backwards compatibility
-from .v0_9.common_types import *
-from .v0_9.constants import *
-from .v0_9.server_to_client import *
-from .v0_9.client_to_server import *
-from .v0_9.client_capabilities import *
 
 from .agent_to_renderer_schema import (
     get_agent_to_renderer_schema_json,
