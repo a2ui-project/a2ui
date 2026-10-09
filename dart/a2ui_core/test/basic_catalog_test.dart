@@ -80,7 +80,7 @@ void main() {
         'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
       );
       expect(v09.functions.keys.toSet(), _functionNames);
-      expect(v09.protocolVersion, 'v0.9');
+      expect(v09.protocolVersion, A2uiProtocolVersion.v0_9);
     });
 
     test('v1.0 matches the published catalog document', () {
@@ -89,7 +89,7 @@ void main() {
         'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
       );
       expect(v10.functions.keys.toSet(), _functionNames);
-      expect(v10.protocolVersion, '1.0');
+      expect(v10.protocolVersion, A2uiProtocolVersion.v1_0);
     });
 
     test('validators return booleans in v0.9 and results in v1.0', () {

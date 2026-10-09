@@ -51,9 +51,6 @@ const Map<String, String> _reservedKeysExpectedFailures = {
 
 /// Cases in `core/composition_constraints.yaml` expected to fail.
 const Map<String, String> _compositionExpectedFailures = {
-  'test_composition_surface_implicit_parent_container':
-      'The harness reads the case\'s `catalog` map as the catalog document '
-          'itself, which declares no components.',
   'test_composition_unallowed_child_error':
       'The harness reads the case\'s `catalog` map as the catalog document '
           'itself, and does not read its inline `catalogSchema`.',
@@ -63,27 +60,11 @@ const Map<String, String> _compositionExpectedFailures = {
 };
 
 /// Cases in `core/validation_result.yaml` expected to fail.
-const Map<String, String> _validationResultExpectedFailures = {
-  'test_validation_result_boolean_fallback':
-      'The harness reads the case\'s `catalog` map as the catalog document '
-          'itself, which declares no components.',
-  'test_validation_result_dynamic_object_return':
-      'The harness reads the case\'s `catalog` map as the catalog document '
-          'itself, which declares no components.',
-};
+const Map<String, String> _validationResultExpectedFailures = {};
 
 /// Cases in `core/index_function.yaml` expected to fail.
 const Map<String, String> _indexFunctionExpectedFailures = {
-  'test_index_function_in_collection_loop':
-      'The harness reads the case\'s `catalog` map as the catalog document '
-          'itself, which declares no components.',
-  'test_index_function_nested_path':
-      'The harness reads the case\'s `catalog` map as the catalog document '
-          'itself, which declares no components.',
   'test_index_function_outside_loop_error':
-      'The harness reads the case\'s `catalog` map as the catalog document '
-          'itself, which declares no components.',
-  'test_index_function_with_offset':
       'The harness reads the case\'s `catalog` map as the catalog document '
           'itself, which declares no components.',
 };

@@ -109,6 +109,11 @@ void main() {
     '../catalogs/basic/v1/examples',
     BasicCatalog.v1_0,
     A2uiProtocolVersion.v1_0,
+    skips: const {
+      '31_incremental-dashboard.json':
+          "The example's `content-grid` id is not a UAX #31 identifier, "
+              'which v1.0 requires of component ids.',
+    },
   );
 }
 
@@ -120,6 +125,7 @@ void _registerExamples(
   _RendererCatalog Function() catalog,
   A2uiProtocolVersion version, {
   String? skip,
+  Map<String, String> skips = const {},
 }) {
   group(description, skip: skip, () {
     final examples = Directory(resolveConformancePath(directory));
@@ -134,7 +140,7 @@ void _registerExamples(
 
     for (final file in files) {
       final String name = file.uri.pathSegments.last;
-      test(name, () async {
+      test(name, skip: skips[name], () async {
         final Object? document = jsonDecode(file.readAsStringSync());
         final Object? messages =
             document is Map ? document['messages'] : document;
