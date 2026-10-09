@@ -64,6 +64,168 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     assert.strictEqual(basicCatalog.components.size, 18);
   });
 
+  it('renders time-only DateTimeInput without an implicit date and applies time bounds', async () => {
+    const processor = new MessageProcessor([basicCatalog]);
+    processor.processMessages([
+      {
+        version: 'v1.0',
+        createSurface: {surfaceId: 's-time-only', catalogId: basicCatalog.id},
+      },
+      {
+        version: 'v1.0',
+        updateDataModel: {surfaceId: 's-time-only', path: '/time', value: '09:30'},
+      },
+      {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 's-time-only',
+          components: [
+            {
+              id: 'time',
+              component: 'DateTimeInput',
+              value: {'@path': '/time'},
+              enableTime: true,
+              min: '08:00',
+              max: '17:00',
+            },
+          ],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('s-time-only')!;
+    const el = document.createElement('a2ui-datetimeinput') as A2uiWebComponentElement;
+    cleanupElements.push(el);
+    document.body.appendChild(el);
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'time');
+    });
+
+    assert.strictEqual(el.querySelector('input[type="date"]'), null);
+    const input = el.querySelector('input[type="time"]') as HTMLInputElement;
+    assert.strictEqual(input.value, '09:30');
+    assert.strictEqual(input.min, '08:00');
+    assert.strictEqual(input.max, '17:00');
+
+    input.value = '10:45';
+    input.dispatchEvent(new Event('change'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(surface.dataModel.get('/time'), '10:45');
+
+    input.value = '18:45';
+    assert.strictEqual(input.checkValidity(), false);
+    input.dispatchEvent(new Event('change'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(surface.dataModel.get('/time'), '18:45');
+  });
+
+  it('keeps DateTimeInput data in sync when a date is outside picker bounds', async () => {
+    const processor = new MessageProcessor([basicCatalog]);
+    processor.processMessages([
+      {
+        version: 'v1.0',
+        createSurface: {surfaceId: 's-date-only', catalogId: basicCatalog.id},
+      },
+      {
+        version: 'v1.0',
+        updateDataModel: {surfaceId: 's-date-only', path: '/date', value: '2026-01-15'},
+      },
+      {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 's-date-only',
+          components: [
+            {
+              id: 'date',
+              component: 'DateTimeInput',
+              value: {'@path': '/date'},
+              enableDate: true,
+              min: '2026-01-01',
+              max: '2026-01-31',
+            },
+          ],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('s-date-only')!;
+    const el = document.createElement('a2ui-datetimeinput') as A2uiWebComponentElement;
+    cleanupElements.push(el);
+    document.body.appendChild(el);
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'date');
+    });
+
+    const input = el.querySelector('input[type="date"]') as HTMLInputElement;
+    assert.strictEqual(input.min, '2026-01-01');
+    assert.strictEqual(input.max, '2026-01-31');
+    input.value = '2026-07-04';
+    input.dispatchEvent(new Event('change'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(surface.dataModel.get('/date'), '2026-07-04');
+  });
+
+  it('applies date-time bounds to the selected date boundary', async () => {
+    const processor = new MessageProcessor([basicCatalog]);
+    processor.processMessages([
+      {
+        version: 'v1.0',
+        createSurface: {surfaceId: 's-date-bounds', catalogId: basicCatalog.id},
+      },
+      {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 's-date-bounds',
+          components: [
+            {
+              id: 'date_time',
+              component: 'DateTimeInput',
+              value: '2025-06-15T12:00:00',
+              enableDate: true,
+              enableTime: true,
+              min: '2025-06-01T09:00:00Z',
+              max: '2025-06-30T17:00:00Z',
+            },
+            {
+              id: 'date_time_at_min',
+              component: 'DateTimeInput',
+              value: '2025-06-01T10:00:00',
+              enableDate: true,
+              enableTime: true,
+              min: '2025-06-01T09:00:00Z',
+              max: '2025-06-30T17:00:00Z',
+            },
+          ],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('s-date-bounds')!;
+    const el = document.createElement('a2ui-datetimeinput') as A2uiWebComponentElement;
+    cleanupElements.push(el);
+    document.body.appendChild(el);
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 'date_time');
+    });
+
+    const dateInput = el.querySelector('input[type="date"]') as HTMLInputElement;
+    const timeInput = el.querySelector('input[type="time"]') as HTMLInputElement;
+    assert.strictEqual(dateInput.min, '2025-06-01');
+    assert.strictEqual(dateInput.max, '2025-06-30');
+    assert.strictEqual(timeInput.min, '');
+    assert.strictEqual(timeInput.max, '');
+
+    const boundaryEl = document.createElement('a2ui-datetimeinput') as A2uiWebComponentElement;
+    cleanupElements.push(boundaryEl);
+    document.body.appendChild(boundaryEl);
+    await asyncUpdate(boundaryEl, e => {
+      e.context = new ComponentContext(surface, 'date_time_at_min');
+    });
+    const boundaryTime = boundaryEl.querySelector('input[type="time"]') as HTMLInputElement;
+    assert.strictEqual(boundaryTime.min, '09:00');
+    assert.strictEqual(boundaryTime.max, '');
+  });
+
   it('selects v1.0 basicCatalog by default when createSurface omits catalogId and preserves metadata', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
