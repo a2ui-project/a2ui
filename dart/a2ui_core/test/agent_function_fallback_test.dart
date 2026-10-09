@@ -45,7 +45,9 @@ Catalog<ComponentApi, FunctionImplementation> _catalog({
 }) =>
     Catalog<ComponentApi, FunctionImplementation>(
       id: 'cat',
-      protocolVersion: protocolVersion,
+      protocolVersion: protocolVersion != null
+          ? A2uiProtocolVersion.tryParseSemVer(protocolVersion)
+          : null,
       components: [MinimalTextApi(), MinimalButtonApi(), MinimalTextFieldApi()],
       functions: [
         _Fn('upper', (args) => (args['value'] as String).toUpperCase()),

@@ -159,7 +159,7 @@ class SurfaceModel<T extends ComponentApi> {
           catalogId: catalog.id,
         );
       }
-      final String? catalogVersion = catalog.protocolVersion;
+      final String? catalogVersion = catalog.protocolVersion?.jsonValue;
       if (protocolVersion != null &&
           !isCatalogVersionCompatible(catalogVersion, protocolVersion)) {
         final described = catalogVersion == null

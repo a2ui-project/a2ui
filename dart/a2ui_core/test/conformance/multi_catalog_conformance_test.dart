@@ -81,7 +81,7 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
           if (functionName != null)
             _RecordingFunction(functionName, id, selections),
         ],
-        protocolVersion: version,
+        protocolVersion: A2uiProtocolVersion.parse(version),
       );
 
   final declared = args['catalogs'] as Map<String, Object?>?;

@@ -108,7 +108,7 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
     id: catalogId,
     components: const [],
     functions: functions,
-    protocolVersion: catalogVersion,
+    protocolVersion: A2uiProtocolVersion.tryParseSemVer(catalogVersion),
   );
   final sent = <RendererToAgentMessage>[];
   final processor = MessageProcessor<ComponentApi>(

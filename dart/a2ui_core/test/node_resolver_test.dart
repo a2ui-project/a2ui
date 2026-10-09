@@ -103,7 +103,7 @@ class _Opaque {
 Catalog<ComponentApi, FunctionImplementation> makeCatalog() {
   return Catalog<ComponentApi, FunctionImplementation>(
     id: 'node-test-catalog',
-    protocolVersion: 'v0.9',
+    protocolVersion: A2uiProtocolVersion.v0_9,
     components: [
       _TestComponentApi(
         'Text',
@@ -162,7 +162,7 @@ TestSetup setup() {
 TestSetup setupPair() {
   final catalog = Catalog<ComponentApi, FunctionImplementation>(
     id: 'pair-catalog',
-    protocolVersion: 'v0.9',
+    protocolVersion: A2uiProtocolVersion.v0_9,
     components: [
       ComponentApi(
         name: 'Pair',
@@ -334,7 +334,7 @@ void processorContractTests() {
     test('a validated wire reference mounts its child without a marker', () {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'wire-ref-test',
-        protocolVersion: 'v0.9',
+        protocolVersion: A2uiProtocolVersion.v0_9,
         components: [
           ...makeCatalog().components.values.where((api) => api.name != 'Card'),
           ComponentApi(
@@ -377,7 +377,7 @@ void processorContractTests() {
         // surfaces as a node state instead of a rejected batch.
         final catalog = Catalog<ComponentApi, FunctionImplementation>(
           id: 'structural-test',
-          protocolVersion: 'v0.9',
+          protocolVersion: A2uiProtocolVersion.v0_9,
           components: [
             ComponentApi(
               name: 'Column',
@@ -432,7 +432,7 @@ void unresolvedReferenceTests() {
       );
       return Catalog(
         id: 'nested-reference-test',
-        protocolVersion: 'v0.9',
+        protocolVersion: A2uiProtocolVersion.v0_9,
         components: [
           ...makeCatalog().components.values,
           ComponentApi(
@@ -798,7 +798,7 @@ void snapshotOwnershipTests() {
       () {
         final catalog = Catalog<ComponentApi, FunctionImplementation>(
           id: 'snapshot-test',
-          protocolVersion: 'v0.9',
+          protocolVersion: A2uiProtocolVersion.v0_9,
           components: [
             ComponentApi(
               name: 'Literal',
@@ -1123,7 +1123,7 @@ void main() {
       () {
         final catalog = Catalog<ComponentApi, FunctionImplementation>(
           id: 'edge-test',
-          protocolVersion: 'v0.9',
+          protocolVersion: A2uiProtocolVersion.v0_9,
           components: [
             ...makeCatalog().components.values,
             ComponentApi(
@@ -1164,7 +1164,7 @@ void main() {
     test('resolves plain arrays of marked component ids', () {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'plain-list-test',
-        protocolVersion: 'v0.9',
+        protocolVersion: A2uiProtocolVersion.v0_9,
         components: [
           ...makeCatalog().components.values,
           ComponentApi(
@@ -1589,7 +1589,7 @@ void main() {
     test('escapes sibling instance ids that mimic template scopes', () {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'scoped-id-test',
-        protocolVersion: 'v0.9',
+        protocolVersion: A2uiProtocolVersion.v0_9,
         components: [
           ...makeCatalog().components.values,
           _TestComponentApi(
@@ -2341,7 +2341,7 @@ void main() {
       final ping = _PingFunction();
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'function-action-catalog',
-        protocolVersion: 'v0.9',
+        protocolVersion: A2uiProtocolVersion.v0_9,
         components: [
           _TestComponentApi(
             'Button',
@@ -2421,7 +2421,7 @@ void main() {
         'reactively', () {
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'join-catalog',
-        protocolVersion: 'v0.9',
+        protocolVersion: A2uiProtocolVersion.v0_9,
         components: makeCatalog().components.values.toList(),
         functions: [_JoinFunction()],
       );

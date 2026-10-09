@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 0.2.1
+
+- Bump dependencies for compatibility with `@a2ui/web_core: ^0.13.0`.
+- Enforce `noImplicitOverride: true` and forbid self-package imports ([#2878](https://github.com/a2ui-project/a2ui/pull/2878)).
+
 ## 0.2.0
 
 - Re-export `MarkdownRenderer`, `MarkdownRendererOptions`, and `MarkdownRendererTagClassMap` directly from `@a2ui/web_core`.

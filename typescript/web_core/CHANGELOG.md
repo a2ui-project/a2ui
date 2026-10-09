@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.13.0
+
 - (v1_0) The basic catalog's `and`, `or` and `not` read a ValidationResult operand by its `valid` member instead of treating every object as truthy, so the v1.0 specification's nested `and(required, or(required, required))` check is false when a field is empty. The v0.9 catalog keeps JavaScript truthiness, since its validators return booleans. `createAndImplementation`, `createOrImplementation` and `createNotImplementation` accept a `truthy` option, and `executeAnd`, `executeOr` and `executeNot` a `truthy` argument.
 - `formatDate` returns an empty string for a date that does not exist, such as `2026-02-30`, instead of rolling it into the next month. `parseTimestamp` returns null when the written fields do not survive parsing.
 
@@ -32,6 +34,14 @@
 - `ExpressionParser` rejects a number literal outside the double range, such as
   `1e999`, with `Number literal is out of range`. It used to return `Infinity`,
   which JSON can't represent.
+- Support non-ASCII Unicode characters in template expressions and data model keys (such as `${señor}`, `${café/precio}`, and `${日本}`) ([#2500](https://github.com/a2ui-project/a2ui/issues/2500), [#2527](https://github.com/a2ui-project/a2ui/pull/2527)).
+- Mitigate ReDoS vulnerabilities in regex validation by introducing a pattern complexity checker (`safe_regex`), instantly rejecting unsafe nested repetitions, and enforcing length limits (256 characters for pattern, 4096 characters for input) ([#2292](https://github.com/a2ui-project/a2ui/issues/2292), [#2366](https://github.com/a2ui-project/a2ui/pull/2366)).
+- (v1_0) Add v1.0 basic catalog custom elements under `@a2ui/web_core/catalogs/basic/v1` and universal runtime exports under `./v1_0/universal` ([#2859](https://github.com/a2ui-project/a2ui/pull/2859)).
+- Enforce `requiresUserActivation` on functions: `openUrl` throws `A2uiExpressionError(USER_ACTIVATION_REQUIRED)` when evaluated passively in a signal binding or without a user activation gesture ([#2859](https://github.com/a2ui-project/a2ui/pull/2859)).
+- Apply accessibility properties (`aria-label`, `aria-description`, `aria-live`, `aria-hidden`) to universal host elements and render validation errors on basic catalog input components ([#2859](https://github.com/a2ui-project/a2ui/pull/2859)).
+- `GenericBinder` action closures now return `Promise<void>` and await async `functionCall` actions, enabling callers to detect when action handling settles ([#2907](https://github.com/a2ui-project/a2ui/pull/2907)).
+- Avoid direct `window.open` property check in `openUrl` to prevent errors in security-restricted environments ([#2974](https://github.com/a2ui-project/a2ui/pull/2974)).
+- Enforce `noImplicitOverride: true` and forbid self-package imports ([#2878](https://github.com/a2ui-project/a2ui/pull/2878)).
 
 ## 0.12.0
 

@@ -2,6 +2,68 @@
 
 ## Unreleased
 
+- `PayloadValidator` takes its rules from the catalog: `Catalog.protocolVersion`
+  (parsed from the document's `protocolVersion`) selects the v1.0 rules for
+  v1.0 and later and the v0.9 rules otherwise, and the embedded
+  `common_types.json` for that version. `protocolVersion` and
+  `commonTypesSchema` become optional overrides, and the validator gains a
+  `config`. `MessageProcessor` no longer forces its v0.9 common types onto
+  each catalog unless a `commonTypesSchema` is passed. Adds
+  `commonTypesForProtocolVersion(A2uiProtocolVersion?)`,
+  `ValidationConfig.allowUnknownElements`, `A2uiValidationError.surfaceId`,
+  and `ComponentApi.allowedParents` / `allowedChildren`.
+- **Breaking:** `Catalog.protocolVersion` is an `A2uiProtocolVersion?` rather
+  than a `String?`. `Catalog.fromJson` reads the document's value as a
+  semantic version (`1.0`, `v1.0` and `1.0.0` all name v1.0; pre-release and
+  build suffixes are ignored) and throws `A2uiCatalogError` for a value it
+  cannot parse or a version this SDK does not implement. `catalogSchema`
+  writes the version back as the bare form the catalog definition schema
+  requires (`1.0`, not `v1.0`). `A2uiProtocolVersion` adds `semverValue` and
+  `tryParseSemVer`. `PayloadValidator.commonTypesForProtocolVersion(String?)`
+  is removed; `PayloadValidator.commonTypesFor(A2uiProtocolVersion)` is the
+  one entry point.
+- The package now embeds both `specification/v0_9/json/common_types.json` and
+  the updated `specification/v1_0/json/common_types.json`. `CommonSchemas` gains
+  `dynamicNumber`, `dynamicStringList`, `dynamicValue`,
+  `accessibilityAttributes`, `checkRule` and `componentCommon`, and the new
+  `CommonSchemasV1` holds the v1.0 shapes keyed on `@path` and `@call`; its
+  `dynamicValue` rejects literal objects with reserved single-`@` keys.
+- **Behavior change:** envelope keys (`id`, `component`, `catalogId`, plus
+  `accessibility` and `metadata` from v1.0) are stripped from every component,
+  and from its schema's requirements, before the schema check. A closed
+  (`additionalProperties: false`) schema using `allOf` now validates, and v1.0
+  component `metadata` is never rejected for being undeclared; from v1.0,
+  `accessibility` and `metadata` are checked against `ComponentCommon`.
+- **Behavior change:** composition constraints. `allowedParents` and
+  `allowedChildren` in a catalog are enforced by `MessageProcessor`, with the
+  surface (`Surface`) as the implicit parent of the surface's root id;
+  violations throw `A2uiValidationError` with code `UNALLOWED_PARENT` or
+  `UNALLOWED_CHILD`, the `surfaceId`, and a JSON Pointer `path` into the
+  message when the offending parent arrived in it.
+- **Behavior change:** `validateComponent` checks every nested function call
+  against the catalog's schema for it, keyed on `@call` for v1.0 catalogs and
+  `call` below that, and rejects calls passing more than 1000 arguments (also
+  checked when `DataContext` evaluates a call). For v1.0 catalogs, a call to a
+  function the catalog does not declare passes with its arguments unchecked,
+  because a renderer forwards it to the agent; below v1.0 it is rejected
+  unless `ValidationConfig.allowUnknownElements`.
+- **Behavior change:** v1.0 catalogs require UAX #31 identifiers for component
+  ids, component and property names, function names and argument names, and
+  reject objects with unrecognized single-`@` keys (code
+  `INVALID_RESERVED_KEY`); `@@name` remains an escaped literal key.
+- **Behavior change:** a `$ref` into a document the SDK holds that names
+  nothing now throws `A2uiCatalogError("Unresolvable schema reference:
+'<ref>'")` instead of silently leaving the subschema unconstrained, and
+  pointers follow array indices (`#/$defs/X/oneOf/0`). A local
+  `#/$defs/<Name>` the catalog does not define falls back to
+  `common_types.json`. A shared type that only the other protocol version's
+  `common_types.json` defines (such as the v1.0 `Child` in a catalog that
+  declares no version) resolves against that document; types both versions
+  define, such as `DataBinding` and `FunctionCall`, always resolve against
+  the catalog's own version, so a v0.9 catalog does not accept `@path` or
+  `@call` shapes.
+- Validation errors carry JSON Pointer `path`s and per-error `errors` details;
+  a dangling reference reports `/components/<index>/children/<n>`.
 - Added `MessageProcessor.getRendererCapabilities(CapabilitiesOptions)`,
   which returns an `A2uiRendererCapabilities` with one entry per requested
   version and raises `A2uiValidationError` for an empty version list. Inline
@@ -109,8 +171,8 @@
   v0.9.1), `V1_0Adapter`, and `VersionAdapterRegistry`, which
   `MessageProcessor` takes as `adapterRegistry`.
 - `Catalog` adds `protocolVersion`, read from the document by
-  `Catalog.fromJson`, which takes a `protocolVersion` fallback for documents
-  that declare none. `catalogSchema` emits it and, from `1.0`, names
+  `Catalog.fromJson`, which takes an `A2uiProtocolVersion` fallback for
+  documents that declare none. `catalogSchema` emits it and, from `1.0`, names
   functions under `@call` instead of `call`.
 - `SurfaceModel` adds `metadata`, from v1.0 `createSurface`.
 - **Breaking:** `SurfaceModel.catalog` is replaced by a nullable
@@ -187,6 +249,14 @@
 - Recognize v1.0 `common_types.json#/$defs/Child` (and `#/$defs/Child`) as a
   single child reference, for dangling-reference and orphan checks and for
   resolution.
+- Add `Catalog.commonTypesSchema` (internal to the package), the embedded
+  `common_types.json` document selected by the catalog's `protocolVersion`
+  (v1.0 for 1.0 and later, v0.9 otherwise, including when undeclared),
+  decoded once per catalog.
+  `Catalog.refMap` and `GenericBinder` resolve `common_types.json#/$defs/...`
+  pointers against it, and `ComponentRefMap` takes the same optional
+  `commonTypes` document, so a v1.0 catalog's shared types (such as the
+  v1.0 `CheckRule`) read the v1.0 definitions rather than the v0.9 default.
 - **Behavior change:** `NodeResolver` now mounts an unmarked string `child`
   and string-array `children`, which graph validation already checked.
   Previously such a catalog validated but rendered its children as plain ids.
@@ -274,30 +344,6 @@
   rejects unknown envelope and body keys, an empty `components` list, and a
   v1.0 `updateDataModel` without `value`. A new oracle test checks the parsers
   against the specification's envelope schemas.
-- `PayloadValidator.commonTypesFor` throws for v1.0, whose common types this
-  package does not embed yet.
-- Added `ValidationResult` and `A2uiReturnType.validationResult` for structured
-  client-side validation outcomes (`valid`, `message`, `code`, `severity`), and
-  exposed `validationResults` alongside `isValid` and `validationErrors` on
-  resolved component properties. `A2uiReturnType.validationResult` is an
-  API-level value; the v0.9 `CommonSchemas.functionCall` wire schema still
-  accepts only the seven v0.9 return types. `ValidationResult.validityOf`
-  exposes the rule the binder uses to read a check result's validity.
-- Fixed `checks` evaluation in `GenericBinder`:
-  - Rules evaluate once during initial binding without a duplicate object-branch
-    pass.
-  - `_subscribe` skips invoking its reactive callback during the initial
-    synchronous pass so rebuilds do not write into stale property maps.
-  - Non-map rule entries emit a `VALIDATION_FAILED` client error on the surface
-    instead of throwing a `TypeError`.
-  - Checkable properties are classified from schema markers or `CheckRule` item
-    structure rather than matching the property name `'checks'`.
-- `ReferenceSchemaReader` resolves external `common_types.json#/$defs/...`
-  pointers against the `common_types.json` document the caller supplies (the
-  embedded v0.9 document by default) so catalogs loaded via `Catalog.fromJson`
-  classify `Checkable`, `DynamicValue`, `Action`, and `ChildList` properties
-  identically to code-constructed catalogs. `extractRefFields` forwards the
-  same optional `commonTypes` document.
 - Harden `ExpressionParser` to clamp scanner bounds at EOF, reject unclosed
   string literals and trailing backslashes with `A2uiExpressionError`, accept
   `@`-prefixed function names (such as `${@index()}` and

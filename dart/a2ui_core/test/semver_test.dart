@@ -100,6 +100,24 @@ void main() {
     });
   });
 
+  group('isVersionAtLeast', () {
+    test('accepts the minimum and later versions in any spelling', () {
+      expect(isVersionAtLeast('v1.0', 'v1.0'), isTrue);
+      expect(isVersionAtLeast('1.0', 'v1.0'), isTrue);
+      expect(isVersionAtLeast('1.0.0', 'v1.0'), isTrue);
+      expect(isVersionAtLeast('v1.2', 'v1.0'), isTrue);
+      expect(isVersionAtLeast('2.0', 'v1.0'), isTrue);
+    });
+
+    test('rejects earlier, null, and non-semantic versions', () {
+      expect(isVersionAtLeast('v0.9', 'v1.0'), isFalse);
+      expect(isVersionAtLeast('v0.9.1', 'v1.0'), isFalse);
+      expect(isVersionAtLeast(null, 'v1.0'), isFalse);
+      expect(isVersionAtLeast('custom', 'v1.0'), isFalse);
+      expect(isVersionAtLeast('', 'v1.0'), isFalse);
+    });
+  });
+
   group('compareVersions', () {
     test('orders by major, minor and patch numerically', () {
       expect(compareVersions('v0.9', 'v1.0'), isNegative);

@@ -41,7 +41,7 @@ class _Fn extends FunctionImplementation {
 Catalog<ComponentApi, FunctionImplementation> _catalog(String id) =>
     Catalog<ComponentApi, FunctionImplementation>(
       id: id,
-      protocolVersion: 'v1.0',
+      protocolVersion: A2uiProtocolVersion.v1_0,
       components: [MinimalTextApi()],
       functions: [
         _Fn('whereAmI', (_, context) => context.dataModel.get('/name')),
@@ -128,7 +128,7 @@ void main() {
   test('isUserActivated reaches the handler', () async {
     final gatedCatalog = Catalog<ComponentApi, FunctionImplementation>(
       id: 'gated',
-      protocolVersion: 'v1.0',
+      protocolVersion: A2uiProtocolVersion.v1_0,
       components: const [],
       functions: [_Gated()],
     );

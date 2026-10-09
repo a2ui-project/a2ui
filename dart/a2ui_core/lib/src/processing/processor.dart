@@ -199,7 +199,8 @@ class MessageProcessor<T extends ComponentApi> {
           protocolVersion: version,
           // Without a config nothing is being validated against the graph,
           // and an undeclared type is tolerated too.
-          allowUnknownElements: validationConfig?.allowUnknownElements ?? true,
+          config: validationConfig ??
+              const ValidationConfig(allowUnknownElements: true),
         ),
       );
 
@@ -486,7 +487,7 @@ class MessageProcessor<T extends ComponentApi> {
       availableCatalogs: [
         for (final Catalog<T, FunctionImplementation> candidate in catalogs)
           if (isCatalogVersionCompatible(
-            candidate.protocolVersion,
+            candidate.protocolVersion?.jsonValue,
             operation.version.jsonValue,
           ))
             candidate,
@@ -561,7 +562,7 @@ class MessageProcessor<T extends ComponentApi> {
     CreateSurfaceOp operation,
   ) {
     final String messageVersion = operation.version.jsonValue;
-    final String? catalogVersion = catalog.protocolVersion;
+    final String? catalogVersion = catalog.protocolVersion?.jsonValue;
     if (isCatalogVersionCompatible(catalogVersion, messageVersion)) return;
     final declared = catalogVersion == null
         ? 'declares no protocolVersion, so it is pre-v1.0,'
@@ -601,6 +602,30 @@ class MessageProcessor<T extends ComponentApi> {
             (String type, ComponentRefFields fields) =>
                 merged.putIfAbsent(type, () => fields),
           );
+    }
+    return merged;
+  }
+
+  /// The composition constraints of the catalogs [components] draw on,
+  /// merged the way [_refFieldsFor] merges reference fields.
+  Map<String, CompositionRule> _compositionRulesFor(
+    SurfaceModel<T> surface,
+    Iterable<Map<String, Object?>> components,
+  ) {
+    final ids = <String>{
+      if (surface.defaultCatalog case final catalog?) catalog.id,
+      for (final Map<String, Object?> component in components)
+        if (component['catalogId'] case final String id) id,
+    };
+    final Iterable<Catalog<T, FunctionImplementation>> involved =
+        ids.map(surface.resolveCatalog);
+
+    final merged = <String, CompositionRule>{};
+    for (final catalog in involved) {
+      extractCompositionRules(catalog).forEach(
+        (String type, CompositionRule rule) =>
+            merged.putIfAbsent(type, () => rule),
+      );
     }
     return merged;
   }
@@ -659,6 +684,23 @@ class MessageProcessor<T extends ComponentApi> {
         defaultRootId: surface.rootId,
       );
     }
+    // Composition constraints (`allowedParents` / `allowedChildren`) over the
+    // surface this batch would leave behind. An edge whose child has not
+    // arrived yet is skipped, so this holds without a config too.
+    final List<Map<String, Object?>> existing = [
+      for (final ComponentModel c in model.all)
+        if (!resolved.any((Map<String, Object?> r) => r['id'] == c.id))
+          c.toJson(),
+    ];
+    checkCompositionConstraints(
+      resolved,
+      refFields,
+      _compositionRulesFor(surface, [...resolved, ...existing]),
+      existing: existing,
+      rootId: surface.rootId,
+      surfaceId: surface.id,
+    );
+
     return (resolved: resolved, refFields: refFields);
   }
 

@@ -97,8 +97,12 @@ class CodegenCommand extends Command<int> {
       return 1;
     }
 
-    final CatalogApi catalog = Catalog.fromJson(catalogJson);
-    final String specVersion = catalog.protocolVersion ?? 'v0.9.1';
+    // Checked on the document, before `Catalog.fromJson` applies its own
+    // version rules, so an unsupported catalog gets this message.
+    final Object? declaredVersion = catalogJson['protocolVersion'];
+    final String specVersion = declaredVersion is String
+        ? declaredVersion
+        : 'v0.9.1';
     final String cleanVersion = specVersion.startsWith('v')
         ? specVersion.substring(1)
         : specVersion;
@@ -111,6 +115,7 @@ class CodegenCommand extends Command<int> {
       return 1;
     }
 
+    final CatalogApi catalog = Catalog.fromJson(catalogJson);
     final AnalysedCatalog analysed = CatalogAnalyzer.analyze(catalog);
 
     final String outPath = p.canonicalize(outArg);
