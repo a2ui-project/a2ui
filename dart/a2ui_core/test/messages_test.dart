@@ -821,7 +821,6 @@ void main() {
           'call': 'customOp',
           'args': {'x': 1},
           'returnType': 'string',
-          'catalogId': 'https://example.com/catalog.json',
         });
       });
 
@@ -922,7 +921,6 @@ void main() {
             'call': 'openUrl',
             'args': {'url': 'https://example.com'},
             'returnType': 'any',
-            'catalogId': 'cat1',
           },
         });
       });

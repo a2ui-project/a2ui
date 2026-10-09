@@ -334,7 +334,7 @@ void main() {
       expect(resolver.rootNode.peek()!.state, NodeState.unknownType);
     });
 
-    test('runs a function call in the catalog it names', () {
+    test('runs a function call in the default catalog before v1.0', () {
       process([
         {
           'id': 'root',
@@ -347,8 +347,9 @@ void main() {
         },
       ]);
 
+      // A call's catalogId is honored only from v1.0.
       final Object? text = resolver.rootNode.peek()!.props.peek()['text'];
-      expect((text! as ResolvedBinding<Object?>).value, 'from second');
+      expect((text! as ResolvedBinding<Object?>).value, 'Hello');
     });
 
     test('runs a function call without a catalogId in the default', () {

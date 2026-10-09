@@ -23,6 +23,7 @@ import '../primitives/semver.dart';
 import '../primitives/uax31.dart';
 import 'component_graph.dart' show maxFunctionCallArgs;
 import 'component_refs.dart';
+import 'nested_calls.dart';
 import 'schema_resolution.dart';
 import 'validation_config.dart';
 
@@ -152,21 +153,25 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     A2uiProtocolVersion? protocolVersion,
     Map<String, Object?>? commonTypesSchema,
     this.config = ValidationConfig.strict,
-  })  : protocolVersion = protocolVersion ?? A2uiProtocolVersion.v0_9,
-        _v1 = _isV1(catalog),
+  })  : protocolVersion = protocolVersion ??
+            catalog.protocolVersion ??
+            A2uiProtocolVersion.v0_9,
+        _v1 = (protocolVersion ?? catalog.protocolVersion)
+                ?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+            false,
         _fallbackCommonTypes = commonTypesSchema == null
             ? commonTypesFor(
-                _isV1(catalog)
+                ((protocolVersion ?? catalog.protocolVersion)
+                            ?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+                        false)
                     ? A2uiProtocolVersion.v0_9
                     : A2uiProtocolVersion.v1_0,
               )
             : null,
         commonTypesSchema = commonTypesSchema ??
-            documents.commonTypesForProtocolVersion(catalog.protocolVersion);
-
-  /// Whether [catalog] declares v1.0 or later.
-  static bool _isV1(Catalog<Object?, Object?> catalog) =>
-      catalog.protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
+            documents.commonTypesForProtocolVersion(
+              protocolVersion ?? catalog.protocolVersion,
+            );
 
   /// The `common_types.json` document this package publishes for [version].
   ///
@@ -246,6 +251,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// does not match its schema. Throws [A2uiCatalogError] if the schema holds
   /// a reference that names nothing.
   void validateComponent(Map<String, Object?> component) {
+    component = _jsonMap(component);
     final Object? id = component['id'];
     if (_v1 && id is String && !isValidUax31Identifier(id)) {
       throw A2uiValidationError(
@@ -262,9 +268,13 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         details: component,
       );
     }
+    if (_v1) {
+      for (final MapEntry<String, Object?> entry in component.entries) {
+        _checkCallEnvelopes(entry.value, component['id']);
+      }
+    }
     final Schema? schema = _resolvedComponentSchemas[type];
-    if (schema == null) {
-      if (config.allowUnknownElements) return;
+    if (schema == null && !config.allowUnknownElements) {
       throw A2uiValidationError(
         "Catalog '${catalog.id}' declares no component named '$type'.",
         path: '/component',
@@ -272,19 +282,34 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       );
     }
 
-    final Set<String> declared = _declaredProperties(schema.value);
+    final Object? rawCatalogId = component['catalogId'];
+    if (rawCatalogId != null && rawCatalogId is! String) {
+      throw A2uiValidationError(
+        "Component '$id' has a non-string 'catalogId'.",
+        path: '/catalogId',
+        details: component,
+      );
+    }
+
+    final Set<String> declared =
+        schema == null ? const {} : _declaredProperties(schema.value);
     final List<String> envelopeKeys = _v1 ? _v1EnvelopeKeys : _v0_9EnvelopeKeys;
     final target = <String, Object?>{
       for (final MapEntry<String, Object?> entry in component.entries)
-        if (!envelopeKeys.contains(entry.key) ||
-            (_v1CommonEnvelopeTypes.containsKey(entry.key) &&
-                declared.contains(entry.key)))
+        if (!envelopeKeys.contains(entry.key) || declared.contains(entry.key))
           entry.key: entry.value,
     };
 
     // Calls and reserved keys first, so their errors name the call rather
     // than the alternative of a dynamic type that failed to match.
-    _validateNested(target, '');
+    _validateNested(
+      target,
+      '',
+      componentId: component['id'],
+      componentCatalogId: component['catalogId'],
+    );
+
+    if (schema == null) return;
 
     _throwOnErrors(
       Schema.fromMap(
@@ -303,7 +328,14 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       final Object? value = component[key];
       // `metadata.extensions` holds arbitrary vendor JSON, so only
       // `accessibility` carries dynamic values to walk.
-      if (key == 'accessibility') _validateNested(value, '/$key');
+      if (key == 'accessibility') {
+        _validateNested(
+          value,
+          '/$key',
+          componentId: component['id'],
+          componentCatalogId: component['catalogId'],
+        );
+      }
       _throwOnErrors(
         _resolvedEnvelopeSchemas[key]!.validateSync(value),
         "Component '$id' has an invalid '$key'",
@@ -349,25 +381,67 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     Map<String, Object?> args, {
     String path = '',
   }) {
+    args = _jsonMap(args);
+    if (_v1) {
+      _checkCallEnvelopes(<String, Object?>{'@call': name, 'args': args});
+    }
     _checkCallShape(name, args, path);
+    for (final MapEntry<String, Object?> arg in args.entries) {
+      _validateNested(
+        arg.value,
+        path.isEmpty
+            ? '/args/${_escape(arg.key)}'
+            : '$path/args/${_escape(arg.key)}',
+      );
+    }
+    _checkArgs(name, args, path: path);
+  }
 
+  /// Checks [args] against [catalog]'s argument schema for [name], leaving
+  /// the calls nested in [args] unchecked.
+  ///
+  /// For `MessageProcessor`, which has already checked every call's names
+  /// through [validateComponent] and checks each nested call against the
+  /// catalog it resolves to. [componentId] names the component the call is
+  /// nested in, for the error message.
+  ///
+  /// Throws [A2uiValidationError] if the catalog declares no such function or
+  /// the arguments do not match its schema.
+  @internal
+  void validateFunctionArgs(
+    String name,
+    Map<String, Object?> args, {
+    Object? componentId,
+  }) =>
+      _checkArgs(name, _jsonMap(args), componentId: componentId);
+
+  void _checkArgs(
+    String name,
+    Map<String, Object?> args, {
+    Object? componentId,
+    String? path,
+  }) {
+    final where = componentId == null ? '' : "In component '$componentId': ";
     final Schema? schema = _resolvedFunctionSchemas[name];
     if (schema == null) {
-      if (_v1 || config.allowUnknownElements) return;
+      if (!_v1 && config.allowUnknownElements) return;
       throw A2uiValidationError(
-        "Catalog '${catalog.id}' declares no function named '$name'.",
+        "${where}Catalog '${catalog.id}' declares no function named '$name'.",
         path: path,
         details: args,
       );
     }
 
-    _throwOnErrors(
-      schema.validateSync(args),
-      "Call to '$name' does not match the argument schema in catalog "
-      "'${catalog.id}'",
-      args,
-      path: path,
-    );
+    final List<ValidationError> errors = schema.validateSync(args);
+    if (errors.isNotEmpty) {
+      throw A2uiValidationError(
+        "${where}Call to '$name' does not match the argument schema in "
+        "catalog '${catalog.id}': "
+        '${errors.map((e) => e.toErrorString()).join('; ')}',
+        path: path,
+        details: args,
+      );
+    }
   }
 
   /// Checks a surface's theme against [catalog]'s theme schema.
@@ -433,10 +507,20 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// properties are named, and once an object is read as a call the walk
   /// descends into its argument values only, so an argument named `call` is
   /// an argument.
-  void _validateNested(Object? value, String path) {
+  void _validateNested(
+    Object? value,
+    String path, {
+    Object? componentId,
+    Object? componentCatalogId,
+  }) {
     if (value is List) {
       for (var i = 0; i < value.length; i++) {
-        _validateNested(value[i], '$path/$i');
+        _validateNested(
+          value[i],
+          '$path/$i',
+          componentId: componentId,
+          componentCatalogId: componentCatalogId,
+        );
       }
       return;
     }
@@ -470,22 +554,132 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           ),
       };
       final Object? callCatalog = object['catalogId'];
-      if (callCatalog is String &&
-          callCatalog.isNotEmpty &&
-          callCatalog != catalog.id) {
-        // Another catalog's function: only its shape can be checked here.
-        _checkCallShape(name, args, path);
-      } else {
-        validateFunction(name, args, path: path);
-      }
+      final bool runsInThisCatalog = !_v1 ||
+          nestedCallRunsInCatalog(
+            callCatalog,
+            catalog.id,
+            catalogIsDefault: componentCatalogId == null,
+          );
+      _checkCallShape(name, args, path);
+
       for (final MapEntry<String, Object?> arg in args.entries) {
-        _validateNested(arg.value, '$path/args/${_escape(arg.key)}');
+        _validateNested(
+          arg.value,
+          '$path/args/${_escape(arg.key)}',
+          componentId: componentId,
+          componentCatalogId: componentCatalogId,
+        );
+      }
+
+      if (_v1) {
+        if (runsInThisCatalog && !name.startsWith('@')) {
+          _checkArgs(name, args, componentId: componentId, path: path);
+        }
+      } else {
+        _checkArgs(name, args, componentId: componentId, path: path);
       }
       return;
     }
 
     for (final MapEntry<String, Object?> entry in object.entries) {
-      _validateNested(entry.value, '$path/${_escape(entry.key)}');
+      _validateNested(
+        entry.value,
+        '$path/${_escape(entry.key)}',
+        componentId: componentId,
+        componentCatalogId: componentCatalogId,
+      );
+    }
+  }
+
+  /// The one system function v1.0 defines in the reserved `@` namespace.
+  static const String _indexFunction = '@index';
+
+  /// Every call must name a UAX #31 identifier, or `@index`, the one system
+  /// function in the reserved `@` namespace; its argument names must be
+  /// identifiers too, and its `args`, when present, an object. `@index`
+  /// belongs to no catalog, so it may not name a `catalogId`, and it takes
+  /// only an `offset`. Any other call's `catalogId` must be a string.
+  ///
+  /// These checks run before the component schema, so the error names the
+  /// rule a call breaks, and they hold whatever schema the property has.
+  ///
+  /// Throws [A2uiValidationError] for the first call that breaks one.
+  /// [componentId], when given, names the component [node] belongs to.
+  static void _checkCallEnvelopes(Object? node, [Object? componentId]) {
+    if (node is List) {
+      for (final Object? item in node) {
+        _checkCallEnvelopes(item, componentId);
+      }
+      return;
+    }
+    if (node is! Map) return;
+    final Object? name = node['@call'];
+    if (name is String) {
+      final subject = componentId == null
+          ? "Function call '$name'"
+          : "Function call '$name' in component '$componentId'";
+      final Object? args = node['args'];
+      if (args != null && args is! Map) {
+        throw A2uiValidationError(
+          "$subject has non-object 'args'.",
+          details: node,
+        );
+      }
+      if (name.startsWith('@')) {
+        if (name != _indexFunction) {
+          throw A2uiValidationError(
+            "$subject names an unknown system function. The '@' namespace is "
+            "reserved; only '$_indexFunction' is defined.",
+            details: node,
+          );
+        }
+        if (node.containsKey('catalogId')) {
+          throw A2uiValidationError(
+            "$subject names a catalogId, but '$_indexFunction' is a system "
+            'function and belongs to no catalog.',
+            details: node,
+          );
+        }
+        if (args is Map) {
+          for (final Object? argName in args.keys) {
+            if (argName != 'offset') {
+              throw A2uiValidationError(
+                "$subject has unknown argument '$argName'; '$_indexFunction' "
+                "takes only 'offset'.",
+                details: node,
+              );
+            }
+          }
+        }
+      } else {
+        if (!isValidUax31Identifier(name)) {
+          throw A2uiValidationError(
+            '$subject does not name a valid UAX #31 identifier.',
+            details: node,
+          );
+        }
+        final Object? catalogId = node['catalogId'];
+        if (catalogId != null && catalogId is! String) {
+          throw A2uiValidationError(
+            "$subject has a non-string 'catalogId'.",
+            details: node,
+          );
+        }
+        if (args is Map) {
+          for (final Object? argName in args.keys) {
+            if (argName is! String || !isValidUax31Identifier(argName)) {
+              throw A2uiValidationError(
+                "$subject has argument '$argName', which is not a valid "
+                'UAX #31 identifier.',
+                details: node,
+              );
+            }
+          }
+        }
+      }
+    }
+    for (final Object? value in node.values) {
+      _checkCallEnvelopes(value, componentId);
     }
   }
 
@@ -626,9 +820,47 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   Schema _resolve(Map<String, Object?> schema) => Schema.fromMap(
         resolveSchemaRefs(
           schema,
-          catalog.catalogSchema,
+          _referenceDocument,
           commonTypes: commonTypesSchema,
           fallbackCommonTypes: _fallbackCommonTypes,
         ),
       );
+
+  Map<String, Object?> get _referenceDocument {
+    final Map<String, Object?> document = catalog.catalogSchema;
+    if (!_v1) return document;
+    return <String, Object?>{
+      ...document,
+      r'$defs': <String, Object?>{
+        ...?document[r'$defs'] as Map<String, Object?>?,
+        'anyFunction': _anyV1FunctionCall,
+      },
+    };
+  }
+
+  static const Map<String, Object?> _anyV1FunctionCall = {
+    'type': 'object',
+    'properties': {
+      '@call': {
+        'type': 'string',
+        'not': {'const': '@index'},
+      },
+      'args': {'type': 'object'},
+    },
+    'required': ['@call'],
+  };
+
+  static Map<String, Object?> _jsonMap(Map<String, Object?> value) =>
+      _jsonValue(value)! as Map<String, Object?>;
+
+  static Object? _jsonValue(Object? value) => switch (value) {
+        final Map<Object?, Object?> map => <String, Object?>{
+            for (final MapEntry<Object?, Object?> entry in map.entries)
+              '${entry.key}': _jsonValue(entry.value),
+          },
+        final List<Object?> list => <Object?>[
+            for (final Object? item in list) _jsonValue(item),
+          ],
+        _ => value,
+      };
 }

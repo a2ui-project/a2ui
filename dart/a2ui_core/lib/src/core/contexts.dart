@@ -41,6 +41,9 @@ typedef FunctionInvoker = Object? Function(
 typedef CatalogInvokerResolver = FunctionInvoker Function(String catalogId);
 
 /// Reports a failed function evaluation without depending on a surface.
+///
+/// The error's [A2uiError.code] is `CATALOG_ERROR` when the call's catalog
+/// could not be resolved, and `EXPRESSION_ERROR` for any other failure.
 typedef ExpressionErrorReporter = void Function(A2uiExpressionError error);
 
 /// A dynamic value as [DataContext.resolveListenableWithPending] reports it:
@@ -72,10 +75,11 @@ class DataContext {
   /// With [onError], failed invocations are reported and resolve to null.
   /// Without it, the original exception is rethrown.
   ///
-  /// A function call naming no `catalogId` runs through [invoke]. One that
-  /// names a catalog runs through the invoker [invokerForCatalog] returns for
-  /// it; without [invokerForCatalog], such a call fails with
-  /// [A2uiCatalogResolutionError].
+  /// A function call naming no `catalogId` runs through [invoke]. From v1.0
+  /// one that names a catalog runs through the invoker [invokerForCatalog]
+  /// returns for it; without [invokerForCatalog], such a call fails with
+  /// [A2uiCatalogError]. Before v1.0 a call carries no `catalogId`, so every
+  /// call runs through [invoke].
   ///
   /// On a v1.0 context with [callAgentFunction], a call that neither resolves
   /// (an [A2uiCatalogResolutionError]: no such catalog, no default catalog,
@@ -112,17 +116,21 @@ class DataContext {
         _callAgentFunction = callAgentFunction,
         _agentCalls = agentCalls;
 
-  bool get isV10 {
+  /// Whether this context targets protocol v1.0 or any later version.
+  bool get atLeastV10 {
     final String? v = protocolVersion;
     if (v == null) return false;
     final String core = v.startsWith('v') ? v.substring(1) : v;
     return (int.tryParse(core.split('.').first) ?? 0) >= 1;
   }
 
+  /// Alias for [atLeastV10].
+  bool get isV10 => atLeastV10;
+
   /// Returns a data-binding map for [path] using the key required by the
   /// active protocol version (`{'@path': path}` in v1.0+, `{'path': path}` in
   /// pre-v1.0).
-  Map<String, Object?> bindingFor(String path) => isV10
+  Map<String, Object?> bindingFor(String path) => atLeastV10
       ? <String, Object?>{'@path': path}
       : <String, Object?>{'path': path};
 
@@ -134,7 +142,7 @@ class DataContext {
   /// it a `ChildListTemplate` instead.
   bool isDataBinding(Object? value) {
     if (value is! Map) return false;
-    return isV10
+    return atLeastV10
         ? value['@path'] is String
         : value['path'] is String && !value.containsKey('componentId');
   }
@@ -146,7 +154,7 @@ class DataContext {
   /// is `{'call': '<name>', ...}`.
   bool isFunctionCall(Object? value) {
     if (value is! Map) return false;
-    return isV10 ? value['@call'] is String : value['call'] is String;
+    return atLeastV10 ? value['@call'] is String : value['call'] is String;
   }
 
   /// Rewrites [part], a node of a parsed `${...}` expression, into the
@@ -159,7 +167,7 @@ class DataContext {
   /// arguments rewritten recursively, and lists and other maps are rewritten
   /// element by element.
   Object? adaptExpressionPart(Object? part) {
-    if (!isV10) return part;
+    if (!atLeastV10) return part;
     if (part is List) {
       return [for (final Object? item in part) adaptExpressionPart(item)];
     }
@@ -242,12 +250,16 @@ class DataContext {
   /// be nested at any depth inside literal structure. A payload holding no
   /// bindings or calls is returned as-is rather than copied.
   Object? resolveSync(Object? value) {
-    if (isV10) {
+    if (atLeastV10) {
       if (value is Map && value.containsKey('@path')) {
         final binding = DataBinding.fromJson(_asStringKeyedMap(value));
         return dataModel.get(resolvePath(binding.path));
       }
       if (value is Map && value.containsKey('@call')) {
+        if (_systemCallNamingCatalog(value)
+            case final A2uiExpressionError error) {
+          return _reportSync(error);
+        }
         final call = FunctionCall.fromJson(_asStringKeyedMap(value));
         final args = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
@@ -319,7 +331,8 @@ class DataContext {
       if (isDataBinding(value) || isFunctionCall(value)) {
         return true;
       }
-      if (isV10 && value.keys.any((k) => k is String && k.startsWith('@'))) {
+      if (atLeastV10 &&
+          value.keys.any((k) => k is String && k.startsWith('@'))) {
         return true;
       }
       return value.values.any(_containsDynamicValue);
@@ -331,12 +344,16 @@ class DataContext {
   /// whenever its underlying data dependencies change. Array and map
   /// payloads resolve per entry, mirroring [resolveSync].
   ReadonlySignal<Object?> resolveListenable(Object? value) {
-    if (isV10) {
+    if (atLeastV10) {
       if (value is Map && value.containsKey('@path')) {
         final binding = DataBinding.fromJson(_asStringKeyedMap(value));
         return dataModel.watch(resolvePath(binding.path));
       }
       if (value is Map && value.containsKey('@call')) {
+        if (_systemCallNamingCatalog(value)
+            case final A2uiExpressionError error) {
+          return computed(() => _reportSync(error));
+        }
         final call = FunctionCall.fromJson(_asStringKeyedMap(value));
         final Map<String, ReadonlySignal<Object?>> argSignals = {
           for (final MapEntry<String, dynamic> entry in call.args.entries)
@@ -423,17 +440,68 @@ class DataContext {
     return signal(value);
   }
 
+  /// The error for a v1.0 call to a reserved `@` system function that has a
+  /// `catalogId` key, whatever its value, or null for any other call.
+  ///
+  /// A system function belongs to no catalog, so such a call is a malformed
+  /// expression: it is reported as `EXPRESSION_ERROR` and not run. Checked
+  /// before the call is parsed, so a non-string `catalogId` is reported the
+  /// same way.
+  A2uiExpressionError? _systemCallNamingCatalog(Map<Object?, Object?> call) {
+    final Object? name = call['@call'];
+    if (!atLeastV10 ||
+        name is! String ||
+        !name.startsWith('@') ||
+        !call.containsKey('catalogId')) {
+      return null;
+    }
+    return A2uiExpressionError(
+      "System function '$name' belongs to no catalog and must not name a "
+      'catalogId.',
+      expression: name,
+    );
+  }
+
+  /// Reports [error] and resolves to null, or throws it when no reporter
+  /// was supplied, as a failed invocation does.
+  Object? _reportSync(A2uiExpressionError error) {
+    final ExpressionErrorReporter? onError = _onError;
+    if (onError == null) throw error;
+    onError(error);
+    return null;
+  }
+
   /// Invokes a function, reporting a failure only when a reporter was supplied.
+  ///
+  /// From v1.0 a name in the reserved `@` namespace, such as `@index`, is a
+  /// system function that belongs to no catalog, so no catalog is consulted
+  /// for it. This SDK does not evaluate system functions yet, so such a call
+  /// fails with an [A2uiExpressionError]. A `catalogId` on the call is
+  /// honored only from v1.0; before it, every call runs in the default
+  /// catalog.
   ///
   /// A call that cannot be resolved locally on a v1.0 context with an agent
   /// caller is sent to the agent; its value is null until the response
   /// arrives, and the signal [resolveListenable] builds updates then.
+  ///
+  /// The reported error carries code `CATALOG_ERROR` when the call's catalog
+  /// can't be resolved (the invoker threw [A2uiCatalogError]): the expression
+  /// may be fine, and the function may exist in a catalog the surface does
+  /// not have. Every other failure, including a function missing from the
+  /// catalog the call resolved to, carries `EXPRESSION_ERROR`.
   Object? _evaluateFunction(FunctionCall call, Map<String, dynamic> args) {
+    final String name = call.call;
     try {
+      if (atLeastV10 && name.startsWith('@')) {
+        throw A2uiExpressionError(
+          "System function '$name' is not supported by this renderer.",
+          expression: name,
+        );
+      }
       try {
         return _invokeLocally(call, args);
       } on A2uiCatalogResolutionError {
-        if (isV10) {
+        if (atLeastV10) {
           final _AgentCall? existing =
               _agentCalls.entries[_agentCallKey(call, args)];
           if (existing != null) return existing.value.value;
@@ -462,7 +530,7 @@ class DataContext {
         expression: name,
       );
     }
-    final String? catalogId = call.catalogId;
+    final String? catalogId = atLeastV10 ? call.catalogId : null;
     if (catalogId == null) return _invoke(name, args, this);
     final CatalogInvokerResolver? invokerForCatalog = _invokerForCatalog;
     if (invokerForCatalog == null) {
@@ -479,7 +547,7 @@ class DataContext {
   /// The agent caller, when this context may fall back to it: only from
   /// v1.0, where `callAgentFunction` exists.
   AgentFunctionCaller? get _agentCallerOrNull =>
-      isV10 ? _callAgentFunction : null;
+      atLeastV10 ? _callAgentFunction : null;
 
   /// Reports [error], raised evaluating the function [name], through the
   /// reporter. Callers without a reporter rethrow instead.
@@ -487,13 +555,28 @@ class DataContext {
     final ExpressionErrorReporter? onError = _onError;
     if (onError == null) return;
     onError(
-      error is A2uiExpressionError
-          ? error
-          : A2uiExpressionError(
-              error is A2uiError ? error.message : error.toString(),
-              expression: name,
-              cause: error,
-            ),
+      switch (error) {
+        A2uiExpressionError() => error,
+        A2uiCatalogError() => A2uiExpressionError(
+            error.message,
+            expression: name,
+            code: error is A2uiCatalogResolutionError &&
+                    error.functionName != null
+                ? 'EXPRESSION_ERROR'
+                : 'CATALOG_ERROR',
+            cause: error,
+          ),
+        A2uiError() => A2uiExpressionError(
+            error.message,
+            expression: name,
+            cause: error,
+          ),
+        _ => A2uiExpressionError(
+            error.toString(),
+            expression: name,
+            cause: error,
+          ),
+      },
     );
   }
 
@@ -855,7 +938,7 @@ class ComponentContext {
             details: error.details,
           )
         : A2uiClientError(
-            code: 'EXPRESSION_ERROR',
+            code: error.code,
             surfaceId: surface.id,
             message: error.message,
             details: error.details,

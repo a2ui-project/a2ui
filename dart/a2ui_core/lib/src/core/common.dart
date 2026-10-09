@@ -72,7 +72,12 @@ class FunctionCall {
   /// The expected return type of the function call.
   final A2uiReturnType returnType;
 
-  /// Optional identifier of the catalog that defines [call].
+  /// The catalog that defines [call], which a v1.0 call may name. Null when
+  /// the call names none, so it runs in the surface's default catalog.
+  ///
+  /// [FunctionCall.fromJson] reads it only from the v1.0 `@call` shape:
+  /// before v1.0 a call has no `catalogId` and always runs in the surface's
+  /// catalog, so a stray one on a `call` object is ignored.
   final String? catalogId;
 
   /// Whether this function call was parsed from or should serialize with the
@@ -142,7 +147,7 @@ class FunctionCall {
       call: rawCall,
       args: parsedArgs,
       returnType: A2uiReturnType.fromJson(rawReturnType as String? ?? 'any'),
-      catalogId: rawCatalogId as String?,
+      catalogId: hasAtCall ? rawCatalogId as String? : null,
       reservedKeys: hasAtCall,
     );
   }
@@ -153,14 +158,15 @@ class FunctionCall {
   /// `true`, and `call` otherwise. `returnType` is only emitted with the
   /// legacy `call` key: the v1.0 `FunctionCall` schema declares no
   /// `returnType` property (the return type is declared by the catalog) and
-  /// sets `unevaluatedProperties: false`.
+  /// sets `unevaluatedProperties: false`. Likewise `catalogId` is only
+  /// emitted with `@call`: the v0.9 `call` shape has no `catalogId`.
   Map<String, dynamic> toJson({bool? reservedKeys}) {
     final bool useReserved = reservedKeys ?? this.reservedKeys;
     return {
       useReserved ? '@call' : 'call': call,
       'args': args,
       if (!useReserved) 'returnType': returnType.jsonValue,
-      if (catalogId != null) 'catalogId': catalogId,
+      if (useReserved && catalogId != null) 'catalogId': catalogId,
     };
   }
 }

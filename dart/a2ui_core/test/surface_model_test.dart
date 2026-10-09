@@ -196,7 +196,8 @@ void main() {
         () => surface.resolveCatalog('vendor'),
         throwsA(
           catalogError(
-            "Catalog 'vendor' is not supported by surface 's1'.",
+            "Catalog not found: vendor. Item names a catalog surface 's1' "
+            'does not have. Available: a.',
             catalogId: 'vendor',
           ),
         ),

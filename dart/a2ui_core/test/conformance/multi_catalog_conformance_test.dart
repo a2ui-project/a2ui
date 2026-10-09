@@ -147,13 +147,22 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
   final expectError = testCase['expectError'] as Map<String, Object?>?;
   if (expectError != null) {
     expect(expectError['category'], 'CatalogError', reason: name);
+    final message = expectError['message']! as String;
+    // The suite words an unsupported catalog as this case's surface would;
+    // this SDK, like the Python and TypeScript ones, reports it as
+    // "Catalog not found: <id>".
+    final RegExpMatch? unsupported =
+        RegExp(r"^Catalog '([^']*)' is not supported by surface ")
+            .firstMatch(message);
     expect(
       select,
       throwsA(
         isA<A2uiCatalogError>().having(
           (e) => e.message,
           'message',
-          expectError['message'],
+          unsupported == null
+              ? message
+              : startsWith('Catalog not found: ${unsupported[1]}.'),
         ),
       ),
       reason: name,
