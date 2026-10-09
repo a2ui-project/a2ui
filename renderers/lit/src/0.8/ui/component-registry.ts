@@ -56,6 +56,23 @@ export class ComponentRegistry {
     return this.registry.get(typeName);
   }
 
+  getSchema(
+    typeName: string,
+    constructor?: CustomElementConstructorOf<HTMLElement>,
+  ): unknown | undefined {
+    if (this.schemas.has(typeName)) {
+      return this.schemas.get(typeName);
+    }
+    if (constructor) {
+      for (const [registeredType, registeredCtor] of this.registry.entries()) {
+        if (registeredCtor === constructor) {
+          return this.schemas.get(registeredType);
+        }
+      }
+    }
+    return undefined;
+  }
+
   getInlineCatalog(): {components: {[key: string]: unknown}} {
     const components: {[key: string]: unknown} = {};
     for (const [key, value] of this.schemas) {

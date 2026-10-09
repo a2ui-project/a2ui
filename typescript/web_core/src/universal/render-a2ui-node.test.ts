@@ -17,14 +17,19 @@
 import * as assert from 'node:assert';
 import {describe, it, beforeEach, after} from 'node:test';
 import {setupTestDom, teardownTestDom} from '../test/dom-setup.js';
-import {html, nothing, render} from 'lit';
+import {html, LitElement, nothing, render} from 'lit';
+import {property, state} from 'lit/decorators.js';
 import {z} from 'zod';
 
 import {ComponentContext} from '../resolution/component-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
 import {getValue} from '../reactivity/signals.js';
 import {MessageProcessor} from '../processing/message-processor.js';
-import {renderA2uiNode} from './render-a2ui-node.js';
+import {
+  applyCustomElementProperties,
+  getAllowedCustomProperties,
+  renderA2uiNode,
+} from './render-a2ui-node.js';
 import {Catalog} from '../catalog/types.js';
 import type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
@@ -232,5 +237,92 @@ describe('renderA2uiNode', () => {
     } finally {
       console.warn = originalWarn;
     }
+  });
+
+  it('restricts custom element properties to declared safe properties and caches constructor metadata', () => {
+    class BaseElement extends LitElement {
+      @property() accessor processor = 'base-processor';
+    }
+    class SafeCustomElement extends BaseElement {
+      @property() accessor label = 'initial';
+      @state() accessor internalSecret = 'keep-safe';
+      _privateData = 'keep-private';
+    }
+    if (!customElements.get('a2ui-test-safe-custom')) {
+      customElements.define('a2ui-test-safe-custom', SafeCustomElement);
+    }
+
+    const el = new SafeCustomElement();
+    const firstAllowed = getAllowedCustomProperties(el, {
+      elCtor: SafeCustomElement,
+      baseCtor: BaseElement,
+    });
+    const secondAllowed = getAllowedCustomProperties(el, {
+      elCtor: SafeCustomElement,
+      baseCtor: BaseElement,
+    });
+    assert.strictEqual(firstAllowed, secondAllowed);
+
+    applyCustomElementProperties(
+      el,
+      {
+        label: 'Updated',
+        internalSecret: 'hacked',
+        _privateData: 'hacked',
+        processor: 'hacked',
+        innerHTML: '<img src=x onerror=alert(1)>',
+        onclick: () => {},
+      },
+      {elCtor: SafeCustomElement, baseCtor: BaseElement},
+    );
+
+    assert.strictEqual(el.label, 'Updated');
+    assert.strictEqual(el.internalSecret, 'keep-safe');
+    assert.strictEqual(el._privateData, 'keep-private');
+    assert.strictEqual(el.processor, 'base-processor');
+    assert.strictEqual(el.innerHTML, '');
+    assert.strictEqual(el.onclick, null);
+  });
+
+  it('enforces and caches schema property allowlist when schema is provided', () => {
+    class SchemaCustomElement extends LitElement {
+      @property() accessor allowedField = 'initial';
+      @property() accessor unexposedField = 'safe';
+    }
+    if (!customElements.get('a2ui-test-schema-custom')) {
+      customElements.define('a2ui-test-schema-custom', SchemaCustomElement);
+    }
+
+    const schema = {
+      type: 'object',
+      properties: {
+        allowedField: {type: 'string'},
+        innerHTML: {type: 'string'},
+      },
+    };
+    const el = new SchemaCustomElement();
+    const firstAllowed = getAllowedCustomProperties(el, {
+      elCtor: SchemaCustomElement,
+      schema,
+    });
+    const secondAllowed = getAllowedCustomProperties(el, {
+      elCtor: SchemaCustomElement,
+      schema,
+    });
+    assert.strictEqual(firstAllowed, secondAllowed);
+
+    applyCustomElementProperties(
+      el,
+      {
+        allowedField: 'Allowed',
+        unexposedField: 'Blocked',
+        innerHTML: '<script>evil()</script>',
+      },
+      {elCtor: SchemaCustomElement, schema},
+    );
+
+    assert.strictEqual(el.allowedField, 'Allowed');
+    assert.strictEqual(el.unexposedField, 'safe');
+    assert.strictEqual(el.innerHTML, '');
   });
 });

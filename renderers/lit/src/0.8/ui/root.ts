@@ -23,6 +23,7 @@ import {effect} from 'signal-utils/subtle/microtask-effect';
 import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
 import {StringValue} from '@a2ui/web_core/types/primitives';
 import {AnyComponentNode, SurfaceID, Theme} from '@a2ui/web_core/types/types';
+import {applyCustomElementProperties} from '@a2ui/web_core/universal';
 import {themeContext} from './context/theme.js';
 import {structuralStyles} from './styles.js';
 import {componentRegistry} from './component-registry.js';
@@ -136,23 +137,7 @@ export class Root extends SignalWatcher(LitElement) {
         const elCtor = registeredCtor || customElements.get(component.type);
 
         if (elCtor) {
-          const node = component as AnyComponentNode;
-          const el = new elCtor() as Root;
-          el.id = node.id;
-          if (node.slotName) {
-            el.slot = node.slotName;
-          }
-          el.component = node;
-          el.weight = node.weight ?? 'initial';
-          el.processor = this.processor;
-          el.surfaceId = this.surfaceId;
-          el.dataContextPath = node.dataContextPath ?? '/';
-
-          for (const [prop, val] of Object.entries(component.properties)) {
-            // @ts-expect-error We're off the books.
-            el[prop] = val;
-          }
-          return html`${el}`;
+          return this.instantiateCustomElement(component, elCtor);
         }
       }
 
@@ -490,7 +475,6 @@ export class Root extends SignalWatcher(LitElement) {
       return;
     }
 
-    const node = component as AnyComponentNode;
     const registeredCtor = componentRegistry.get(component.type);
     const elCtor = registeredCtor || customElements.get(component.type);
 
@@ -498,7 +482,13 @@ export class Root extends SignalWatcher(LitElement) {
       return html`Unknown element ${component.type}`;
     }
 
+    return this.instantiateCustomElement(component, elCtor);
+  }
+
+  private instantiateCustomElement(component: AnyComponentNode, elCtor: CustomElementConstructor) {
+    const node = component as AnyComponentNode;
     const el = new elCtor() as Root;
+
     el.id = node.id;
     if (node.slotName) {
       el.slot = node.slotName;
@@ -509,10 +499,12 @@ export class Root extends SignalWatcher(LitElement) {
     el.surfaceId = this.surfaceId;
     el.dataContextPath = node.dataContextPath ?? '/';
 
-    for (const [prop, val] of Object.entries(component.properties)) {
-      // @ts-expect-error We're off the books.
-      el[prop] = val;
-    }
+    const schema = componentRegistry.getSchema(component.type, elCtor);
+    applyCustomElementProperties(el, component.properties, {
+      elCtor,
+      baseCtor: Root,
+      schema,
+    });
     return html`${el}`;
   }
 
