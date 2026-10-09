@@ -273,31 +273,47 @@ export class WebAppFrameBridgeService {
         }
       }
       const surface = this.rendererService.surfaceGroup.getSurface(this.config.surfaceId());
-      if (surface) {
-        const dataContext = new DataContext(surface, '/');
-        try {
-          const result = await surface.catalog.invoker(data.call, data.args || {}, dataContext);
-          this.appPort?.postMessage({
-            type: A2uiMessageType.FunctionResult,
-            call: data.call,
-            callId: data.callId,
-            status: 'success',
-            result: result,
-          });
-        } catch (err: unknown) {
-          const errorMessage =
-            err instanceof Error ? err.message : String(err) || 'Error executing function';
-          this.appPort?.postMessage({
-            type: A2uiMessageType.FunctionResult,
-            call: data.call,
-            callId: data.callId,
-            status: 'error',
-            error: {
-              code: 'EXECUTION_ERROR',
-              message: errorMessage,
-            },
-          });
-        }
+      // samples/community builds against the published @a2ui/web_core, which has
+      // no `defaultCatalog` yet; `catalog` names the surface default in both.
+      if (!surface?.catalog) {
+        // Always answer the callId so the app is not left waiting for a result.
+        this.appPort.postMessage({
+          type: A2uiMessageType.FunctionResult,
+          call: data.call,
+          callId: data.callId,
+          status: 'error',
+          error: {
+            code: 'CATALOG_ERROR',
+            message: surface
+              ? `Surface '${surface.id}' has no default catalog to run '${data.call}'.`
+              : `Surface '${this.config.surfaceId()}' not found.`,
+          },
+        });
+        return;
+      }
+      const dataContext = new DataContext(surface, '/');
+      try {
+        const result = await surface.catalog.invoker(data.call, data.args || {}, dataContext);
+        this.appPort?.postMessage({
+          type: A2uiMessageType.FunctionResult,
+          call: data.call,
+          callId: data.callId,
+          status: 'success',
+          result: result,
+        });
+      } catch (err: unknown) {
+        const errorMessage =
+          err instanceof Error ? err.message : String(err) || 'Error executing function';
+        this.appPort?.postMessage({
+          type: A2uiMessageType.FunctionResult,
+          call: data.call,
+          callId: data.callId,
+          status: 'error',
+          error: {
+            code: 'EXECUTION_ERROR',
+            message: errorMessage,
+          },
+        });
       }
     } else {
       console.warn(`Function ${data.call} not in allowedFunctions`);

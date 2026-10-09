@@ -102,14 +102,7 @@ export class AngularWcHost extends HTMLElement {
       }
       const type = context.componentModel.type;
       // The catalog entry that owns this element pairs it with the Angular component to mount.
-      const catalog =
-        (context.componentModel.catalog as AngularCatalog | undefined) ??
-        context.dataContext.surface?.defaultCatalog;
-      if (!catalog) {
-        throw new Error(
-          `Cannot instantiate Web Component '${this.tagName.toLowerCase()}': no surface default catalog available.`,
-        );
-      }
+      const catalog = context.componentModel.catalog as AngularCatalog;
       const entry = catalog.components.get(type) as AngularComponentImplementation | undefined;
       if (typeof entry?.component !== 'function') {
         throw new Error(

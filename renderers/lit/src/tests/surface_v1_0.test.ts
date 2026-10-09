@@ -19,7 +19,7 @@ import assert from 'node:assert';
 import {describe, it, before, after, afterEach} from 'node:test';
 import {z} from 'zod';
 import {html, nothing} from 'lit';
-import {MessageProcessor, Catalog} from '@a2ui/web_core';
+import {Catalog, MessageProcessor} from '@a2ui/web_core';
 import {A2uiLitElement, registerUniversalElement} from '@a2ui/web_core/universal';
 import {basicCatalog as v1BasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import type {A2uiSurface} from '../index.js';
@@ -479,5 +479,29 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
     const innerText = rootEl.renderRoot.querySelector('a2ui-basic-text');
     assert.ok(innerText, 'Should render basic catalog child inside secondary catalog root');
     assert.strictEqual(innerText.textContent?.trim(), 'Basic Child Inside Secondary Root');
+  });
+
+  it('renders a surface with no default catalog whose root names its catalog', async () => {
+    const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
+    processor.processMessages([
+      {version: 'v1.0', createSurface: {surfaceId: 'no-default-surface'}},
+      {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 'no-default-surface',
+          components: [
+            {id: 'root', component: 'Text', catalogId: basicCatalog.id, text: 'Own catalog'},
+          ],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('no-default-surface')!;
+    assert.strictEqual(surface.defaultCatalog, undefined);
+
+    const el = await mountSurface(surface);
+    const textEl = el.renderRoot.querySelector('a2ui-basic-text');
+    assert.ok(textEl, 'Should render the root from its own catalog');
+    assert.strictEqual(textEl.textContent?.trim(), 'Own catalog');
   });
 });

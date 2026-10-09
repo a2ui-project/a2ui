@@ -26,7 +26,7 @@ import {Subscription} from '../common/events.js';
 
 import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
 import {defaultVersionAdapterFactory} from './adapters/factory.js';
-import {compareSemVer, toCanonicalVersion} from '../common/semver.js';
+import {compareSemVer, isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {
   InternalOperation,
   InternalCreateSurfaceOp,
@@ -134,7 +134,11 @@ export interface MessageProcessorOptions {
 }
 
 import {formatZodIssue} from './format-zod-issue.js';
-import {PayloadValidator} from '../validation/payload-validator.js';
+import {
+  nestedCallRunsInCatalog,
+  nonStringCatalogIdMessage,
+  PayloadValidator,
+} from '../validation/payload-validator.js';
 export {formatZodIssue};
 
 /**
@@ -362,7 +366,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     if (version !== undefined) {
       const surfaces: Record<string, unknown> = {};
       for (const surface of enabledSurfaces) {
-        const catVer = surface.defaultCatalog?.protocolVersion;
+        const catVer = surface.protocolVersion;
         if (!catVer || isCatalogVersionCompatible(catVer, version)) {
           surfaces[surface.id] = surface.dataModel.get('/');
         }
@@ -378,10 +382,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     const versionsSet = new Set<ProtocolVersion>();
     for (const surface of enabledSurfaces) {
-      if (surface.defaultCatalog?.protocolVersion) {
-        const canonical = toCanonicalVersion(surface.defaultCatalog.protocolVersion);
+      if (surface.protocolVersion) {
+        const canonical = toCanonicalVersion(surface.protocolVersion);
         const canonicalVer = (
-          canonical ? `v${canonical}` : surface.defaultCatalog.protocolVersion
+          canonical ? `v${canonical}` : surface.protocolVersion
         ) as ProtocolVersion;
         versionsSet.add(canonicalVer);
       }
@@ -686,13 +690,22 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     const {surfaceId, catalogId, theme, sendDataModel, components, dataModel} = op;
 
     const msgVersion = op.version;
-    const catalog = resolveSurfaceDefaultCatalog(this.catalogs, catalogId, msgVersion);
-    if (!catalog) {
-      throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
+    // From v1.0 the default catalog is optional: a surface that names none has
+    // none, and every component and function call on it names its own.
+    const noDefaultCatalog =
+      catalogId === undefined && msgVersion !== undefined && isAtLeastVersion(msgVersion, '1.0');
+    const catalog = noDefaultCatalog
+      ? undefined
+      : resolveSurfaceDefaultCatalog(this.catalogs, catalogId, msgVersion);
+    if (!catalog && !noDefaultCatalog) {
+      if (catalogId !== undefined) {
+        throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
+      }
+      throw new A2uiCatalogError(`No default catalog available for surface '${surfaceId}'.`);
     }
 
     if (
-      catalog.protocolVersion &&
+      catalog?.protocolVersion &&
       msgVersion &&
       !isCatalogVersionCompatible(catalog.protocolVersion, msgVersion)
     ) {
@@ -706,7 +719,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     let validatedTheme = theme;
-    if (theme && catalog.themeSchema) {
+    if (theme && catalog?.themeSchema) {
       try {
         validatedTheme = new PayloadValidator(catalog, this.validationConfig).validateTheme(theme);
       } catch (err: unknown) {
@@ -723,12 +736,14 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       }
     }
 
+    const surfaceVersion = catalog?.protocolVersion ?? msgVersion;
+
     // A payload may address any registered catalog by `catalogId`, but only
     // those speaking a compatible protocol version can be resolved against this
     // surface, so filter once here rather than at every lookup.
     const availableCatalogs = new Map<string, Catalog<T>>(
       this.catalogs
-        .filter(c => isCatalogVersionCompatible(c.protocolVersion, catalog.protocolVersion))
+        .filter(c => isCatalogVersionCompatible(c.protocolVersion, surfaceVersion))
         .map(c => [c.id, c] as const),
     );
 
@@ -741,6 +756,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       undefined,
       op.rootId ?? 'root',
       op.metadata,
+      surfaceVersion,
     );
     this.model.addSurface(surface);
 
@@ -770,7 +786,6 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     surface: SurfaceModel<T>,
   ): void {
     const {id, component} = comp;
-    const rawCatalogId = (comp as any).catalogId;
 
     if (typeof id !== 'string' || !id) {
       throw new A2uiValidationError(
@@ -778,47 +793,216 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       );
     }
 
-    let targetCatalog = surface.defaultCatalog;
-    if (typeof rawCatalogId === 'string' && rawCatalogId) {
-      // `availableCatalogs` is already restricted to catalogs compatible with
-      // the surface, so an entry here needs no further version check.
-      const found = surface.availableCatalogs.get(rawCatalogId);
-      if (!found) {
-        const known = this.catalogs.find(c => c.id === rawCatalogId);
-        if (!known) {
-          throw new A2uiCatalogError(
-            `Unknown catalog ID '${rawCatalogId}' for component '${id}'. Available catalogs: ${this.catalogs.map(c => c.id).join(', ')}`,
-          );
-        }
-        throw new A2uiCatalogError(
-          `Component '${id}' catalog '${rawCatalogId}' specification version (${known.protocolVersion}) does not match surface default catalog version (${surface.defaultCatalog.protocolVersion}).`,
-        );
-      }
-      targetCatalog = found;
-    }
+    const targetCatalog = this.resolveComponentCatalog(comp, surface);
 
     // A partial update names no component type; the existing model supplies it.
     const existing = surface.componentsModel.get(id);
     new PayloadValidator(targetCatalog, this.validationConfig).validateComponent(
-      comp,
+      this.componentPayloadForValidation(comp, surface, targetCatalog),
       existing?.type,
     );
+    // `validateComponent` walks the nested calls, even in a component type
+    // the catalog doesn't define, and checks those that run in the
+    // component's catalog; the pass below checks the rest.
+    this.validateNestedFunctionCalls(comp, surface, targetCatalog);
+  }
+
+  /**
+   * Builds the component payload handed to `PayloadValidator`, telling it
+   * which catalog the component is in.
+   *
+   * From v1.0 a function call that names no `catalogId` runs in the surface
+   * default catalog. The validator takes a component that names no
+   * `catalogId` to be in the surface default, so the payload names the
+   * component's catalog only when that catalog is another one; the validator
+   * then leaves those calls to `validateNestedFunctionCalls`, which checks
+   * them against the surface default. Whether the payload itself wrote a
+   * `catalogId` doesn't matter: a component naming the surface default is in
+   * it all the same.
+   *
+   * @param comp Raw component payload.
+   * @param surface Surface the component belongs to.
+   * @param componentCatalog Catalog the component resolved to.
+   * @returns The payload to validate.
+   */
+  private componentPayloadForValidation(
+    comp: Record<string, unknown>,
+    surface: SurfaceModel<T>,
+    componentCatalog: Catalog<T>,
+  ): Record<string, unknown> {
+    const {catalogId: _catalogId, ...payload} = comp;
+    if (
+      isAtLeastVersion(surface.protocolVersion, '1.0') &&
+      componentCatalog !== surface.defaultCatalog
+    ) {
+      payload['catalogId'] = componentCatalog.id;
+    }
+    return payload;
+  }
+
+  /**
+   * Resolves the catalog that defines a component in an update.
+   *
+   * The component uses the catalog it names, and otherwise the surface's
+   * default catalog. Below v1.0 only, an existing component updated without a
+   * new type keeps its catalog; from v1.0 every update is a full replacement
+   * and resolves afresh.
+   *
+   * @param comp Raw component payload.
+   * @param surface Surface the component belongs to.
+   * @returns The catalog that defines the component.
+   * @throws {A2uiCatalogError} If the named catalog is unknown or speaks an
+   *   incompatible protocol version, or if the component names no catalog and
+   *   the surface has no default catalog.
+   */
+  private resolveComponentCatalog(
+    comp: Record<string, unknown>,
+    surface: SurfaceModel<T>,
+  ): Catalog<T> {
+    const {id, component, catalogId} = comp;
+    const subject = `Component '${id}'`;
+    const atLeastV1 = isAtLeastVersion(surface.protocolVersion, '1.0');
+    // From v1.0 an empty catalogId names a catalog too (one that never exists).
+    if (typeof catalogId === 'string' && (catalogId || atLeastV1)) {
+      return this.resolveSurfaceItemCatalog(surface, catalogId, subject);
+    }
+
+    if (!atLeastV1) {
+      const existing = typeof id === 'string' ? surface.componentsModel.get(id) : undefined;
+      if (
+        existing &&
+        (typeof component !== 'string' || !component || component === existing.type)
+      ) {
+        return existing.catalog as Catalog<T>;
+      }
+    }
+    return this.resolveSurfaceItemCatalog(surface, undefined, subject);
+  }
+
+  /**
+   * Validates each v1.0 function call nested in a component against the
+   * catalog it resolves to on the surface.
+   *
+   * Each call resolves on its own, by the `catalogId` it names or else to
+   * the surface's default catalog, whatever catalog an enclosing call or the
+   * component names, so a call may run in a catalog other than the
+   * component's. This pass resolves every call's catalog and checks the
+   * arguments of the calls that run outside the component's catalog;
+   * component validation, which runs first and walks every nested call, has
+   * already checked the others, as decided by `nestedCallRunsInCatalog`.
+   * Reserved `@` system functions belong to no catalog and are validated by
+   * `PayloadValidator`; their arguments are still walked here.
+   *
+   * Catalog resolution runs even without a `validationConfig`, so a call no
+   * catalog on the surface can run is always rejected before state changes.
+   *
+   * @param comp Raw component payload.
+   * @param surface Surface the component belongs to.
+   * @param componentCatalog Catalog the component resolved to.
+   * @throws {A2uiCatalogError} If a call's catalog cannot be resolved.
+   * @throws {A2uiValidationError} If a call fails validation against the
+   *   catalog it resolves to.
+   */
+  private validateNestedFunctionCalls(
+    comp: Record<string, unknown>,
+    surface: SurfaceModel<T>,
+    componentCatalog: Catalog<T>,
+  ): void {
+    if (!isAtLeastVersion(surface.protocolVersion, '1.0')) return;
+
+    const visit = (node: unknown): void => {
+      if (Array.isArray(node)) {
+        node.forEach(visit);
+        return;
+      }
+      if (typeof node !== 'object' || node === null) return;
+
+      const record = node as Record<string, unknown>;
+      const name = record['@call'];
+      // An empty name is not skipped: `validateFunction` rejects it as an
+      // invalid identifier.
+      if (typeof name === 'string' && !name.startsWith('@')) {
+        // Any string, the empty string included, names a catalog, exactly as
+        // `DataContext` resolves the call at runtime.
+        const rawCatalogId = record['catalogId'];
+        if (rawCatalogId !== undefined && typeof rawCatalogId !== 'string') {
+          // Component validation throws this same error before this pass;
+          // kept so the catalog lookup below never sees a non-string ID.
+          throw new A2uiValidationError(nonStringCatalogIdMessage(name));
+        }
+        const catalogId = rawCatalogId;
+        const target = this.resolveSurfaceItemCatalog(
+          surface,
+          catalogId,
+          `Function call '${name}'`,
+        );
+        // Component validation already checked a call that runs in the
+        // component's catalog.
+        const checked = nestedCallRunsInCatalog(catalogId, componentCatalog.id, {
+          catalogIsDefault: componentCatalog === surface.defaultCatalog,
+        });
+        if (!checked) {
+          const rawArgs = record['args'];
+          new PayloadValidator(target, this.validationConfig).validateFunction(
+            name,
+            (rawArgs ?? {}) as Record<string, unknown>,
+          );
+        }
+      }
+      Object.values(record).forEach(visit);
+    };
+
+    for (const [key, value] of Object.entries(comp)) {
+      if (key === 'id' || key === 'component' || key === 'catalogId' || key === 'metadata') {
+        continue;
+      }
+      visit(value);
+    }
+  }
+
+  /**
+   * Resolves the catalog an item on a surface uses: the catalog it names, or
+   * else the surface's default catalog.
+   *
+   * Delegates to `SurfaceModel.resolveCatalog`, which `DataContext` also uses
+   * at runtime, so validation and execution share one rule and one set of
+   * error messages. It first reports a catalog the processor knows yet the
+   * surface cannot use because its protocol version differs.
+   *
+   * @param surface Surface the item belongs to.
+   * @param catalogId Catalog the item names, if any.
+   * @param subject Description of the item for error messages.
+   * @returns The catalog the item resolves to.
+   * @throws {A2uiCatalogError} If the item's catalog cannot be resolved.
+   */
+  private resolveSurfaceItemCatalog(
+    surface: SurfaceModel<T>,
+    catalogId: string | undefined,
+    subject: string,
+  ): Catalog<T> {
+    if (catalogId !== undefined && !surface.availableCatalogs.has(catalogId)) {
+      const known = this.catalogs.find(c => c.id === catalogId);
+      if (known) {
+        throw new A2uiCatalogError(
+          `${subject} names catalog '${catalogId}', whose specification version (${known.protocolVersion}) does not match surface '${surface.id}' version (${surface.protocolVersion}).`,
+        );
+      }
+    }
+    return surface.resolveCatalog(catalogId, subject);
   }
 
   private applyComponentUpdate(comp: Record<string, unknown>, surface: SurfaceModel<T>): void {
-    const {id, component, catalogId, metadata: rawMetadata, ...properties} = comp;
+    const {id, component, catalogId: _catalogId, metadata: rawMetadata, ...properties} = comp;
     if (typeof id !== 'string') return;
     const metadata = extractComponentMetadata(rawMetadata);
-    const targetCatalog = resolveComponentTargetCatalog(catalogId, surface);
+    const targetCatalog = this.resolveComponentCatalog(comp, surface);
     const existing = surface.componentsModel.get(id);
 
     if (existing) {
       const componentType = typeof component === 'string' ? component : existing.type;
-      if (
-        componentType !== existing.type ||
-        (catalogId && existing.catalog?.id !== targetCatalog.id)
-      ) {
-        // Recreate component if type or catalog changes
+      if (componentType !== existing.type || existing.catalog.id !== targetCatalog.id) {
+        // Recreate the component if its type or catalog changes. From v1.0 an
+        // update naming no catalogId can move it to the surface default.
         surface.componentsModel.removeComponent(id);
         const newComponent = new ComponentModel(
           id,
@@ -943,9 +1127,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     for (const [id, model] of surface.componentsModel.entries) {
       typeMap.set(id, model.type);
-      if (model.catalog) {
-        compCatalogMap.set(id, model.catalog as Catalog<T>);
-      }
+      compCatalogMap.set(id, model.catalog as Catalog<T>);
       const children = surface.componentsModel.getChildIds(id);
       if (children.length > 0) {
         childMap.set(id, children);
@@ -956,15 +1138,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const {id, component, ...props} = comp;
       if (typeof id !== 'string') continue;
 
-      let compCatalog = surface.defaultCatalog;
-      const rawCatalogId = (comp as any).catalogId;
-      if (typeof rawCatalogId === 'string' && rawCatalogId) {
-        const found = surface.availableCatalogs.get(rawCatalogId);
-        if (found) {
-          compCatalog = found;
-          compCatalogMap.set(id, found);
-        }
-      }
+      const compCatalog = this.resolveComponentCatalog(comp, surface);
+      compCatalogMap.set(id, compCatalog);
       const existing = surface.componentsModel.get(id);
       const compType = (typeof component === 'string' ? component : existing?.type) ?? '';
       if (compType) {
@@ -1004,8 +1179,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     );
 
     for (const [id, componentType] of typeMap.entries()) {
-      const compCatalog = compCatalogMap.get(id) ?? surface.defaultCatalog;
-      const componentApi = compCatalog.components.get(componentType);
+      const compCatalog = compCatalogMap.get(id);
+      const componentApi = compCatalog?.components.get(componentType);
       if (!componentApi) continue;
 
       if (componentApi.allowedParents && componentApi.allowedParents.length > 0) {
@@ -1046,8 +1221,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const {id, component, ...properties} = comp;
       if (typeof id !== 'string' || !id) continue;
 
-      const rawCatalogId = (comp as any).catalogId;
-      const targetCatalog = resolveComponentTargetCatalog(rawCatalogId, surface);
+      const targetCatalog = this.resolveComponentCatalog(comp, surface);
       delete properties.catalogId;
       delete properties.metadata;
 
@@ -1056,10 +1230,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       if (!componentType) continue;
 
       if (existing) {
-        if (
-          componentType !== existing.type ||
-          (rawCatalogId && existing.catalog?.id !== targetCatalog.id)
-        ) {
+        if (componentType !== existing.type || existing.catalog.id !== targetCatalog.id) {
           candidateModel.removeComponent(id);
           candidateModel.addComponent(
             new ComponentModel(id, componentType, properties, targetCatalog),
@@ -1101,15 +1272,4 @@ function resolveSurfaceDefaultCatalog<T extends ComponentApi>(
       msgVersion ? isCatalogVersionCompatible(c.protocolVersion, msgVersion) : true,
     ) ?? catalogs[0]
   );
-}
-
-function resolveComponentTargetCatalog<T extends ComponentApi>(
-  rawCatalogId: unknown,
-  surface: SurfaceModel<T>,
-): Catalog<T> {
-  if (typeof rawCatalogId === 'string' && rawCatalogId) {
-    const found = surface.availableCatalogs.get(rawCatalogId);
-    if (found) return found;
-  }
-  return surface.defaultCatalog;
 }

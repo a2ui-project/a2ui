@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import yaml from 'js-yaml';
-import {Catalog, createFunctionImplementation} from '../../src/catalog/types.js';
+import {Catalog, ComponentApi, createFunctionImplementation} from '../../src/catalog/types.js';
 import {ComponentNode, isComponentNode} from '../../src/resolution/component-node.js';
 import {NodeResolver} from '../../src/resolution/node-resolver.js';
 import {ResolvedBinding, isWritable} from '../../src/resolution/resolved-binding.js';
@@ -156,14 +156,18 @@ function checkNodes(
   }
 }
 
-function updateComponents(surface: SurfaceModel, components: Component[]): void {
+function updateComponents(
+  surface: SurfaceModel,
+  catalog: Catalog<ComponentApi>,
+  components: Component[],
+): void {
   for (const {id, component, ...properties} of components) {
     const existing = surface.componentsModel.get(id);
     if (existing) {
       assert.equal(existing.type, component, `update_components cannot change ${id}'s type`);
       existing.properties = properties;
     } else {
-      surface.componentsModel.addComponent(new ComponentModel(id, component, properties));
+      surface.componentsModel.addComponent(new ComponentModel(id, component, properties, catalog));
     }
   }
 }
@@ -213,7 +217,7 @@ export async function runNodeResolutionCase(
   );
   const surface = new SurfaceModel('s', catalog);
   surface.dataModel.set('/', fixture.data);
-  updateComponents(surface, fixture.components);
+  updateComponents(surface, catalog, fixture.components);
   const resolver = new NodeResolver(surface, catalog);
   const watches = new Map<ComponentNode, Watch>();
   const stopActions = surface.onAction.subscribe(action => {
@@ -322,7 +326,7 @@ export async function runNodeResolutionCase(
           surface.dataModel.set(step.path, step.value);
           break;
         case 'update_components':
-          updateComponents(surface, step.components);
+          updateComponents(surface, catalog, step.components);
           break;
         case 'remove_component':
           surface.componentsModel.removeComponent(step.component_id);

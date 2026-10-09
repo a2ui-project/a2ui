@@ -35,13 +35,13 @@ export class ComponentModel {
    * @param id The unique identifier for this component.
    * @param type The component type name.
    * @param initialProperties The initial properties for the component.
-   * @param catalog Optional catalog associated with this component.
+   * @param catalog The catalog that defines this component's type.
    */
   constructor(
     readonly id: string,
     readonly type: string,
     initialProperties: Record<string, any>,
-    readonly catalog?: Catalog<any, any>,
+    readonly catalog: Catalog<any, any>,
     public metadata?: Record<string, unknown>,
   ) {
     this._properties = initialProperties;

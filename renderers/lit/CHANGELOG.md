@@ -1,5 +1,8 @@
 ## Unreleased
 
+- (v1_0) `<a2ui-surface>` renders a surface whose `createSurface` names no default catalog: the root resolves against its own catalog. `SurfaceModel.defaultCatalog` (and the deprecated `catalog` getter) from `@a2ui/web_core` may now be `undefined`, so code that reads `surface.defaultCatalog` must handle that case.
+- `<a2ui-surface>` re-renders when the root component's model is replaced, as happens when an update changes the root's type or catalog. It used to stop listening once the root first appeared.
+
 ## 0.13.0
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.13.0`.

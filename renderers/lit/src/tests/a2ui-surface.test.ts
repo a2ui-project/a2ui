@@ -25,6 +25,7 @@ import {MessageProcessor} from '@a2ui/web_core/v0_9';
  * - Renders nothing when no surface model is provided.
  * - Renders a loading state when the surface exists but the root component is missing.
  * - Renders the actual root component once it becomes available in the data model.
+ * - Re-renders when the root component's model is replaced.
  */
 describe('A2uiSurface', () => {
   let basicCatalog: any;
@@ -124,6 +125,37 @@ describe('A2uiSurface', () => {
 
     assert.ok(!html?.includes('Loading surface'), 'Loading text should be gone');
     assert.ok(childHtml?.includes('Hello JSDOM'), 'Actual child HTML: ' + childHtml);
+
+    document.body.removeChild(el);
+  });
+  it('should re-render when the root component is replaced', async () => {
+    const el = document.createElement('a2ui-surface') as unknown as A2uiSurface;
+    document.body.appendChild(el);
+    await asyncUpdate(el, e => {
+      e.surface = surfaceModel;
+    });
+
+    const updateRoot = (component: Record<string, unknown>) =>
+      asyncUpdate(el, () => {
+        processor.processMessages([
+          {
+            version: 'v0.9',
+            updateComponents: {
+              surfaceId: 'test-surface',
+              components: [{id: 'root', ...component}],
+            },
+          },
+        ]);
+      });
+
+    await updateRoot({component: 'Text', text: 'Hello JSDOM'});
+    assert.ok(el.renderRoot.querySelector('a2ui-basic-text'), 'Should render the Text root');
+
+    // A new type replaces the root's model, deleting the old one and creating
+    // a new one; the surface must render the new model.
+    await updateRoot({component: 'Divider'});
+    assert.ok(el.renderRoot.querySelector('a2ui-divider'), 'Should render the new root');
+    assert.ok(!el.renderRoot.querySelector('a2ui-basic-text'), 'Old root should be gone');
 
     document.body.removeChild(el);
   });

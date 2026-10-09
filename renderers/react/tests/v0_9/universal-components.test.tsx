@@ -187,7 +187,10 @@ function surfaceWith(id: string, ...components: ComponentModel[]) {
 
 describe('mixed React and Web Component catalogs', () => {
   it('renders a Web Component root as its element, carrying the context', () => {
-    const surface = surfaceWith('wc-root', new ComponentModel('root', 'Column', {children: []}));
+    const surface = surfaceWith(
+      'wc-root',
+      new ComponentModel('root', 'Column', {children: []}, catalog),
+    );
 
     const {container} = render(<A2uiSurface surface={surface} />);
 
@@ -199,8 +202,8 @@ describe('mixed React and Web Component catalogs', () => {
   it('renders a React child inside its host under a React parent', () => {
     const surface = surfaceWith(
       'react-under-react',
-      new ComponentModel('root', 'Panel', {child: 'badge-1'}),
-      new ComponentModel('badge-1', 'Badge', {label: 'React inside React'}),
+      new ComponentModel('root', 'Panel', {child: 'badge-1'}, catalog),
+      new ComponentModel('badge-1', 'Badge', {label: 'React inside React'}, catalog),
     );
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -213,8 +216,8 @@ describe('mixed React and Web Component catalogs', () => {
   it('renders a React child inside its host under a Lit parent', async () => {
     const surface = surfaceWith(
       'react-under-lit',
-      new ComponentModel('root', 'Column', {children: ['badge-1']}),
-      new ComponentModel('badge-1', 'Badge', {label: 'React inside Lit'}),
+      new ComponentModel('root', 'Column', {children: ['badge-1']}, catalog),
+      new ComponentModel('badge-1', 'Badge', {label: 'React inside Lit'}, catalog),
     );
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -229,8 +232,8 @@ describe('mixed React and Web Component catalogs', () => {
   it('renders a Lit child under a React parent', () => {
     const surface = surfaceWith(
       'lit-under-react',
-      new ComponentModel('root', 'Panel', {child: 'column-1'}),
-      new ComponentModel('column-1', 'Column', {children: []}),
+      new ComponentModel('root', 'Panel', {child: 'column-1'}, catalog),
+      new ComponentModel('column-1', 'Column', {children: []}, catalog),
     );
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -244,9 +247,9 @@ describe('mixed React and Web Component catalogs', () => {
   it('nests React, Lit and React three levels deep', async () => {
     const surface = surfaceWith(
       'react-lit-react',
-      new ComponentModel('root', 'Panel', {child: 'column-1'}),
-      new ComponentModel('column-1', 'Column', {children: ['badge-1']}),
-      new ComponentModel('badge-1', 'Badge', {label: 'three levels'}),
+      new ComponentModel('root', 'Panel', {child: 'column-1'}, catalog),
+      new ComponentModel('column-1', 'Column', {children: ['badge-1']}, catalog),
+      new ComponentModel('badge-1', 'Badge', {label: 'three levels'}, catalog),
     );
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -263,10 +266,10 @@ describe('mixed React and Web Component catalogs', () => {
   it('nests Lit, React and Lit three levels deep', async () => {
     const surface = surfaceWith(
       'lit-react-lit',
-      new ComponentModel('root', 'Column', {children: ['panel-1']}),
-      new ComponentModel('panel-1', 'Panel', {child: 'column-2'}),
-      new ComponentModel('column-2', 'Column', {children: ['badge-1']}),
-      new ComponentModel('badge-1', 'Badge', {label: 'lit, react, lit'}),
+      new ComponentModel('root', 'Column', {children: ['panel-1']}, catalog),
+      new ComponentModel('panel-1', 'Panel', {child: 'column-2'}, catalog),
+      new ComponentModel('column-2', 'Column', {children: ['badge-1']}, catalog),
+      new ComponentModel('badge-1', 'Badge', {label: 'lit, react, lit'}, catalog),
     );
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -283,9 +286,9 @@ describe('mixed React and Web Component catalogs', () => {
   it('nests a hand-written React entry, Lit and a factory React entry', async () => {
     const surface = surfaceWith(
       'hand-lit-factory',
-      new ComponentModel('root', 'HandPanel', {child: 'column-1'}),
-      new ComponentModel('column-1', 'Column', {children: ['badge-1']}),
-      new ComponentModel('badge-1', 'Badge', {label: 'hand, lit, factory'}),
+      new ComponentModel('root', 'HandPanel', {child: 'column-1'}, catalog),
+      new ComponentModel('column-1', 'Column', {children: ['badge-1']}, catalog),
+      new ComponentModel('badge-1', 'Badge', {label: 'hand, lit, factory'}, catalog),
     );
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -302,10 +305,10 @@ describe('mixed React and Web Component catalogs', () => {
   it('nests Lit, a factory React entry and a hand-written React entry', async () => {
     const surface = surfaceWith(
       'lit-factory-hand',
-      new ComponentModel('root', 'Column', {children: ['panel-1']}),
-      new ComponentModel('panel-1', 'Panel', {child: 'hand-1'}),
-      new ComponentModel('hand-1', 'HandPanel', {child: 'badge-1'}),
-      new ComponentModel('badge-1', 'Badge', {label: 'lit, factory, hand'}),
+      new ComponentModel('root', 'Column', {children: ['panel-1']}, catalog),
+      new ComponentModel('panel-1', 'Panel', {child: 'hand-1'}, catalog),
+      new ComponentModel('hand-1', 'HandPanel', {child: 'badge-1'}, catalog),
+      new ComponentModel('badge-1', 'Badge', {label: 'lit, factory, hand'}, catalog),
     );
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -322,8 +325,8 @@ describe('mixed React and Web Component catalogs', () => {
   it('renders a hand-written React entry directly under a Lit parent', async () => {
     const surface = surfaceWith(
       'hand-under-lit',
-      new ComponentModel('root', 'Column', {children: ['hand-1']}),
-      new ComponentModel('hand-1', 'HandPanel', {}),
+      new ComponentModel('root', 'Column', {children: ['hand-1']}, catalog),
+      new ComponentModel('hand-1', 'HandPanel', {}, catalog),
     );
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -340,8 +343,8 @@ describe('mixed React and Web Component catalogs', () => {
   it('makes a provider above A2uiSurface visible to a React component under a Lit parent', async () => {
     const surface = surfaceWith(
       'provider-through-lit',
-      new ComponentModel('root', 'Column', {children: ['themed-1']}),
-      new ComponentModel('themed-1', 'Themed', {}),
+      new ComponentModel('root', 'Column', {children: ['themed-1']}, catalog),
+      new ComponentModel('themed-1', 'Themed', {}, catalog),
     );
 
     const {container} = render(
@@ -361,8 +364,8 @@ describe('mixed React and Web Component catalogs', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const surface = surfaceWith(
       'boundary-through-lit',
-      new ComponentModel('root', 'Column', {children: ['thrower-1']}),
-      new ComponentModel('thrower-1', 'Thrower', {}),
+      new ComponentModel('root', 'Column', {children: ['thrower-1']}, catalog),
+      new ComponentModel('thrower-1', 'Thrower', {}, catalog),
     );
 
     const {container} = render(
@@ -386,9 +389,9 @@ describe('the React tree nests like the DOM', () => {
   it('passes a provider from a component to a child under a Lit component', async () => {
     const surface = surfaceWith(
       'provider-through-component',
-      new ComponentModel('root', 'ThemedPanel', {child: 'col'}),
-      new ComponentModel('col', 'Column', {children: ['themed-1']}),
-      new ComponentModel('themed-1', 'Themed', {}),
+      new ComponentModel('root', 'ThemedPanel', {child: 'col'}, catalog),
+      new ComponentModel('col', 'Column', {children: ['themed-1']}, catalog),
+      new ComponentModel('themed-1', 'Themed', {}, catalog),
     );
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -399,11 +402,11 @@ describe('the React tree nests like the DOM', () => {
   it('dispatches a React event once to each handler above the target', async () => {
     const surface = surfaceWith(
       'events-through-hosts',
-      new ComponentModel('root', 'Clicker', {child: 'mid'}),
-      new ComponentModel('mid', 'Clicker', {child: 'col'}),
-      new ComponentModel('col', 'Column', {children: ['leaf']}),
-      new ComponentModel('leaf', 'Clicker', {child: 'badge-1'}),
-      new ComponentModel('badge-1', 'Badge', {label: 'click me'}),
+      new ComponentModel('root', 'Clicker', {child: 'mid'}, catalog),
+      new ComponentModel('mid', 'Clicker', {child: 'col'}, catalog),
+      new ComponentModel('col', 'Column', {children: ['leaf']}, catalog),
+      new ComponentModel('leaf', 'Clicker', {child: 'badge-1'}, catalog),
+      new ComponentModel('badge-1', 'Badge', {label: 'click me'}, catalog),
     );
     let above = 0;
     const {container} = render(
@@ -433,9 +436,9 @@ describe('the React tree nests like the DOM', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const surface = surfaceWith(
       'boundary-in-component',
-      new ComponentModel('root', 'Panel', {child: 'guard'}),
-      new ComponentModel('guard', 'Guarded', {child: 'thrower-1'}),
-      new ComponentModel('thrower-1', 'Thrower', {}),
+      new ComponentModel('root', 'Panel', {child: 'guard'}, catalog),
+      new ComponentModel('guard', 'Guarded', {child: 'thrower-1'}, catalog),
+      new ComponentModel('thrower-1', 'Thrower', {}, catalog),
     );
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -449,8 +452,8 @@ describe('the React tree nests like the DOM', () => {
   it("mounts a React child's content before its parent's layout effect, as React does", async () => {
     const surface = surfaceWith(
       'layout-order-react',
-      new ComponentModel('root', 'Measurer', {child: 'badge-1'}),
-      new ComponentModel('badge-1', 'LoggingBadge', {}),
+      new ComponentModel('root', 'Measurer', {child: 'badge-1'}, catalog),
+      new ComponentModel('badge-1', 'LoggingBadge', {}, catalog),
     );
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -462,9 +465,9 @@ describe('the React tree nests like the DOM', () => {
   it("mounts a child's content under a Lit component after its parent's layout effect", async () => {
     const surface = surfaceWith(
       'layout-order-lit',
-      new ComponentModel('root', 'Measurer', {child: 'col'}),
-      new ComponentModel('col', 'Column', {children: ['badge-1']}),
-      new ComponentModel('badge-1', 'LoggingBadge', {}),
+      new ComponentModel('root', 'Measurer', {child: 'col'}, catalog),
+      new ComponentModel('col', 'Column', {children: ['badge-1']}, catalog),
+      new ComponentModel('badge-1', 'LoggingBadge', {}, catalog),
     );
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -480,8 +483,8 @@ describe('React hosts under a Lit parent', () => {
   it('receive their node from the Lit parent', async () => {
     const surface = surfaceWith(
       'walk-finds-node',
-      new ComponentModel('root', 'Column', {children: ['badge-1']}),
-      new ComponentModel('badge-1', 'Badge', {label: 'found'}),
+      new ComponentModel('root', 'Column', {children: ['badge-1']}, catalog),
+      new ComponentModel('badge-1', 'Badge', {label: 'found'}, catalog),
     );
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -497,14 +500,14 @@ describe('React hosts under a Lit parent', () => {
   it('renders a child that arrives after its Lit parent', async () => {
     const surface = surfaceWith(
       'walk-late-child',
-      new ComponentModel('root', 'Column', {children: ['badge-1']}),
+      new ComponentModel('root', 'Column', {children: ['badge-1']}, catalog),
     );
     const {container} = render(<A2uiSurface surface={surface} />);
     expect(container.querySelector('a2ui-react-badge > span')).toBeNull();
 
     await act(async () => {
       surface.componentsModel.addComponent(
-        new ComponentModel('badge-1', 'Badge', {label: 'arrived late'}),
+        new ComponentModel('badge-1', 'Badge', {label: 'arrived late'}, catalog),
       );
     });
 
@@ -516,8 +519,8 @@ describe('React hosts under a Lit parent', () => {
   it('re-renders when the data a found node binds to changes', async () => {
     const surface = surfaceWith(
       'walk-data-change',
-      new ComponentModel('root', 'Column', {children: ['badge-1']}),
-      new ComponentModel('badge-1', 'Badge', {label: {path: '/label'}}),
+      new ComponentModel('root', 'Column', {children: ['badge-1']}, catalog),
+      new ComponentModel('badge-1', 'Badge', {label: {path: '/label'}}, catalog),
     );
     surface.dataModel.set('/label', 'before');
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -535,8 +538,13 @@ describe('React hosts under a Lit parent', () => {
   it('resolves template children of a Lit List at their scoped data paths', async () => {
     const surface = surfaceWith(
       'walk-template',
-      new ComponentModel('root', 'List', {children: {componentId: 'item', path: '/items'}}),
-      new ComponentModel('item', 'Badge', {label: {path: 'name'}}),
+      new ComponentModel(
+        'root',
+        'List',
+        {children: {componentId: 'item', path: '/items'}},
+        catalog,
+      ),
+      new ComponentModel('item', 'Badge', {label: {path: 'name'}}, catalog),
     );
     surface.dataModel.set('/items', [{name: 'first'}, {name: 'second'}]);
 

@@ -178,7 +178,9 @@ describe('toWebComponent', () => {
 
     const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
     const surface = new SurfaceModel('surface-1', catalog);
-    surface.componentsModel.addComponent(new ComponentModel('comp-0', 'DisplayContentsTest', {}));
+    surface.componentsModel.addComponent(
+      new ComponentModel('comp-0', 'DisplayContentsTest', {}, catalog),
+    );
 
     registerUniversalElement(impl);
     const el = document.createElement(impl.tagName) as AngularWcHost;
@@ -197,9 +199,14 @@ describe('toWebComponent', () => {
 
     const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
     const surface = new SurfaceModel('surface-1', catalog);
-    const componentModel = new ComponentModel('comp-1', 'BindContextTest', {
-      text: 'Hello World',
-    });
+    const componentModel = new ComponentModel(
+      'comp-1',
+      'BindContextTest',
+      {
+        text: 'Hello World',
+      },
+      catalog,
+    );
     surface.componentsModel.addComponent(componentModel);
     const context = new ComponentContext(surface, 'comp-1', '/');
 
@@ -225,9 +232,14 @@ describe('toWebComponent', () => {
 
     const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
     const surface = new SurfaceModel('surface-2', catalog);
-    const componentModel = new ComponentModel('comp-2', 'ReactiveUpdateTest', {
-      text: 'Initial Text',
-    });
+    const componentModel = new ComponentModel(
+      'comp-2',
+      'ReactiveUpdateTest',
+      {
+        text: 'Initial Text',
+      },
+      catalog,
+    );
     surface.componentsModel.addComponent(componentModel);
     const context = new ComponentContext(surface, 'comp-2', '/');
 
@@ -256,7 +268,7 @@ describe('toWebComponent', () => {
 
     const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
     const surface = new SurfaceModel('surface-3', catalog);
-    const componentModel = new ComponentModel('comp-3', 'NoInputsTest', {});
+    const componentModel = new ComponentModel('comp-3', 'NoInputsTest', {}, catalog);
     surface.componentsModel.addComponent(componentModel);
     const context = new ComponentContext(surface, 'comp-3', '/');
 
@@ -282,9 +294,14 @@ describe('toWebComponent', () => {
 
     const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
     const surface = new SurfaceModel('surface-4', catalog);
-    const componentModel = new ComponentModel('comp-4', 'LifecycleTest', {
-      text: 'First Attach',
-    });
+    const componentModel = new ComponentModel(
+      'comp-4',
+      'LifecycleTest',
+      {
+        text: 'First Attach',
+      },
+      catalog,
+    );
     surface.componentsModel.addComponent(componentModel);
     const context = new ComponentContext(surface, 'comp-4', '/');
 
@@ -343,9 +360,14 @@ describe('toWebComponent', () => {
 
     const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
     const surface = new SurfaceModel('surface-5', catalog);
-    const componentModel = new ComponentModel('comp-5', 'DefaultInjectorTest', {
-      text: 'From default injector',
-    });
+    const componentModel = new ComponentModel(
+      'comp-5',
+      'DefaultInjectorTest',
+      {
+        text: 'From default injector',
+      },
+      catalog,
+    );
     surface.componentsModel.addComponent(componentModel);
     const context = new ComponentContext(surface, 'comp-5', '/');
 
@@ -418,7 +440,9 @@ describe('toWebComponent', () => {
       wcOnlyEntry as unknown as AngularComponentImplementation,
     ]);
     const surface = new SurfaceModel('surface-1', catalog);
-    surface.componentsModel.addComponent(new ComponentModel('comp-6', 'OwningEntryTest', {}));
+    surface.componentsModel.addComponent(
+      new ComponentModel('comp-6', 'OwningEntryTest', {}, catalog),
+    );
 
     registerUniversalElement(impl);
     const el = document.createElement(impl.tagName) as AngularWcHost;

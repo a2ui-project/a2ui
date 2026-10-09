@@ -26,7 +26,9 @@ import {Catalog, ComponentApi, createFunctionImplementation} from '../catalog/ty
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BasicCatalogThemeSchema} from '../universal/basic_catalog/theme.js';
 import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
-import {A2uiIntegrityError, A2uiValidationError} from '../errors.js';
+import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
+import {DataContext} from '../resolution/data-context.js';
+import {peekValue} from '../reactivity/signals.js';
 import {z} from 'zod';
 
 /**
@@ -807,6 +809,7 @@ describe('MessageProcessor', () => {
           version: 'v1.0',
           createSurface: {
             surfaceId: 'comp_meta_surface',
+            catalogId: 'default',
           },
         },
         {
@@ -861,26 +864,563 @@ describe('MessageProcessor', () => {
         },
       });
     });
+  });
 
-    it('resolves version-compatible default catalog when catalogId is omitted', () => {
-      const catV09 = new Catalog('cat-09', '0.9', []);
-      const catV10A = new Catalog('cat-10-a', '1.0', []);
-      const catV10B = new Catalog('cat-10-b', '1.0', []);
-      const proc = new MessageProcessor<ComponentApi>([catV09, catV10A, catV10B]);
+  // The conformance suite (conformance/core/message_processor_v1_0.yaml) covers
+  // catalog resolution through messages. These tests keep what it cannot
+  // observe: which catalog object a component is bound to, behaviour that is
+  // specific to web_core, and evaluation of a stored call.
+  describe('v1.0 catalog resolution', () => {
+    const textApi: ComponentApi = {
+      name: 'Text',
+      schema: z.object({text: z.any()}).strict(),
+    };
+    const upperFn = createFunctionImplementation(
+      {
+        name: 'upper',
+        returnType: 'string' as const,
+        schema: z.object({value: z.string()}).strict(),
+      },
+      args => args.value.toUpperCase(),
+    );
+    /** Rejects unknown functions while relaxing every topology rule. */
+    const STRICT_FUNCTIONS_ONLY = {...THEME_ONLY_VALIDATION, allowUnknownElements: false};
 
-      // Message version v1.0 should skip incompatible catV09 (index 0) and select catV10A
+    it('rebinds a v1.0 component to the surface default when an update names no catalogId', () => {
+      const textInCustom = new Catalog<ComponentApi>('custom', '1.0', [textApi]);
+      const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
+      const proc = new MessageProcessor<ComponentApi>([base, textInCustom], undefined, {
+        validationConfig: {...STRICT_VALIDATION, allowOrphanComponents: true},
+      });
       proc.processMessages([
+        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
         {
           version: 'v1.0',
-          createSurface: {
-            surfaceId: 's_v10',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Text', catalogId: 'custom', text: 'Hi'}],
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Text', text: 'Bye'}],
           },
         },
       ]);
 
-      const surfaceV10 = proc.getSurface('s_v10');
-      assert.ok(surfaceV10);
-      assert.strictEqual(surfaceV10.defaultCatalog.id, 'cat-10-a');
+      assert.strictEqual(proc.getSurface('s')?.componentsModel.get('root')?.catalog, base);
+    });
+
+    it('keeps the existing catalog on a same-type update below v1.0', () => {
+      const v09Base = new Catalog<ComponentApi>('v09-base', '0.9', [textApi]);
+      const v09Custom = new Catalog<ComponentApi>('v09-custom', '0.9', [textApi]);
+      const proc = new MessageProcessor<ComponentApi>([v09Base, v09Custom]);
+      proc.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09-base'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Text', catalogId: 'v09-custom', text: 'Hi'}],
+          },
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Text', text: 'Bye'}],
+          },
+        },
+      ]);
+
+      const root = proc.getSurface('s')?.componentsModel.get('root');
+      assert.strictEqual(root?.catalog, v09Custom);
+      assert.deepStrictEqual(root?.properties, {text: 'Bye'});
+    });
+
+    it('still falls back to a registered catalog for version-less and v0.8 surfaces', () => {
+      const v08 = new Catalog<ComponentApi>('v08-cat', '0.8', []);
+      const proc = new MessageProcessor<ComponentApi>([v08]);
+      proc.processMessages({type: 'createSurface', surfaceId: 'unversioned'});
+      proc.processMessages({version: 'v0.8', beginRendering: {surfaceId: 'v08', root: 'root'}});
+
+      for (const surfaceId of ['unversioned', 'v08']) {
+        assert.strictEqual(proc.getSurface(surfaceId)?.defaultCatalog, v08, surfaceId);
+      }
+    });
+
+    it('evaluates @index on a surface without a default catalog', () => {
+      const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
+      const proc = new MessageProcessor<ComponentApi>([base]);
+      proc.processMessages([
+        {version: 'v1.0', createSurface: {surfaceId: 's'}},
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's',
+            components: [
+              {
+                id: 'root',
+                component: 'Text',
+                catalogId: 'base',
+                text: {'@call': '@index', args: {offset: 1}},
+              },
+            ],
+          },
+        },
+      ]);
+
+      const surface = proc.getSurface('s')!;
+      const errors: unknown[] = [];
+      surface.onError.subscribe(err => {
+        errors.push(err);
+      });
+      const text = surface.componentsModel.get('root')?.properties['text'];
+      const context = new DataContext(surface, '/items/2');
+      assert.strictEqual(context.resolveDynamicValue(text), 3);
+      assert.strictEqual(peekValue(context.resolveSignal<number>(text)), 3);
+      assert.deepStrictEqual(errors, []);
+    });
+
+    it('tolerates an unknown function in the surface default without a validationConfig', () => {
+      const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
+      const proc = new MessageProcessor<ComponentApi>([base]);
+      proc.processMessages([
+        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Text', text: {'@call': 'anything', args: {}}}],
+          },
+        },
+      ]);
+
+      assert.ok(proc.getSurface('s')?.componentsModel.get('root'));
+    });
+
+    /** Processes a v1.0 surface on `base` whose root Text has the given `text`. */
+    function processV10Text(proc: MessageProcessor<ComponentApi>, text: unknown): void {
+      proc.processMessages([
+        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Text', text}],
+          },
+        },
+      ]);
+    }
+
+    it('rejects a catalogId on an @index call even without a validationConfig', () => {
+      const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
+      const proc = new MessageProcessor<ComponentApi>([base]);
+
+      assert.throws(
+        () => processV10Text(proc, {'@call': '@index', catalogId: 'base'}),
+        (err: unknown) =>
+          err instanceof A2uiValidationError &&
+          /System function '@index' belongs to no catalog and must not name a catalogId/.test(
+            err.message,
+          ),
+      );
+      assert.strictEqual(proc.getSurface('s')?.componentsModel.get('root'), undefined);
+    });
+
+    it('treats an empty catalogId on a call as a catalog name, not the surface default', () => {
+      const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
+      const proc = new MessageProcessor<ComponentApi>([base]);
+
+      assert.throws(
+        () => processV10Text(proc, {'@call': 'upper', catalogId: '', args: {value: 'x'}}),
+        (err: unknown) => err instanceof A2uiCatalogError && err.message === 'Catalog not found: ',
+      );
+    });
+
+    it('treats an empty catalogId on a v1.0 component as a catalog name', () => {
+      const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
+      const proc = new MessageProcessor<ComponentApi>([base]);
+
+      assert.throws(
+        () =>
+          proc.processMessages([
+            {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+            {
+              version: 'v1.0',
+              updateComponents: {
+                surfaceId: 's',
+                components: [{id: 'root', component: 'Text', catalogId: '', text: 'x'}],
+              },
+            },
+          ]),
+        (err: unknown) => err instanceof A2uiCatalogError && err.message === 'Catalog not found: ',
+      );
+    });
+
+    it('validates calls inside nested objects with keys named id or component', () => {
+      const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
+      for (const key of ['id', 'component']) {
+        const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+          validationConfig: STRICT_FUNCTIONS_ONLY,
+        });
+        assert.throws(
+          () => processV10Text(proc, {[key]: {'@call': 'nope', args: {}}}),
+          /Unrecognized function 'nope'/,
+          key,
+        );
+      }
+    });
+
+    it('validates a v0.9 call naming another catalogId against the surface catalog', () => {
+      const v09Base = new Catalog<ComponentApi>('v09-base', '0.9', [textApi], [upperFn]);
+      const v09Other = new Catalog<ComponentApi>('v09-other', '0.9', [textApi], [upperFn]);
+      const proc = new MessageProcessor<ComponentApi>([v09Base, v09Other], undefined, {
+        validationConfig: STRICT_FUNCTIONS_ONLY,
+      });
+
+      assert.throws(
+        () =>
+          proc.processMessages([
+            {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09-base'}},
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 's',
+                components: [
+                  {
+                    id: 'root',
+                    component: 'Text',
+                    text: {call: 'nope', catalogId: 'v09-other', args: {}},
+                  },
+                ],
+              },
+            },
+          ]),
+        /Unrecognized function 'nope'/,
+      );
+    });
+
+    describe('nested calls in a component naming a catalog other than the surface default', () => {
+      const lowerFn = createFunctionImplementation(
+        {
+          name: 'lower',
+          returnType: 'string' as const,
+          schema: z.object({value: z.string()}).strict(),
+        },
+        args => args.value.toLowerCase(),
+      );
+
+      /** Processes a v1.0 surface on `base` whose root component is `root`. */
+      function processRoot(
+        proc: MessageProcessor<ComponentApi>,
+        root: Record<string, unknown>,
+      ): void {
+        proc.processMessages([
+          {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+          {version: 'v1.0', updateComponents: {surfaceId: 's', components: [root]}},
+        ]);
+      }
+
+      function newProcessor(): MessageProcessor<ComponentApi> {
+        const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
+        const custom = new Catalog<ComponentApi>('custom', '1.0', [textApi], [lowerFn]);
+        return new MessageProcessor<ComponentApi>([base, custom], undefined, {
+          validationConfig: STRICT_FUNCTIONS_ONLY,
+        });
+      }
+
+      it('accepts a catalogless call to a function only in the surface default', () => {
+        const proc = newProcessor();
+        processRoot(proc, {
+          id: 'root',
+          component: 'Text',
+          catalogId: 'custom',
+          text: {'@call': 'upper', args: {value: 'x'}},
+        });
+        assert.ok(proc.getSurface('s')?.componentsModel.get('root'));
+      });
+
+      it('rejects an unknown catalogless call in a component naming the surface default', () => {
+        // A component naming the surface default is in the catalog its
+        // catalogless calls run in, so component validation checks them.
+        assert.throws(
+          () =>
+            processRoot(newProcessor(), {
+              id: 'root',
+              component: 'Text',
+              catalogId: 'base',
+              text: {'@call': 'noSuchFn'},
+            }),
+          (err: unknown) =>
+            err instanceof A2uiValidationError &&
+            (err.message.match(/Unrecognized function 'noSuchFn'/g) ?? []).length === 1,
+        );
+      });
+
+      it('checks a catalogless call in a component naming the surface default once', () => {
+        let checks = 0;
+        const countedFn = createFunctionImplementation(
+          {
+            name: 'counted',
+            returnType: 'string' as const,
+            schema: z
+              .object({
+                value: z.string().refine(() => {
+                  checks++;
+                  return true;
+                }),
+              })
+              .strict(),
+          },
+          args => args.value,
+        );
+        const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [countedFn]);
+        const custom = new Catalog<ComponentApi>('custom', '1.0', [textApi], [lowerFn]);
+        const proc = new MessageProcessor<ComponentApi>([base, custom], undefined, {
+          validationConfig: STRICT_FUNCTIONS_ONLY,
+        });
+        processRoot(proc, {
+          id: 'root',
+          component: 'Text',
+          catalogId: 'base',
+          text: {'@call': 'counted', args: {value: 'x'}},
+        });
+        assert.ok(proc.getSurface('s')?.componentsModel.get('root'));
+        assert.strictEqual(checks, 1);
+      });
+
+      it('checks a catalogless call against the surface default', () => {
+        assert.throws(
+          () =>
+            processRoot(newProcessor(), {
+              id: 'root',
+              component: 'Text',
+              catalogId: 'custom',
+              text: {'@call': 'upper', args: {value: 3}},
+            }),
+          /Validation failed for function 'upper'/,
+        );
+        assert.throws(
+          () =>
+            processRoot(newProcessor(), {
+              id: 'root',
+              component: 'Text',
+              catalogId: 'custom',
+              text: {'@call': 'lower', args: {value: 'x'}},
+            }),
+          /Unrecognized function 'lower'/,
+        );
+      });
+
+      it("checks a call naming the component's catalog against that catalog", () => {
+        const proc = newProcessor();
+        processRoot(proc, {
+          id: 'root',
+          component: 'Text',
+          catalogId: 'custom',
+          text: {'@call': 'lower', catalogId: 'custom', args: {value: 'X'}},
+        });
+        assert.ok(proc.getSurface('s')?.componentsModel.get('root'));
+
+        assert.throws(
+          () =>
+            processRoot(newProcessor(), {
+              id: 'root',
+              component: 'Text',
+              catalogId: 'custom',
+              text: {'@call': 'lower', catalogId: 'custom', args: {value: 3}},
+            }),
+          /Validation failed for function 'lower'/,
+        );
+        assert.throws(
+          () =>
+            processRoot(newProcessor(), {
+              id: 'root',
+              component: 'Text',
+              catalogId: 'custom',
+              text: {'@call': 'upper', catalogId: 'custom', args: {value: 'x'}},
+            }),
+          /Unrecognized function 'upper'/,
+        );
+      });
+
+      it('checks the calls of a component type its catalog does not define', () => {
+        const newProc = () => {
+          const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
+          const custom = new Catalog<ComponentApi>('custom', '1.0', [], [lowerFn]);
+          return new MessageProcessor<ComponentApi>([base, custom], undefined, {
+            validationConfig: {...THEME_ONLY_VALIDATION, allowUnknownElements: true},
+          });
+        };
+        const widget = (catalogId: string, text: unknown) => ({
+          id: 'root',
+          component: 'Widget',
+          catalogId,
+          text,
+        });
+        // Component validation can't check the properties of an unknown type,
+        // but it still checks the calls in them.
+        assert.throws(
+          () =>
+            processRoot(
+              newProc(),
+              widget('custom', {'@call': 'lower', catalogId: 'custom', args: {value: 3}}),
+            ),
+          /Validation failed for function 'lower'/,
+        );
+        assert.throws(
+          () => processRoot(newProc(), widget('base', {'@call': 'upper', args: {value: 3}})),
+          /Validation failed for function 'upper'/,
+        );
+        // Reserved system functions too.
+        assert.throws(
+          () => processRoot(newProc(), widget('base', {'@call': '@index', catalogId: 'base'})),
+          /System function '@index' belongs to no catalog and must not name a catalogId/,
+        );
+        assert.throws(
+          () => processRoot(newProc(), widget('base', {'@call': '@index', args: {offset: 'one'}})),
+          /Validation failed for function '@index'/,
+        );
+        processRoot(newProc(), widget('base', {'@call': '@index', args: {offset: 1}}));
+      });
+
+      it('rejects a non-string catalogId on a call', () => {
+        const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
+        for (const component of ['Text', 'Widget']) {
+          const proc = new MessageProcessor<ComponentApi>([base]);
+          assert.throws(
+            () =>
+              processRoot(proc, {
+                id: 'root',
+                component,
+                text: {'@call': 'upper', catalogId: 7, args: {value: 'x'}},
+              }),
+            (err: unknown) =>
+              err instanceof A2uiValidationError &&
+              err.message === "Function call 'upper' has a non-string 'catalogId'.",
+            component,
+          );
+        }
+      });
+
+      it('rejects a call with an empty name', () => {
+        const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
+        // `Widget` is unknown to the catalog; its call is checked all the same.
+        for (const component of ['Text', 'Widget']) {
+          const proc = new MessageProcessor<ComponentApi>([base]);
+          assert.throws(
+            () => processRoot(proc, {id: 'root', component, text: {'@call': ''}}),
+            (err: unknown) =>
+              err instanceof A2uiValidationError &&
+              /Function name '' must be a valid UAX #31 identifier/.test(err.message),
+            component,
+          );
+        }
+      });
+
+      it('accepts a closed component schema in a named catalog', () => {
+        const tagApi = {name: 'Tag', schema: z.object({label: z.string()}).strict()};
+        const closed = new Catalog<ComponentApi>('closed', '1.0', [tagApi]);
+        const proc = new MessageProcessor<ComponentApi>([closed], undefined, {
+          validationConfig: STRICT_VALIDATION,
+        });
+        proc.processMessages([
+          {version: 'v1.0', createSurface: {surfaceId: 's'}},
+          {
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's',
+              components: [
+                {id: 'root', component: 'Tag', catalogId: 'closed', label: 'Hello'} as any,
+              ],
+            },
+          },
+        ]);
+        assert.strictEqual(proc.model.getSurface('s')?.componentsModel.get('root')?.type, 'Tag');
+      });
+
+      it('rejects a non-string catalogId on a component', () => {
+        const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
+        for (const catalogId of [7, null, {}]) {
+          const proc = new MessageProcessor<ComponentApi>([base]);
+          assert.throws(
+            () => processRoot(proc, {id: 'root', component: 'Text', catalogId, text: 'x'}),
+            A2uiValidationError,
+            String(catalogId),
+          );
+        }
+      });
+
+      it('reports a bad argument name in a call to another catalog once', () => {
+        const proc = newProcessor();
+        assert.throws(
+          () =>
+            processRoot(proc, {
+              id: 'root',
+              component: 'Text',
+              text: {'@call': 'lower', catalogId: 'custom', args: {'1bad': 'v'}},
+            }),
+          (err: unknown) =>
+            err instanceof A2uiValidationError &&
+            err.message.split("Function argument '1bad'").length === 2,
+        );
+      });
+    });
+
+    it('reports component and function catalog faults with the same messages', () => {
+      const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
+      const v09 = new Catalog<ComponentApi>('v09', '0.9', [textApi], [upperFn]);
+      const cases: Array<[Record<string, unknown>, string]> = [
+        [
+          {id: 'root', component: 'Text', catalogId: 'missing', text: 'x'},
+          'Catalog not found: missing',
+        ],
+        [
+          {
+            id: 'root',
+            component: 'Text',
+            catalogId: 'base',
+            text: {'@call': 'upper', catalogId: 'missing'},
+          },
+          'Catalog not found: missing',
+        ],
+        [
+          {id: 'root', component: 'Text', catalogId: 'v09', text: 'x'},
+          "Component 'root' names catalog 'v09', whose specification version (0.9) does not match surface 's' version (v1.0).",
+        ],
+        [
+          {
+            id: 'root',
+            component: 'Text',
+            catalogId: 'base',
+            text: {'@call': 'upper', catalogId: 'v09'},
+          },
+          "Function call 'upper' names catalog 'v09', whose specification version (0.9) does not match surface 's' version (v1.0).",
+        ],
+        [
+          {id: 'root', component: 'Text', text: 'x'},
+          "Component 'root' names no catalogId and surface 's' has no default catalogId.",
+        ],
+        [
+          {id: 'root', component: 'Text', catalogId: 'base', text: {'@call': 'upper'}},
+          "Function call 'upper' names no catalogId and surface 's' has no default catalogId.",
+        ],
+      ];
+      for (const [component, message] of cases) {
+        const proc = new MessageProcessor<ComponentApi>([base, v09]);
+        assert.throws(
+          () =>
+            proc.processMessages([
+              {version: 'v1.0', createSurface: {surfaceId: 's'}},
+              {version: 'v1.0', updateComponents: {surfaceId: 's', components: [component]}},
+            ]),
+          (err: unknown) => err instanceof A2uiCatalogError && err.message === message,
+          message,
+        );
+      }
     });
   });
 });

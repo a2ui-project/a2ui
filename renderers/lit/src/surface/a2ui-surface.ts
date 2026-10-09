@@ -50,30 +50,24 @@ export class A2uiSurface extends LitElement {
   /**
    * Handles lifecycle updates, specifically when the `surface` property changes.
    *
-   * It manages subscriptions to the components model to detect when the 'root'
-   * component is created.
+   * It subscribes to the components model so the surface re-renders whenever
+   * the 'root' component is created or deleted.
    *
    * @param changedProperties Map of changed properties.
    */
   protected override willUpdate(changedProperties: PropertyValues) {
     if (changedProperties.has('surface')) {
-      if (this.unsubscribe) {
-        this.unsubscribe();
-        this.unsubscribe = undefined;
-      }
-      this._hasRoot = !!this.surface?.componentsModel.get('root');
+      this.subscribeToRoot();
+    }
+  }
 
-      if (this.surface && !this._hasRoot) {
-        const sub = this.surface.componentsModel.onCreated.subscribe(comp => {
-          if (comp.id === 'root') {
-            this._hasRoot = true;
-            this.requestUpdate();
-            this.unsubscribe?.();
-            this.unsubscribe = undefined;
-          }
-        });
-        this.unsubscribe = () => sub.unsubscribe();
-      }
+  /**
+   * Restores the root subscriptions when the element is reattached.
+   */
+  override connectedCallback() {
+    super.connectedCallback();
+    if (this.surface && !this.unsubscribe) {
+      this.subscribeToRoot();
     }
   }
 
@@ -82,10 +76,42 @@ export class A2uiSurface extends LitElement {
    */
   override disconnectedCallback() {
     super.disconnectedCallback();
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = undefined;
-    }
+    this.unsubscribe?.();
+    this.unsubscribe = undefined;
+  }
+
+  /**
+   * Tracks the 'root' component of the current surface for as long as the
+   * surface is shown.
+   *
+   * The processor replaces a component's model when an update changes its
+   * type or catalog, deleting the old model and creating a new one, so the
+   * subscription outlives the first creation of the root: the surface then
+   * renders the new model.
+   */
+  private subscribeToRoot() {
+    this.unsubscribe?.();
+    this.unsubscribe = undefined;
+    const components = this.surface?.componentsModel;
+    this._hasRoot = !!components?.get('root');
+    if (!components) return;
+
+    const created = components.onCreated.subscribe(comp => {
+      if (comp.id === 'root') {
+        this._hasRoot = true;
+        this.requestUpdate();
+      }
+    });
+    const deleted = components.onDeleted.subscribe(id => {
+      if (id === 'root') {
+        this._hasRoot = !!components.get('root');
+        this.requestUpdate();
+      }
+    });
+    this.unsubscribe = () => {
+      created.unsubscribe();
+      deleted.unsubscribe();
+    };
   }
 
   /**
@@ -103,8 +129,9 @@ export class A2uiSurface extends LitElement {
 
     try {
       const rootContext = new ComponentContext(this.surface, 'root', '/');
-      const activeCatalog = (rootContext.componentModel.catalog ??
-        this.surface.defaultCatalog) as Catalog<LitComponentApi>;
+      // The root resolves against its own catalog, so a v1.0 surface without a
+      // default catalog still renders.
+      const activeCatalog = rootContext.componentModel.catalog as Catalog<LitComponentApi>;
       return renderA2uiNode(rootContext, activeCatalog);
     } catch (e) {
       console.error('Error creating root context:', e);

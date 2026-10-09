@@ -1,5 +1,7 @@
 ## Unreleased
 
+- (v1_0) `ComponentHostComponent` renders components on a surface whose `createSurface` names no default catalog by resolving each against its own catalog. `SurfaceModel.defaultCatalog` (and the deprecated `catalog` getter) from `@a2ui/web_core` may now be `undefined`, so code that reads `surface.defaultCatalog` must handle that case.
+
 ## 0.12.0
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.13.0`.

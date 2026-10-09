@@ -53,9 +53,7 @@ describe('SurfaceModel', () => {
   });
 
   it('exposes components model', () => {
-    surface.componentsModel.addComponent(
-      new ComponentModel('c1', 'Button', {}, surface.defaultCatalog),
-    );
+    surface.componentsModel.addComponent(new ComponentModel('c1', 'Button', {}, catalog));
     assert.ok(surface.componentsModel.get('c1'));
   });
 
@@ -79,6 +77,42 @@ describe('SurfaceModel', () => {
   it('seeds defaultCatalog into availableCatalogs when none are supplied', () => {
     assert.strictEqual(surface.availableCatalogs.size, 1);
     assert.strictEqual(surface.availableCatalogs.get(catalog.id), catalog);
+  });
+
+  it('takes its protocol version from the default catalog unless one is given', () => {
+    assert.strictEqual(surface.protocolVersion, 'v1.0');
+    const noDefault = new SurfaceModel<ComponentApi>(
+      'surface-no-default',
+      undefined,
+      new Map([[catalog.id, catalog]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'v1.0',
+    );
+    assert.strictEqual(noDefault.defaultCatalog, undefined);
+    assert.strictEqual(noDefault.protocolVersion, 'v1.0');
+    assert.strictEqual(noDefault.availableCatalogs.get(catalog.id), catalog);
+  });
+
+  it('stores the protocol version in one canonical form', () => {
+    const fromCatalog = new SurfaceModel<ComponentApi>('a', catalog);
+    const fromArgument = new SurfaceModel<ComponentApi>(
+      'b',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0.0',
+    );
+    assert.strictEqual(catalog.protocolVersion, '1.0');
+    assert.strictEqual(fromCatalog.protocolVersion, 'v1.0');
+    assert.strictEqual(fromArgument.protocolVersion, 'v1.0');
   });
 
   it('exposes the catalogs it was constructed with', () => {
@@ -138,9 +172,7 @@ describe('SurfaceModel', () => {
   });
 
   it('creates a component context', () => {
-    surface.componentsModel.addComponent(
-      new ComponentModel('root', 'Box', {}, surface.defaultCatalog),
-    );
+    surface.componentsModel.addComponent(new ComponentModel('root', 'Box', {}, catalog));
     const ctx = new ComponentContext(surface, 'root', '/mydata');
     assert.ok(ctx);
     assert.strictEqual(ctx.dataContext.path, '/mydata');
@@ -215,5 +247,38 @@ describe('SurfaceModel', () => {
 
     const surfaceWithUndefined = new SurfaceModel('s-undef', catalog, undefined);
     assert.strictEqual(surfaceWithUndefined.availableCatalogs.get(catalog.id), catalog);
+  });
+
+  describe('resolveCatalog', () => {
+    const other = new Catalog<ComponentApi>('other-catalog', '1.0', []);
+
+    it('returns the named available catalog, or the default when none is named', () => {
+      const s = new SurfaceModel('s', catalog, new Map([['other-catalog', other]]));
+      assert.strictEqual(s.resolveCatalog('other-catalog'), other);
+      assert.strictEqual(s.resolveCatalog(catalog.id), catalog);
+      assert.strictEqual(s.resolveCatalog(undefined), catalog);
+    });
+
+    it('throws A2uiCatalogError for a catalog the surface does not offer', () => {
+      const s = new SurfaceModel('s', catalog);
+      assert.throws(() => s.resolveCatalog('missing'), {
+        name: 'A2uiCatalogError',
+        message: 'Catalog not found: missing',
+      });
+    });
+
+    it('throws A2uiCatalogError naming the subject when there is no default', () => {
+      const s = new SurfaceModel('no-default', undefined, new Map([['other-catalog', other]]));
+      assert.strictEqual(s.resolveCatalog('other-catalog'), other);
+      assert.throws(() => s.resolveCatalog(undefined), {
+        name: 'A2uiCatalogError',
+        message: "Item names no catalogId and surface 'no-default' has no default catalogId.",
+      });
+      assert.throws(() => s.resolveCatalog(undefined, "Function call 'f'"), {
+        name: 'A2uiCatalogError',
+        message:
+          "Function call 'f' names no catalogId and surface 'no-default' has no default catalogId.",
+      });
+    });
   });
 });
