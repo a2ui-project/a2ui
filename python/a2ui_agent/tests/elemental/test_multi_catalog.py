@@ -109,9 +109,8 @@ def parser() -> ElementalParser:
 
 
 def _compile(parser: ElementalParser, body: str) -> list[dict[str, Any]]:
-    result = parser.parse_response(f"<a2ui>\n{body}\n</a2ui>")[0].a2ui_json
-    assert isinstance(result, list)
-    return result
+    part = parser.parse_response(f"<a2ui>\n{body}\n</a2ui>")[0]
+    return to_message_dicts(part.a2ui)
 
 
 def _components(messages: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -799,7 +798,7 @@ def test_multi_catalog_prompt_rules() -> None:
     assert f"## Catalog `{PRI}`\n" in instructions
     assert f"## Catalog `{SEC}`" in instructions
 
-    prompt = fmt.prompt_generator.generate("Role", include_schema=True)
+    prompt = fmt.prompt_generator.generate()
     assert "[CATALOG_ID]" not in prompt
 
 

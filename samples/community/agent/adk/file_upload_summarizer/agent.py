@@ -20,7 +20,8 @@ from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.core import CatalogApi
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig, VERSION_0_9
+from a2ui.processor import CatalogConfig
+from a2ui.schema import VERSION_0_9
 from a2ui.utils import resolve_catalogs
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
@@ -178,15 +179,13 @@ class FileUploadSummarizerAgent:
 
     def _build_inference_format(self, version: str) -> DirectJsonFormat:
         config = CatalogConfig.from_path(
-            name="file_upload_catalog",
             catalog_path=f"catalogs/{version}/file_upload_catalog.json",
+            protocol_version=version,
         )
-        catalog = config.to_catalog(protocol_version=version)
+        catalog = config.transformed_catalog
         # Build the catalog once with the version fixed, so that per-request
         # resolution reuses it as it is.
-        self._catalog_configs[version] = [
-            CatalogConfig.from_catalog(config.name, catalog)
-        ]
+        self._catalog_configs[version] = [config]
         return DirectJsonFormat([catalog])
 
     def _build_agent_card(self) -> AgentCard:
@@ -251,18 +250,15 @@ class FileUploadSummarizerAgent:
     def _build_llm_agent(
         self, inference_format: DirectJsonFormat | None = None
     ) -> LlmAgent:
-        instruction = (
-            inference_format.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                workflow_description=WORKFLOW_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_schema=False,
-                include_examples=False,
-                validate_examples=False,
-            )
-            if inference_format
-            else ""
-        )
+        if inference_format:
+            instruction = "\n\n".join([
+                ROLE_DESCRIPTION,
+                inference_format.prompt_generator.generate_base_rules(),
+                WORKFLOW_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+            ])
+        else:
+            instruction = ""
 
         return LlmAgent(
             model=self._model,

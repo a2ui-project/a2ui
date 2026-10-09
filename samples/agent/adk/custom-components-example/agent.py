@@ -12,24 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import logging
-import re
-import os
 from collections import OrderedDict
 from collections.abc import AsyncIterable, Mapping, Sequence
+import json
+import logging
+import os
+import re
 from typing import Any
 
-import jsonschema
-
-from a2ui_examples import load_floor_plan_example
-from google.adk.agents import run_config
-from google.adk.agents.llm_agent import LlmAgent
-from google.adk.artifacts import InMemoryArtifactService
-from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
-from google.adk.models.lite_llm import LiteLlm
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
 from a2a.types import (
     AgentCapabilities,
     AgentCard,
@@ -37,28 +27,36 @@ from a2a.types import (
     Part,
     TextPart,
 )
-
+from google.adk.agents import run_config
+from google.adk.agents.llm_agent import LlmAgent
+from google.adk.artifacts import InMemoryArtifactService
+from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
+from google.adk.models.lite_llm import LiteLlm
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from prompt_builder import get_text_prompt, ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
-from tools import get_contact_info
+import jsonschema
 
-from a2ui.core import CatalogApi
-from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonStreamParser
-from a2ui.parser import parse_response
-from a2ui.schema import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    CatalogConfig,
-    VERSION_0_8,
-    VERSION_0_9,
-)
 from a2ui.a2a import (
     get_a2ui_agent_extension,
     parse_response_to_parts,
     stream_response_to_parts,
 )
+from a2ui.core import CatalogApi
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
+from a2ui.parser import A2uiPart
+from a2ui.processor import CatalogConfig
+from a2ui.schema import (
+    A2UI_CLOSE_TAG,
+    A2UI_OPEN_TAG,
+    VERSION_0_8,
+    VERSION_0_9,
+)
 from a2ui.utils import resolve_catalogs, validate_payload
+from a2ui_examples import load_floor_plan_example
+from prompt_builder import ROLE_DESCRIPTION, UI_DESCRIPTION, WORKFLOW_DESCRIPTION, get_text_prompt
+from tools import get_contact_info
 
 logger = logging.getLogger(__name__)
 
@@ -125,13 +123,15 @@ class ContactAgent:
         self._catalog_configs: dict[str, list[CatalogConfig]] = {}
         self._inference_formats: dict[str, DirectJsonFormat] = {}
         self._ui_runners: dict[str, Runner] = {}
-        self._parsers: OrderedDict[str, DirectJsonStreamParser] = OrderedDict()
+        self._parsers: OrderedDict[str, DirectJsonParser] = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
 
         for version in [VERSION_0_8, VERSION_0_9]:
             inference_format = self._build_inference_format(version)
             self._inference_formats[version] = inference_format
-            agent = self._build_llm_agent(inference_format)
+            agent = self._build_llm_agent(
+                inference_format, examples_path=f"examples/{version}"
+            )
             self._ui_runners[version] = self._build_runner(agent)
 
         self._agent_card = self._build_agent_card()
@@ -175,20 +175,17 @@ class ContactAgent:
             (
                 catalog
                 if catalog.catalog_id in catalog_ids
-                else CatalogConfig.from_catalog(catalog.catalog_id, catalog).to_catalog(
-                    protocol_version=version
-                )
+                else CatalogConfig(catalog).transformed_catalog
             )
             for catalog in catalogs
         ]
 
     def _build_inference_format(self, version: str) -> DirectJsonFormat:
-        catalog = CatalogConfig.from_catalog("basic", BasicCatalog(version)).to_catalog(
-            protocol_version=version
-        )
+        config = CatalogConfig(BasicCatalog(version))
+        catalog = config.transformed_catalog
         # Per-request resolution reuses the catalog as it is.
-        self._catalog_configs[version] = [CatalogConfig.from_catalog("basic", catalog)]
-        return DirectJsonFormat([catalog], examples_path=f"examples/{version}")
+        self._catalog_configs[version] = [config]
+        return DirectJsonFormat([catalog])
 
     def _build_agent_card(self) -> AgentCard:
         extensions = []
@@ -245,23 +242,31 @@ class ContactAgent:
         return "Looking up contact information..."
 
     def _build_llm_agent(
-        self, inference_format: DirectJsonFormat | None = None
+        self,
+        inference_format: DirectJsonFormat | None = None,
+        examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
+        from a2ui.schema import load_examples
+
         LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.6-flash")
 
-        instruction = (
-            inference_format.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                workflow_description=WORKFLOW_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_examples=True,
-                include_schema=True,
-                validate_examples=False,  # Missing inline_catalogs for OrgChart and WebFrame validation
+        if inference_format:
+            prompt_parts = [
+                ROLE_DESCRIPTION,
+                f"## Workflow Description:\n{WORKFLOW_DESCRIPTION}",
+                f"## UI Description:\n{UI_DESCRIPTION}",
+                inference_format.prompt_generator.generate(),
+            ]
+            # Missing inline_catalogs for OrgChart and WebFrame validation
+            examples = load_examples(
+                inference_format.catalogs, examples_path, validate=False
             )
-            if inference_format
-            else get_text_prompt()
-        )
+            if examples:
+                prompt_parts.append(f"### Examples:\n{examples}")
+            instruction = "\n\n".join(prompt_parts)
+        else:
+            instruction = get_text_prompt()
 
         return LlmAgent(
             model=LiteLlm(model=LITELLM_MODEL),
@@ -525,7 +530,7 @@ class ContactAgent:
                 if session_id in self._parsers:
                     self._parsers.move_to_end(session_id)
                 else:
-                    self._parsers[session_id] = inference_format.create_stream_parser()
+                    self._parsers[session_id] = inference_format.create_parser()
                     if len(self._parsers) > self._max_parsers:
                         self._parsers.popitem(last=False)
 
@@ -578,13 +583,15 @@ class ContactAgent:
                     f" {attempt})... ---"
                 )
                 try:
-                    response_parts = parse_response(final_response_content)
+                    response_parts = DirectJsonParser(
+                        validation_catalogs
+                    ).parse_response(final_response_content)
 
                     for part in response_parts:
-                        if not part.a2ui_json:
+                        if not isinstance(part, A2uiPart):
                             continue
 
-                        parsed_json_data = part.a2ui_json
+                        parsed_json_data = part.a2ui
 
                         # Handle the "no results found" or empty JSON case
                         if parsed_json_data == []:

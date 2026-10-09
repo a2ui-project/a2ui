@@ -14,10 +14,10 @@
 
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
+from a2ui.processor import CatalogConfig
 from a2ui.schema import (
     A2UI_CLOSE_TAG,
     A2UI_OPEN_TAG,
-    CatalogConfig,
     VERSION_0_9,
 )
 
@@ -66,28 +66,46 @@ def get_text_prompt() -> str:
     """
 
 
+def get_ui_prompt(
+    inference_format: DirectJsonFormat,
+    examples_path: str | None = None,
+    *,
+    validate_examples: bool = False,
+) -> str:
+    """Constructs the full system prompt for the UI agent."""
+    from a2ui.schema import load_examples
+
+    prompt_parts = [ROLE_DESCRIPTION]
+    if WORKFLOW_DESCRIPTION:
+        prompt_parts.append(f"## Workflow Description:\n{WORKFLOW_DESCRIPTION}")
+    if UI_DESCRIPTION:
+        prompt_parts.append(f"## UI Description:\n{UI_DESCRIPTION}")
+    prompt_parts.append(inference_format.prompt_generator.generate())
+    examples = load_examples(
+        inference_format.catalogs, examples_path, validate=validate_examples
+    )
+    if examples:
+        prompt_parts.append(f"### Examples:\n{examples}")
+    return "\n\n".join(prompt_parts)
+
+
 if __name__ == "__main__":
+    from a2ui.schema import load_examples
+
     # Example of how to use the Direct JSON format to generate a system prompt
     my_base_url = "http://localhost:8000"
     my_version = VERSION_0_9
     inline_catalog_path = f"inline_catalog_{my_version}.json"
     inline_catalog = CatalogConfig.from_path(
-        name="custom-components-example_inline_catalog",
         catalog_path=inline_catalog_path,
-    ).to_catalog(protocol_version=my_version)
+        protocol_version=my_version,
+    ).transformed_catalog
     # The examples target both the basic catalog and the inline catalog.
-    basic_catalog = CatalogConfig.from_catalog(
-        "basic", BasicCatalog(my_version)
-    ).to_catalog(protocol_version=my_version)
-    direct_json_format = DirectJsonFormat(
-        [inline_catalog, basic_catalog], examples_path=f"examples/{my_version}"
-    )
-    contact_prompt = direct_json_format.generate_system_prompt(
-        role_description=ROLE_DESCRIPTION,
-        workflow_description=WORKFLOW_DESCRIPTION,
-        ui_description=UI_DESCRIPTION,
-        include_schema=True,
-        include_examples=True,
+    basic_catalog = CatalogConfig(BasicCatalog(my_version)).transformed_catalog
+    direct_json_format = DirectJsonFormat([inline_catalog, basic_catalog])
+    contact_prompt = get_ui_prompt(
+        direct_json_format,
+        examples_path=f"examples/{my_version}",
         validate_examples=False,
     )
     print(contact_prompt)
@@ -103,7 +121,9 @@ if __name__ == "__main__":
         f.write(request_prompt)
     print("\nGenerated request prompt saved to request_prompt.txt")
 
-    examples = direct_json_format.prompt_generator.generate_examples(validate=True)
+    examples = load_examples(
+        direct_json_format.catalogs, f"examples/{my_version}", validate=True
+    )
     print(examples)
     with open("examples.txt", "w") as f:
         f.write(examples)

@@ -106,7 +106,6 @@ function adaptParts(parts: ResponsePart[]): Record<string, unknown>[] {
 describe('Conformance Harness', () => {
   const yamlFiles = [
     path.resolve(CONFORMANCE_ROOT, 'agent/legacy/parser.yaml'),
-    path.resolve(CONFORMANCE_ROOT, 'agent/legacy/streaming_parser.yaml'),
     path.resolve(CONFORMANCE_ROOT, 'agent/legacy/inference_format.yaml'),
     path.resolve(CONFORMANCE_ROOT, 'agent/skill.yaml'),
   ];

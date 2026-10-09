@@ -47,30 +47,10 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.9', 'v1.0']);
  * These are expected failures, not skips. The case executes and the suite asserts that it
  * fails, so fixing the underlying gap turns the test red and prompts removal of the entry.
  * Python passes every case listed here, so each one is a real gap in this SDK rather than
- * an aspirational case.
- *
- * Almost none of these are specific to v0.9. The canonical streaming suite is 39 v0.8
- * cases, 41 v0.9 cases and a single v1.0 case, so before v0.9 was enabled this SDK ran one
- * canonical streaming case and relied on local hand-translated fixtures for the rest.
- * Enabling v0.9 is what made the gaps visible; it did not create them.
+ * an aspirational case. The streaming gaps are listed with the suite that finds them, in
+ * `direct-json-response-streaming.test.ts`.
  */
-export const KNOWN_FAILURES = new Map<string, string>([
-  ...[
-    'test_v1_0_streaming_multi_catalog_resolution',
-    'test_v1_0_streaming_component_without_catalog_uses_surface_catalog',
-  ].map((name): [string, string] => [
-    name,
-    'the stream processor resolves catalogs per surface, not per component (#3030)',
-  ]),
-  ...[
-    'test_v1_0_streaming_component_catalog_id_arrives_late',
-    'test_v1_0_streaming_catalog_id_split_across_chunks',
-    'test_v1_0_streaming_component_on_surface_catalog_waits_until_closed',
-  ].map((name): [string, string] => [
-    name,
-    'the stream processor emits a v1.0 component before its object closes (#3030)',
-  ]),
-]);
+export const KNOWN_FAILURES = new Map<string, string>([]);
 
 /**
  * Legacy cases whose rules the newer suites replaced, with the suite that now covers each.

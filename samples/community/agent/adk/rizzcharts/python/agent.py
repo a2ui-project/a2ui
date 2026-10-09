@@ -21,7 +21,8 @@ from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig, VERSION_0_8, VERSION_0_9
+from a2ui.processor import CatalogConfig
+from a2ui.schema import VERSION_0_8, VERSION_0_9
 from a2ui.utils import resolve_catalogs
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.planners.built_in_planner import BuiltInPlanner
@@ -198,8 +199,7 @@ class RizzchartsAgent:
             client_ui_capabilities: The capabilities that the client sent.
 
         Returns:
-            A format whose first catalog is the client's preferred one, with the
-            examples of that catalog.
+            A format whose first catalog is the client's preferred one.
         """
         catalogs = resolve_catalogs(
             self._catalog_configs[version],
@@ -210,38 +210,30 @@ class RizzchartsAgent:
             ),
             accepts_inline_catalogs=self._accepts_inline_catalogs,
         )
-        return DirectJsonFormat(
-            catalogs,
-            examples_path=self._examples_paths[version].get(catalogs[0].catalog_id),
-        )
+        return DirectJsonFormat(catalogs)
+
+    def get_examples_path(self, version: str, catalog_id: str) -> str | None:
+        """Returns the examples directory path for the given version and catalog."""
+        return self._examples_paths.get(version, {}).get(catalog_id)
 
     def _build_inference_format(self, version: str) -> DirectJsonFormat:
-        configs = [
-            CatalogConfig.from_path(
-                name="rizzcharts",
-                catalog_path=(
-                    f"../catalog_schemas/{version}/rizzcharts_catalog_definition.json"
-                ),
-                examples_path=f"../examples/rizzcharts_catalog/{version}",
+        rizzcharts_config = CatalogConfig.from_path(
+            catalog_path=(
+                f"../catalog_schemas/{version}/rizzcharts_catalog_definition.json"
             ),
-            CatalogConfig.from_catalog(
-                "basic",
-                BasicCatalog(version),
-                examples_path=f"../examples/standard_catalog/{version}",
-            ),
-        ]
-        catalogs = [config.to_catalog(protocol_version=version) for config in configs]
+            protocol_version=version,
+        )
+        basic_config = CatalogConfig(BasicCatalog(version))
+        configs = [rizzcharts_config, basic_config]
+        catalogs = [config.transformed_catalog for config in configs]
         # Build the catalogs once with the version fixed, so that per-request
         # resolution reuses them as they are.
-        self._catalog_configs[version] = [
-            CatalogConfig.from_catalog(config.name, catalog)
-            for config, catalog in zip(configs, catalogs)
-        ]
+        self._catalog_configs[version] = configs
         self._examples_paths[version] = {
-            catalog.catalog_id: config.examples_path
-            for config, catalog in zip(configs, catalogs)
+            catalogs[0].catalog_id: f"../examples/rizzcharts_catalog/{version}",
+            catalogs[1].catalog_id: f"../examples/standard_catalog/{version}",
         }
-        return DirectJsonFormat(catalogs, examples_path=configs[0].examples_path)
+        return DirectJsonFormat(catalogs)
 
     def _build_agent_card(self) -> AgentCard:
         """Returns the AgentCard defining this agent's metadata and skills.
@@ -325,18 +317,15 @@ class RizzchartsAgent:
         self, inference_format: DirectJsonFormat | None = None
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
-        instruction = (
-            inference_format.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                workflow_description=WORKFLOW_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_schema=False,
-                include_examples=False,
-                validate_examples=False,
-            )
-            if inference_format
-            else ""
-        )
+        if inference_format:
+            instruction = "\n\n".join([
+                ROLE_DESCRIPTION,
+                inference_format.prompt_generator.generate_base_rules(),
+                WORKFLOW_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+            ])
+        else:
+            instruction = ""
 
         return LlmAgent(
             model=self._model,

@@ -15,7 +15,8 @@
 """Unit tests for state-machine-based BlockLexer."""
 
 import unittest
-from a2ui.parser.lexer import BlockLexer
+
+from a2ui.parser import BlockLexer
 
 
 class TestBlockLexer(unittest.TestCase):
@@ -27,12 +28,13 @@ class TestBlockLexer(unittest.TestCase):
         lexer = BlockLexer()
         parts = lexer.tokenize(content)
 
-        self.assertEqual(len(parts), 2)
-        self.assertEqual(parts[0].text, "Preamble")
-        self.assertEqual(parts[0].a2ui_raw, "code_here")
+        self.assertEqual(len(parts), 3)
+        self.assertEqual(parts[0].part.text, "Preamble")
         self.assertTrue(parts[0].is_final)
-        self.assertEqual(parts[1].text, "Postamble")
-        self.assertIsNone(parts[1].a2ui_raw)
+        self.assertEqual(parts[1].part.a2ui_raw, "code_here")
+        self.assertTrue(parts[1].is_final)
+        self.assertEqual(parts[2].part.text, "Postamble")
+        self.assertTrue(parts[2].is_final)
 
     def test_lexer_embedded_tag_in_string(self):
         """Verify embedded close tag inside double-quoted string doesn't split the block."""
@@ -40,10 +42,10 @@ class TestBlockLexer(unittest.TestCase):
         lexer = BlockLexer()
         parts = lexer.tokenize(content)
 
-        self.assertEqual(len(parts), 1)
-        self.assertEqual(parts[0].text, "Preamble")
-        self.assertEqual(parts[0].a2ui_raw, 'text = "Hello </a2ui> World"')
-        self.assertTrue(parts[0].is_final)
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0].part.text, "Preamble")
+        self.assertEqual(parts[1].part.a2ui_raw, 'text = "Hello </a2ui> World"')
+        self.assertTrue(parts[1].is_final)
 
     def test_lexer_triple_quoted_string(self):
         """Verify embedded close tag inside triple quotes doesn't split the block."""
@@ -51,10 +53,12 @@ class TestBlockLexer(unittest.TestCase):
         lexer = BlockLexer()
         parts = lexer.tokenize(content)
 
-        self.assertEqual(len(parts), 1)
-        self.assertEqual(parts[0].text, "Preamble")
-        self.assertEqual(parts[0].a2ui_raw, 'text = """\nLine 1\n</a2ui>\nLine 2\n"""')
-        self.assertTrue(parts[0].is_final)
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0].part.text, "Preamble")
+        self.assertEqual(
+            parts[1].part.a2ui_raw, 'text = """\nLine 1\n</a2ui>\nLine 2\n"""'
+        )
+        self.assertTrue(parts[1].is_final)
 
     def test_lexer_unclosed_block_truncation(self):
         """Verify lexer auto-closes truncated block and sets is_final=False."""
@@ -62,10 +66,10 @@ class TestBlockLexer(unittest.TestCase):
         lexer = BlockLexer()
         parts = lexer.tokenize(content)
 
-        self.assertEqual(len(parts), 1)
-        self.assertEqual(parts[0].text, "Preamble")
-        self.assertEqual(parts[0].a2ui_raw, 'text = "Hello')
-        self.assertFalse(parts[0].is_final)
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0].part.text, "Preamble")
+        self.assertEqual(parts[1].part.a2ui_raw, 'text = "Hello')
+        self.assertFalse(parts[1].is_final)
 
     def test_lexer_embedded_tag_in_comment(self):
         """Verify embedded close tag inside comment doesn't split the block."""
@@ -73,10 +77,10 @@ class TestBlockLexer(unittest.TestCase):
         lexer = BlockLexer()
         parts = lexer.tokenize(content)
 
-        self.assertEqual(len(parts), 1)
-        self.assertEqual(parts[0].text, "Preamble")
-        self.assertEqual(parts[0].a2ui_raw, "# Some </a2ui> comment\ntext = 123")
-        self.assertTrue(parts[0].is_final)
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0].part.text, "Preamble")
+        self.assertEqual(parts[1].part.a2ui_raw, "# Some </a2ui> comment\ntext = 123")
+        self.assertTrue(parts[1].is_final)
 
     def test_lexer_open_tag_with_attributes(self):
         """Verify that open tags with attributes are correctly matched and parsed."""
@@ -86,11 +90,11 @@ class TestBlockLexer(unittest.TestCase):
         lexer = BlockLexer()
         parts = lexer.tokenize(content)
 
-        self.assertEqual(len(parts), 2)
-        self.assertEqual(parts[0].text, "Preamble")
-        self.assertEqual(parts[0].a2ui_raw, "code_here")
-        self.assertTrue(parts[0].is_final)
-        self.assertEqual(parts[1].text, "Postamble")
+        self.assertEqual(len(parts), 3)
+        self.assertEqual(parts[0].part.text, "Preamble")
+        self.assertEqual(parts[1].part.a2ui_raw, "code_here")
+        self.assertTrue(parts[1].is_final)
+        self.assertEqual(parts[2].part.text, "Postamble")
 
     def test_lexer_markdown_cleaning(self):
         """Verify that markdown code block wrapper tags are stripped from conversational text parts."""
@@ -98,11 +102,11 @@ class TestBlockLexer(unittest.TestCase):
         lexer = BlockLexer()
         parts = lexer.tokenize(content)
 
-        self.assertEqual(len(parts), 2)
-        self.assertEqual(parts[0].text, "Preamble")
-        self.assertEqual(parts[0].a2ui_raw, "code_here")
-        self.assertTrue(parts[0].is_final)
-        self.assertEqual(parts[1].text, "Postamble")
+        self.assertEqual(len(parts), 3)
+        self.assertEqual(parts[0].part.text, "Preamble")
+        self.assertEqual(parts[1].part.a2ui_raw, "code_here")
+        self.assertTrue(parts[1].is_final)
+        self.assertEqual(parts[2].part.text, "Postamble")
 
     def test_lexer_inner_markdown_cleaning(self):
         """Verify that markdown code block wrappers inside the tag are stripped from the raw content."""
@@ -110,11 +114,11 @@ class TestBlockLexer(unittest.TestCase):
         lexer = BlockLexer()
         parts = lexer.tokenize(content)
 
-        self.assertEqual(len(parts), 2)
-        self.assertEqual(parts[0].text, "Preamble")
-        self.assertEqual(parts[0].a2ui_raw, "code_here")
-        self.assertTrue(parts[0].is_final)
-        self.assertEqual(parts[1].text, "Postamble")
+        self.assertEqual(len(parts), 3)
+        self.assertEqual(parts[0].part.text, "Preamble")
+        self.assertEqual(parts[1].part.a2ui_raw, "code_here")
+        self.assertTrue(parts[1].is_final)
+        self.assertEqual(parts[2].part.text, "Postamble")
 
 
 if __name__ == "__main__":

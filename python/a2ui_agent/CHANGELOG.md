@@ -1,5 +1,27 @@
 ## Unreleased
 
+- **BREAKING**: `DirectJsonStreamParser`, `DirectJsonStreamParserModern`,
+  `DirectJsonStreamParserV08Legacy` and `DirectJsonFormat.create_stream_parser`
+  are removed (#3074). To migrate, call `parse_chunk` on the parser that
+  `DirectJsonFormat.create_parser()` returns. It streams v0.8, v0.9 and v1.0,
+  and behaves differently from the removed parsers:
+  - It adds no placeholder components. A parent is emitted with the child ids
+    it names before those children arrive.
+  - A message that is still arriving is emitted whole each time it changes,
+    rather than pruned to the parts that parse.
+  - A block whose messages never become valid, for example with an orphan or a
+    cycle, raises when it closes instead of dropping the bad parts.
+  - Paths are emitted as written. The v0.8 parser added a leading slash.
+- `DirectJsonParser.parse_chunk` emits a `createSurface` or `beginRendering`
+  once, after its object closes, instead of again each time it grows. A string
+  that starts with `http://`, `https://` or `data:` is never healed, even under
+  a progressive key, since a cut URL is a broken one.
+- `InferenceFormat.supports_streaming` tells whether a format's parser
+  implements `parse_chunk`. `DirectJsonFormat` returns `True`.
+- `validate_payload` accepts a payload that creates a surface whose
+  components name children that a later message in the payload adds, and a
+  v0.8 payload that deletes a surface and starts it over.
+
 ## 0.8.0 (2026-10-08)
 
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.3.0,<0.4.0`.

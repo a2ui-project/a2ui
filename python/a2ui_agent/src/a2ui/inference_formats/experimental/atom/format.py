@@ -14,12 +14,16 @@
 
 """Format definition for A2UI Atom (S-Expression AST inference format)."""
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 
 from google.adk.utils.feature_decorator import experimental
 
 from a2ui.core import CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat
+from a2ui.inference_format import InferenceFormatFactory
 from a2ui.inference_formats._shared import check_mixed_catalogs
 from a2ui.parser import Parser
 
@@ -29,38 +33,23 @@ from .prompt_generator import AtomPromptGenerator
 
 @experimental
 class AtomFormat(InferenceFormat):
-    """Configures and provides components for the Atom S-expression inference format strategy.
-
-    Atom is a compact, token-efficient S-expression representation for generating
-    and parsing A2UI user interfaces.
-
-    Attributes:
-        catalogs: The sequence of active catalogs.
-        surface_id: The target surface identifier.
-        examples_path: The filesystem path to prompt example definitions.
-    """
+    """Configures and provides components for the Atom S-expression inference format strategy."""
 
     def __init__(
         self,
         catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
+        allowed_messages: Sequence[str] | None = None,
         surface_id: str = "main",
-        examples_path: str | None = None,
     ):
-        """Initializes an AtomFormat strategy instance.
-
-        Args:
-            catalogs: A sequence of catalogs containing component and function schemas.
-            surface_id: The target surface identifier. Defaults to "main".
-            examples_path: The filesystem path to prompt example definitions.
-
-        Raises:
-            A2uiCatalogError: If no catalog is given, two catalogs share an
-                ID, the catalogs target different protocol versions, or there
-                are several catalogs and they target a version before v1.0.
-        """
         self._catalogs = check_mixed_catalogs(catalogs)
+        self._examples = (
+            [list(turn) for turn in examples] if examples is not None else None
+        )
+        self._allowed_messages = (
+            list(allowed_messages) if allowed_messages is not None else None
+        )
         self.surface_id = surface_id
-        self.examples_path = examples_path
         self._prompt_generator: AtomPromptGenerator | None = None
 
     @property
@@ -69,13 +58,59 @@ class AtomFormat(InferenceFormat):
         return list(self._catalogs)
 
     @property
+    def examples(self) -> list[list[AgentToRendererMessage]] | None:
+        """The configured few-shot example turns, if any."""
+        return [list(t) for t in self._examples] if self._examples is not None else None
+
+    @property
+    def allowed_messages(self) -> list[str] | None:
+        """The allowed message types, if restricted."""
+        return (
+            list(self._allowed_messages) if self._allowed_messages is not None else None
+        )
+
+    @property
     def prompt_generator(self) -> AtomPromptGenerator:
         """The prompt generator instance configured for Atom format."""
         if self._prompt_generator is None:
-            self._prompt_generator = AtomPromptGenerator(self)
+            self._prompt_generator = AtomPromptGenerator(
+                self._catalogs,
+                examples=self._examples,
+                allowed_messages=self._allowed_messages,
+            )
         return self._prompt_generator
+
+    def create_parser(self) -> AtomParser:
+        """Creates a new parser instance configured for Atom format."""
+        return AtomParser(self._catalogs, self.surface_id)
 
     @property
     def parser(self) -> Parser:
         """The parser instance configured for Atom format."""
-        return AtomParser(self._catalogs, self.surface_id)
+        return self.create_parser()
+
+
+class AtomFormatFactory(InferenceFormatFactory):
+    """Factory for creating AtomFormat instances."""
+
+    def __init__(
+        self,
+        allowed_messages: Sequence[str] | None = None,
+        surface_id: str = "main",
+    ):
+        self._allowed_messages = (
+            list(allowed_messages) if allowed_messages is not None else None
+        )
+        self._surface_id = surface_id
+
+    def create_format(
+        self,
+        catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
+    ) -> AtomFormat:
+        return AtomFormat(
+            catalogs,
+            examples=examples,
+            allowed_messages=self._allowed_messages,
+            surface_id=self._surface_id,
+        )
