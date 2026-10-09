@@ -49,8 +49,6 @@ const Map<String, String> _v10ExpectedFailures = {
   'test_v10_calls_in_lists_naming_their_catalog': _v10CatalogResolutionPending,
   'test_v10_call_without_catalog_id_on_surface_without_default_errors_'
       'without_strict_mode': _v10CatalogResolutionPending,
-  'test_v10_component_from_named_catalog_with_closed_schema_accepted':
-      _v10CatalogResolutionPending,
   'test_v10_component_naming_catalog_is_checked_against_that_catalog':
       _v10CatalogResolutionPending,
   'test_v10_components_naming_catalogs_on_surface_without_default':
@@ -76,15 +74,7 @@ const Map<String, String> _v10ExpectedFailures = {
       _v10CatalogResolutionPending,
   'test_v10_function_call_without_catalog_id_uses_surface_default':
       _v10CatalogResolutionPending,
-  'test_v10_get_renderer_data_model_excludes_surface_without_default_from_v09':
-      _v10CatalogResolutionPending,
   'test_v10_get_renderer_data_model_filters_by_surface_protocol_version':
-      _v10CatalogResolutionPending,
-  'test_v10_get_renderer_data_model_includes_surface_without_default':
-      _v10CatalogResolutionPending,
-  'test_v10_index_function_on_surface_with_default':
-      _v10CatalogResolutionPending,
-  'test_v10_index_function_on_surface_without_default':
       _v10CatalogResolutionPending,
   'test_v10_nested_call_in_args_naming_its_catalog':
       _v10CatalogResolutionPending,
@@ -97,11 +87,7 @@ const Map<String, String> _v10ExpectedFailures = {
 
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to
 /// fail, with the reason each is currently failing.
-const Map<String, String> _reservedKeysExpectedFailures = {
-  'test_escaped_doubled_at_unescaping':
-      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
-          'surface has no default catalog to resolve its items against.',
-};
+const Map<String, String> _reservedKeysExpectedFailures = {};
 
 /// Runs the shared message-processor suites against [MessageProcessor] and
 /// [DataContext]: `core/message_processor_v0_9.yaml`,
