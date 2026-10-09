@@ -1356,3 +1356,26 @@
             "@call": openUrl
             args: {url: "https://example.com"}
             bogus: 1
+
+- name: test_v10_catalog_from_json_self_contained_unescapes_json_pointer_tokens
+  description: Tests that the selfContained check unescapes RFC 6901 JSON pointer tokens (~1 and ~0) when resolving local $ref targets.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalog:
+    catalogId: "https://a2ui.org/catalogs/v10/escaped-refs"
+    protocolVersion: "1.0"
+    components:
+      Widget:
+        type: object
+        properties:
+          ui:
+            $ref: "#/$defs/io.modelcontextprotocol~1ui"
+          tilde:
+            $ref: "#/$defs/a~0b"
+    $defs:
+      "io.modelcontextprotocol/ui":
+        type: string
+      "a~b":
+        type: number
+  expect:
+    selfContained: true
