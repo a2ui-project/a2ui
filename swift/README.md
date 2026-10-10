@@ -71,5 +71,5 @@ For AI agents and contributors working in this directory hierarchy:
   spec compliance hierarchy, and verification protocols.
 - **[CODING_STANDARDS.md](CODING_STANDARDS.md)**: Coding standards, safe optional handling,
   and Swift Testing patterns.
-- **[.agents/skills/a2ui-swift-development/](../.agents/skills/a2ui-swift-development/SKILL.md)**:
-  Specialized skill for Swift development.
+- **[.agents/skills/coding-principles/subskills/swift/](../.agents/skills/coding-principles/subskills/swift/INDEX.md)**:
+  Progressive discovery router and coding standards subskills for Swift development.

@@ -21,7 +21,7 @@ Activate this subskill when:
 - **Actionable Guidance**:
   - When reviewing or authoring changes in any SDK or renderer PR, first determine the exact public API delta (added, removed, and modified symbols).
   - For TypeScript packages (`@a2ui/angular`, `@a2ui/lit`, `@a2ui/react`, `@a2ui/web_core`, `@a2ui/a2ui_agent`), use an AST-based analysis (`ts-morph`) on package entry points (`package.json` `exports` and `ng-package.json`) to resolve re-export chains and compare exported symbols between the PR branch and the base commit. See [Inspecting TypeScript Public API (AST Approach)](typescript/references/inspecting-typescript-public-api.md).
-  - For Python packages (`python/`), check `__all__` in root and versioned `__init__.py` facades (see [`a2ui-python-development`](../../a2ui-python-development/SKILL.md)).
+  - For Python packages (`python/`), check `__all__` in root and versioned `__init__.py` facades (see [`python/architecture-and-facades.md`](python/architecture-and-facades.md)).
   - Once the public API delta is established, inspect the equivalent API surfaces in sibling renderers or SDKs, compare method names, signatures, and configuration options, and align them symmetrically.
 - **Reviewer Checklist**:
   - [ ] Map package entry points to identify touched public barrels.
@@ -155,7 +155,7 @@ registerCatalog({ name: 'main', isDefault: true, version: 'v0.9' });
 ### 9. Scope `CHANGELOG.md` Strictly to Public Package Consumers
 
 - **Problem & Rationale**: Package changelogs are published in package releases (`npm`, `PyPI`, `pub.dev`) for end users. Including internal refactorings, sample application changes, private types, or formatting sweeps creates noise for library consumers.
-- **Actionable Guidance**: Follow [`update-changelog.md`](update-changelog.md) (and [`a2ui-dart-versioning`](../../a2ui-dart-versioning/SKILL.md) for `dart/` packages).
+- **Actionable Guidance**: Follow [`update-changelog.md`](update-changelog.md) (and [`dart/versioning-and-releases.md`](dart/versioning-and-releases.md) for `dart/` packages).
 - **Reviewer Checklist**:
   - [ ] Only document changes that alter published APIs, consumer-observable behavior, or dependencies.
   - [ ] Never add changelog entries for internal demo/explorer apps in library package changelogs.
