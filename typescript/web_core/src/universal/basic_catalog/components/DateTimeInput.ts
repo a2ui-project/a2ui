@@ -129,13 +129,19 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
     const props = this.controller.props;
     if (!props) return nothing;
 
-    const enableDate = props.enableDate ?? true;
     const enableTime = props.enableTime ?? false;
+    const enableDate = props.enableDate ?? !enableTime;
     const rawValue =
       typeof props.value === 'string' ? props.value : props.value ? String(props.value) : '';
+    const rawMin = typeof props.min === 'string' ? props.min : props.min ? String(props.min) : '';
+    const rawMax = typeof props.max === 'string' ? props.max : props.max ? String(props.max) : '';
 
     const dateValue = normalizeDateTimeValue(rawValue, 'date');
     const timeValue = normalizeDateTimeValue(rawValue, 'time');
+    const minDate = normalizeDateTimeValue(rawMin, 'date');
+    const maxDate = normalizeDateTimeValue(rawMax, 'date');
+    const minTime = normalizeDateTimeValue(rawMin, 'time');
+    const maxTime = normalizeDateTimeValue(rawMax, 'time');
 
     const handleDateChange = (event: Event) => {
       const date = (event.target as HTMLInputElement).value;
@@ -173,6 +179,8 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
             ? html`
                 <input
                   type="date"
+                  min=${minDate || nothing}
+                  max=${maxDate || nothing}
                   .value=${dateValue}
                   @change=${handleDateChange}
                   class="a2ui-date-time-input"
@@ -183,6 +191,8 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
             ? html`
                 <input
                   type="time"
+                  min=${minTime || nothing}
+                  max=${maxTime || nothing}
                   .value=${timeValue}
                   @change=${handleTimeChange}
                   class="a2ui-date-time-input"

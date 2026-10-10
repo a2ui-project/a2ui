@@ -19,6 +19,14 @@ import {styleMap} from 'lit/directives/style-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ImageSupportedApis} from './supported_apis.js';
 
+const FIT_MAP: Record<string, string> = {
+  contain: 'contain',
+  cover: 'cover',
+  fill: 'fill',
+  none: 'none',
+  scaleDown: 'scale-down',
+};
+
 export class A2uiImageElement extends BasicCatalogA2uiLitElement<ImageSupportedApis> {
   /** @nocollapse */
   static readonly tagName = 'a2ui-image';
@@ -67,7 +75,8 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<ImageSupportedA
     if (!props) return nothing;
 
     const variant = props.variant || 'default';
-    const fit = props.fit || 'cover';
+    const rawFit = props.fit || 'cover';
+    const fit = FIT_MAP[rawFit] ?? rawFit;
 
     return html`<img
       src=${props.url}
