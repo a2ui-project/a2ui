@@ -34,13 +34,17 @@ from a2ui.core.schema import (
 if TYPE_CHECKING:
     from a2ui.processor import CatalogConfig
 
-# The key that each protocol version's capabilities are sent under, and the
-# model of the capabilities object stored there. v0.9.1 reuses the v0.9 key.
-_CAPABILITIES_ENTRIES: dict[ProtocolVersion, tuple[str, type[BaseModel]]] = {
-    ProtocolVersion.V0_8: ("v0.8", v0_8.V08Capabilities),
-    ProtocolVersion.V0_9: ("v0.9", v0_9.V09Capabilities),
-    ProtocolVersion.V0_9_1: ("v0.9", v0_9.V09Capabilities),
-    ProtocolVersion.V1_0: ("v1.0", v1_0.V10Capabilities),
+# The keys that each protocol version's capabilities are read from, in order,
+# and the model of the capabilities object stored there. A v0.9 catalog also
+# serves v0.9.1, so v0.9 and v0.9.1 catalogs read the v0.9.1 entry and fall
+# back to the v0.9 entry.
+_CAPABILITIES_ENTRIES: dict[
+    ProtocolVersion, tuple[tuple[str, ...], type[BaseModel]]
+] = {
+    ProtocolVersion.V0_8: (("v0.8",), v0_8.V08Capabilities),
+    ProtocolVersion.V0_9: (("v0.9.1", "v0.9"), v0_9.V09Capabilities),
+    ProtocolVersion.V0_9_1: (("v0.9.1", "v0.9"), v0_9.V09Capabilities),
+    ProtocolVersion.V1_0: (("v1.0",), v1_0.V10Capabilities),
 }
 
 
@@ -66,10 +70,11 @@ def resolve_catalogs(
         transformed.
       renderer_capabilities: The capabilities that the renderer sent, keyed by
         protocol version, for example `{"v1.0": {"supportedCatalogIds": [...]}}`.
-        Either a mapping or a capabilities model from `a2ui.core`. `None`, for a
-        request that carries no capabilities, activates every registered
-        catalog in registration order, and returns an empty list if none is
-        registered.
+        v0.9 and v0.9.1 catalogs read the `v0.9.1` entry, or the `v0.9` entry
+        when there is none. Either a mapping or a capabilities model from
+        `a2ui.core`. `None`, for a request that carries no capabilities,
+        activates every registered catalog in registration order, and returns
+        an empty list if none is registered.
       accepts_inline_catalogs: Whether inline catalogs become active.
 
     Returns:
@@ -96,18 +101,18 @@ def resolve_catalogs(
         )
 
     protocol_version = to_protocol_version(registered[0].protocol_version)
-    key, entry_model = _CAPABILITIES_ENTRIES[protocol_version]
+    keys, entry_model = _CAPABILITIES_ENTRIES[protocol_version]
     for catalog in registered[1:]:
-        other_key, _ = _CAPABILITIES_ENTRIES[
+        other_keys, _ = _CAPABILITIES_ENTRIES[
             to_protocol_version(catalog.protocol_version)
         ]
-        if other_key != key:
+        if other_keys != keys:
             raise A2uiCatalogError(
                 "The registered catalogs read different capabilities entries:"
-                f" '{registered[0].catalog_id}' reads '{key}' and"
-                f" '{catalog.catalog_id}' reads '{other_key}'."
+                f" '{registered[0].catalog_id}' reads {_quote_keys(keys)} and"
+                f" '{catalog.catalog_id}' reads {_quote_keys(other_keys)}."
             )
-    entry = _capabilities_entry(renderer_capabilities, key, entry_model)
+    entry = _capabilities_entry(renderer_capabilities, keys, entry_model)
     # Every inline catalog is parsed, so a malformed one is an error even when
     # the agent doesn't accept inline catalogs.
     inline = [
@@ -137,10 +142,10 @@ def resolve_catalogs(
 
 def _capabilities_entry(
     renderer_capabilities: A2uiRendererCapabilities,
-    key: str,
+    keys: Sequence[str],
     entry_model: type[BaseModel],
 ) -> dict[str, Any]:
-    """Returns the validated capabilities entry stored under a protocol key.
+    """Returns the validated capabilities entry under the first key present.
 
     An error in `inlineCatalogs` is an `A2uiCatalogError`. Any other error is
     an `A2uiValidationError`, since the capabilities themselves are malformed.
@@ -154,12 +159,16 @@ def _capabilities_entry(
         raise A2uiValidationError(
             f"Renderer capabilities must be a mapping, got {type(capabilities)}."
         )
-    entry = capabilities.get(key)
-    if entry is None:
+    key = next(
+        (candidate for candidate in keys if capabilities.get(candidate) is not None),
+        None,
+    )
+    if key is None:
         raise A2uiValidationError(
-            f"The renderer capabilities have no '{key}' entry, which the registered"
-            " catalogs read."
+            f"The renderer capabilities have no {_quote_keys(keys)} entry, which the"
+            " registered catalogs read."
         )
+    entry = capabilities[key]
     try:
         return entry_model.model_validate(entry).model_dump(
             by_alias=True, exclude_none=True
@@ -175,3 +184,8 @@ def _capabilities_entry(
                 f"Invalid inline catalog in '{key}' renderer capabilities: {e}"
             ) from e
         raise A2uiValidationError(f"Invalid '{key}' renderer capabilities: {e}") from e
+
+
+def _quote_keys(keys: Sequence[str]) -> str:
+    """Names capabilities keys for a message, for example `'v0.9.1' or 'v0.9'`."""
+    return " or ".join(f"'{key}'" for key in keys)

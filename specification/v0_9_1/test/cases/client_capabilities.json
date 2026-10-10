@@ -1,0 +1,42 @@
+{
+  "schema": "client_capabilities.json",
+  "tests": [
+    {
+      "description": "Capabilities keyed by v0.9.1",
+      "valid": true,
+      "data": {
+        "v0.9.1": {
+          "supportedCatalogIds": ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+        }
+      }
+    },
+    {
+      "description": "Capabilities for v0.9 and v0.9.1 side by side",
+      "valid": true,
+      "data": {
+        "v0.9": {
+          "supportedCatalogIds": ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+        },
+        "v0.9.1": {
+          "supportedCatalogIds": ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+        }
+      }
+    },
+    {
+      "description": "Capabilities with only a v0.9 entry",
+      "valid": false,
+      "data": {
+        "v0.9": {
+          "supportedCatalogIds": ["https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"]
+        }
+      }
+    },
+    {
+      "description": "v0.9.1 entry without supportedCatalogIds",
+      "valid": false,
+      "data": {
+        "v0.9.1": {}
+      }
+    }
+  ]
+}
