@@ -27,12 +27,14 @@ import {
   CheckRuleSchema,
   CheckableSchema,
   AccessibilityAttributesSchema,
+  ComponentCommonSchema,
   DataBindingSchema,
   FunctionCallSchema,
   ChildSchema,
 } from '../types/common-types.js';
 import type {ComponentApi, FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
+import {deepCopyJson} from './schema_serializer.js';
 
 export interface ParsedCatalogSchema {
   id: string;
@@ -41,6 +43,20 @@ export interface ParsedCatalogSchema {
   functions: FunctionApi[];
   themeSchema?: z.ZodObject<z.ZodRawShape>;
   instructions?: string;
+  /** The document's `$schema`, if declared. */
+  schemaUri?: string;
+  /** The document's `$id`, if declared. */
+  schemaId?: string;
+  /** The document's `title`, if declared. */
+  title?: string;
+  /** The document's `description`, if declared. */
+  description?: string;
+  /** The document's `protocolVersion` exactly as declared, if declared. */
+  declaredProtocolVersion?: string;
+  /** The document's authored `$defs`, unmodified, including any unions. */
+  defs?: Record<string, unknown>;
+  /** A deep copy of the whole authored document. */
+  sourceDocument: Record<string, unknown>;
 }
 
 /**
@@ -536,7 +552,15 @@ function convertPropertiesToShape(
       visitedPointers ? new Set(visitedPointers) : new Set<string>(),
       defCache,
     );
-    shape[propName] = requiredSet.has(propName) ? zodField : zodField.optional();
+    if (!requiredSet.has(propName)) {
+      shape[propName] = zodField.optional();
+    } else if (zodField.safeParse(undefined).success) {
+      // A schema that accepts any value, such as `{}`, also accepts a missing
+      // key, which `required` rules out.
+      shape[propName] = zodField.refine(value => value !== undefined, {message: 'Required'});
+    } else {
+      shape[propName] = zodField;
+    }
   }
   return shape;
 }
@@ -562,6 +586,7 @@ type ComponentSubSchema =
  * @param schema Component schema definition.
  * @param rootDoc Root schema document containing definition targets.
  * @param visitedPointers Set of reference pointers currently being resolved to prevent cycles.
+ * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
  * @returns The pieces gathered from the schema and its `allOf` hierarchy, as JSON Schema
  *     fragments or zod mirrors of canonical types.
  */
@@ -569,6 +594,7 @@ function collectComponentSubSchemas(
   schema: Record<string, unknown>,
   rootDoc: Record<string, unknown>,
   visitedPointers = new Set<string>(),
+  isAtLeastV10 = false,
 ): ComponentSubSchema[] {
   const result: ComponentSubSchema[] = [];
   if (!schema || typeof schema !== 'object') return result;
@@ -580,17 +606,21 @@ function collectComponentSubSchemas(
       if (typeof sub.$ref === 'string') {
         const ref = sub.$ref;
         if (ref.includes('common_types.json') && ref.includes('ComponentCommon')) {
-          // Protocol common properties: accessibility attributes
+          // Protocol common properties: accessibility attributes, and from
+          // v1.0 also the component's own catalogId and metadata.
+          const {accessibility, catalogId, metadata} = ComponentCommonSchema.shape;
           result.push({
             kind: 'zod',
-            properties: {accessibility: AccessibilityAttributesSchema.optional()},
+            properties: isAtLeastV10 ? {accessibility, catalogId, metadata} : {accessibility},
           });
         } else if (ref.startsWith('#/')) {
           if (!visitedPointers.has(ref)) {
             visitedPointers.add(ref);
             const target = resolveJsonPointer(rootDoc, ref);
             if (target) {
-              result.push(...collectComponentSubSchemas(target, rootDoc, visitedPointers));
+              result.push(
+                ...collectComponentSubSchemas(target, rootDoc, visitedPointers, isAtLeastV10),
+              );
             }
           }
         } else {
@@ -604,7 +634,7 @@ function collectComponentSubSchemas(
           }
         }
       } else {
-        result.push(...collectComponentSubSchemas(sub, rootDoc, visitedPointers));
+        result.push(...collectComponentSubSchemas(sub, rootDoc, visitedPointers, isAtLeastV10));
       }
     }
   }
@@ -626,6 +656,7 @@ function collectComponentSubSchemas(
  * @param rootDoc Root schema document for resolving references.
  * @param omitEnvelopeFields Whether to omit envelope fields (`id`, `component`). Defaults to true.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
+ * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
  * @returns Zod object schema validating component properties.
  */
 function convertComponentJsonSchemaToZod(
@@ -633,9 +664,10 @@ function convertComponentJsonSchemaToZod(
   rootDoc: Record<string, unknown>,
   omitEnvelopeFields = true,
   defCache = new Map<string, z.ZodTypeAny>(),
+  isAtLeastV10 = false,
 ): z.ZodObject<z.ZodRawShape> {
   const shape: Record<string, z.ZodTypeAny> = {};
-  const schemasToMerge = collectComponentSubSchemas(rawSchema, rootDoc);
+  const schemasToMerge = collectComponentSubSchemas(rawSchema, rootDoc, undefined, isAtLeastV10);
 
   const requiredSet = new Set<string>();
   for (const s of schemasToMerge) {
@@ -772,6 +804,7 @@ function parseFunctionDefinitions(
           allowedCallers: fn.allowedCallers,
           requiresUserActivation: fn.requiresUserActivation,
           schema: paramSchema,
+          sourceJson: deepCopyJson(fn as Record<string, unknown>),
         });
       }
     }
@@ -794,7 +827,13 @@ function parseFunctionDefinitions(
       const d = defn as Record<string, unknown>;
       const props = d.properties as Record<string, unknown> | undefined;
       let argsSchema = props?.args ?? d.args ?? d.parameters;
-      if (!argsSchema && props && !('call' in props) && !('function' in props)) {
+      if (
+        !argsSchema &&
+        props &&
+        !('call' in props) &&
+        !('@call' in props) &&
+        !('function' in props)
+      ) {
         argsSchema = d;
       } else if (
         argsSchema &&
@@ -835,6 +874,7 @@ function parseFunctionDefinitions(
         allowedCallers: allowedCallers as any,
         requiresUserActivation: requiresUserActivation as boolean | undefined,
         schema: paramSchema,
+        sourceJson: deepCopyJson(d),
       });
     }
   }
@@ -904,7 +944,13 @@ function parseCatalogComponents(
     if (permittedNames && !permittedNames.has(name)) {
       continue;
     }
-    const zodSchema = convertComponentJsonSchemaToZod(rawComp, catalogSchema, true, defCache);
+    const zodSchema = convertComponentJsonSchemaToZod(
+      rawComp,
+      catalogSchema,
+      true,
+      defCache,
+      isAtLeastV10,
+    );
     components.push({
       name,
       schema: zodSchema,
@@ -914,6 +960,7 @@ function parseCatalogComponents(
       allowedChildren: Array.isArray(rawComp.allowedChildren)
         ? rawComp.allowedChildren.filter((c: unknown): c is string => typeof c === 'string')
         : undefined,
+      sourceJson: deepCopyJson(rawComp),
     });
   }
   return components;
@@ -943,7 +990,13 @@ function parseThemeSchema(
       'properties' in rawThemeObj || 'allOf' in rawThemeObj || rawThemeObj.type === 'object'
         ? rawThemeObj
         : {type: 'object', properties: rawThemeObj};
-    return convertComponentJsonSchemaToZod(normalizedThemeSchema, catalogSchema, false);
+    const themeZod = convertComponentJsonSchemaToZod(normalizedThemeSchema, catalogSchema, false);
+    // Unlike a component, a theme is open unless its author closes it, as JSON
+    // Schema itself defaults.
+    const closed =
+      normalizedThemeSchema.additionalProperties === false ||
+      normalizedThemeSchema.unevaluatedProperties === false;
+    return closed ? themeZod : themeZod.passthrough();
   }
   return undefined;
 }
@@ -1005,6 +1058,9 @@ export function parseCatalogSchema(
   const instructions =
     typeof catalogSchema.instructions === 'string' ? catalogSchema.instructions : undefined;
 
+  const optionalString = (key: string): string | undefined =>
+    typeof catalogSchema[key] === 'string' ? (catalogSchema[key] as string) : undefined;
+
   return {
     id: catalogId,
     protocolVersion: resolvedVersion,
@@ -1012,5 +1068,12 @@ export function parseCatalogSchema(
     functions,
     themeSchema,
     instructions,
+    schemaUri: optionalString('$schema'),
+    schemaId: optionalString('$id'),
+    title: optionalString('title'),
+    description: optionalString('description'),
+    declaredProtocolVersion: optionalString('protocolVersion'),
+    defs: defs && typeof defs === 'object' ? deepCopyJson(defs) : undefined,
+    sourceDocument: deepCopyJson(catalogSchema),
   };
 }

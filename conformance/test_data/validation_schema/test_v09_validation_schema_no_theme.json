@@ -1,0 +1,43 @@
+{
+  "$defs": {
+    "ComponentId": {
+      "description": "The unique identifier for a component, used for both definitions and references within the same surface.",
+      "type": "string"
+    },
+    "anyComponent": {
+      "discriminator": {
+        "propertyName": "component"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/components/Text"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "catalogId": "https://a2ui.org/catalogs/v09/simple",
+  "components": {
+    "Text": {
+      "properties": {
+        "component": {
+          "const": "Text"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    }
+  }
+}

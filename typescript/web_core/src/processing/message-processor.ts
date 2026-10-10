@@ -17,7 +17,7 @@
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener} from '../state/surface-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
-import {generateCatalogSchema, cleanSchemaNode} from '../catalog/schema_generator.js';
+import {cleanSchemaNode} from '../catalog/schema_generator.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
@@ -113,7 +113,12 @@ export interface CapabilitiesOptions {
   versions: ProtocolVersion[];
   /** Whether full definitions of all catalogs will be included inline. */
   includeInlineCatalogs?: boolean;
-  /** Base schema `$ref` to wrap component definitions in inline catalogs. Defaults to 'common_types.json#/$defs/ComponentCommon'. */
+  /**
+   * Base schema `$ref` to wrap component definitions in v0.8, v0.9 and v0.9.1
+   * inline catalogs. Defaults to 'common_types.json#/$defs/ComponentCommon'.
+   * From v1.0, inline catalogs are each catalog's `toJson()` document and this
+   * option does not apply.
+   */
   componentEnvelopeRef?: string;
 }
 
@@ -229,10 +234,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const inlineCatalogs = options?.includeInlineCatalogs
         ? this.catalogs.map(c => {
             if (compareSemVer(ver, '1.0') >= 0) {
-              return generateCatalogSchema(c, {
-                componentEnvelopeRef: options?.componentEnvelopeRef,
-                protocolVersion: ver,
-              });
+              return c.toJson();
             }
             return this.generateLegacyInlineCatalog(
               c,

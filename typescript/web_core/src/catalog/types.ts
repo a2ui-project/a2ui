@@ -23,6 +23,7 @@ import {isAtLeastVersion} from '../common/semver.js';
 import {SpecVersion} from '../spec_versions.js';
 import {parseCatalogSchema} from './schema_loader.js';
 import {generateCatalogSchema} from './schema_generator.js';
+import {serializeCatalogDocument} from './schema_serializer.js';
 import {
   buildComponentRefMap,
   type ComponentChildRefs,
@@ -77,6 +78,15 @@ export interface FunctionApi {
   readonly requiresUserActivation?: boolean;
   /** Human-readable description of the function's purpose. */
   readonly description?: string;
+  /**
+   * The function's definition exactly as authored in the catalog document it
+   * was loaded from, before any reference resolution.
+   *
+   * `Catalog.toJson` emits this verbatim. It is absent for functions defined in
+   * code, and a transformer that changes the function's schema must drop it so
+   * `toJson` serializes the changed model instead.
+   */
+  readonly sourceJson?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -178,6 +188,16 @@ export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
 
   /** Optional allowed child component types (e.g. ['Text', 'Button']). */
   readonly allowedChildren?: string[];
+
+  /**
+   * The component's definition exactly as authored in the catalog document it
+   * was loaded from, before any reference resolution.
+   *
+   * `Catalog.toJson` emits this verbatim. It is absent for components defined
+   * in code, and a transformer that changes the component's schema must drop it
+   * so `toJson` serializes the changed model instead.
+   */
+  readonly sourceJson?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -212,10 +232,65 @@ export declare interface CatalogInterface<
   readonly instructions?: string;
   /** Invoker callback that delegates to this catalog's registered functions. */
   readonly invoker: FunctionInvoker;
-  /** Dynamically reconstructed standard A2UI catalog JSON Schema document. */
+  /** The document's `$schema`, if known. */
+  readonly schemaUri?: string;
+  /** The document's `$id`, if known. */
+  readonly schemaId?: string;
+  /** The document's `title`, if known. */
+  readonly title?: string;
+  /** The document's `description`, if known. */
+  readonly description?: string;
+  /** The `protocolVersion` the source document declared, exactly as written. */
+  readonly declaredProtocolVersion?: string;
+  /** Authored `$defs` of the source document, unmodified. */
+  readonly defs?: Readonly<Record<string, unknown>>;
+  /** The authored document this catalog was loaded from, if any. */
+  readonly sourceDocument?: Readonly<Record<string, unknown>>;
+  /** Self-contained, bundled JSON Schema used to validate payloads against this catalog. */
+  readonly validationSchema: Record<string, unknown>;
+  /**
+   * Dynamically reconstructed standard A2UI catalog JSON Schema document.
+   *
+   * @deprecated Use `validationSchema` instead.
+   */
   readonly catalogSchema: Record<string, unknown>;
+  /** Unbundled catalog document for this catalog. */
+  toJson(): Record<string, unknown>;
   /** Component reference map for child reference extraction and topology validation. */
   readonly componentRefMap: ComponentRefMap;
+}
+
+/**
+ * Optional settings for a `Catalog`, beyond its id, version and entries.
+ */
+export interface CatalogOptions {
+  /** Schema for this catalog's theme parameters. */
+  themeSchema?: z.ZodTypeAny;
+  /** System instructions or usage guidelines. */
+  instructions?: string;
+  /** The catalog document's `$schema`. */
+  schemaUri?: string;
+  /** The catalog document's `$id`. */
+  schemaId?: string;
+  /** The catalog document's `title`. */
+  title?: string;
+  /** The catalog document's `description`. */
+  description?: string;
+  /**
+   * The `protocolVersion` the source document declared, exactly as written.
+   * `toJson` emits it verbatim.
+   */
+  declaredProtocolVersion?: string;
+  /**
+   * Authored `$defs`, unmodified, including the `anyComponent` and
+   * `anyFunction` unions if the source declared them.
+   */
+  defs?: Readonly<Record<string, unknown>>;
+  /**
+   * The authored catalog document this catalog was loaded from. A transformer
+   * that derives a catalog passes it on so `toJson` keeps the document's form.
+   */
+  sourceDocument?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -268,16 +343,74 @@ export class Catalog<
    */
   readonly invoker: FunctionInvoker;
 
-  private cachedCatalogSchema?: Record<string, unknown>;
+  /** The document's `$schema`, if known. */
+  readonly schemaUri?: string;
+
+  /** The document's `$id`, if known. */
+  readonly schemaId?: string;
+
+  /** The document's `title`, if known. */
+  readonly title?: string;
+
+  /** The document's `description`, if known. */
+  readonly description?: string;
+
+  /** The `protocolVersion` the source document declared, exactly as written. */
+  readonly declaredProtocolVersion?: string;
+
+  /** Authored `$defs` of the source document, unmodified, including any unions. */
+  readonly defs?: Readonly<Record<string, unknown>>;
+
+  /** The authored document this catalog was loaded from, if any. */
+  readonly sourceDocument?: Readonly<Record<string, unknown>>;
+
+  private cachedValidationSchema?: Record<string, unknown>;
+
+  /**
+   * Self-contained JSON Schema for validating payloads against this catalog.
+   *
+   * Reconstructed from the components, functions and theme and memoized. An
+   * entry loaded from JSON is built from its authored definition; one defined
+   * in code is generated from its Zod schema. Common types references are
+   * localized and the referenced standard definitions for the catalog's
+   * protocol version, and any authored `$defs` an entry references, are
+   * bundled into `$defs`, together with the component envelope and the
+   * `anyComponent`/`anyFunction` unions. Use `toJson` for the catalog document
+   * itself.
+   */
+  get validationSchema(): Record<string, unknown> {
+    if (!this.cachedValidationSchema) {
+      this.cachedValidationSchema = generateCatalogSchema(this);
+    }
+    return this.cachedValidationSchema;
+  }
 
   /**
    * Dynamically reconstructs and memoizes the unified standard A2UI catalog JSON Schema document.
+   *
+   * @deprecated Use `validationSchema` for the bundled schema or `toJson` for
+   *   the catalog document.
    */
   get catalogSchema(): Record<string, unknown> {
-    if (!this.cachedCatalogSchema) {
-      this.cachedCatalogSchema = generateCatalogSchema(this);
-    }
-    return this.cachedCatalogSchema;
+    return this.validationSchema;
+  }
+
+  /**
+   * Returns the unbundled catalog document for this catalog.
+   *
+   * For a catalog loaded with `fromJson`, the result equals the loaded document:
+   * components and functions are emitted from their authored source, common
+   * types references stay external, and authored `$defs`, unions and metadata
+   * are kept. Entries without a source, from code or rewritten by a
+   * transformer, are serialized from their model with common types references
+   * written as `common_types.json#/$defs/<name>`. Authored definitions that only
+   * dropped entries referenced are left out, and unions are rebuilt when the
+   * set of entries differs from the source.
+   *
+   * @returns A fresh document that the caller may modify.
+   */
+  toJson(): Record<string, unknown> {
+    return serializeCatalogDocument(this);
   }
 
   private _componentRefMap?: ComponentRefMap;
@@ -299,8 +432,10 @@ export class Catalog<
    * @param protocolVersion Protocol specification version this catalog targets.
    * @param components Component definitions to register.
    * @param functions Function definitions to register.
-   * @param themeSchema Optional schema for this catalog's theme parameters.
-   * @param instructions Optional system instructions or usage guidelines.
+   * @param themeSchemaOrOptions Optional schema for this catalog's theme
+   *   parameters, or a `CatalogOptions` object.
+   * @param instructions Optional system instructions or usage guidelines. Ignored
+   *   when `themeSchemaOrOptions` is a `CatalogOptions` object that sets them.
    * @throws {A2uiCatalogError} If `protocolVersion` is empty or not provided.
    */
   constructor(
@@ -308,7 +443,7 @@ export class Catalog<
     protocolVersion: ProtocolVersion | string,
     components: T[] = [],
     functions: F[] = [],
-    themeSchema?: z.ZodTypeAny,
+    themeSchemaOrOptions?: z.ZodTypeAny | CatalogOptions,
     instructions?: string,
   ) {
     if (!protocolVersion) {
@@ -330,42 +465,80 @@ export class Catalog<
     }
     this.functions = funcMap;
 
-    this.themeSchema = themeSchema;
-    this.instructions = instructions;
+    const options: CatalogOptions = isZodSchema(themeSchemaOrOptions)
+      ? {themeSchema: themeSchemaOrOptions}
+      : (themeSchemaOrOptions ?? {});
+    this.themeSchema = options.themeSchema;
+    this.instructions = options.instructions ?? instructions;
+    this.schemaUri = options.schemaUri;
+    this.schemaId = options.schemaId;
+    this.title = options.title;
+    this.description = options.description;
+    this.declaredProtocolVersion = options.declaredProtocolVersion;
+    this.defs = options.defs;
+    this.sourceDocument = options.sourceDocument;
     this.invoker = createCatalogInvoker(this.id, this.protocolVersion, this.functions);
   }
 
   /**
-   * Constructs a schema-only Catalog directly from a raw A2UI catalog schema.
+   * Constructs a schema-only Catalog from an authored A2UI catalog document.
    *
-   * @param catalogSchema Raw catalog schema or client capabilities payload object.
-   * @param protocolVersion Protocol version to use when the schema does not
-   *   declare one. Catalog schemas published before v1.0 omit the field, in
+   * The document's metadata, authored `$defs` and each entry's raw JSON are
+   * kept, so `toJson` returns the document unchanged.
+   *
+   * @param json Raw catalog document or client capabilities inline catalog.
+   * @param protocolVersion Protocol version to use when the document does not
+   *   declare one. Catalog documents published before v1.0 omit the field, in
    *   which case `DEFAULT_PROTOCOL_VERSION` applies.
    * @returns A new Catalog populated with component and function schemas.
    * @throws {Error} If the catalog ID is missing or not a string.
    */
-  static fromSchema(catalogSchema: Record<string, any>, protocolVersion?: string): CatalogApi {
+  static fromJson(json: Record<string, any>, protocolVersion?: string): CatalogApi {
     const {
       id,
       protocolVersion: resolvedVersion,
       components,
       functions,
-      themeSchema,
-      instructions,
-    } = parseCatalogSchema(catalogSchema, protocolVersion);
-    return new Catalog(id, resolvedVersion, components, functions, themeSchema, instructions);
+      ...options
+    } = parseCatalogSchema(json, protocolVersion);
+    return new Catalog(id, resolvedVersion, components, functions, options);
+  }
+
+  /**
+   * Constructs a schema-only Catalog directly from a raw A2UI catalog schema.
+   *
+   * @deprecated Use `Catalog.fromJson` instead.
+   * @param catalogSchema Raw catalog schema or client capabilities payload object.
+   * @param protocolVersion Protocol version to use when the schema does not
+   *   declare one.
+   * @returns A new Catalog populated with component and function schemas.
+   * @throws {Error} If the catalog ID is missing or not a string.
+   */
+  static fromSchema(catalogSchema: Record<string, any>, protocolVersion?: string): CatalogApi {
+    return Catalog.fromJson(catalogSchema, protocolVersion);
   }
 }
 
 /**
  * A catalog whose components and functions carry schemas only.
  *
- * What `Catalog.fromSchema` produces, and what agents work with: they prompt
+ * What `Catalog.fromJson` produces, and what agents work with: they prompt
  * and validate against signatures but never execute a function. A renderer
  * that executes functions needs a catalog of `FunctionImplementation`s instead.
  */
 export type CatalogApi = Catalog<ComponentApi, FunctionApi>;
+
+/**
+ * Whether a value is a Zod schema. Checked structurally so schemas built with
+ * another copy of Zod are recognized.
+ */
+function isZodSchema(value: unknown): value is z.ZodTypeAny {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as {safeParse?: unknown}).safeParse === 'function'
+  );
+}
 
 function createCatalogInvoker<F extends FunctionApi>(
   catalogId: string,

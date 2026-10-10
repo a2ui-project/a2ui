@@ -1,0 +1,173 @@
+{
+  "$defs": {
+    "AccessibilityAttributes": {
+      "description": "Attributes to enhance accessibility when using assistive technologies like screen readers.",
+      "properties": {
+        "description": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "Additional information provided by assistive technologies about an element such as instructions, format requirements, or result of an action. For example, a mute button might have a label of 'Mute' and a description of 'Silences notifications about this conversation'."
+        },
+        "label": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "A short string, typically 1 to 3 words, used by assistive technologies to convey the purpose or intent of an element. For example, an input field might have an accessible label of 'User ID' or a button might be labeled 'Submit'."
+        }
+      },
+      "type": "object"
+    },
+    "ComponentId": {
+      "description": "The unique identifier for a component, used for both definitions and references within the same surface.",
+      "type": "string"
+    },
+    "DataBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "A JSON Pointer path to a value in the data model.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "DynamicString": {
+      "description": "Represents a string",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/FunctionCall"
+            },
+            {
+              "properties": {
+                "returnType": {
+                  "const": "string"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "DynamicValue": {
+      "description": "A value that can be a literal, a path, or a function call returning any type.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "array"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "$ref": "#/$defs/FunctionCall"
+        }
+      ]
+    },
+    "FunctionCall": {
+      "description": "Invokes a named function on the client.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/anyFunction"
+        }
+      ],
+      "properties": {
+        "args": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DynamicValue"
+              },
+              {
+                "description": "A literal object argument (e.g. configuration).",
+                "type": "object"
+              }
+            ]
+          },
+          "description": "Arguments passed to the function.",
+          "type": "object"
+        },
+        "call": {
+          "description": "The name of the function to call.",
+          "type": "string"
+        },
+        "returnType": {
+          "default": "boolean",
+          "description": "The expected return type of the function call.",
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "array",
+            "object",
+            "any",
+            "void"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "call"
+      ],
+      "type": "object"
+    },
+    "anyComponent": {
+      "discriminator": {
+        "propertyName": "component"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/components/Card"
+        }
+      ]
+    },
+    "anyFunction": {
+      "not": {}
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "catalogId": "https://a2ui.org/catalogs/v09/hygiene",
+  "components": {
+    "Card": {
+      "properties": {
+        "accessibility": {
+          "$ref": "#/$defs/AccessibilityAttributes",
+          "description": "Attributes to enhance accessibility when using assistive technologies like screen readers."
+        },
+        "component": {
+          "const": "Card"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "title": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "Title of the card."
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    }
+  }
+}
