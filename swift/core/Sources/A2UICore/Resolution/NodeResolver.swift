@@ -1019,15 +1019,29 @@ extension NodeResolver: FunctionHandler {
     return targetFunction
   }
 
+  /// Reports a failed function call, either not found or thrown by `evaluate`, as an
+  /// `EXPRESSION_ERROR`, matching the other core SDKs.
   public func handleFunctionError(_ error: any Error, functionName: String) {
     let version =
       protocolVersion.flatMap(A2UIProtocolVersion.init(rawValue:))
       ?? catalog.a2uiProtocolVersion
       ?? (isV10 ? .v10 : .v09)
-    let rendererError = MessageErrorMapper().map(
-      error,
-      surfaceID: surfaceID,
-      version: version
+    let message: String
+    if let a2uiError = error as? any A2UIError {
+      message = a2uiError.message
+    } else if let description = (error as? any LocalizedError)?.errorDescription {
+      message = description
+    } else {
+      message = String(describing: error)
+    }
+    let rendererError = RendererError.generic(
+      GenericError(
+        code: "EXPRESSION_ERROR",
+        surfaceID: surfaceID,
+        message: message,
+        expression: functionName,
+        version: version
+      )
     )
     actionHandler?.handle(error: rendererError, from: surfaceID)
   }

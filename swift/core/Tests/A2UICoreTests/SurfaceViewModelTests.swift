@@ -81,6 +81,20 @@ struct TestEmailFunction: FunctionImplementation {
   }
 }
 
+/// A `FunctionImplementation` whose evaluation always throws.
+struct TestThrowingFunction: FunctionImplementation {
+  let api = FunctionAPI(
+    name: "fail",
+    returnType: .string,
+    schema: try! Schema(instance: "{\"type\": \"object\"}")
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    throw FunctionError.executionFailed(name: "fail", message: "boom")
+  }
+}
+
 func makeTestCatalog() throws -> AnyCatalog {
   let buttonSchema = try Schema(
     instance: """
@@ -146,7 +160,9 @@ func makeTestCatalog() throws -> AnyCatalog {
   return Catalog(
     id: "test-catalog",
     components: [AnyComponentAPI(name: "button", schema: buttonSchema)],
-    functions: [TestConcatFunction(), TestRequiredFunction(), TestEmailFunction()]
+    functions: [
+      TestConcatFunction(), TestRequiredFunction(), TestEmailFunction(), TestThrowingFunction(),
+    ]
   )
 }
 
@@ -664,6 +680,90 @@ struct SurfaceViewModelTests {
     let action = try #require(rootNode.properties["onClick"] as? ResolvedAction)
     action()
     #expect(handler.capturedActions.isEmpty)
+  }
+
+  // MARK: - Expression Errors
+
+  /// Returns the generic errors captured by `handler` with code `EXPRESSION_ERROR`.
+  private func expressionErrors(_ handler: TestActionHandler) -> [GenericError] {
+    handler.capturedErrors.compactMap {
+      guard case .generic(let generic) = $0, generic.code == "EXPRESSION_ERROR" else {
+        return nil
+      }
+      return generic
+    }
+  }
+
+  @Test func actionCallingUnknownFunctionReportsExpressionError() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "onClick": ["functionCall": ["call": "noSuchFunction"]],
+        ]
+      ]
+    )
+    let rootNode = try #require(surface.nodeResolver.resolveTree())
+    let action = try #require(rootNode.properties["onClick"] as? ResolvedAction)
+    handler.capturedErrors.removeAll()
+
+    action()
+
+    #expect(handler.capturedActions.isEmpty)
+    #expect(handler.capturedErrors.count == 1)
+    let error = try #require(expressionErrors(handler).first)
+    #expect(error.surfaceID == surface.surfaceID)
+    #expect(error.message.contains("noSuchFunction"))
+    #expect(error.expression == "noSuchFunction")
+  }
+
+  @Test func actionCallingThrowingFunctionReportsExpressionError() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "onClick": ["functionCall": ["call": "fail"]],
+        ]
+      ]
+    )
+    let rootNode = try #require(surface.nodeResolver.resolveTree())
+    let action = try #require(rootNode.properties["onClick"] as? ResolvedAction)
+    handler.capturedErrors.removeAll()
+
+    action()
+
+    #expect(handler.capturedActions.isEmpty)
+    #expect(handler.capturedErrors.count == 1)
+    let error = try #require(expressionErrors(handler).first)
+    #expect(error.surfaceID == surface.surfaceID)
+    #expect(error.message.contains("boom"))
+    #expect(error.expression == "fail")
+  }
+
+  @Test func bindingCallingUnknownFunctionReportsExpressionError() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": ["call": "noSuchFunction"],
+        ]
+      ]
+    )
+
+    let binding = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
+    #expect(binding.value == nil)
+    #expect(!handler.capturedErrors.isEmpty)
+    #expect(expressionErrors(handler).count == handler.capturedErrors.count)
+    #expect(expressionErrors(handler).allSatisfy { $0.expression == "noSuchFunction" })
   }
 
   @Test func actionDispatchesDirectNameEvent() async throws {
