@@ -122,4 +122,19 @@ describe('SliderComponent', () => {
     expect(errorEl).toBeTruthy();
     expect(errorEl.textContent).toContain('Value out of allowed range');
   });
+
+  it('should keep fractional values', () => {
+    const onUpdateSpy = jasmine.createSpy('onUpdate');
+    setComponentProps(fixture, {
+      ...defaultProps,
+      max: createBoundProperty(1),
+      value: {value: angularSignal(0.45), raw: 0.45, onUpdate: onUpdateSpy},
+    });
+    fixture.detectChanges();
+    const input = fixture.nativeElement.querySelector('input');
+    expect(input.value).toBe('0.45');
+    input.value = '0.7';
+    input.dispatchEvent(new Event('input'));
+    expect(onUpdateSpy).toHaveBeenCalledWith(0.7);
+  });
 });

@@ -71,8 +71,10 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupporte
     const max = props.max ?? 100;
     // `steps` is new in v1.0.
     const steps = 'steps' in props ? props.steps : undefined;
-    const stepVal =
-      typeof steps === 'number' && steps > 0 && max > min ? (max - min) / steps : nothing;
+    let stepVal: number | string | typeof nothing = 'any';
+    if (steps !== undefined) {
+      stepVal = typeof steps === 'number' && steps > 0 && max > min ? (max - min) / steps : nothing;
+    }
 
     return html`
       <div class="a2ui-slider-container">

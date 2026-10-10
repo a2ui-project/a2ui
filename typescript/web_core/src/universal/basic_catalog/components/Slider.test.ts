@@ -161,6 +161,52 @@ describe('Slider Component', () => {
     assert.strictEqual(surface.dataModel.get('/volume'), 80);
   });
 
+  it('should keep fractional values when no steps are given', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateDataModel: {
+          surfaceId: 'test-surface',
+          path: '/progress',
+          value: 0.45,
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'slider_unit',
+              component: 'Slider',
+              max: 1,
+              value: {path: '/progress'},
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-slider') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'slider_unit');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const input = el.querySelector('input[type="range"]') as HTMLInputElement;
+    assert.strictEqual(input.getAttribute('step'), 'any');
+    assert.strictEqual(input.value, '0.45');
+
+    input.value = '0.7';
+    input.dispatchEvent(new Event('input'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(surface.dataModel.get('/progress'), 0.7);
+  });
+
   describe('SliderApi schema validation', () => {
     it('should reject non-spec step property', () => {
       const validSlider = {
