@@ -266,7 +266,9 @@ class A2uiDemoAgent:
         current_query_text = query
 
         # Ensure schema was loaded
-        if ui_version and (not selected_catalog or not selected_catalog.catalog_schema):
+        if ui_version and (
+            not selected_catalog or not selected_catalog.validation_schema
+        ):
             logger.error(
                 "--- A2uiDemoAgent.stream: A2UI_SCHEMA is not loaded. "
                 "Cannot perform UI validation. ---"

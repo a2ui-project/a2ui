@@ -52,6 +52,7 @@ class FunctionApi:
         allowed_callers: AllowedCallers | None = "rendererOnly",
         requires_user_activation: bool | None = False,
         description: str | None = None,
+        source_json: dict[str, Any] | None = None,
     ):
         """Initializes the function API.
 
@@ -64,6 +65,12 @@ class FunctionApi:
             requires_user_activation: Whether a call needs a user gesture.
             description: What the function does, published in the catalog
                 schema.
+            source_json: The function's definition exactly as a catalog
+                document wrote it, before any reference was resolved, and
+                without the `name` of a list entry. `Catalog.to_json` emits
+                it unchanged. Leave it unset for a function defined in code,
+                and clear it when the schema changes, so the catalog
+                serializes the schema instead.
         """
         self.name = name
         self.return_type = return_type or "any"
@@ -75,6 +82,7 @@ class FunctionApi:
             if description is not None
             else getattr(self, "description", None)
         )
+        self.source_json = source_json
 
 
 class FunctionImplementation(FunctionApi, Generic[TReturn]):
@@ -89,6 +97,7 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
         allowed_callers: AllowedCallers | None = "rendererOnly",
         requires_user_activation: bool | None = False,
         description: str | None = None,
+        source_json: dict[str, Any] | None = None,
     ):
         super().__init__(
             name=name,
@@ -97,6 +106,7 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
             allowed_callers=allowed_callers,
             requires_user_activation=requires_user_activation,
             description=description,
+            source_json=source_json,
         )
         self.execute_func = execute
 
@@ -152,6 +162,7 @@ def create_function_implementation(
         allowed_callers=getattr(api, "allowed_callers", "rendererOnly"),
         requires_user_activation=getattr(api, "requires_user_activation", False),
         description=getattr(api, "description", None),
+        source_json=getattr(api, "source_json", None),
     )
 
 

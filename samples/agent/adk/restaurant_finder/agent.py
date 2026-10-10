@@ -241,7 +241,9 @@ class RestaurantAgent:
         current_query_text = query
 
         # Ensure schema was loaded
-        if ui_version and (not selected_catalog or not selected_catalog.catalog_schema):
+        if ui_version and (
+            not selected_catalog or not selected_catalog.validation_schema
+        ):
             logger.error(
                 "--- RestaurantAgent.stream: A2UI_SCHEMA is not loaded. "
                 "Cannot perform UI validation. ---"

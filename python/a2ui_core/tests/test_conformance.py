@@ -23,6 +23,7 @@ import yaml
 
 from a2ui.core.catalog import Catalog, CatalogApi
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
+from a2ui.core.common import to_canonical_version
 from a2ui.core.schema import ProtocolVersion
 from a2ui.core.state import DataModel, SurfaceModel
 from a2ui.core.resolution import DataContext
@@ -67,15 +68,48 @@ SUPPORTED_PROTOCOL_VERSIONS = {
 }
 
 SKIP_TEST_NAMES: set[str] = {
-    # TODO(#3036): Python Catalog currently preserves raw allOf composition
-    # and does not flatten envelope mixins. Follow-up PR will bring Python Catalog to parity.
-    "test_v09_catalog_allof_envelope_flattening",
-    "test_v09_catalog_inlined_fixed_point_round_trip",
-    "test_v09_catalog_schema_bundles_common_types",
-    "test_v09_catalog_schema_no_theme",
-    "test_v09_catalog_schema_preserves_protocol_version",
-    "test_v09_catalog_schema_ref_node_hygiene",
-    "test_v09_catalog_schema_with_defs",
+    # TODO(#3036): The validation_schema goldens use the flattened shape:
+    # `allOf` envelopes merged into each component's `properties`, and every
+    # component given the canonical envelope (`id` as a `ComponentId`
+    # reference, `component`, both required, and before v1.0
+    # `unevaluatedProperties: false`). Python preserves `allOf` and keeps
+    # components as written, so every golden differs in its components until
+    # #3036 lands. Parity also needs ref-description propagation (cross-SDK
+    # rule 6: a localized reference to a standard definition with no
+    # description of its own takes the definition's description, for example
+    # "Represents a string"). The agent prompts are built from
+    # `validation_schema`, so that needs a decision on prompt output first.
+    # Each entry notes what else still differs once the components are set
+    # aside.
+    #
+    # Only the component envelope.
+    "test_v08_validation_schema_basic",
+    "test_v09_validation_schema_allof_envelope_flattening",
+    "test_v09_validation_schema_no_theme",
+    "test_v09_validation_schema_with_defs",
+    "test_v10_validation_schema_basic",
+    "test_v10_validation_schema_metadata_and_descriptions",
+    # The component envelope and rule 6.
+    "test_v09_validation_schema_inlined_fixed_point",
+    # The component envelope, rule 6 (except `ref_node_hygiene`), and the
+    # function union of a catalog without functions. The goldens bundle the
+    # published `FunctionCall` with `anyFunction: {"not": {}}`, which rejects
+    # every call; Python bundles the flat `FunctionCall`, which accepts any
+    # call. Python validates a call that names another catalog's `catalogId`
+    # against the calling catalog's validation_schema (core/multi_catalog.yaml
+    # `test_multi_catalog_function_call_catalog_id_override`), so the empty
+    # union would reject it.
+    # TODO(#3036): Dispatch function calls by their `catalogId` in the payload
+    # validator, then bundle the empty union as the goldens do.
+    "test_v09_validation_schema_bundles_common_types",
+    "test_v09_validation_schema_preserves_protocol_version",
+    "test_v09_validation_schema_ref_node_hygiene",
+    # Goldens of the published basic catalogs. Besides the envelope and rule
+    # 6, the goldens normalize object closure, which Python keeps as written:
+    # in v0.9 the authored `additionalProperties: false` on the args of
+    # `openUrl` and `required` becomes `unevaluatedProperties: false`.
+    "test_v09_basic_validation_schema",
+    "test_v10_basic_validation_schema",
 }
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
@@ -585,8 +619,12 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
 
     if action == "from_json":
         validate_from_json_case(case)
-    elif action == "catalog_schema":
-        validate_catalog_schema_case(case)
+    elif action == "validation_schema":
+        validate_validation_schema_case(case)
+    elif action == "round_trip":
+        validate_round_trip_case(case)
+    elif action == "to_json":
+        validate_to_json_case(case)
     elif action == "common_types_schema":
         validate_common_types_schema_case(case)
     elif action == "agent_to_renderer_schema":
@@ -962,11 +1000,103 @@ _FROM_JSON_EXPECT_KEYS = frozenset({
     "components",
     "functions",
     "invalidComponents",
+    "matchesBuiltinCatalog",
     "protocolVersion",
     "selfContained",
     "theme",
     "validComponents",
 })
+
+# Component fields every component carries, which `matchesBuiltinCatalog`
+# ignores when it compares component shapes.
+_COMPONENT_ENVELOPE_FIELDS = frozenset({"id", "component"})
+
+
+def _resolve_local_ref(document: dict[str, Any], ref: str) -> Any:
+    """The node a local `#/...` reference points to within `document`."""
+    target: Any = document
+    for token in ref[1:].split("/")[1:]:
+        target = target[token.replace("~1", "/").replace("~0", "~")]
+    return target
+
+
+def _schema_shape(
+    document: dict[str, Any], schema: Any, seen: frozenset[str] = frozenset()
+) -> tuple[set[str], set[str]]:
+    """The property and required names a component schema declares.
+
+    Merges the members of an `allOf` and follows local references, so a
+    schema that composes the component envelope with its own properties
+    yields the same names as one that lists them all directly.
+    """
+    properties: set[str] = set()
+    required: set[str] = set()
+    if not isinstance(schema, dict):
+        return properties, required
+    properties |= set(schema.get("properties") or {})
+    required |= set(schema.get("required") or [])
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and ref.startswith("#") and ref not in seen:
+        props, req = _schema_shape(
+            document, _resolve_local_ref(document, ref), seen | {ref}
+        )
+        properties |= props
+        required |= req
+    for member in schema.get("allOf") or []:
+        props, req = _schema_shape(document, member, seen)
+        properties |= props
+        required |= req
+    return properties, required
+
+
+def _component_shapes(catalog: CatalogApi) -> dict[str, dict[str, list[str]]]:
+    """Each component's property and required names, without the envelope."""
+    document = catalog.validation_schema
+    shapes = {}
+    for name, schema in (document.get("components") or {}).items():
+        properties, required = _schema_shape(document, schema)
+        shapes[name] = {
+            "properties": sorted(properties - _COMPONENT_ENVELOPE_FIELDS),
+            "required": sorted(required - _COMPONENT_ENVELOPE_FIELDS),
+        }
+    return shapes
+
+
+def _function_signatures(catalog: CatalogApi) -> dict[str, dict[str, Any]]:
+    """Each catalog function's returnType, allowedCallers and activation.
+
+    Protocol system functions such as `@index`, which a built-in catalog
+    registers for evaluation but which are not catalog functions, are left out.
+    """
+    return {
+        name: {
+            "returnType": fn.return_type,
+            "allowedCallers": fn.allowed_callers,
+            "requiresUserActivation": fn.requires_user_activation,
+        }
+        for name, fn in catalog.functions.items()
+        if not name.startswith("@")
+    }
+
+
+def _assert_matches_builtin_catalog(loaded: CatalogApi) -> None:
+    """Asserts that a loaded catalog is equivalent to the SDK's own one.
+
+    Implements `matchesBuiltinCatalog` (FromJsonExpect in
+    conformance/conformance_schema.json) and skips the case when the SDK has
+    no implementation of a catalog with the loaded catalogId.
+    """
+    builtin = sdk_catalog(loaded.catalog_id)
+    if builtin is None:
+        pytest.skip(f"The SDK has no built-in catalog {loaded.catalog_id!r}.")
+    assert loaded.catalog_id == builtin.catalog_id
+    assert to_canonical_version(str(loaded.protocol_version)) == to_canonical_version(
+        str(builtin.protocol_version)
+    ), "protocolVersion mismatch"
+    assert _component_shapes(loaded) == _component_shapes(builtin), "Component mismatch"
+    assert _function_signatures(loaded) == _function_signatures(
+        builtin
+    ), "Function mismatch"
 
 
 def validate_from_json_case(case: dict[str, Any]) -> None:
@@ -1012,7 +1142,9 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
                 for fn_name in expected["functions"]:
                     assert cat.get_function(fn_name) is not None
         if expected.get("selfContained"):
-            _assert_self_contained(cat.catalog_schema)
+            _assert_self_contained(cat.validation_schema)
+        if expected.get("matchesBuiltinCatalog"):
+            _assert_matches_builtin_catalog(cat)
         if "validComponents" in expected or "invalidComponents" in expected:
             validator = PayloadValidator(cat)
             for component in expected.get("validComponents", []):
@@ -1020,62 +1152,6 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
             for component in expected.get("invalidComponents", []):
                 with pytest.raises(A2uiValidationError):
                     validator.validate_component(component)
-
-
-def consolidate_spec_catalog(catalog_path: str, common_types_path: str) -> Any:
-    """Returns the expected schema of an `expectCatalog` case.
-
-    Every `$ref` into another document becomes local, and the common types
-    defs the catalog references, transitively, are added to its `$defs`. The
-    catalog's own defs win on a name clash. Top-level metadata keywords that
-    `Catalog.catalog_schema` does not emit (`$id`, `title`, `description`,
-    `protocolVersion`) are dropped.
-    """
-
-    def load(path: str) -> Any:
-        full_path = os.path.join(CONFORMANCE_ROOT, "..", path)
-        with open(full_path, "r", encoding="utf-8") as f:
-            return localize(json.load(f))
-
-    def localize(node: Any) -> Any:
-        if isinstance(node, list):
-            return [localize(item) for item in node]
-        if not isinstance(node, dict):
-            return node
-        return {
-            key: (
-                "#" + value.split("#", 1)[1]
-                if key == "$ref" and isinstance(value, str) and "#/" in value
-                else localize(value)
-            )
-            for key, value in node.items()
-        }
-
-    def refs(node: Any) -> set[str]:
-        found: set[str] = set()
-        if isinstance(node, list):
-            for item in node:
-                found |= refs(item)
-        elif isinstance(node, dict):
-            ref = node.get("$ref")
-            if isinstance(ref, str) and ref.startswith("#/$defs/"):
-                found.add(ref[len("#/$defs/") :])
-            for value in node.values():
-                found |= refs(value)
-        return found
-
-    catalog = load(catalog_path)
-    for key in ("$id", "title", "description", "protocolVersion"):
-        catalog.pop(key, None)
-    common_defs = load(common_types_path)["$defs"]
-    defs = catalog.setdefault("$defs", {})
-    pending = refs(catalog)
-    while pending:
-        name = pending.pop()
-        if name not in defs and name in common_defs:
-            defs[name] = common_defs[name]
-            pending |= refs(defs[name])
-    return catalog
 
 
 def normalize_set_keywords(node: Any) -> Any:
@@ -1113,27 +1189,121 @@ def sdk_catalog(catalog_id: Any) -> CatalogApi | None:
     return None
 
 
-def validate_catalog_schema_case(case: dict[str, Any]) -> None:
-    p_ver = resolve_protocol_version(case)
+def _load_case_catalog(case: dict[str, Any]) -> tuple[Any, str | None]:
+    """Returns the catalog document of a case and the path it was read from."""
     c_path = case.get("catalogPath") or case.get("catalogFile")
     if c_path:
         full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", c_path))
         with open(full_p, "r", encoding="utf-8") as f:
-            c_schema = json.load(f)
-    else:
-        c_schema = (
-            case.get("catalogSchema")
-            or case.get("catalog")
-            or case.get("schema")
-            or case
-        )
+            return json.load(f), c_path
+    return (
+        case.get("catalogSchema") or case.get("catalog") or case.get("schema") or case
+    ), None
+
+
+def validate_validation_schema_case(case: dict[str, Any]) -> None:
+    """Runs a `validation_schema` case against its golden artifact.
+
+    `catalog.validation_schema` must equal the JSON file that `expectFile`
+    names, ignoring object key order, which Python dicts ignore already, and
+    the order of `enum` values and `required` names.
+    """
+    assert "expect" not in case, "validation_schema cases take no expect"
+    p_ver = resolve_protocol_version(case)
+    c_schema, _ = _load_case_catalog(case)
     c_id = (
         resolve_catalog_id(case)
         or (c_schema.get("catalogId") if isinstance(c_schema, dict) else None)
         or "https://a2ui.org/catalogs/basic"
     )
+    # The catalog is always loaded with `from_json`, a `catalogPath` too, even
+    # when the SDK implements that catalog itself.
+    expect_err = case.get("expectError")
+    if expect_err:
+        with assert_raises(expect_err):
+            Catalog.from_json(
+                c_schema, catalog_id=c_id, protocol_version=p_ver
+            ).validation_schema
+        return
+    cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
+
+    expect_file = case.get("expectFile")
+    assert expect_file, "validation_schema cases require expectFile or expectError"
+    golden_path = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", expect_file))
+    with open(golden_path, "r", encoding="utf-8") as f:
+        expected = json.load(f)
+    assert normalize_set_keywords(cat.validation_schema) == normalize_set_keywords(
+        expected
+    ), f"validation_schema differs from {expect_file}"
+
+
+def validate_round_trip_case(case: dict[str, Any]) -> None:
+    """Runs a `round_trip` case: `from_json(c).to_json()` equals `c`.
+
+    The document is always loaded with `from_json`, even when the SDK
+    implements the catalog itself. The comparison ignores key order, which
+    Python dicts ignore already, and the order of `enum` and `required`.
+    """
+    unexpected = {"expect", "expectFile"} & set(case)
+    assert not unexpected, f"round_trip cases take no {sorted(unexpected)}"
+    document, _ = _load_case_catalog(case)
+    p_ver = resolve_protocol_version(case)
+
+    out = Catalog.from_json(document, protocol_version=p_ver).to_json()
+    assert normalize_set_keywords(out) == normalize_set_keywords(document)
+
+    again = Catalog.from_json(out, protocol_version=p_ver).to_json()
+    assert normalize_set_keywords(again) == normalize_set_keywords(out)
+
+
+# The `expect` keys a to_json case may use (ToJsonExpect in
+# conformance/conformance_schema.json). An unknown key fails the case rather
+# than being silently ignored.
+_TO_JSON_EXPECT_KEYS = frozenset({
+    "catalogId",
+    "components",
+    "defs",
+    "functions",
+    "metadata",
+    "protocolVersion",
+    "unbundled",
+})
+
+
+def _resolves_within(document: Any, ref: str) -> bool:
+    """Whether a local `#/...` reference resolves within `document`."""
+    target = document
+    for token in ref[1:].split("/")[1:]:
+        token = token.replace("~1", "/").replace("~0", "~")
+        if isinstance(target, dict) and token in target:
+            target = target[token]
+        elif isinstance(target, list) and token.isdigit() and int(token) < len(target):
+            target = target[int(token)]
+        else:
+            return False
+    return True
+
+
+def _function_names(functions: Any) -> set[str]:
+    """The names of a document's functions, in the map or the list form."""
+    if isinstance(functions, dict):
+        return set(functions)
+    if isinstance(functions, list):
+        return {entry["name"] for entry in functions}
+    return set()
+
+
+def validate_to_json_case(case: dict[str, Any]) -> None:
+    """Runs a `to_json` case against the document `catalog.to_json()` returns."""
+    expected = case["expect"]
+    unknown_keys = set(expected) - _TO_JSON_EXPECT_KEYS
+    assert not unknown_keys, f"Unknown to_json expect keys: {sorted(unknown_keys)}"
+
+    p_ver = resolve_protocol_version(case)
+    document, c_path = _load_case_catalog(case)
+    c_id = resolve_catalog_id(case) or document.get("catalogId")
     # A published catalog that the SDK implements itself is checked through
-    # that implementation, which builds catalog_schema from its models.
+    # that implementation, as validation_schema cases are.
     cat = sdk_catalog(c_id) if c_path else None
     if cat is not None:
         assert cat.protocol_version == p_ver, (
@@ -1141,20 +1311,31 @@ def validate_catalog_schema_case(case: dict[str, Any]) -> None:
             f" sets protocolVersion {p_ver}"
         )
     else:
-        expect_err = case.get("expectError")
-        if expect_err:
-            with assert_raises(expect_err):
-                Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
-            return
-        cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
+        cat = Catalog.from_json(document, catalog_id=c_id, protocol_version=p_ver)
+    out = cat.to_json()
 
-    if "expectCatalog" in case:
-        spec = case["expectCatalog"]
-        assert normalize_set_keywords(cat.catalog_schema) == normalize_set_keywords(
-            consolidate_spec_catalog(spec["catalogPath"], spec["commonTypesPath"])
-        )
-    elif "expect" in case:
-        assert cat.catalog_schema == case["expect"]
+    if "catalogId" in expected:
+        assert out.get("catalogId") == expected["catalogId"]
+    if "protocolVersion" in expected:
+        assert out.get("protocolVersion") == expected["protocolVersion"]
+    for key, value in expected.get("metadata", {}).items():
+        assert key in out, f"to_json lacks metadata key {key!r}"
+        assert out[key] == value, f"to_json metadata {key!r} mismatch"
+    if "components" in expected:
+        assert set(out.get("components") or {}) == set(expected["components"])
+    if "functions" in expected:
+        assert _function_names(out.get("functions")) == set(expected["functions"])
+    if "defs" in expected:
+        assert set(out.get("$defs") or {}) == set(expected["defs"])
+    if expected.get("unbundled"):
+        for ref in _collect_refs(out):
+            if ref.startswith("#"):
+                assert _resolves_within(
+                    out, ref
+                ), f"Reference '{ref}' does not resolve within the document."
+        allowed_defs = {"anyComponent", "anyFunction", *(document.get("$defs") or {})}
+        copied = set(out.get("$defs") or {}) - allowed_defs
+        assert not copied, f"to_json copied definitions into $defs: {sorted(copied)}"
 
 
 def validate_common_types_schema_case(case: dict[str, Any]) -> None:

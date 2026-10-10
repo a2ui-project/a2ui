@@ -256,7 +256,7 @@ def basic_catalog_schema() -> CatalogApi:
         # so the catalog is parsed again for the version under test.
         basic = BasicCatalog(PROTOCOL_VERSION)
         _catalog = Catalog.from_json(
-            catalog_schema=basic.catalog_schema,
+            catalog_schema=basic.validation_schema,
             protocol_version=PROTOCOL_VERSION,
             catalog_id=basic.catalog_id,
         )

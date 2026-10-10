@@ -466,7 +466,9 @@ class ContactAgent:
             }
             return
 
-        if ui_version and (not selected_catalog or not selected_catalog.catalog_schema):
+        if ui_version and (
+            not selected_catalog or not selected_catalog.validation_schema
+        ):
             logger.error(
                 "--- ContactAgent.stream: A2UI_SCHEMA is not loaded. "
                 "Cannot perform UI validation. ---"
