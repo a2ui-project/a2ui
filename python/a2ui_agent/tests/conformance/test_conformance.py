@@ -172,7 +172,30 @@ DEFAULT_CATALOG = "test_data/catalogs/simplified_catalog_v1_0.json"
 
 # Cases the suites fix and this SDK does not yet satisfy. Marked strict so that
 # fixing the implementation fails the marker instead of passing silently.
-KNOWN_GAPS: dict[str, str] = {}
+KNOWN_GAPS: dict[str, str] = {
+    "test_compile_express_checks_on_uncheckable_component_is_a_validation_error": (
+        "ExpressCompiler does not reject check lists on components that do not"
+        " declare checks (https://github.com/a2ui-project/a2ui/issues/3099)"
+    ),
+    "test_compile_express_components_without_root_is_update_components": (
+        "ExpressCompiler does not emit updateComponents for component blocks"
+        " that omit root (https://github.com/a2ui-project/a2ui/issues/3099)"
+    ),
+    "test_compile_express_inline_array_id_collision_is_a_validation_error": (
+        "ExpressCompiler does not reject inline array child IDs that collide"
+        " with assigned variables"
+        " (https://github.com/a2ui-project/a2ui/issues/3099)"
+    ),
+    "test_compile_express_inline_id_collision_is_a_validation_error": (
+        "ExpressCompiler does not reject inline child IDs that collide with"
+        " assigned variables (https://github.com/a2ui-project/a2ui/issues/3099)"
+    ),
+    "test_decompile_express_update_data_model_map_at_path": (
+        "ExpressDecompiler does not flatten map values in updateDataModel at a"
+        " non-root path into per-leaf assignments"
+        " (https://github.com/a2ui-project/a2ui/issues/3099)"
+    ),
+}
 
 # Cases this SDK has no API to run at all, as opposed to running and
 # disagreeing.
@@ -415,6 +438,11 @@ def test_decompiler_conformance(name, test_case):
 
     if test_case.get("expect_round_trip"):
         assert to_message_dicts(parser.compile(notation)) == messages
+
+    if "expect_recompiled" in test_case:
+        assert (
+            to_message_dicts(parser.compile(notation)) == test_case["expect_recompiled"]
+        )
 
 
 # --- Response Parser Conformance ---
