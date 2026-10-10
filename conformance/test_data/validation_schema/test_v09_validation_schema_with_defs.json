@@ -1,0 +1,113 @@
+{
+  "$defs": {
+    "ComponentId": {
+      "description": "The unique identifier for a component, used for both definitions and references within the same surface.",
+      "type": "string"
+    },
+    "anyComponent": {
+      "discriminator": {
+        "propertyName": "component"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/components/Button"
+        },
+        {
+          "$ref": "#/components/Card"
+        }
+      ]
+    },
+    "anyFunction": {
+      "oneOf": [
+        {
+          "$ref": "#/functions/formatCurrency"
+        }
+      ]
+    },
+    "theme": {
+      "additionalProperties": true,
+      "properties": {
+        "primaryColor": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "catalogId": "https://a2ui.org/catalogs/v09/basic",
+  "components": {
+    "Button": {
+      "properties": {
+        "component": {
+          "const": "Button"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "Card": {
+      "properties": {
+        "component": {
+          "const": "Card"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    }
+  },
+  "functions": {
+    "formatCurrency": {
+      "properties": {
+        "args": {
+          "properties": {
+            "amount": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "amount"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        },
+        "call": {
+          "const": "formatCurrency"
+        },
+        "returnType": {
+          "const": "any"
+        }
+      },
+      "required": [
+        "call",
+        "args"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    }
+  }
+}

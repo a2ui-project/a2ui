@@ -15,7 +15,7 @@
  */
 
 import {CatalogTransformer} from './base.js';
-import {Catalog, CatalogApi} from '../internal/web-core.js';
+import {Catalog, CatalogApi, CatalogOptions} from '../internal/web-core.js';
 import {
   hasCatalogDocument,
   getCatalogDocument,
@@ -51,6 +51,28 @@ function registerPrunedDocument(
 }
 
 /**
+ * Returns the options that carry a catalog's metadata, authored `$defs` and
+ * source document over to a catalog derived from it.
+ *
+ * Pruning only drops entries, so the kept entries keep their `sourceJson` and
+ * `toJson()` of the derived catalog emits them as authored. A transformer that
+ * rewrites an entry's schema must drop that entry's `sourceJson` instead.
+ */
+function derivedCatalogOptions(catalog: CatalogApi): CatalogOptions {
+  return {
+    themeSchema: catalog.themeSchema,
+    instructions: catalog.instructions,
+    schemaUri: catalog.schemaUri,
+    schemaId: catalog.schemaId,
+    title: catalog.title,
+    description: catalog.description,
+    declaredProtocolVersion: catalog.declaredProtocolVersion,
+    defs: catalog.defs,
+    sourceDocument: catalog.sourceDocument,
+  };
+}
+
+/**
  * Prunes catalog component definitions to an allowlist of allowed components.
  */
 export class ComponentPruningTransformer implements CatalogTransformer {
@@ -83,8 +105,7 @@ export class ComponentPruningTransformer implements CatalogTransformer {
       catalog.protocolVersion,
       prunedComponents,
       functions,
-      catalog.themeSchema,
-      catalog.instructions,
+      derivedCatalogOptions(catalog),
     );
 
     registerPrunedDocument(catalog, result, 'components', this.allowedComponents);
@@ -126,8 +147,7 @@ export class FunctionPruningTransformer implements CatalogTransformer {
       catalog.protocolVersion,
       components,
       prunedFunctions,
-      catalog.themeSchema,
-      catalog.instructions,
+      derivedCatalogOptions(catalog),
     );
 
     registerPrunedDocument(catalog, result, 'functions', this.allowedFunctions);

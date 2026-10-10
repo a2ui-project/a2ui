@@ -32,7 +32,7 @@
       "description": "Renders a ratio as a percentage string.",
       "returnType": "string",
       "properties": {
-        "call": { "const": "percent" },
+        "@call": { "const": "percent" },
         "args": {
           "type": "object",
           "properties": { "value": { "type": "number" } },
@@ -40,7 +40,7 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"],
+      "required": ["@call", "args"],
       "unevaluatedProperties": false
     }
   },

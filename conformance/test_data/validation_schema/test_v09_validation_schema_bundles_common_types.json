@@ -1,0 +1,164 @@
+{
+  "$defs": {
+    "ComponentId": {
+      "description": "The unique identifier for a component, used for both definitions and references within the same surface.",
+      "type": "string"
+    },
+    "DataBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "A JSON Pointer path to a value in the data model.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "DynamicString": {
+      "description": "Represents a string",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/FunctionCall"
+            },
+            {
+              "properties": {
+                "returnType": {
+                  "const": "string"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "DynamicValue": {
+      "description": "A value that can be a literal, a path, or a function call returning any type.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "array"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "$ref": "#/$defs/FunctionCall"
+        }
+      ]
+    },
+    "FunctionCall": {
+      "description": "Invokes a named function on the client.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/anyFunction"
+        }
+      ],
+      "properties": {
+        "args": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DynamicValue"
+              },
+              {
+                "description": "A literal object argument (e.g. configuration).",
+                "type": "object"
+              }
+            ]
+          },
+          "description": "Arguments passed to the function.",
+          "type": "object"
+        },
+        "call": {
+          "description": "The name of the function to call.",
+          "type": "string"
+        },
+        "returnType": {
+          "default": "boolean",
+          "description": "The expected return type of the function call.",
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "array",
+            "object",
+            "any",
+            "void"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "call"
+      ],
+      "type": "object"
+    },
+    "anyComponent": {
+      "discriminator": {
+        "propertyName": "component"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/components/Text"
+        }
+      ]
+    },
+    "anyFunction": {
+      "not": {}
+    },
+    "theme": {
+      "additionalProperties": true,
+      "properties": {
+        "primaryColor": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "catalogId": "https://a2ui.org/catalogs/v09/bundled",
+  "components": {
+    "Text": {
+      "properties": {
+        "component": {
+          "const": "Text"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "text": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "Represents a string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "component"
+      ],
+      "type": "object",
+      "unevaluatedProperties": false
+    }
+  }
+}

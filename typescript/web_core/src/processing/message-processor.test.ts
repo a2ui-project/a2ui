@@ -26,6 +26,7 @@ import {Catalog, ComponentApi, createFunctionImplementation} from '../catalog/ty
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BasicCatalogThemeSchema} from '../universal/basic_catalog/theme.js';
 import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
+import {BASIC_FUNCTIONS} from '../catalogs/basic/v1/functions/basic_functions.js';
 import {A2uiIntegrityError, A2uiValidationError} from '../errors.js';
 import {z} from 'zod';
 
@@ -39,6 +40,66 @@ const THEME_ONLY_VALIDATION = {
   allowMissingRoot: true,
   allowUnknownElements: true,
 };
+
+/**
+ * Asserts the constraints `specification/v1_0/json/catalog_definition.json`
+ * places on an inline catalog. web_core has no JSON Schema validator
+ * dependency, so the schema's rules are checked structurally.
+ */
+function assertConformsToV10CatalogDefinition(doc: Record<string, any>): void {
+  const allowedKeys = [
+    '$schema',
+    '$id',
+    'protocolVersion',
+    '$defs',
+    'title',
+    'description',
+    'catalogId',
+    'instructions',
+    'components',
+    'functions',
+  ];
+  for (const key of Object.keys(doc)) {
+    assert.ok(allowedKeys.includes(key), `Unexpected top-level key '${key}'`);
+  }
+  assert.strictEqual(typeof doc.catalogId, 'string');
+  if (doc.protocolVersion !== undefined) {
+    assert.match(doc.protocolVersion, /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?$/);
+  }
+  assert.deepStrictEqual(Object.keys(doc.$defs ?? {}).sort(), ['anyComponent', 'anyFunction']);
+  assert.ok(!('Surface' in (doc.components ?? {})), "'Surface' is not a valid component name");
+  const returnTypes = [
+    'string',
+    'number',
+    'boolean',
+    'array',
+    'object',
+    'validationResult',
+    'any',
+    'void',
+  ];
+  const functionKeys = [
+    'type',
+    'description',
+    'properties',
+    'required',
+    'returnType',
+    'allowedCallers',
+    'requiresUserActivation',
+  ];
+  for (const [name, fn] of Object.entries<Record<string, any>>(doc.functions ?? {})) {
+    for (const key of Object.keys(fn)) {
+      assert.ok(functionKeys.includes(key), `Function '${name}' has unexpected key '${key}'`);
+    }
+    assert.strictEqual(fn.type, 'object');
+    assert.ok(returnTypes.includes(fn.returnType), `Function '${name}' has no valid returnType`);
+    assert.strictEqual(typeof fn.properties['@call'].const, 'string');
+    for (const key of Object.keys(fn.properties)) {
+      assert.ok(['@call', 'args'].includes(key), `Function '${name}' has property '${key}'`);
+    }
+    assert.ok(fn.required.includes('@call'));
+  }
+}
 
 describe('MessageProcessor', () => {
   let processor: MessageProcessor<ComponentApi>;
@@ -104,6 +165,71 @@ describe('MessageProcessor', () => {
 
       const tabItems = components.Tabs.allOf[1].properties.tabs.items;
       assert.strictEqual(tabItems.properties.child.$ref, '#/$defs/ComponentId');
+    });
+
+    it('sends each catalog toJson() document as a v1.0 inline catalog', () => {
+      const cat = new Catalog('https://example.com/cat', '1.0', BASIC_COMPONENTS, BASIC_FUNCTIONS, {
+        themeSchema: BasicCatalogThemeSchema,
+      });
+      const proc = new MessageProcessor([cat]);
+      const caps = proc.getRendererCapabilities({versions: ['v1.0'], includeInlineCatalogs: true});
+      const inlineCat = (caps['v1.0'] as any).inlineCatalogs?.[0] as Record<string, any>;
+
+      assertConformsToV10CatalogDefinition(inlineCat);
+      assert.deepStrictEqual(Object.keys(inlineCat.$defs).sort(), ['anyComponent', 'anyFunction']);
+      assert.strictEqual(inlineCat.protocolVersion, '1.0');
+      assert.strictEqual(inlineCat.theme, undefined);
+      assert.strictEqual(
+        inlineCat.components.Text.properties.text.$ref,
+        'common_types.json#/$defs/DynamicString',
+      );
+      assert.deepStrictEqual(inlineCat, cat.toJson());
+    });
+
+    it('sends a loaded v1.0 catalog as the document it was loaded from', () => {
+      const document = {
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        protocolVersion: '1.0',
+        catalogId: 'https://example.com/loaded',
+        components: {
+          Label: {
+            type: 'object',
+            allOf: [
+              {$ref: 'common_types.json#/$defs/Checkable'},
+              {
+                type: 'object',
+                properties: {
+                  component: {const: 'Label'},
+                  text: {$ref: 'common_types.json#/$defs/DynamicString'},
+                },
+                required: ['component', 'text'],
+              },
+            ],
+            unevaluatedProperties: false,
+          },
+        },
+        $defs: {
+          anyComponent: {
+            oneOf: [{$ref: '#/components/Label'}],
+            discriminator: {propertyName: 'component'},
+          },
+          anyFunction: {oneOf: [{$ref: '#/functions/noop'}]},
+        },
+        functions: {
+          noop: {
+            type: 'object',
+            returnType: 'void',
+            properties: {'@call': {const: 'noop'}, args: {type: 'object', properties: {}}},
+            required: ['@call', 'args'],
+          },
+        },
+      };
+      const proc = new MessageProcessor([Catalog.fromJson(document) as Catalog<any>]);
+      const caps = proc.getRendererCapabilities({versions: ['v1.0'], includeInlineCatalogs: true});
+      const inlineCat = (caps['v1.0'] as any).inlineCatalogs?.[0];
+
+      assert.deepStrictEqual(inlineCat, document);
+      assertConformsToV10CatalogDefinition(inlineCat);
     });
   });
 

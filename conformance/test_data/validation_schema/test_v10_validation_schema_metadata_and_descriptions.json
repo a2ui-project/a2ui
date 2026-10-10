@@ -1,0 +1,214 @@
+{
+  "$defs": {
+    "ComponentId": {
+      "description": "The unique identifier for a component, used for both definitions and references within the same surface.",
+      "type": "string"
+    },
+    "DataBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "@path": {
+          "description": "A JSON Pointer path to a value in the data model.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "@path"
+      ],
+      "type": "object"
+    },
+    "DynamicNumber": {
+      "description": "Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.",
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "$ref": "#/$defs/FunctionCall"
+        }
+      ]
+    },
+    "DynamicString": {
+      "description": "Represents a string",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "$ref": "#/$defs/FunctionCall"
+        }
+      ]
+    },
+    "FunctionCall": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/FunctionCommon"
+        },
+        {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/anyFunction"
+            },
+            {
+              "$ref": "#/$defs/IndexSystemFunction"
+            }
+          ]
+        }
+      ],
+      "description": "Invokes a named function, combining common function properties with the catalog function definition.",
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "FunctionCommon": {
+      "description": "Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog.",
+      "properties": {
+        "@call": {
+          "description": "The name of the function to call.",
+          "type": "string"
+        },
+        "catalogId": {
+          "description": "The catalog ID for this function, overriding any surface-level default catalogId.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "@call"
+      ],
+      "type": "object"
+    },
+    "IndexSystemFunction": {
+      "description": "Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.",
+      "properties": {
+        "@call": {
+          "const": "@index"
+        },
+        "args": {
+          "properties": {
+            "offset": {
+              "$ref": "#/$defs/DynamicNumber",
+              "default": 0,
+              "description": "Optional. An offset to add to the 0-based index (e.g., 1 for 1-based indexing). Defaults to 0."
+            }
+          },
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call"
+      ],
+      "returnType": "number",
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "anyComponent": {
+      "discriminator": {
+        "propertyName": "component"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/components/Profile"
+        }
+      ]
+    },
+    "anyFunction": {
+      "oneOf": [
+        {
+          "$ref": "#/functions/initials"
+        }
+      ]
+    },
+    "theme": {
+      "additionalProperties": true,
+      "description": "Theme tokens for the described catalog.",
+      "properties": {
+        "accentColor": {
+          "description": "The accent color.",
+          "format": "color",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "catalogId": "https://a2ui.org/catalogs/v10/described",
+  "components": {
+    "Profile": {
+      "description": "Shows a person's contact details.",
+      "properties": {
+        "component": {
+          "const": "Profile"
+        },
+        "email": {
+          "description": "The person's email address.",
+          "format": "email",
+          "pattern": "^[^@]+@[^@]+$",
+          "title": "Email address",
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "name": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The person's display name."
+        },
+        "tags": {
+          "description": "Distinct labels for the person.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "component"
+      ],
+      "type": "object"
+    }
+  },
+  "functions": {
+    "initials": {
+      "allowedCallers": "rendererOnly",
+      "description": "Returns the initials of a name.",
+      "properties": {
+        "@call": {
+          "const": "initials"
+        },
+        "args": {
+          "properties": {
+            "name": {
+              "description": "The full name.",
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "string",
+      "type": "object"
+    }
+  },
+  "instructions": "Prefer Profile for people.",
+  "protocolVersion": "1.0"
+}
