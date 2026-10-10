@@ -818,7 +818,8 @@ class MessageProcessor<T extends ComponentApi> {
   /// [CapabilitiesOptions.includeInlineCatalogs] it also carries the catalogs
   /// themselves, shaped for that entry's version as
   /// [A2uiVersionCapabilities.toJson] describes: the legacy inline catalog
-  /// below v1.0, the standalone catalog schema document from v1.0.
+  /// ([Catalog.toLegacyInlineCatalog]) below v1.0, the catalog document
+  /// ([Catalog.toJson]) from v1.0.
   ///
   /// Throws [A2uiValidationError] if [CapabilitiesOptions.versions] is empty.
   A2uiRendererCapabilities getRendererCapabilities(

@@ -16,7 +16,7 @@
   than a `String?`. `Catalog.fromJson` reads the document's value as a
   semantic version (`1.0`, `v1.0` and `1.0.0` all name v1.0; pre-release and
   build suffixes are ignored) and throws `A2uiCatalogError` for a value it
-  cannot parse or a version this SDK does not implement. `catalogSchema`
+  cannot parse or a version this SDK does not implement. `validationSchema`
   writes the version back as the bare form the catalog definition schema
   requires (`1.0`, not `v1.0`). `A2uiProtocolVersion` adds `semverValue` and
   `tryParseSemVer`. `PayloadValidator.commonTypesForProtocolVersion(String?)`
@@ -67,13 +67,13 @@
 - Added `MessageProcessor.getRendererCapabilities(CapabilitiesOptions)`,
   which returns an `A2uiRendererCapabilities` with one entry per requested
   version and raises `A2uiValidationError` for an empty version list. Inline
-  catalogs use the legacy shape below v1.0 and a copy of the standalone
-  catalog schema document from v1.0.
+  catalogs use the legacy shape below v1.0 and the catalog document from
+  v1.0.
 - **Breaking:** `A2uiVersionCapabilities.toJson` takes a required `version`
   and shapes inline catalogs for it; `A2uiRendererCapabilities.toJson` and
   `getRendererCapabilities` use the same code.
 - **Behavior change:** Legacy inline catalogs are derived from
-  `Catalog.catalogSchema`, so a component's properties and required list
+  `Catalog.validationSchema`, so a component's properties and required list
   match the catalog document (which merges `allOf` members). `id` and
   `component` are left to the `ComponentCommon` envelope, bundled common-type
   refs become `common_types.json#/$defs/...` refs again, other local refs are
@@ -111,7 +111,8 @@
 - `FunctionApi` adds `allowedCallers` (`AllowedCallers.rendererOnly`,
   `agentOnly` or `rendererOrAgent`, default `rendererOnly`) and
   `requiresUserActivation`, read by `Catalog.fromJson` from both function
-  forms and emitted by `catalogSchema` when they differ from the defaults.
+  forms and emitted by `toJson` and `validationSchema` when they differ from
+  the defaults or the document declares them.
   `BasicFunction` carries them, so `BasicCatalog.v1_0().functions['openUrl']`
   requires a user activation.
 - On a v1.0 surface, a function call that no available catalog implements
@@ -172,8 +173,61 @@
   `MessageProcessor` takes as `adapterRegistry`.
 - `Catalog` adds `protocolVersion`, read from the document by
   `Catalog.fromJson`, which takes an `A2uiProtocolVersion` fallback for
-  documents that declare none. `catalogSchema` emits it and, from `1.0`, names
-  functions under `@call` instead of `call`.
+  documents that declare none. `toJson` and `validationSchema` emit it and,
+  from `1.0`, name functions under `@call` instead of `call`.
+- `Catalog` adds `toJson`, which returns a catalog document for the catalog:
+  the authored document kept by `Catalog.fromJson`, with external `$ref`s
+  left unbundled and entries removed by `copyWith` pruned (along with their
+  unused `$defs` and union entries). It writes the `protocolVersion` as the
+  document declared it. A catalog built in code gets a canonical document
+  for its `protocolVersion`.
+- `Catalog` adds `validationSchema`, the self-contained schema used to
+  validate messages. Its standard `$defs` follow the catalog's
+  `protocolVersion`: the v1.0 common types from `1.0`, the v0.9 ones below.
+- `catalogSchema` is deprecated; use `validationSchema`.
+- **Behavior change:** the schema `validationSchema` (and so `catalogSchema`)
+  returns now matches the other SDKs:
+  - It carries `$schema`, `catalogId`, the `protocolVersion` the catalog
+    declares as a bare semantic version (not a fallback passed to
+    `fromJson`), `instructions`, `components`, `functions` and `$defs`. The
+    catalog's `$id`, `title` and `description` are left to `toJson`.
+  - Every reference is local: references to `common_types.json` in function
+    arguments, and the standard `FunctionCall`'s reference to
+    `catalog.json#/$defs/anyFunction`, point into its own `$defs`. A catalog
+    without functions gets an `anyFunction` that matches nothing, and from
+    `1.0` the union lists only the catalog's functions. The catalog's own
+    `$defs` that entries reference are copied in as well; a standard
+    definition of the same name takes precedence.
+  - A reference to a standard definition, including each component's `id`
+    and a reference that was already local, such as `#/$defs/DynamicString`
+    in function arguments, takes that definition's description when it has
+    none of its own. Flattened `ComponentCommon` and `Checkable` envelopes
+    use the common types descriptions, and from `1.0` a `ComponentCommon`
+    mixin also contributes the standard `metadata` property.
+  - Components carry `id` in every version, and non-empty `allowedParents`
+    and `allowedChildren`.
+  - Below `1.0`, components and function entries are closed with
+    `unevaluatedProperties` (the authored value, else `false`). From `1.0`,
+    function entries take the published v1 shape (a top-level `returnType`,
+    and `allowedCallers` and `requiresUserActivation` when they differ from
+    the defaults or the document declares them), and neither function
+    entries nor components are closed unless authored, because the
+    protocol's envelopes close them. Object `args` are closed in every
+    version.
+  - A theme that sets neither `additionalProperties` nor
+    `unevaluatedProperties` is open (`additionalProperties: true`).
+- `BasicCatalog.v0_9()` reports protocol version `v0.9`.
+- `Catalog` adds `toLegacyInlineCatalog`, the inline catalog shape that
+  renderer capabilities send below v1.0, derived from `validationSchema` as
+  described below. Function parameters and the theme are written as defined,
+  without the closing keywords `validationSchema` adds.
+- `ComponentApi` adds `sourceJson`. `FunctionApi` and `FunctionImplementation`
+  add `sourceJson`. `BasicFunction` takes `description`, `allowedCallers`,
+  `requiresUserActivation` and `sourceJson`, and the basic catalog's
+  functions carry their published `description`.
+- **Behavior change:** from v1.0, inline catalogs in renderer capabilities are
+  the catalog documents `Catalog.toJson` returns, rather than a copy of the
+  bundled validation schema. Below v1.0 they are `toLegacyInlineCatalog`.
 - `SurfaceModel` adds `metadata`, from v1.0 `createSurface`.
 - **Breaking:** `SurfaceModel.catalog` is replaced by a nullable
   `defaultCatalog`, and the constructor's `catalog:` argument by

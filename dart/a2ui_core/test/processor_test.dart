@@ -408,7 +408,7 @@ void main() {
       });
       final buttonBody = buttonMembers[1] as Map;
       final documentButton =
-          (catalog.catalogSchema['components']! as Map)['Button'] as Map;
+          (catalog.validationSchema['components']! as Map)['Button'] as Map;
       expect(buttonBody.keys, ['properties', 'required']);
       expect((buttonBody['properties'] as Map).keys, [
         'component',
@@ -425,7 +425,7 @@ void main() {
           if (key != 'id' && key != 'component') key,
       ]);
 
-      // At v1.0: the standalone catalog schema document.
+      // At v1.0: the catalog document.
       final Map<String, Object?> current = firstInline('v1.0');
       expect(current[r'$schema'], Catalog.jsonSchemaDialect);
       expect(current['catalogId'], catalog.id);

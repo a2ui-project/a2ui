@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The Direct JSON prompt builds its schema from `Catalog.validationSchema`
+  instead of the deprecated `catalogSchema`.
 - Payload validation builds its `MessageProcessor` with `defaultVersion`.
 - Validation forwards `catalog.protocolVersion` when constructing its
   signature-only `Catalog` for `MessageProcessor`.

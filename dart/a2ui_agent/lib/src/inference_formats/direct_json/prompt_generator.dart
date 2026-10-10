@@ -82,7 +82,7 @@ class DirectJsonPromptGenerator extends PromptGenerator {
     for (final CatalogApi catalog in catalogs) {
       buffer
         ..write('\n\n## Catalog `${catalog.id}`\n\n')
-        ..write(_schemaBlock(catalog.catalogSchema));
+        ..write(_schemaBlock(catalog.validationSchema));
     }
     if (examples.isNotEmpty) {
       final parser = DirectJsonParser(catalogs);
