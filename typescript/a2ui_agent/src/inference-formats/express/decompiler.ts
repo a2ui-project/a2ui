@@ -593,9 +593,22 @@ export class ExpressDecompiler {
             const checkProps = checkName !== 'None' ? helper.getFunctionProperties(checkName) : [];
             const explicitArgsReprs: string[] = [];
 
-            // If first property is value (or matching component prop), skip it (plan §5.2 item 3)
+            // Skip the first parameter ('value') only when the component itself has a
+            // bound 'value' path matching the check's 'value' argument.
+            const componentValue = c.value;
+            const checkValue = checkArgs.value;
             let startIdx = 0;
-            if (checkProps.length > 0 && (checkProps[0] === 'value' || checkProps[0] in c)) {
+            if (
+              checkProps.length > 0 &&
+              checkProps[0] === 'value' &&
+              componentValue &&
+              typeof componentValue === 'object' &&
+              checkValue &&
+              typeof checkValue === 'object' &&
+              typeof (componentValue as Record<string, unknown>)[helper.keys.path] === 'string' &&
+              (componentValue as Record<string, unknown>)[helper.keys.path] ===
+                (checkValue as Record<string, unknown>)[helper.keys.path]
+            ) {
               startIdx = 1;
             }
 

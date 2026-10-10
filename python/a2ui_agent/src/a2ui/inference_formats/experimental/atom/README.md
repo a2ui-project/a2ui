@@ -92,8 +92,8 @@ raw_response = """
 </a2ui>
 """
 
-compiled_messages = atom_fmt.parser.compile(raw_response)
-print(compiled_messages[0])
+parts = atom_fmt.create_parser().parse_response(raw_response)
+print(parts[0].a2ui)
 ```
 
 ---

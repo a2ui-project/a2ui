@@ -1,0 +1,283 @@
+{
+  "catalogId": "test_catalog",
+  "protocolVersion": "0.8",
+  "components": {
+    "Text": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "literalString": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "text"
+      ]
+    },
+    "Image": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "object",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "required": [
+        "url"
+      ]
+    },
+    "AudioPlayer": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "object",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "required": [
+        "url"
+      ]
+    },
+    "Card": {
+      "type": "object",
+      "properties": {
+        "child": {
+          "type": "string"
+        },
+        "href": {
+          "type": "object",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "action": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "context": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "object",
+                    "properties": {
+                      "literalString": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "anyOf": [
+                      {
+                        "required": [
+                          "literalString"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "path"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "key",
+                  "value"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "Container": {
+      "type": "object",
+      "properties": {
+        "children": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "imageUrl": {
+          "type": "object",
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "Column": {
+      "type": "object",
+      "properties": {
+        "children": {
+          "type": "object",
+          "anyOf": [
+            {
+              "required": [
+                "explicitList"
+              ]
+            },
+            {
+              "required": [
+                "template"
+              ]
+            }
+          ],
+          "properties": {
+            "explicitList": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "template": {
+              "type": "object",
+              "properties": {
+                "componentId": {
+                  "type": "string"
+                },
+                "dataBinding": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "required": [
+        "children"
+      ]
+    },
+    "Row": {
+      "type": "object",
+      "properties": {
+        "children": {
+          "type": "object",
+          "anyOf": [
+            {
+              "required": [
+                "explicitList"
+              ]
+            },
+            {
+              "required": [
+                "template"
+              ]
+            }
+          ],
+          "properties": {
+            "explicitList": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "template": {
+              "type": "object",
+              "properties": {
+                "componentId": {
+                  "type": "string"
+                },
+                "dataBinding": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "required": [
+        "children"
+      ]
+    },
+    "List": {
+      "type": "object",
+      "properties": {
+        "children": {
+          "type": "object",
+          "anyOf": [
+            {
+              "required": [
+                "explicitList"
+              ]
+            },
+            {
+              "required": [
+                "template"
+              ]
+            }
+          ],
+          "properties": {
+            "explicitList": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "template": {
+              "type": "object",
+              "properties": {
+                "componentId": {
+                  "type": "string"
+                },
+                "dataBinding": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "required": [
+        "children"
+      ]
+    }
+  }
+}

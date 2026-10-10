@@ -14,29 +14,55 @@
 
 """Generator for standard A2UI JSON schema system prompt instructions."""
 
-from collections.abc import Sequence
-from typing import Any, TYPE_CHECKING
+from __future__ import annotations
 
-from a2ui.core import A2uiCatalogError, CatalogApi
+from collections.abc import Sequence
+
+from a2ui.core import CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats._shared import check_catalogs
+from a2ui.inference_formats._shared import to_message_dicts
+from a2ui.inference_formats.direct_json.decompiler import DirectJsonDecompiler
 from a2ui.inference_formats.direct_json.schema_prompt import schema_to_prompt
 from a2ui.prompt import PromptGenerator
-from a2ui.schema import load_examples
-from a2ui.schema.constants import DEFAULT_WORKFLOW_RULES
+from a2ui.schema import DEFAULT_WORKFLOW_RULES
+from a2ui.utils import validate_payload
 
-if TYPE_CHECKING:
-    from a2ui.inference_formats.direct_json import DirectJsonFormat
+__all__ = [
+    "DEFAULT_WORKFLOW_RULES",
+    "DirectJsonPromptGenerator",
+]
 
 
 class DirectJsonPromptGenerator(PromptGenerator):
     """Formats standard JSON schema system prompt instructions (Direct JSON Format)."""
 
-    def __init__(self, format_inst: "DirectJsonFormat"):
-        """Initializes the prompt generator with a DirectJsonFormat context.
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
+        allowed_messages: Sequence[str] | None = None,
+    ):
+        self._catalogs = list(check_catalogs(catalogs))
+        self._examples = [list(t) for t in examples] if examples is not None else None
+        self._allowed_messages = (
+            list(allowed_messages) if allowed_messages is not None else None
+        )
+        self._decompiler = DirectJsonDecompiler()
 
-        Args:
-            format_inst: The DirectJsonFormat instance.
-        """
-        self._format = format_inst
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        return list(self._catalogs)
+
+    @property
+    def examples(self) -> list[list[AgentToRendererMessage]] | None:
+        return [list(t) for t in self._examples] if self._examples is not None else None
+
+    @property
+    def allowed_messages(self) -> list[str] | None:
+        return (
+            list(self._allowed_messages) if self._allowed_messages is not None else None
+        )
 
     def generate_base_rules(self) -> str:
         """Returns default JSON workflow rules."""
@@ -46,12 +72,17 @@ class DirectJsonPromptGenerator(PromptGenerator):
         self,
         include_schema: bool = True,
         catalog: CatalogApi | None = None,
+        allowed_messages: Sequence[str] | None = None,
     ) -> str:
         """Returns LLM instructions for a catalog or all of the format's catalogs."""
         if not include_schema:
             return ""
+        effective_allowed = (
+            allowed_messages if allowed_messages is not None else self._allowed_messages
+        )
         return schema_to_prompt(
-            [catalog] if catalog is not None else self._format.catalogs
+            [catalog] if catalog is not None else self._catalogs,
+            allowed_messages=effective_allowed,
         )
 
     def generate_examples(
@@ -59,87 +90,27 @@ class DirectJsonPromptGenerator(PromptGenerator):
         catalog: CatalogApi | None = None,
         validate: bool = False,
     ) -> str:
-        """Loads and formats the format's few-shot examples.
-
-        Args:
-            catalog: Optional catalog to validate the examples against first.
-              The examples are validated against every catalog of the format.
-            validate: Whether to validate the examples.
-
-        Returns:
-            The examples text block, or an empty string.
-        """
-        catalogs = list(self._format.catalogs)
+        """Formats the generator's few-shot examples."""
+        if not self._examples:
+            return ""
+        catalogs = list(self._catalogs)
         if catalog is not None:
             catalogs = [catalog, *(c for c in catalogs if c is not catalog)]
-        return load_examples(catalogs, self._format.examples_path, validate=validate)
+        blocks: list[str] = []
+        for turn in self._examples:
+            if validate:
+                validate_payload(catalogs, to_message_dicts(turn))
+            decompiled = self._decompiler.decompile(turn)
+            blocks.append(f"<a2ui-json>\n{decompiled}\n</a2ui-json>")
+        return "\n\n".join(blocks)
 
-    def generate(
-        self,
-        role_description: str,
-        workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Any = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = False,
-        include_examples: bool = False,
-        validate_examples: bool = False,
-    ) -> str:
-        """Assembles prompt instructions contract for standard JSON.
-
-        The prompt describes every catalog of the format.
-
-        Args:
-            role_description: Description of the agent's role.
-            workflow_description: Optional description of the task workflow.
-            ui_description: Optional UI context or rules.
-            client_ui_capabilities: Not supported. The format's catalogs are
-              already resolved, so resolve them with
-              `a2ui.utils.resolve_catalogs` before building the format.
-            allowed_components: Deprecated and ignored. Prune the catalogs
-              before building the format instead, with
-              `a2ui.catalog_transformers.ComponentPruningTransformer`, for
-              example passed to `CatalogConfig` as `transformers`.
-            allowed_messages: Deprecated and ignored. To restrict the messages
-              in the schema, call
-              `schema_to_prompt(catalogs, allowed_messages=...)` instead.
-            include_schema: Whether to include component schemas in the prompt.
-            include_examples: Whether to include few-shot examples.
-            validate_examples: Whether to validate few-shot examples on generation.
-
-        Returns:
-            The complete generated prompt system instruction.
-
-        Raises:
-            A2uiCatalogError: If `client_ui_capabilities` is given.
-        """
-        if client_ui_capabilities is not None:
-            raise A2uiCatalogError(
-                "DirectJsonFormat takes resolved catalogs. Resolve them from the"
-                " client capabilities with a2ui.utils.resolve_catalogs and build the"
-                " format from the result."
-            )
-        catalogs: Sequence[CatalogApi] = self._format.catalogs
-
-        parts = [role_description]
-
-        rules = DEFAULT_WORKFLOW_RULES
-        if workflow_description:
-            rules += f"\n{workflow_description}"
-        parts.append(f"## Workflow Description:\n{rules}")
-
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
-
-        if include_schema:
-            parts.append(schema_to_prompt(catalogs))
-
-        if include_examples:
-            examples_str = load_examples(
-                catalogs, self._format.examples_path, validate=validate_examples
-            )
-            if examples_str:
-                parts.append(f"### Examples:\n{examples_str}")
-
+    def generate(self) -> str:
+        """Assembles the prompt snippet for the Direct JSON format."""
+        parts: list[str] = [f"## Workflow Description:\n{DEFAULT_WORKFLOW_RULES}"]
+        parts.append(
+            schema_to_prompt(self._catalogs, allowed_messages=self._allowed_messages)
+        )
+        examples_str = self.generate_examples()
+        if examples_str:
+            parts.append(f"### Examples:\n{examples_str}")
         return "\n\n".join(parts)

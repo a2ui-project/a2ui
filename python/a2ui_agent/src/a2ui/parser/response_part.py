@@ -12,25 +12,41 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any
+from typing import Union
+
+from a2ui.core.schema import AgentToRendererMessage
 
 
 @dataclass
-class ResponsePart:
-    """Represents a part of the LLM response.
+class TextPart:
+    """Conversational text part of an LLM response."""
 
-    Attributes:
-        text: The conversational text part. Can be an empty string.
-        a2ui_raw: The raw uncompiled format content string (e.g. raw XML/DSL/JSON).
-          None if this part only contains conversational text.
-        a2ui_json: The parsed/compiled A2UI JSON data, always a list of
-          dictionaries if it contains A2UI messages. None if this part only
-          contains conversational text.
-        is_final: Whether this format-content block is complete/closed (not truncated).
-    """
+    text: str
 
-    text: str = ""
-    a2ui_raw: str | None = None
-    a2ui_json: Any | None = None
+
+@dataclass
+class RawA2uiPart:
+    """An uncompiled A2UI string block extracted from an LLM response."""
+
+    a2ui_raw: str
+
+
+@dataclass
+class RawResponsePart:
+    """A segment of an unwrapped LLM response containing text or raw A2UI."""
+
+    part: Union[TextPart, RawA2uiPart]
     is_final: bool = True
+
+
+@dataclass
+class A2uiPart:
+    """A compiled A2UI message list part of an LLM response."""
+
+    a2ui: list[AgentToRendererMessage]
+
+
+ResponsePart = Union[TextPart, A2uiPart]

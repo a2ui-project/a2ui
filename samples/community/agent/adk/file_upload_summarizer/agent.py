@@ -19,9 +19,8 @@ from typing import Any, ClassVar
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.core import CatalogApi
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig, VERSION_0_9
-from a2ui.utils import resolve_catalogs
+from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
+from a2ui.schema import VERSION_0_9
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
@@ -63,7 +62,7 @@ def _renderer_capabilities(
     version: str,
     client_ui_capabilities: Mapping[str, Any] | None,
     catalog_ids: Sequence[str],
-) -> dict[str, Any] | None:
+) -> dict[str, Any]:
     """Returns the client's capabilities keyed by protocol version.
 
     Clients may send the bare capabilities entry, and may leave out
@@ -77,19 +76,18 @@ def _renderer_capabilities(
         catalog_ids: The ids of the agent's catalogs.
 
     Returns:
-        The capabilities for `a2ui.utils.resolve_catalogs`, or `None` if the
-        client sent none for the negotiated version.
+        The capabilities for `A2uiGenerator.create_processor`.
     """
-    if not client_ui_capabilities:
-        return None
     key = f"v{version}"
+    if not client_ui_capabilities:
+        return {key: {"supportedCatalogIds": list(catalog_ids)}}
     raw: Any = client_ui_capabilities
     if any(_is_version_key(k) for k in client_ui_capabilities):
         raw = client_ui_capabilities.get(key)
         if raw is None:
-            return None
+            return {key: {"supportedCatalogIds": list(catalog_ids)}}
         if not isinstance(raw, Mapping):
-            # Left for `resolve_catalogs` to reject with a validation error.
+            # Left for `create_processor` to reject with a validation error.
             return {key: raw}
     entry = dict(raw)
     if "supportedCatalogIds" not in entry and "supported_catalog_ids" not in entry:
@@ -129,13 +127,15 @@ class FileUploadSummarizerAgent:
         self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
 
         self._accepts_inline_catalogs = True
-        self._catalog_configs: dict[str, list[CatalogConfig]] = {}
-        self._inference_formats: dict[str, DirectJsonFormat] = {}
+        self._generators: dict[str, A2uiGenerator] = {}
+        self._processors: dict[str, A2uiRequestProcessor] = {}
         self._ui_runners: dict[str, Runner] = {}
 
-        inference_format = self._build_inference_format(VERSION_0_9)
-        self._inference_formats[VERSION_0_9] = inference_format
-        agent = self._build_llm_agent(inference_format)
+        generator = self._build_generator(VERSION_0_9)
+        processor = self._build_default_processor(VERSION_0_9, generator)
+        self._generators[VERSION_0_9] = generator
+        self._processors[VERSION_0_9] = processor
+        agent = self._build_llm_agent(processor)
         self._ui_runners[VERSION_0_9] = self._build_runner(agent)
 
         self._agent_card = self._build_agent_card()
@@ -149,54 +149,52 @@ class FileUploadSummarizerAgent:
             return self._text_runner
         return self._ui_runners[version]
 
-    def get_inference_format(self, version: str | None) -> DirectJsonFormat | None:
+    def get_processor(self, version: str | None) -> A2uiRequestProcessor | None:
         if version is None:
             return None
-        return self._inference_formats[version]
+        return self._processors[version]
+
+    def create_processor(
+        self, version: str, client_ui_capabilities: Mapping[str, Any] | None
+    ) -> A2uiRequestProcessor:
+        """Creates an A2uiRequestProcessor negotiated for the client's capabilities."""
+        catalog_ids = [c.catalog_id for c in self._processors[version].active_catalogs]
+        return self._generators[version].create_processor(
+            _renderer_capabilities(version, client_ui_capabilities, catalog_ids)
+        )
 
     def resolve_catalogs(
         self, version: str, client_ui_capabilities: Mapping[str, Any] | None
     ) -> list[CatalogApi]:
-        """Returns the catalogs active for the client's capabilities.
+        """Returns the catalogs active for the client's capabilities."""
+        return self.create_processor(version, client_ui_capabilities).active_catalogs
 
-        Args:
-            version: The negotiated A2UI protocol version.
-            client_ui_capabilities: The capabilities that the client sent.
-
-        Returns:
-            The active catalogs, the client's preferred one first.
-        """
-        return resolve_catalogs(
-            self._catalog_configs[version],
-            _renderer_capabilities(
-                version,
-                client_ui_capabilities,
-                [c.catalog_id for c in self._inference_formats[version].catalogs],
-            ),
+    def _build_generator(self, version: str) -> A2uiGenerator:
+        config = CatalogConfig.from_path(
+            catalog_path=f"catalogs/{version}/file_upload_catalog.json",
+            protocol_version=version,
+        )
+        return A2uiGenerator(
+            [config],
             accepts_inline_catalogs=self._accepts_inline_catalogs,
         )
 
-    def _build_inference_format(self, version: str) -> DirectJsonFormat:
-        config = CatalogConfig.from_path(
-            name="file_upload_catalog",
-            catalog_path=f"catalogs/{version}/file_upload_catalog.json",
+    def _build_default_processor(
+        self, version: str, generator: A2uiGenerator
+    ) -> A2uiRequestProcessor:
+        catalog_ids = [c.transformed_catalog.catalog_id for c in generator.catalogs]
+        return generator.create_processor(
+            _renderer_capabilities(version, None, catalog_ids)
         )
-        catalog = config.to_catalog(protocol_version=version)
-        # Build the catalog once with the version fixed, so that per-request
-        # resolution reuses it as it is.
-        self._catalog_configs[version] = [
-            CatalogConfig.from_catalog(config.name, catalog)
-        ]
-        return DirectJsonFormat([catalog])
 
     def _build_agent_card(self) -> AgentCard:
         extensions = []
-        if self._inference_formats:
-            for version, fmt in self._inference_formats.items():
+        if self._processors:
+            for version, processor in self._processors.items():
                 ext = get_a2ui_agent_extension(
                     version,
                     self._accepts_inline_catalogs,
-                    [c.catalog_id for c in fmt.catalogs],
+                    [c.catalog_id for c in processor.active_catalogs],
                 )
                 extensions.append(ext)
 
@@ -249,20 +247,17 @@ class FileUploadSummarizerAgent:
         )
 
     def _build_llm_agent(
-        self, inference_format: DirectJsonFormat | None = None
+        self, processor: A2uiRequestProcessor | None = None
     ) -> LlmAgent:
-        instruction = (
-            inference_format.generate_system_prompt(
-                role_description=ROLE_DESCRIPTION,
-                workflow_description=WORKFLOW_DESCRIPTION,
-                ui_description=UI_DESCRIPTION,
-                include_schema=False,
-                include_examples=False,
-                validate_examples=False,
-            )
-            if inference_format
-            else ""
-        )
+        if processor:
+            instruction = "\n\n".join([
+                ROLE_DESCRIPTION,
+                processor.format.prompt_generator.generate_base_rules(),
+                WORKFLOW_DESCRIPTION,
+                f"## UI Description:\n{UI_DESCRIPTION}",
+            ])
+        else:
+            instruction = ""
 
         return LlmAgent(
             model=self._model,

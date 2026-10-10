@@ -31,6 +31,7 @@ from .parts import (
     is_a2ui_part,
     parse_content_to_parts,
     parse_response_to_parts,
+    parse_stream_chunk_to_parts,
     stream_response_to_parts,
 )
 
@@ -48,6 +49,7 @@ __all__ = [
     "is_a2ui_part",
     "parse_content_to_parts",
     "parse_response_to_parts",
+    "parse_stream_chunk_to_parts",
     "stream_response_to_parts",
     "try_activate_a2ui_extension",
 ]

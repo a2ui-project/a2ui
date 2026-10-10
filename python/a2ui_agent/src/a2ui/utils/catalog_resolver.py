@@ -17,23 +17,22 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, TYPE_CHECKING, TypeAlias
+from typing import Any, TYPE_CHECKING
 
 from pydantic import BaseModel, ValidationError
 
 from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog, CatalogApi
 from a2ui.core.common import to_protocol_version
-from a2ui.core.schema import ProtocolVersion, v0_8, v0_9, v1_0
+from a2ui.core.schema import (
+    A2uiRendererCapabilities,
+    ProtocolVersion,
+    v0_8,
+    v0_9,
+    v1_0,
+)
 
 if TYPE_CHECKING:
     from a2ui.processor import CatalogConfig
-
-_RendererCapabilities: TypeAlias = (
-    Mapping[str, Any]
-    | v0_8.A2uiClientCapabilities
-    | v0_9.A2uiClientCapabilities
-    | v1_0.A2uiRendererCapabilities
-)
 
 # The key that each protocol version's capabilities are sent under, and the
 # model of the capabilities object stored there. v0.9.1 reuses the v0.9 key.
@@ -47,7 +46,7 @@ _CAPABILITIES_ENTRIES: dict[ProtocolVersion, tuple[str, type[BaseModel]]] = {
 
 def resolve_catalogs(
     catalogs: Sequence[CatalogConfig],
-    renderer_capabilities: _RendererCapabilities | None,
+    renderer_capabilities: A2uiRendererCapabilities | None,
     accepts_inline_catalogs: bool = False,
 ) -> list[CatalogApi]:
     """Returns the catalogs that are active for a renderer's capabilities.
@@ -137,7 +136,7 @@ def resolve_catalogs(
 
 
 def _capabilities_entry(
-    renderer_capabilities: _RendererCapabilities,
+    renderer_capabilities: A2uiRendererCapabilities,
     key: str,
     entry_model: type[BaseModel],
 ) -> dict[str, Any]:
