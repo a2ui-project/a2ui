@@ -19,6 +19,7 @@ import {AgentToRendererMessage, CatalogApi, STRICT_VALIDATION} from '../../inter
 import {Parser} from '../../parser/parser.js';
 import {DirectJsonParser} from './parser.js';
 import {DirectJsonPromptGenerator} from './prompt-generator.js';
+import {checkParserCatalogs} from '../../utils/validation.js';
 import {DirectJsonStreamProcessorImpl} from './streaming.js';
 import {
   DirectJsonStreamProcessorFactory,
@@ -39,6 +40,7 @@ export class DirectJsonFormat implements InferenceFormat {
     private readonly streamProcessorFactory?: DirectJsonStreamProcessorFactory,
     private readonly streamOptions?: DirectJsonStreamProcessorOptions,
   ) {
+    checkParserCatalogs(catalogs);
     this.promptGenerator = new DirectJsonPromptGenerator(catalogs, examples);
   }
 

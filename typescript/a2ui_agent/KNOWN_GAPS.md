@@ -6,13 +6,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ## 1. `@a2ui/agent` (This package)
 
-### Unvalidated Direct JSON parser output (Sharp edge)
-
-- **What it is:** `DirectJsonParser.compile` bypasses Zod validation and directly casts the JSON output to `AgentToRendererMessage[]` via an unchecked `as` cast.
-- **Why it exists:** The validation step was deferred to `A2uiRequestProcessor`, which runs `processMessages` on the output.
-- **What it risks:** Callers who use the `Parser` directly rather than through the `A2uiRequestProcessor` facade will receive unvalidated payloads that might not adhere to the protocol schema, leading to unpredictable runtime errors downstream.
-- **Done looks like:** `compile` validates its output against the protocol schema and the parser's `catalogs`, which `DirectJsonFormat.createParser()` already passes in, before returning the payloads.
-
 ### Streaming follows the legacy suite
 
 - **What it is:** `DirectJsonStreamProcessorImpl` was written against `conformance/agent/legacy/streaming_parser.yaml`. The harness now runs `conformance/agent/direct_json/response_streaming.yaml`, which replaced it, and 47 of its 79 v0.9 and v1.0 cases fail. The processor adds `loading_*` placeholder components and prunes a message that is still arriving where the suite withholds it until it reads whole; emits a message only once the block closes; keeps the whitespace at the edges of text; raises on an invalid message as it arrives, and a cycle as `A2uiRecursionError`, where the suite raises a validation error when the block closes; drops or accepts messages for a surface the block has not created and drops orphans, where the suite reports them; and heals cut numbers and escape sequences.
