@@ -160,7 +160,7 @@ def _capabilities_entry(
             f"Renderer capabilities must be a mapping, got {type(capabilities)}."
         )
     key = next(
-        (candidate for candidate in keys if capabilities.get(candidate) is not None),
+        (candidate for candidate in keys if candidate in capabilities),
         None,
     )
     if key is None:
