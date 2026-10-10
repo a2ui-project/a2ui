@@ -14,9 +14,15 @@
 
 """The abstract base class for catalog transformers."""
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 
 from a2ui.core import CatalogApi
+
+__all__ = [
+    "CatalogTransformer",
+]
 
 
 class CatalogTransformer(ABC):

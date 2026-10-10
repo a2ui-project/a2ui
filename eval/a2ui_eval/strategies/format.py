@@ -14,7 +14,10 @@
 
 import asyncio
 import json
+import multiprocessing
+from multiprocessing.connection import Connection
 import re
+import traceback
 from typing import Any
 
 from inspect_ai.model import (
@@ -32,7 +35,7 @@ from a2ui.core import (
 )
 from a2ui.inference_format import InferenceFormat
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import CatalogConfig
+from a2ui.processor import CatalogConfig
 from ..shared.utils import GIT_ROOT, measured_generate
 
 
@@ -53,7 +56,7 @@ def _get_strategy(
     Returns:
         The instantiated InferenceFormat strategy object.
     """
-    catalog = catalog_config.to_catalog(protocol_version=version)
+    catalog = catalog_config.transformed_catalog
     if format_name == "direct_json":
         return DirectJsonFormat([catalog])
 
@@ -84,7 +87,9 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
         catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
-        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
+        catalog_config = CatalogConfig.from_path(
+            resolved_catalog_path, protocol_version=version
+        )
         strategy = _get_strategy(format_name, version, catalog_config)
 
         role_description = state.metadata.get("protocol_role") or state.metadata.get(
@@ -94,11 +99,13 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
             "generation_rules"
         ) or state.metadata.get("workflow_description", "")
 
-        a2ui_prompt = strategy.prompt_generator.generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
-            include_schema=True,
-        )
+        prompt_parts = []
+        if role_description:
+            prompt_parts.append(role_description)
+        if workflow_description:
+            prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
+        prompt_parts.append(strategy.prompt_generator.generate())
+        a2ui_prompt = "\n\n".join(prompt_parts)
 
         domain_prompt = state.metadata.get("system_prompt", "").strip()
         if domain_prompt:
@@ -115,9 +122,6 @@ def format_system_prompt(format_name: str, version: str) -> Solver:
     return solve
 
 
-import multiprocessing
-
-
 def _parse_and_validate_in_process(
     format_name: str,
     version: str,
@@ -125,7 +129,9 @@ def _parse_and_validate_in_process(
     surface_id: str,
     completion: str,
 ) -> dict[str, Any]:
-    catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
+    catalog_config = CatalogConfig.from_path(
+        resolved_catalog_path, protocol_version=version
+    )
     strategy = _get_strategy(
         format_name,
         version,
@@ -134,18 +140,19 @@ def _parse_and_validate_in_process(
     )
     catalogs = strategy.catalogs
 
-    parts = strategy.parser.parse_response(completion)
+    from a2ui.inference_formats import to_message_dicts
+    from a2ui.parser import A2uiPart, TextPart
+
+    parts = strategy.create_parser().parse_response(completion)
     compiled_jsons = []
     serialized_parts = []
     for p in parts:
-        part_dict = {"text": p.text, "a2ui_json": getattr(p, "a2ui_json", None)}
-        serialized_parts.append(part_dict)
-        a2ui_json = getattr(p, "a2ui_json", None)
-        if a2ui_json:
-            if isinstance(a2ui_json, list):
-                compiled_jsons.extend(a2ui_json)
-            else:
-                compiled_jsons.append(a2ui_json)
+        if isinstance(p, TextPart):
+            serialized_parts.append({"text": p.text, "a2ui_json": None})
+        elif isinstance(p, A2uiPart):
+            msgs = to_message_dicts(p.a2ui)
+            serialized_parts.append({"text": "", "a2ui_json": msgs})
+            compiled_jsons.extend(msgs)
 
     if not compiled_jsons:
         raise ValueError(
@@ -159,24 +166,23 @@ def _parse_and_validate_in_process(
     return {"compiled_jsons": compiled_jsons, "parts": serialized_parts}
 
 
-import traceback
-
-
 def _process_target_wrapper(
     format_name: str,
     version: str,
     resolved_catalog_path: str,
     surface_id: str,
     completion: str,
-    return_dict: dict,
+    conn: Connection,
 ):
     try:
         res = _parse_and_validate_in_process(
             format_name, version, resolved_catalog_path, surface_id, completion
         )
-        return_dict["result"] = res
+        conn.send({"result": res})
     except Exception as e:
-        return_dict["error"] = f"{e}\n{traceback.format_exc()}"
+        conn.send({"error": f"{e}\n{traceback.format_exc()}"})
+    finally:
+        conn.close()
 
 
 def parse_with_hard_kill_timeout(
@@ -187,20 +193,23 @@ def parse_with_hard_kill_timeout(
     completion: str,
     timeout_sec: float = 5.0,
 ) -> dict[str, Any]:
-    with multiprocessing.Manager() as manager:
-        return_dict = manager.dict()
-        p = multiprocessing.Process(
-            target=_process_target_wrapper,
-            args=(
-                format_name,
-                version,
-                resolved_catalog_path,
-                surface_id,
-                completion,
-                return_dict,
-            ),
-        )
-        p.start()
+    start_method = "fork" if "fork" in multiprocessing.get_all_start_methods() else None
+    ctx = multiprocessing.get_context(start_method)
+    parent_conn, child_conn = ctx.Pipe(duplex=False)
+    p = ctx.Process(
+        target=_process_target_wrapper,
+        args=(
+            format_name,
+            version,
+            resolved_catalog_path,
+            surface_id,
+            completion,
+            child_conn,
+        ),
+    )
+    p.start()
+    child_conn.close()
+    try:
         p.join(timeout=timeout_sec)
         if p.is_alive():
             p.kill()
@@ -210,11 +219,15 @@ def parse_with_hard_kill_timeout(
                 " killed."
             )
 
-        if "error" in return_dict:
-            raise ValueError(return_dict["error"])
-        if "result" not in return_dict:
-            raise ValueError("Compilation produced no output.")
-        return return_dict["result"]
+        return_dict = parent_conn.recv() if parent_conn.poll() else {}
+    finally:
+        parent_conn.close()
+
+    if "error" in return_dict:
+        raise ValueError(return_dict["error"])
+    if "result" not in return_dict:
+        raise ValueError("Compilation produced no output.")
+    return return_dict["result"]
 
 
 @solver

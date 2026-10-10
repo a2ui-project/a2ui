@@ -34,7 +34,7 @@ if SDK_SRC not in sys.path:
 if SDK_CORE_SRC not in sys.path:
     sys.path.insert(0, SDK_CORE_SRC)
 
-from a2ui.schema import CatalogConfig
+from a2ui.processor import CatalogConfig
 
 
 def _load_basic_catalog() -> Any:
@@ -44,8 +44,8 @@ def _load_basic_catalog() -> Any:
         The loaded catalog instance for basic components.
     """
     cat_path = str(REPO_ROOT / "catalogs/basic/v1/catalog.json")
-    cat_cfg = CatalogConfig.from_path("basic", cat_path)
-    return cat_cfg.to_catalog(protocol_version="1.0")
+    cat_cfg = CatalogConfig.from_path(cat_path)
+    return cat_cfg.transformed_catalog
 
 
 def test_compile_snippet(format_name: str, snippet: str) -> str:

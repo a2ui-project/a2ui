@@ -65,7 +65,14 @@ from .v0_9.client_to_server import (
     A2uiValidationError,
     ActionPayload,
 )
-from .v0_9.client_capabilities import *
+from .v0_9.client_capabilities import (
+    A2uiClientCapabilities,
+    Catalog,
+    FunctionDefinition,
+    InlineCatalog,
+    V09Capabilities,
+    V0_9Capabilities,
+)
 
 # Multi-version envelope unions (v1.0+ primary terminology)
 AgentToRendererMessage = (
@@ -106,6 +113,13 @@ RendererToAgentMessagePayload = (
     | RendererToAgentMessage
     | Mapping[str, Any]
     | Sequence[Mapping[str, Any]]
+)
+
+A2uiRendererCapabilities = (
+    v0_8.A2uiClientCapabilities
+    | v0_9.A2uiClientCapabilities
+    | v1_0.A2uiRendererCapabilities
+    | Mapping[str, Any]
 )
 
 # Aliases for cross-version consistency

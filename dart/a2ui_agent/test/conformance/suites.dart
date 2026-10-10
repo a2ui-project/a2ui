@@ -117,12 +117,24 @@ bool caseDeclaresV1(Map<String, Object?> args) =>
       return _isVersionAtLeast1_0(document['protocolVersion']);
     });
 
+/// The `protocolVersion` the first catalog a case names in `args` declares,
+/// before it is lowered, or null when the case names none.
+String? caseCatalogVersion(Map<String, Object?> args) {
+  final Object? entry =
+      args['catalog'] ?? (args['catalogs'] as List?)?.firstOrNull;
+  final Object? path = entry is Map ? entry['catalog'] : entry;
+  if (path is! String) return null;
+  final document =
+      jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
+          as Map<String, Object?>;
+  return document['protocolVersion']?.toString();
+}
+
 CatalogTransformer _transformer(Object? spec) => switch (spec) {
-  {'component_pruning': final List<Object?> names} =>
-    ComponentPruningTransformer(names.cast<String>()),
-  {'function_pruning': final List<Object?> names} => FunctionPruningTransformer(
-    names.cast<String>(),
-  ),
+  {'component_pruning': final List<Object?>? names} =>
+    ComponentPruningTransformer(names?.cast<String>()),
+  {'function_pruning': final List<Object?>? names} =>
+    FunctionPruningTransformer(names?.cast<String>()),
   _ => throw ArgumentError.value(spec, 'spec', 'Unknown transformer'),
 };
 

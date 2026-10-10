@@ -18,7 +18,13 @@ from typing import Any
 
 import pytest
 
-from a2ui.core import A2uiCatalogError, A2uiIntegrityError, A2uiValidationError, Catalog
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiIntegrityError,
+    A2uiValidationError,
+    Catalog,
+    CatalogApi,
+)
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.utils import validate_payload
 
@@ -54,7 +60,7 @@ def _v08_update(*components: dict[str, Any]) -> dict[str, Any]:
 
 def _catalog(
     catalog_id: str, *components: str, protocol_version: str = "0.9"
-) -> Catalog:
+) -> CatalogApi:
     """Returns a catalog whose components each require a `text` string."""
     return Catalog.from_json(
         {
@@ -87,6 +93,23 @@ def test_created_surface_rejects_a_dangling_reference():
 def test_created_surface_requires_a_root():
     with pytest.raises(A2uiIntegrityError, match="Missing root component"):
         validate_payload([_BASIC], [_create(_BASIC.catalog_id), _update(_TEXT)])
+
+
+def test_created_surface_may_add_children_in_a_later_message():
+    """A child a component names may arrive in a later message of the payload."""
+    validate_payload(
+        [_BASIC], [_create(_BASIC.catalog_id), _update(_COLUMN), _update(_TEXT)]
+    )
+
+
+def test_created_surface_rejects_an_orphan_added_in_a_later_message():
+    orphan = {"id": "orphan", "component": "Text", "text": "Lost"}
+
+    with pytest.raises(A2uiIntegrityError, match="not reachable"):
+        validate_payload(
+            [_BASIC],
+            [_create(_BASIC.catalog_id), _update(_COLUMN, _TEXT), _update(orphan)],
+        )
 
 
 def test_updated_surface_accepts_references_to_earlier_components():
@@ -200,6 +223,20 @@ def test_v0_8_payload_is_accepted():
 def test_v0_8_updates_may_precede_begin_rendering():
     validate_payload(
         [BasicCatalog("0.8")], [_v08_update(_V08_COLUMN, _V08_TEXT), _V08_BEGIN]
+    )
+
+
+def test_v0_8_surface_started_over_after_delete_surface_is_accepted():
+    """The updates after a deleteSurface may precede the surface's next beginRendering."""
+    validate_payload(
+        [BasicCatalog("0.8")],
+        [
+            _V08_BEGIN,
+            _v08_update(_V08_COLUMN, _V08_TEXT),
+            {"deleteSurface": {"surfaceId": "s"}},
+            _v08_update(_V08_COLUMN, _V08_TEXT),
+            _V08_BEGIN,
+        ],
     )
 
 
@@ -447,7 +484,7 @@ def test_created_surface_ignores_its_known_catalog():
 
 
 def test_typed_schema_models_are_accepted():
-    from a2ui.core.schema import v0_9
+    from a2ui.core.schema import v0_8, v0_9
 
     wrapper = v0_9.A2uiMessageListWrapper.model_validate({"messages": [_update(_TEXT)]})
     msg = wrapper.messages[0]
@@ -455,3 +492,32 @@ def test_typed_schema_models_are_accepted():
     validate_payload([_BASIC], msg)
     validate_payload([_BASIC], [msg])
     validate_payload([_BASIC], wrapper)
+
+    v08_wrapper = v0_8.A2uiMessageListWrapper.model_validate(
+        {"messages": [_v08_update(_V08_TEXT)]}
+    )
+    v08_msg = v08_wrapper.messages[0]
+    v08_basic = BasicCatalog("0.8")
+
+    validate_payload([v08_basic], v08_msg)
+    validate_payload([v08_basic], [v08_msg])
+    validate_payload([v08_basic], v08_wrapper)
+
+    null_data_wrapper = v0_9.A2uiMessageListWrapper.model_validate({
+        "messages": [{
+            "version": "v0.9",
+            "updateDataModel": {"surfaceId": "s", "path": "/user", "value": None},
+        }]
+    })
+    validate_payload([_BASIC], null_data_wrapper.messages[0])
+
+
+def test_v0_8_model_with_an_explicit_version_is_checked_without_it():
+    """A v0.8 model converts to its wire form, which carries no `version`."""
+    from a2ui.core.schema import v0_8
+
+    wrapper = v0_8.A2uiMessageListWrapper.model_validate(
+        {"messages": [{"version": "v0.8", **_v08_update(_V08_TEXT)}]}
+    )
+
+    validate_payload([BasicCatalog("0.8")], wrapper.messages[0])

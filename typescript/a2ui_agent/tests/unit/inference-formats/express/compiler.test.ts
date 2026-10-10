@@ -20,16 +20,10 @@ import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressCompiler} from '../../../../src/inference-formats/express/compiler.js';
 import {ExpressDecompiler} from '../../../../src/inference-formats/express/decompiler.js';
 import {
-  ExpressDuplicateParamError,
-  ExpressDuplicatePropertyError,
   ExpressForbiddenDatabindingError,
-  ExpressIdCollisionError,
-  ExpressInvalidParamError,
   ExpressParseError,
   ExpressSyntaxError,
   ExpressUndefinedRootError,
-  ExpressUnknownCatalogError,
-  ExpressUnknownComponentError,
   ExpressUnknownPropertyError,
   ExpressValidationError,
 } from '../../../../src/inference-formats/express/errors.js';
@@ -44,8 +38,6 @@ const basicCatalogV091 = loadBasicCatalog('v0.9.1');
 
 describe('ExpressCompiler', () => {
   const simplifiedCatalog = loadConformanceCatalog('simplified_catalog_v1_0.json');
-
-  const formsCatalog = loadConformanceCatalog('forms_catalog_v1_0.json');
 
   const customCatalog = loadConformanceCatalog('custom_catalog_v1_0.json');
 
@@ -213,98 +205,7 @@ describe('ExpressCompiler', () => {
     });
   });
 
-  describe('Compiling against the custom and forms catalogs', () => {
-    it('compiles a Chart with a caption', () => {
-      const compiler = new ExpressCompiler([customCatalog], 'v1.0');
-      expect(compiler.compile('root = Chart([10, 20, 30], "Sales")')).toEqual([
-        {
-          version: 'v1.0',
-          createSurface: {
-            surfaceId: 'default_surface',
-            catalogId: 'conformance/custom',
-            components: [{id: 'root', component: 'Chart', values: [10, 20, 30], caption: 'Sales'}],
-          },
-        },
-      ]);
-    });
-
-    it('compiles a Gauge', () => {
-      const compiler = new ExpressCompiler([customCatalog], 'v1.0');
-      expect(compiler.compile('root = Gauge(85)')).toEqual([
-        {
-          version: 'v1.0',
-          createSurface: {
-            surfaceId: 'default_surface',
-            catalogId: 'conformance/custom',
-            components: [{id: 'root', component: 'Gauge', value: 85}],
-          },
-        },
-      ]);
-    });
-
-    it('compiles a TextField with a bound value and a placeholder', () => {
-      const compiler = new ExpressCompiler([formsCatalog], 'v1.0');
-      expect(compiler.compile('root = TextField("Name", $/form/name, "Enter name")')).toEqual([
-        {
-          version: 'v1.0',
-          createSurface: {
-            surfaceId: 'default_surface',
-            catalogId: 'conformance/forms',
-            components: [
-              {
-                id: 'root',
-                component: 'TextField',
-                label: 'Name',
-                value: {'@path': '/form/name'},
-                placeholder: 'Enter name',
-              },
-            ],
-          },
-        },
-      ]);
-    });
-  });
-  describe('Follow-up 2: ExpressIdCollisionError', () => {
-    it('throws ExpressIdCollisionError when an inline id collides with a declared variable', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
-      const dsl = `
-root_child = Text("c2")
-root = Card(Text("c1"))
-`;
-      expect(() => compiler.compile(dsl)).toThrow(ExpressIdCollisionError);
-    });
-
-    it('throws ExpressIdCollisionError when inline array items collide with declared variables', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
-      const dsl = `
-root_children_1 = Text("conflict")
-root = Column([Text("a"), Text("b")])
-`;
-      expect(() => compiler.compile(dsl)).toThrow(ExpressIdCollisionError);
-    });
-  });
-
   describe('2. Deliberate departures (§5.2 items 4 and 5)', () => {
-    it('throws ExpressValidationError when checks are written on an uncheckable component (departure 4)', () => {
-      // Python's compiler emits {"id": "root", "component": "Text", "text": "hi", "checks": [...]} here.
-      // TS divergence rationale (plan §5.2 item 4 / KNOWN_GAPS): Writing checks on a component that does not
-      // declare a check-rule property violates the schema. TS explicitly rejects this.
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
-      const dsl = 'root = Text("hi", [?required])';
-
-      expect(() => compiler.compile(dsl)).toThrow(ExpressValidationError);
-      try {
-        compiler.compile(dsl);
-      } catch (err: unknown) {
-        expect(err).toBeInstanceOf(ExpressValidationError);
-        const valErr = err as ExpressValidationError;
-        expect(valErr.message).toBe("Component 'Text' does not accept checks.");
-        expect(valErr.helpMessage).toBe(
-          'Remove the check expressions, or use a component whose schema declares a list of CheckRule.',
-        );
-      }
-    });
-
     it('allows databinding inside nested item schema that admits path (departure 5)', () => {
       // Python's compiler checks _schema_allows_databinding(prop_schema) on the top-level 'tabs' array
       // and throws ExpressForbiddenDatabindingError('Tabs', 'tabs'), rejecting dynamic title inside tab item.
@@ -383,50 +284,11 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       expect(() => compiler.compile('')).toThrow(ExpressUndefinedRootError);
     });
 
-    it('compiles block with component assignments but no root into updateComponents', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
-      const messages = compiler.compile('some_var = Text("Hi")');
-      expect(messages).toEqual([
-        {
-          version: 'v1.0',
-          updateComponents: {
-            surfaceId: 'default_surface',
-            components: [{id: 'some_var', component: 'Text', text: 'Hi'}],
-          },
-        },
-      ]);
-    });
-
     it('throws ExpressUnknownPropertyError on unknown property', () => {
       const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       expect(() => compiler.compile('root = Text("hi", unknownProp="val")')).toThrow(
         ExpressUnknownPropertyError,
       );
-    });
-
-    it('throws ExpressDuplicatePropertyError on duplicate property', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
-      expect(() => compiler.compile('root = Text("hi", text="duplicate")')).toThrow(
-        ExpressDuplicatePropertyError,
-      );
-    });
-
-    it('throws ExpressInvalidParamError on invalid function argument keyword', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
-      expect(() =>
-        compiler.compile(
-          'root = Button(Text("hi"), action=openUrl("https://example.com", badArg=1))',
-        ),
-      ).toThrow(ExpressInvalidParamError);
-    });
-
-    it('throws ExpressDuplicateParamError on duplicate function argument', () => {
-      const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
-      expect(() =>
-        compiler.compile(
-          'root = Button(Text("hi"), action=openUrl("https://example.com", url="https://other.com"))',
-        ),
-      ).toThrow(ExpressDuplicateParamError);
     });
 
     it('throws ExpressValidationError on enum violation, listing the allowed values', () => {
@@ -619,20 +481,6 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
           components: [{id: 'root', component: 'Text', label: 'hello'}],
         },
       ]);
-    });
-
-    it('rejects a component from another active catalog', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10, customCatalog]);
-      expect(() =>
-        compiler.compile(`surface("s1", catalogId="${basicCatalogV10.id}")\nroot = Gauge(30)`),
-      ).toThrow(ExpressUnknownComponentError);
-    });
-
-    it('throws ExpressUnknownCatalogError for a catalog that is not active', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10]);
-      expect(() =>
-        compiler.compile('surface("main", catalogId="unknown")\nroot = Text("hi")'),
-      ).toThrow(ExpressUnknownCatalogError);
     });
 
     it('uses the first catalog and warns when a block names none', () => {

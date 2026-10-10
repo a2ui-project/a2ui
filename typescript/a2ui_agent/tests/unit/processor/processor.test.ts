@@ -63,7 +63,7 @@ describe('A2uiRequestProcessor', () => {
       "catalogId": "${catalog.id}",
       "components": [
         {
-          "id": "comp_1",
+          "id": "root",
           "component": "Text",
           "text": "hello"
         }
