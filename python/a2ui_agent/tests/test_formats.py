@@ -57,7 +57,7 @@ def test_schema_strategy_prompt_generation(test_catalog):
 
     config = CatalogConfig(
         InMemoryCatalogProvider(
-            test_catalog.catalog_schema, protocol_version=VERSION_0_9
+            test_catalog.to_json(), protocol_version=VERSION_0_9
         ).load()
     )
     catalogs = resolve_catalogs(
@@ -153,7 +153,7 @@ def test_supports_streaming_property(test_catalog):
 
     config = CatalogConfig(
         InMemoryCatalogProvider(
-            test_catalog.catalog_schema, protocol_version=VERSION_0_9
+            test_catalog.to_json(), protocol_version=VERSION_0_9
         ).load()
     )
 

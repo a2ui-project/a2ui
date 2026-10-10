@@ -20,6 +20,8 @@ generated schema, the untouched input, and the order that `CatalogConfig`
 applies transformers in.
 """
 
+import json
+import os
 from typing import Any
 
 import pytest
@@ -33,6 +35,8 @@ from a2ui.core import Catalog, CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.catalog import ComponentApi, FunctionApi
 from a2ui.processor import CatalogConfig
+
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
 
 def _refs(any_schema: dict[str, Any]) -> set[str]:
@@ -71,7 +75,7 @@ def test_component_pruning_regenerates_any_component():
         BasicCatalog("0.9")
     )
 
-    schema = pruned.catalog_schema
+    schema = pruned.validation_schema
     assert set(schema["components"]) == {"Text", "Column"}
     assert _refs(schema["$defs"]["anyComponent"]) == {
         "#/components/Text",
@@ -82,7 +86,7 @@ def test_component_pruning_regenerates_any_component():
 def test_function_pruning_regenerates_any_function():
     pruned = FunctionPruningTransformer(["email"]).transform(BasicCatalog("0.9"))
 
-    schema = pruned.catalog_schema
+    schema = pruned.validation_schema
     assert set(schema["functions"]) == {"email"}
     assert _refs(schema["$defs"]["anyFunction"]) == {"#/functions/email"}
 
@@ -142,14 +146,14 @@ def test_pruning_removes_unreferenced_helper_defs():
     )
 
     pruned_comps = ComponentPruningTransformer(["Card"]).transform(catalog)
-    comp_defs = pruned_comps.catalog_schema["$defs"]
+    comp_defs = pruned_comps.validation_schema["$defs"]
     assert "CardStyle" in comp_defs
     assert "BorderStyle" in comp_defs
     assert "FnArgDef" in comp_defs
     assert "BadgeVariant" not in comp_defs
 
     pruned_fns = FunctionPruningTransformer([]).transform(pruned_comps)
-    fn_defs = pruned_fns.catalog_schema["$defs"]
+    fn_defs = pruned_fns.validation_schema["$defs"]
     assert "CardStyle" in fn_defs
     assert "BorderStyle" in fn_defs
     assert "FnArgDef" not in fn_defs
@@ -194,7 +198,32 @@ def test_pruning_v08_catalog():
     )
 
     assert set(pruned.components) == {"Text", "Column"}
-    assert set(pruned.catalog_schema["components"]) == {"Text", "Column"}
+    assert set(pruned.validation_schema["components"]) == {"Text", "Column"}
+
+
+def test_pruning_a_loaded_catalog_carries_its_source_forward():
+    source_path = os.path.join(REPO_ROOT, "catalogs/basic/v1/catalog.json")
+    with open(source_path, encoding="utf-8") as f:
+        source = json.load(f)
+    catalog = Catalog.from_json(source)
+
+    pruned = FunctionPruningTransformer(["email"]).transform(
+        ComponentPruningTransformer(["Text", "Column"]).transform(catalog)
+    )
+    out = pruned.to_json()
+
+    assert out["$id"] == source["$id"]
+    assert out["title"] == source["title"]
+    assert out["components"] == {
+        name: source["components"][name] for name in ("Text", "Column")
+    }
+    assert out["functions"] == {"email": source["functions"]["email"]}
+    assert _refs(out["$defs"]["anyComponent"]) == {
+        "#/components/Text",
+        "#/components/Column",
+    }
+    assert _refs(out["$defs"]["anyFunction"]) == {"#/functions/email"}
+    assert Catalog.from_json(out).to_json() == out
 
 
 class _RecordingTransformer(CatalogTransformer):

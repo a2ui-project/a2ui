@@ -110,16 +110,16 @@ def test_catalog_initialization_requires_version():
         )
 
 
-def test_catalog_from_json_requires_version():
+def test_catalog_from_json_defaults_undeclared_version():
+    # catalog_definition.json defaults protocolVersion to 0.9; the catalog
+    # targets it, but `to_json` does not write a version the document lacks.
     schema = {
         "catalogId": "https://a2ui.org/spec/catalog.json",
         "components": {},
     }
-    with pytest.raises(
-        ValueError,
-        match="protocol_version must be provided",
-    ):
-        Catalog.from_json(schema)
+    catalog = Catalog.from_json(schema)
+    assert catalog.protocol_version == "0.9"
+    assert "protocolVersion" not in catalog.to_json()
 
 
 # ==============================================================================
@@ -612,7 +612,7 @@ def test_computed_catalog_schema():
         instructions="Sample instructions",
     )
 
-    schema = cat.catalog_schema
+    schema = cat.validation_schema
 
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert schema["catalogId"] == "https://a2ui.org/computed-catalog"
@@ -657,7 +657,7 @@ def test_catalog_from_json_preserves_custom_defs():
         "type": "string",
         "enum": ["primary", "secondary"],
     }
-    schema = cat.catalog_schema
+    schema = cat.validation_schema
     assert "$defs" in schema
     assert "CustomType" in schema["$defs"]
 
@@ -859,7 +859,7 @@ def test_catalog_from_json_determines_common_types_automatically():
 
     catalog = Catalog.from_json(catalog_schema)
     assert catalog.protocol_version == "1.0"
-    reconstructed = catalog.catalog_schema
+    reconstructed = catalog.validation_schema
     # The external reference should be rewritten to local #/$defs/...
     card_props = reconstructed["components"]["CustomCard"]["properties"]
     assert card_props["items"]["$ref"] == "#/$defs/ChildList"
@@ -887,8 +887,8 @@ def test_v1_0_catalogs_inline_component_metadata():
                 "required": ["component"],
             }
         },
-    }).catalog_schema
-    basic_catalog = BasicCatalogV1_0().catalog_schema
+    }).validation_schema
+    basic_catalog = BasicCatalogV1_0().validation_schema
 
     assert (
         json_catalog["$defs"]["ComponentCommon"]["properties"]["metadata"]
@@ -904,7 +904,7 @@ def test_v1_0_catalogs_inline_component_metadata():
     for schema in (
         json_catalog,
         basic_catalog,
-        BasicCatalog(ProtocolVersion.V0_9).catalog_schema,
+        BasicCatalog(ProtocolVersion.V0_9).validation_schema,
     ):
         assert '"x-a2ui-' not in json.dumps(schema)
 
@@ -914,7 +914,7 @@ def test_v08_basic_catalog_schema_structure():
     from a2ui.core.basic_catalog import v0_8
 
     cat = v0_8.BasicCatalog()
-    schema = cat.catalog_schema
+    schema = cat.validation_schema
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert "https://a2ui.org/specification/v0_8" in schema["catalogId"]
     assert "Text" in schema["components"]
@@ -926,12 +926,12 @@ def test_catalog_schema_caching():
     from a2ui.core.basic_catalog import v0_9
 
     cat = v0_9.BasicCatalog()
-    s1 = cat.catalog_schema
-    s2 = cat.catalog_schema
+    s1 = cat.validation_schema
+    s2 = cat.validation_schema
     assert s1 == s2
     assert s1 is not s2
     s1["mutated"] = True
-    assert "mutated" not in cat.catalog_schema
+    assert "mutated" not in cat.validation_schema
 
 
 def test_custom_component_recursive_model_inlining():
@@ -956,7 +956,7 @@ def test_custom_component_recursive_model_inlining():
         protocol_version="v0.9",
         components=[comp],
     )
-    schema = cat.catalog_schema
+    schema = cat.validation_schema
     assert "TreeNode" in schema.get("$defs", {})
     assert "Tree" in schema["components"]
 
@@ -975,7 +975,7 @@ def test_concrete_component_subclassing_discriminator():
         protocol_version="v0.9",
         components=[comp],
     )
-    schema = cat.catalog_schema
+    schema = cat.validation_schema
     comp_schema = schema["components"]["SpecialButton"]
     inner = [
         s
@@ -1006,7 +1006,7 @@ def test_custom_model_collision_with_common_type_rejected():
         components=[comp],
     )
     with pytest.raises(A2uiCatalogError, match="collides with built-in common type"):
-        _ = cat.catalog_schema
+        _ = cat.validation_schema
 
 
 def test_function_api_description_fallback():

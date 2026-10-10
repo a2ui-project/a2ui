@@ -18,10 +18,9 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Iterable, Mapping, Sequence
-import copy
 from typing import Any
 
-from a2ui.core import Catalog, CatalogApi
+from a2ui.core import CatalogApi
 
 from .base import CatalogTransformer
 
@@ -83,7 +82,9 @@ def _pruned(
 
     `None` keeps every entry of that kind. The copy's schema is generated from
     the entries it keeps, so its `anyComponent`, `anyFunction`, and helper
-    `$defs` refer only to those.
+    `$defs` refer only to those. The kept entries are unchanged, so the copy
+    keeps the catalog's document metadata and their authored JSON, which
+    `to_json` emits.
     """
     kept_components = [
         component
@@ -106,15 +107,10 @@ def _pruned(
         ),
         catalog.theme_schema,
     ]
-    return Catalog(
-        catalog_id=catalog.catalog_id,
-        protocol_version=catalog.protocol_version,
+    return catalog.copy_with(
         components=kept_components,
         functions=kept_functions,
-        theme_schema=copy.deepcopy(catalog.theme_schema),
-        instructions=catalog.instructions,
-        defs=_prune_defs(catalog.defs, roots),
-        common_types_defs=catalog.common_types_defs,
+        defs=_prune_defs(catalog.defs, roots) or {},
     )
 
 

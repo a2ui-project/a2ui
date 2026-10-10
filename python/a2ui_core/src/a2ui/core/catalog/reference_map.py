@@ -480,7 +480,7 @@ def build_component_ref_map(catalog: Any) -> dict[str, ComponentRefSpec]:
     if not catalog or not hasattr(catalog, "components"):
         return ref_map
 
-    catalog_schema = getattr(catalog, "catalog_schema", None) or getattr(
+    catalog_schema = getattr(catalog, "validation_schema", None) or getattr(
         catalog, "schema", None
     )
     comps = catalog.components

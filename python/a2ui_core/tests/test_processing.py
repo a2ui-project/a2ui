@@ -47,7 +47,7 @@ def mock_catalog():
             self.protocol_version = PROTOCOL_VERSION
             self.version = PROTOCOL_VERSION
             self.catalog_id = "https://a2ui.org/mock.json"
-            self.catalog_schema = {"components": {}}
+            self.validation_schema = {"components": {}}
             self.single_refs = set()
             self.list_refs = set()
 

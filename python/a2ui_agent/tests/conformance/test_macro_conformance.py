@@ -69,7 +69,7 @@ def test_expect_assertion(case: Case) -> None:
     expect = case.expect or {}
 
     if "augmented_components" in expect:
-        catalog_schema = result.catalog_schema
+        catalog_schema = result.validation_schema
         components = catalog_schema.get("components", {})
         for comp in expect["augmented_components"]:
             assert (
@@ -77,7 +77,7 @@ def test_expect_assertion(case: Case) -> None:
             ), f"Expected {comp} in synthesized catalog components"
 
     if "absent_components" in expect:
-        catalog_schema = result.catalog_schema
+        catalog_schema = result.validation_schema
         components = catalog_schema.get("components", {})
         for comp in expect["absent_components"]:
             assert (
@@ -86,7 +86,7 @@ def test_expect_assertion(case: Case) -> None:
 
     if "any_component_references" in expect:
         refs = (
-            result.catalog_schema.get("$defs", {})
+            result.validation_schema.get("$defs", {})
             .get("anyComponent", {})
             .get("oneOf", [])
         )
@@ -96,7 +96,7 @@ def test_expect_assertion(case: Case) -> None:
 
     if "absent_any_component_references" in expect:
         refs = (
-            result.catalog_schema.get("$defs", {})
+            result.validation_schema.get("$defs", {})
             .get("anyComponent", {})
             .get("oneOf", [])
         )
@@ -122,7 +122,7 @@ def test_expect_assertion(case: Case) -> None:
                 }
             return node
 
-        components = result.catalog_schema.get("components", {})
+        components = result.validation_schema.get("components", {})
         for comp_name, expected_props in expect["component_properties"].items():
             assert comp_name in components, f"{comp_name} not found in catalog"
             actual_props = components[comp_name].get("properties", {})

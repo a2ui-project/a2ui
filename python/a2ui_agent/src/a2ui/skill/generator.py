@@ -129,9 +129,10 @@ class SkillGenerator:
         if examples:
             cat_body += f"\n\n### Examples:\n\n{examples}"
 
+        # The catalog document's own `description` describes the catalog, not
+        # when to use the skill, so it is not used here.
         desc = (
             description
-            or getattr(catalog, "description", None)
             or f"UI component catalog signatures for {clean_name}. Use when building {clean_name} user interface components."
         )
 

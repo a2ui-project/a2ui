@@ -345,9 +345,9 @@ class MessageProcessor:
                 inline_catalogs: list[dict[str, Any]] = []
                 for c in self.catalogs:
                     if is_at_least_version(ver_str, ProtocolVersion.V1_0):
-                        schema = getattr(c, "catalog_schema", None)
-                        if schema is not None:
-                            inline_catalogs.append(schema)
+                        to_json = getattr(c, "to_json", None)
+                        if callable(to_json):
+                            inline_catalogs.append(to_json())
                     else:
                         inline_catalogs.append(
                             self._generate_legacy_inline_catalog(c, envelope_ref)
