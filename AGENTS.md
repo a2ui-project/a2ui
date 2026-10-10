@@ -9,8 +9,11 @@ This document is the authoritative guide for AI agents working within the A2UI r
 > **INSTRUCTION FOR ALL AGENTS (Gemini CLI, Claude, OpenAI, Antigravity, etc.):**
 > Before performing any specific tasks, load and read the respective skill recipe file in full:
 
+- **For authoring code, refactoring, addressing review feedback, or reviewing PR diffs across any language:** Read [.agents/skills/coding-principles/SKILL.md](.agents/skills/coding-principles/SKILL.md) (progressively activates cross-language principles and routes by language to TypeScript/Web, Python, Swift, and Dart guides)
+- **For updating `CHANGELOG.md` files across A2UI packages:** Read [.agents/skills/coding-principles/subskills/update-changelog.md](.agents/skills/coding-principles/subskills/update-changelog.md)
 - **For working with Spec-Driven Development (SDD) or repository blueprints:** Read [blueprints/README.md](blueprints/README.md)
 - **For implementing new SDKs in a client language:** Read [.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md)
+- **For developing in the TypeScript & Web codebases (`typescript/`, `renderers/`, `samples/client/`, `tools/`):** Read [.agents/skills/coding-principles/subskills/typescript/INDEX.md](.agents/skills/coding-principles/subskills/typescript/INDEX.md)
 - **For developing Python code anywhere in the repository (libraries, agents, tools, scripts, best practices):** Read [.agents/skills/a2ui-python-development/SKILL.md](.agents/skills/a2ui-python-development/SKILL.md)
 - **For developing in the Swift codebase (core, SwiftUI, sample):** Read [.agents/skills/a2ui-swift-development/SKILL.md](.agents/skills/a2ui-swift-development/SKILL.md)
 - **For recording a change in the CHANGELOG of a Dart package under `dart/`, or releasing one:** Read [.agents/skills/a2ui-dart-versioning/SKILL.md](.agents/skills/a2ui-dart-versioning/SKILL.md)
