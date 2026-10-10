@@ -286,6 +286,58 @@ struct NodeTests {
     #expect(parent.children(for: "children").count == 2)
     #expect(parent.children(for: "children").map(\.id) == ["c1", "c2"])
   }
+
+  // MARK: - Accessibility
+
+  @Test func explicitAccessibilityAttributesIgnoreVisibleText() {
+    let node = Node(id: "t", type: "Text", properties: ["text": "Hello"])
+
+    #expect(node.explicitAccessibilityAttributes == nil)
+    #expect(node.accessibilityAttributes?.label == "Hello")
+  }
+
+  @Test func explicitAccessibilityAttributesReadResolvedDictionary() {
+    let node = Node(
+      id: "b",
+      type: "Button",
+      properties: [
+        "accessibility": ResolvedDictionary([
+          "label": DataBinding<String>(identity: .path("/label"), value: "Mute Notifications"),
+          "description": "Silences notifications",
+          "live": "polite",
+          "hidden": false,
+        ])
+      ]
+    )
+
+    #expect(
+      node.explicitAccessibilityAttributes
+        == AccessibilityAttributes(
+          label: "Mute Notifications",
+          description: "Silences notifications",
+          live: "polite",
+          hidden: false
+        )
+    )
+  }
+
+  @Test func explicitAccessibilityAttributesReadRawJSON() {
+    let node = Node(
+      id: "t",
+      type: "Text",
+      properties: [
+        "text": "Connection Lost!",
+        "accessibility": JSONValue.object([
+          "label": .string("Critical Alert"),
+          "live": .string("assertive"),
+        ]),
+      ]
+    )
+
+    #expect(node.explicitAccessibilityAttributes?.label == "Critical Alert")
+    #expect(node.explicitAccessibilityAttributes?.live == "assertive")
+    #expect(node.accessibilityAttributes?.label == "Critical Alert")
+  }
 }
 
 /// A mutable box for testing `DataBinding` closures in a Sendable context.

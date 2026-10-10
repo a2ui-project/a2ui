@@ -251,6 +251,7 @@ public struct A2UIChoicePicker: View {
       }
     }
     .accessibilityIdentifier("A2UIChoicePicker_\(node.id)")
+    .a2uiAccessibilityElement(for: node, children: .contain)
   }
 
   @ViewBuilder
