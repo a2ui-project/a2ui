@@ -1,0 +1,737 @@
+# A2UI Template Specification
+
+## Abstract
+
+This document defines the authoritative specification for **A2UI Templates**.
+
+Templates provide a declarative, human-readable mechanism for authoring reusable UI subtrees in nested YAML or via native programmatic render functions. At generation time, an agent or Large Language Model (LLM) outputs compact, high-level template invocations (such as `UserProfile("u1", "Alice")` or `PayrollSummary("Eng", true)`). The backend SDK expands these invocations into standard, flat A2UI Basic Catalog components in a single synchronous pass before emitting standard A2UI protocol messages (`updateComponents`) to the client.
+
+This architecture achieves three fundamental objectives:
+
+1. **Human Readability**: Layouts are authored as clean, natural tree hierarchies in YAML or native language code, eliminating artificial IDs and flat array boilerplate.
+2. **Token Efficiency & Context Optimization**: LLMs emit concise function-like signatures rather than verbose, deeply nested UI component trees, saving prompt context and generation tokens.
+3. **Zero Client Overhead**: Client renderers (@a2ui/react, @a2ui/lit, @a2ui/angular, @a2ui/flutter) implement only standard Basic Catalog primitives (`Card`, `Column`, `Row`, `Text`, `Divider`, `Icon`, `Button`). No custom client widgets, dynamic code deployment, or renderer plugins are required.
+
+---
+
+## 1. Architectural Overview & Execution Pipeline
+
+The template engine operates entirely server-side within the A2UI Agent SDK:
+
+```mermaid
+flowchart TD
+    subgraph Stage1["1. Authoring & Registration"]
+        YAML["Static YAML Files<br/>(multi-doc '---' & cross-references)"]
+        Dynamic["Dynamic Resolvers<br/>(data-binding & programmatic AST)"]
+    end
+
+    subgraph Stage2["2. Synthetic Catalog Generation"]
+        Proc["TemplateProcessor indexes templates<br/>& synthesizes virtual Component Catalog"]
+    end
+
+    subgraph Stage3["3. Model Prompt Generation & Inference"]
+        Prompt["PromptGenerator injects template signatures into prompt"]
+        LLM["LLM emits compact Express DSL / JSON<br/>(e.g. root = TeamRoster(...))"]
+    end
+
+    subgraph Stage4["4. Synchronous Template Expansion"]
+        Expand["TemplateProcessor unrolls loops,<br/>substitutes params, assigns synthetic IDs"]
+    end
+
+    subgraph Stage5["5. Standard A2UI Protocol Emission"]
+        Msg["Emits createSurface & updateComponents<br/>(100% standard Basic Catalog primitives)"]
+    end
+
+    subgraph Stage6["6. Client Renderer Execution"]
+        Client["Client renderers paint standard components<br/>& bind reactive paths to client DataModel"]
+    end
+
+    Stage1 --> Stage2
+    Stage2 --> Stage3
+    Stage3 --> Stage4
+    Stage4 --> Stage5
+    Stage5 --> Stage6
+```
+
+---
+
+## 2. Template Taxonomy
+
+A2UI supports three template authoring styles:
+
+### A. Declarative Static Templates (YAML)
+
+Declarative static templates define immutable layout trees authored in YAML files. All parameter placeholders are populated directly from arguments provided by the model or caller.
+
+```yaml
+version: '0.1'
+name: UserProfile
+catalogs:
+  - 'https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json'
+description: Standard identity card for team members.
+parameters:
+  userId:
+    type: string
+    description: Unique user identifier.
+  userName:
+    type: string
+    description: Full name of the user.
+  role:
+    type: string
+    description: Position or title within the team.
+    default: Team Member
+
+layout:
+  component: Card
+  child:
+    component: Column
+    children:
+      - component: Icon
+        name: person
+      - component: Text
+        text: '{{ userName }}'
+        variant: h3
+      - component: Text
+        text: '{{ role }}'
+        variant: caption
+```
+
+### B. Dynamic Templates: Data-Binding Mode (`resolver + layout`)
+
+Data-binding dynamic templates decouple public model parameters from private or live backend data.
+
+- **Public Surface**: The model only sees and outputs high-level lookup parameters (e.g. `employeeId: "emp_101"`).
+- **Server Resolver**: At expansion time, a backend callback executes (e.g., querying an internal HR database or API) and produces a data dictionary.
+- **Layout Inflation**: The resolved dictionary is merged with the caller's arguments and applied to an underlying static YAML layout.
+
+```python
+# Server Registration
+dynamic_salary = DynamicTemplate(
+    name="EmployeeSalaryCard",
+    catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
+    resolver=fetch_private_compensation,
+    layout=salary_yaml_layout,
+    description="Verified compensation card. Pass only employeeId.",
+)
+```
+
+**Security Rationale**: Confidential numbers (e.g., executive salaries, PII) never enter the model's prompt context window or inference transcript.
+
+### C. Dynamic Templates: Programmatic Render Mode (`render_fn`)
+
+Programmatic dynamic templates bypass static YAML layouts entirely. Instead, a developer writes a native function in the host language (Python, Dart, etc.) that accepts parameters and directly returns a UI component tree.
+
+```python
+def render_payroll_summary(department: str = "Engineering", includeBonus: bool = True) -> dict:
+    total_base = sum(e.salary for e in db.get_dept(department))
+    total_bonus = sum(e.bonus for e in db.get_dept(department))
+
+    rows = []
+    for emp in db.get_dept(department):
+        cols = [
+            {"component": "Text", "text": emp.name, "variant": "body"},
+            {"component": "Text", "text": f"${emp.salary:,}", "variant": "body"}
+        ]
+        if includeBonus:
+            cols.append({"component": "Text", "text": f"${emp.bonus:,}", "variant": "body"})
+        rows.append({"component": "Row", "justify": "spaceBetween", "children": cols})
+
+    return {
+        "component": "Card",
+        "child": {
+            "component": "Column",
+            "children": [
+                {"component": "Text", "text": f"Payroll Summary: {department}", "variant": "h2"},
+                {"component": "Divider", "axis": "horizontal"},
+                *rows,
+                {"component": "Divider", "axis": "horizontal"},
+                {"component": "Text", "text": f"Total Budget: ${total_base + (total_bonus if includeBonus else 0):,}", "variant": "h3"}
+            ]
+        }
+    }
+
+payroll_tmpl = DynamicTemplate(
+    name="PayrollSummary",
+    catalogs=["https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"],
+    render=render_payroll_summary,
+    description="Dynamic payroll calculation matrix.",
+)
+```
+
+**Advantages**:
+
+- Full host language power: arbitrary `for` loops, mathematical calculations, currency formatting, conditionals, and recursion.
+- Polymorphic return values: accepts raw dictionaries/maps, dataclasses, or typesafe fluent builder objects (`Card()`, `Column()`).
+
+---
+
+## 3. Loop Processing: Server Unrolling vs. Client Data Model
+
+A critical question in template design is: **When does the template engine unroll loops vs. when are collections handled by the client runtime?**
+
+### Comparison Matrix
+
+| Dimension              | Server-Side Template Unrolling                                                    | Client-Side DataModel Loop                                                         |
+| :--------------------- | :-------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
+| **Execution Point**    | Backend SDK (`TemplateProcessor`) during template expansion.                      | Client Renderer runtime during paint/state updates.                                |
+| **Data Source**        | Static YAML literals, LLM invocation arguments, or server resolver output.        | Client `DataModel` tree (e.g. `/session/cart/items`).                              |
+| **Component Output**   | Emits $N$ concrete Basic Catalog component nodes with synthesized unique IDs.     | Emits a single repeater/collection component with a `DataBinding` path.            |
+| **Client Requirement** | Zero. Standard Basic Catalog renderers render it like any other static UI.        | Requires client-side repeater support or SDK session re-renders.                   |
+| **Dynamic Mutation**   | Immutable once generated unless the agent emits a new `updateComponents` message. | Reactively re-renders when the client data model updates (e.g. via button events). |
+
+### Example 1: Server-Side Template Loop Unrolling
+
+A template author specifies a loop over a parameter array:
+
+#### Template Definition:
+
+```yaml
+version: '0.1'
+name: TeamGoalList
+catalogs:
+  - 'https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json'
+parameters:
+  teamName: {type: string}
+  goals: {type: array}
+layout:
+  component: Card
+  child:
+    component: Column
+    children:
+      - component: Text
+        text: 'Objectives: {{ teamName }}'
+        variant: h2
+      - component: Column
+        children:
+          loop:
+            param: goals
+            as: goal
+            item:
+              component: Row
+              justify: spaceBetween
+              children:
+                - component: Text
+                  text: '{{ goal.title }}'
+                - component: Text
+                  text: '{{ goal.priority }}'
+                  variant: caption
+```
+
+#### Model Invocation:
+
+```text
+root = TeamGoalList("Core Team", [
+  {title: "Ship Protocol", priority: "High"},
+  {title: "Write Tests", priority: "Medium"}
+])
+```
+
+#### Expanded Output Sent to Client:
+
+The engine unrolls the loop into concrete, synthetic child components:
+
+```json
+[
+  {"id": "root", "component": "Card", "child": "root_child_column"},
+  {
+    "id": "root_child_column",
+    "component": "Column",
+    "children": ["root_child_column_children_0_text", "root_child_column_children_1_column"]
+  },
+  {
+    "id": "root_child_column_children_0_text",
+    "component": "Text",
+    "text": "Objectives: Core Team",
+    "variant": "h2"
+  },
+  {
+    "id": "root_child_column_children_1_column",
+    "component": "Column",
+    "children": [
+      "root_child_column_children_1_column_goals_0_row",
+      "root_child_column_children_1_column_goals_1_row"
+    ]
+  },
+  {
+    "id": "root_child_column_children_1_column_goals_0_row",
+    "component": "Row",
+    "justify": "spaceBetween",
+    "children": [
+      "root_child_column_children_1_column_goals_0_row_children_0_text",
+      "root_child_column_children_1_column_goals_0_row_children_1_text"
+    ]
+  },
+  {
+    "id": "root_child_column_children_1_column_goals_0_row_children_0_text",
+    "component": "Text",
+    "text": "Ship Protocol"
+  },
+  {
+    "id": "root_child_column_children_1_column_goals_0_row_children_1_text",
+    "component": "Text",
+    "text": "High",
+    "variant": "caption"
+  },
+  {
+    "id": "root_child_column_children_1_column_goals_1_row",
+    "component": "Row",
+    "justify": "spaceBetween",
+    "children": [
+      "root_child_column_children_1_column_goals_1_row_children_0_text",
+      "root_child_column_children_1_column_goals_1_row_children_1_text"
+    ]
+  },
+  {
+    "id": "root_child_column_children_1_column_goals_1_row_children_0_text",
+    "component": "Text",
+    "text": "Write Tests"
+  },
+  {
+    "id": "root_child_column_children_1_column_goals_1_row_children_1_text",
+    "component": "Text",
+    "text": "Medium",
+    "variant": "caption"
+  }
+]
+```
+
+---
+
+## 4. Relationship to the A2UI Data Model
+
+Templates and the A2UI Data Model operate in complementary scopes:
+
+- **Templates** expand during **server-side inference / response formulation**.
+- **Data Model** operates during **client-side runtime interaction & reactivity**.
+
+Templates interact with the client Data Model in three distinct patterns:
+
+### Pattern 1: Dynamic Path Plumbing (Path Interpolation)
+
+Templates can accept path prefixes or IDs as parameters, constructing reactive client-side binding paths:
+
+```yaml
+version: '0.1'
+name: BoundLiveMetric
+catalogs:
+  - 'https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json'
+parameters:
+  metricKey: {type: string}
+  label: {type: string}
+layout:
+  component: Card
+  child:
+    component: Column
+    children:
+      - component: Text
+        text: '{{ label }}'
+      - component: Text
+        text:
+          path: '/system/metrics/{{ metricKey }}/currentValue'
+```
+
+**Expanded Output:**
+
+```json
+{
+  "id": "root_val",
+  "component": "Text",
+  "text": {
+    "path": "/system/metrics/cpuLoad/currentValue"
+  }
+}
+```
+
+_Client Behavior_: The client renderer attaches a live subscriber to `/system/metrics/cpuLoad/currentValue`. When telemetry updates arrive via `updateDataModel`, the component automatically re-renders without server roundtrips.
+
+### Pattern 2: Direct `DataBinding` Passthrough
+
+When a template parameter has `type: object`, an agent or caller can pass an explicit A2UI binding object:
+
+#### Model Invocation:
+
+```text
+root = MetricCard("Memory Used", {path: "/device/mem_percent"})
+```
+
+#### Template Layout:
+
+```yaml
+version: '0.1'
+templateId: MetricCard
+parameters:
+  title: {type: string}
+  val: {type: object}
+layout:
+  component: Column
+  children:
+    - component: Text
+      text: '{{ title }}'
+    - component: Text
+      text: '{{ val }}'
+```
+
+**Expanded Output:**
+
+Because `{{ val }}` is an exact-match substitution, the dictionary type is strictly preserved:
+
+```json
+{
+  "component": "Text",
+  "text": {"path": "/device/mem_percent"}
+}
+```
+
+### Pattern 3: Hardcoded Session State References
+
+Templates can embed constant client bindings for global session preferences:
+
+```yaml
+layout:
+  component: Text
+  text:
+    path: '/session/currentUser/displayName'
+```
+
+---
+
+## 5. Catalog Declaration, Validation & Multi-Catalog Disambiguation
+
+Templates must declare which catalog(s) they are authored against via the top-level `catalogs` property.
+
+### A. Mandatory Explicit Catalogs (No Basic Catalog Defaults)
+
+The template engine enforces strict decoupling from any specific catalog:
+
+- **No Hardcoded Defaults**: `TemplateProcessor` does not default to the Basic Catalog or any other specific catalog.
+- **Explicit Catalog Requirement**: All catalogs required by registered templates must be explicitly provided to the processor upon initialization (e.g. via `catalogs={...}`).
+- **Static Integrity Validation**: At registration time, the engine validates that every template's declared `catalogs` can be resolved against the provided catalog registry, and every primitive component referenced in `layout` exists within those catalogs with valid properties.
+
+### B. Prefix-Free Automatic Component Resolution
+
+In layout trees, authors write clean, standard component names (`Card`, `Text`, `HeartRateGraph`) without prefixes or namespace boilerplate:
+
+- **Unique Match (Standard Case)**: If component `Foo` exists in exactly one declared catalog, it automatically resolves to that catalog.
+- **Name Collision**: If two declared catalogs define `Foo`, the author can specify `catalogId` on that specific component in the layout to disambiguate. If omitted, the engine raises an `AmbiguousComponentError`.
+- **Unknown Component**: If `Foo` is found in zero declared catalogs, the engine raises an `UnknownComponentError`.
+
+### C. Protocol Version Rules: v0.9 vs. v1.0
+
+The template engine tailors its expansion and output depending on the target protocol version:
+
+| Dimension                     | A2UI v0.9 / v0.9.1 Behavior                                                                                               | A2UI v1.0 Behavior                                                                                 |
+| :---------------------------- | :------------------------------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------- |
+| **Surface Catalog Model**     | Single catalog per surface (`createSurface.catalogId` required).                                                          | Mixable catalogs (`createSurface.catalogId` optional default).                                     |
+| **Multi-Catalog Templates**   | **Rejected**: If a template declares multiple catalogs, unrolling onto a v0.9 surface raises `CatalogCompatibilityError`. | **Supported**: Expanded seamlessly across mixed catalogs.                                          |
+| **Surface Validation**        | Template's resolved catalog MUST match `createSurface.catalogId`.                                                         | All catalogs referenced by the template must be present in surface `supportedCatalogIds`.          |
+| **Expanded Component Output** | `catalogId` is **never** emitted on expanded component dicts (illegal property in v0.9).                                  | `catalogId` is automatically injected on any component whose catalog differs from surface default. |
+
+---
+
+## 6. Sub-Template Imports & Global Identity
+
+Templates decouple their local invocation name from their optional global identity:
+
+- **`name`** (Required): Component tag name used in layout trees and LLM prompts (`^[A-Za-z][A-Za-z0-9_]*$`). `templateId` is accepted as a backwards-compatible alias.
+- **`id`** (Optional): Globally unique URI or URN string (e.g. `https://company.org/templates/card/v1.json`) for package distribution and version pinning.
+- **`imports`** (Optional): List of global template IDs, or dictionary mapping local aliases to global template IDs (`imports: { VendorCard: "https://vendor.com/card.json" }`).
+
+### Usage Tiers
+
+1. **Tier 1 (Simple / Local)**: Templates omit `id` and `imports`. Sibling templates in the same file or registry resolve each other directly by `name`.
+2. **Tier 2 (Modular / Distributed)**: Templates declare `id` and import external sub-templates by `id` or alias via `imports`.
+
+---
+
+## 7. The Synthetic Catalog System
+
+To make templates discoverable and invoke-able by LLMs, the backend converts registered templates into a **Synthetic Component Catalog**.
+
+### The Catalog Synthesis Algorithm
+
+When `TemplateProcessor(templates, catalogs)` is initialized:
+
+1. It indexes all provided catalogs.
+2. For each registered `StaticTemplate` and `DynamicTemplate`:
+   - It registers a new component definition under `components[template.name]`.
+   - It maps semantic parameter definitions to JSON schema properties:
+     - `string` $\rightarrow$ `{"type": "string"}`
+     - `number` / `integer` $\rightarrow$ `{"type": "number"}` / `{"type": "integer"}`
+     - `boolean` $\rightarrow$ `{"type": "boolean"}`
+     - `enum` $\rightarrow$ `{"type": "string", "enum": param.values}`
+     - `object` $\rightarrow$ `{"type": "object", "properties": ...}`
+     - `array` $\rightarrow$ `{"type": "array", "items": ...}`
+     - `child` $\rightarrow$ `{"$ref": "#/$defs/ComponentReference"}`
+     - `children` $\rightarrow$ `{"$ref": "#/$defs/ComponentReferenceList"}`
+   - It copies the `description` to provide context for the model.
+3. The synthetic catalog is passed to `PromptGenerator` (Express, Elemental, Atom, Direct JSON), which automatically writes the syntax rules and documentation into the system prompt.
+
+### Surface Isolation Boundary
+
+```mermaid
+flowchart LR
+    Agent["LLM Agent"] <--> SyntheticCatalog["Synthetic Catalog<br/>(Templates + Primitives)"]
+    SyntheticCatalog <--> Processor["TemplateProcessor"]
+    Processor -->|"Synchronously expands<br/>to flat primitives"| Client["Client Renderer<br/>(Basic Catalog)"]
+```
+
+The synthetic catalog is an ephemeral compile-time construct. The client renderer is completely unaware that templates exist.
+
+---
+
+## 8. Parameter Expressions & Substitution Engine
+
+The template substitution engine replaces expressions according to strict typing and evaluation rules using standard double-curly Mustache syntax (`{{ param }}`).
+
+### Rule 1: Exact Match Substitution (Type Preserving)
+
+If a string field value exactly matches the parameter token regex `^\{\{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*\}\}$`:
+
+- The entire field is replaced by the native runtime value of the parameter.
+- **Integers remain integers**: `level: "{{ userLevel }}"` $\rightarrow$ `level: 4` (not `"4"`).
+- **Booleans remain booleans**: `checked: "{{ isActive }}"` $\rightarrow$ `checked: true` (not `"true"`).
+- **Objects and Arrays remain native structures**: `items: "{{ memberList }}"` $\rightarrow$ `items: [{...}, {...}]`.
+
+### Rule 2: Embedded String Interpolation
+
+If a parameter token appears alongside other characters (e.g. `"Hello, {{ userName }}!"` or `"{{ dept }} - {{ code }}"`):
+
+- All tokens matching `\{\{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*\}\}` are replaced by their string representations.
+- Evaluates to a native string.
+
+### Rule 3: Client DataModel Disambiguation (`formatString`)
+
+Because template substitutions use double curlies `{{ ... }}`, client-side reactive expressions and data-model bindings in `formatString` (e.g. `${/user/name}`) pass through completely untouched without requiring escaping:
+
+```yaml
+component: Text
+text:
+  call: formatString
+  args:
+    value: 'Hello, ${/user/name}! Your team is {{ teamName }}.'
+```
+
+During server-side template expansion:
+
+- `{{ teamName }}` is resolved server-side and replaced with `"Engineering"`.
+- `${/user/name}` is preserved verbatim and emitted directly to the client renderer for reactive data-binding.
+
+### Rule 4: Deep Dot-Notation for Structured Objects
+
+Templates natively support deep dot-notation paths on object parameters:
+
+#### Invocation:
+
+```text
+root = AccountCard({
+  account: {
+    id: "acc_99",
+    profile: {name: "Alpha Corp", tier: "Enterprise"}
+  }
+})
+```
+
+#### Template Layout:
+
+```yaml
+version: '0.1'
+templateId: AccountCard
+parameters:
+  account: {type: object}
+layout:
+  component: Card
+  child:
+    component: Text
+    text: '{{ account.profile.name }} ({{ account.profile.tier }})'
+```
+
+**Expanded Output:**
+
+```json
+{
+  "component": "Text",
+  "text": "Alpha Corp (Enterprise)"
+}
+```
+
+### Rule 5: String Format AST Expressions
+
+For complex string formatting across multiple languages:
+
+```yaml
+format: 'Level {lvl} ({pts} points)'
+args:
+  lvl: '{{ level }}'
+  pts: '{{ experiencePoints }}'
+```
+
+### Rule 6: Token Escaping
+
+To emit a literal `{{ foo }}` string without triggering parameter substitution, escape the opening curly braces with a backslash:
+
+- `\{{ keep_literal }}` $\rightarrow$ evaluates to literal `"{{ keep_literal }}"`.
+
+### Rule 7: Missing Values & Defaults
+
+- If an argument is omitted but has a declared `default` in its parameter schema, the `default` is used.
+- If an argument is omitted, has no `default`, and is not required: the property is omitted from the synthesized component (it is not emitted as `null`).
+- If an argument is required and missing: expansion raises a `TemplateParameterError`.
+
+---
+
+## 9. Deterministic Synthetic ID Generation Algorithm
+
+To guarantee collision-free component IDs across multiple template instances and deep nesting, implementations in all languages (Python, Dart, TypeScript) must implement the following deterministic naming rules:
+
+### ID Synthesis Specification
+
+```
+Let instance_id be the ID passed to expand_template(instance_id, template_id, params)
+
+1. Root Node:
+   id = instance_id
+
+2. Single Child Slot (e.g. card.child):
+   id = "{parent_id}_{slot_name}_{normalized_type}"
+   (where normalized_type is the component or template type converted to lowercase)
+   Example: "root_child_column"
+
+3. Multi-Child List Slot (e.g. column.children[i]):
+   id = "{parent_id}_{slot_name}_{i}_{normalized_type}"
+   (where normalized_type is the component or template type converted to lowercase)
+   Example: "root_children_0_text", "root_children_1_button"
+
+4. Loop Iteration Item (e.g. loop over param "members", iteration index i):
+   id = "{parent_id}_{param_name}_{i}_{normalized_type}"
+   (where normalized_type is the component or template type converted to lowercase)
+   Example: "team_col_members_0_userprofile"
+
+5. Authored Explicit IDs:
+   If a component in the template specifies an explicit id (e.g. id: "hero_img"):
+   id = "{instance_id}_{authored_id}"
+   Example: "my_card_hero_img"
+```
+
+This guarantees that two instances of the same template (`card_1` and `card_2`) on the same surface will never produce colliding component IDs.
+
+---
+
+## 10. Higher-Order Container Templates (`child` and `children` Slots)
+
+Templates can define structural containers that receive caller-provided components.
+
+### Example: `SectionCard` Container
+
+```yaml
+version: '0.1'
+name: SectionCard
+catalogs:
+  - 'https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json'
+parameters:
+  title: {type: string}
+  headerAction: {type: child}
+  children: {type: children}
+
+layout:
+  component: Card
+  child:
+    component: Column
+    children:
+      - component: Row
+        justify: spaceBetween
+        align: center
+        children:
+          - component: Text
+            text: '{{ title }}'
+            variant: h2
+          - component: Column
+            children: '{{ headerAction }}'
+      - component: Divider
+        axis: horizontal
+      - component: Column
+        children: '{{ children }}'
+```
+
+#### Model Invocation:
+
+```text
+root = SectionCard(
+  "Project Status",
+  Button("Refresh", {action: "reload"}),
+  [
+    Text("Phase 1: Complete"),
+    Text("Phase 2: In Progress")
+  ]
+)
+```
+
+The template engine replaces `{{ headerAction }}` with the synthesized single child node, and concatenates the `{{ children }}` component list into the body column.
+
+---
+
+## 11. Error Handling, Cycle Guards & Safety
+
+### Recursion & Circular Reference Detection
+
+Templates can invoke other templates. However, circular references in template definitions (`A` invokes `B`, which invokes `A`) must be caught immediately to prevent stack overflow.
+
+- **Definition Cycles vs. Instance Nesting**:
+  - **Definition Cycles (Prohibited)**: The cycle guard specifically tracks the chain of template _definitions_ being expanded (`TemplateA -> TemplateB -> TemplateA`). If a template definition unconditionally references itself or another template in a cycle, expansion terminates with `TemplateCycleError`.
+  - **Instance Nesting (Fully Supported)**: When a caller passes an instance of a template as an argument into another template's `child` or `children` slot (for example, a `Card` template containing a `Carousel` template whose items are other `Card` template instances), this is standard, safe hierarchical composition. Each instance receives a unique synthetic ID and is bounded by caller input.
+- **Call Stack Tracking**: The `TemplateProcessor` maintains an active `_call_stack: Set[str]` of template definition names currently being evaluated.
+- **Cycle Guard**: Before expanding any template definition, if `template_name in _call_stack`, expansion terminates immediately with `TemplateCycleError: Circular template reference detected: A -> B -> A`.
+- **Maximum Depth Guard**: An absolute limit (`MAX_EXPANSION_DEPTH = 50`) enforces termination even in deeply nested or runaway recursion.
+
+### Standard Error Hierarchy
+
+1. `TemplateNotFoundError`: Attempted to expand a template `name` or `id` not present in the registry.
+2. `TemplateParameterError`: Missing required parameter or invalid parameter type.
+3. `TemplateCycleError`: Circular reference detected during expansion.
+4. `TemplateDepthExceededError`: Expansion exceeded maximum recursion depth.
+5. `TemplateResolverError`: Exception raised by a dynamic template resolver function.
+6. `CatalogCompatibilityError`: Declared catalogs incompatible with target surface (e.g. multi-catalog template on v0.9 surface).
+7. `AmbiguousComponentError`: Component exists in multiple declared catalogs without disambiguation.
+8. `UnknownComponentError`: Component not found in any declared catalog.
+
+---
+
+## 12. Multi-Document YAML Streams (`---`)
+
+To streamline template maintenance, multiple templates can be defined in a single `.yaml` file separated by `---`:
+
+- **Order Independent**: Templates can reference templates declared later in the file (forward references).
+- **Batch Registration**: Loading a multi-doc file registers all defined templates atomically into the `TemplateProcessor`.
+
+---
+
+## 13. Template Versioning & Schema Evolution
+
+To ensure robust backward compatibility as template syntax and AST features evolve across future protocol releases, every template definition must declare a top-level `version` field.
+
+### Versioning Rules:
+
+1. **Mandatory Version Field**: Every YAML document (and each document within multi-doc streams separated by `---`) must include `version: "0.1"`.
+2. **Strict Schema Validation**: The canonical JSON schema enforces `"version": {"type": "string", "const": "0.1"}`. Attempting to inflate a template with an unsupported version raises an explicit `TemplateVersionError` / `ValueError`.
+3. **Future Extensibility**: As new template language capabilities are standardized (e.g. conditional slot rendering, client-expanded template directives), new version identifiers (such as `"0.2"` or `"1.0"`) allow engines to select the appropriate parser/evaluator without breaking legacy templates.
+
+---
+
+## 14. Conformance Checklist for SDK Implementations
+
+An implementation of the A2UI Template Engine in any language (Python, Dart, TypeScript, Go, etc.) is conformant if and only if it satisfies the following test requirements:
+
+- [ ] **Template Versioning**: Validates that all ingested templates declare `version: "0.1"` and rejects unsupported version strings.
+- [ ] **Catalog Decoupling**: Does not default to the Basic Catalog; requires catalogs to be passed explicitly and validates all components against them.
+- [ ] **Catalog Resolution & Disambiguation**: Resolves components across declared catalogs without prefixes; handles collision disambiguation via component-level `catalogId`.
+- [ ] **Protocol Version Output Rules**: Enforces v0.9 single-catalog surface constraints (stripping component `catalogId`); supports v1.0 mixable catalogs with automatic `catalogId` stamping.
+- [ ] **Sub-Template Imports**: Supports Tier 1 (local by `name`) and Tier 2 (modular by `id` with `imports` list and alias dictionary).
+- [ ] **Multi-Document Ingestion**: Parses single-doc and multi-doc (`---`) YAML streams.
+- [ ] **Forward Reference Resolution**: Expands templates regardless of registration order.
+- [ ] **Strict Native Type Preservation**: Exact `{{ param }}` substitutions preserve `int`, `float`, `bool`, `dict`, and `list` types.
+- [ ] **Dot-Notation Path Traversal**: Resolves arbitrary depth paths (e.g. `{{ user.details.address.zip }}`).
+- [ ] **Inline and Named Loop Expansion**: Accurately unrolls arrays into synthesized component subtrees with indexed child IDs.
+- [ ] **Deterministic Synthetic IDs**: Emits canonical hierarchical IDs matching the `{parent}_{slot}_{index}_{type}` specification.
+- [ ] **Two-Way DataModel Passthrough**: Preserves `{path: "..."}` dictionary bindings without string conversion.
+- [ ] **Cycle and Recursion Safeguards**: Catches circular references and depth violations with explicit exceptions.
+- [ ] **Synthetic Catalog Generation**: Generates valid A2UI JSON schema catalogs matching input parameter definitions.
+- [ ] **Polymorphic Dynamic Templates**: Supports both resolver-based static bindings and programmatic render functions.

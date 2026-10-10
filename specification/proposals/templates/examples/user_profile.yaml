@@ -1,0 +1,54 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+version: "0.1"
+name: UserProfile
+catalogs:
+  - "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+description: User profile card displaying avatar, full name, and role.
+
+parameters:
+  userId:
+    type: string
+    title: User ID
+    description: Unique user account ID.
+  userName:
+    type: string
+    title: User Name
+    description: Full name of the user.
+  role:
+    type: string
+    title: Role
+    description: Job title or role.
+    default: Member
+
+layout:
+  component: Card
+  child:
+    component: Column
+    align: center
+    children:
+      - component: Icon
+        name: person
+      - component: Text
+        text: "{{ userName }}"
+        variant: h3
+      - component: Text
+        text: "{{ role }}"
+        variant: caption
+
+sampleData:
+  userId: usr_101
+  userName: Alice Smith
+  role: Lead Architect
