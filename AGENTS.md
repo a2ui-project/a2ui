@@ -10,6 +10,10 @@ This document is the authoritative guide for AI agents working within the A2UI r
 > Before performing any specific tasks, load and read the respective skill recipe file in full:
 
 - **For working with Spec-Driven Development (SDD) or repository blueprints:** Read [blueprints/README.md](blueprints/README.md)
+- **For navigating blueprints and inspecting codebase compliance:** Read [.agents/skills/a2ui-blueprint-navigator/SKILL.md](.agents/skills/a2ui-blueprint-navigator/SKILL.md) and [.agents/skills/a2ui-blueprint-compliance/SKILL.md](.agents/skills/a2ui-blueprint-compliance/SKILL.md)
+- **For creating new feature blueprints:** Read [.agents/skills/a2ui-create-feature-blueprint/SKILL.md](.agents/skills/a2ui-create-feature-blueprint/SKILL.md)
+- **For implementing features from blueprints:** Read [.agents/skills/a2ui-implement-feature-from-blueprint/SKILL.md](.agents/skills/a2ui-implement-feature-from-blueprint/SKILL.md)
+- **For maintaining and archiving blueprints:** Read [.agents/skills/a2ui-blueprint-maintenance/SKILL.md](.agents/skills/a2ui-blueprint-maintenance/SKILL.md)
 - **For implementing new SDKs in a client language:** Read [.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md)
 - **For developing Python code anywhere in the repository (libraries, agents, tools, scripts, best practices):** Read [.agents/skills/a2ui-python-development/SKILL.md](.agents/skills/a2ui-python-development/SKILL.md)
 - **For developing in the Swift codebase (core, SwiftUI, sample):** Read [.agents/skills/a2ui-swift-development/SKILL.md](.agents/skills/a2ui-swift-development/SKILL.md)
@@ -43,21 +47,19 @@ The repository supports multiple versions of the A2UI protocol:
 
 ## 3. Spec-Driven Development (SDD)
 
-> **IMPORTANT:** By default, agents should **IGNORE the `blueprints/` folder** unless explicitly instructed by the user to work with blueprints or Spec-Driven Development.
-
 To scale development across multiple programming languages and UI frameworks, the A2UI repository adopts **Spec-Driven Development (SDD)**. Under this methodology:
 
 - **Language-Agnostic Blueprints** define high-level architecture and features under the `blueprints/` directory (`blueprints/modules/` and `blueprints/features/`).
 - **Concrete Codebases** track their module compliance by git commit hash using a `codebase.blueprint.md` file stored under `blueprints/codebases/<relative_codebase_path>/codebase.blueprint.md`.
-- **SDD Skills**: SDD skills live in `blueprints/skills/` and can be symlinked into `.agents/skills/` by running `./blueprints/link_skills.sh`. To remove them when done, remove the `.agents/skills/a2ui-*` symlinks.
+- **First-Class SDD Skills**: SDD skills (`a2ui-blueprint-navigator`, `a2ui-blueprint-compliance`, `a2ui-create-feature-blueprint`, `a2ui-implement-feature-from-blueprint`, `a2ui-blueprint-maintenance`) live directly in `.agents/skills/` as standard repository tooling.
 
-For a detailed explanation of the methodology, lifecycle, and workflows, read the [Spec-Driven Development Proposal](docs/proposals/spec_driven_development.md).
+For a detailed explanation of the methodology, lifecycle, and workflows, read the [Spec-Driven Development Reference](.agents/skills/a2ui-blueprint-navigator/references/spec_driven_development.md).
 
 ---
 
 ## 4. Codebase & Repository Structure
 
-- **`blueprints/`**: Isolated central repository for language-agnostic module blueprints (`modules/`), feature blueprints (`features/`, `features/archived/`), codebase compliance blueprints (`codebases/`), and SDD skills (`skills/`).
+- **`blueprints/`**: Central repository for language-agnostic module blueprints (`modules/`), feature blueprints (`features/`, `features/archived/`), and codebase compliance blueprints (`codebases/`).
 - **`docs/`**: Documentation hierarchy. Public site documentation published via MkDocs resides in `docs/public/`, while non-public contributor or internal documentation resides under `docs/` alongside `docs/scripts/`.
 - **`catalogs/`**: Canonical `catalog.json` schemas for the catalogs maintained by the A2UI team (e.g. `catalogs/basic/v1/`, `catalogs/mcp/`). Catalogs are versioned independently of the protocol.
 - **`specification/`**: Versioned subdirectories (`v0_8/`, `v0_9/`, `v0_9_1/`, `v1_0/`) containing JSON schemas and human-readable guides (older versions also bundle their basic catalog). The `specification/<version>/docs/a2ui_protocol.md` file is the most important source of truth for each protocol version, and the `specification/<version>/json` directory contains the associated schemas for the protocol.
