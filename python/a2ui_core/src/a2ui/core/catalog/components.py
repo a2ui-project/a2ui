@@ -26,11 +26,26 @@ class ComponentApi:
         schema: dict[str, Any],
         allowed_parents: list[str] | None = None,
         allowed_children: list[str] | None = None,
+        source_json: dict[str, Any] | None = None,
     ):
+        """Initializes the component API.
+
+        Args:
+            name: The component's name, which instances use as `component`.
+            schema: The component's JSON schema.
+            allowed_parents: The components this component may be a child of.
+            allowed_children: The components this component may contain.
+            source_json: The component's definition exactly as a catalog
+                document wrote it, before any reference was resolved.
+                `Catalog.to_json` emits it unchanged. Leave it unset for a
+                component defined in code, and clear it when the schema
+                changes, so the catalog serializes the schema instead.
+        """
         self.name = name
         self.schema = schema
         self.allowed_parents = allowed_parents
         self.allowed_children = allowed_children
+        self.source_json = source_json
 
     @property
     def comp_type(self) -> str:

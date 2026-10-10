@@ -31,6 +31,16 @@
   `a2ui.schema` to `a2ui.processor` with
   `CatalogConfig(catalog, transformers=None)` and `transformed_catalog`, and
   `A2uiCatalogProvider` is replaced by `CatalogProvider`.
+- `ComponentPruningTransformer` and `FunctionPruningTransformer` keep a
+  catalog's metadata and authored document, so a pruned catalog loaded from a
+  file serializes with `to_json()` as that file minus the pruned entries, with
+  the unions rebuilt. The macro expander builds the expanded catalog from
+  `to_json()`, keeping common type references and metadata (#3053).
+- The SDK reads `Catalog.validation_schema` instead of the deprecated
+  `catalog_schema` (#3053).
+- A generated skill no longer falls back to the catalog's `description` when
+  none is given, since catalogs loaded with `Catalog.from_json` now carry the
+  file's description (#3053).
 
 ## 0.8.0 (2026-10-08)
 

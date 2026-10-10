@@ -68,7 +68,7 @@ def schema_to_prompt(
     if allowed_messages is not None:
         a2r_schema = prune_messages_schema(a2r_schema, version, allowed_messages)
 
-    catalog_schemas = [c.catalog_schema for c in catalogs]
+    catalog_schemas = [c.validation_schema for c in catalogs]
     common_types_schema = prune_common_types_schema(
         load_common_types_schema(version), *catalog_schemas, a2r_schema
     )

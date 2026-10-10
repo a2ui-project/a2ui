@@ -40,7 +40,7 @@ _FORMATS: dict[str, Callable[[CatalogApi], Any]] = {
 
 def _from_json(catalog: CatalogApi) -> CatalogApi:
     return Catalog.from_json(
-        catalog_schema=catalog.catalog_schema,
+        catalog_schema=catalog.validation_schema,
         protocol_version=catalog.protocol_version,
         catalog_id=catalog.catalog_id,
     )

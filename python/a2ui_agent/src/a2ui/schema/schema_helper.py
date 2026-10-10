@@ -54,7 +54,7 @@ class CatalogSchemaHelper:
         # `CatalogComponentCommon`, which `Catalog.from_json` writes inline.
         # Inlining them lets the crawler read both kinds of catalog the same
         # way, while references to common types, such as `Checkable`, stay.
-        catalog_schema = dict(catalog.catalog_schema or {})
+        catalog_schema = dict(catalog.validation_schema or {})
         self.catalog = inline_local_refs(catalog_schema, catalog_schema)
         self.components = dict(self.catalog.get("components", {}))
         self.functions = dict(self.catalog.get("functions", {}))

@@ -230,7 +230,9 @@ class ContactAgent:
         current_query_text = query
 
         # Ensure catalog schema was loaded
-        if ui_version and (not selected_catalog or not selected_catalog.catalog_schema):
+        if ui_version and (
+            not selected_catalog or not selected_catalog.validation_schema
+        ):
             print(
                 "--- ContactAgent.fetch_response: A2UI_SCHEMA is not loaded. "
                 "Cannot perform UI validation. ---"

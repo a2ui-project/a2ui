@@ -20,8 +20,12 @@ v1.0. These tests cover the capabilities shapes and versions it doesn't.
 
 import pytest
 
-from a2ui.catalog_transformers import ComponentPruningTransformer
+from a2ui.catalog_transformers import (
+    ComponentPruningTransformer,
+    FunctionPruningTransformer,
+)
 from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import v0_8, v0_9, v1_0
 from a2ui.processor import CatalogConfig
 from a2ui.utils import resolve_catalogs
@@ -189,6 +193,29 @@ def test_inline_catalogs_use_the_registered_catalogs_version():
     assert resolved.catalog_id == "inline"
     assert resolved.protocol_version == "v0.9"
     assert set(resolved.components) == {"Marquee"}
+
+
+def test_a_v10_to_json_document_is_accepted_as_an_inline_catalog():
+    full = BasicCatalog(protocol_version="v1.0")
+    # The generated v1.0 `FunctionDefinition` model rejects `openUrl`, which
+    # requires user activation and leaves `allowedCallers` at its default.
+    basic = FunctionPruningTransformer(
+        [name for name in full.functions if name != "openUrl"]
+    ).transform(full)
+    capabilities = {
+        "v1.0": {"supportedCatalogIds": [], "inlineCatalogs": [basic.to_json()]}
+    }
+
+    (resolved,) = resolve_catalogs(
+        [_config("a", "1.0", "Text")], capabilities, accepts_inline_catalogs=True
+    )
+
+    assert resolved.catalog_id == basic.catalog_id
+    assert set(resolved.components) == set(basic.components)
+    # System (`@`-prefixed) functions are built in, so `to_json` leaves them out.
+    assert set(resolved.functions) == {
+        name for name in basic.functions if not name.startswith("@")
+    }
 
 
 def test_an_active_catalog_keeps_its_id_over_an_inline_catalog():
