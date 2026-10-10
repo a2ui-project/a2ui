@@ -51,30 +51,33 @@ def test_direct_json_format_supports_each_version(version):
     direct_json_format = DirectJsonFormat([catalog])
 
     assert [c.catalog_id for c in direct_json_format.catalogs] == [catalog.catalog_id]
-    assert direct_json_format.parser is direct_json_format.parser
+    assert isinstance(direct_json_format.create_parser(), DirectJsonParser)
+    assert direct_json_format.create_parser() is not direct_json_format.create_parser()
 
 
 def test_direct_json_parser_methods():
+    from a2ui.inference_formats._shared import to_message_models
+
     tf = DirectJsonFormat([BasicCatalog(VERSION_0_8)])
     cat = tf.catalogs[0]
     parser = DirectJsonParser([cat])
 
     # 1. has_format_content
     assert parser.has_format_content("<a2ui-json>", complete=True) is False
-    assert parser.has_format_content("<a2ui-json></a2ui-json>", complete=True) is True
+    assert parser.has_format_content("<a2ui-json>{}</a2ui-json>", complete=True) is True
 
-    # 2. process_chunk incremental streaming
-    parts1 = parser.process_chunk("<a2ui-json>")
+    # 2. parse_chunk incremental streaming
+    parts1 = parser.parse_chunk("<a2ui-json>")
     assert parts1 == []  # Buffering open tag
 
-    parts2 = parser.process_chunk(
+    parts2 = parser.parse_chunk(
         '[{"beginRendering": {"surfaceId": "main", "root": "c1"}}]</a2ui-json>'
     )
     assert len(parts2) == 1
-    assert parts2[0].is_final is True
+    assert len(parts2[0].a2ui) == 1
 
     # 3. decompile and wrap_decompiled_blocks
-    payload = {"beginRendering": {"surfaceId": "s1", "root": "c1"}}
+    payload = to_message_models([{"beginRendering": {"surfaceId": "s1", "root": "c1"}}])
     decompiled = parser.decompile(payload)
     assert "beginRendering" in decompiled
     assert '"surfaceId": "s1"' in decompiled
@@ -86,12 +89,3 @@ def test_direct_json_parser_methods():
         '<a2ui-json>\n{"beginRendering": {"surfaceId": "s1", "root":'
         ' "c1"}}\n</a2ui-json>'
     )
-
-
-def test_generate_with_client_capabilities_is_an_error():
-    direct_json_format = DirectJsonFormat([BasicCatalog(VERSION_0_9)])
-
-    with pytest.raises(A2uiCatalogError, match="resolve_catalogs"):
-        direct_json_format.prompt_generator.generate(
-            "Role", client_ui_capabilities={"v0.9": {"supportedCatalogIds": []}}
-        )

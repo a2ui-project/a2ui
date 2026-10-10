@@ -70,14 +70,12 @@ class TestExpressIntegration(unittest.TestCase):
         parts = ExpressParser([self.catalog]).parse_response(conversational_content)
         self.assertEqual(len(parts), 1)
         self.assertEqual(parts[0].text, conversational_content)
-        self.assertIsNone(parts[0].a2ui_json)
 
         # 3. Empty text part omission
         ui_only_content = '<a2ui>root = Text("Hello")</a2ui>'
         parts_ui = ExpressParser([self.catalog]).parse_response(ui_only_content)
         self.assertEqual(len(parts_ui), 1)
-        self.assertEqual(parts_ui[0].text, "")
-        self.assertIsNotNone(parts_ui[0].a2ui_json)
+        self.assertIsNotNone(parts_ui[0].a2ui)
 
     def test_template_validation_and_decompiler_quoted_keys(self):
         """Regression tests for template path validation, decompiler dictionary key quoting, and check message string formatting."""
@@ -200,11 +198,13 @@ This is bold.
             'btn = Button("Cli'
         )
         parts = ExpressParser([self.catalog]).parse_response(truncated_response)
-        self.assertEqual(len(parts), 1)
+        self.assertEqual(len(parts), 2)
         self.assertEqual(parts[0].text, "Here is the partial UI:")
-        self.assertIsNotNone(parts[0].a2ui_json)
+        self.assertIsNotNone(parts[1].a2ui)
 
-        compiled_components = parts[0].a2ui_json[0]["createSurface"]["components"]
+        compiled_components = to_message_dicts(parts[1].a2ui)[0]["createSurface"][
+            "components"
+        ]
         self.assertEqual(len(compiled_components), 2)
         self.assertEqual(compiled_components[0]["id"], "root")
         self.assertEqual(compiled_components[1]["id"], "text1")
@@ -212,7 +212,7 @@ This is bold.
 
     def test_parser_compilation_error_handling(self):
         """Verify that parsing invalid Express syntax raises A2uiCompilationError with error details."""
-        from a2ui.parser.errors import A2uiCompilationError
+        from a2ui.parser import A2uiCompilationError
 
         invalid_response = (
             "Preceding conversation text.\n"
@@ -228,7 +228,8 @@ This is bold.
 
         exc = ctx.exception
         self.assertIn("Syntax error", str(exc))
-        self.assertEqual(len(exc.partial_results), 0)
+        self.assertEqual(len(exc.partial_results), 1)
+        self.assertEqual(exc.partial_results[0].text, "Preceding conversation text.")
         self.assertIn("MY_BAD_SYNTAX", exc.raw_content)
         self.assertIsNotNone(exc.line)
 
@@ -248,9 +249,10 @@ This is bold.
             ExpressParser([self.catalog]).parse_response(multi_response)
 
         exc_multi = ctx.exception
-        self.assertEqual(len(exc_multi.partial_results), 1)
+        self.assertEqual(len(exc_multi.partial_results), 3)
         self.assertEqual(exc_multi.partial_results[0].text, "First part text.")
-        self.assertIsNotNone(exc_multi.partial_results[0].a2ui_json)
+        self.assertIsNotNone(exc_multi.partial_results[1].a2ui)
+        self.assertEqual(exc_multi.partial_results[2].text, "Second part text.")
         self.assertIn("MY_BAD_SYNTAX", exc_multi.raw_content)
 
 

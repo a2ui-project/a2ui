@@ -43,7 +43,7 @@ from a2ui.builder.v0_9.catalogs.basic import (
 from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.core.schema.v0_9 import UpdateComponentsMessage, UpdateComponents
+from a2ui.core.schema.v0_9 import UpdateComponents, UpdateComponentsMessage
 from a2ui.transformers.macros import (
     MacroExpander,
     macro,
@@ -386,17 +386,14 @@ def test_macro_parser_parse_response():
         "Let me know if you need any adjustments."
     )
 
-    parts = fmt.parser.parse_response(llm_output)
-    assert len(parts) == 2
+    parts = fmt.create_parser().parse_response(llm_output)
+    assert len(parts) == 3
     assert "Here is the requested user profile card:" in parts[0].text
-    assert parts[0].a2ui_raw is not None
-    assert parts[0].a2ui_json is not None
+    assert parts[1].a2ui is not None
+    assert "Let me know if you need any adjustments." in parts[2].text
 
     # Verify that the macro was expanded into primitive components via transform_to_transport
-    _adapter = TypeAdapter(AgentToRendererMessage)
-    typed_raw_messages = [
-        _adapter.validate_python(raw_msg) for raw_msg in parts[0].a2ui_json
-    ]
+    typed_raw_messages = parts[1].a2ui
     lowered_messages = expander.transform_to_transport(typed_raw_messages)
     components = []
     for msg in lowered_messages:
@@ -412,9 +409,6 @@ def test_macro_parser_parse_response():
     text_contents = [c.get("text") for c in components if c["component"] == "Text"]
     assert "Alice Smith" in text_contents
     assert "Tech Lead" in text_contents
-
-    assert "Let me know if you need any adjustments." in parts[1].text
-    assert parts[1].a2ui_json is None
 
 
 def test_macro_catalog_pruning():
@@ -497,7 +491,8 @@ def test_macro_component_subclass_parameter_coercion():
 
 def test_macro_expansion_failure_logs_error(caplog):
     import logging
-    from a2ui.parser.parser import Parser
+
+    from a2ui.parser import Parser
 
     @macro
     def FailingMacro(bad_arg: str) -> Card:

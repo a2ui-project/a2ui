@@ -20,7 +20,8 @@ from a2ui.core import Catalog
 from a2ui.inference_formats.experimental.atom import AtomFormat
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.experimental.express import ExpressFormat
-from a2ui.inference_formats import (
+from a2ui.inference_formats._shared import (
+    to_message_dicts,
     to_message_models,
 )
 
@@ -160,7 +161,7 @@ c1 = SecondaryCard("Title", "Sub")
 root = Column([w1, w2, c1])
 </a2ui>"""
 
-    messages = fmt.parser.parse_response(dsl)[0].a2ui_json
+    messages = to_message_dicts(fmt.create_parser().parse_response(dsl)[0].a2ui)
     assert isinstance(messages, list)
     create_msg = next(m["createSurface"] for m in messages if "createSurface" in m)
     assert "catalogId" not in create_msg
@@ -234,21 +235,23 @@ root = Column([w1, w2, c1])
     }
 
     # Verify decompilation and recompilation round-trip preserves catalogId overrides and positional args
-    decompiled = fmt.parser.decompile(to_message_models(messages))
+    decompiled = fmt.create_parser().decompile(to_message_models(messages))
     assert 'catalogId="https://a2ui.org/catalogs/secondary"' in decompiled
     assert 'catalogId: "https://a2ui.org/catalogs/secondary"' in decompiled
     assert 'catalogId="https://a2ui.org/catalogs/primary"' in decompiled
     assert 'SecondaryCard("Title", "Sub")' in decompiled
-    recompiled = fmt.parser.parse_response(f"<a2ui>\n{decompiled}\n</a2ui>")[
-        0
-    ].a2ui_json
+    recompiled = to_message_dicts(
+        fmt.create_parser().parse_response(f"<a2ui>\n{decompiled}\n</a2ui>")[0].a2ui
+    )
     assert recompiled == messages
 
     # Also test standalone function call with catalogId override in Express
     call_dsl = """<a2ui>
 sharedFn("call-sec-1", "call-sec-2", catalogId="https://a2ui.org/catalogs/secondary")
 </a2ui>"""
-    call_messages = fmt.parser.parse_response(call_dsl)[0].a2ui_json
+    call_messages = to_message_dicts(
+        fmt.create_parser().parse_response(call_dsl)[0].a2ui
+    )
     assert call_messages == [{
         "version": "v1.0",
         "callRendererFunction": {
@@ -263,10 +266,14 @@ sharedFn("call-sec-1", "call-sec-2", catalogId="https://a2ui.org/catalogs/second
             },
         },
     }]
-    decompiled_call = fmt.parser.decompile(to_message_models(call_messages))
+    decompiled_call = fmt.create_parser().decompile(to_message_models(call_messages))
     assert 'catalogId="https://a2ui.org/catalogs/secondary"' in decompiled_call
     assert (
-        fmt.parser.parse_response(f"<a2ui>\n{decompiled_call}\n</a2ui>")[0].a2ui_json
+        to_message_dicts(
+            fmt.create_parser()
+            .parse_response(f"<a2ui>\n{decompiled_call}\n</a2ui>")[0]
+            .a2ui
+        )
         == call_messages
     )
 
@@ -326,16 +333,16 @@ def test_elemental_multi_catalog_per_component_and_function_override(
         },
     }
 
-    decompiled = fmt.parser.decompile(to_message_models(surface_envelope))
+    decompiled = fmt.create_parser().decompile(to_message_models(surface_envelope))
     assert '<link rel="catalog"' not in decompiled
     assert 'catalog-id="https://a2ui.org/catalogs/primary"' in decompiled
     assert 'catalog-id="https://a2ui.org/catalogs/secondary"' in decompiled
     assert "catalogId: 'https://a2ui.org/catalogs/secondary'" in decompiled
     assert "catalogId: 'https://a2ui.org/catalogs/primary'" in decompiled
 
-    recompiled_list = fmt.parser.parse_response(f"<a2ui>\n{decompiled}\n</a2ui>")[
-        0
-    ].a2ui_json
+    recompiled_list = to_message_dicts(
+        fmt.create_parser().parse_response(f"<a2ui>\n{decompiled}\n</a2ui>")[0].a2ui
+    )
     assert isinstance(recompiled_list, list)
     recompiled = recompiled_list[0]
     create_surf = recompiled["createSurface"]
@@ -385,11 +392,13 @@ def test_elemental_multi_catalog_per_component_and_function_override(
             },
         },
     }
-    decompiled_call = fmt.parser.decompile(to_message_models(call_envelope))
+    decompiled_call = fmt.create_parser().decompile(to_message_models(call_envelope))
     assert 'catalog-id="https://a2ui.org/catalogs/secondary"' in decompiled_call
-    recompiled_call = fmt.parser.parse_response(f"<a2ui>\n{decompiled_call}\n</a2ui>")[
-        0
-    ].a2ui_json[0]
+    recompiled_call = to_message_dicts(
+        fmt.create_parser()
+        .parse_response(f"<a2ui>\n{decompiled_call}\n</a2ui>")[0]
+        .a2ui
+    )[0]
     assert recompiled_call["callRendererFunction"]["callFunction"] == {
         "@call": "sharedFn",
         "catalogId": "https://a2ui.org/catalogs/secondary",
@@ -427,7 +436,7 @@ def test_atom_multi_catalog_per_component_and_function_override(
 )
 </a2ui>"""
 
-    compiled_list = fmt.parser.parse_response(sexpr)[0].a2ui_json
+    compiled_list = to_message_dicts(fmt.create_parser().parse_response(sexpr)[0].a2ui)
     assert isinstance(compiled_list, list)
     assert len(compiled_list) == 1
     compiled = compiled_list[0]
@@ -505,12 +514,12 @@ def test_atom_multi_catalog_per_component_and_function_override(
     }
 
     # Round-trip decompile -> compile reproduces the message exactly.
-    decompiled = fmt.parser.decompile(to_message_models(compiled))
+    decompiled = fmt.create_parser().decompile(to_message_models(compiled))
     assert ':catalogId "https://a2ui.org/catalogs/secondary"' in decompiled
     assert ':catalogId "https://a2ui.org/catalogs/primary"' in decompiled
-    recompiled_list = fmt.parser.parse_response(f"<a2ui>\n{decompiled}\n</a2ui>")[
-        0
-    ].a2ui_json
+    recompiled_list = to_message_dicts(
+        fmt.create_parser().parse_response(f"<a2ui>\n{decompiled}\n</a2ui>")[0].a2ui
+    )
     assert len(recompiled_list) == 1
     recompiled = recompiled_list[0]
     assert {c["id"]: c for c in recompiled["createSurface"]["components"]} == comps
@@ -520,7 +529,9 @@ def test_atom_multi_catalog_per_component_and_function_override(
     call_sexpr = """<a2ui>
 (callFunction sharedFn :catalogId "https://a2ui.org/catalogs/secondary" :firstSecondary "call-sec-1" :secondSecondary "call-sec-2")
 </a2ui>"""
-    call_compiled = fmt.parser.parse_response(call_sexpr)[0].a2ui_json[0]
+    call_compiled = to_message_dicts(
+        fmt.create_parser().parse_response(call_sexpr)[0].a2ui
+    )[0]
     assert call_compiled == {
         "version": "v1.0",
         "callRendererFunction": {
@@ -535,10 +546,14 @@ def test_atom_multi_catalog_per_component_and_function_override(
             },
         },
     }
-    decompiled_call = fmt.parser.decompile(to_message_models(call_compiled))
+    decompiled_call = fmt.create_parser().decompile(to_message_models(call_compiled))
     assert ':catalogId "https://a2ui.org/catalogs/secondary"' in decompiled_call
     assert (
-        fmt.parser.parse_response(f"<a2ui>\n{decompiled_call}\n</a2ui>")[0].a2ui_json[0]
+        to_message_dicts(
+            fmt.create_parser()
+            .parse_response(f"<a2ui>\n{decompiled_call}\n</a2ui>")[0]
+            .a2ui
+        )[0]
         == call_compiled
     )
 
@@ -575,7 +590,7 @@ def test_atom_prescan_keyword_values_not_treated_as_keywords(
   )
 )
 </a2ui>"""
-    compiled = fmt.parser.parse_response(sexpr)[0].a2ui_json[0]
+    compiled = to_message_dicts(fmt.create_parser().parse_response(sexpr)[0].a2ui)[0]
     create_msg = compiled["createSurface"]
     assert create_msg["surfaceId"] == "main"
     assert "catalogId" not in create_msg

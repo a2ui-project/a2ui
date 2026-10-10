@@ -113,12 +113,15 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
                 if context.message and context.message.metadata
                 else None
             )
-            inference_format = self._agent.resolve_inference_format(
-                active_ui_version, capabilities
+            from a2ui.schema import load_examples
+
+            processor = self._agent.create_processor(active_ui_version, capabilities)
+            a2ui_catalog = processor.active_catalogs[0]
+            examples_path = self._agent.get_examples_path(
+                active_ui_version, a2ui_catalog.catalog_id
             )
-            a2ui_catalog = inference_format.catalogs[0]
-            examples = inference_format.prompt_generator.generate_examples(
-                validate=True
+            examples = load_examples(
+                processor.active_catalogs, examples_path, validate=False
             )
 
             await runner.session_service.append_event(

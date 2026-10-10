@@ -18,14 +18,15 @@ Compiles A2UI catalog schemas into compact plain-text signatures and
 instruction blocks.
 """
 
+from __future__ import annotations
+
 from collections.abc import Mapping, Sequence
 import json
 import re
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
     build_catalog_helpers,
@@ -34,10 +35,6 @@ from a2ui.inference_formats._shared import (
     surface_catalog_id,
 )
 from a2ui.prompt import PromptGenerator
-from a2ui.schema import load_examples
-
-if TYPE_CHECKING:
-    from .format import ExpressFormat
 
 # Envelope keys of the messages a JSON example may hold to be decompiled.
 _EXAMPLE_MESSAGE_KEYS = (
@@ -108,7 +105,36 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 
 15. Surface targeting: Output `surface(surfaceId)` to specify or target a user interface surface:
     surface("dashboard-surface-1")
-    root = Card(...)'''
+    root = ComponentA(...)'''
+
+# Rule 15's example line. `generate_base_rules` replaces its placeholder name
+# with a component the active catalogs define.
+_ROOT_EXAMPLE_LINE = "root = ComponentA(...)"
+
+
+def _example_root_component(catalogs: Sequence[CatalogApi]) -> str | None:
+    """Picks the component that rule 15's `root = ...(...)` example names.
+
+    The name is read from the catalogs, so the example never shows a component
+    the model can't use. It is the first component that holds a single child
+    reference, as a container such as a card does, or else the first
+    component.
+
+    Args:
+        catalogs: The active catalogs, in order.
+
+    Returns:
+        The component name, or None if the catalogs define no component.
+    """
+    for catalog in catalogs:
+        for name in catalog.components:
+            spec = catalog.component_ref_map.get(name)
+            if spec is not None and spec.single_refs:
+                return name
+    for catalog in catalogs:
+        for name in catalog.components:
+            return name
+    return None
 
 
 def _multi_catalog_rules(helpers: Mapping[str, CatalogSchemaHelper]) -> str:
@@ -208,6 +234,55 @@ def _get_schema_enum(prop_schema: Any) -> list[str] | None:
     return None
 
 
+def _filter_express_rules(allowed_messages: Sequence[str]) -> str:
+    """Filters EXPRESS_RULES to only the rules for the allowed message types."""
+    allowed = set(allowed_messages)
+    creates = "createSurface" in allowed or "CreateSurfaceMessage" in allowed
+    components = (
+        creates or "updateComponents" in allowed or "UpdateComponentsMessage" in allowed
+    )
+    data = "updateDataModel" in allowed or "UpdateDataModelMessage" in allowed
+    delete = "deleteSurface" in allowed or "DeleteSurfaceMessage" in allowed
+
+    contract, _, rules_block = EXPRESS_RULES.partition("## Grammar Rules\n\n")
+    raw_rules = re.split(r"\n\n(?=\d+\. )", rules_block.strip())
+    rule_bodies = [
+        re.sub(r"^\d+\. ", "", r).replace("\n   ", "\n").replace("\n    ", "\n ")
+        for r in raw_rules
+    ]
+    # rule_bodies indices (0-based, matching rules 1..15):
+    # 0: components, 1: root, 2..5: values, 6..8: calls, 9: dataModel,
+    # 10: template, 11: deleteSurface, 12..13: arguments, 14: surface
+    selected: list[str] = []
+    if components:
+        selected.append(rule_bodies[0])
+    if creates:
+        selected.append(rule_bodies[1])
+    selected.extend(rule_bodies[2:6])
+    if components:
+        selected.extend(rule_bodies[6:9])
+    if data:
+        selected.append(rule_bodies[9])
+    if components:
+        selected.append(rule_bodies[10])
+    if delete:
+        selected.append(rule_bodies[11])
+    if components:
+        selected.extend(rule_bodies[12:14])
+    if components or data:
+        surface_rule = rule_bodies[14]
+        if not creates:
+            surface_rule = "\n".join(surface_rule.splitlines()[:-1])
+        selected.append(surface_rule)
+
+    out = [f"{contract}## Grammar Rules"]
+    for idx, body in enumerate(selected, start=1):
+        prefix = f"{idx}. "
+        indented = re.sub(r"\n(?!\n)", "\n" + (" " * len(prefix)), body)
+        out.append(f"{prefix}{indented}")
+    return "\n\n".join(out)
+
+
 class ExpressPromptGenerator(PromptGenerator):
     """Generates system prompt contracts guiding models to produce A2UI Express.
 
@@ -215,35 +290,71 @@ class ExpressPromptGenerator(PromptGenerator):
     positional signatures, reducing prompt token utilization.
     """
 
-    def __init__(self, format_inst: "ExpressFormat"):
-        """Initializes the generator with the specified format.
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
+        allowed_messages: Sequence[str] | None = None,
+        *,
+        version: str | None = None,
+    ):
+        from .decompiler import ExpressDecompiler
+        from a2ui.inference_formats._shared import (
+            catalogs_protocol_version,
+            check_mixed_catalogs,
+        )
 
-        Args:
-            format_inst: An ExpressFormat instance.
-        """
-        self._format = format_inst
-        self._helpers = build_catalog_helpers(self._format.catalogs)
+        checked = check_mixed_catalogs(catalogs)
+        self._catalogs = list(checked)
+        self._examples = [list(t) for t in examples] if examples is not None else None
+        self._allowed_messages = (
+            list(allowed_messages) if allowed_messages is not None else None
+        )
+        self._version = version or catalogs_protocol_version(checked)
+        self._helpers = build_catalog_helpers(self._catalogs)
+        self._decompiler = ExpressDecompiler(self._catalogs)
 
     @property
     def catalogs(self) -> list[CatalogApi]:
-        """A copy of the catalogs configured on this prompt generator's format."""
-        return self._format.catalogs
+        """A copy of the catalogs configured on this prompt generator."""
+        return list(self._catalogs)
 
     @property
     def helpers(self) -> dict[str, CatalogSchemaHelper]:
         """Schema helpers for the format's catalogs, keyed by catalog ID."""
         return self._helpers
 
-    def generate_base_rules(self) -> str:
-        """Returns the core syntax contract and grammar rules for A2UI Express.
-
-        With more than one active catalog, rules that explain how components
-        and functions are found by name, and when they need a `catalogId`,
-        follow the grammar rules.
-        """
+    def generate_base_rules(self, allowed_messages: Sequence[str] | None = None) -> str:
+        """Returns the core syntax contract and grammar rules for A2UI Express."""
+        effective_allowed = (
+            allowed_messages if allowed_messages is not None else self._allowed_messages
+        )
+        base = (
+            EXPRESS_RULES
+            if effective_allowed is None
+            else _filter_express_rules(effective_allowed)
+        )
+        root_component = _example_root_component(self.catalogs)
+        if root_component is not None:
+            base = base.replace(_ROOT_EXAMPLE_LINE, f"root = {root_component}(...)")
         if len(self.catalogs) <= 1:
-            return EXPRESS_RULES
-        return f"{EXPRESS_RULES}\n\n{_multi_catalog_rules(self.helpers)}"
+            return base
+        if effective_allowed is not None:
+            allowed_set = set(effective_allowed)
+            has_comp_or_data = any(
+                m in allowed_set
+                for m in (
+                    "createSurface",
+                    "CreateSurfaceMessage",
+                    "updateComponents",
+                    "UpdateComponentsMessage",
+                    "updateDataModel",
+                    "UpdateDataModelMessage",
+                )
+            )
+            if not has_comp_or_data:
+                return base
+        return f"{base}\n\n{_multi_catalog_rules(self.helpers)}"
 
     def generate_catalog_instructions(
         self,
@@ -267,21 +378,25 @@ class ExpressPromptGenerator(PromptGenerator):
     def generate_examples(
         self, catalog: Any | None = None, validate: bool = False
     ) -> str:
-        """Loads and formats few-shot Express DSL examples."""
+        """Formats few-shot Express DSL examples."""
+        if not self._examples:
+            return ""
         active_catalogs = list(self.catalogs)
         if catalog is not None:
             active_catalogs = [
                 catalog,
                 *(c for c in active_catalogs if c is not catalog),
             ]
-        if not active_catalogs or not self._format or not self._format.examples_path:
-            return ""
-        raw_examples = load_examples(
-            active_catalogs, self._format.examples_path, validate=validate
-        )
-        if not raw_examples:
-            return ""
-        return self.transform_examples(raw_examples)
+        from a2ui.inference_formats._shared import to_message_dicts
+        from a2ui.utils import validate_payload
+
+        blocks = []
+        for turn in self._examples:
+            if validate:
+                validate_payload(active_catalogs, to_message_dicts(turn))
+            dsl = self.decompile(turn)
+            blocks.append(self.wrap_decompiled_blocks([dsl]))
+        return "\n\n".join(blocks)
 
     def _generate_component_signatures(
         self, helper: CatalogSchemaHelper | None = None
@@ -498,45 +613,17 @@ class ExpressPromptGenerator(PromptGenerator):
         return desc
 
     def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
-        """Decompiles structured A2UI payload messages into Express DSL.
-
-        Args:
-            a2ui_payload: Sequence of AgentToRendererMessage objects.
-
-        Returns:
-            The Express DSL string representation of the payload.
-        """
-        return self._format.parser.decompile(a2ui_payload)
+        """Decompiles structured A2UI payload messages into Express DSL."""
+        return self._decompiler.decompile(a2ui_payload)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
-        """Encloses decompiled DSL code blocks in markdown code fences and sentinel tags.
-
-        Args:
-            blocks: A list of Express DSL snippet strings.
-
-        Returns:
-            The enclosed and formatted markdown block.
-        """
-        return self._format.parser.wrap_decompiled_blocks(blocks)
+        """Encloses decompiled DSL code blocks in markdown code fences and sentinel tags."""
+        return self._decompiler.wrap_decompiled_blocks(blocks)
 
     def _decompile_example_messages(
         self, json_content: str, default_catalog_id: str | None = None
     ) -> str | None:
-        """Decompiles a JSON example payload into one Express block.
-
-        The whole payload is decompiled at once, so that an update in it is
-        read against the catalog of the surface the payload created.
-
-        Args:
-            json_content: The JSON example.
-            default_catalog_id: The catalog of a surface that the example
-                creates without naming one. Defaults to the single catalog, or
-                none when several catalogs are active.
-
-        Returns:
-            The Express block without sentinel tags, or None when the JSON is
-            not a payload of A2UI messages or cannot be decompiled.
-        """
+        """Decompiles a JSON example payload into one Express block."""
         try:
             parsed = json.loads(json_content)
             messages = [parsed] if isinstance(parsed, dict) else parsed
@@ -550,7 +637,7 @@ class ExpressPromptGenerator(PromptGenerator):
             return self.decompile(
                 normalize_prompt_example_messages(
                     messages,
-                    version=self._format.version,
+                    version=self._version,
                     default_catalog_id=(
                         default_catalog_id or surface_catalog_id(self.catalogs)
                     ),
@@ -600,42 +687,20 @@ class ExpressPromptGenerator(PromptGenerator):
             flags=re.DOTALL,
         )
 
-    def generate(
-        self,
-        role_description: str,
-        workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = False,
-        include_examples: bool = False,
-        validate_examples: bool = False,
-    ) -> str:
-        """Assembles the complete system instruction block for the LLM.
+    def generate(self) -> str:
+        """Assembles the prompt snippet for A2UI Express."""
+        parts: list[str] = []
 
-        Args:
-            role_description: Description of the agent's role.
-            workflow_description: Optional description of the task workflow.
-            ui_description: Optional UI context or rules.
-            client_ui_capabilities: Optional client UI capability details.
-            allowed_components: Optional list of component tags the LLM may use.
-            allowed_messages: Optional list of A2UI message types allowed.
-            include_schema: Whether to include component schemas in the prompt.
-            include_examples: Whether to include few-shot examples.
-            validate_examples: Whether to validate few-shot examples on generation.
+        rules = self.generate_base_rules()
+        if rules:
+            parts.append(f"## Workflow Description:\n{rules}")
 
-        Returns:
-            The complete system prompt string explaining A2UI Express and its catalog.
-        """
-        return super().generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
-            ui_description=ui_description,
-            client_ui_capabilities=client_ui_capabilities,
-            allowed_components=allowed_components,
-            allowed_messages=allowed_messages,
-            include_schema=include_schema,
-            include_examples=include_examples,
-            validate_examples=validate_examples,
-        )
+        catalog_inst = self.generate_catalog_instructions(include_schema=True)
+        if catalog_inst:
+            parts.append(catalog_inst)
+
+        examples = self.generate_examples()
+        if examples:
+            parts.append(f"### Examples:\n{examples}")
+
+        return "\n\n".join(parts)

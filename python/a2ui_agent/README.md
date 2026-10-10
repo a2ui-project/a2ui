@@ -7,11 +7,16 @@ the A2UI agent SDK.
 
 The following directories contain the base protocol logic, parsing, and schema operations directly under `src/a2ui/`:
 
-### Schema Management (`src/a2ui/schema`)
+### Processor & Catalog Configuration (`src/a2ui/processor`)
 
-- **`catalog.py`**: Defines `CatalogConfig`, which loads a component catalog
-  as an `a2ui.core.Catalog`, and `load_examples`, which reads few-shot
-  examples and can validate them against the catalogs.
+- **`generator.py`**: Defines `A2uiGenerator`, the main entry point for configuring an agent's catalogs and default inference format factory.
+- **`processor.py`**: Defines `A2uiRequestProcessor`, which binds the active catalogs negotiated for a request to an inference format and exposes prompt generation and response parsing.
+- **`catalog_config.py`**: Defines `CatalogConfig`, which binds a `Catalog` (or loads one from a path via `CatalogConfig.from_path`) with an optional sequence of `CatalogTransformer` instances into `transformed_catalog`.
+- **`catalog_providers.py`**: Defines `CatalogProvider`, `FileSystemCatalogProvider`, and `InMemoryCatalogProvider` for loading catalogs.
+
+### Schema & Examples (`src/a2ui/schema`)
+
+- **`catalog.py`**: Defines `load_examples`, which reads few-shot examples from disk and can validate them against the active catalogs.
 
 ### Catalog transformers (`src/a2ui/catalog_transformers`)
 
@@ -33,10 +38,19 @@ The following directories contain the base protocol logic, parsing, and schema o
 
 ### Parser (`src/a2ui/parser`)
 
-- **`parser.py`**: Implementation of `parse_response` for synchronous parsing.
-- **`streaming.py`**: Incremental streaming parsers with automatic JSON healing and validation.
+- **`parser.py`**: Defines the `Parser` abstract base class (`wrap`, `unwrap`, `compile`, `decompile`, `parse_response`, and `parse_chunk` for formats whose `supports_streaming` is true).
+- **`response_part.py`**: Defines `ResponsePart` (`TextPart` / `A2uiPart`) and `RawResponsePart` (`RawA2uiPart`).
+- **`lexer.py`**: Defines `BlockLexer` for sentinel-tag tokenization (`<a2ui-json>...</a2ui-json>`).
+- **`errors.py`**: Defines `A2uiParseError` and `A2uiTargetNotFoundError`.
+- **`messages.py`**: `to_message_models` and `to_message_dicts` convert between message dictionaries and typed models.
 - **`payload_fixer.py`**: Utilities to automatically correct common LLM output
   issues in A2UI payloads.
+
+### Prompt & Inference Formats (`src/a2ui/prompt`, `src/a2ui/inference_formats`)
+
+- **`prompt/generator.py`**: Defines the `PromptGenerator` (`A2uiPromptGenerator`) abstract base class (`generate_base_rules`, `generate_catalog_instructions`, `generate_examples`, `generate`).
+- **`inference_format.py`**: Defines `InferenceFormat` and `InferenceFormatFactory`.
+- **`inference_formats/`**: Format implementations and factories for Direct JSON (`direct_json/`), Express (`express/`), and experimental Elemental and Atom (`experimental/`) formats. Direct JSON is the format that streams: `DirectJsonParser.parse_chunk` heals the partial JSON of each chunk (`direct_json/json_reader.py`) and emits the messages that are ready.
 
 ## A2A (`src/a2ui/a2a`)
 

@@ -95,6 +95,23 @@ def test_created_surface_requires_a_root():
         validate_payload([_BASIC], [_create(_BASIC.catalog_id), _update(_TEXT)])
 
 
+def test_created_surface_may_add_children_in_a_later_message():
+    """A child a component names may arrive in a later message of the payload."""
+    validate_payload(
+        [_BASIC], [_create(_BASIC.catalog_id), _update(_COLUMN), _update(_TEXT)]
+    )
+
+
+def test_created_surface_rejects_an_orphan_added_in_a_later_message():
+    orphan = {"id": "orphan", "component": "Text", "text": "Lost"}
+
+    with pytest.raises(A2uiIntegrityError, match="not reachable"):
+        validate_payload(
+            [_BASIC],
+            [_create(_BASIC.catalog_id), _update(_COLUMN, _TEXT), _update(orphan)],
+        )
+
+
 def test_updated_surface_accepts_references_to_earlier_components():
     validate_payload([_BASIC], [_update(_COLUMN)])
 
@@ -206,6 +223,20 @@ def test_v0_8_payload_is_accepted():
 def test_v0_8_updates_may_precede_begin_rendering():
     validate_payload(
         [BasicCatalog("0.8")], [_v08_update(_V08_COLUMN, _V08_TEXT), _V08_BEGIN]
+    )
+
+
+def test_v0_8_surface_started_over_after_delete_surface_is_accepted():
+    """The updates after a deleteSurface may precede the surface's next beginRendering."""
+    validate_payload(
+        [BasicCatalog("0.8")],
+        [
+            _V08_BEGIN,
+            _v08_update(_V08_COLUMN, _V08_TEXT),
+            {"deleteSurface": {"surfaceId": "s"}},
+            _v08_update(_V08_COLUMN, _V08_TEXT),
+            _V08_BEGIN,
+        ],
     )
 
 
