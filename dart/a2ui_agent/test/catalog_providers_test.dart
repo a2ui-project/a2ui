@@ -147,6 +147,41 @@ void main() {
       expect(config.transformedCatalog.components.keys, ['Text']);
     });
 
+    test('writes the pruned catalog as the document narrowed to it', () {
+      final config = CatalogConfig.fromPath(
+        basicPath,
+        protocolVersion: v0_9,
+        transformers: [
+          ComponentPruningTransformer(['Text']),
+        ],
+      );
+      final Map<String, Object?> source = config.catalog.toJson();
+      final Map<String, Object?> pruned = config.transformedCatalog.toJson();
+      final defs = pruned[r'$defs']! as Map<String, Object?>;
+      final sourceDefs = source[r'$defs']! as Map<String, Object?>;
+
+      for (final key in [r'$schema', r'$id', 'title', 'description']) {
+        expect(pruned[key], source[key], reason: key);
+      }
+      expect(
+        (pruned['components']! as Map<String, Object?>)['Text'],
+        (source['components']! as Map<String, Object?>)['Text'],
+      );
+      expect(pruned['functions'], source['functions']);
+      expect(
+        defs['CatalogComponentCommon'],
+        sourceDefs['CatalogComponentCommon'],
+      );
+      expect(defs['theme'], sourceDefs['theme']);
+      expect(defs['anyFunction'], sourceDefs['anyFunction']);
+      expect(defs['anyComponent'], {
+        'oneOf': [
+          {r'$ref': '#/components/Text'},
+        ],
+        'discriminator': {'propertyName': 'component'},
+      });
+    });
+
     test('fails with a catalog error when the document cannot be read', () {
       expect(
         () => CatalogConfig.fromPath('missing.json', protocolVersion: v0_9),

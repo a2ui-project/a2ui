@@ -15,6 +15,7 @@
 import 'dart:convert';
 
 import '../../core/catalog.dart';
+import '../../primitives/protocol_version.dart';
 import '../function_support.dart';
 import '../locale_formatting.dart';
 import 'catalog.g.dart';
@@ -25,10 +26,14 @@ import 'catalog.g.dart';
 /// hand-written copy, so every argument schema and return type is the
 /// published one, and `tool/generate_basic_catalogs.dart` refreshes it.
 ///
+/// The document declares no `protocolVersion`, so the catalog reports
+/// `v0.9`, the version it was published for.
+///
 /// Parsed on each call, so each catalog owns its schemas and a caller that
 /// edits one cannot change another.
 CatalogApi publishedBasicCatalogV0_9() => Catalog.fromJson(
       jsonDecode(basicCatalogV0_9Json) as Map<String, Object?>,
+      protocolVersion: A2uiProtocolVersion.v0_9,
     );
 
 /// The behaviour of the v0.9 basic catalog functions, formatting for
