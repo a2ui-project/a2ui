@@ -111,7 +111,7 @@ void _expectFields(
   );
   final RefFields resolution = extractRefFields(
     catalog.components['Parent']!.schema,
-    document: catalog.catalogSchema,
+    document: catalog.validationSchema,
   );
   final ComponentRefFields? validation = extractComponentRefFields(
     catalog,

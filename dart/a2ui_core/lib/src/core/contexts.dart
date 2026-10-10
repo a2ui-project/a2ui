@@ -1178,7 +1178,7 @@ extension CatalogInvokerExtension
         _resolvedArgumentSchemas[this] ??= Map.identity();
     return byFunction[fn] ??= resolveSchemaRefs(
       fn.argumentSchema.value,
-      catalogSchema,
+      validationSchema,
       commonTypes: commonTypesSchema,
     );
   }

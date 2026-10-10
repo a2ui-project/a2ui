@@ -50,9 +50,11 @@ class BasicFunction extends FunctionImplementation {
     required super.name,
     required super.argumentSchema,
     required super.returnType,
-    required BasicFunctionBody body,
+    super.description,
     super.allowedCallers,
     super.requiresUserActivation,
+    super.sourceJson,
+    required BasicFunctionBody body,
   }) : _body = body;
 
   final BasicFunctionBody _body;

@@ -79,7 +79,7 @@ void main() {
       final FunctionApi fn = catalog.functions['fn']!;
       expect(fn.allowedCallers, AllowedCallers.rendererOnly);
       expect(fn.requiresUserActivation, isFalse);
-      final functions = catalog.catalogSchema['functions']! as Map;
+      final functions = catalog.validationSchema['functions']! as Map;
       final serialized = functions['fn']! as Map;
       expect(serialized.containsKey('allowedCallers'), isFalse);
       expect(serialized.containsKey('requiresUserActivation'), isFalse);
@@ -99,7 +99,7 @@ void main() {
       expect(fn.allowedCallers, AllowedCallers.rendererOrAgent);
       expect(fn.requiresUserActivation, isTrue);
 
-      final CatalogApi again = Catalog.fromJson(catalog.catalogSchema);
+      final CatalogApi again = Catalog.fromJson(catalog.validationSchema);
       expect(again.functions['fn']!.allowedCallers,
           AllowedCallers.rendererOrAgent);
       expect(again.functions['fn']!.requiresUserActivation, isTrue);

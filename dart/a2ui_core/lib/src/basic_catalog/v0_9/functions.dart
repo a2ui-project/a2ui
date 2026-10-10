@@ -27,6 +27,9 @@ import 'catalog.g.dart';
 /// return type is the published one, and `tool/generate_basic_catalogs.dart`
 /// refreshes it.
 ///
+/// The document declares no `protocolVersion`, so the catalog reports
+/// `v0.9`, the version it was published for.
+///
 /// Parsed on each call, so each catalog owns its schemas and a caller that
 /// edits one cannot change another.
 CatalogApi publishedBasicCatalogV0_9() => Catalog.fromJson(
