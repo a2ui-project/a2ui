@@ -1,5 +1,9 @@
 ## Unreleased
 
+- `resolve_catalogs` reads the capabilities of v0.9 and v0.9.1 catalogs from
+  the `v0.9.1` entry, and falls back to the `v0.9` entry when there is none. It
+  read only `v0.9`, so it rejected the `v0.9.1` entry that web_core and the
+  Python core renderer write for v0.9.1.
 - **BREAKING**: `DirectJsonStreamParser`, `DirectJsonStreamParserModern`,
   `DirectJsonStreamParserV08Legacy` and `DirectJsonFormat.create_stream_parser`
   are removed (#3074). To migrate, call `parse_chunk` on the parser that

@@ -5,9 +5,9 @@
   "description": "A schema for the server capabilities object, which is used by an A2UI server (or Agent) to advertise its supported UI features to clients. This can be embedded in an Agent Card for A2A or used in other transport protocols like MCP.",
   "type": "object",
   "properties": {
-    "v0.9": {
+    "v0.9.1": {
       "type": "object",
-      "description": "The server capabilities structure for version 0.9 of the A2UI protocol.",
+      "description": "The server capabilities structure for version 0.9.1 of the A2UI protocol.",
       "properties": {
         "supportedCatalogIds": {
           "type": "array",
@@ -22,5 +22,5 @@
       }
     }
   },
-  "required": ["v0.9"]
+  "required": ["v0.9.1"]
 }
