@@ -3775,7 +3775,12 @@
       expect: []
 
 - name: test_stream_component_without_catalog_uses_surface_catalog_v10
-  description: A component that names no catalog is checked against its surface's catalog only, so a component only another catalog defines is never emitted, and the block raises a validation error when it closes.
+  description: >-
+    Verifies that a v1.0 component that names no catalog is checked against its
+    surface's catalog only, so a component that only another catalog defines is
+    rejected, as a renderer would reject it. The component is closed when it is
+    checked and can't become valid later, so the error is raised on the chunk
+    that closes it rather than at the end of the block.
   action: parse_chunk
   args:
     format: direct_json
@@ -3794,8 +3799,6 @@
     - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": ['
       expect: []
     - input: '{"id": "root", "component": "Gauge", "value": 42}'
-      expect: []
-    - input: "]}}]</a2ui-json>"
       expect_error:
         category: "ValidationError"
 

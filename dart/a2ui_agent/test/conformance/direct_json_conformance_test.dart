@@ -59,6 +59,7 @@ const Set<String> _v1OnlyStreamingCases = {
   'test_stream_create_surface_inline_components_v10',
   'test_stream_create_surface_inline_components_in_small_chunks_v10',
   'test_stream_multi_catalog_resolution_v10',
+  'test_stream_component_without_catalog_uses_surface_catalog_v10',
   'test_stream_component_catalog_id_arrives_late_v10',
   'test_stream_catalog_id_split_across_chunks_v10',
 };

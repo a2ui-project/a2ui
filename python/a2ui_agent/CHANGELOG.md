@@ -1,5 +1,8 @@
 ## Unreleased
 
+- `DirectJsonParser.parse_chunk` raises `A2uiValidationError` on the chunk that
+  closes an invalid v1.0 component. Previously the error was swallowed until the
+  block ended, and every component after it was held back.
 - **BREAKING**: `DirectJsonStreamParser`, `DirectJsonStreamParserModern`,
   `DirectJsonStreamParserV08Legacy` and `DirectJsonFormat.create_stream_parser`
   are removed (#3074). To migrate, call `parse_chunk` on the parser that
