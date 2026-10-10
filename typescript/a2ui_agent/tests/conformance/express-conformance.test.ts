@@ -310,7 +310,7 @@ describe('Express Conformance Suite', () => {
         for (const entry of catEntries) {
           const fullPath = path.resolve(CONFORMANCE_ROOT, entry.catalog);
           const schema = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
-          let catalog = Catalog.fromSchema(schema);
+          let catalog = Catalog.fromJson(schema);
           registerCatalogDocument(catalog, schema);
 
           if (entry.transformers) {

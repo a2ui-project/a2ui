@@ -37,6 +37,8 @@ import {
   BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS,
   BASIC_FUNCTIONS as V1_0_BASIC_FUNCTIONS,
 } from '../../dist/src/catalogs/basic/v1/index.js';
+import {basicCatalog as V1_0_SDK_BASIC_CATALOG} from '../../dist/src/catalogs/basic/v1/catalog.js';
+import {basicCatalog as V0_9_SDK_BASIC_CATALOG} from '../../dist/src/v0_9/basic_catalog/catalog.js';
 import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
 import {
   A2uiCatalogError,
@@ -144,16 +146,10 @@ const V10_PUBLISHED_CATALOG_NOT_SELF_CONTAINED =
 const FUNCTION_CALL_EXTRA_KEY_ACCEPTED =
   'the validator accepts a function call carrying a key its catalog function' +
   ' definition does not declare';
-const CATALOG_SCHEMA_NOT_SPEC_SHAPED =
-  'web_core has no basic catalog whose catalogSchema reproduces the spec catalog: catalogSchema' +
-  " emits components flat instead of as 'allOf' over the common types, and the catalog's $id," +
-  ' function descriptions and common types $defs differ';
 const KNOWN_DIVERGENCES = new Map([
   [
     'core/catalog.yaml',
     new Map([
-      ['test_v09_basic_catalog_schema', CATALOG_SCHEMA_NOT_SPEC_SHAPED],
-      ['test_v10_basic_catalog_schema', CATALOG_SCHEMA_NOT_SPEC_SHAPED],
       ['test_v09_published_basic_catalog_is_self_contained', PUBLISHED_CATALOG_NOT_SELF_CONTAINED],
       [
         'test_v09_published_minimal_catalog_is_self_contained',
@@ -203,11 +199,42 @@ const FROM_JSON_EXPECT_KEYS = new Set([
   'components',
   'functions',
   'invalidComponents',
+  'matchesBuiltinCatalog',
   'protocolVersion',
   'selfContained',
   'theme',
   'validComponents',
 ]);
+
+/**
+ * The `expect` keys a `to_json` case may use (`ToJsonExpect` in
+ * conformance_schema.json).
+ */
+const TO_JSON_EXPECT_KEYS = new Set([
+  'catalogId',
+  'components',
+  'defs',
+  'functions',
+  'metadata',
+  'protocolVersion',
+  'unbundled',
+]);
+
+/**
+ * Catalogs web_core implements itself, keyed by catalog ID. A `to_json` case
+ * whose `catalogPath` file has one of these IDs checks the implementation
+ * rather than the loaded file.
+ */
+const SDK_CATALOGS = new Map(
+  [V1_0_SDK_BASIC_CATALOG, V0_9_SDK_BASIC_CATALOG].map(catalog => [catalog.id, catalog]),
+);
+
+/**
+ * Thrown by a case handler when the case does not apply to web_core, for
+ * example a `matchesBuiltinCatalog` case for a catalog web_core does not
+ * implement itself. The case is reported as skipped with the given reason.
+ */
+class CaseSkipped extends Error {}
 
 /** Suites that must be discovered and contain at least one case. */
 const REQUIRED_SUITES = new Set(['core/node_resolution.yaml']);
@@ -413,8 +440,14 @@ async function runConformanceHarness() {
           case 'get_renderer_capabilities':
             validateGetRendererCapabilitiesTestCase(testCase);
             break;
-          case 'catalog_schema':
-            validateCatalogSchemaTestCase(testCase);
+          case 'validation_schema':
+            validateValidationSchemaTestCase(testCase);
+            break;
+          case 'round_trip':
+            validateRoundTripTestCase(testCase);
+            break;
+          case 'to_json':
+            validateToJsonTestCase(testCase);
             break;
           case 'data_model':
             validateDataModelTestCase(testCase);
@@ -453,6 +486,12 @@ async function runConformanceHarness() {
         totalPassed++;
         console.log(`  ✓ PASSED: ${name}`);
       } catch (err) {
+        if (err instanceof CaseSkipped) {
+          totalTests--;
+          totalSkipped++;
+          console.log(`  ⁃ [SKIPPED] ${name} (${err.message})`);
+          continue;
+        }
         totalFailed++;
         const failMessage = `  ✗ FAILED: ${name} - ${err.message}`;
         console.error(failMessage);
@@ -1108,6 +1147,66 @@ function assertSelfContained(schema) {
   }
 }
 
+/**
+ * The property names and required names of each component in a catalog's
+ * validation schema, ignoring the `id` and `component` envelope fields.
+ */
+function componentShapes(catalog) {
+  const shapes = {};
+  const components = catalog.validationSchema.components ?? {};
+  for (const [name, schema] of Object.entries(components)) {
+    const envelope = new Set(['id', 'component']);
+    shapes[name] = {
+      properties: Object.keys(schema.properties ?? {})
+        .filter(p => !envelope.has(p))
+        .sort(),
+      required: (schema.required ?? []).filter(r => !envelope.has(r)).sort(),
+    };
+  }
+  return shapes;
+}
+
+/**
+ * The returnType, allowedCallers and requiresUserActivation of each function.
+ * Protocol system functions such as `@index`, which a built-in catalog
+ * registers for evaluation but which are not catalog functions, are left out.
+ */
+function functionSignatures(catalog) {
+  const signatures = {};
+  for (const [name, fn] of catalog.functions) {
+    if (name.startsWith('@')) continue;
+    signatures[name] = {
+      returnType: fn.returnType,
+      allowedCallers: fn.allowedCallers,
+      requiresUserActivation: fn.requiresUserActivation,
+    };
+  }
+  return signatures;
+}
+
+/**
+ * Asserts that a catalog loaded with `fromJson` is equivalent to web_core's own
+ * implementation of the catalog with the same catalogId (`matchesBuiltinCatalog`
+ * in conformance_schema.json). Skips the case when web_core has none.
+ */
+function assertMatchesBuiltinCatalog(loaded) {
+  const builtin = SDK_CATALOGS.get(loaded.id);
+  if (!builtin) {
+    throw new CaseSkipped(`web_core has no built-in catalog '${loaded.id}'`);
+  }
+  assert.strictEqual(
+    toCanonicalVersion(loaded.protocolVersion),
+    toCanonicalVersion(builtin.protocolVersion),
+    'protocolVersion mismatch',
+  );
+  assert.deepStrictEqual(componentShapes(loaded), componentShapes(builtin), 'Component mismatch');
+  assert.deepStrictEqual(
+    functionSignatures(loaded),
+    functionSignatures(builtin),
+    'Function mismatch',
+  );
+}
+
 function validateFromJsonTestCase(testCase) {
   const rawSchema = testCase.catalogPath
     ? JSON.parse(
@@ -1133,7 +1232,7 @@ function validateFromJsonTestCase(testCase) {
   if (testCase.expectError) {
     assert.throws(
       () => {
-        Catalog.fromSchema(schemaToLoad);
+        Catalog.fromJson(schemaToLoad);
       },
       err => {
         if (testCase.expectError.message) {
@@ -1150,7 +1249,7 @@ function validateFromJsonTestCase(testCase) {
     return;
   }
 
-  const catalog = Catalog.fromSchema(schemaToLoad);
+  const catalog = Catalog.fromJson(schemaToLoad);
   assert.ok(catalog, 'Catalog should be initialized from schema');
 
   if (testCase.expect) {
@@ -1182,7 +1281,10 @@ function validateFromJsonTestCase(testCase) {
       }
     }
     if (expected.selfContained) {
-      assertSelfContained(catalog.catalogSchema);
+      assertSelfContained(catalog.validationSchema);
+    }
+    if (expected.matchesBuiltinCatalog) {
+      assertMatchesBuiltinCatalog(catalog);
     }
     if (expected.validComponents || expected.invalidComponents) {
       const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
@@ -1372,71 +1474,37 @@ function validateGetRendererCapabilitiesTestCase(testCase) {
   assert.deepStrictEqual(JSON.parse(JSON.stringify(caps)), testCase.expect);
 }
 
-function assertCatalogSchemaMatches(actual, expected) {
-  if (expected.$schema) {
-    assert.strictEqual(actual.$schema, expected.$schema, '$schema mismatch');
-  }
-  if (expected.catalogId) {
-    assert.strictEqual(actual.catalogId, expected.catalogId, 'catalogId mismatch');
-  }
-  if (expected.instructions) {
-    assert.strictEqual(actual.instructions, expected.instructions, 'instructions mismatch');
-  }
+/**
+ * When set, `validation_schema` cases write web_core's `validationSchema` to
+ * their `expectFile` instead of comparing against it. Used to regenerate the
+ * golden artifacts under conformance/test_data/validation_schema/.
+ */
+const WRITE_VALIDATION_SCHEMA_GOLDENS = process.env.A2UI_WRITE_VALIDATION_SCHEMA_GOLDENS === '1';
 
-  if (expected.components) {
-    assert.ok(actual.components, 'Missing components object in actual schema');
-    for (const [compName, expComp] of Object.entries(expected.components)) {
-      const actComp = actual.components[compName];
-      assert.ok(actComp, `Missing component '${compName}' in actual schema`);
-      if (expComp.type) {
-        assert.strictEqual(actComp.type, expComp.type, `Component '${compName}' type mismatch`);
-      }
-      if (expComp.properties) {
-        for (const [pName, pDef] of Object.entries(expComp.properties)) {
-          const actProp = actComp.properties?.[pName];
-          assert.ok(actProp, `Component '${compName}' missing property '${pName}'`);
-          if (pDef.type && !actProp.$ref) assert.strictEqual(actProp.type, pDef.type);
-          if (pDef.const) assert.strictEqual(actProp.const, pDef.const);
-        }
-      }
-      if (Array.isArray(expComp.required)) {
-        for (const reqField of expComp.required) {
-          assert.ok(
-            actComp.required?.includes(reqField),
-            `Component '${compName}' missing required field '${reqField}'`,
-          );
-        }
-      }
-    }
-  }
-
-  if (expected.functions) {
-    assert.ok(actual.functions, 'Missing functions object in actual schema');
-    for (const [fnName, expFn] of Object.entries(expected.functions)) {
-      const actFn = actual.functions[fnName];
-      assert.ok(actFn, `Missing function '${fnName}' in actual schema`);
-      if (expFn.returnType) {
-        assert.strictEqual(actFn.returnType, expFn.returnType);
-      }
-    }
-  }
-
-  if (expected.$defs) {
-    assert.ok(actual.$defs, 'Missing $defs in actual schema');
-    if (expected.$defs.theme) {
-      assert.ok(actual.$defs.theme, 'Missing $defs.theme');
-    }
-    if (expected.$defs.anyComponent) {
-      assert.deepStrictEqual(actual.$defs.anyComponent, expected.$defs.anyComponent);
-    }
-    if (expected.$defs.anyFunction) {
-      assert.deepStrictEqual(actual.$defs.anyFunction, expected.$defs.anyFunction);
-    }
-  }
+/** Returns a copy of a JSON value with every object's keys sorted. */
+function sortKeysDeep(node) {
+  if (Array.isArray(node)) return node.map(sortKeysDeep);
+  if (node === null || typeof node !== 'object') return node;
+  return Object.fromEntries(
+    Object.keys(node)
+      .sort()
+      .map(key => [key, sortKeysDeep(node[key])]),
+  );
 }
 
-function validateCatalogSchemaTestCase(testCase) {
-  const pVer = testCase.protocolVersion || testCase.args?.version || 'v0.8';
+/**
+ * Returns the catalog a `validation_schema` case checks: the authored catalog
+ * loaded with `fromJson`, even when it is one web_core implements. Built-in
+ * equivalence is covered by `matchesBuiltinCatalog`.
+ */
+function loadValidationSchemaCatalog(_testCase, rawSchema, pVer) {
+  return Catalog.fromJson(rawSchema, pVer);
+}
+
+/** Runs a `validation_schema` case against its golden `expectFile`. */
+function validateValidationSchemaTestCase(testCase) {
+  const pVer =
+    testCase.protocolVersion || testCase.args?.version || resolveProtocolVersion(testCase);
   const cPath = testCase.catalogPath || testCase.catalogFile;
   let rawSchema;
   if (cPath) {
@@ -1448,7 +1516,7 @@ function validateCatalogSchemaTestCase(testCase) {
 
   if (testCase.expectError) {
     try {
-      Catalog.fromSchema(rawSchema, pVer);
+      loadValidationSchemaCatalog(testCase, rawSchema, pVer).validationSchema;
     } catch (err) {
       if (testCase.expectError.code && !err.message.includes(testCase.expectError.code)) {
         throw new Error(
@@ -1457,72 +1525,133 @@ function validateCatalogSchemaTestCase(testCase) {
       }
       return;
     }
-    throw new Error('Expected Catalog.fromSchema to throw an error, but it succeeded.');
+    throw new Error('Expected Catalog.fromJson to throw an error, but it succeeded.');
   }
 
-  const catalog = Catalog.fromSchema(rawSchema, pVer);
-  assert.ok(catalog, 'Catalog should be initialized.');
-
-  if (testCase.expectCatalog) {
-    const {catalogPath, commonTypesPath} = testCase.expectCatalog;
-    assert.deepStrictEqual(
-      catalog.catalogSchema,
-      consolidateSpecCatalog(catalogPath, commonTypesPath),
-    );
-  } else if (testCase.expect !== undefined) {
-    assertCatalogSchemaMatches(catalog.catalogSchema, testCase.expect);
+  assert.ok(testCase.expectFile, 'validation_schema case requires expectFile or expectError.');
+  const actual = loadValidationSchemaCatalog(testCase, rawSchema, pVer).validationSchema;
+  const goldenPath = path.resolve(CONFORMANCE_ROOT, '../', testCase.expectFile);
+  if (WRITE_VALIDATION_SCHEMA_GOLDENS) {
+    fs.mkdirSync(path.dirname(goldenPath), {recursive: true});
+    fs.writeFileSync(goldenPath, `${JSON.stringify(sortKeysDeep(actual), null, 2)}\n`);
+    return;
   }
+  const expected = JSON.parse(fs.readFileSync(goldenPath, 'utf8'));
+  assertJsonSetEqual(actual, expected, `validationSchema differs from ${testCase.expectFile}`);
 }
 
 /**
- * Returns the expected schema of an `expectCatalog` case: the catalog at
- * `catalogPath` with every `$ref` into another document made local, the common
- * types defs it references, transitively, added to its `$defs`, and top-level
- * metadata keywords (`$id`, `title`, `description`, `protocolVersion`) dropped.
- * The catalog's own defs win on a name clash.
+ * Reads the catalog document of a `round_trip` or `to_json` case: the file at
+ * `catalogPath`, or the inline `catalog`.
  */
-function consolidateSpecCatalog(catalogPath, commonTypesPath) {
-  const localize = node => {
-    if (Array.isArray(node)) return node.map(localize);
-    if (node === null || typeof node !== 'object') return node;
-    return Object.fromEntries(
-      Object.entries(node).map(([key, value]) => [
-        key,
-        key === '$ref' && typeof value === 'string' && value.includes('#/')
-          ? '#' + value.slice(value.indexOf('#') + 1)
-          : localize(value),
-      ]),
-    );
-  };
-  const refs = (node, found = new Set()) => {
-    if (Array.isArray(node)) {
-      node.forEach(item => refs(item, found));
-    } else if (node !== null && typeof node === 'object') {
-      if (typeof node.$ref === 'string' && node.$ref.startsWith('#/$defs/')) {
-        found.add(node.$ref.slice('#/$defs/'.length));
-      }
-      Object.values(node).forEach(value => refs(value, found));
-    }
-    return found;
-  };
-  const load = p =>
-    localize(JSON.parse(fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', p), 'utf8')));
+function readCaseCatalogDocument(testCase) {
+  const cPath = testCase.catalogPath || testCase.catalogFile;
+  if (cPath) {
+    return JSON.parse(fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', cPath), 'utf8'));
+  }
+  assert.ok(testCase.catalog, 'Case declares neither catalog nor catalogPath.');
+  return JSON.parse(JSON.stringify(testCase.catalog));
+}
 
-  const catalog = load(catalogPath);
-  for (const key of ['$id', 'title', 'description', 'protocolVersion']) {
-    delete catalog[key];
+/**
+ * Returns a copy of a JSON value with the values of every `enum` and
+ * `required` array sorted, so that comparisons treat them as sets.
+ */
+function normalizeSetArrays(node, key) {
+  if (Array.isArray(node)) {
+    const items = node.map(item => normalizeSetArrays(item));
+    if (key === 'enum' || key === 'required') {
+      return items
+        .map(item => [JSON.stringify(item), item])
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([, item]) => item);
+    }
+    return items;
   }
-  const commonDefs = load(commonTypesPath).$defs;
-  catalog.$defs ??= {};
-  const pending = [...refs(catalog)];
-  while (pending.length > 0) {
-    const name = pending.pop();
-    if (!(name in catalog.$defs) && name in commonDefs) {
-      catalog.$defs[name] = commonDefs[name];
-      pending.push(...refs(commonDefs[name]));
+  if (node === null || typeof node !== 'object') return node;
+  return Object.fromEntries(
+    Object.entries(node).map(([k, value]) => [k, normalizeSetArrays(value, k)]),
+  );
+}
+
+/** Asserts JSON equality ignoring key order and `enum`/`required` order. */
+function assertJsonSetEqual(actual, expected, message) {
+  assert.deepStrictEqual(normalizeSetArrays(actual), normalizeSetArrays(expected), message);
+}
+
+function validateRoundTripTestCase(testCase) {
+  const document = readCaseCatalogDocument(testCase);
+  const pVer = testCase.protocolVersion;
+  const out = Catalog.fromJson(document, pVer).toJson();
+  assertJsonSetEqual(out, document, 'toJson() does not equal the loaded document.');
+  const again = Catalog.fromJson(out, pVer).toJson();
+  assertJsonSetEqual(again, out, 'toJson() is not idempotent.');
+}
+
+/** Names declared by a catalog document's `functions`, as a map or a list. */
+function documentFunctionNames(doc) {
+  const functions = doc.functions;
+  if (Array.isArray(functions)) return functions.map(fn => fn.name);
+  return functions && typeof functions === 'object' ? Object.keys(functions) : [];
+}
+
+function assertSameNames(actual, expected, label) {
+  assert.deepStrictEqual([...actual].sort(), [...expected].sort(), `${label} mismatch`);
+}
+
+/** Asserts that every `$ref` starting with '#' resolves within `doc`. */
+function assertLocalRefsResolve(doc) {
+  for (const ref of collectRefs(doc)) {
+    if (!ref.startsWith('#')) continue;
+    let target = doc;
+    for (const rawToken of ref.slice(1).split('/').slice(1)) {
+      const token = rawToken.replaceAll('~1', '/').replaceAll('~0', '~');
+      assert.ok(
+        target && typeof target === 'object' && Object.hasOwn(target, token),
+        `Reference '${ref}' does not resolve within the catalog document.`,
+      );
+      target = target[token];
     }
   }
-  return catalog;
+}
+
+function validateToJsonTestCase(testCase) {
+  const document = readCaseCatalogDocument(testCase);
+  const expected = testCase.expect;
+  assert.ok(expected, 'to_json case requires an expect object.');
+  const unknownKeys = Object.keys(expected).filter(key => !TO_JSON_EXPECT_KEYS.has(key));
+  assert.deepStrictEqual(unknownKeys, [], `Unknown to_json expect keys: ${unknownKeys}`);
+
+  const sdkCatalog =
+    testCase.catalogPath || testCase.catalogFile ? SDK_CATALOGS.get(document.catalogId) : undefined;
+  const catalog = sdkCatalog ?? Catalog.fromJson(document, testCase.protocolVersion);
+  const out = catalog.toJson();
+
+  if (expected.catalogId !== undefined) {
+    assert.strictEqual(out.catalogId, expected.catalogId, 'catalogId mismatch');
+  }
+  if (expected.protocolVersion !== undefined) {
+    assert.strictEqual(out.protocolVersion, expected.protocolVersion, 'protocolVersion mismatch');
+  }
+  for (const [key, value] of Object.entries(expected.metadata ?? {})) {
+    assert.deepStrictEqual(out[key], value, `Metadata '${key}' mismatch`);
+  }
+  if (expected.components !== undefined) {
+    assertSameNames(Object.keys(out.components ?? {}), expected.components, 'Component names');
+  }
+  if (expected.functions !== undefined) {
+    assertSameNames(documentFunctionNames(out), expected.functions, 'Function names');
+  }
+  if (expected.defs !== undefined) {
+    assertSameNames(Object.keys(out.$defs ?? {}), expected.defs, '$defs names');
+  }
+  if (expected.unbundled) {
+    assertLocalRefsResolve(out);
+    const authored = new Set(['anyComponent', 'anyFunction', ...Object.keys(document.$defs ?? {})]);
+    for (const name of Object.keys(out.$defs ?? {})) {
+      assert.ok(authored.has(name), `$defs entry '${name}' was not declared by the document.`);
+    }
+  }
 }
 
 import {z} from 'zod';
@@ -1711,7 +1840,7 @@ function getCatalogsForTestCase(testCase) {
       const cId = catSchema.catalogId || catObj.catalogId || 'custom';
       const pVer = catObj.protocolVersion || catSchema.protocolVersion || version;
       if (catSchema.components || catSchema.theme || catSchema.functions) {
-        const loadedCat = Catalog.fromSchema({
+        const loadedCat = Catalog.fromJson({
           catalogId: cId,
           protocolVersion: pVer,
           ...catSchema,
@@ -1728,7 +1857,7 @@ function getCatalogsForTestCase(testCase) {
     for (const cat of testCase.catalogs) {
       if (cat.catalogId) {
         if (cat.components || cat.theme || cat.functions) {
-          const loadedCat = Catalog.fromSchema({
+          const loadedCat = Catalog.fromJson({
             protocolVersion: cat.protocolVersion || version,
             ...cat,
           });
@@ -1790,7 +1919,7 @@ function getCatalogsForTestCase(testCase) {
         catalogsMap.set(cId, matchingBasic);
         specifiedCatalogs.push(matchingBasic);
       } else if (json.components) {
-        const loadedCat = Catalog.fromSchema({
+        const loadedCat = Catalog.fromJson({
           catalogId: cId,
           protocolVersion: version,
           ...json,

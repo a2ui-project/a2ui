@@ -54,7 +54,7 @@ export function readConformanceCatalog(fileName: string): CatalogDocument {
  * @param doc The catalog document.
  */
 export function catalogFromTestDocument(doc: Record<string, unknown>): CatalogApi {
-  const catalog = Catalog.fromSchema(doc);
+  const catalog = Catalog.fromJson(doc);
   registerCatalogDocument(catalog, doc);
   return catalog;
 }

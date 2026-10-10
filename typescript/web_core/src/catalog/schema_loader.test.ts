@@ -23,7 +23,7 @@ import {Catalog} from './types.js';
 import {analyzeChildRefSchema} from './reference-map.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 
-describe('Catalog.fromSchema & schema_loader', () => {
+describe('Catalog.fromJson & schema_loader', () => {
   const basicCatalogPath = resolve(
     process.cwd(),
     '../../specification/v0_9_1/catalogs/basic/catalog.json',
@@ -31,7 +31,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
   const basicCatalogJson = JSON.parse(readFileSync(basicCatalogPath, 'utf-8'));
 
   it('loads basic catalog successfully and dynamically resolves weight and accessibility', () => {
-    const catalog = Catalog.fromSchema(basicCatalogJson, '0.9');
+    const catalog = Catalog.fromJson(basicCatalogJson, '0.9');
 
     assert.strictEqual(
       catalog.id,
@@ -101,7 +101,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
     // Checkable arrives as an allOf $ref into common_types.json, a document the loader never
     // reads. It used to fall through every branch and be discarded without an error, taking
     // `checks` off every input component with it.
-    const catalog = Catalog.fromSchema(basicCatalogJson);
+    const catalog = Catalog.fromJson(basicCatalogJson);
 
     for (const name of [
       'Button',
@@ -137,7 +137,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
 
   it('resolves an external mixin written as a relative reference', () => {
     // v1.0 catalogs spell the same reference without the absolute URL prefix.
-    const catalog = Catalog.fromSchema({
+    const catalog = Catalog.fromJson({
       catalogId: 'test_relative_checkable',
       protocolVersion: 'v1.0',
       components: {
@@ -161,7 +161,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
   it('resolves the Child reference from common_types.json', () => {
     const v10BasicCatalogPath = resolve(process.cwd(), '../../catalogs/basic/v1/catalog.json');
     const v10BasicCatalogJson = JSON.parse(readFileSync(v10BasicCatalogPath, 'utf-8'));
-    const catalog = Catalog.fromSchema(v10BasicCatalogJson);
+    const catalog = Catalog.fromJson(v10BasicCatalogJson);
 
     // The regression was not that the description stamp went missing, but that
     // `analyzeChildRefSchema` stopped reporting these properties as child references at
@@ -196,7 +196,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
   });
 
   it('ignores an external reference that names no canonical protocol type', () => {
-    const catalog = Catalog.fromSchema({
+    const catalog = Catalog.fromJson({
       catalogId: 'test_unknown_external_ref',
       protocolVersion: 'v1.0',
       components: {
@@ -237,7 +237,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(customCatalog, '0.9');
+    const catalog = Catalog.fromJson(customCatalog, '0.9');
     const btn = catalog.components.get('CustomButton');
     assert.ok(btn);
 
@@ -263,7 +263,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogWithEnums, '0.9');
+    const catalog = Catalog.fromJson(catalogWithEnums, '0.9');
     const widget = catalog.components.get('EnumWidget');
     assert.ok(widget);
 
@@ -286,7 +286,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson, '0.9');
+    const catalog = Catalog.fromJson(catalogJson, '0.9');
     const comp = catalog.components.get('StrictNode');
     assert.ok(comp);
     assert.deepStrictEqual(comp.allowedParents, ['ParentValid']);
@@ -308,7 +308,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson, '0.9');
+    const catalog = Catalog.fromJson(catalogJson, '0.9');
     const card = catalog.components.get('FlexibleCard');
     assert.ok(card);
     const result = card.schema.safeParse({
@@ -333,7 +333,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson, '0.9');
+    const catalog = Catalog.fromJson(catalogJson, '0.9');
     assert.ok(catalog.themeSchema);
     const result = catalog.themeSchema.safeParse({
       id: 'theme-1',
@@ -371,7 +371,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson, '0.9');
+    const catalog = Catalog.fromJson(catalogJson, '0.9');
     const openCard = catalog.components.get('OpenCard');
     const schemaCard = catalog.components.get('SchemaCard');
     const strictCard = catalog.components.get('StrictCard');
@@ -402,7 +402,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson, '0.9');
+    const catalog = Catalog.fromJson(catalogJson, '0.9');
     const inputComp = catalog.components.get('FlexibleInput');
     assert.ok(inputComp);
 
@@ -410,6 +410,42 @@ describe('Catalog.fromSchema & schema_loader', () => {
     assert.strictEqual(inputComp.schema.safeParse({value: 42}).success, true);
     assert.strictEqual(inputComp.schema.safeParse({value: true}).success, true);
     assert.strictEqual(inputComp.schema.safeParse({value: {invalid: 'obj'}}).success, false);
+  });
+
+  it('rejects a missing required property whose schema accepts any value', () => {
+    const catalog = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/any_required.json',
+        components: {
+          Holder: {
+            type: 'object',
+            properties: {component: {const: 'Holder'}, payload: {description: 'Anything.'}},
+            required: ['payload'],
+          },
+        },
+        functions: {
+          required: {
+            properties: {
+              call: {const: 'required'},
+              args: {
+                type: 'object',
+                properties: {value: {description: 'The value to check.'}},
+                required: ['value'],
+              },
+            },
+          },
+        },
+      },
+      '0.9',
+    );
+    const args = catalog.functions.get('required')!.schema;
+    assert.strictEqual(args.safeParse({value: null}).success, true);
+    assert.strictEqual(args.safeParse({value: {nested: 1}}).success, true);
+    assert.strictEqual(args.safeParse({}).success, false);
+
+    const holder = catalog.components.get('Holder')!.schema;
+    assert.strictEqual(holder.safeParse({payload: 0}).success, true);
+    assert.strictEqual(holder.safeParse({}).success, false);
   });
 
   it('applies passthrough on function argument schemas when unevaluatedProperties is true or a schema object', () => {
@@ -452,7 +488,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
       },
     };
 
-    const catalog = Catalog.fromSchema(catalogJson, '0.9');
+    const catalog = Catalog.fromJson(catalogJson, '0.9');
     const openFn = catalog.functions.get('openFn');
     const schemaFn = catalog.functions.get('schemaFn');
     const strictFn = catalog.functions.get('strictFn');
@@ -467,7 +503,7 @@ describe('Catalog.fromSchema & schema_loader', () => {
   });
 
   it('keeps nested child references from inline object array items', () => {
-    const catalog = Catalog.fromSchema({
+    const catalog = Catalog.fromJson({
       catalogId: 'tabs-cat',
       protocolVersion: '0.9',
       components: {

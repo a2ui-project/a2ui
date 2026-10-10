@@ -680,10 +680,10 @@ describe('callMcpTool', () => {
   });
 
   describe('catalog.json Schema Verification', () => {
-    it('loads schema into a valid Catalog using Catalog.fromSchema', () => {
+    it('loads schema into a valid Catalog using Catalog.fromJson', () => {
       // v0.9 catalog JSONs predate the `protocolVersion` field, so the loader
       // needs it supplied.
-      const schemaCatalog = Catalog.fromSchema(mcpCatalogJson, '0.9');
+      const schemaCatalog = Catalog.fromJson(mcpCatalogJson, '0.9');
       assert.strictEqual(schemaCatalog.id, MCP_CATALOG_ID);
       assert.strictEqual(schemaCatalog.functions.has('callMcpTool'), true);
 

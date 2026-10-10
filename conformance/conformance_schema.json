@@ -79,15 +79,18 @@
             "render",
             "resolve_catalogs",
             "resolve_path",
+            "round_trip",
             "select_catalog",
             "select_newest",
             "skill_set",
+            "to_json",
             "transform_catalog",
             "try_activate",
             "try_activate_extension",
             "unwrap",
             "validate",
             "validate_common_type",
+            "validation_schema",
             "verify_cuttable_keys",
             "wrap"
           ],
@@ -121,7 +124,7 @@
         },
         "catalogPath": {
           "type": "string",
-          "description": "Repository-relative path to a catalog schema JSON file. In a catalog_schema case, an SDK that implements the catalog with this file's catalogId itself (for example its basic catalog) checks that implementation; otherwise it loads the file as a JSON catalog."
+          "description": "Repository-relative path to a catalog schema JSON file. In a to_json case, an SDK that implements the catalog with this file's catalogId itself (for example its basic catalog) checks that implementation; otherwise it loads the file as a JSON catalog. from_json, round_trip and validation_schema cases always load the file with fromJson."
         },
         "catalogId": {
           "type": "string",
@@ -195,10 +198,7 @@
         },
         "expectFile": {
           "type": "string",
-          "description": "File path to JSON file containing expected outcome object."
-        },
-        "expectCatalog": {
-          "$ref": "#/$defs/ExpectCatalog"
+          "description": "Repository-relative path to a JSON file containing the expected outcome. A validation_schema case names its golden artifact under conformance/test_data/validation_schema/ here, compared for exact equality ignoring object key order and the order of `enum` values and `required` names."
         },
         "definition": {
           "type": "string",
@@ -235,6 +235,35 @@
           "then": {
             "properties": {"expect": {"$ref": "#/$defs/FromJsonExpect"}}
           }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "to_json"}},
+            "required": ["action"]
+          },
+          "then": {
+            "properties": {"expect": {"$ref": "#/$defs/ToJsonExpect"}},
+            "required": ["expect"]
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "validation_schema"}},
+            "required": ["action"]
+          },
+          "then": {
+            "anyOf": [{"required": ["expectFile"]}, {"required": ["expectError"]}],
+            "not": {"required": ["expect"]}
+          }
+        },
+        {
+          "if": {
+            "properties": {"action": {"const": "round_trip"}},
+            "required": ["action"]
+          },
+          "then": {
+            "not": {"anyOf": [{"required": ["expect"]}, {"required": ["expectFile"]}]}
+          }
         }
       ],
       "additionalProperties": false
@@ -263,6 +292,10 @@
           "type": "object",
           "description": "Theme schema the loaded catalog carries. A non-empty object requires the catalog to have a theme schema."
         },
+        "matchesBuiltinCatalog": {
+          "type": "boolean",
+          "description": "When true, the catalog loaded with fromJson is equivalent to the SDK's own implementation of the catalog with the same catalogId: the same catalogId and protocolVersion, the same component and function names, the same property names and required names for each component (ignoring the `id` and `component` envelope fields), and the same returnType, allowedCallers and requiresUserActivation for each function. An SDK without its own implementation of that catalog skips the case."
+        },
         "selfContained": {
           "type": "boolean",
           "description": "When true, the resolved catalog schema contains at least one $ref, every $ref is a local '#' reference, and each one resolves within the resolved catalog schema."
@@ -280,20 +313,42 @@
       },
       "additionalProperties": false
     },
-    "ExpectCatalog": {
+    "ToJsonExpect": {
       "type": "object",
-      "description": "Expected outcome of a catalog_schema case, derived from a published catalog and its common types. The harness consolidates the two documents into one expected schema and compares it for exact equality with the catalog_schema the SDK produces. Consolidation: (1) every $ref containing '#/' that does not start with '#' (for example 'common_types.json#/$defs/X' or '<common types $id>#/$defs/X') becomes the local '#' + fragment, in both documents; (2) every common types $defs entry that the catalog references, directly or through other common types entries, is copied into the catalog's $defs, and the catalog's own $defs entries win on a name clash; (3) top-level metadata keywords that catalog_schema does not emit ($id, title, description and protocolVersion) are dropped. The comparison ignores the order of `enum` values and `required` names, which form sets.",
+      "description": "Expected outcome of a to_json case, checked against the document catalog.toJson() returns. Every key is optional, and a harness fails a case that sets a key not listed here.",
       "properties": {
-        "catalogPath": {
+        "catalogId": {
           "type": "string",
-          "description": "Repository-relative path to the published catalog JSON file."
+          "description": "Value of the document's catalogId."
         },
-        "commonTypesPath": {
+        "protocolVersion": {
           "type": "string",
-          "description": "Repository-relative path to the common_types.json file the catalog references."
+          "description": "Value of the document's protocolVersion, compared exactly (for example `1.0`)."
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Top-level keys ($schema, $id, title, description, instructions) the document must carry with exactly these values."
+        },
+        "components": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Exact set of component names under `components`."
+        },
+        "functions": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Exact set of function names under `functions`. An empty list means the document declares no functions."
+        },
+        "defs": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Exact set of names under `$defs`. An empty list means the document has no `$defs` or an empty one."
+        },
+        "unbundled": {
+          "type": "boolean",
+          "description": "When true, every `$ref` that starts with '#' resolves within the document, and no `$defs` entry is a definition the document copied from common types: each `$defs` name is `anyComponent`, `anyFunction`, or a name the authored document declared."
         }
       },
-      "required": ["catalogPath", "commonTypesPath"],
       "additionalProperties": false
     },
     "ProtocolVersion": {
@@ -304,20 +359,43 @@
     "Catalog": {
       "type": "object",
       "properties": {
+        "$schema": {
+          "type": "string",
+          "description": "JSON Schema dialect the catalog document declares."
+        },
+        "$id": {
+          "type": "string",
+          "description": "Base URI the catalog document declares."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the catalog."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the catalog."
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Markdown design guidelines for the catalog."
+        },
         "catalogId": {
           "type": "string",
           "description": "Identifier of the catalog."
         },
         "protocolVersion": {
-          "$ref": "#/$defs/ProtocolVersion",
-          "description": "Protocol version supported by this catalog."
+          "description": "Protocol version supported by this catalog, written either as the conformance enum spells it (for example `v1.0`) or as the catalog definition schema requires (for example `1.0`).",
+          "anyOf": [
+            {"$ref": "#/$defs/ProtocolVersion"},
+            {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:\\.(0|[1-9][0-9]*))?$"}
+          ]
         },
         "components": {
           "type": "object",
           "description": "Map of component names to component schema definitions."
         },
         "functions": {
-          "description": "Function definitions or signatures.",
+          "description": "Function definitions or signatures: a map keyed by function name, or a list of names or of inline-catalog function definitions.",
           "oneOf": [
             {
               "type": "object"
@@ -325,7 +403,7 @@
             {
               "type": "array",
               "items": {
-                "type": "string"
+                "anyOf": [{"type": "string"}, {"type": "object"}]
               }
             }
           ]

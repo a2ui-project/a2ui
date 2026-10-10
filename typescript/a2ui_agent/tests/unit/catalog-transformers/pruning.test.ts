@@ -44,7 +44,7 @@ describe('Pruning Transformers', () => {
     const catalog = new Catalog('test', 'v1.0', [compA, compB], [funcX, funcY]);
 
     // Access getters to memoize their state on the original catalog
-    const originalSchema = catalog.catalogSchema;
+    const originalSchema = catalog.validationSchema;
     const originalRefMap = catalog.componentRefMap;
 
     const transformer = new ComponentPruningTransformer(['CompA']);
@@ -52,7 +52,7 @@ describe('Pruning Transformers', () => {
 
     // Verify immutability: old catalog is unchanged
     expect(catalog.components.size).toBe(2);
-    expect(catalog.catalogSchema).toBe(originalSchema);
+    expect(catalog.validationSchema).toBe(originalSchema);
     expect(catalog.componentRefMap).toBe(originalRefMap);
 
     // Verify pruned catalog properties
@@ -63,21 +63,21 @@ describe('Pruning Transformers', () => {
     expect(pruned.functions.size).toBe(2);
 
     // Verify lazy properties don't leak unpruned components
-    // We use any here to test internal structure that isn't strictly typed on catalogSchema
+    // We use any here to test internal structure that isn't strictly typed on validationSchema
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const prunedSchema = pruned.catalogSchema as any;
+    const prunedSchema = pruned.validationSchema as any;
     expect(prunedSchema.components.CompA).toBeDefined();
     expect(prunedSchema.components.CompB).toBeUndefined();
 
     // Verify the memoized schema isn't the same object (i.e. invalidated/fresh)
-    expect(pruned.catalogSchema).not.toBe(originalSchema);
+    expect(pruned.validationSchema).not.toBe(originalSchema);
     expect(pruned.componentRefMap).not.toBe(originalRefMap);
   });
 
   it('FunctionPruningTransformer correctly prunes functions and is immutable', () => {
     const catalog = new Catalog('test', 'v1.0', [compA, compB], [funcX, funcY]);
 
-    const originalSchema = catalog.catalogSchema;
+    const originalSchema = catalog.validationSchema;
 
     const transformer = new FunctionPruningTransformer(['FuncY']);
     const pruned = transformer.transform(catalog);
@@ -93,12 +93,108 @@ describe('Pruning Transformers', () => {
     expect(pruned.functions.has('FuncX')).toBe(false);
 
     // Verify lazy properties don't leak unpruned functions
-    // We use any here to test internal structure that isn't strictly typed on catalogSchema
+    // We use any here to test internal structure that isn't strictly typed on validationSchema
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const prunedSchema = pruned.catalogSchema as any;
+    const prunedSchema = pruned.validationSchema as any;
     expect(prunedSchema.functions.FuncY).toBeDefined();
     expect(prunedSchema.functions.FuncX).toBeUndefined();
 
-    expect(pruned.catalogSchema).not.toBe(originalSchema);
+    expect(pruned.validationSchema).not.toBe(originalSchema);
+  });
+
+  describe('toJson of a pruned loaded catalog', () => {
+    const document = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $id: 'https://example.com/catalog.json',
+      title: 'Example',
+      description: 'An example catalog.',
+      protocolVersion: '1.0',
+      catalogId: 'https://example.com/catalog',
+      instructions: 'Use Cards.',
+      components: {
+        Card: {
+          type: 'object',
+          allOf: [
+            {$ref: '#/$defs/Weighted'},
+            {
+              type: 'object',
+              properties: {
+                component: {const: 'Card'},
+                child: {$ref: 'common_types.json#/$defs/ComponentId'},
+              },
+              required: ['component', 'child'],
+            },
+          ],
+          unevaluatedProperties: false,
+        },
+        Label: {
+          type: 'object',
+          properties: {
+            component: {const: 'Label'},
+            text: {$ref: 'common_types.json#/$defs/DynamicString'},
+          },
+          required: ['component', 'text'],
+          unevaluatedProperties: false,
+        },
+      },
+      functions: {
+        shout: {
+          type: 'object',
+          returnType: 'string',
+          properties: {
+            '@call': {const: 'shout'},
+            args: {type: 'object', properties: {value: {type: 'string'}}},
+          },
+          required: ['@call', 'args'],
+        },
+      },
+      $defs: {
+        Weighted: {type: 'object', properties: {weight: {type: 'number'}}},
+        anyComponent: {
+          oneOf: [{$ref: '#/components/Card'}, {$ref: '#/components/Label'}],
+          discriminator: {propertyName: 'component'},
+        },
+        anyFunction: {oneOf: [{$ref: '#/functions/shout'}]},
+      },
+    };
+
+    it('keeps metadata and kept entries as authored, and rebuilds the union', () => {
+      const pruned = new ComponentPruningTransformer(['Label']).transform(
+        Catalog.fromJson(document),
+      );
+      const out = pruned.toJson();
+
+      const {components, $defs, ...metadata} = out;
+      const {components: _c, $defs: _d, ...expectedMetadata} = document;
+      expect(metadata).toEqual(expectedMetadata);
+      expect(components).toEqual({Label: document.components.Label});
+      expect($defs).toEqual({
+        anyComponent: {
+          oneOf: [{$ref: '#/components/Label'}],
+          discriminator: {propertyName: 'component'},
+        },
+        anyFunction: document.$defs.anyFunction,
+      });
+    });
+
+    it('keeps an authored definition a kept entry still references', () => {
+      const pruned = new FunctionPruningTransformer([]).transform(Catalog.fromJson(document));
+      const out = pruned.toJson();
+
+      expect(out.components).toEqual(document.components);
+      expect(out.functions).toEqual({});
+      expect(out.$defs).toEqual({
+        Weighted: document.$defs.Weighted,
+        anyComponent: document.$defs.anyComponent,
+        anyFunction: {not: {}},
+      });
+    });
+
+    it('returns the source document when nothing is pruned', () => {
+      const pruned = new ComponentPruningTransformer(['Card', 'Label']).transform(
+        Catalog.fromJson(document),
+      );
+      expect(pruned.toJson()).toEqual(document);
+    });
   });
 });

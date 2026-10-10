@@ -1,0 +1,1813 @@
+{
+  "$defs": {
+    "Action": {
+      "description": "Defines an interaction handler that can either trigger an agent-side event or execute a local renderer-side function.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Triggers an agent-side event.",
+          "properties": {
+            "event": {
+              "additionalProperties": false,
+              "description": "The event to dispatch to the agent.",
+              "properties": {
+                "context": {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/DynamicValue"
+                  },
+                  "description": "A JSON object containing the key-value pairs for the action context. Values can be literals or paths. Use literal values unless the value must be dynamically bound to the data model. Do NOT use paths for static IDs.",
+                  "type": "object"
+                },
+                "name": {
+                  "description": "The name of the action to be dispatched to the agent.",
+                  "type": "string"
+                },
+                "userMessage": {
+                  "$ref": "#/$defs/DynamicString",
+                  "description": "An optional human-readable message describing the action performed by the user, to present in conversation history or user feedback."
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "event"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Executes a renderer or agent-side function.",
+          "properties": {
+            "functionCall": {
+              "$ref": "#/$defs/FunctionCall"
+            }
+          },
+          "required": [
+            "functionCall"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "CheckRule": {
+      "additionalProperties": false,
+      "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object.",
+      "properties": {
+        "condition": {
+          "description": "Path or function call evaluating to a structured validation result object.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/DataBinding"
+            },
+            {
+              "$ref": "#/$defs/FunctionCall"
+            }
+          ]
+        },
+        "message": {
+          "description": "Optional fallback error message.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "condition"
+      ],
+      "type": "object"
+    },
+    "Child": {
+      "$ref": "#/$defs/ComponentId",
+      "description": "A reference to a single child component ID."
+    },
+    "ChildList": {
+      "oneOf": [
+        {
+          "description": "A static list of child component IDs.",
+          "items": {
+            "$ref": "#/$defs/ComponentId"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A template for generating a dynamic list of children from a data model list. The `componentId` is the component to use as a template.",
+          "properties": {
+            "componentId": {
+              "$ref": "#/$defs/ComponentId"
+            },
+            "path": {
+              "description": "The path to the list of component property objects in the data model.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "componentId",
+            "path"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ComponentId": {
+      "description": "The unique identifier for a component, used for both definitions and references within the same surface.",
+      "type": "string"
+    },
+    "DataBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "@path": {
+          "description": "A JSON Pointer path to a value in the data model.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "@path"
+      ],
+      "type": "object"
+    },
+    "DynamicBoolean": {
+      "description": "A boolean value that can be a literal, a path, or a function call returning a boolean.",
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "$ref": "#/$defs/FunctionCall"
+        }
+      ]
+    },
+    "DynamicNumber": {
+      "description": "Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number.",
+      "oneOf": [
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "$ref": "#/$defs/FunctionCall"
+        }
+      ]
+    },
+    "DynamicString": {
+      "description": "Represents a string",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "$ref": "#/$defs/FunctionCall"
+        }
+      ]
+    },
+    "DynamicStringList": {
+      "description": "Represents a value that can be either a literal array of strings, a path to a string array in the data model, or a function call returning a string array.",
+      "oneOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "$ref": "#/$defs/FunctionCall"
+        }
+      ]
+    },
+    "DynamicValue": {
+      "description": "A value that can be a literal, a path, or a function call returning any type.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "array"
+        },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "@path"
+                ]
+              },
+              {
+                "required": [
+                  "@call"
+                ]
+              }
+            ]
+          },
+          "propertyNames": {
+            "not": {
+              "pattern": "^@([^@]|$)"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/DataBinding"
+        },
+        {
+          "$ref": "#/$defs/FunctionCall"
+        }
+      ]
+    },
+    "FunctionCall": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/FunctionCommon"
+        },
+        {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/anyFunction"
+            },
+            {
+              "$ref": "#/$defs/IndexSystemFunction"
+            }
+          ]
+        }
+      ],
+      "description": "Invokes a named function, combining common function properties with the catalog function definition.",
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "FunctionCommon": {
+      "description": "Baseline envelope properties common to all function calls. Function-specific argument schemas ('args') are defined individually by each function in the active catalog.",
+      "properties": {
+        "@call": {
+          "description": "The name of the function to call.",
+          "type": "string"
+        },
+        "catalogId": {
+          "description": "The catalog ID for this function, overriding any surface-level default catalogId.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "@call"
+      ],
+      "type": "object"
+    },
+    "IndexSystemFunction": {
+      "description": "Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.",
+      "properties": {
+        "@call": {
+          "const": "@index"
+        },
+        "args": {
+          "properties": {
+            "offset": {
+              "$ref": "#/$defs/DynamicNumber",
+              "default": 0,
+              "description": "Optional. An offset to add to the 0-based index (e.g., 1 for 1-based indexing). Defaults to 0."
+            }
+          },
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call"
+      ],
+      "returnType": "number",
+      "type": "object",
+      "unevaluatedProperties": false
+    },
+    "anyComponent": {
+      "discriminator": {
+        "propertyName": "component"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/components/Text"
+        },
+        {
+          "$ref": "#/components/Image"
+        },
+        {
+          "$ref": "#/components/Icon"
+        },
+        {
+          "$ref": "#/components/Video"
+        },
+        {
+          "$ref": "#/components/AudioPlayer"
+        },
+        {
+          "$ref": "#/components/Row"
+        },
+        {
+          "$ref": "#/components/Column"
+        },
+        {
+          "$ref": "#/components/List"
+        },
+        {
+          "$ref": "#/components/Card"
+        },
+        {
+          "$ref": "#/components/Tabs"
+        },
+        {
+          "$ref": "#/components/Modal"
+        },
+        {
+          "$ref": "#/components/Divider"
+        },
+        {
+          "$ref": "#/components/Button"
+        },
+        {
+          "$ref": "#/components/TextField"
+        },
+        {
+          "$ref": "#/components/CheckBox"
+        },
+        {
+          "$ref": "#/components/ChoicePicker"
+        },
+        {
+          "$ref": "#/components/Slider"
+        },
+        {
+          "$ref": "#/components/DateTimeInput"
+        }
+      ]
+    },
+    "anyFunction": {
+      "oneOf": [
+        {
+          "$ref": "#/functions/required"
+        },
+        {
+          "$ref": "#/functions/regex"
+        },
+        {
+          "$ref": "#/functions/length"
+        },
+        {
+          "$ref": "#/functions/numeric"
+        },
+        {
+          "$ref": "#/functions/email"
+        },
+        {
+          "$ref": "#/functions/formatString"
+        },
+        {
+          "$ref": "#/functions/formatNumber"
+        },
+        {
+          "$ref": "#/functions/formatCurrency"
+        },
+        {
+          "$ref": "#/functions/formatDate"
+        },
+        {
+          "$ref": "#/functions/pluralize"
+        },
+        {
+          "$ref": "#/functions/openUrl"
+        },
+        {
+          "$ref": "#/functions/and"
+        },
+        {
+          "$ref": "#/functions/or"
+        },
+        {
+          "$ref": "#/functions/not"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+  "components": {
+    "AudioPlayer": {
+      "properties": {
+        "component": {
+          "const": "AudioPlayer"
+        },
+        "description": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "A description of the audio, such as a title or summary."
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "url": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The URL of the audio to be played."
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "url",
+        "component"
+      ],
+      "type": "object"
+    },
+    "Button": {
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/Action",
+          "description": "Defines an interaction handler that can either trigger an agent-side event or execute a local renderer-side function."
+        },
+        "checks": {
+          "description": "A list of checks to perform. These are function calls that must return a boolean indicating validity.",
+          "items": {
+            "$ref": "#/$defs/CheckRule",
+            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."
+          },
+          "type": "array"
+        },
+        "child": {
+          "$ref": "#/$defs/Child",
+          "description": "The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button."
+        },
+        "component": {
+          "const": "Button"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "variant": {
+          "default": "default",
+          "description": "A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link.",
+          "enum": [
+            "default",
+            "primary",
+            "borderless"
+          ],
+          "type": "string"
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "child",
+        "component"
+      ],
+      "type": "object"
+    },
+    "Card": {
+      "properties": {
+        "child": {
+          "$ref": "#/$defs/Child",
+          "description": "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID."
+        },
+        "component": {
+          "const": "Card"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "child",
+        "component"
+      ],
+      "type": "object"
+    },
+    "CheckBox": {
+      "properties": {
+        "checks": {
+          "description": "A list of checks to perform. These are function calls that must return a boolean indicating validity.",
+          "items": {
+            "$ref": "#/$defs/CheckRule",
+            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."
+          },
+          "type": "array"
+        },
+        "component": {
+          "const": "CheckBox"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "label": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The text to display next to the checkbox."
+        },
+        "value": {
+          "$ref": "#/$defs/DynamicBoolean",
+          "description": "The current state of the checkbox (true for checked, false for unchecked)."
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "value",
+        "component"
+      ],
+      "type": "object"
+    },
+    "ChoicePicker": {
+      "description": "A component that allows selecting one or more options from a list.",
+      "properties": {
+        "checks": {
+          "description": "A list of checks to perform. These are function calls that must return a boolean indicating validity.",
+          "items": {
+            "$ref": "#/$defs/CheckRule",
+            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."
+          },
+          "type": "array"
+        },
+        "component": {
+          "const": "ChoicePicker"
+        },
+        "displayStyle": {
+          "default": "checkbox",
+          "description": "The display style of the component.",
+          "enum": [
+            "checkbox",
+            "chips"
+          ],
+          "type": "string"
+        },
+        "filterable": {
+          "default": false,
+          "description": "If true, displays a search input to filter the options.",
+          "type": "boolean"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "label": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The label for the group of options."
+        },
+        "options": {
+          "description": "The list of available options to choose from.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "$ref": "#/$defs/DynamicString",
+                "description": "The text to display for this option."
+              },
+              "value": {
+                "description": "The stable value associated with this option.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "label",
+              "value"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "value": {
+          "$ref": "#/$defs/DynamicStringList",
+          "description": "The list of currently selected values. This should be bound to a string array in the data model."
+        },
+        "variant": {
+          "default": "mutuallyExclusive",
+          "description": "A hint for how the choice picker should be displayed and behave.",
+          "enum": [
+            "multipleSelection",
+            "mutuallyExclusive"
+          ],
+          "type": "string"
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "options",
+        "value",
+        "component"
+      ],
+      "type": "object"
+    },
+    "Column": {
+      "description": "A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column.",
+      "properties": {
+        "align": {
+          "default": "stretch",
+          "description": "Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property.",
+          "enum": [
+            "center",
+            "end",
+            "start",
+            "stretch"
+          ],
+          "type": "string"
+        },
+        "children": {
+          "$ref": "#/$defs/ChildList",
+          "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID."
+        },
+        "component": {
+          "const": "Column"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "justify": {
+          "default": "start",
+          "description": "Defines the arrangement of children along the main axis (vertically). Use 'spaceBetween' to push items to the edges (e.g. header at top, footer at bottom), or 'start'/'end'/'center' to pack them together.",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "spaceBetween",
+            "spaceAround",
+            "spaceEvenly",
+            "stretch"
+          ],
+          "type": "string"
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "children",
+        "component"
+      ],
+      "type": "object"
+    },
+    "DateTimeInput": {
+      "properties": {
+        "checks": {
+          "description": "A list of checks to perform. These are function calls that must return a boolean indicating validity.",
+          "items": {
+            "$ref": "#/$defs/CheckRule",
+            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."
+          },
+          "type": "array"
+        },
+        "component": {
+          "const": "DateTimeInput"
+        },
+        "enableDate": {
+          "default": false,
+          "description": "If true, allows the user to select a date.",
+          "type": "boolean"
+        },
+        "enableTime": {
+          "default": false,
+          "description": "If true, allows the user to select a time.",
+          "type": "boolean"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "label": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The text label for the input field."
+        },
+        "max": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/DynamicString",
+              "description": "Represents a string"
+            },
+            {
+              "if": {
+                "type": "string"
+              },
+              "then": {
+                "oneOf": [
+                  {
+                    "format": "date"
+                  },
+                  {
+                    "format": "time"
+                  },
+                  {
+                    "format": "date-time"
+                  }
+                ]
+              }
+            }
+          ],
+          "description": "The maximum allowed date/time in ISO 8601 format."
+        },
+        "min": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/DynamicString",
+              "description": "Represents a string"
+            },
+            {
+              "if": {
+                "type": "string"
+              },
+              "then": {
+                "oneOf": [
+                  {
+                    "format": "date"
+                  },
+                  {
+                    "format": "time"
+                  },
+                  {
+                    "format": "date-time"
+                  }
+                ]
+              }
+            }
+          ],
+          "description": "The minimum allowed date/time in ISO 8601 format."
+        },
+        "value": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string."
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "value",
+        "component"
+      ],
+      "type": "object"
+    },
+    "Divider": {
+      "properties": {
+        "axis": {
+          "default": "horizontal",
+          "description": "The orientation of the divider.",
+          "enum": [
+            "horizontal",
+            "vertical"
+          ],
+          "type": "string"
+        },
+        "component": {
+          "const": "Divider"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "component"
+      ],
+      "type": "object"
+    },
+    "Icon": {
+      "properties": {
+        "component": {
+          "const": "Icon"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "name": {
+          "description": "The name of the icon to display.",
+          "oneOf": [
+            {
+              "enum": [
+                "accountCircle",
+                "add",
+                "arrowBack",
+                "arrowForward",
+                "attachFile",
+                "calendarToday",
+                "call",
+                "camera",
+                "check",
+                "close",
+                "delete",
+                "download",
+                "edit",
+                "event",
+                "error",
+                "fastForward",
+                "favorite",
+                "favoriteOff",
+                "folder",
+                "help",
+                "home",
+                "info",
+                "locationOn",
+                "lock",
+                "lockOpen",
+                "mail",
+                "menu",
+                "moreVert",
+                "moreHoriz",
+                "notificationsOff",
+                "notifications",
+                "pause",
+                "payment",
+                "person",
+                "phone",
+                "photo",
+                "play",
+                "print",
+                "refresh",
+                "rewind",
+                "search",
+                "send",
+                "settings",
+                "share",
+                "shoppingCart",
+                "skipNext",
+                "skipPrevious",
+                "star",
+                "starHalf",
+                "starOff",
+                "stop",
+                "upload",
+                "visibility",
+                "visibilityOff",
+                "volumeDown",
+                "volumeMute",
+                "volumeOff",
+                "volumeUp",
+                "warning"
+              ],
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "svgPath": {
+                  "$ref": "#/$defs/DynamicString",
+                  "description": "Represents a string"
+                }
+              },
+              "required": [
+                "svgPath"
+              ],
+              "type": "object"
+            },
+            {
+              "$ref": "#/$defs/DataBinding"
+            }
+          ]
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "component"
+      ],
+      "type": "object"
+    },
+    "Image": {
+      "properties": {
+        "component": {
+          "const": "Image"
+        },
+        "description": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "Accessibility text for the image."
+        },
+        "fit": {
+          "default": "fill",
+          "description": "Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property.",
+          "enum": [
+            "contain",
+            "cover",
+            "fill",
+            "none",
+            "scaleDown"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "url": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The URL of the image to display."
+        },
+        "variant": {
+          "default": "mediumFeature",
+          "description": "A hint for the image size and style.",
+          "enum": [
+            "icon",
+            "avatar",
+            "smallFeature",
+            "mediumFeature",
+            "largeFeature",
+            "header"
+          ],
+          "type": "string"
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "url",
+        "component"
+      ],
+      "type": "object"
+    },
+    "List": {
+      "properties": {
+        "align": {
+          "default": "stretch",
+          "description": "Defines the alignment of children along the cross axis.",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ],
+          "type": "string"
+        },
+        "children": {
+          "$ref": "#/$defs/ChildList",
+          "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list."
+        },
+        "component": {
+          "const": "List"
+        },
+        "direction": {
+          "default": "vertical",
+          "description": "The direction in which the list items are laid out.",
+          "enum": [
+            "vertical",
+            "horizontal"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "children",
+        "component"
+      ],
+      "type": "object"
+    },
+    "Modal": {
+      "properties": {
+        "component": {
+          "const": "Modal"
+        },
+        "content": {
+          "$ref": "#/$defs/Child",
+          "description": "The ID of the component to be displayed inside the modal."
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "trigger": {
+          "$ref": "#/$defs/Child",
+          "description": "The ID of the component that opens the modal when interacted with (e.g., a button)."
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "content",
+        "trigger",
+        "component"
+      ],
+      "type": "object"
+    },
+    "Row": {
+      "description": "A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.",
+      "properties": {
+        "align": {
+          "default": "stretch",
+          "description": "Defines the alignment of children along the cross axis (vertically). This is similar to the CSS 'align-items' property, but uses camelCase values (e.g., 'start').",
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ],
+          "type": "string"
+        },
+        "children": {
+          "$ref": "#/$defs/ChildList",
+          "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID."
+        },
+        "component": {
+          "const": "Row"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "justify": {
+          "default": "start",
+          "description": "Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together.",
+          "enum": [
+            "center",
+            "end",
+            "spaceAround",
+            "spaceBetween",
+            "spaceEvenly",
+            "start",
+            "stretch"
+          ],
+          "type": "string"
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "children",
+        "component"
+      ],
+      "type": "object"
+    },
+    "Slider": {
+      "properties": {
+        "checks": {
+          "description": "A list of checks to perform. These are function calls that must return a boolean indicating validity.",
+          "items": {
+            "$ref": "#/$defs/CheckRule",
+            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."
+          },
+          "type": "array"
+        },
+        "component": {
+          "const": "Slider"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "label": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The label for the slider."
+        },
+        "max": {
+          "description": "The maximum value of the slider.",
+          "type": "number"
+        },
+        "min": {
+          "default": 0,
+          "description": "The minimum value of the slider.",
+          "type": "number"
+        },
+        "steps": {
+          "description": "The number of discrete divisions in the slider range. If specified, the slider will snap to discrete values.",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "value": {
+          "$ref": "#/$defs/DynamicNumber",
+          "description": "The current value of the slider."
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "max",
+        "value",
+        "component"
+      ],
+      "type": "object"
+    },
+    "Tabs": {
+      "properties": {
+        "component": {
+          "const": "Tabs"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "tabs": {
+          "description": "An array of objects, where each object defines a tab with a title and a child component.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "child": {
+                "$ref": "#/$defs/Child",
+                "description": "The ID of the child component."
+              },
+              "title": {
+                "$ref": "#/$defs/DynamicString",
+                "description": "The tab title."
+              }
+            },
+            "required": [
+              "title",
+              "child"
+            ],
+            "type": "object"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "tabs",
+        "component"
+      ],
+      "type": "object"
+    },
+    "Text": {
+      "properties": {
+        "component": {
+          "const": "Text"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "text": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation."
+        },
+        "variant": {
+          "default": "body",
+          "description": "A hint for the base text style.",
+          "enum": [
+            "caption",
+            "body"
+          ],
+          "type": "string"
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "component"
+      ],
+      "type": "object"
+    },
+    "TextField": {
+      "properties": {
+        "checks": {
+          "description": "A list of checks to perform. These are function calls that must return a boolean indicating validity.",
+          "items": {
+            "$ref": "#/$defs/CheckRule",
+            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."
+          },
+          "type": "array"
+        },
+        "component": {
+          "const": "TextField"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "label": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The text label for the input field."
+        },
+        "placeholder": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The placeholder text for the input field."
+        },
+        "value": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The value of the text field."
+        },
+        "variant": {
+          "default": "shortText",
+          "description": "The type of input field to display.",
+          "enum": [
+            "longText",
+            "number",
+            "shortText",
+            "obscured"
+          ],
+          "type": "string"
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "component"
+      ],
+      "type": "object"
+    },
+    "Video": {
+      "properties": {
+        "component": {
+          "const": "Video"
+        },
+        "id": {
+          "$ref": "#/$defs/ComponentId",
+          "description": "The unique identifier for a component, used for both definitions and references within the same surface."
+        },
+        "posterUrl": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The URL of the poster image to display before the video plays."
+        },
+        "url": {
+          "$ref": "#/$defs/DynamicString",
+          "description": "The URL of the video to display."
+        },
+        "weight": {
+          "description": "The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "url",
+        "component"
+      ],
+      "type": "object"
+    }
+  },
+  "functions": {
+    "and": {
+      "description": "Performs a logical AND operation on a list of boolean values.",
+      "properties": {
+        "@call": {
+          "const": "and"
+        },
+        "args": {
+          "properties": {
+            "values": {
+              "description": "The list of boolean values to evaluate.",
+              "items": {
+                "$ref": "#/$defs/DynamicBoolean",
+                "description": "A boolean value that can be a literal, a path, or a function call returning a boolean."
+              },
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "required": [
+            "values"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "boolean",
+      "type": "object"
+    },
+    "email": {
+      "description": "Checks that the value is a valid email address.",
+      "properties": {
+        "@call": {
+          "const": "email"
+        },
+        "args": {
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/DynamicString",
+              "description": "Represents a string"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "validationResult",
+      "type": "object"
+    },
+    "formatCurrency": {
+      "description": "Formats a number as a currency string.",
+      "properties": {
+        "@call": {
+          "const": "formatCurrency"
+        },
+        "args": {
+          "properties": {
+            "currency": {
+              "$ref": "#/$defs/DynamicString",
+              "description": "The ISO 4217 currency code (e.g., 'USD', 'EUR')."
+            },
+            "decimals": {
+              "$ref": "#/$defs/DynamicNumber",
+              "description": "Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale."
+            },
+            "grouping": {
+              "$ref": "#/$defs/DynamicBoolean",
+              "description": "Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
+            },
+            "value": {
+              "$ref": "#/$defs/DynamicNumber",
+              "description": "The monetary amount."
+            }
+          },
+          "required": [
+            "currency",
+            "value"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "string",
+      "type": "object"
+    },
+    "formatDate": {
+      "description": "Formats a timestamp into a string using a pattern.",
+      "properties": {
+        "@call": {
+          "const": "formatDate"
+        },
+        "args": {
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/DynamicString",
+              "description": "A Unicode TR35 date pattern string.\n\nToken Reference:\n- Year: 'yy' (26), 'yyyy' (2026)\n- Month: 'M' (1), 'MM' (01), 'MMM' (Jan), 'MMMM' (January)\n- Day: 'd' (1), 'dd' (01), 'E' (Tue), 'EEEE' (Tuesday)\n- Hour (12h): 'h' (1-12), 'hh' (01-12) - requires 'a' for AM/PM\n- Hour (24h): 'H' (0-23), 'HH' (00-23) - Military Time\n- Minute: 'mm' (00-59)\n- Second: 'ss' (00-59)\n- Period: 'a' (AM/PM)\n\nExamples:\n- 'MMM dd, yyyy' -> 'Jan 16, 2026'\n- 'HH:mm' -> '14:30' (Military)\n- 'h:mm a' -> '2:30 PM'\n- 'EEEE, d MMMM' -> 'Friday, 16 January'"
+            },
+            "value": {
+              "$ref": "#/$defs/DynamicValue",
+              "description": "The date to format."
+            }
+          },
+          "required": [
+            "format",
+            "value"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "string",
+      "type": "object"
+    },
+    "formatNumber": {
+      "description": "Formats a number with the specified grouping and decimal precision.",
+      "properties": {
+        "@call": {
+          "const": "formatNumber"
+        },
+        "args": {
+          "properties": {
+            "decimals": {
+              "$ref": "#/$defs/DynamicNumber",
+              "description": "Optional. The number of decimal places to show. Defaults to 0 or 2 depending on locale."
+            },
+            "grouping": {
+              "$ref": "#/$defs/DynamicBoolean",
+              "description": "Optional. If true, uses locale-specific grouping separators (e.g. '1,000'). If false, returns raw digits (e.g. '1000'). Defaults to true."
+            },
+            "value": {
+              "$ref": "#/$defs/DynamicNumber",
+              "description": "The number to format."
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "string",
+      "type": "object"
+    },
+    "formatString": {
+      "description": "Performs string interpolation of data model values and other functions in the catalog functions list and returns the resulting string. The value string can contain interpolated expressions in the `${expression}` format. Supported expression types include: JSON Pointer paths to the data model (e.g., `${/absolute/path}` or `${relative/path}`), and renderer-side function calls (e.g., `${now()}`). Function arguments must be named (e.g., `${formatDate(value:${/currentDate}, format:'MM-dd')}`). To include a literal `${` sequence, escape it as `\\${`.",
+      "properties": {
+        "@call": {
+          "const": "formatString"
+        },
+        "args": {
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/DynamicString",
+              "description": "Represents a string"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "string",
+      "type": "object"
+    },
+    "length": {
+      "description": "Checks string length constraints.",
+      "properties": {
+        "@call": {
+          "const": "length"
+        },
+        "args": {
+          "anyOf": [
+            {
+              "required": [
+                "min"
+              ]
+            },
+            {
+              "required": [
+                "max"
+              ]
+            }
+          ],
+          "properties": {
+            "max": {
+              "description": "The maximum allowed length.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "min": {
+              "description": "The minimum allowed length.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "value": {
+              "$ref": "#/$defs/DynamicString",
+              "description": "Represents a string"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "validationResult",
+      "type": "object"
+    },
+    "not": {
+      "description": "Performs a logical NOT operation on a boolean value.",
+      "properties": {
+        "@call": {
+          "const": "not"
+        },
+        "args": {
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/DynamicBoolean",
+              "description": "The boolean value to negate."
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "boolean",
+      "type": "object"
+    },
+    "numeric": {
+      "description": "Checks numeric range constraints.",
+      "properties": {
+        "@call": {
+          "const": "numeric"
+        },
+        "args": {
+          "anyOf": [
+            {
+              "required": [
+                "min"
+              ]
+            },
+            {
+              "required": [
+                "max"
+              ]
+            }
+          ],
+          "properties": {
+            "max": {
+              "description": "The maximum allowed value.",
+              "type": "number"
+            },
+            "min": {
+              "description": "The minimum allowed value.",
+              "type": "number"
+            },
+            "value": {
+              "$ref": "#/$defs/DynamicNumber",
+              "description": "Represents a value that can be either a literal number, a path to a number in the data model, or a function call returning a number."
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "validationResult",
+      "type": "object"
+    },
+    "openUrl": {
+      "description": "Opens the specified URL in a browser or handler (requires user activation). This function has no return value.",
+      "properties": {
+        "@call": {
+          "const": "openUrl"
+        },
+        "args": {
+          "properties": {
+            "url": {
+              "description": "The URL to open.",
+              "oneOf": [
+                {
+                  "format": "uri",
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/$defs/DataBinding"
+                },
+                {
+                  "$ref": "#/$defs/FunctionCall",
+                  "description": "Invokes a named function, combining common function properties with the catalog function definition."
+                }
+              ]
+            }
+          },
+          "required": [
+            "url"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "requiresUserActivation": true,
+      "returnType": "void",
+      "type": "object"
+    },
+    "or": {
+      "description": "Performs a logical OR operation on a list of boolean values.",
+      "properties": {
+        "@call": {
+          "const": "or"
+        },
+        "args": {
+          "properties": {
+            "values": {
+              "description": "The list of boolean values to evaluate.",
+              "items": {
+                "$ref": "#/$defs/DynamicBoolean",
+                "description": "A boolean value that can be a literal, a path, or a function call returning a boolean."
+              },
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "required": [
+            "values"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "boolean",
+      "type": "object"
+    },
+    "pluralize": {
+      "description": "Returns a localized string based on the Common Locale Data Repository (CLDR) plural category of the count (zero, one, two, few, many, other). Requires an 'other' fallback. For English, just use 'one' and 'other'.",
+      "properties": {
+        "@call": {
+          "const": "pluralize"
+        },
+        "args": {
+          "properties": {
+            "few": {
+              "$ref": "#/$defs/DynamicString",
+              "description": "String for the 'few' category (e.g., small groups in Slavic languages)."
+            },
+            "many": {
+              "$ref": "#/$defs/DynamicString",
+              "description": "String for the 'many' category (e.g., large groups in various languages)."
+            },
+            "one": {
+              "$ref": "#/$defs/DynamicString",
+              "description": "String for the 'one' category (e.g., 1 item)."
+            },
+            "other": {
+              "$ref": "#/$defs/DynamicString",
+              "description": "The default/fallback string (used for general plural cases)."
+            },
+            "two": {
+              "$ref": "#/$defs/DynamicString",
+              "description": "String for the 'two' category (used in Arabic, Welsh, etc.)."
+            },
+            "value": {
+              "$ref": "#/$defs/DynamicNumber",
+              "description": "The numeric value used to determine the plural category."
+            },
+            "zero": {
+              "$ref": "#/$defs/DynamicString",
+              "description": "String for the 'zero' category (e.g., 0 items)."
+            }
+          },
+          "required": [
+            "value",
+            "other"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "string",
+      "type": "object"
+    },
+    "regex": {
+      "description": "Checks that the value matches a regular expression string.",
+      "properties": {
+        "@call": {
+          "const": "regex"
+        },
+        "args": {
+          "properties": {
+            "pattern": {
+              "description": "The regex pattern to match against.",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/DynamicString",
+              "description": "Represents a string"
+            }
+          },
+          "required": [
+            "value",
+            "pattern"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "validationResult",
+      "type": "object"
+    },
+    "required": {
+      "description": "Checks that the value is not null, undefined, or empty.",
+      "properties": {
+        "@call": {
+          "const": "required"
+        },
+        "args": {
+          "properties": {
+            "value": {
+              "description": "The value to check."
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "type": "object",
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "validationResult",
+      "type": "object"
+    }
+  },
+  "instructions": "For layout, use the Row and Column components to organize other components.\n\n## Catalog Guidelines\n\n1. String Concatenation & Formatting: A2UI does not support binary operators like '+' or formatting symbols. To concatenate strings or dynamically inject data bindings into text, you must use the catalog function `formatString(value)` where the value string contains placeholders formatted as `${expression}`:\n   formatString(\"Hello ${/user/name}\")\n\n2. Strict Hierarchy: You must strictly adhere to the requested component nesting and hierarchy. If the prompt specifies that a component is 'inside' or 'contained in' another component, you MUST place it as a child of that specific component, not as a sibling or in a different container.\n\n3. Validation Checks: When components support validation checks, specify any custom error messages directly as the 'message' inside the check. Do NOT create separate text-display components to display validation errors.\n\n## Examples\n\nExample 1: Dynamic text form\n```json\n[\n  {\n    \"version\": \"v1.0\",\n    \"createSurface\": {\n      \"surfaceId\": \"main\",\n      \"catalogId\": \"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json\",\n      \"components\": [\n        {\n          \"id\": \"root\",\n          \"component\": \"Column\",\n          \"children\": [\"repField\", \"valueField\"]\n        },\n        {\n          \"id\": \"repField\",\n          \"component\": \"TextField\",\n          \"label\": \"Representative\",\n          \"value\": {\"@path\": \"/form/rep\"},\n          \"placeholder\": \"Enter name\"\n        },\n        {\n          \"id\": \"valueField\",\n          \"component\": \"TextField\",\n          \"label\": \"Deal Value\",\n          \"value\": {\"@path\": \"/form/value\"},\n          \"placeholder\": \"0.00\",\n          \"variant\": \"number\",\n          \"checks\": [\n            {\n              \"condition\": {\n                \"@call\": \"required\",\n                \"args\": {\"value\": {\"@path\": \"/form/value\"}}\n              },\n              \"message\": \"Deal value is required.\"\n            }\n          ]\n        }\n      ],\n      \"dataModel\": {\n        \"form\": {\n          \"rep\": \"John Doe\",\n          \"value\": 1500.00\n        }\n      }\n    }\n  }\n]\n```\n\nExample 2: Dynamic list with templates\n```json\n[\n  {\n    \"version\": \"v1.0\",\n    \"createSurface\": {\n      \"surfaceId\": \"main\",\n      \"catalogId\": \"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json\",\n      \"components\": [\n        {\n          \"id\": \"root\",\n          \"component\": \"Card\",\n          \"child\": \"breedList\"\n        },\n        {\n          \"id\": \"breedList\",\n          \"component\": \"List\",\n          \"children\": {\n            \"path\": \"/breeds\",\n            \"componentId\": \"breedTemplate\"\n          },\n          \"direction\": \"horizontal\"\n        },\n        {\n          \"id\": \"breedTemplate\",\n          \"component\": \"Image\",\n          \"url\": {\"@path\": \"url\"}\n        }\n      ],\n      \"dataModel\": {\n        \"breeds\": [\n          {\n            \"url\": \"https://example.com/poodle.jpg\"\n          },\n          {\n            \"url\": \"https://example.com/lab.jpg\"\n          }\n        ]\n      }\n    }\n  }\n]\n```",
+  "protocolVersion": "1.0"
+}

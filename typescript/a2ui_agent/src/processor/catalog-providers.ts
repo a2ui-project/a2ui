@@ -86,7 +86,7 @@ export function catalogFromDocument(
 
   let catalog: CatalogApi;
   try {
-    catalog = Catalog.fromSchema({...document, catalogId: id}, toWireProtocolVersion(version));
+    catalog = Catalog.fromJson({...document, catalogId: id}, toWireProtocolVersion(version));
   } catch (e: unknown) {
     throw new A2uiCatalogError(
       `Failed to build catalog from schema in ${source}: ${(e as Error).message}`,

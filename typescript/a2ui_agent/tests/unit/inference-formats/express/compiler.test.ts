@@ -590,7 +590,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       },
       functions: {},
     };
-    const labelsCatalog = Catalog.fromSchema(labelsDoc);
+    const labelsCatalog = Catalog.fromJson(labelsDoc);
     registerCatalogDocument(labelsCatalog, labelsDoc);
 
     afterEach(() => {

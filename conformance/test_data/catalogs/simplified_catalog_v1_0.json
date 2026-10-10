@@ -55,7 +55,7 @@
       "description": "Checks that the value is not null, undefined or empty.",
       "returnType": "validationResult",
       "properties": {
-        "call": { "const": "required" },
+        "@call": { "const": "required" },
         "args": {
           "type": "object",
           "properties": { "value": {} },
@@ -63,14 +63,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "formatString": {
       "type": "object",
       "description": "Interpolates data model values into a template string.",
       "returnType": "string",
       "properties": {
-        "call": { "const": "formatString" },
+        "@call": { "const": "formatString" },
         "args": {
           "type": "object",
           "properties": {
@@ -80,7 +80,7 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "openUrl": {
       "type": "object",
@@ -88,7 +88,7 @@
       "returnType": "void",
       "requiresUserActivation": true,
       "properties": {
-        "call": { "const": "openUrl" },
+        "@call": { "const": "openUrl" },
         "args": {
           "type": "object",
           "properties": {
@@ -98,7 +98,7 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     }
   },
   "$defs": {
@@ -117,7 +117,7 @@
         { "$ref": "#/functions/formatString" },
         { "$ref": "#/functions/openUrl" }
       ],
-      "discriminator": { "propertyName": "call" }
+      "discriminator": { "propertyName": "@call" }
     }
   }
 }

@@ -112,7 +112,7 @@ describe('Catalog Types', () => {
     });
   });
 
-  it('serializes catalog to JSON schema via catalogSchema', () => {
+  it('serializes catalog to JSON schema via validationSchema', () => {
     const mockComponent = {
       name: 'CustomButton',
       schema: z.object({
@@ -122,7 +122,7 @@ describe('Catalog Types', () => {
 
     const catalog = new Catalog('https://example.com/custom-cat.json', '1.0', [mockComponent]);
 
-    const schema = catalog.catalogSchema;
+    const schema = catalog.validationSchema;
     const defs = schema['$defs'] as Record<string, any>;
     assert.ok(defs);
     assert.ok(defs.DynamicString);

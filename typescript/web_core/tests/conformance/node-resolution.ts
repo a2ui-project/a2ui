@@ -195,7 +195,7 @@ export async function runNodeResolutionCase(
   const fixture = yaml.load(
     readFileSync(join(conformanceRoot, testCase.fixture), 'utf8'),
   ) as Fixture;
-  const parsed = Catalog.fromSchema(
+  const parsed = Catalog.fromJson(
     JSON.parse(readFileSync(join(conformanceRoot, fixture.catalog), 'utf8')),
   );
   const functions: unknown[] = [];

@@ -390,7 +390,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
         },
       };
 
-      const customCat = Catalog.fromSchema(mockDoc);
+      const customCat = Catalog.fromJson(mockDoc);
       registerCatalogDocument(customCat, mockDoc);
       const helper = new CatalogSchemaHelper(customCat, 'v1.0');
 
