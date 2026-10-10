@@ -32,13 +32,31 @@ private final class ConformanceActionCaptureHandler: ActionHandling,
   }
 }
 
-/// Runs the shared `conformance/core/message_processor_v0_9.yaml` suite.
+/// Runs the shared `conformance/core/message_processor_v0_9.yaml` and
+/// `conformance/core/message_processor_v1_0.yaml` suites.
 @MainActor
 struct MessageProcessorConformanceTests {
   @Test func messageProcessorV09Conformance() throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/message_processor_v0_9.yaml")
+    try runMessageProcessorSuite(
+      filename: "core/message_processor_v0_9.yaml",
+      defaultVersion: "v0.9"
+    )
+  }
+
+  @Test func messageProcessorV10Conformance() throws {
+    try runMessageProcessorSuite(
+      filename: "core/message_processor_v1_0.yaml",
+      defaultVersion: "v1.0"
+    )
+  }
+
+  private func runMessageProcessorSuite(
+    filename: String,
+    defaultVersion: String
+  ) throws {
+    let rawYAML = try ConformanceTestHelper.loadYAML(filename: filename)
     let cases = (rawYAML as? [[String: Any]]) ?? []
-    #expect(!cases.isEmpty, "core/message_processor_v0_9.yaml should hold test cases")
+    #expect(!cases.isEmpty, "\(filename) should hold test cases")
 
     var executed = 0
 
@@ -47,35 +65,88 @@ struct MessageProcessorConformanceTests {
       let action = testCase["action"] as? String ?? "process_messages"
 
       switch action {
-      case "process_messages":
-        try runProcessMessagesCase(testCase, name: name)
+      case "process_messages", "validate":
+        try runProcessMessagesCase(
+          testCase,
+          name: name,
+          defaultVersion: defaultVersion
+        )
         executed += 1
       case "get_renderer_data_model":
-        try runGetRendererDataModelCase(testCase, name: name)
+        try runGetRendererDataModelCase(
+          testCase,
+          name: name,
+          defaultVersion: defaultVersion
+        )
         executed += 1
       case "get_renderer_capabilities":
-        try runGetRendererCapabilitiesCase(testCase, name: name)
+        try runGetRendererCapabilitiesCase(
+          testCase,
+          name: name,
+          defaultVersion: defaultVersion
+        )
         executed += 1
       default:
         continue
       }
     }
 
-    #expect(executed > 0, "no case of core/message_processor_v0_9.yaml was executed")
+    #expect(executed > 0, "no case of \(filename) was executed")
   }
 
-  private func buildProcessorCatalogs(from testCase: [String: Any]) throws -> [AnyCatalog] {
-    let pVer = (testCase["protocolVersion"] as? String) ?? "v0.9"
+  private func buildProcessorCatalogs(
+    from testCase: [String: Any],
+    defaultVersion: String
+  ) throws -> [AnyCatalog] {
+    let explicitVer = testCase["protocolVersion"] as? String
+    let pVer = explicitVer ?? defaultVersion
+    let action = testCase["action"] as? String ?? "process_messages"
     let commonTypes = try? ConformanceTestHelper.commonTypesSchema(forProtocolVersion: pVer)
 
     var catalogs: [AnyCatalog] = []
 
     if let catalogList = testCase["catalogs"] as? [[String: Any]] {
+      let openSchema = try Schema(instance: "{\"type\": \"object\"}")
+      let containerSchema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "children": {
+                "type": "array",
+                "description": "REF:common_types.json#/$defs/ChildList",
+                "items": { "type": "string" }
+              }
+            }
+          }
+          """
+      )
       catalogs = catalogList.map { dict in
-        ConformanceTestHelper.buildCatalog(
+        let built = ConformanceTestHelper.buildCatalog(
           catalogSchema: ConformanceTestHelper.toJSONValue(dict),
           commonTypes: commonTypes
         )
+        if action != "get_renderer_capabilities"
+          && dict["components"] == nil
+          && dict["functions"] == nil
+          && dict["theme"] == nil
+        {
+          return Catalog(
+            id: built.id,
+            protocolVersion: built.protocolVersion,
+            components: [
+              AnyComponentAPI(name: "Column", schema: containerSchema),
+              AnyComponentAPI(name: "Container", schema: containerSchema),
+              AnyComponentAPI(name: "Button", schema: openSchema),
+              AnyComponentAPI(name: "Text", schema: openSchema),
+              AnyComponentAPI(name: "Label", schema: openSchema),
+              AnyComponentAPI(name: "PieChart", schema: openSchema),
+            ],
+            functions: Array(built.functions.values),
+            themeSchema: built.themeSchema
+          )
+        }
+        return built
       }
     } else {
       var catalogPaths = testCase["catalogPaths"] as? [String] ?? []
@@ -86,7 +157,8 @@ struct MessageProcessorConformanceTests {
         catalogs = try catalogPaths.map { path in
           ConformanceTestHelper.buildCatalog(
             catalogSchema: try ConformanceTestHelper.loadRepositoryJSON(path: path),
-            commonTypes: commonTypes
+            commonTypes: commonTypes,
+            protocolVersion: explicitVer
           )
         }
       }
@@ -110,6 +182,7 @@ struct MessageProcessorConformanceTests {
             "properties": {
               "children": {
                 "type": "array",
+                "description": "REF:common_types.json#/$defs/ChildList",
                 "items": { "type": "string" }
               }
             }
@@ -119,9 +192,11 @@ struct MessageProcessorConformanceTests {
       catalogs = [
         Catalog(
           id: "basic",
+          protocolVersion: pVer,
           components: [
             AnyComponentAPI(name: "Text", schema: textSchema),
             AnyComponentAPI(name: "Container", schema: containerSchema),
+            AnyComponentAPI(name: "Column", schema: containerSchema),
           ]
         )
       ]
@@ -129,6 +204,20 @@ struct MessageProcessorConformanceTests {
 
     if testCase["catalogs"] == nil {
       let openSchema = try Schema(instance: "{\"type\": \"object\"}")
+      let containerSchema = try Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "children": {
+                "type": "array",
+                "description": "REF:common_types.json#/$defs/ChildList",
+                "items": { "type": "string" }
+              }
+            }
+          }
+          """
+      )
       for i in 0..<catalogs.count {
         var comps = catalogs[i].components
         comps["Button"] = AnyComponentAPI(name: "Button", schema: openSchema)
@@ -136,8 +225,12 @@ struct MessageProcessorConformanceTests {
         if comps["Text"] == nil {
           comps["Text"] = AnyComponentAPI(name: "Text", schema: openSchema)
         }
+        if comps["Column"] == nil {
+          comps["Column"] = AnyComponentAPI(name: "Column", schema: containerSchema)
+        }
         catalogs[i] = Catalog(
           id: catalogs[i].id,
+          protocolVersion: catalogs[i].protocolVersion ?? pVer,
           components: comps.map { $0.value },
           functions: Array(catalogs[i].functions.values),
           themeSchema: catalogs[i].themeSchema
@@ -145,7 +238,12 @@ struct MessageProcessorConformanceTests {
       }
     }
 
-    let rawMessages = extractRawMessages(from: testCase)
+    var rawMessages = extractRawMessages(from: testCase)
+    if let steps = testCase["steps"] as? [[String: Any]] {
+      for step in steps {
+        rawMessages.append(contentsOf: extractRawMessages(from: step))
+      }
+    }
     var neededIDs = Set<String>()
     for msg in rawMessages {
       if let create = msg["createSurface"] as? [String: Any],
@@ -168,7 +266,9 @@ struct MessageProcessorConformanceTests {
         catalogs.append(
           Catalog(
             id: neededID,
+            protocolVersion: base.protocolVersion ?? pVer,
             components: base.components.map { $0.value },
+            functions: Array(base.functions.values),
             themeSchema: base.themeSchema
           )
         )
@@ -201,8 +301,12 @@ struct MessageProcessorConformanceTests {
     }
   }
 
-  private func runProcessMessagesCase(_ testCase: [String: Any], name: String) throws {
-    let catalogs = try buildProcessorCatalogs(from: testCase)
+  private func runProcessMessagesCase(
+    _ testCase: [String: Any],
+    name: String,
+    defaultVersion: String
+  ) throws {
+    let catalogs = try buildProcessorCatalogs(from: testCase, defaultVersion: defaultVersion)
     let strictMode = testCase["strictMode"] as? Bool ?? false
     let handler = ConformanceActionCaptureHandler()
     let processor = MessageProcessor(
@@ -211,30 +315,61 @@ struct MessageProcessorConformanceTests {
       validationConfig: strictMode ? .strict : .relaxed
     )
 
-    let rawMessages = extractRawMessages(from: testCase)
-    if testCase["expectError"] != nil {
-      do {
-        let messages = try decodeMessages(from: rawMessages)
-        processor.process(messages: messages)
-        #expect(
-          !handler.capturedErrors.isEmpty,
-          "[\(name)] Expected error to be dispatched for invalid message"
-        )
-      } catch {
-        // Parse-time envelope errors are thrown by MessageParser.decode
-      }
-      return
+    let steps: [[String: Any]]
+    if let stepList = testCase["steps"] as? [[String: Any]] {
+      steps = stepList
+    } else {
+      steps = [testCase]
     }
 
-    let messages = try decodeMessages(from: rawMessages)
-    processor.process(messages: messages)
-    #expect(
-      handler.capturedErrors.isEmpty, "[\(name)] Unexpected errors: \(handler.capturedErrors)")
+    for step in steps {
+      if let expectError = step["expectError"] as? [String: Any] {
+        let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
+        do {
+          try processor.processMessages(payload)
+          Issue.record("[\(name)] Expected error to be thrown for invalid message")
+        } catch {
+          if let category = expectError["category"] as? String {
+            switch category {
+            case "RecursionError":
+              #expect(
+                error is A2UIRecursionError, "[\(name)] Expected RecursionError, got \(error)")
+            case "IntegrityError":
+              #expect(
+                error is A2UIIntegrityError || error is A2UIRecursionError,
+                "[\(name)] Expected IntegrityError, got \(error)"
+              )
+            case "CatalogError":
+              #expect(error is A2UICatalogError, "[\(name)] Expected CatalogError, got \(error)")
+            case "ValidationError":
+              #expect(
+                error is A2UIValidationError, "[\(name)] Expected ValidationError, got \(error)")
+            default:
+              break
+            }
+          }
+        }
+        continue
+      }
 
-    let expectedDict = (testCase["expect"] as? [String: Any]) ?? [:]
-    let expectedSurfaces =
-      (expectedDict["surfaces"] as? [String: Any])
-      ?? (testCase["expectedSurfaces"] as? [String: Any])
+      let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
+      try processor.processMessages(payload)
+      #expect(
+        handler.capturedErrors.isEmpty, "[\(name)] Unexpected errors: \(handler.capturedErrors)")
+
+      let expectedDict = (step["expect"] as? [String: Any]) ?? [:]
+      let expectedSurfaces =
+        (expectedDict["surfaces"] as? [String: Any])
+        ?? (step["expectedSurfaces"] as? [String: Any])
+      try verifyExpectedSurfaces(expectedSurfaces, on: processor, name: name)
+    }
+  }
+
+  private func verifyExpectedSurfaces(
+    _ expectedSurfaces: [String: Any]?,
+    on processor: MessageProcessor,
+    name: String
+  ) throws {
 
     if let expectedSurfaces {
       for (surfaceID, rawExpected) in expectedSurfaces {
@@ -300,8 +435,12 @@ struct MessageProcessorConformanceTests {
     }
   }
 
-  private func runGetRendererDataModelCase(_ testCase: [String: Any], name: String) throws {
-    let catalogs = try buildProcessorCatalogs(from: testCase)
+  private func runGetRendererDataModelCase(
+    _ testCase: [String: Any],
+    name: String,
+    defaultVersion: String
+  ) throws {
+    let catalogs = try buildProcessorCatalogs(from: testCase, defaultVersion: defaultVersion)
     let processor = MessageProcessor(catalogs: catalogs)
     let rawMessages = extractRawMessages(from: testCase)
     let messages = try decodeMessages(from: rawMessages)
@@ -323,8 +462,12 @@ struct MessageProcessorConformanceTests {
     }
   }
 
-  private func runGetRendererCapabilitiesCase(_ testCase: [String: Any], name: String) throws {
-    let catalogs = try buildProcessorCatalogs(from: testCase)
+  private func runGetRendererCapabilitiesCase(
+    _ testCase: [String: Any],
+    name: String,
+    defaultVersion: String
+  ) throws {
+    let catalogs = try buildProcessorCatalogs(from: testCase, defaultVersion: defaultVersion)
     let processor = MessageProcessor(catalogs: catalogs)
     let args = testCase["args"] as? [String: Any] ?? [:]
     let includeInline = args["includeInlineCatalogs"] as? Bool ?? false

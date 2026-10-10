@@ -32,14 +32,16 @@ public final class NodeResolver: Sendable {
   public let componentsModel: SurfaceComponentsModel
   public let dataModel: DataModel
   public weak var actionHandler: (any ActionHandling)?
-  public let protocolVersion: String?
+  public let protocolVersion: A2UIProtocolVersion?
+  private var reportedExpressionErrors: Set<String> = []
+  private var currentPassExpressionErrors: Set<String> = []
+  private var isResolvingTree = false
+  private var currentComponentID: String?
+  private var currentPropertyPath: String?
 
   public var isV10: Bool {
-    if let version = protocolVersion {
-      let core = version.hasPrefix("v") ? String(version.dropFirst()) : version
-      if let major = Int(core.split(separator: ".").first ?? "") {
-        return major >= 1
-      }
+    if let protocolVersion {
+      return protocolVersion.isAtLeastV10
     }
     return catalog.isAtLeastV10
   }
@@ -61,11 +63,12 @@ public final class NodeResolver: Sendable {
     componentsModel: SurfaceComponentsModel? = nil,
     dataModel: DataModel? = nil,
     actionHandler: (any ActionHandling)? = nil,
-    protocolVersion: String? = nil
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
-    self.defaultCatalogID = defaultCatalogID ?? catalogs.keys.sorted().first
+    self.defaultCatalogID =
+      defaultCatalogID ?? (catalogs.count == 1 ? catalogs.keys.first : nil)
     self.componentsModel = componentsModel ?? SurfaceComponentsModel()
     self.dataModel = dataModel ?? DataModel()
     self.actionHandler = actionHandler
@@ -75,7 +78,7 @@ public final class NodeResolver: Sendable {
   public convenience init(
     surface: SurfaceViewModel,
     actionHandler: (any ActionHandling)? = nil,
-    protocolVersion: String? = nil
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     self.init(
       surfaceID: surface.surfaceID,
@@ -95,14 +98,14 @@ public final class NodeResolver: Sendable {
     componentsModel: SurfaceComponentsModel? = nil,
     dataModel: DataModel? = nil,
     actionHandler: (any ActionHandling)? = nil,
-    protocolVersion: String? = nil
+    protocolVersion: A2UIProtocolVersion? = nil
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
     let dict = Dictionary(anyCatalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
     self.init(
       surfaceID: surfaceID,
       catalogs: dict,
-      defaultCatalogID: defaultCatalogID ?? catalogs.first?.id,
+      defaultCatalogID: defaultCatalogID ?? (catalogs.count == 1 ? catalogs.first?.id : nil),
       componentsModel: componentsModel,
       dataModel: dataModel,
       actionHandler: actionHandler,
@@ -116,22 +119,9 @@ public final class NodeResolver: Sendable {
   public func getCatalog(id: String? = nil) -> AnyCatalog? {
     let targetCatalogID = id ?? defaultCatalogID
     if let targetCatalogID {
-      if let catalog = catalogs[targetCatalogID] {
-        return catalog
-      }
-      if let catalog = catalogs.values.first(where: {
-        $0.id.hasSuffix("/\(targetCatalogID)/catalog.json")
-          && $0.isAtLeastV10
-      }) {
-        return catalog
-      }
-      if let catalog = catalogs.values.first(where: {
-        $0.id.hasSuffix("/\(targetCatalogID)/catalog.json")
-      }) {
-        return catalog
-      }
+      return catalogs[targetCatalogID]
     }
-    if id == nil {
+    if id == nil && catalogs.count == 1 {
       return catalogs.values.first
     }
     return nil
@@ -139,10 +129,32 @@ public final class NodeResolver: Sendable {
 
   // MARK: - Tree Resolution
 
+  /// Clears previously reported expression errors so subsequent evaluations re-emit.
+  public func clearReportedExpressionErrors(forComponentID componentID: String? = nil) {
+    if let componentID {
+      let prefix = "\(componentID):"
+      reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
+    } else {
+      reportedExpressionErrors.removeAll()
+    }
+  }
+
   /// Resolves the component tree starting from the root component ("root")
   /// using the stored component and data models.
   public func resolveTree() -> Node? {
-    resolveNode(
+    let wasResolvingTree = isResolvingTree
+    if !wasResolvingTree {
+      isResolvingTree = true
+      currentPassExpressionErrors.removeAll()
+    }
+    defer {
+      if !wasResolvingTree {
+        reportedExpressionErrors = currentPassExpressionErrors
+        currentPassExpressionErrors.removeAll()
+        isResolvingTree = false
+      }
+    }
+    return resolveNode(
       definitionID: "root",
       instanceID: "root",
       basePath: nil,
@@ -180,6 +192,14 @@ public final class NodeResolver: Sendable {
       return nil
     }
 
+    let previousComponentID = currentComponentID
+    let previousPropertyPath = currentPropertyPath
+    currentComponentID = instanceID
+    defer {
+      currentComponentID = previousComponentID
+      currentPropertyPath = previousPropertyPath
+    }
+
     let type = component.type
     let effectiveCatalogID = component.catalogID ?? defaultCatalogID
     let targetCatalog = getCatalog(id: effectiveCatalogID)
@@ -191,18 +211,24 @@ public final class NodeResolver: Sendable {
     let propertiesSchema = extractPropertiesSchema(from: schemaJSON)
 
     var componentChecks: [ResolvedCheck] = []
+    var preResolvedChecksByKey: [String: [ResolvedCheck]] = [:]
     for (key, val) in component.properties {
       let propSchema = propertiesSchema[key] ?? .boolean(true)
       let propType = classifySchema(propSchema)
       if propType == .checks {
-        componentChecks.append(
-          contentsOf: resolveChecks(val, basePath: basePath, index: index, data: data)
-        )
+        currentPropertyPath = key
+        let resolved = resolveChecks(val, basePath: basePath, index: index, data: data)
+        preResolvedChecksByKey[key] = resolved
+        componentChecks.append(contentsOf: resolved)
       }
     }
 
     var resolvedProperties: [String: any Resolved] = [:]
     for (key, val) in component.properties {
+      if let preResolved = preResolvedChecksByKey[key] {
+        resolvedProperties[key] = preResolved
+        continue
+      }
       let propSchema = propertiesSchema[key] ?? .boolean(true)
       let propType = classifySchema(propSchema)
 
@@ -370,6 +396,14 @@ public final class NodeResolver: Sendable {
     data: JSONValue,
     checks: [ResolvedCheck] = []
   ) -> (any Resolved)? {
+    let previousComponentID = currentComponentID
+    let previousPropertyPath = currentPropertyPath
+    currentComponentID = componentID
+    currentPropertyPath = propertyKey
+    defer {
+      currentComponentID = previousComponentID
+      currentPropertyPath = previousPropertyPath
+    }
     switch type {
     case .dynamicBoolean:
       return resolveDynamicBoolean(value, basePath: basePath, index: index, data: data)
@@ -429,7 +463,7 @@ public final class NodeResolver: Sendable {
         if itemType == .checks {
           return resolveChecks(value, basePath: basePath, index: index, data: data)
         }
-        let resolvedArray = array.compactMap { item in
+        let resolvedArray = array.enumerated().compactMap { itemIndex, item -> (any Resolved)? in
           if let resolved = resolveProperty(
             value: item,
             schema: itemsSchema,
@@ -438,7 +472,7 @@ public final class NodeResolver: Sendable {
             index: index,
             instanceSuffix: instanceSuffix,
             componentID: componentID,
-            propertyKey: propertyKey,
+            propertyKey: "\(propertyKey)/\(itemIndex)",
             visited: visited,
             components: components,
             data: data,
@@ -475,7 +509,7 @@ public final class NodeResolver: Sendable {
               index: index,
               instanceSuffix: instanceSuffix,
               componentID: componentID,
-              propertyKey: k,
+              propertyKey: "\(propertyKey)/\(k)",
               visited: visited,
               components: components,
               data: data,
@@ -510,7 +544,7 @@ public final class NodeResolver: Sendable {
       dataModel: dataModel,
       path: basePath ?? "",
       functionHandler: self,
-      protocolVersion: protocolVersion ?? catalog.protocolVersion,
+      protocolVersion: protocolVersion ?? catalog.a2uiProtocolVersion,
       index: index
     )
     return context.resolveDynamicValue(value)
@@ -1004,24 +1038,15 @@ public final class NodeResolver: Sendable {
 extension NodeResolver: FunctionHandler {
   public func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     if name == "@index" {
-      return IndexFunction()
+      return catalogID == nil ? IndexFunction() : nil
     }
     let callCatalogID = catalogID ?? defaultCatalogID
-    var targetFunction = getCatalog(id: callCatalogID)?.functions[name]
-    if targetFunction == nil && catalogID == nil {
-      for catalog in catalogs.values {
-        if let matchingFunction = catalog.functions[name] {
-          targetFunction = matchingFunction
-          break
-        }
-      }
-    }
-    return targetFunction
+    return getCatalog(id: callCatalogID)?.functions[name]
   }
 
   public func handleFunctionError(_ error: any Error, functionName: String) {
     let version =
-      protocolVersion.flatMap(A2UIProtocolVersion.init(rawValue:))
+      protocolVersion
       ?? catalog.a2uiProtocolVersion
       ?? (isV10 ? .v10 : .v09)
     let rendererError = MessageErrorMapper().map(
@@ -1029,6 +1054,14 @@ extension NodeResolver: FunctionHandler {
       surfaceID: surfaceID,
       version: version
     )
+    let dedupeKey =
+      "\(currentComponentID ?? ""):\(currentPropertyPath ?? ""):\(functionName):\(rendererError)"
+    if isResolvingTree {
+      let isFirstInPass = currentPassExpressionErrors.insert(dedupeKey).inserted
+      guard isFirstInPass && !reportedExpressionErrors.contains(dedupeKey) else {
+        return
+      }
+    }
     actionHandler?.handle(error: rendererError, from: surfaceID)
   }
 }

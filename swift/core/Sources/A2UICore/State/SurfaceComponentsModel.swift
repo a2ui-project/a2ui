@@ -69,6 +69,23 @@ public final class SurfaceComponentsModel: ObservableObject {
     componentsSubject.send(current)
   }
 
+  /// Applies a batch of removals and additions in a single publication.
+  ///
+  /// - Parameters:
+  ///   - removedIDs: Component IDs to remove before inserting new components.
+  ///   - added: Component models to insert or replace.
+  public func applyBatch(removing removedIDs: [String] = [], adding added: [ComponentModel]) {
+    objectWillChange.send()
+    var current = componentsSubject.value
+    for id in removedIDs {
+      current.removeValue(forKey: id)
+    }
+    for component in added {
+      current[component.id] = component
+    }
+    componentsSubject.send(current)
+  }
+
   /// Validates references across the component graph
   /// (root presence id='root', dangling references, orphan nodes).
   ///
