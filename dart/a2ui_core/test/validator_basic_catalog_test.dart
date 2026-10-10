@@ -59,6 +59,78 @@ void main() {
     });
   });
 
+  // `min` and `max` accept a date, a time or a date-time, told apart only by
+  // their `format` inside a `oneOf`. Without format checking every string
+  // matches all three branches, so `oneOf` rejects even a valid bound.
+  final Map<String, PayloadValidator<ComponentApi, FunctionApi> Function()>
+      dateTimeValidators = {
+    'v0.9.1': () => PayloadValidator<ComponentApi, FunctionApi>(
+          catalog: Catalog.fromJson(basicCatalogDocument()),
+          protocolVersion: A2uiProtocolVersion.v0_9,
+        ),
+    'v1': () => PayloadValidator<ComponentApi, FunctionApi>(
+          catalog:
+              Catalog.fromJson(_readJson('../catalogs/basic/v1/catalog.json')),
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          commonTypesSchema: _readJson(
+            '../specification/v1_0/json/common_types.json',
+          ),
+        ),
+  };
+
+  Map<String, Object?> dateTimeInput(Map<String, Object?> bounds) => {
+        'id': 'when',
+        'component': 'DateTimeInput',
+        'value': '',
+        ...bounds,
+      };
+
+  for (final MapEntry(key: catalogName, value: newValidator)
+      in dateTimeValidators.entries) {
+    group('DateTimeInput bounds in the $catalogName basic catalog', () {
+      // Built on first use and shared by the group's tests, so the catalog is
+      // read and resolved once.
+      late final PayloadValidator<ComponentApi, FunctionApi> validator =
+          newValidator();
+
+      for (final bound in [
+        '2026-01-01',
+        '09:00:00',
+        '2026-01-01T09:00:00Z',
+      ]) {
+        test('accept the literal $bound', () {
+          expect(
+            () => validator.validateComponent(
+              dateTimeInput({'min': bound, 'max': bound}),
+            ),
+            returnsNormally,
+          );
+        });
+      }
+
+      test('accept a data binding', () {
+        expect(
+          () => validator.validateComponent(
+            dateTimeInput({
+              // v1.0 renamed the binding key to `@path`.
+              'min': {catalogName == 'v1' ? '@path' : 'path': '/earliest'},
+            }),
+          ),
+          returnsNormally,
+        );
+      });
+
+      for (final bound in ['tomorrow', '2026/01/01', '']) {
+        test('reject the literal "$bound"', () {
+          expect(
+            () => validator.validateComponent(dateTimeInput({'max': bound})),
+            throwsA(isA<A2uiValidationError>()),
+          );
+        });
+      }
+    });
+  }
+
   group('validating the basic catalog examples', () {
     final examples = Directory(
       resolveConformancePath('../specification/v0_9_1/catalogs/basic/examples'),
