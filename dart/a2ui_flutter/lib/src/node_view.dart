@@ -67,9 +67,10 @@ class _NodeViewState extends State<NodeView> with SignalState {
   Widget build(BuildContext context) {
     final ComponentNode<ComponentImplementation> node = widget.node;
     return switch (node.state) {
-      // A type change keeps the instance id, so the type keys the subtree.
+      // A type or catalog change keeps the instance id, so the
+      // implementation keys the subtree.
       NodeState.resolved => KeyedSubtree(
-        key: _TypeKey(node.type),
+        key: ObjectKey(node.impl),
         child: node.impl!.builder(
           context,
           node,
@@ -86,10 +87,6 @@ class _NodeViewState extends State<NodeView> with SignalState {
       ),
     };
   }
-}
-
-class _TypeKey extends ValueKey<String> {
-  const _TypeKey(super.value);
 }
 
 /// A small progress indicator that stands in for a component that has not
