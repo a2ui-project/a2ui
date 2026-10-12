@@ -909,9 +909,11 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
               'properties': {
                 'checks': {
                   'type': 'array',
-                  'description': 'A list of checks to perform. These are '
-                      'function calls that must return a boolean indicating '
-                      'validity.',
+                  'description': atLeastV1
+                      ? _checksDescriptionV1_0()
+                      : 'A list of checks to perform. These are '
+                          'function calls that must return a boolean '
+                          'indicating validity.',
                   'items': {
                     r'$ref': r'common_types.json#/$defs/CheckRule',
                     'commonTypesRef': r'common_types.json#/$defs/CheckRule',
@@ -983,6 +985,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final common = _standardDefsV1_0['ComponentCommon']! as Map;
     final properties = common['properties']! as Map;
     return externalize(properties['metadata'])! as Map<String, Object?>;
+  }
+
+  /// The description of `Checkable.checks` in the v1.0 common types.
+  static String _checksDescriptionV1_0() {
+    final checkable = _standardDefsV1_0['Checkable']! as Map;
+    final checks = (checkable['properties']! as Map)['checks']! as Map;
+    return checks['description']! as String;
   }
 
   static Object? _resolveJsonPointer(
