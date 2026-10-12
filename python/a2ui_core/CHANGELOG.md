@@ -30,6 +30,12 @@
     `from_json` sets it on every function it loads, so `to_json()` writes
     each entry as it was loaded, whatever its shape or name; for a function
     defined in code it defaults to None, which infers it from the schema.
+  - `ComponentApi.from_document` and `FunctionApi.from_document`, and the
+    catalog's `theme_from_document` and `defs_from_document`, mark what
+    `from_json` loaded. `to_json()` writes loaded entries, defs and themes
+    with their references as written, and points a local reference to a
+    common type at `common_types_uri` only in those defined in code. A list
+    of `functions` that repeats a `name` raises `A2uiCatalogError`.
   - The catalog keeps the document's top-level fields as attributes:
     `schema_dialect` (`$schema`), `schema_id` (`$id`), `title`,
     `description`, `declared_protocol_version`, `declares_catalog_id`,

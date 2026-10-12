@@ -53,6 +53,7 @@ class FunctionApi:
         requires_user_activation: bool | None = False,
         description: str | None = None,
         is_definition: bool | None = None,
+        from_document: bool = False,
     ):
         """Initializes the function API.
 
@@ -75,6 +76,12 @@ class FunctionApi:
                 it on every function it loads. None infers it from the
                 schema: a call schema, or one that declares `returnType`,
                 `parameters`, `allowedCallers` or `requiresUserActivation`.
+            from_document: Whether `schema` was loaded from a catalog
+                document, which `Catalog.from_json` sets on every function it
+                loads. `Catalog.to_json` writes such a definition with its
+                references exactly as they are; for a function defined in
+                code, it points local references to common types at the
+                catalog's `common_types_uri`.
         """
         self.name = name
         self.return_type = return_type or "any"
@@ -87,6 +94,7 @@ class FunctionApi:
             else getattr(self, "description", None)
         )
         self.is_definition = is_definition
+        self.from_document = from_document
 
 
 class FunctionImplementation(FunctionApi, Generic[TReturn]):
@@ -102,6 +110,7 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
         requires_user_activation: bool | None = False,
         description: str | None = None,
         is_definition: bool | None = None,
+        from_document: bool = False,
     ):
         super().__init__(
             name=name,
@@ -111,6 +120,7 @@ class FunctionImplementation(FunctionApi, Generic[TReturn]):
             requires_user_activation=requires_user_activation,
             description=description,
             is_definition=is_definition,
+            from_document=from_document,
         )
         self.execute_func = execute
 
@@ -167,6 +177,7 @@ def create_function_implementation(
         requires_user_activation=getattr(api, "requires_user_activation", False),
         description=getattr(api, "description", None),
         is_definition=getattr(api, "is_definition", None),
+        from_document=getattr(api, "from_document", False),
     )
 
 

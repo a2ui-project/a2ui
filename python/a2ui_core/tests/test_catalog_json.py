@@ -21,6 +21,7 @@ from typing import Any
 import jsonschema
 import pytest
 
+from a2ui.core import A2uiCatalogError
 from a2ui.core.basic_catalog import v0_9, v1_0
 from a2ui.core.catalog import Catalog, ComponentApi, FunctionApi
 from a2ui.core.processing import CapabilitiesOptions, MessageProcessor
@@ -408,6 +409,45 @@ def test_to_json_keeps_an_empty_theme_in_defs(version: str) -> None:
     catalog = Catalog.from_json(document, protocol_version=version)
     assert catalog.theme_location == "$defs"
     assert catalog.to_json() == document
+
+
+_DANGLING_REF: dict[str, Any] = {"$ref": "#/$defs/DynamicString"}
+
+
+@pytest.mark.parametrize("version", ["0.9", "1.0"])
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"components": {"A": {"properties": {"t": _DANGLING_REF}}}},
+        {
+            "functions": {
+                "f": {"properties": {"args": {"properties": {"t": _DANGLING_REF}}}}
+            }
+        },
+        {"functions": [{"name": "f", "parameters": {"t": _DANGLING_REF}}]},
+        {"theme": {"properties": {"t": _DANGLING_REF}}},
+        {"$defs": {"theme": {"properties": {"t": _DANGLING_REF}}}},
+        {"$defs": {"Own": {"properties": {"t": _DANGLING_REF}}}},
+    ],
+    ids=["component", "map_function", "list_function", "theme", "defs_theme", "def"],
+)
+def test_loaded_refs_to_undefined_common_types_round_trip(
+    fields: dict[str, Any], version: str
+) -> None:
+    document = {"catalogId": "x", "protocolVersion": version, **fields}
+    catalog = Catalog.from_json(document)
+
+    assert catalog.to_json() == document
+    assert catalog.copy_with().to_json() == document
+
+
+def test_duplicate_list_function_names_are_rejected() -> None:
+    document = {
+        "catalogId": "x",
+        "functions": [{"name": "f"}, {"name": "f", "returnType": "string"}],
+    }
+    with pytest.raises(A2uiCatalogError, match="definition 1 duplicates the name 'f'"):
+        Catalog.from_json(document)
 
 
 # ==============================================================================

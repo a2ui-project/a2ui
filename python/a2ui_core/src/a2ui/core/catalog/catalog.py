@@ -746,6 +746,8 @@ class Catalog(Generic[TComponent, TFunction]):
         functions_form: FunctionsForm | None = None,
         union_defs: Mapping[str, Mapping[str, Any] | None] | None = None,
         extras: Mapping[str, Any] | None = None,
+        theme_from_document: bool = False,
+        defs_from_document: bool = False,
     ):
         """Initializes the catalog.
 
@@ -796,6 +798,12 @@ class Catalog(Generic[TComponent, TFunction]):
                 the entries it has, and both from v1.0 on.
             extras: The catalog document's top-level keys that `Catalog`
                 does not model, as written.
+            theme_from_document: Whether `theme_schema` was loaded from a
+                catalog document, which `from_json` sets. `to_json` then
+                writes it with its references exactly as they are.
+            defs_from_document: Whether `defs` were loaded from a catalog
+                document, which `from_json` sets. `to_json` then writes them
+                with their references exactly as they are.
 
         Raises:
             A2uiCatalogError: If `protocol_version` is missing, an identifier
@@ -836,6 +844,8 @@ class Catalog(Generic[TComponent, TFunction]):
             }
         )
         self.extras: dict[str, Any] = copy.deepcopy(dict(extras)) if extras else {}
+        self.theme_from_document = theme_from_document
+        self.defs_from_document = defs_from_document
 
         validate_identifiers = is_at_least_version(
             protocol_version, ProtocolVersion.V1_0
@@ -901,7 +911,8 @@ class Catalog(Generic[TComponent, TFunction]):
             components: The copy's components. None keeps this catalog's.
             functions: The copy's functions. None keeps this catalog's.
             defs: The copy's own `$defs`. None keeps this catalog's, except
-                those that only the dropped entries referenced.
+                those that only the dropped entries referenced. Defs given
+                here are treated as defined in code.
 
         Returns:
             A schema-only catalog.
@@ -964,6 +975,8 @@ class Catalog(Generic[TComponent, TFunction]):
             functions_form=self.functions_form,
             union_defs=union_defs,
             extras=self.extras,
+            theme_from_document=self.theme_from_document,
+            defs_from_document=self.defs_from_document and defs is None,
         )
 
     def _document_roots(self) -> list[Any]:
@@ -1474,8 +1487,10 @@ class Catalog(Generic[TComponent, TFunction]):
           entries compose (such as `CatalogComponentCommon`), and the
           `union_defs`.
 
-        A reference to a common type that the document does not define
-        itself points at `common_types_uri`.
+        Entries, defs and the theme loaded by `from_json` keep their
+        references exactly as written. In an entry, def or theme defined in
+        code, a local reference to a common type that the document does not
+        define itself points at `common_types_uri`.
 
         Computed once per catalog; each call returns a new copy, which the
         caller may mutate.
@@ -1560,7 +1575,11 @@ class Catalog(Generic[TComponent, TFunction]):
             doc["styles"] = properties if isinstance(properties, dict) else theme
 
         defs: dict[str, Any] = {
-            name: _externalize_refs(schema, common_names, self.common_types_uri)
+            name: (
+                copy.deepcopy(schema)
+                if self.defs_from_document
+                else _externalize_refs(schema, common_names, self.common_types_uri)
+            )
             for name, schema in self.defs.items()
             if name not in _UNION_DEFS
         }
@@ -1603,11 +1622,11 @@ class Catalog(Generic[TComponent, TFunction]):
         self, component: ComponentApi, common_names: set[str]
     ) -> dict[str, Any]:
         """Returns the document entry of a component whose schema is authored."""
-        schema = component.schema
-        entry = _externalize_refs(
-            schema if isinstance(schema, dict) else {},
-            common_names,
-            self.common_types_uri,
+        schema = component.schema if isinstance(component.schema, dict) else {}
+        entry = (
+            copy.deepcopy(schema)
+            if getattr(component, "from_document", False)
+            else _externalize_refs(schema, common_names, self.common_types_uri)
         )
         for key, value in (
             ("allowedParents", component.allowed_parents),
@@ -1629,8 +1648,10 @@ class Catalog(Generic[TComponent, TFunction]):
         written where the schema declares it, or added where it differs from
         the default.
         """
-        entry: dict[str, Any] = _externalize_refs(
-            function.schema, common_names, self.common_types_uri
+        entry: dict[str, Any] = (
+            copy.deepcopy(function.schema)
+            if getattr(function, "from_document", False)
+            else _externalize_refs(function.schema, common_names, self.common_types_uri)
         )
         if function.description is not None:
             entry["description"] = function.description
@@ -1668,6 +1689,8 @@ class Catalog(Generic[TComponent, TFunction]):
             return derived_theme
         if not self.theme_schema and self.theme_location not in ("theme", "$defs"):
             return None
+        if self.theme_from_document:
+            return copy.deepcopy(self.theme_schema)
         return cast(
             dict[str, Any],
             _externalize_refs(self.theme_schema, common_names, self.common_types_uri),
@@ -1894,6 +1917,7 @@ class Catalog(Generic[TComponent, TFunction]):
                         dict(schema),
                         allowed_parents=schema.get("allowedParents"),
                         allowed_children=schema.get("allowedChildren"),
+                        from_document=True,
                     )
                 )
 
@@ -1929,6 +1953,7 @@ class Catalog(Generic[TComponent, TFunction]):
                             fn_description if isinstance(fn_description, str) else None
                         ),
                         is_definition=True,
+                        from_document=True,
                     )
                 )
 
@@ -2000,6 +2025,8 @@ class Catalog(Generic[TComponent, TFunction]):
             ),
             union_defs=union_defs,
             extras=extras,
+            theme_from_document=theme_location is not None,
+            defs_from_document=True,
         )
 
 
@@ -2057,8 +2084,9 @@ def _function_entries(raw: Any, catalog_id: str) -> list[tuple[str, dict[str, An
         The functions in document order.
 
     Raises:
-        A2uiCatalogError: If `functions` is neither a map nor a list, or an
-            entry is not an object or a list entry has no non-empty `name`.
+        A2uiCatalogError: If `functions` is neither a map nor a list, an
+            entry is not an object, or a list entry has no non-empty `name`
+            or repeats an earlier entry's `name`.
     """
     if raw is None:
         return []
@@ -2073,6 +2101,7 @@ def _function_entries(raw: Any, catalog_id: str) -> list[tuple[str, dict[str, An
             entries.append((name, dict(spec)))
         return entries
     if isinstance(raw, list):
+        seen: set[str] = set()
         for index, entry in enumerate(raw):
             if not isinstance(entry, Mapping):
                 raise A2uiCatalogError(
@@ -2085,6 +2114,12 @@ def _function_entries(raw: Any, catalog_id: str) -> list[tuple[str, dict[str, An
                     f"Catalog '{catalog_id}' function definition {index} is missing"
                     " a non-empty 'name' string."
                 )
+            if name in seen:
+                raise A2uiCatalogError(
+                    f"Catalog '{catalog_id}' function definition {index} duplicates"
+                    f" the name '{name}'."
+                )
+            seen.add(name)
             entries.append((name, {k: v for k, v in entry.items() if k != "name"}))
         return entries
     raise A2uiCatalogError(
