@@ -524,7 +524,10 @@ List<String> _names(Object? section) => switch (section) {
       final Map<Object?, Object?> map => [for (final key in map.keys) '$key'],
       final List<Object?> list => [
           for (final Object? item in list)
-            if (item is Map && item['name'] is String) item['name']! as String,
+            if (item is String)
+              item
+            else if (item is Map && item['name'] is String)
+              item['name']! as String,
         ],
       _ => const [],
     };
