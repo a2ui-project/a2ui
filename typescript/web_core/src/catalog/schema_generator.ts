@@ -306,9 +306,10 @@ function resolveLocalPointer(rootDoc: JsonObject, pointer: string): unknown {
 
 /**
  * Gathers the pieces of an authored component definition that declare its
- * properties: the definition itself, the inline members of its `allOf`, the
- * local definitions those members reference and, last, the standard mixins
- * (`ComponentCommon`, `Checkable` and the like) they reference.
+ * properties, from the most generic to the most specific: the standard mixins
+ * (`ComponentCommon`, `Checkable` and the like) its `allOf` references, the
+ * local definitions it references, its inline `allOf` members and, last, the
+ * definition itself.
  *
  * A standard mixin contributes its properties and `required` list but not its
  * description, which describes the mixin rather than the component.
@@ -316,19 +317,16 @@ function resolveLocalPointer(rootDoc: JsonObject, pointer: string): unknown {
 function collectSourceSubSchemas(
   schema: JsonObject,
   context: SourceContext,
-  result: JsonObject[],
   visited: Set<string>,
-): void {
-  if ('properties' in schema || 'description' in schema) result.push(schema);
-  if (!Array.isArray(schema['allOf'])) return;
+): JsonObject[] {
   const inline: JsonObject[] = [];
   const local: JsonObject[] = [];
   const mixins: JsonObject[] = [];
-  for (const sub of schema['allOf']) {
+  for (const sub of Array.isArray(schema['allOf']) ? schema['allOf'] : []) {
     if (!isJsonObject(sub)) continue;
     const ref = sub['$ref'];
     if (typeof ref !== 'string') {
-      collectSourceSubSchemas(sub, context, inline, visited);
+      inline.push(...collectSourceSubSchemas(sub, context, visited));
       continue;
     }
     const mixinName = STANDARD_MIXIN_REF.exec(ref)?.[1];
@@ -336,7 +334,7 @@ function collectSourceSubSchemas(
     if (mixinName === undefined && isJsonObject(target)) {
       if (!visited.has(ref)) {
         visited.add(ref);
-        collectSourceSubSchemas(target, context, local, visited);
+        local.push(...collectSourceSubSchemas(target, context, visited));
       }
       continue;
     }
@@ -349,28 +347,28 @@ function collectSourceSubSchemas(
       });
     }
   }
-  result.push(...inline, ...local, ...mixins);
+  const pieces = [...mixins, ...local, ...inline];
+  if ('properties' in schema || 'description' in schema) pieces.push(schema);
+  return pieces;
 }
 
 /**
  * Builds a component's properties, `required` list and description from its
  * authored definition, as the protocol reads it: the properties of every piece
- * {@link collectSourceSubSchemas} gathers, later pieces overriding earlier ones,
- * and the union of their `required` lists, without the envelope keys.
+ * {@link collectSourceSubSchemas} gathers, a more specific piece overriding a
+ * property a more generic one declares, and the union of their `required`
+ * lists, without the envelope keys. The description is the most specific one.
  */
 function sourceComponentSchema(
   source: JsonObject,
   context: SourceContext,
 ): {props: JsonObject; required: string[]; description?: string} {
-  const pieces: JsonObject[] = [];
-  collectSourceSubSchemas(source, context, pieces, new Set());
-  let description = typeof source['description'] === 'string' ? source['description'] : undefined;
+  const pieces = collectSourceSubSchemas(source, context, new Set());
+  let description: string | undefined;
   const props: JsonObject = {};
   const required = new Set<string>();
   for (const piece of pieces) {
-    if (description === undefined && typeof piece['description'] === 'string') {
-      description = piece['description'];
-    }
+    if (typeof piece['description'] === 'string') description = piece['description'];
     if (isJsonObject(piece['properties'])) Object.assign(props, piece['properties']);
     if (Array.isArray(piece['required'])) {
       for (const name of piece['required']) {
@@ -1041,3 +1039,9 @@ export function generateValidationSchema<
 
   return schema;
 }
+
+/** @deprecated Use {@link GenerateValidationSchemaOptions} instead. */
+export type GenerateCatalogSchemaOptions = GenerateValidationSchemaOptions;
+
+/** @deprecated Use {@link generateValidationSchema} instead. */
+export const generateCatalogSchema = generateValidationSchema;

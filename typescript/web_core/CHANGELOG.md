@@ -1,9 +1,11 @@
 ## Unreleased
 
 - Add `Catalog.fromJson(json, protocolVersion?, catalogId?)`, `Catalog.toJson()` and `Catalog.validationSchema` ([#3053](https://github.com/a2ui-project/a2ui/issues/3053)). `fromJson` loads an authored catalog document and keeps its metadata, `$defs` and the raw JSON of each entry (`sourceJson` on `ComponentApi` and `FunctionApi`). `toJson` returns the unbundled document: a loaded catalog comes back unchanged, and `catalogId` is emitted only when the source declared it or the catalog is defined in code. `validationSchema` is the self-contained bundled schema. The basic catalogs (v0.8, v0.9 and v1.0) now `toJson()` to their published documents, and `@a2ui/web_core/v0_8/basic_catalog` exports `basicCatalog` and `BASIC_CATALOG_ID`. The `Catalog` constructor accepts a `CatalogOptions` object for the theme, instructions and document metadata.
-- `Catalog.fromSchema` is deprecated in favor of `Catalog.fromJson`, and `Catalog.catalogSchema` in favor of `Catalog.validationSchema`.
+- `Catalog.fromSchema` is deprecated in favor of `Catalog.fromJson`, `Catalog.catalogSchema` in favor of `Catalog.validationSchema`, and `generateCatalogSchema` in favor of `generateValidationSchema`.
 - **BREAKING CHANGE**: `validationSchema` (formerly `catalogSchema`) changes shape. Each function is the schema of a wire function call instead of its bare argument schema. Components, functions and the theme loaded from JSON, including the basic catalogs, are built from their authored JSON instead of their Zod schemas. From v1.0 a component is closed only when its author closed it. `protocolVersion` is emitted as a bare semantic version, and a missing required argument whose schema accepts any value is rejected.
 - `MessageProcessor.getRendererCapabilities` sends each v1.0 inline catalog as its `toJson()` document.
+- A component loaded with `Catalog.fromJson` keeps a property it declares itself over one a mixin such as `ComponentCommon` or `Checkable`, or a local definition, also declares, in both its Zod schema and `validationSchema`.
+- A component loaded with `Catalog.fromJson` treats `catalogId` as an envelope key like `id` and `component`: its Zod schema no longer declares it, as `validationSchema` already did not. `PayloadValidator` still accepts a component that carries it.
 
 ## 0.13.0
 

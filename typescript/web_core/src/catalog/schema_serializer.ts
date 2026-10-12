@@ -290,6 +290,9 @@ function serializeFunctionModel(
     };
   }
   closeObjectSchema(args);
+  // A call to a function without required parameters may omit `args`, as in
+  // the validation schema.
+  const argsRequired = Array.isArray(args.required) && args.required.length > 0;
   const result: JsonObject = {type: 'object'};
   if (fn.description) result.description = fn.description;
   if (isAtLeastV10) {
@@ -299,7 +302,7 @@ function serializeFunctionModel(
       result.requiresUserActivation = fn.requiresUserActivation;
     }
     result.properties = {'@call': {const: name}, args};
-    result.required = ['@call', 'args'];
+    result.required = argsRequired ? ['@call', 'args'] : ['@call'];
     return result;
   }
   if (fn.allowedCallers) result.allowedCallers = fn.allowedCallers;
@@ -307,7 +310,7 @@ function serializeFunctionModel(
     result.requiresUserActivation = fn.requiresUserActivation;
   }
   result.properties = {call: {const: name}, args, returnType: {const: fn.returnType}};
-  result.required = ['call', 'args'];
+  result.required = argsRequired ? ['call', 'args'] : ['call'];
   result.unevaluatedProperties = false;
   return result;
 }

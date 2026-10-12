@@ -317,6 +317,58 @@ describe('Catalog.fromJson', () => {
     assert.throws(() => Catalog.fromJson({components: {}}), /Catalog ID/);
   });
 
+  it('does not share objects with its input', () => {
+    const document = readRepoJson('catalogs/basic/v1/catalog.json');
+    const catalog = Catalog.fromJson(document);
+    const json = JSON.stringify(catalog.toJson());
+    const text = catalog.components.get('Text')!;
+    const textSchemaResult = text.schema.safeParse({text: 'hi', variant: 'h1'}).success;
+    document.components.Text.properties.variant.enum = ['mutated'];
+    document.components.Text.description = 'mutated';
+    document.functions.openUrl.description = 'mutated';
+    document.$defs.anyComponent = {not: {}};
+    document.catalogId = 'mutated';
+    const fresh = Catalog.fromJson(readRepoJson('catalogs/basic/v1/catalog.json'));
+    assert.strictEqual(JSON.stringify(catalog.toJson()), json);
+    assert.deepStrictEqual(catalog.validationSchema, fresh.validationSchema);
+    assert.strictEqual(
+      text.schema.safeParse({text: 'hi', variant: 'h1'}).success,
+      textSchemaResult,
+    );
+  });
+
+  it('leaves sourceJson unchanged when building validationSchema', () => {
+    const catalog = Catalog.fromJson(readRepoJson('catalogs/basic/v1/catalog.json'));
+    const sources = (): string =>
+      JSON.stringify([
+        [...catalog.components.values()].map(c => c.sourceJson),
+        [...catalog.functions.values()].map(f => f.sourceJson),
+        catalog.defs,
+        catalog.sourceDocument,
+      ]);
+    const before = sources();
+    void catalog.validationSchema;
+    catalog.toJson();
+    assert.strictEqual(sources(), before);
+  });
+
+  it('round-trips a code-defined function without required args through toJson', () => {
+    const fn = createFunctionImplementation(
+      {name: 'now', returnType: 'string', schema: z.object({format: z.string().optional()})},
+      () => '',
+    );
+    for (const version of ['0.9', '1.0']) {
+      const codeCatalog = new Catalog(`https://example.com/now/${version}`, version, [], [fn]);
+      const out = codeCatalog.toJson();
+      const call = (out.functions as Record<string, any>).now;
+      assert.ok(!call.required.includes('args'), `args is optional in ${version}`);
+      // The document declares the version the code-defined catalog only implies.
+      const {protocolVersion, ...reloaded} = Catalog.fromJson(out, version).validationSchema;
+      assert.strictEqual(protocolVersion, version);
+      assert.deepStrictEqual(reloaded, codeCatalog.validationSchema);
+    }
+  });
+
   it('is what the deprecated fromSchema returns', () => {
     const document = readRepoJson('catalogs/mcp/catalog.json');
     assert.deepStrictEqual(Catalog.fromSchema(document).toJson(), document);

@@ -22,6 +22,8 @@ import {z} from 'zod';
 import {Catalog} from './types.js';
 import {analyzeChildRefSchema} from './reference-map.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
+import {STRICT_VALIDATION} from '../validation/integrity-checker.js';
+import {PayloadValidator} from '../validation/payload-validator.js';
 
 describe('Catalog.fromJson & schema_loader', () => {
   const basicCatalogPath = resolve(
@@ -534,5 +536,76 @@ describe('Catalog.fromJson & schema_loader', () => {
     const schema = catalog.components.get('Tabs')!.schema;
     assert.ok(schema.safeParse({tabs: [{title: 'Overview', child: 'c1', extra: 1}]}).success);
     assert.ok(!schema.safeParse({tabs: [{title: 42}]}).success);
+  });
+
+  /**
+   * A v1.0 catalog whose Toggle narrows properties that a standard mixin
+   * (`checks` from Checkable), a local definition (`label`, `size` from Base)
+   * and an inline branch (`size`) also declare, with the mixins listed last.
+   */
+  const precedenceCatalog = {
+    catalogId: 'https://example.com/precedence.json',
+    protocolVersion: '1.0',
+    components: {
+      Toggle: {
+        allOf: [
+          {
+            properties: {
+              component: {const: 'Toggle'},
+              checks: {type: 'string', enum: ['strict']},
+              label: {type: 'number'},
+              size: {type: 'string'},
+            },
+          },
+          {$ref: '#/$defs/Base'},
+          {$ref: 'common_types.json#/$defs/Checkable'},
+          {$ref: 'common_types.json#/$defs/ComponentCommon'},
+        ],
+        properties: {size: {type: 'integer'}},
+      },
+    },
+    $defs: {
+      Base: {properties: {label: {type: 'string'}, size: {type: 'boolean'}}},
+    },
+  };
+
+  it('lets a component override a property its mixins and local definitions declare', () => {
+    const schema = Catalog.fromJson(precedenceCatalog).components.get('Toggle')!
+      .schema as z.ZodObject<z.ZodRawShape>;
+    assert.ok(schema.safeParse({checks: 'strict', label: 3, size: 2}).success);
+    assert.ok(!schema.safeParse({checks: [{condition: true, message: 'x'}]}).success);
+    assert.ok(!schema.safeParse({label: 'text'}).success, 'inline beats the local definition');
+    assert.ok(!schema.safeParse({size: 'large'}).success, 'top level beats the inline branch');
+    assert.ok(!schema.safeParse({size: true}).success, 'top level beats the local definition');
+    assert.deepStrictEqual(Object.keys(schema.shape), [
+      'checks',
+      'accessibility',
+      'metadata',
+      'label',
+      'size',
+    ]);
+  });
+
+  it('lets a component override a property its mixins declare in validationSchema', () => {
+    const schema = Catalog.fromJson(precedenceCatalog).validationSchema;
+    const toggle = (schema.components as Record<string, any>).Toggle;
+    assert.deepStrictEqual(toggle.properties.checks, {type: 'string', enum: ['strict']});
+    assert.deepStrictEqual(toggle.properties.label, {type: 'number'});
+    assert.deepStrictEqual(toggle.properties.size, {type: 'integer'});
+    assert.ok(!('catalogId' in toggle.properties));
+  });
+
+  it('treats catalogId as a component envelope field', () => {
+    const catalog = Catalog.fromJson(precedenceCatalog);
+    const schema = catalog.components.get('Toggle')!.schema as z.ZodObject<z.ZodRawShape>;
+    assert.ok(!('catalogId' in schema.shape));
+    assert.ok('metadata' in schema.shape);
+    new PayloadValidator(catalog, STRICT_VALIDATION).validateComponent({
+      id: 'toggle1',
+      component: 'Toggle',
+      catalogId: 'https://example.com/precedence.json',
+      metadata: {source: 'test'},
+      size: 2,
+    });
   });
 });

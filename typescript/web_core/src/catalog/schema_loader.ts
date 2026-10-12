@@ -510,13 +510,16 @@ function convertPropertyToZod(
 }
 
 /**
- * Whether a property name is one of the component envelope fields (`id`, `component`).
+ * Whether a property name is one of the component envelope fields (`id`,
+ * `component`, `catalogId`), which route a component rather than configure it.
+ * The validation schema leaves them out of a component for the same reason, and
+ * `PayloadValidator` strips them before parsing a component.
  *
  * @param propName Property name to check.
  * @returns True if the property belongs to the envelope rather than the component.
  */
 function isEnvelopeField(propName: string): boolean {
-  return propName === 'id' || propName === 'component';
+  return propName === 'id' || propName === 'component' || propName === 'catalogId';
 }
 
 /**
@@ -526,7 +529,7 @@ function isEnvelopeField(propName: string): boolean {
  *
  * @param properties Property name to property schema mapping.
  * @param requiredSet Set of required property names.
- * @param omitEnvelopeFields Whether to omit component envelope fields (`id`, `component`).
+ * @param omitEnvelopeFields Whether to omit component envelope fields (`id`, `component`, `catalogId`).
  * @param rootDoc Optional root schema document for reference resolution.
  * @param visitedPointers Set of reference pointers currently on the resolution stack.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
@@ -584,12 +587,19 @@ type ComponentSubSchema =
  * Resolves local document `$defs` and canonical protocol references, including
  * external `common_types.json` mixins such as `Checkable`.
  *
+ * The pieces are ordered from the most generic to the most specific, so that a
+ * later piece overrides a property an earlier one declares: the standard
+ * mixins first, then the local definitions the schema references, then its
+ * inline `allOf` members, and the schema's own `properties` last. A component
+ * that narrows a property it inherits keeps its narrowed schema, and the mixin
+ * properties stay first in key order.
+ *
  * @param schema Component schema definition.
  * @param rootDoc Root schema document containing definition targets.
  * @param visitedPointers Set of reference pointers currently being resolved to prevent cycles.
  * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
  * @returns The pieces gathered from the schema and its `allOf` hierarchy, as JSON Schema
- *     fragments or zod mirrors of canonical types.
+ *     fragments or zod mirrors of canonical types, least specific first.
  */
 function collectComponentSubSchemas(
   schema: Record<string, unknown>,
@@ -597,8 +607,10 @@ function collectComponentSubSchemas(
   visitedPointers = new Set<string>(),
   isAtLeastV10 = false,
 ): ComponentSubSchema[] {
-  const result: ComponentSubSchema[] = [];
-  if (!schema || typeof schema !== 'object') return result;
+  if (!schema || typeof schema !== 'object') return [];
+  const mixins: ComponentSubSchema[] = [];
+  const local: ComponentSubSchema[] = [];
+  const inline: ComponentSubSchema[] = [];
 
   if (Array.isArray(schema.allOf)) {
     for (const sub of schema.allOf) {
@@ -608,18 +620,19 @@ function collectComponentSubSchemas(
         const ref = sub.$ref;
         if (ref.includes('common_types.json') && ref.includes('ComponentCommon')) {
           // Protocol common properties: accessibility attributes, and from
-          // v1.0 also the component's own catalogId and metadata.
-          const {accessibility, catalogId, metadata} = ComponentCommonSchema.shape;
-          result.push({
+          // v1.0 also the component's metadata. `catalogId` is an envelope
+          // field, like `id`.
+          const {accessibility, metadata} = ComponentCommonSchema.shape;
+          mixins.push({
             kind: 'zod',
-            properties: isAtLeastV10 ? {accessibility, catalogId, metadata} : {accessibility},
+            properties: isAtLeastV10 ? {accessibility, metadata} : {accessibility},
           });
         } else if (ref.startsWith('#/')) {
           if (!visitedPointers.has(ref)) {
             visitedPointers.add(ref);
             const target = resolveJsonPointer(rootDoc, ref);
             if (target) {
-              result.push(
+              local.push(
                 ...collectComponentSubSchemas(target, rootDoc, visitedPointers, isAtLeastV10),
               );
             }
@@ -631,19 +644,19 @@ function collectComponentSubSchemas(
           // how `checks` used to disappear from every Checkable component.
           const mirror = resolveProtocolRef(ref);
           if (mirror instanceof z.ZodObject) {
-            result.push({kind: 'zod', properties: {...mirror.shape}});
+            mixins.push({kind: 'zod', properties: {...mirror.shape}});
           }
         }
       } else {
-        result.push(...collectComponentSubSchemas(sub, rootDoc, visitedPointers, isAtLeastV10));
+        inline.push(...collectComponentSubSchemas(sub, rootDoc, visitedPointers, isAtLeastV10));
       }
     }
   }
 
+  const result = [...mixins, ...local, ...inline];
   if (schema.properties) {
     result.push({kind: 'json', schema});
   }
-
   return result;
 }
 
@@ -655,7 +668,7 @@ function collectComponentSubSchemas(
  *
  * @param rawSchema Raw component schema definition.
  * @param rootDoc Root schema document for resolving references.
- * @param omitEnvelopeFields Whether to omit envelope fields (`id`, `component`). Defaults to true.
+ * @param omitEnvelopeFields Whether to omit envelope fields (`id`, `component`, `catalogId`). Defaults to true.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
  * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
  * @returns Zod object schema validating component properties.
@@ -1008,7 +1021,8 @@ function parseThemeSchema(
  * Parses component and function definitions, extracts hierarchy constraints (`allowedParents`,
  * `allowedChildren`), unescapes RFC 6901 JSON pointers, and builds runtime Zod validators.
  *
- * @param catalogSchema Raw catalog schema or capabilities definition object.
+ * @param inputSchema Raw catalog schema or capabilities definition object. It
+ *   is copied first and never referenced afterwards.
  * @param protocolVersion Protocol version to use when the schema does not declare
  *   one. Catalog schemas published before v1.0 omit `protocolVersion`; when
  *   neither the caller nor the schema supplies it, `DEFAULT_PROTOCOL_VERSION`
@@ -1019,10 +1033,13 @@ function parseThemeSchema(
  * @throws {Error} If the catalog ID is missing or not a string.
  */
 export function parseCatalogSchema(
-  catalogSchema: Record<string, unknown>,
+  inputSchema: Record<string, unknown>,
   protocolVersion?: string,
   catalogIdOverride?: string,
 ): ParsedCatalogSchema {
+  // Everything the catalog keeps, including what the Zod schemas close over,
+  // comes from this copy, so mutating the input afterwards cannot change it.
+  const catalogSchema = deepCopyJson(inputSchema);
   const catalogId =
     catalogIdOverride ?? catalogSchema.catalogId ?? catalogSchema.$id ?? catalogSchema.id;
   if (!catalogId || typeof catalogId !== 'string') {
@@ -1068,6 +1085,6 @@ export function parseCatalogSchema(
     functions,
     themeSchema,
     ...catalogDocumentOptions(catalogSchema),
-    sourceDocument: deepCopyJson(catalogSchema),
+    sourceDocument: catalogSchema,
   };
 }
