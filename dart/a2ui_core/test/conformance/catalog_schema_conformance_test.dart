@@ -54,9 +54,10 @@ const Map<String, String> _expectedFailures = {
       "The case declares a function named '@index', which `Catalog.fromJson` "
           'rejects because names starting with `@` are reserved.',
   'test_v10_catalog_schema_basic':
-      '`catalogSchema` rebuilds the v1.0 component envelope, so `id` is '
-          'emitted as a `ComponentId` reference rather than the inline '
-          '`{type: string}` the case wrote.',
+      'The case declares `id` on a v1.0 component, which the protocol '
+          'reserves for the message envelope, so `catalogSchema` omits it; '
+          'it also emits the resolved `protocolVersion` and the v1.0 '
+          '`anyFunction` entry, which the case does not expect.',
   'test_v10_uax31_invalid_argument_name':
       'v1.0 identifiers are not checked against UAX #31 yet.',
   'test_v10_uax31_invalid_armenian_hyphen_function_name':
