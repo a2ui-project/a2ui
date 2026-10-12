@@ -92,7 +92,6 @@ export function createBasicCatalogFunctions(options?: {locale?: string}): Functi
   const locale = options?.locale;
   return [
     ...V10_VALIDATION_FUNCTION_IMPLEMENTATIONS,
-    IndexImplementation,
     FormatStringImplementation,
     createFormatNumberImplementation(locale),
     createFormatCurrencyImplementation(locale),
@@ -102,6 +101,7 @@ export function createBasicCatalogFunctions(options?: {locale?: string}): Functi
     AndImplementation,
     OrImplementation,
     NotImplementation,
+    IndexImplementation,
   ];
 }
 

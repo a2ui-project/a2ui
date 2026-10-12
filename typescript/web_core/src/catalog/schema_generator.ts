@@ -17,20 +17,16 @@
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
 
-import {isAtLeastVersion, normalizeVersionString, toCanonicalVersion} from '../common/semver.js';
+import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {CommonSchemas} from '../types/common-types.js';
-import {V08_STANDARD_DEFS} from '../v0_8/standard_defs.js';
-import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
-import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
-import {deepCopyJson, entryDefinition, THEME_DOCUMENT_KEYS} from './schema_serializer.js';
+import {
+  catalogDocumentModel,
+  deepCopyJson,
+  THEME_DOCUMENT_KEYS,
+  type CatalogDocumentModel,
+} from './schema_serializer.js';
+import {standardDefsForVersion} from './spec_shape.js';
 import type {CatalogInterface, ComponentApi, FunctionApi} from './types.js';
-
-const STANDARD_DEFS_BY_VERSION: Readonly<Record<string, Record<string, unknown>>> = {
-  '0.8': V08_STANDARD_DEFS,
-  '0.9': V09_STANDARD_DEFS,
-  '0.9.1': V09_STANDARD_DEFS,
-  '1.0': V10_STANDARD_DEFS,
-};
 
 /**
  * Resolves the appropriate standard $defs dictionary based on options or catalog configuration.
@@ -48,17 +44,7 @@ function getStandardDefsForCatalog(
   if (options?.standardDefs) {
     return options.standardDefs;
   }
-  const version = options?.protocolVersion ?? catalog.protocolVersion;
-  if (version) {
-    const key = toCanonicalVersion(version) ?? normalizeVersionString(version);
-    if (key in STANDARD_DEFS_BY_VERSION) {
-      return STANDARD_DEFS_BY_VERSION[key];
-    }
-    if (isAtLeastVersion(version, '1.0')) {
-      return V10_STANDARD_DEFS;
-    }
-  }
-  return V09_STANDARD_DEFS;
+  return standardDefsForVersion(options?.protocolVersion ?? catalog.protocolVersion);
 }
 
 /**
@@ -267,6 +253,7 @@ const STANDARD_MIXIN_REF = /\/(ComponentCommon|Checkable)$/;
  */
 interface SourceContext {
   readonly standardDefs: Record<string, unknown>;
+  readonly model: CatalogDocumentModel;
   readonly defs: Readonly<JsonObject>;
   readonly rootDoc: JsonObject;
   readonly isV10: boolean;
@@ -436,8 +423,11 @@ function sourceComponentSchema(
  * schema loader reads it, or `undefined` for a function without a usable
  * definition.
  */
-function authoredFunctionArgs(fn: FunctionApi, context: SourceContext): JsonObject | undefined {
-  const source = entryDefinition(fn, context.defs);
+function authoredFunctionArgs(
+  name: string,
+  context: SourceContext,
+): Readonly<JsonObject> | undefined {
+  const source = context.model.functions.get(name);
   if (!source) return undefined;
   const props = isJsonObject(source.properties) ? source.properties : undefined;
   const explicit = props?.args ?? source.args ?? source.parameters;
@@ -477,13 +467,10 @@ function authoredFunctionArgs(fn: FunctionApi, context: SourceContext): JsonObje
  * Returns the theme schema a catalog declares: under one of the document's
  * top-level theme keys, or as `$defs.theme`.
  */
-function authoredTheme(
-  catalog: CatalogInterface<ComponentApi, FunctionApi>,
-): JsonObject | undefined {
+function authoredTheme(model: CatalogDocumentModel): Readonly<JsonObject> | undefined {
   const theme =
-    THEME_DOCUMENT_KEYS.map(key => catalog.extensionFields?.[key]).find(
-      value => value !== undefined,
-    ) ?? catalog.defs?.['theme'];
+    THEME_DOCUMENT_KEYS.map(key => model.extensionFields[key]).find(value => value !== undefined) ??
+    model.defs['theme'];
   if (!isJsonObject(theme)) return undefined;
   return 'properties' in theme || 'allOf' in theme || theme.type === 'object'
     ? theme
@@ -508,13 +495,14 @@ function processTheme(
   catalog: CatalogInterface<ComponentApi, FunctionApi>,
   defs: JsonObject,
   generated: unknown[],
+  context: SourceContext,
 ): void {
   if (!catalog.themeSchema) return;
   const isV08 = isV08Catalog(catalog);
 
-  const authored = authoredTheme(catalog);
+  const authored = authoredTheme(context.model);
   if (authored) {
-    const theme = deepCopyJson(authored);
+    const theme: JsonObject = deepCopyJson({...authored});
     if (
       !isV08 &&
       theme['additionalProperties'] === undefined &&
@@ -632,9 +620,10 @@ function authoredClosure(source: Readonly<JsonObject>): unknown {
  * Builds the schema of one component with the component envelope: an `id`,
  * the `component` constant and the component's own properties.
  *
- * A component loaded from JSON is built from its authored definition, so every
- * nested keyword survives; one defined in code is generated from its Zod
- * schema.
+ * A component with a definition in the catalog's document model (one loaded
+ * from JSON, or one whose definition is computed from its specification
+ * model) is built from that definition, so every nested keyword survives; any
+ * other component defined in code is generated from its Zod schema.
  */
 function processSingleComponent(
   name: string,
@@ -648,7 +637,7 @@ function processSingleComponent(
   let reqList: string[];
   let description: string | undefined;
   let closure: unknown;
-  const source = entryDefinition(comp, context.defs);
+  const source = context.model.components.get(name);
   if (source) {
     ({props, required: reqList, description} = sourceComponentSchema(source, context));
     // From v1.0 the protocol's Component envelope combines the entry with
@@ -746,13 +735,14 @@ function processComponents(
  * `additionalProperties`, and `false` when it declares neither.
  */
 function buildFunctionArgsSchema(
+  name: string,
   fn: FunctionApi,
   defs: JsonObject,
   generated: unknown[],
   context: SourceContext,
 ): JsonObject {
   let paramSchemaObj: JsonObject;
-  const authored = authoredFunctionArgs(fn, context);
+  const authored = authoredFunctionArgs(name, context);
   if (authored) {
     paramSchemaObj = deepCopyJson(authored);
     restoreSourceRefs(paramSchemaObj, context.standardDefs, false);
@@ -793,7 +783,7 @@ function processSingleFunction(
   generated: unknown[],
   context: SourceContext,
 ): JsonObject {
-  const argsSchema = buildFunctionArgsSchema(fn, defs, generated, context);
+  const argsSchema = buildFunctionArgsSchema(name, fn, defs, generated, context);
   const hasRequiredArgs = Array.isArray(argsSchema.required) && argsSchema.required.length > 0;
   const callKey = context.isV10 ? '@call' : 'call';
   const required = hasRequiredArgs ? [callKey, 'args'] : [callKey];
@@ -982,9 +972,9 @@ function collectReferencedDefs(
 /**
  * Reconstructs a specification-compliant A2UI catalog JSON Schema document from a Catalog instance.
  *
- * Components, functions and a theme loaded from JSON are built from their
- * authored definitions; ones defined in code are generated from their Zod
- * schemas. References to common types become local references, and the
+ * Components, functions and a theme with a definition in the catalog's
+ * document model (see `catalogDocumentModel`) are built from it; other ones
+ * defined in code are generated from their Zod schemas. References to common types become local references, and the
  * standard definitions and authored local definitions they reach are copied
  * into `$defs`, alongside the component and function unions.
  *
@@ -1012,9 +1002,11 @@ export function generateValidationSchema<
 
   const standardDefs = getStandardDefsForCatalog(catalog, options);
   const version = options?.protocolVersion ?? catalog.protocolVersion;
-  const authoredDefs: Readonly<JsonObject> = catalog.defs ?? {};
+  const model = catalogDocumentModel(catalog);
+  const authoredDefs: Readonly<JsonObject> = model.defs;
   const context: SourceContext = {
     standardDefs,
+    model,
     defs: authoredDefs,
     rootDoc: {$defs: authoredDefs},
     isV10: Boolean(version) && isAtLeastVersion(version, '1.0'),
@@ -1025,7 +1017,7 @@ export function generateValidationSchema<
   // definitions take those definitions' descriptions.
   const generated: unknown[] = [];
 
-  processTheme(catalog, defs, generated);
+  processTheme(catalog, defs, generated, context);
   processComponents(catalog, schema, defs, generated, context, options);
   processFunctions(catalog, schema, defs, generated, context);
 

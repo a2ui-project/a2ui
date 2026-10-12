@@ -22,6 +22,7 @@ import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {SpecVersion} from '../spec_versions.js';
 import {parseCatalogSchema} from './schema_loader.js';
+import type {JsonSchemaObject} from './spec_annotations.js';
 import {generateValidationSchema} from './schema_generator.js';
 import {
   deepCopyJson,
@@ -83,28 +84,9 @@ export interface FunctionApi {
   readonly requiresUserActivation?: boolean;
   /** Human-readable description of the function's purpose. */
   readonly description?: string;
-  /**
-   * The function's JSON Schema definition, in the form a catalog document
-   * writes it: an entry of a `functions` map (the schema of a call to the
-   * function) or an item of a `functions` list (with its `name` and
-   * `parameters`).
-   *
-   * References stay as written: `common_types.json#/$defs/...` and local
-   * `#/$defs/...` references are resolved only when `Catalog.validationSchema`
-   * is built. `Catalog.fromJson` sets it to the definition it loaded, and
-   * derives `schema`, `returnType` and the other fields from it; the built-in
-   * basic catalogs set it to their published definitions. When it is absent,
-   * `Catalog.toJson` and `validationSchema` generate the definition from
-   * `schema` and the other fields. A copy of an entry that changes `schema`
-   * must also change or drop `definition`.
-   */
-  readonly definition?: JsonSchemaObject;
 }
 
-/**
- * A JSON Schema object, as written in a catalog document.
- */
-export type JsonSchemaObject = Readonly<Record<string, unknown>>;
+export type {JsonSchemaObject};
 
 /**
  * A function implementation that can be registered with a catalog or evaluator.
@@ -159,7 +141,6 @@ export function createFunctionImplementation<
     allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
     requiresUserActivation?: boolean;
     description?: string;
-    definition?: JsonSchemaObject;
   },
   execute: (
     args: ResolvedFunctionArgs<Schema>,
@@ -174,7 +155,6 @@ export function createFunctionImplementation<
     allowedCallers: api.allowedCallers,
     requiresUserActivation: api.requiresUserActivation,
     description: api.description,
-    ...(api.definition !== undefined ? {definition: api.definition} : {}),
     execute: execute as (
       args: Record<string, unknown>,
       ctx: DataContext,
@@ -207,23 +187,6 @@ export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
 
   /** Optional allowed child component types (e.g. ['Text', 'Button']). */
   readonly allowedChildren?: string[];
-
-  /**
-   * The component's JSON Schema definition, as a catalog document's
-   * `components` map writes it, including its `allOf` mixins, descriptions,
-   * `unevaluatedProperties` and `allowedParents`/`allowedChildren`.
-   *
-   * References stay as written: `common_types.json#/$defs/...` and local
-   * `#/$defs/...` references are resolved only when `Catalog.validationSchema`
-   * is built, local ones against the `$defs` of the catalog that holds the
-   * component. `Catalog.fromJson` sets it to the definition it loaded and
-   * derives `schema` from it; the built-in basic catalogs set it to their
-   * published definitions. When it is absent, or references a local
-   * definition its catalog does not define, `Catalog.toJson` and
-   * `validationSchema` generate the definition from `schema`. A copy of an
-   * entry that changes `schema` must also change or drop `definition`.
-   */
-  readonly definition?: JsonSchemaObject;
 }
 
 /**
@@ -253,8 +216,8 @@ export interface CatalogUnions {
  * components and functions, as `Catalog.toJson` writes them.
  *
  * `Catalog.fromJson` reads them from the document it loads, and the built-in
- * basic catalogs set them to those of their published documents. A catalog
- * defined in code may leave them all out.
+ * basic catalogs set the scalar ones, which their generated models carry. A
+ * catalog defined in code may leave them all out.
  */
 export interface CatalogDocumentOptions {
   /** System instructions or usage guidelines (`instructions`). */
@@ -298,8 +261,33 @@ export interface CatalogDocumentOptions {
    * and `anyFunction` unions that `toJson` computes. Local `#/$defs/<name>`
    * references in the catalog's entry definitions resolve against them.
    * Includes the theme (`$defs.theme`) when the document declares it there.
+   * A catalog defined in code declares its definitions as models instead
+   * (`defModels` and the mixins of its components).
    */
   defs?: Readonly<Record<string, unknown>>;
+  /**
+   * How the document writes the common types document in references, such as
+   * `https://a2ui.org/specification/v0_9/common_types.json`. `toJson` writes
+   * the common types references of entries defined in code, and their
+   * `ComponentCommon`-style mixins, against it. Defaults to
+   * `common_types.json`.
+   */
+  commonTypesUri?: string;
+  /**
+   * Where the document of a catalog defined in code declares the theme that
+   * `themeSchema` models: under `$defs.theme` (`'defs'`), or as the map of
+   * theme properties under the top-level `styles` key (`'styles'`), as the
+   * v0.8 basic catalog does. When undefined, a catalog before v1.0 declares
+   * it under `$defs.theme`.
+   */
+  themeLocation?: 'defs' | 'styles';
+  /**
+   * Models of named definitions that the document declares under `$defs`
+   * besides those its components' mixins name, each named with `specDef`,
+   * such as the theme of the v0.9 basic catalog's document. `toJson`
+   * computes the definitions from them.
+   */
+  defModels?: readonly z.ZodTypeAny[];
   /**
    * Top-level document keys the fields above do not cover, as written: for
    * example `extensions`, or the theme of a v0.8 catalog (`styles`).
@@ -359,6 +347,12 @@ export declare interface CatalogInterface<
   readonly defs?: Readonly<Record<string, unknown>>;
   /** See {@link CatalogDocumentOptions.extensionFields}. */
   readonly extensionFields?: Readonly<Record<string, unknown>>;
+  /** See {@link CatalogDocumentOptions.commonTypesUri}. */
+  readonly commonTypesUri?: string;
+  /** See {@link CatalogDocumentOptions.themeLocation}. */
+  readonly themeLocation?: 'defs' | 'styles';
+  /** See {@link CatalogDocumentOptions.defModels}. */
+  readonly defModels?: readonly z.ZodTypeAny[];
   /** Self-contained, bundled JSON Schema used to validate payloads against this catalog. */
   readonly validationSchema: Record<string, unknown>;
   /**
@@ -384,12 +378,17 @@ export declare interface CatalogInterface<
  * `F` to `FunctionImplementation` so a schema-only catalog is rejected at
  * compile time rather than resolving values to `undefined` at runtime.
  *
- * A catalog is its catalog document in model form: the entries carry their
- * JSON Schema definitions (`ComponentApi.definition`,
- * `FunctionApi.definition`), and the catalog the document-level fields
- * (`CatalogDocumentOptions`). `toJson` assembles the document from them and
- * `validationSchema` bundles it, so `Catalog.fromJson(doc).toJson()` equals
- * `doc`.
+ * A catalog is its catalog document in model form. An entry `fromJson`
+ * loaded (`JsonComponentApi`, `JsonFunctionApi`) has its JSON Schema
+ * definition as its model, from which its Zod schema is derived. An entry
+ * defined in code has its Zod schema as its model; when the schema is
+ * annotated as a specification model (see `spec`), as the built-in basic
+ * catalogs' generated models are, `toJson` computes its definition in the
+ * layout of the catalog's protocol version, and otherwise generates one. The
+ * catalog keeps the document-level fields (`CatalogDocumentOptions`).
+ * `toJson` assembles the document from all of these and `validationSchema`
+ * bundles it, so `Catalog.fromJson(doc).toJson()` equals `doc`, and `toJson`
+ * of a built-in basic catalog equals its published document.
  */
 export class Catalog<
   T extends ComponentApi,
@@ -463,6 +462,15 @@ export class Catalog<
   /** See {@link CatalogDocumentOptions.extensionFields}. Deeply frozen. */
   readonly extensionFields?: Readonly<Record<string, unknown>>;
 
+  /** See {@link CatalogDocumentOptions.commonTypesUri}. */
+  readonly commonTypesUri?: string;
+
+  /** See {@link CatalogDocumentOptions.themeLocation}. */
+  readonly themeLocation?: 'defs' | 'styles';
+
+  /** See {@link CatalogDocumentOptions.defModels}. */
+  readonly defModels?: readonly z.ZodTypeAny[];
+
   private cachedValidationSchema?: Record<string, unknown>;
 
   private cachedDocument?: Record<string, unknown>;
@@ -470,8 +478,9 @@ export class Catalog<
   /**
    * Self-contained JSON Schema for validating payloads against this catalog.
    *
-   * Built from the catalog's model and memoized. An entry with a `definition`
-   * is built from it; one without is generated from its Zod schema. Common
+   * Built from the catalog's model and memoized: from the definition of each
+   * entry `toJson` writes, or, for an entry defined in code without
+   * specification annotations, from its Zod schema. Common
    * types references are localized and the referenced standard definitions
    * for the catalog's protocol version, and any of the catalog's `defs` an
    * entry references, are bundled into `$defs`, together with the component
@@ -501,14 +510,17 @@ export class Catalog<
    * Returns the unbundled catalog document for this catalog, assembled from
    * its model and memoized.
    *
-   * The document-level fields come from the catalog (`CatalogDocumentOptions`),
-   * and each entry is its `definition`, with references kept as written.
-   * Entries without one, or whose definition references a local definition the
-   * catalog's `defs` lack, are generated from their model with common types
-   * references written as `common_types.json#/$defs/<name>`. The
-   * `anyComponent` and `anyFunction` unions are computed from the entries. So
-   * for a catalog loaded with `fromJson`, the result equals the loaded
-   * document.
+   * The document-level fields come from the catalog (`CatalogDocumentOptions`).
+   * An entry `fromJson` loaded is written as its definition, with references
+   * kept as written, unless it references a local definition the catalog
+   * lacks. An entry defined in code whose schema is a specification model is
+   * computed from its model in the layout of the catalog's protocol version,
+   * with its mixins and the `defModels` written to `$defs`; any other entry
+   * is generated from its Zod schema. Common types references are written
+   * against `commonTypesUri`. The `anyComponent` and `anyFunction` unions are
+   * computed from the entries. So for a catalog loaded with `fromJson`, the
+   * result equals the loaded document, and for a built-in basic catalog, the
+   * published document.
    *
    * @returns A fresh document that the caller may modify.
    */
@@ -550,6 +562,9 @@ export class Catalog<
         this.extensionFields,
       ),
       extensionFields: this.extensionFields,
+      commonTypesUri: this.commonTypesUri,
+      themeLocation: this.themeLocation,
+      defModels: this.defModels,
     });
   }
 
@@ -623,15 +638,19 @@ export class Catalog<
     // frozen, such as those `fromJson` produced, are kept without copying.
     this.defs = frozenJson(options.defs);
     this.extensionFields = frozenJson(options.extensionFields);
+    this.commonTypesUri = options.commonTypesUri;
+    this.themeLocation = options.themeLocation;
+    this.defModels = options.defModels ? Object.freeze([...options.defModels]) : undefined;
     this.invoker = createCatalogInvoker(this.id, this.protocolVersion, this.functions);
   }
 
   /**
    * Constructs a schema-only Catalog from an authored A2UI catalog document.
    *
-   * Each entry keeps its definition as written (`definition`), from which its
-   * Zod schema is derived, and the catalog keeps the document-level fields,
-   * so `toJson` returns the document unchanged.
+   * Each entry is a `JsonComponentApi` or `JsonFunctionApi` whose model is
+   * its definition as written, from which its Zod schema is derived on first
+   * use, and the catalog keeps the document-level fields, so `toJson` returns
+   * the document unchanged.
    *
    * @param json Raw catalog document or client capabilities inline catalog.
    * @param protocolVersion Protocol version to use when the document does not

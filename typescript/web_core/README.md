@@ -62,8 +62,8 @@ The code generator uses **Schema Flattening** to remain version-, catalog-, and 
 
 A `Catalog` has three serialization entry points:
 
-- `Catalog.fromJson(json, protocolVersion?, catalogId?)` loads a catalog document into the catalog's model. Each entry keeps its JSON Schema definition as written (`definition`), from which its Zod schema is derived, and the catalog keeps the document-level fields (metadata, named `$defs`, other top-level keys). `protocolVersion` applies when the document declares none, and `catalogId` replaces the document's own ID.
-- `catalog.toJson()` assembles the unbundled catalog document from the model, computing the `anyComponent` and `anyFunction` unions. A catalog loaded with `fromJson`, and each built-in basic catalog, returns its document unchanged. Entries without a `definition` are serialized from their Zod schemas. The result is computed once per catalog; each call returns a fresh copy.
+- `Catalog.fromJson(json, protocolVersion?, catalogId?)` loads a catalog document into the catalog's model. Each entry is a `JsonComponentApi` or `JsonFunctionApi` whose model is its JSON Schema definition as written (`jsonSchema`); its Zod `schema` is derived from the definition on first use. The catalog keeps the document-level fields (metadata, named `$defs`, other top-level keys). `protocolVersion` applies when the document declares none, and `catalogId` replaces the document's own ID.
+- `catalog.toJson()` assembles the unbundled catalog document from the model, computing the `anyComponent` and `anyFunction` unions. A catalog loaded with `fromJson` returns its document unchanged. An entry defined in code whose Zod schema is annotated with `spec()` has its definition computed from the model in the layout of the catalog's protocol version; any other entry defined in code is generated from its Zod schema. The result is computed once per catalog; each call returns a fresh copy.
 - `catalog.validationSchema` is the self-contained schema used to validate payloads: common types and the catalog's own `$defs` are bundled into `$defs` and every `$ref` is local. It is computed once per catalog; each read returns a fresh copy.
 
 ```ts
@@ -74,9 +74,33 @@ const unchanged = catalog.toJson(); // deep-equals document
 const schema = catalog.validationSchema; // bundled JSON Schema
 ```
 
-The `Catalog` constructor takes a `CatalogOptions` object as its fifth argument, with the `themeSchema` and the document-level fields (`instructions`, `schemaUri`, `schemaId`, `title`, `description`, `declaredProtocolVersion`, `declaresCatalogId`, `functionsLayout`, `unions`, `defs`, `extensionFields`) that `toJson` emits. `catalog.withEntries(components, functions)` returns a catalog with the same fields and other entries, as catalog transformers need.
+The `Catalog` constructor takes a `CatalogOptions` object as its fifth argument, with the `themeSchema`, the document-level fields (`instructions`, `schemaUri`, `schemaId`, `title`, `description`, `declaredProtocolVersion`, `declaresCatalogId`, `functionsLayout`, `unions`, `defs`, `extensionFields`) that `toJson` emits, and, for a catalog defined in code, `commonTypesUri`, `themeLocation` and `defModels`. `catalog.withEntries(components, functions)` returns a catalog with the same fields and other entries, as catalog transformers need.
 
-The built-in basic catalogs are defined in code. Their entry definitions and document-level fields are generated from the published catalog documents into `catalog_definitions.ts` modules by `scripts/generate-basic-catalog-definitions.mjs`, which runs as part of `yarn generate-zod-schemas`.
+### Specification annotations
+
+`spec(schema, annotation)` returns a copy of a Zod schema that records what a catalog document writes about it beyond the schema itself, without changing validation: `mixins` (the common types, such as `'ComponentCommon'`, and the `specDef()` models a component's definition composes with `allOf`), `closure` (`additionalProperties` or `unevaluatedProperties`), `required` (the order of the `required` list), `allOf` (schemas that follow the schema's own, such as a format rule) and `keywords` (such as `format`). `specDef(name, schema)` names a model that the document declares under `$defs`. The descriptions come from `.describe()`, and common types references from `REF:#/$defs/<Name>` description markers.
+
+```ts
+import {Catalog, spec, specDef} from '@a2ui/web_core/catalog';
+import {z} from 'zod';
+
+const Common = specDef('Common', z.object({weight: z.number().optional()}));
+const Badge = {
+  name: 'Badge',
+  schema: spec(
+    z
+      .object({...Common.shape, label: z.string()})
+      .describe('A badge.')
+      .strict(),
+    {mixins: ['ComponentCommon', Common]},
+  ),
+};
+// Badge's definition composes ComponentCommon and #/$defs/Common with allOf,
+// and $defs.Common is computed from the Common model.
+const document = new Catalog('https://example.com/badges', '0.9', [Badge]).toJson();
+```
+
+The built-in basic catalogs are built this way. Their components and functions are Zod models generated from the published catalog documents by `scripts/generate-catalog-schemas.mjs` (v0.9 and v1) and `src/v0_8/scripts/generate-catalog.mjs` (v0.8), which run as part of `yarn generate-zod-schemas`. For every schema node, the generator predicts the JSON Schema that `toJson` derives from the Zod code it emits, and annotates the node with the difference from the published schema. `toJson` of each basic catalog computes its published document from the models; no copy of the document is kept in the package.
 
 ## Development
 

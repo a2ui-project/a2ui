@@ -34,6 +34,7 @@ import {
 } from '../types/common-types.js';
 import type {CatalogDocumentOptions, ComponentApi, FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
+import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 import {
   buildComponentUnion,
   buildFunctionUnion,
@@ -797,23 +798,17 @@ function parseFunctionDefinitions(
         if (permittedNames && !permittedNames.has(fn.name)) {
           continue;
         }
-        const paramSchema =
-          fn.parameters && typeof fn.parameters === 'object'
-            ? convertFunctionArgsJsonSchemaToZod(
-                fn.parameters as Record<string, unknown>,
-                rootDoc,
-                defCache,
-              )
-            : z.record(z.unknown());
-        result.push({
-          name: fn.name,
-          description: typeof fn.description === 'string' ? fn.description : undefined,
-          returnType: (typeof fn.returnType === 'string' ? fn.returnType : 'any') as any,
-          allowedCallers: fn.allowedCallers,
-          requiresUserActivation: fn.requiresUserActivation,
-          schema: paramSchema,
-          definition: fn as Record<string, unknown>,
-        });
+        result.push(
+          new JsonFunctionApi(fn.name, fn as Record<string, unknown>, definition =>
+            definition['parameters'] && typeof definition['parameters'] === 'object'
+              ? convertFunctionArgsJsonSchemaToZod(
+                  definition['parameters'] as Record<string, unknown>,
+                  rootDoc,
+                  defCache,
+                )
+              : z.record(z.unknown()),
+          ),
+        );
       }
     }
     return result;
@@ -832,62 +827,51 @@ function parseFunctionDefinitions(
         continue;
       }
       if (!defn || typeof defn !== 'object') continue;
-      const d = defn as Record<string, unknown>;
-      const props = d.properties as Record<string, unknown> | undefined;
-      let argsSchema = props?.args ?? d.args ?? d.parameters;
-      if (
-        !argsSchema &&
-        props &&
-        !('call' in props) &&
-        !('@call' in props) &&
-        !('function' in props)
-      ) {
-        argsSchema = d;
-      } else if (
-        argsSchema &&
-        typeof argsSchema === 'object' &&
-        !('properties' in argsSchema) &&
-        !('type' in argsSchema)
-      ) {
-        argsSchema = {
-          type: 'object',
-          properties: argsSchema,
-          required: d.required,
-          additionalProperties: d.additionalProperties,
-        };
-      }
-      const paramSchema =
-        argsSchema && typeof argsSchema === 'object'
-          ? convertFunctionArgsJsonSchemaToZod(
-              argsSchema as Record<string, unknown>,
-              rootDoc,
-              defCache,
-            )
-          : z.record(z.unknown());
-      const returnType =
-        (typeof d.returnType === 'string' ? d.returnType : undefined) ??
-        (typeof (props?.returnType as Record<string, unknown> | undefined)?.const === 'string'
-          ? (props?.returnType as Record<string, unknown>).const
-          : 'any');
-      const allowedCallers =
-        d.allowedCallers ?? (props?.allowedCallers as Record<string, unknown> | undefined)?.const;
-      const requiresUserActivation =
-        d.requiresUserActivation ??
-        (props?.requiresUserActivation as Record<string, unknown> | undefined)?.const;
-
-      result.push({
-        name,
-        description: typeof d.description === 'string' ? d.description : undefined,
-        returnType: returnType as any,
-        allowedCallers: allowedCallers as any,
-        requiresUserActivation: requiresUserActivation as boolean | undefined,
-        schema: paramSchema,
-        definition: d,
-      });
+      result.push(
+        new JsonFunctionApi(name, defn as Record<string, unknown>, definition => {
+          const argsSchema = functionArgsSchema(definition);
+          return argsSchema
+            ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc, defCache)
+            : z.record(z.unknown());
+        }),
+      );
     }
   }
 
   return result;
+}
+
+/**
+ * Returns the schema of the arguments of a function a `functions` map
+ * defines: its call schema's `args`, a bare map of argument schemas with the
+ * object keywords beside it, or, for a definition that is not a call schema,
+ * the definition itself.
+ *
+ * @param d The function's definition.
+ */
+function functionArgsSchema(
+  d: Readonly<Record<string, unknown>>,
+): Record<string, unknown> | undefined {
+  const props = d.properties as Record<string, unknown> | undefined;
+  let argsSchema = props?.args ?? d.args ?? d.parameters;
+  if (!argsSchema && props && !('call' in props) && !('@call' in props) && !('function' in props)) {
+    argsSchema = d;
+  } else if (
+    argsSchema &&
+    typeof argsSchema === 'object' &&
+    !('properties' in argsSchema) &&
+    !('type' in argsSchema)
+  ) {
+    argsSchema = {
+      type: 'object',
+      properties: argsSchema,
+      required: d.required,
+      additionalProperties: d.additionalProperties,
+    };
+  }
+  return argsSchema && typeof argsSchema === 'object'
+    ? (argsSchema as Record<string, unknown>)
+    : undefined;
 }
 
 /**
@@ -952,24 +936,17 @@ function parseCatalogComponents(
     if (permittedNames && !permittedNames.has(name)) {
       continue;
     }
-    const zodSchema = convertComponentJsonSchemaToZod(
-      rawComp,
-      catalogSchema,
-      true,
-      defCache,
-      isAtLeastV10,
+    components.push(
+      new JsonComponentApi(name, rawComp, definition =>
+        convertComponentJsonSchemaToZod(
+          definition as Record<string, unknown>,
+          catalogSchema,
+          true,
+          defCache,
+          isAtLeastV10,
+        ),
+      ),
     );
-    components.push({
-      name,
-      schema: zodSchema,
-      allowedParents: Array.isArray(rawComp.allowedParents)
-        ? rawComp.allowedParents.filter((p: unknown): p is string => typeof p === 'string')
-        : undefined,
-      allowedChildren: Array.isArray(rawComp.allowedChildren)
-        ? rawComp.allowedChildren.filter((c: unknown): c is string => typeof c === 'string')
-        : undefined,
-      definition: rawComp,
-    });
   }
   return components;
 }
