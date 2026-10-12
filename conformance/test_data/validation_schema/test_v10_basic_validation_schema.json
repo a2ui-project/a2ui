@@ -24,7 +24,7 @@
                 },
                 "userMessage": {
                   "$ref": "#/$defs/DynamicString",
-                  "description": "An optional human-readable message describing the action performed by the user, to present in conversation history or user feedback."
+                  "description": "An optional human-readable message describing the action performed by the user, resolved by the renderer and included in the outbound action message."
                 }
               },
               "required": [
@@ -55,10 +55,10 @@
     },
     "CheckRule": {
       "additionalProperties": false,
-      "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object.",
+      "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object or a boolean (which is coerced to a validation result object).",
       "properties": {
         "condition": {
-          "description": "Path or function call evaluating to a structured validation result object.",
+          "description": "Path or function call evaluating to a structured validation result object or a boolean.",
           "oneOf": [
             {
               "$ref": "#/$defs/DataBinding"
@@ -129,7 +129,7 @@
       "type": "object"
     },
     "DynamicBoolean": {
-      "description": "A boolean value that can be a literal, a path, or a function call returning a boolean.",
+      "description": "A boolean value that can be a literal, a path, or a function call returning a boolean or a validation result object (coerced to its 'valid' boolean).",
       "oneOf": [
         {
           "type": "boolean"
@@ -290,7 +290,6 @@
       "required": [
         "@call"
       ],
-      "returnType": "number",
       "type": "object",
       "unevaluatedProperties": false
     },
@@ -441,10 +440,10 @@
           "description": "Defines an interaction handler that can either trigger an agent-side event or execute a local renderer-side function."
         },
         "checks": {
-          "description": "A list of checks to perform. These are function calls that must return a boolean indicating validity.",
+          "description": "A list of validation check rules to perform on the component.",
           "items": {
             "$ref": "#/$defs/CheckRule",
-            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."
+            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object or a boolean (which is coerced to a validation result object)."
           },
           "type": "array"
         },
@@ -510,10 +509,10 @@
     "CheckBox": {
       "properties": {
         "checks": {
-          "description": "A list of checks to perform. These are function calls that must return a boolean indicating validity.",
+          "description": "A list of validation check rules to perform on the component.",
           "items": {
             "$ref": "#/$defs/CheckRule",
-            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."
+            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object or a boolean (which is coerced to a validation result object)."
           },
           "type": "array"
         },
@@ -549,10 +548,10 @@
       "description": "A component that allows selecting one or more options from a list.",
       "properties": {
         "checks": {
-          "description": "A list of checks to perform. These are function calls that must return a boolean indicating validity.",
+          "description": "A list of validation check rules to perform on the component.",
           "items": {
             "$ref": "#/$defs/CheckRule",
-            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."
+            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object or a boolean (which is coerced to a validation result object)."
           },
           "type": "array"
         },
@@ -683,10 +682,10 @@
     "DateTimeInput": {
       "properties": {
         "checks": {
-          "description": "A list of checks to perform. These are function calls that must return a boolean indicating validity.",
+          "description": "A list of validation check rules to perform on the component.",
           "items": {
             "$ref": "#/$defs/CheckRule",
-            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."
+            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object or a boolean (which is coerced to a validation result object)."
           },
           "type": "array"
         },
@@ -1099,10 +1098,10 @@
     "Slider": {
       "properties": {
         "checks": {
-          "description": "A list of checks to perform. These are function calls that must return a boolean indicating validity.",
+          "description": "A list of validation check rules to perform on the component.",
           "items": {
             "$ref": "#/$defs/CheckRule",
-            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."
+            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object or a boolean (which is coerced to a validation result object)."
           },
           "type": "array"
         },
@@ -1229,10 +1228,10 @@
     "TextField": {
       "properties": {
         "checks": {
-          "description": "A list of checks to perform. These are function calls that must return a boolean indicating validity.",
+          "description": "A list of validation check rules to perform on the component.",
           "items": {
             "$ref": "#/$defs/CheckRule",
-            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object."
+            "description": "A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object or a boolean (which is coerced to a validation result object)."
           },
           "type": "array"
         },
@@ -1321,7 +1320,7 @@
               "description": "The list of boolean values to evaluate.",
               "items": {
                 "$ref": "#/$defs/DynamicBoolean",
-                "description": "A boolean value that can be a literal, a path, or a function call returning a boolean."
+                "description": "A boolean value that can be a literal, a path, or a function call returning a boolean or a validation result object (coerced to its 'valid' boolean)."
               },
               "minItems": 2,
               "type": "array"
@@ -1677,7 +1676,7 @@
               "description": "The list of boolean values to evaluate.",
               "items": {
                 "$ref": "#/$defs/DynamicBoolean",
-                "description": "A boolean value that can be a literal, a path, or a function call returning a boolean."
+                "description": "A boolean value that can be a literal, a path, or a function call returning a boolean or a validation result object (coerced to its 'valid' boolean)."
               },
               "minItems": 2,
               "type": "array"

@@ -28,7 +28,11 @@ void main() {
     'core/catalog.yaml',
   );
 
-  group('conformance core/catalog.yaml', () {
+  // TODO(#3053): Remove once the Dart runner follows the regrouped suite
+  // (round_trip, to_json, validation_schema goldens), which lands in #3129.
+  group('conformance core/catalog.yaml',
+      skip: 'core/catalog.yaml was regrouped for #3053; the Dart runner is '
+          'updated in #3129.', () {
     test('suite has cases', () => expect(cases, isNotEmpty));
 
     runConformanceSuite(

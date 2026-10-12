@@ -79,7 +79,11 @@ SKIP_TEST_NAMES: set[str] = {
 }
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
-SKIP_TEST_SUITES: set[str] = set()
+SKIP_TEST_SUITES: set[str] = {
+    # TODO(#3053): Remove once the Python harness follows the regrouped suite
+    # (round_trip, to_json, validation_schema goldens), which lands in #3130.
+    "core/catalog.yaml",
+}
 
 # Suites the core library cannot meaningfully execute, with the reason for each.
 # The core library has no access to the UI frameworks that apply accessibility
