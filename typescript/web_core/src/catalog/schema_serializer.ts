@@ -177,13 +177,16 @@ function rewriteRefMarkers(node: unknown, localDefs: ReadonlySet<string>): void 
     const desc = pipeIndex === -1 ? '' : content.substring(pipeIndex + 1);
     const savedDefault = node.default;
     for (const key of Object.keys(node)) delete node[key];
-    const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1]?.split('/')[0];
+    // The first segment names the definition; a deeper pointer into it, such as
+    // `/oneOf/0`, is kept whole.
+    const pointer = ref.split(/#\/(?:\$defs|definitions)\//)[1];
+    const defName = pointer?.split('/')[0];
     node.$ref =
       defName === undefined
         ? ref
         : ref.startsWith('#') && localDefs.has(defName)
           ? ref
-          : `common_types.json#/$defs/${defName}`;
+          : `common_types.json#/$defs/${pointer}`;
     if (savedDefault !== undefined) node.default = savedDefault;
     if (desc) node.description = desc;
     return;

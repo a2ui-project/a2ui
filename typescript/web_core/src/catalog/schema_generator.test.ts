@@ -926,4 +926,103 @@ describe('Catalog.validationSchema & schema_generator', () => {
     ]);
     assert.strictEqual(between.properties.args.unevaluatedProperties, false);
   });
+
+  describe('deep pointers into common types', () => {
+    const DEEP_REF = 'common_types.json#/$defs/DynamicString/oneOf/0';
+    const LOCAL_DEEP_REF = '#/$defs/DynamicString/oneOf/0';
+
+    /** Asserts the deep pointer was localized whole and its definition bundled. */
+    function assertDeepPointerBundled(
+      schema: Record<string, unknown>,
+      componentProperty: unknown,
+      functionArg: unknown,
+      standardDefs: Record<string, unknown>,
+    ): void {
+      assertRefsLocalAndResolvable(schema);
+      // A pointer into a definition keeps its whole fragment and takes no
+      // description from the definition it points into.
+      assert.deepStrictEqual(componentProperty, {$ref: LOCAL_DEEP_REF});
+      assert.deepStrictEqual(functionArg, {$ref: LOCAL_DEEP_REF});
+      const defs = schema['$defs'] as Record<string, unknown>;
+      assert.deepStrictEqual(defs['DynamicString'], bundled(standardDefs['DynamicString']));
+      // The definitions DynamicString itself references are bundled too.
+      assert.ok('DataBinding' in defs);
+      assert.ok('FunctionCall' in defs);
+    }
+
+    for (const [version, standardDefs, callKey] of [
+      ['0.9', V09_STANDARD_DEFS, 'call'],
+      ['1.0', V10_STANDARD_DEFS, '@call'],
+    ] as const) {
+      it(`bundles a deep pointer in an authored v${version} catalog`, () => {
+        const loaded = Catalog.fromJson({
+          catalogId: `https://example.com/deep-${version}.json`,
+          protocolVersion: version,
+          components: {
+            Label: {
+              type: 'object',
+              properties: {
+                component: {const: 'Label'},
+                text: {$ref: DEEP_REF},
+              },
+              required: ['component', 'text'],
+            },
+          },
+          functions: {
+            echo: {
+              type: 'object',
+              returnType: 'string',
+              properties: {
+                [callKey]: {const: 'echo'},
+                args: {
+                  type: 'object',
+                  properties: {value: {$ref: DEEP_REF}},
+                  required: ['value'],
+                },
+              },
+            },
+          },
+        });
+        const schema = loaded.validationSchema;
+        const label = (schema['components'] as Record<string, any>)['Label'];
+        const echo = (schema['functions'] as Record<string, any>)['echo'];
+        assertDeepPointerBundled(
+          schema,
+          label.properties.text,
+          echo.properties.args.properties.value,
+          standardDefs,
+        );
+      });
+
+      it(`bundles a deep pointer in a REF marker of a v${version} code catalog`, () => {
+        const Label: ComponentApi = {
+          name: 'Label',
+          schema: z.object({text: z.string().describe(`REF:${DEEP_REF}`)}),
+        };
+        const echo: FunctionApi = {
+          name: 'echo',
+          returnType: 'string',
+          schema: z.object({value: z.string().describe(`REF:${DEEP_REF}`)}),
+        };
+        const catalog = new Catalog(
+          `https://example.com/deep-code-${version}.json`,
+          version,
+          [Label],
+          [echo as any],
+        );
+        const schema = catalog.validationSchema;
+        const label = (schema['components'] as Record<string, any>)['Label'];
+        const fn = (schema['functions'] as Record<string, any>)['echo'];
+        assertDeepPointerBundled(
+          schema,
+          label.properties.text,
+          fn.properties.args.properties.value,
+          standardDefs,
+        );
+        // toJson keeps the reference external, with its whole pointer.
+        const json = catalog.toJson() as Record<string, any>;
+        assert.deepStrictEqual(json['components']['Label'].properties.text, {$ref: DEEP_REF});
+      });
+    }
+  });
 });

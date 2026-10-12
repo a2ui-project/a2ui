@@ -63,6 +63,37 @@ function getStandardDefsForCatalog(
 }
 
 /**
+ * Matches a reference to a definition of another document, such as
+ * `common_types.json#/$defs/DynamicString`, capturing the definition's name and
+ * any deeper pointer into it (`/oneOf/0` in
+ * `common_types.json#/$defs/DynamicString/oneOf/0`).
+ */
+const EXTERNAL_DEF_REF = /^[^#]+#\/(?:\$defs|definitions)\/([^/]+)(\/.*)?$/;
+
+/**
+ * Rewrites a reference into another document's definitions as the local
+ * reference to the bundled definition, keeping a deeper pointer into it whole:
+ * `common_types.json#/$defs/DynamicString/oneOf/0` becomes
+ * `#/$defs/DynamicString/oneOf/0`. A bare name, as a `REF:` marker may carry,
+ * names the definition itself.
+ */
+function localizeExternalDefRef(ref: string): string {
+  const match = EXTERNAL_DEF_REF.exec(ref);
+  if (match) return `#/$defs/${match[1]}${match[2] ?? ''}`;
+  return `#/$defs/${ref.split('/').pop()}`;
+}
+
+/**
+ * Returns the name of the definition a local `#/$defs/...` reference reaches,
+ * which is the first segment of the pointer, or `undefined` for any other
+ * reference.
+ */
+function localDefName(ref: string): string | undefined {
+  if (!ref.startsWith('#/$defs/')) return undefined;
+  return ref.substring('#/$defs/'.length).split('/')[0].replace(/~1/g, '/').replace(/~0/g, '~');
+}
+
+/**
  * Transforms a schema node with a REF description into a `$ref` definition node.
  */
 function transformRefDescriptionNode(obj: Record<string, unknown>): boolean {
@@ -78,7 +109,7 @@ function transformRefDescriptionNode(obj: Record<string, unknown>): boolean {
   for (const key of Object.keys(obj)) {
     delete obj[key];
   }
-  obj['$ref'] = ref.startsWith('#') ? ref : `#/$defs/${ref.split('/').pop()}`;
+  obj['$ref'] = ref.startsWith('#') ? ref : localizeExternalDefRef(ref);
   if (savedDefault !== undefined) {
     obj['default'] = savedDefault;
   }
@@ -220,8 +251,12 @@ const COMPONENT_ENVELOPE_KEYS = new Set(['id', 'component', 'catalogId']);
 /** Definitions of a catalog document that the validation schema generates itself. */
 const GENERATED_DEF_NAMES = new Set(['anyComponent', 'anyFunction', 'theme']);
 
-/** Matches a reference to a common type, local or in `common_types.json`. */
-const COMMON_TYPE_REF = /^(?:([^#]*common_types\.json))?#\/\$defs\/([^/]+)$/;
+/**
+ * Matches a reference to a common type, local or in `common_types.json`,
+ * capturing the document, the definition's name and any deeper pointer into the
+ * definition.
+ */
+const COMMON_TYPE_REF = /^(?:([^#]*common_types\.json))?#\/\$defs\/([^/]+)(\/.*)?$/;
 
 /** Matches a reference to a definition of the standard mixins components inherit. */
 const STANDARD_MIXIN_REF = /\/(ComponentCommon|Checkable)$/;
@@ -238,16 +273,18 @@ interface SourceContext {
 }
 
 /**
- * Points `node` at the standard definition `name` and, when `node` has no
- * description of its own, gives it the definition's.
+ * Points `node` at the standard definition `name`, or at `pointer` within it,
+ * and, when `node` references the whole definition and has no description of
+ * its own, gives it the definition's.
  */
 function localizeStandardRef(
   node: JsonObject,
   name: string,
   standardDefs: Record<string, unknown>,
+  pointer = '',
 ): void {
-  node['$ref'] = `#/$defs/${name}`;
-  if (node['description'] !== undefined) return;
+  node['$ref'] = `#/$defs/${name}${pointer}`;
+  if (pointer || node['description'] !== undefined) return;
   const definition = standardDefs[name];
   if (isJsonObject(definition) && typeof definition['description'] === 'string') {
     node['description'] = definition['description'];
@@ -256,12 +293,14 @@ function localizeStandardRef(
 
 /**
  * Rewrites, in place, every reference in an authored schema to a common type
- * as a local reference to the bundled standard definition.
+ * as a local reference to the bundled standard definition. A reference deeper
+ * into a definition, such as `common_types.json#/$defs/DynamicString/oneOf/0`,
+ * keeps its whole pointer.
  *
- * A reference without a description of its own takes the description of the
- * definition it names. With `annotationsOnly`, as for component properties, the
- * reference also drops every keyword other than annotations, since the standard
- * definition alone defines the value.
+ * A reference to a whole definition without a description of its own takes the
+ * description of the definition it names. With `annotationsOnly`, as for
+ * component properties, the reference also drops every keyword other than
+ * annotations, since the standard definition alone defines the value.
  */
 function restoreSourceRefs(
   node: unknown,
@@ -276,16 +315,16 @@ function restoreSourceRefs(
   const ref = node['$ref'];
   const match = typeof ref === 'string' ? COMMON_TYPE_REF.exec(ref) : null;
   if (match) {
-    const [, document, name] = match;
+    const [, document, name, pointer] = match;
     if (document !== undefined || name in standardDefs) {
       if (annotationsOnly) {
         for (const key of Object.keys(node)) {
           if (key !== '$ref' && !REF_ANNOTATION_KEYWORDS.has(key)) delete node[key];
         }
-        localizeStandardRef(node, name, standardDefs);
+        localizeStandardRef(node, name, standardDefs, pointer);
         return;
       }
-      localizeStandardRef(node, name, standardDefs);
+      localizeStandardRef(node, name, standardDefs, pointer);
     }
   }
   for (const value of Object.values(node)) {
@@ -339,7 +378,8 @@ function collectSourceSubSchemas(
       }
       continue;
     }
-    const name = mixinName ?? EXTERNAL_DEF_REF.exec(ref)?.[1];
+    const external = EXTERNAL_DEF_REF.exec(ref);
+    const name = mixinName ?? (external && !external[2] ? external[1] : undefined);
     const mixin = name !== undefined ? context.standardDefs[name] : undefined;
     if (isJsonObject(mixin) && isJsonObject(mixin['properties'])) {
       mixins.push({
@@ -837,19 +877,18 @@ const MIRROR_REF_DESCRIPTIONS: ReadonlyMap<string, string> = new Map(
   }),
 );
 
-/** Matches a reference to a definition of another document, capturing its name. */
-const EXTERNAL_DEF_REF = /^[^#]+#\/(?:\$defs|definitions)\/([^/]+)$/;
-
 /**
  * Rewrites every reference to a definition of another document, such as
  * `common_types.json#/$defs/DynamicString` or `catalog.json#/$defs/anyFunction`,
- * to the bundled `#/$defs/<name>`.
+ * to the bundled `#/$defs/<name>`. A reference deeper into the definition keeps
+ * its whole pointer: `common_types.json#/$defs/DynamicString/oneOf/0` becomes
+ * `#/$defs/DynamicString/oneOf/0`.
  *
  * @param node The schema to rewrite in place.
  * @param keep A reference to leave as it is: the caller's `componentEnvelopeRef`,
  *     which names a document the caller resolves itself.
- * @throws {Error} If a reference points into another document but not at one of
- *     its definitions, which the bundle cannot carry.
+ * @throws {Error} If a reference points into another document but not into one
+ *     of its definitions, which the bundle cannot carry.
  */
 function localizeRefs(node: unknown, keep?: string, visited = new Set<unknown>()): void {
   if (typeof node !== 'object' || node === null || visited.has(node)) return;
@@ -861,19 +900,19 @@ function localizeRefs(node: unknown, keep?: string, visited = new Set<unknown>()
   const obj = node as JsonObject;
   const ref = obj['$ref'];
   if (typeof ref === 'string' && !ref.startsWith('#') && ref !== keep) {
-    const match = EXTERNAL_DEF_REF.exec(ref);
-    if (!match) {
+    if (!EXTERNAL_DEF_REF.test(ref)) {
       throw new Error(`Cannot bundle the external schema reference '${ref}'.`);
     }
-    obj['$ref'] = `#/$defs/${match[1]}`;
+    obj['$ref'] = localizeExternalDefRef(ref);
   }
   for (const value of Object.values(obj)) localizeRefs(value, keep, visited);
 }
 
 /**
- * Gives each reference to a standard definition in a Zod-generated schema the
- * description of the definition it names, from the catalog's own protocol
- * version, unless the reference has a description of its own.
+ * Gives each reference to a whole standard definition in a Zod-generated schema
+ * the description of the definition it names, from the catalog's own protocol
+ * version, unless the reference has a description of its own. A reference
+ * deeper into a definition names no definition and is left as it is.
  */
 function describeStandardRefs(
   node: unknown,
@@ -890,7 +929,9 @@ function describeStandardRefs(
   const ref = obj['$ref'];
   if (typeof ref === 'string' && ref.startsWith('#/$defs/')) {
     const name = ref.substring('#/$defs/'.length);
-    const definition = standardDefs[name] as JsonObject | undefined;
+    const definition = name.includes('/')
+      ? undefined
+      : (standardDefs[name] as JsonObject | undefined);
     const inherited =
       obj['description'] === undefined || obj['description'] === MIRROR_REF_DESCRIPTIONS.get(name);
     if (definition && inherited) {
@@ -904,6 +945,11 @@ function describeStandardRefs(
   for (const value of Object.values(obj)) describeStandardRefs(value, standardDefs, visited);
 }
 
+/**
+ * Adds to `referenced` the name of every definition a local `#/$defs/...`
+ * reference in `node` reaches: the first segment of its pointer, so that
+ * `#/$defs/DynamicString/oneOf/0` bundles `DynamicString`.
+ */
 function collectReferencedDefs(
   node: unknown,
   referenced: Set<string>,
@@ -914,10 +960,8 @@ function collectReferencedDefs(
   visited.add(node);
 
   if (typeof (node as JsonObject)['$ref'] === 'string') {
-    const ref = (node as JsonObject)['$ref'] as string;
-    if (ref.startsWith('#/$defs/')) {
-      referenced.add(ref.substring('#/$defs/'.length));
-    }
+    const name = localDefName((node as JsonObject)['$ref'] as string);
+    if (name !== undefined) referenced.add(name);
   }
 
   if (Array.isArray(node)) {
