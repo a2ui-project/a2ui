@@ -102,7 +102,7 @@ void _runPayloadDataModelCase(Map<String, Object?> testCase) {
           in catalogIds.isEmpty ? {'test-catalog'} : catalogIds)
         Catalog<ComponentApi, FunctionImplementation>(
           id: id,
-          protocolVersion: version,
+          protocolVersion: A2uiProtocolVersion.tryParseSemVer(version),
           components: const [],
         ),
     ],

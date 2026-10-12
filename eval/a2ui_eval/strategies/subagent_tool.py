@@ -34,9 +34,10 @@ from inspect_ai.solver import (
 from inspect_ai.tool import Tool, tool
 from inspect_ai.util import store
 
+from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.parser import parse_response
-from a2ui.schema import CatalogConfig
+from a2ui.parser import A2uiPart
+from a2ui.processor import CatalogConfig
 from ..shared.utils import GIT_ROOT, measured_generate
 
 PAYLOAD_STORE_KEY = "a2ui_payload"
@@ -56,19 +57,21 @@ def a2ui_specialist() -> Tool:
             raise ValueError("Catalog path is missing from the store.")
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
-        catalog_config = CatalogConfig.from_path("basic_catalog", resolved_catalog_path)
-        direct_json_format = DirectJsonFormat(
-            [catalog_config.to_catalog(protocol_version=version)]
+        catalog_config = CatalogConfig.from_path(
+            resolved_catalog_path, protocol_version=version
         )
+        direct_json_format = DirectJsonFormat([catalog_config.transformed_catalog])
 
         role_description = store().get("role_description")
         workflow_description = store().get("workflow_description")
 
-        system_content = direct_json_format.prompt_generator.generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
-            include_schema=True,
-        )
+        prompt_parts = []
+        if role_description:
+            prompt_parts.append(role_description)
+        if workflow_description:
+            prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
+        prompt_parts.append(direct_json_format.prompt_generator.generate())
+        system_content = "\n\n".join(prompt_parts)
 
         messages: list[ChatMessage] = [
             ChatMessageSystem(content=system_content),
@@ -78,14 +81,16 @@ def a2ui_specialist() -> Tool:
         output = await get_model().generate(messages)
         if output.completion:
             try:
-                parts = parse_response(output.completion)
+                parser = direct_json_format.create_parser()
+                if not parser.has_format_content(output.completion, complete=True):
+                    raise ValueError(
+                        "A2UI tags '<a2ui-json>' and '</a2ui-json>' not found"
+                    )
+                parts = parser.parse_response(output.completion)
                 all_messages = []
                 for part in parts:
-                    if part.a2ui_json:
-                        if isinstance(part.a2ui_json, list):
-                            all_messages.extend(part.a2ui_json)
-                        else:
-                            all_messages.append(part.a2ui_json)
+                    if isinstance(part, A2uiPart):
+                        all_messages.extend(to_message_dicts(part.a2ui))
                 payload = json.dumps(all_messages, indent=2)
                 store().set(PAYLOAD_STORE_KEY, payload)
                 return "Success: The UI has been generated and saved out-of-band."

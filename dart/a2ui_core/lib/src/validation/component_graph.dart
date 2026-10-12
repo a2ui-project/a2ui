@@ -14,10 +14,15 @@
 
 import 'package:meta/meta.dart';
 
+import '../core/catalog.dart';
 import '../core/messages.dart';
 import '../primitives/errors.dart';
 import 'component_refs.dart';
 import 'validation_config.dart';
+
+/// The id every surface's component tree is rooted at unless a
+/// `ValidationConfig.rootId` or `SurfaceModel.rootId` says otherwise.
+const String _rootComponentId = 'root';
 
 /// The deepest component chain a surface may declare.
 @visibleForTesting
@@ -26,6 +31,146 @@ const int maxComponentDepth = 50;
 /// The deepest chain of nested function calls a component property may hold.
 @visibleForTesting
 const int maxFunctionCallDepth = 5;
+
+/// The most arguments a single function call may pass.
+///
+/// Checked when a payload is validated and again when a call is evaluated,
+/// matching the other SDKs' `MAX_FUNCTION_CALL_ARGS`.
+const int maxFunctionCallArgs = 1000;
+
+/// The parent type that stands for the surface itself in `allowedParents`.
+const String _surfaceParent = 'Surface';
+
+/// One component type's composition constraints, from its catalog entry.
+///
+/// A null list allows any type.
+typedef CompositionRule = ({
+  List<String>? allowedParents,
+  List<String>? allowedChildren,
+});
+
+/// The composition constraints [catalog] declares, keyed by component type.
+///
+/// Types declaring neither `allowedParents` nor `allowedChildren` are left
+/// out.
+Map<String, CompositionRule> extractCompositionRules(Catalog catalog) => {
+      for (final MapEntry<String, ComponentApi> entry
+          in catalog.components.entries)
+        if (entry.value.allowedParents != null ||
+            entry.value.allowedChildren != null)
+          entry.key: (
+            allowedParents: entry.value.allowedParents,
+            allowedChildren: entry.value.allowedChildren,
+          ),
+    };
+
+/// Converts a [ComponentReference.field], such as `children[2]` or
+/// `groups[0].children[0]`, into a JSON Pointer relative to the component,
+/// such as `/children/2`.
+String referencePointer(String field) => [
+      for (final String segment in field
+          .replaceAllMapped(RegExp(r'\[(\d+)\]'), (m) => '.${m[1]}')
+          .split('.'))
+        if (segment.isNotEmpty)
+          '/${segment.replaceAll('~', '~0').replaceAll('/', '~1')}',
+    ].join();
+
+/// Checks every parent-child edge among [components] and [existing] against
+/// [rules].
+///
+/// [components] are the components the current message carries and
+/// [existing] the ones the surface already holds that the message does not
+/// replace. The component with id [rootId] has the surface as its implicit
+/// parent, which `allowedParents` names `Surface`. An edge whose child is in
+/// neither list is skipped: its type is unknown, and a later payload is
+/// checked when it arrives.
+///
+/// An error for an edge whose parent is in [components] carries a JSON
+/// Pointer into the message, such as `/components/0/children/1` for the
+/// offending reference or `/components/0` for a root the surface may not
+/// hold. When the parent is in [existing], nothing in the message holds the
+/// reference, so the error carries no path.
+///
+/// Throws [A2uiValidationError] with code `UNALLOWED_PARENT` or
+/// `UNALLOWED_CHILD`, carrying [surfaceId].
+void checkCompositionConstraints(
+  List<Map<String, Object?>> components,
+  Map<String, ComponentRefFields> refFields,
+  Map<String, CompositionRule> rules, {
+  Iterable<Map<String, Object?>> existing = const [],
+  String rootId = _rootComponentId,
+  String? surfaceId,
+}) {
+  if (rules.isEmpty) return;
+  final types = <String, String>{
+    for (final component in components.followedBy(existing))
+      if ((component['id'], component['component'])
+          case (final String id, final String type))
+        id: type,
+  };
+  String list(List<String> names) =>
+      '[${names.map((name) => "'$name'").join(', ')}]';
+
+  // [pointer] locates [component] in the message, or is null when the
+  // component was already stored.
+  void check(Map<String, Object?> component, String? pointer) {
+    final Object? id = component['id'];
+    final Object? type = component['component'];
+    if (id is! String || type is! String) return;
+
+    final List<String>? rootParents = rules[type]?.allowedParents;
+    if (id == rootId &&
+        rootParents != null &&
+        !rootParents.contains(_surfaceParent)) {
+      throw A2uiValidationError(
+        "Component '$id' ($type) cannot be placed under parent "
+        "'$_surfaceParent' ($_surfaceParent). Allowed parents: "
+        '${list(rootParents)}.',
+        code: 'UNALLOWED_PARENT',
+        path: pointer,
+        surfaceId: surfaceId,
+      );
+    }
+
+    final List<String>? allowedChildren = rules[type]?.allowedChildren;
+    for (final ComponentReference reference in _referencesOf(
+      component,
+      refFields,
+    )) {
+      final String? childType = types[reference.id];
+      if (childType == null) continue;
+      final String? path = pointer == null
+          ? null
+          : '$pointer${referencePointer(reference.field)}';
+      if (allowedChildren != null && !allowedChildren.contains(childType)) {
+        throw A2uiValidationError(
+          "Container '$id' ($type) cannot contain child '${reference.id}' "
+          '($childType). Allowed children: ${list(allowedChildren)}.',
+          code: 'UNALLOWED_CHILD',
+          path: path,
+          surfaceId: surfaceId,
+        );
+      }
+      final List<String>? allowedParents = rules[childType]?.allowedParents;
+      if (allowedParents != null && !allowedParents.contains(type)) {
+        throw A2uiValidationError(
+          "Component '${reference.id}' ($childType) cannot be placed under "
+          "parent '$id' ($type). Allowed parents: ${list(allowedParents)}.",
+          code: 'UNALLOWED_PARENT',
+          path: path,
+          surfaceId: surfaceId,
+        );
+      }
+    }
+  }
+
+  for (var index = 0; index < components.length; index++) {
+    check(components[index], '/components/$index');
+  }
+  for (final component in existing) {
+    check(component, null);
+  }
+}
 
 /// Matches a JSON Pointer as A2UI writes data-model paths, allowing the
 /// leading slash to be omitted.
@@ -322,4 +467,13 @@ bool _inferV1(Object? data) {
   final String core =
       rawVersion.startsWith('v') ? rawVersion.substring(1) : rawVersion;
   return (int.tryParse(core.split('.').first) ?? 0) >= 1;
+}
+
+Iterable<ComponentReference> _referencesOf(
+  Map<String, Object?> component,
+  Map<String, ComponentRefFields> refFields,
+) {
+  final Object? type = component['component'];
+  if (type is! String) return const <ComponentReference>[];
+  return componentReferences(component, refFields[type]);
 }

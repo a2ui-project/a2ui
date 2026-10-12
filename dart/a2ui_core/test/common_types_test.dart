@@ -16,6 +16,7 @@ import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/validation/common_types.g.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
@@ -35,6 +36,51 @@ void main() {
       );
     });
 
+    test('embeds the v1.0 document verbatim', () {
+      final String specification = File(
+        resolveConformancePath('../specification/v1_0/json/common_types.json'),
+      ).readAsStringSync();
+
+      expect(
+        commonTypesV1_0Json,
+        specification,
+        reason: 'lib/src/validation/common_types.g.dart has drifted from the '
+            'specification. Run `dart run tool/generate_common_types.dart`.',
+      );
+    });
+
+    test('picks the document by catalog protocol version', () {
+      for (final A2uiProtocolVersion version in [
+        A2uiProtocolVersion.v0_9,
+        A2uiProtocolVersion.v0_9_1,
+      ]) {
+        expect(
+          PayloadValidator.commonTypesFor(version)[r'$id'],
+          'https://a2ui.org/specification/v0_9/common_types.json',
+          reason: version.jsonValue,
+        );
+      }
+      expect(
+        PayloadValidator.commonTypesFor(A2uiProtocolVersion.v1_0)[r'$id'],
+        'https://a2ui.org/specification/v1_0/common_types.json',
+      );
+    });
+
+    test('a catalog declaring no version resolves against v0.9', () {
+      final catalog = Catalog<ComponentApi, FunctionApi>(
+        id: 'unversioned',
+        components: const [],
+      );
+      expect(
+        catalog.commonTypesSchema[r'$id'],
+        'https://a2ui.org/specification/v0_9/common_types.json',
+      );
+      expect(
+        PayloadValidator(catalog: catalog).commonTypesSchema[r'$id'],
+        'https://a2ui.org/specification/v0_9/common_types.json',
+      );
+    });
+
     test('parses to the v0.9 document', () {
       final Map<String, Object?> document = PayloadValidator.commonTypesFor(
         A2uiProtocolVersion.v0_9,
@@ -46,6 +92,18 @@ void main() {
       );
       expect(document[r'$defs'], contains('ChildList'));
       expect(document[r'$defs'], contains('DynamicString'));
+    });
+
+    test('parses to the v1.0 document for v1.0', () {
+      final Map<String, Object?> document = PayloadValidator.commonTypesFor(
+        A2uiProtocolVersion.v1_0,
+      );
+
+      expect(
+        document[r'$id'],
+        'https://a2ui.org/specification/v1_0/common_types.json',
+      );
+      expect(document[r'$defs'], contains('Child'));
     });
 
     test('hands out a fresh document each call', () {
@@ -95,6 +153,114 @@ void main() {
     });
   });
 
+  group('CommonSchemas', () {
+    test('carries the v0.9 definitions', () {
+      for (final Schema schema in [
+        CommonSchemas.dynamicNumber,
+        CommonSchemas.dynamicStringList,
+        CommonSchemas.dynamicValue,
+        CommonSchemas.accessibilityAttributes,
+        CommonSchemas.checkRule,
+        CommonSchemas.componentCommon,
+      ]) {
+        expect(schema.value, isNotEmpty);
+      }
+      expect(CommonSchemas.dynamicNumber.validateSync(3), isEmpty);
+      expect(
+        CommonSchemas.dynamicNumber.validateSync({'path': '/n'}),
+        isEmpty,
+      );
+      expect(CommonSchemas.componentCommon.validateSync(<String, Object?>{}),
+          isNotEmpty);
+    });
+
+    test('carries the v1.0 definitions keyed on @path and @call', () {
+      expect(
+        CommonSchemasV1.dataBinding.validateSync({'@path': '/a'}),
+        isEmpty,
+      );
+      expect(
+        CommonSchemasV1.dataBinding.validateSync({'path': '/a'}),
+        isNotEmpty,
+      );
+      expect(
+        CommonSchemasV1.functionCall.validateSync({'@call': 'f'}),
+        isEmpty,
+      );
+      expect(
+        CommonSchemasV1.functionCall.validateSync({'call': 'f'}),
+        isNotEmpty,
+      );
+      for (final Schema schema in [
+        CommonSchemasV1.dynamicString,
+        CommonSchemasV1.dynamicNumber,
+        CommonSchemasV1.dynamicBoolean,
+        CommonSchemasV1.dynamicStringList,
+        CommonSchemasV1.accessibilityAttributes,
+        CommonSchemasV1.checkRule,
+        CommonSchemasV1.componentCommon,
+      ]) {
+        expect(schema.value, isNotEmpty);
+      }
+    });
+
+    test('v1.0 DynamicValue rejects unknown single-@ keys', () {
+      final Schema schema = CommonSchemasV1.dynamicValue;
+
+      expect(schema.value.toString(), contains('propertyNames'));
+      expect(schema.value.toString(), contains(r'^@([^@]|$)'));
+      expect(schema.validateSync({'@if': true}), isNotEmpty);
+      expect(schema.validateSync({'@': 'x'}), isNotEmpty);
+      expect(schema.validateSync({'@@path': '/x'}), isEmpty);
+      expect(schema.validateSync({'path': 'a', 'call': 'b'}), isEmpty);
+      expect(schema.validateSync({'@path': '/a'}), isEmpty);
+      expect(schema.validateSync({'@call': 'f'}), isEmpty);
+      expect(schema.validateSync('text'), isEmpty);
+    });
+
+    test('every builder names its common type in commonTypesRef', () {
+      final named = <String, Schema>{
+        'DynamicNumber': CommonSchemas.dynamicNumber,
+        'DynamicStringList': CommonSchemas.dynamicStringList,
+        'DynamicValue': CommonSchemas.dynamicValue,
+        'AccessibilityAttributes': CommonSchemas.accessibilityAttributes,
+        'CheckRule': CommonSchemas.checkRule,
+        'ComponentCommon': CommonSchemas.componentCommon,
+        'DataBinding': CommonSchemasV1.dataBinding,
+        'FunctionCall': CommonSchemasV1.functionCall,
+        'DynamicString': CommonSchemasV1.dynamicString,
+        'DynamicBoolean': CommonSchemasV1.dynamicBoolean,
+      };
+      for (final MapEntry<String, Schema> entry in named.entries) {
+        expect(
+          entry.value.value['commonTypesRef'],
+          'common_types.json#/\$defs/${entry.key}',
+          reason: entry.key,
+        );
+        expect(
+          entry.value.value['description'],
+          isNot(startsWith('REF:')),
+          reason: entry.key,
+        );
+      }
+      for (final Schema schema in [
+        CommonSchemasV1.dynamicNumber,
+        CommonSchemasV1.dynamicStringList,
+        CommonSchemasV1.dynamicValue,
+        CommonSchemasV1.accessibilityAttributes,
+        CommonSchemasV1.checkRule,
+        CommonSchemasV1.componentCommon,
+      ]) {
+        expect(schema.value['commonTypesRef'], startsWith('common_types.json'));
+        expect(schema.value['description'], isNot(startsWith('REF:')));
+      }
+      expect(
+        CommonSchemasV1.dataBinding.value['description'],
+        'A JSON Pointer path to a value in the data model.',
+      );
+    });
+  });
+
   group('CommonSchemas.functionCall', () {
     test('returnType enum matches the v0.9 specification document', () {
       final Map<String, Object?> document = PayloadValidator.commonTypesFor(
@@ -122,6 +288,14 @@ void main() {
         A2uiReturnType.validationResult.jsonValue,
         'validationResult',
       );
+    });
+
+    test('the v1.0 wire FunctionCall carries no returnType', () {
+      final Map<String, Object?> properties =
+          (CommonSchemasV1.functionCall.value['properties']! as Map)
+              .cast<String, Object?>();
+      expect(properties, isNot(contains('returnType')));
+      expect(properties.keys, containsAll(['@call', 'args']));
     });
   });
 }

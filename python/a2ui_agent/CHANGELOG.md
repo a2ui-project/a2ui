@@ -1,8 +1,50 @@
 ## Unreleased
 
+- **BREAKING**: `DirectJsonStreamParser`, `DirectJsonStreamParserModern`,
+  `DirectJsonStreamParserV08Legacy` and `DirectJsonFormat.create_stream_parser`
+  are removed (#3074). To migrate, call `parse_chunk` on the parser that
+  `DirectJsonFormat.create_parser()` returns. It streams v0.8, v0.9 and v1.0,
+  and behaves differently from the removed parsers:
+  - It adds no placeholder components. A parent is emitted with the child ids
+    it names before those children arrive.
+  - A message that is still arriving is emitted whole each time it changes,
+    rather than pruned to the parts that parse.
+  - A block whose messages never become valid, for example with an orphan or a
+    cycle, raises when it closes instead of dropping the bad parts.
+  - Paths are emitted as written. The v0.8 parser added a leading slash.
+- `DirectJsonParser.parse_chunk` emits a `createSurface` or `beginRendering`
+  once, after its object closes, instead of again each time it grows. A string
+  that starts with `http://`, `https://` or `data:` is never healed, even under
+  a progressive key, since a cut URL is a broken one.
+- `InferenceFormat.supports_streaming` tells whether a format's parser
+  implements `parse_chunk`. `DirectJsonFormat` returns `True`.
+- `validate_payload` accepts a payload that creates a surface whose
+  components name children that a later message in the payload adds, and a
+  v0.8 payload that deletes a surface and starts it over.
+- **BREAKING**: Implement `A2uiGenerator`, `A2uiRequestProcessor`, `CatalogConfig`,
+  `CatalogProvider` (`FileSystemCatalogProvider`, `InMemoryCatalogProvider`),
+  `InferenceFormatFactory` (`DirectJsonFormatFactory`, `ExpressFormatFactory`,
+  `ElementalFormatFactory`, `AtomFormatFactory`), `PromptGenerator`, and unified
+  `Parser` (`ResponsePart`, `TextPart`, `A2uiPart`, `RawResponsePart`,
+  `RawA2uiPart`) per `a2ui_agent.blueprint.md`. `InferenceFormat.parser` is
+  replaced by `InferenceFormat.create_parser()`, `CatalogConfig` moves from
+  `a2ui.schema` to `a2ui.processor` with
+  `CatalogConfig(catalog, transformers=None)` and `transformed_catalog`, and
+  `A2uiCatalogProvider` is replaced by `CatalogProvider`.
+
 ## 0.8.0 (2026-10-08)
 
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.3.0,<0.4.0`.
+- **BREAKING**: `Parser.compile` and inference format parsers/compilers now
+  return `list[AgentToRendererMessage]` models, and `Parser.decompile` and
+  format decompilers accept `Sequence[AgentToRendererMessage]` (#3064). Use
+  `a2ui.inference_formats.to_message_models` and `to_message_dicts` to convert
+  between dicts and models.
+- **BREAKING**: Renamed `_DirectJsonDecompiler` to `DirectJsonDecompiler` and
+  exported it from `a2ui.inference_formats` (#3064).
+- **BREAKING**: `DirectJsonFormat`, `DirectJsonParser` and
+  `DirectJsonStreamParser` now reject duplicate catalog IDs, and their
+  `catalogs` property returns a list copy instead of a tuple (#3064).
 - **BREAKING**: `remove_strict_validation` and the `schema_modifiers`
   parameter of `CatalogConfig.to_catalog` are removed. Catalog schemas are
   parsed as published, with `additionalProperties` and `unevaluatedProperties`

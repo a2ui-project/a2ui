@@ -794,17 +794,17 @@
     },
     "CatalogTransformerSpec": {
       "type": "object",
-      "description": "One transformer, in the order it is applied. A case states the allowlist directly. Keeping everything is said by leaving the transformer out, so an empty allowlist keeps nothing.",
+      "description": "One transformer, in the order it is applied. A case states the allowlist directly. Keeping everything is said by leaving the transformer out, so a null or empty allowlist keeps nothing.",
       "properties": {
         "component_pruning": {
-          "type": "array",
+          "type": ["array", "null"],
           "items": {"type": "string"},
-          "description": "The component names a ComponentPruningTransformer keeps."
+          "description": "The component names a ComponentPruningTransformer keeps, or null to keep no components."
         },
         "function_pruning": {
-          "type": "array",
+          "type": ["array", "null"],
           "items": {"type": "string"},
-          "description": "The function names a FunctionPruningTransformer keeps."
+          "description": "The function names a FunctionPruningTransformer keeps, or null to keep no functions."
         }
       },
       "oneOf": [{"required": ["component_pruning"]}, {"required": ["function_pruning"]}],
@@ -1112,7 +1112,12 @@
           "type": "object",
           "properties": {
             "format": {"$ref": "#/$defs/InferenceFormatName"},
-            "catalog": {"$ref": "#/$defs/AgentCatalogRef"}
+            "catalog": {"$ref": "#/$defs/AgentCatalogRef"},
+            "catalogs": {
+              "type": "array",
+              "items": {"$ref": "#/$defs/AgentCatalogRef"},
+              "description": "For cases where the decompiler needs more than one active catalog."
+            }
           },
           "required": ["format"],
           "additionalProperties": false
@@ -1124,6 +1129,7 @@
         },
         "expect_output": {"type": "string"},
         "expect_contains": {"type": "array", "items": {"type": "string"}},
+        "expect_absent": {"type": "array", "items": {"type": "string"}},
         "expect_round_trip": {
           "type": "boolean",
           "description": "Compiling the output returns the messages the case supplied."

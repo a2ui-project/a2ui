@@ -14,7 +14,7 @@
 
 
 class SurfaceOperation:
-    """Standard A2UI v1.0 surface operation envelope keys."""
+    """A2UI surface operation envelope keys and Express surface statements."""
 
     CREATE = "createSurface"
     UPDATE_COMPONENTS = "updateComponents"

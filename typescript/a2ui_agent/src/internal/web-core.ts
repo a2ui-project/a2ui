@@ -100,4 +100,4 @@ export {
 export type {ProtocolVersion} from '@a2ui/web_core/adapters';
 
 // ./semver
-export {normalizeVersionString} from '@a2ui/web_core/semver';
+export {compareSemVer, normalizeVersionString} from '@a2ui/web_core/semver';

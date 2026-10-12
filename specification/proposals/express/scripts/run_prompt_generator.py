@@ -21,6 +21,7 @@ containing complete instructions and positional signatures on stdout.
 """
 
 import argparse
+import json
 import os
 import sys
 
@@ -39,9 +40,8 @@ sys.path.insert(
         )
     ),
 )
-import json
-from a2ui.core.catalog import Catalog
-from a2ui.inference_formats.experimental.express.prompt_generator import ExpressPromptGenerator
+from a2ui.core import Catalog
+from a2ui.inference_formats.experimental.express import ExpressPromptGenerator
 
 
 def generate_prompt_text(catalog_path: str) -> str:
@@ -61,18 +61,15 @@ def generate_prompt_text(catalog_path: str) -> str:
 
     with open(catalog_path, "r", encoding="utf-8") as f:
         catalog_dict = json.load(f)
-    catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
+    catalog = Catalog.from_json(catalog_dict)
 
     from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
-    express_format = ExpressFormat(catalog=catalog)
-    return express_format.prompt_generator.generate(
-        role_description=(
-            "You are a helpful UI assistant that outputs interfaces using A2UI Express"
-            " DSL."
-        ),
-        include_schema=True,
+    express_format = ExpressFormat([catalog])
+    role_description = (
+        "You are a helpful UI assistant that outputs interfaces using A2UI Express DSL."
     )
+    return f"{role_description}\n\n{express_format.prompt_generator.generate()}"
 
 
 def main():

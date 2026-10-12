@@ -29,6 +29,9 @@ The suites that do not depend on an inference format sit directly under `agent/`
 - `agent/catalog_resolution.yaml`: Negotiating renderer capabilities against the catalogs an agent registered, including inline catalogs.
 - `agent/request_processor.yaml`: Building an inference format from its factory, and taking registered catalogs and renderer capabilities through to a request processor.
 - `agent/skill.yaml`: Generating skill documents and skill sets from a format and a catalog.
+- `agent/multi_catalog_formats.yaml`: Resolving components and function calls across active catalogs (omitting `createSurface.catalogId` when multiple catalogs are active, resolving un-annotated components and function calls by name when unique across active catalogs, and requiring an explicit `catalogId` override when ambiguous), across `direct_json` (and later `express`): compiling, decompiling (including omitting `catalogId` when name lookup is unambiguous), parsing a response, rendering a prompt snippet, and building a format. Component order inside a message carries no meaning, so a harness may compare the `components` of a compiled message by `id`.
+
+A case names its format with `args.format`, an `InferenceFormatName`: `direct_json` (or `express`).
 
 #### Per-format suites (`agent/direct_json/`, `agent/express/`)
 

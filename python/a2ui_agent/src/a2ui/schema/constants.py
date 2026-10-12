@@ -18,7 +18,8 @@ SURFACE_ID_KEY = "surfaceId"
 
 # Keys whose string values can be safely auto-closed (healed) if fragmented in the stream.
 # Structural or atomic keys (e.g., id, surfaceId, path) are NOT progressive to prevent
-# incorrect parsing or data binding.
+# incorrect parsing or data binding. Parsers heal nothing by default; pass this set as
+# `progressive_keys` to opt in.
 DEFAULT_PROGRESSIVE_KEYS = frozenset({
     "literalString",
     "valueString",

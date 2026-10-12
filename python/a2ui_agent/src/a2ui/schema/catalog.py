@@ -15,190 +15,27 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-import copy
-from dataclasses import dataclass
 import glob
 import json
 import logging
 import os
-from typing import TYPE_CHECKING
-from urllib.parse import urlparse
 
-from a2ui.core import A2uiCatalogError, A2uiError, Catalog, CatalogApi
-from a2ui.core.common import to_protocol_version
+from a2ui.core import A2uiCatalogError, A2uiError, CatalogApi
 from a2ui.utils import validate_payload
+from a2ui.utils._paths import to_local_path
 
-from .catalog_provider import (
-    A2uiCatalogProvider,
-    FileSystemCatalogProvider,
-    InMemoryCatalogProvider,
-)
-from .constants import CATALOG_ID_KEY, ENCODING
-
-if TYPE_CHECKING:
-    # Only used in annotations, which aren't evaluated at runtime.
-    from a2ui.catalog_transformers import CatalogTransformer
-
-
-@dataclass(init=False)
-class CatalogConfig:
-    """Configuration for a catalog of components.
-
-    A catalog consists of a provider or an `a2ui.core.Catalog` instance,
-    optionally a path or glob pattern to examples, and the transformers that
-    shape it before it reaches a prompt or a validator.
-
-    Attributes:
-      name: The name of the catalog.
-      provider: The provider to use to load the catalog schema.
-      examples_path: The path or glob pattern to the examples.
-      catalog: Optional `a2ui.core.Catalog` instance.
-      transformers: The transformers that `to_catalog` applies, in order.
-    """
-
-    name: str
-    provider: A2uiCatalogProvider
-    examples_path: str | None = None
-    catalog: CatalogApi | None = None
-    transformers: tuple[CatalogTransformer, ...] = ()
-
-    def __init__(
-        self,
-        name: str,
-        provider: A2uiCatalogProvider | None = None,
-        examples_path: str | None = None,
-        *,
-        catalog: CatalogApi | None = None,
-        transformers: Sequence[CatalogTransformer] = (),
-    ) -> None:
-        """Initializes the configuration.
-
-        Args:
-          name: The name of the catalog.
-          provider: The provider to load the catalog schema from. Defaults to an
-            in-memory provider of `catalog`'s schema.
-          examples_path: The path or glob pattern to the examples.
-          catalog: The catalog instance to use as is.
-          transformers: The transformers to apply to the catalog, in order. For
-            example, `ComponentPruningTransformer` limits the components that
-            prompts describe and validation accepts.
-
-        Raises:
-          TypeError: If neither `provider` nor `catalog` is given.
-        """
-        if catalog is not None and provider is None:
-            provider = InMemoryCatalogProvider(catalog.catalog_schema)
-        if provider is None:
-            raise TypeError("CatalogConfig requires either 'provider' or 'catalog'.")
-        self.name = name
-        self.provider = provider
-        self.examples_path = resolve_examples_path(examples_path)
-        self.catalog = catalog
-        self.transformers = tuple(transformers)
-
-    @classmethod
-    def from_catalog(
-        cls,
-        name: str,
-        catalog: CatalogApi,
-        examples_path: str | None = None,
-        *,
-        transformers: Sequence[CatalogTransformer] = (),
-    ) -> CatalogConfig:
-        """Returns a CatalogConfig backed by an `a2ui.core.Catalog` instance."""
-        return cls(
-            name=name,
-            examples_path=examples_path,
-            catalog=catalog,
-            transformers=transformers,
-        )
-
-    @classmethod
-    def from_path(
-        cls,
-        name: str,
-        catalog_path: str,
-        examples_path: str | None = None,
-        *,
-        transformers: Sequence[CatalogTransformer] = (),
-    ) -> CatalogConfig:
-        """Returns a CatalogConfig that loads from a local path or 'file://' URI."""
-        parsed = urlparse(catalog_path)
-        if not parsed.scheme or parsed.scheme == "file":
-            catalog_provider = FileSystemCatalogProvider(parsed.path)
-        elif parsed.scheme in ["http", "https"]:
-            raise NotImplementedError("HTTP support is coming soon.")
-        else:
-            raise A2uiCatalogError(f"Unsupported catalog URL scheme: {catalog_path}")
-
-        return cls(
-            name=name,
-            provider=catalog_provider,
-            examples_path=resolve_examples_path(examples_path),
-            transformers=transformers,
-        )
-
-    def to_catalog(self, protocol_version: str | None = None) -> CatalogApi:
-        """Loads and returns a core Catalog instance from this configuration.
-
-        A configured `catalog` is used as is unless it targets a different
-        protocol version. Otherwise the provider's schema is parsed with
-        `Catalog.from_json`. The transformers are applied last, in order.
-
-        Args:
-          protocol_version: The protocol version of the returned catalog. Defaults
-            to the configured catalog's version, then to the schema's
-            `protocolVersion`, then to 1.0.
-
-        Returns:
-          The catalog, with the transformers applied.
-
-        Raises:
-          A2uiCatalogError: If the schema lacks a string `catalogId`.
-        """
-        catalog = self._load_catalog(protocol_version)
-        for transformer in self.transformers:
-            catalog = transformer.transform(catalog)
-        return catalog
-
-    def _load_catalog(self, protocol_version: str | None) -> CatalogApi:
-        """Returns the catalog before the transformers are applied."""
-        if self.catalog is not None and (
-            protocol_version is None
-            or to_protocol_version(self.catalog.protocol_version)
-            == to_protocol_version(protocol_version)
-        ):
-            return self.catalog
-
-        catalog_schema = copy.deepcopy(dict(self.provider.load()))
-
-        if CATALOG_ID_KEY not in catalog_schema:
-            raise A2uiCatalogError(f"Catalog '{self.name}' is missing 'catalogId'")
-        catalog_id = catalog_schema[CATALOG_ID_KEY]
-        if not isinstance(catalog_id, str):
-            raise A2uiCatalogError(f"Catalog '{self.name}' catalogId is not a string")
-
-        if protocol_version is None:
-            protocol_version = (
-                self.catalog.protocol_version
-                if self.catalog is not None
-                else str(catalog_schema.get("protocolVersion", "1.0"))
-            )
-        return Catalog.from_json(
-            catalog_schema=catalog_schema,
-            protocol_version=protocol_version,
-            catalog_id=catalog_id,
-        )
+from .constants import ENCODING
 
 
 def resolve_examples_path(path: str | None) -> str | None:
-    if path:
-        parsed = urlparse(path)
-        if not parsed.scheme or parsed.scheme == "file":
-            return parsed.path
-        else:
-            raise A2uiCatalogError(f"Unsupported examples URL scheme: {path}")
-    return None
+    """Returns the local path that an examples path or `file://` URL names.
+
+    Raises:
+      A2uiCatalogError: If `path` is a URL with a scheme other than `file`.
+    """
+    if not path:
+        return None
+    return to_local_path(path, kind="examples")
 
 
 def load_examples(

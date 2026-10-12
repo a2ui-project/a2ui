@@ -90,3 +90,41 @@
     - '"deleteSurface"'
     - '"s1"'
   expect_round_trip: true
+
+- name: test_decompile_json_two_surfaces_in_two_catalogs
+  description: Messages targeting two surfaces across two active catalogs round-trip cleanly when both catalogs are registered on the decompiler.
+  action: decompile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Summary"
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s2"
+        catalogId: "conformance/custom"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s2"
+        components:
+          - id: "root"
+            component: "Chart"
+            values: [1, 2]
+            caption: "Q1"
+  expect_contains:
+    - '"conformance/simplified"'
+    - '"conformance/custom"'
+    - '"Chart"'
+  expect_round_trip: true
