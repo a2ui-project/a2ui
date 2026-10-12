@@ -14,18 +14,23 @@
  * limitations under the License.
  */
 
-import {inject} from '@angular/core';
+import {SecurityContext, inject} from '@angular/core';
 import {DomSanitizer, SafeHtml} from '@angular/platform-browser';
 import {MarkdownRendererService} from '../interfaces/markdown-renderer-service';
 
 /**
- * A markdown renderer that uses a default sanitizer to convert the markdown
- * to HTML, this does not result in any useful markdown rendering.
+ * A markdown renderer that only sanitizes the text as HTML with Angular's
+ * built-in HTML sanitizer, this does not result in any useful markdown rendering.
+ *
+ * Agent text is untrusted, so it is sanitized before it is marked as trusted:
+ * script elements and event handler attributes are removed, and unsafe URLs
+ * such as `javascript:` are neutralized.
  */
 export class SanitizerMarkdownRendererService implements MarkdownRendererService {
   private readonly sanitizer = inject(DomSanitizer);
 
   render(markdown: string): Promise<SafeHtml> {
-    return Promise.resolve(this.sanitizer.bypassSecurityTrustHtml(markdown));
+    const html = this.sanitizer.sanitize(SecurityContext.HTML, markdown) ?? '';
+    return Promise.resolve(this.sanitizer.bypassSecurityTrustHtml(html));
   }
 }
