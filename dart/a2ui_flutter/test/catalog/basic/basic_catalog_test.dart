@@ -32,6 +32,8 @@ void main() {
     expect(catalog.schemaId, spec.schemaId);
     expect(catalog.title, spec.title);
     expect(catalog.description, spec.description);
+    expect(catalog.protocolVersion, spec.protocolVersion);
+    expect(catalog.instructions, spec.instructions);
     expect(catalog.themeSchema, same(spec.themeSchema));
     expect(catalog.components.values, unorderedEquals(BasicComponents.all));
     expect(catalog.functions.keys, unorderedEquals(spec.functions.keys));

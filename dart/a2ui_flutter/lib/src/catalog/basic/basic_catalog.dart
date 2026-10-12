@@ -37,7 +37,7 @@ import 'video.dart';
 
 /// The v0.9 basic catalog: every basic component, and the functions of
 /// [BasicCatalog.v0_9] formatting for [locale], under the basic catalog's id,
-/// theme schema, title and description.
+/// theme schema, title, description, protocol version and instructions.
 ///
 /// An `openUrl` call, which fails without [openUrl], may run whenever a bound
 /// property resolves, not only on a tap.
@@ -55,6 +55,8 @@ WidgetCatalog basicCatalog({
   schemaId: BasicComponents.api.schemaId,
   title: BasicComponents.api.title,
   description: BasicComponents.api.description,
+  protocolVersion: BasicComponents.api.protocolVersion,
+  instructions: BasicComponents.api.instructions,
 );
 
 /// The v0.9 basic catalog's component implementations.
