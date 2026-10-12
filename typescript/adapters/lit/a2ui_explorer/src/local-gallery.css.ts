@@ -34,7 +34,7 @@ export const appStyles = css`
     font-family: system-ui, sans-serif;
   }
 
-  h1 {
+  .app-brand h1 {
     margin: 0;
     font-size: 1.15rem;
     font-weight: 700;

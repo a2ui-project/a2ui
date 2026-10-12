@@ -3,6 +3,7 @@
 - (v1_0) `<a2ui-surface>` renders a surface whose `createSurface` names no default catalog: the root resolves against its own catalog. `SurfaceModel.defaultCatalog` (and the deprecated `catalog` getter) from `@a2ui/web_core` may now be `undefined`, so code that reads `surface.defaultCatalog` must handle that case.
 - `<a2ui-surface>` re-renders when the root component's model is replaced, as happens when an update changes the root's type or catalog. It used to stop listening once the root first appeared.
 - Relocate package directory from `renderers/lit` to `typescript/adapters/lit`.
+- **BREAKING CHANGE**: Render `<a2ui-surface>` into the Light DOM instead of a Shadow Root (removing the `loading` `<slot>`) so host and page stylesheets can target components inside a surface directly ([#3154](https://github.com/a2ui-project/a2ui/pull/3154)).
 
 ## 0.13.0
 

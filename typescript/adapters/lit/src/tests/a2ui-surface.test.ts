@@ -159,4 +159,34 @@ describe('A2uiSurface', () => {
 
     document.body.removeChild(el);
   });
+
+  it('should render in the Light DOM without a shadowRoot', async () => {
+    const el = document.createElement('a2ui-surface') as unknown as A2uiSurface;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, () => {
+      el.surface = surfaceModel;
+      processor.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'root',
+                component: 'Text',
+                text: 'Light DOM child',
+              },
+            ],
+          },
+        },
+      ]);
+    });
+
+    await el.updateComplete;
+    assert.strictEqual(el.shadowRoot, null);
+    assert.ok(el.querySelector('a2ui-basic-text'));
+
+    document.body.removeChild(el);
+  });
 });

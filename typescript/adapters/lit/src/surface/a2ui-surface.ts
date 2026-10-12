@@ -48,6 +48,14 @@ export class A2uiSurface extends LitElement {
   private unsubscribe?: () => void;
 
   /**
+   * Renders into the element's direct children (Light DOM) instead of a ShadowRoot
+   * so host stylesheets can target components inside the surface.
+   */
+  override createRenderRoot() {
+    return this;
+  }
+
+  /**
    * Handles lifecycle updates, specifically when the `surface` property changes.
    *
    * It subscribes to the components model so the surface re-renders whenever
@@ -124,7 +132,7 @@ export class A2uiSurface extends LitElement {
   override render() {
     if (!this.surface) return nothing;
     if (!this._hasRoot) {
-      return html`<slot name="loading"><div>Loading surface...</div></slot>`;
+      return html`<div>Loading surface...</div>`;
     }
 
     try {
