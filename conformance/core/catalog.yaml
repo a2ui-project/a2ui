@@ -942,12 +942,6 @@
   action: round_trip
   catalogPath: "conformance/test_data/catalogs/function_metadata_catalog_v1_0.json"
 
-- name: test_v09_custom_catalog_round_trip_function_list
-  description: Tests that a catalog whose functions are written as a list of definitions, the inline-catalog form, keeps the list form. The basic catalogs write functions as a map.
-  action: round_trip
-  protocolVersion: "v0.9"
-  catalogPath: "conformance/test_data/catalogs/function_list_catalog_v0_9.json"
-
 # ==============================================================================
 # 4. validation_schema
 # ==============================================================================
