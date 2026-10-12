@@ -322,7 +322,8 @@ def test_v09_basic_catalog_to_json_keeps_catalog_mixin_local() -> None:
     assert local == {"#/$defs/CatalogComponentCommon"}
     assert "CatalogComponentCommon" in out["$defs"]
     assert "theme" in out["$defs"]
-    assert out["protocolVersion"] == "0.9"
+    # The published v0.9 basic catalog declares no `protocolVersion`.
+    assert "protocolVersion" not in out
 
 
 def test_code_defined_v10_catalog_always_emits_both_unions() -> None:
@@ -571,3 +572,29 @@ def test_validation_schema_keeps_authored_titles() -> None:
         "title": "Email address",
         "format": "email",
     }
+
+
+def test_to_json_emits_catalog_id_only_when_the_document_declares_it() -> None:
+    document = {"components": {"Text": {"type": "object", "properties": {}}}}
+    loaded = Catalog.from_json(document, catalog_id="app", protocol_version="v0.8")
+
+    assert loaded.catalog_id == "app"
+    assert "catalogId" not in loaded.to_json()
+    declared = Catalog.from_json(
+        {**document, "catalogId": "app"}, protocol_version="v0.8"
+    )
+    assert declared.to_json()["catalogId"] == "app"
+    assert (
+        Catalog(catalog_id="app", protocol_version="v1.0").to_json()["catalogId"]
+        == "app"
+    )
+
+
+def test_from_json_reads_v08_styles_as_the_theme() -> None:
+    styles = {"font": {"type": "string"}}
+    catalog = Catalog.from_json(
+        {"components": {}, "styles": styles}, catalog_id="app", protocol_version="v0.8"
+    )
+
+    assert catalog.theme_schema == {"type": "object", "properties": styles}
+    assert catalog.to_json() == {"components": {}, "styles": styles}

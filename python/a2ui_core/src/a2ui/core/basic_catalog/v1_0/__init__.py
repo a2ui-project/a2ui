@@ -80,6 +80,7 @@ from .function_impls import (
 )
 from ...schema.v1_0.constants import PROTOCOL_VERSION, PROTOCOL_BASE_URL
 from ...catalog import Catalog, ModelComponentApi, FunctionImplementation
+from .._published import published_document
 
 
 def _basic_catalog_id(protocol_version: str) -> str:
@@ -151,6 +152,8 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
                 "  }\n    }\n  }\n]\n```"
             ),
         )
+        # `to_json` returns the published catalog document.
+        self._adopt_source_document(published_document("v1_0"))
 
 
 __all__ = [

@@ -337,6 +337,14 @@ _METADATA_KEYS: Final[frozenset[str]] = frozenset(
     {"$schema", "$id", "title", "description"}
 )
 
+# Each metadata key of a catalog document and the `Catalog` attribute it sets.
+_METADATA_ATTRS: Final[tuple[tuple[str, str], ...]] = (
+    ("$schema", "schema_dialect"),
+    ("$id", "schema_id"),
+    ("title", "title"),
+    ("description", "description"),
+)
+
 # Top-level catalog document keys that `Catalog` models itself. Any other key
 # of an authored document is kept as written.
 _MODELED_DOCUMENT_KEYS: Final[frozenset[str]] = frozenset({
@@ -361,6 +369,8 @@ class _CatalogSource:
     Attributes:
         protocol_version: The `protocolVersion` exactly as declared, or None
             if the document declares none.
+        has_catalog_id: Whether the document declares a `catalogId`, rather
+            than taking it from the `catalog_id` argument of `from_json`.
         has_components: Whether the document has a `components` key.
         functions_form: `"map"` or `"list"`, as the document wrote
             `functions`, or None if it has no `functions` key.
@@ -376,6 +386,7 @@ class _CatalogSource:
     """
 
     protocol_version: str | None
+    has_catalog_id: bool
     has_components: bool
     functions_form: str | None
     defs: dict[str, Any] | None
@@ -783,6 +794,50 @@ class Catalog(Generic[TComponent, TFunction]):
         derived._source = getattr(self, "_source", None)
         return derived
 
+    def _adopt_source_document(self, document: Mapping[str, Any]) -> None:
+        """Carries the published document that this catalog implements in code.
+
+        `to_json` then returns that document, as for a catalog loaded with
+        `from_json`: each entry the document defines carries its definition as
+        `source_json`, and the document's metadata and top-level layout are
+        kept. Entries are copied before `source_json` is set, so entry objects
+        shared with other catalogs are left unchanged. Validation still uses
+        the entries' own schemas.
+
+        Args:
+            document: The published catalog document.
+        """
+        document = copy.deepcopy(dict(document))
+        raw_components = document.get("components")
+        component_defs = raw_components if isinstance(raw_components, dict) else {}
+        function_defs = dict(
+            _function_entries(document.get("functions"), self.catalog_id)
+        )
+        for name, comp in list(self.components.items()):
+            if isinstance(component_defs.get(name), dict):
+                adopted = copy.copy(comp)
+                adopted.source_json = component_defs[name]
+                self.components[name] = adopted
+        for name, fn in list(self.functions.items()):
+            if isinstance(function_defs.get(name), dict):
+                adopted_fn = copy.copy(fn)
+                adopted_fn.source_json = function_defs[name]
+                self.functions[name] = adopted_fn
+        for key, attr in _METADATA_ATTRS:
+            value = document.get(key)
+            if isinstance(value, str) and getattr(self, attr, None) is None:
+                setattr(self, attr, value)
+        self._source = _catalog_source(
+            document,
+            component_names=frozenset(
+                name for name in self.components if name in component_defs
+            ),
+            function_names=frozenset(
+                name for name in self.functions if name in function_defs
+            ),
+        )
+        self._cached_catalog_schema = None
+
     @property
     def catalog_schema(self) -> dict[str, Any]:
         """Deprecated alias of `validation_schema`."""
@@ -994,7 +1049,12 @@ class Catalog(Generic[TComponent, TFunction]):
                 s = comp.schema
                 if isinstance(s, dict):
                     s = copy.deepcopy(s)
-                    if getattr(comp, "source_json", None) is not None:
+                    # Only a schema read from a document has authored titles;
+                    # a model's schema has Pydantic's.
+                    if (
+                        getattr(comp, "source_json", None) is not None
+                        and getattr(comp, "model_class", None) is None
+                    ):
                         s = _mark_authored_titles(s)
                     if "$defs" in s:
                         del s["$defs"]
@@ -1027,7 +1087,9 @@ class Catalog(Generic[TComponent, TFunction]):
                 s = flat_functions[name]
                 if isinstance(s, dict):
                     s = copy.deepcopy(s)
-                    if getattr(functions[name], "source_json", None) is not None:
+                    if getattr(
+                        functions[name], "source_json", None
+                    ) is not None and isinstance(functions[name].schema, dict):
                         s = _mark_authored_titles(s)
                     if "$defs" in s:
                         del s["$defs"]
@@ -1147,7 +1209,10 @@ class Catalog(Generic[TComponent, TFunction]):
         against, use `validation_schema`.
 
         - Top-level metadata (`$schema`, `$id`, `title`, `description`,
-          `instructions`) appears only when known. A loaded catalog emits
+          `instructions`) appears only when known. `catalogId` appears for a
+          catalog defined in code, and for a loaded catalog only if its
+          document declared one: an id given to `from_json` for a document
+          without one is not added. A loaded catalog emits
           `protocolVersion` exactly as its document declared it, and not at
           all if it declared none; a catalog defined in code emits its
           canonical version, such as `1.0`.
@@ -1209,7 +1274,8 @@ class Catalog(Generic[TComponent, TFunction]):
         description = getattr(self, "description", None)
         if description is not None:
             doc["description"] = description
-        doc["catalogId"] = self.catalog_id
+        if source is None or source.has_catalog_id:
+            doc["catalogId"] = self.catalog_id
         if source is not None:
             version = source.protocol_version
         else:
@@ -1439,7 +1505,10 @@ class Catalog(Generic[TComponent, TFunction]):
             protocol_version: Protocol version, which takes precedence over the
                 document's `protocolVersion`. If neither is given, the catalog
                 targets `0.9`, the specification's default.
-            catalog_id: Catalog identifier, if not declared in the schema.
+            catalog_id: Catalog identifier, which takes precedence over the
+                document's `catalogId` and is required if the document
+                declares none (for example the published v0.8 basic catalog).
+                `to_json` emits `catalogId` only if the document declared it.
 
         Returns:
             A schema-only catalog. Its entries carry their authored JSON in
@@ -1582,44 +1651,10 @@ class Catalog(Generic[TComponent, TFunction]):
                     )
                 )
 
-        raw_defs = raw_document.get("$defs")
-        authored_defs = (
-            {k: v for k, v in raw_defs.items() if k not in _UNION_DEFS}
-            if isinstance(raw_defs, Mapping)
-            else {}
-        )
-        raw_functions_value = raw_document.get("functions")
-        source = _CatalogSource(
-            protocol_version=declared_version,
-            has_components="components" in raw_document,
-            functions_form=(
-                None
-                if raw_functions_value is None
-                else "list"
-                if isinstance(raw_functions_value, list)
-                else "map"
-            ),
-            defs=dict(raw_defs) if isinstance(raw_defs, Mapping) else None,
-            has_theme="theme" in raw_document,
-            theme=raw_document.get("theme"),
-            extras={
-                k: v
-                for k, v in raw_document.items()
-                if k not in _MODELED_DOCUMENT_KEYS
-                or (k in _METADATA_KEYS and not isinstance(v, str))
-            },
+        source = _catalog_source(
+            raw_document,
             component_names=frozenset(c.name for c in components),
             function_names=frozenset(f.name for f in functions),
-            referenced_defs=frozenset(
-                _reachable_defs(
-                    [
-                        raw_components,
-                        raw_functions_value,
-                        raw_document.get("theme"),
-                    ],
-                    authored_defs,
-                )
-            ),
         )
 
         def _metadata(key: str) -> str | None:
@@ -1632,9 +1667,7 @@ class Catalog(Generic[TComponent, TFunction]):
             protocol_version=p_ver,
             components=components,
             functions=functions,
-            theme_schema=inlined_catalog_schema.get("theme")
-            or inlined_catalog_schema.get("$defs", {}).get("theme")
-            or {},
+            theme_schema=_document_theme(inlined_catalog_schema),
             instructions=inlined_catalog_schema.get("instructions"),
             defs=inlined_catalog_schema.get("$defs"),
             schema_dialect=_metadata("$schema"),
@@ -1644,6 +1677,81 @@ class Catalog(Generic[TComponent, TFunction]):
         )
         catalog._source = source
         return catalog
+
+
+def _document_theme(document: Mapping[str, Any]) -> dict[str, Any]:
+    """Returns the theme schema a catalog document declares, or `{}`.
+
+    The theme is the top-level `theme`, else v0.8's top-level `styles`, else
+    `$defs.theme`. A bare map of properties, as v0.8's `styles` is written,
+    becomes an object schema with those properties.
+    """
+    defs = document.get("$defs")
+    theme = (
+        document.get("theme")
+        or document.get("styles")
+        or (defs.get("theme") if isinstance(defs, Mapping) else None)
+    )
+    if not isinstance(theme, Mapping) or not theme:
+        return {}
+    if "properties" in theme or "allOf" in theme or theme.get("type") == "object":
+        return dict(theme)
+    return {"type": "object", "properties": dict(theme)}
+
+
+def _catalog_source(
+    raw_document: Mapping[str, Any],
+    component_names: frozenset[str],
+    function_names: frozenset[str],
+) -> _CatalogSource:
+    """Returns what a catalog document wrote, beyond its entries, for `to_json`.
+
+    Args:
+        raw_document: The catalog document as written.
+        component_names: The components the catalog took from the document.
+        function_names: The functions the catalog took from the document.
+    """
+    raw_version = raw_document.get("protocolVersion")
+    raw_defs = raw_document.get("$defs")
+    authored_defs = (
+        {k: v for k, v in raw_defs.items() if k not in _UNION_DEFS}
+        if isinstance(raw_defs, Mapping)
+        else {}
+    )
+    raw_functions = raw_document.get("functions")
+    return _CatalogSource(
+        protocol_version=raw_version if isinstance(raw_version, str) else None,
+        has_catalog_id="catalogId" in raw_document,
+        has_components="components" in raw_document,
+        functions_form=(
+            None
+            if raw_functions is None
+            else "list"
+            if isinstance(raw_functions, list)
+            else "map"
+        ),
+        defs=dict(raw_defs) if isinstance(raw_defs, Mapping) else None,
+        has_theme="theme" in raw_document,
+        theme=raw_document.get("theme"),
+        extras={
+            k: v
+            for k, v in raw_document.items()
+            if k not in _MODELED_DOCUMENT_KEYS
+            or (k in _METADATA_KEYS and not isinstance(v, str))
+        },
+        component_names=component_names,
+        function_names=function_names,
+        referenced_defs=frozenset(
+            _reachable_defs(
+                [
+                    raw_document.get("components", {}),
+                    raw_functions,
+                    raw_document.get("theme"),
+                ],
+                authored_defs,
+            )
+        ),
+    )
 
 
 def _function_entries(raw: Any, catalog_id: str) -> list[tuple[str, dict[str, Any]]]:

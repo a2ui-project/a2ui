@@ -490,7 +490,7 @@ def generate_basic_catalog_index(
         style_code: The generated styles module, if any.
         catalog_data: The catalog document. When given, `BasicCatalog` passes
             its `instructions` to `Catalog`, which publishes them in
-            `catalog_schema`.
+            `validation_schema`.
     """
     dir_name = version_to_underscore(version)
     comp_symbols = extract_exported_symbols(comp_code)
@@ -571,6 +571,7 @@ def generate_basic_catalog_index(
             " PROTOCOL_BASE_URL"
         ),
         "from ...catalog import Catalog, ModelComponentApi, FunctionImplementation",
+        "from .._published import published_document",
         "",
         "",
         "def _basic_catalog_id(protocol_version: str) -> str:",
@@ -593,6 +594,8 @@ def generate_basic_catalog_index(
         "            components=BASIC_COMPONENTS,",
         f"            functions={functions_arg},",
         f"{theme_arg_line}{document_lines}        )",
+        "        # `to_json` returns the published catalog document.",
+        f'        self._adopt_source_document(published_document("{dir_name}"))',
         "",
         "",
     ])

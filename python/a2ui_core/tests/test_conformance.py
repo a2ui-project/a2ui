@@ -83,27 +83,7 @@ SKIP_TEST_NAMES: set[str] = {
     # aside.
     #
     # Only the component envelope.
-    "test_v08_validation_schema_basic",
-    "test_v09_validation_schema_allof_envelope_flattening",
-    "test_v09_validation_schema_no_theme",
-    "test_v09_validation_schema_with_defs",
-    "test_v10_validation_schema_basic",
-    "test_v10_validation_schema_metadata_and_descriptions",
-    # The component envelope and rule 6.
-    "test_v09_validation_schema_inlined_fixed_point",
-    # The component envelope, rule 6 (except `ref_node_hygiene`), and the
-    # function union of a catalog without functions. The goldens bundle the
-    # published `FunctionCall` with `anyFunction: {"not": {}}`, which rejects
-    # every call; Python bundles the flat `FunctionCall`, which accepts any
-    # call. Python validates a call that names another catalog's `catalogId`
-    # against the calling catalog's validation_schema (core/multi_catalog.yaml
-    # `test_multi_catalog_function_call_catalog_id_override`), so the empty
-    # union would reject it.
-    # TODO(#3036): Dispatch function calls by their `catalogId` in the payload
-    # validator, then bundle the empty union as the goldens do.
-    "test_v09_validation_schema_bundles_common_types",
-    "test_v09_validation_schema_preserves_protocol_version",
-    "test_v09_validation_schema_ref_node_hygiene",
+    "test_v08_basic_validation_schema",
     # Goldens of the published basic catalogs. Besides the envelope and rule
     # 6, the goldens normalize object closure, which Python keeps as written:
     # in v0.9 the authored `additionalProperties: false` on the args of
@@ -1245,101 +1225,67 @@ def validate_round_trip_case(case: dict[str, Any]) -> None:
     """Runs a `round_trip` case: `from_json(c).to_json()` equals `c`.
 
     The document is always loaded with `from_json`, even when the SDK
-    implements the catalog itself. The comparison ignores key order, which
-    Python dicts ignore already, and the order of `enum` and `required`.
+    implements the catalog itself. A case-level `catalogId` overrides a
+    document that declares none, and must not appear in the output. The
+    comparison ignores key order, which Python dicts ignore already, and the
+    order of `enum` and `required`.
     """
     unexpected = {"expect", "expectFile"} & set(case)
     assert not unexpected, f"round_trip cases take no {sorted(unexpected)}"
     document, _ = _load_case_catalog(case)
     p_ver = resolve_protocol_version(case)
+    c_id = resolve_catalog_id(case)
 
-    out = Catalog.from_json(document, protocol_version=p_ver).to_json()
+    out = Catalog.from_json(document, catalog_id=c_id, protocol_version=p_ver).to_json()
     assert normalize_set_keywords(out) == normalize_set_keywords(document)
 
-    again = Catalog.from_json(out, protocol_version=p_ver).to_json()
+    again = Catalog.from_json(out, catalog_id=c_id, protocol_version=p_ver).to_json()
     assert normalize_set_keywords(again) == normalize_set_keywords(out)
 
 
-# The `expect` keys a to_json case may use (ToJsonExpect in
-# conformance/conformance_schema.json). An unknown key fails the case rather
-# than being silently ignored.
-_TO_JSON_EXPECT_KEYS = frozenset({
-    "catalogId",
-    "components",
-    "defs",
-    "functions",
-    "metadata",
-    "protocolVersion",
-    "unbundled",
-})
+def builtin_catalog(name: str, protocol_version: str | None) -> CatalogApi | None:
+    """Returns the SDK's own implementation of a named catalog, if any.
 
-
-def _resolves_within(document: Any, ref: str) -> bool:
-    """Whether a local `#/...` reference resolves within `document`."""
-    target = document
-    for token in ref[1:].split("/")[1:]:
-        token = token.replace("~1", "/").replace("~0", "~")
-        if isinstance(target, dict) and token in target:
-            target = target[token]
-        elif isinstance(target, list) and token.isdigit() and int(token) < len(target):
-            target = target[int(token)]
-        else:
-            return False
-    return True
-
-
-def _function_names(functions: Any) -> set[str]:
-    """The names of a document's functions, in the map or the list form."""
-    if isinstance(functions, dict):
-        return set(functions)
-    if isinstance(functions, list):
-        return {entry["name"] for entry in functions}
-    return set()
+    The SDK implements the basic catalog of v0.8, v0.9 and v1.0.
+    """
+    if name != "basic" or protocol_version is None:
+        return None
+    modules = {"0.8": v0_8, "0.9": v0_9, "1.0": v1_0}
+    module = modules.get(to_canonical_version(protocol_version))
+    return module.BasicCatalog() if module is not None else None
 
 
 def validate_to_json_case(case: dict[str, Any]) -> None:
-    """Runs a `to_json` case against the document `catalog.to_json()` returns."""
-    expected = case["expect"]
-    unknown_keys = set(expected) - _TO_JSON_EXPECT_KEYS
-    assert not unknown_keys, f"Unknown to_json expect keys: {sorted(unknown_keys)}"
+    """Runs a `to_json` case: `catalog.to_json()` equals `expectFile`.
 
+    A `builtinCatalog` case serializes the SDK's own implementation for the
+    case's protocol version, and is skipped if the SDK has none. Other cases
+    load `catalogPath` or `catalog` with `from_json`. The comparison ignores
+    key order and the order of `enum` and `required`.
+    """
+    assert "expect" not in case, "to_json cases take expectFile, not expect"
     p_ver = resolve_protocol_version(case)
-    document, c_path = _load_case_catalog(case)
-    c_id = resolve_catalog_id(case) or document.get("catalogId")
-    # A published catalog that the SDK implements itself is checked through
-    # that implementation, as validation_schema cases are.
-    cat = sdk_catalog(c_id) if c_path else None
-    if cat is not None:
-        assert cat.protocol_version == p_ver, (
-            f"{c_path} is the SDK's {cat.protocol_version} catalog, but the case"
-            f" sets protocolVersion {p_ver}"
-        )
+    builtin_name = case.get("builtinCatalog")
+    if builtin_name:
+        cat = builtin_catalog(builtin_name, p_ver)
+        if cat is None:
+            pytest.skip(f"The SDK has no built-in {builtin_name} catalog for {p_ver}.")
     else:
-        cat = Catalog.from_json(document, catalog_id=c_id, protocol_version=p_ver)
-    out = cat.to_json()
+        document, _ = _load_case_catalog(case)
+        cat = Catalog.from_json(
+            document, catalog_id=resolve_catalog_id(case), protocol_version=p_ver
+        )
 
-    if "catalogId" in expected:
-        assert out.get("catalogId") == expected["catalogId"]
-    if "protocolVersion" in expected:
-        assert out.get("protocolVersion") == expected["protocolVersion"]
-    for key, value in expected.get("metadata", {}).items():
-        assert key in out, f"to_json lacks metadata key {key!r}"
-        assert out[key] == value, f"to_json metadata {key!r} mismatch"
-    if "components" in expected:
-        assert set(out.get("components") or {}) == set(expected["components"])
-    if "functions" in expected:
-        assert _function_names(out.get("functions")) == set(expected["functions"])
-    if "defs" in expected:
-        assert set(out.get("$defs") or {}) == set(expected["defs"])
-    if expected.get("unbundled"):
-        for ref in _collect_refs(out):
-            if ref.startswith("#"):
-                assert _resolves_within(
-                    out, ref
-                ), f"Reference '{ref}' does not resolve within the document."
-        allowed_defs = {"anyComponent", "anyFunction", *(document.get("$defs") or {})}
-        copied = set(out.get("$defs") or {}) - allowed_defs
-        assert not copied, f"to_json copied definitions into $defs: {sorted(copied)}"
+    expect_file = case["expectFile"]
+    with open(
+        os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", expect_file)),
+        "r",
+        encoding="utf-8",
+    ) as f:
+        expected = json.load(f)
+    assert normalize_set_keywords(cat.to_json()) == normalize_set_keywords(
+        expected
+    ), f"to_json differs from {expect_file}"
 
 
 def validate_common_types_schema_case(case: dict[str, Any]) -> None:

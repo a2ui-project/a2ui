@@ -14,7 +14,16 @@
   returns it unchanged, and `Catalog.from_json(c.to_json())` rebuilds the same
   catalog. A catalog defined in code emits a canonical `protocolVersion` and
   generated `anyComponent` and `anyFunction` unions; an empty union is
-  `{"not": {}}` (#3053).
+  `{"not": {}}`. `catalogId` is emitted for a catalog defined in code, and for
+  a loaded catalog only if its document declared one, so a document loaded
+  with `Catalog.from_json(..., catalog_id=...)` does not gain it (#3053).
+- The basic catalogs (`a2ui.core.basic_catalog.v0_8`, `v0_9` and `v1_0`)
+  carry their published catalog document, which `a2ui-core` now ships, so
+  `BasicCatalog().to_json()` returns that file exactly. Their
+  `validation_schema` is unchanged except that the v1.0 catalog now emits the
+  `protocolVersion: "1.0"` its document declares (#3053).
+- `Catalog.from_json` reads a v0.8 document's top-level `styles` as the theme
+  schema (#3053).
 - `Catalog.validation_schema` is the self-contained schema used to validate
   messages, previously `catalog_schema`. `catalog_schema` remains as a
   deprecated alias that emits a `DeprecationWarning`; to migrate, read
