@@ -1645,6 +1645,131 @@ void main() {
       );
     });
   });
+
+  group('Catalog.validationSchema references', () {
+    // A catalog whose component property and function argument both name
+    // an authored definition and a deep pointer into the common types.
+    Map<String, Object?> document() => {
+          'catalogId': 'https://example.com/refs',
+          'protocolVersion': '0.9',
+          'components': {
+            'Counter': {
+              'type': 'object',
+              'properties': {
+                'count': {r'$ref': r'#/$defs/PositiveInt'},
+                'label': {
+                  r'$ref': r'common_types.json#/$defs/DynamicString/oneOf/0',
+                },
+              },
+              'required': ['count'],
+            },
+          },
+          'functions': {
+            'repeat': {
+              'type': 'object',
+              'properties': {
+                'call': {'const': 'repeat'},
+                'args': {
+                  'type': 'object',
+                  'properties': {
+                    'times': {r'$ref': r'#/$defs/PositiveInt'},
+                    'text': {
+                      r'$ref':
+                          r'common_types.json#/$defs/DynamicString/oneOf/0',
+                    },
+                  },
+                },
+                'returnType': {'const': 'string'},
+              },
+            },
+          },
+          r'$defs': {
+            'PositiveInt': {'type': 'integer', 'minimum': 1},
+          },
+        };
+
+    Map<String, Object?> properties(Map<String, Object?> schema) =>
+        ((schema['components']! as Map)['Counter'] as Map)['properties']
+            as Map<String, Object?>;
+    Map<String, Object?> arguments(Map<String, Object?> schema) =>
+        ((((schema['functions']! as Map)['repeat'] as Map)['properties']
+            as Map)['args'] as Map)['properties'] as Map<String, Object?>;
+
+    test('keeps the full path of a deep pointer into the common types', () {
+      final Map<String, Object?> schema =
+          Catalog.fromJson(document()).validationSchema;
+      const deep = {r'$ref': r'#/$defs/DynamicString/oneOf/0'};
+
+      // No description: the pointer names part of a definition.
+      expect(properties(schema)['label'], deep);
+      expect(arguments(schema)['text'], deep);
+      expect(schema[r'$defs'], contains('DynamicString'));
+    });
+
+    test('keeps references to authored definitions and bundles them', () {
+      final Map<String, Object?> schema =
+          Catalog.fromJson(document()).validationSchema;
+      const ref = {r'$ref': r'#/$defs/PositiveInt'};
+
+      expect(properties(schema)['count'], ref);
+      expect(arguments(schema)['times'], ref);
+      expect((schema[r'$defs']! as Map)['PositiveInt'], {
+        'type': 'integer',
+        'minimum': 1,
+      });
+    });
+
+    test('validates against an authored definition it references', () {
+      final CatalogApi catalog = Catalog.fromJson(document());
+      final validator = PayloadValidator<ComponentApi, FunctionApi>(
+        catalog: catalog,
+      );
+
+      expect(
+        () => validator.validateComponent(
+          {'id': 'c', 'component': 'Counter', 'count': 1},
+        ),
+        returnsNormally,
+      );
+      expect(
+        () => validator.validateComponent(
+          {'id': 'c', 'component': 'Counter', 'count': 0},
+        ),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      expect(
+        () => validator.validateFunction('repeat', {'times': 0}),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+
+    test('serializes a replaced entry from its new schema', () {
+      final CatalogApi catalog = Catalog.fromJson(document());
+      final CatalogApi changed = catalog.copyWith(
+        components: [
+          ComponentApi(
+            name: 'Counter',
+            schema: Schema.object(properties: {'count': Schema.integer()}),
+          ),
+        ],
+      );
+
+      expect(properties(changed.validationSchema)['count'], {
+        'type': 'integer',
+      });
+    });
+  });
+
+  group('Catalog.withFunctions', () {
+    test('keeps the authored document and definitions', () {
+      final CatalogApi catalog = Catalog.fromJson(_v10Document());
+      final Catalog<ComponentApi, FunctionApi> retyped =
+          catalog.withFunctions(catalog.functions.values);
+
+      expect(retyped.toJson(), equals(catalog.toJson()));
+      expect(retyped.validationSchema, equals(catalog.validationSchema));
+    });
+  });
 }
 
 /// A v0.9 document with instructions, a top-level theme and a local mixin.

@@ -60,6 +60,19 @@ void main() {
       );
     });
 
+    test('writes back a document that omits its id without one', () {
+      final Map<String, Object?> source = document();
+      final CatalogApi catalog = InMemoryCatalogProvider(
+        source,
+        catalogId: 'provided',
+        protocolVersion: v0_9,
+      ).load();
+
+      expect(catalog.id, 'provided');
+      expect(catalog.protocolVersion, v0_9);
+      expect(catalog.toJson(), equals(source));
+    });
+
     test('reads each spelling of v0.9 a document may use', () {
       for (final version in ['0.9', 'v0.9', '0.9.1']) {
         expect(

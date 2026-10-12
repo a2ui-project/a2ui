@@ -630,11 +630,12 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// is matched by `IndexSystemFunction`.
   late final Map<String, Object?> _resolutionDocument = () {
     final Map<String, Object?> document = catalog.validationSchema;
-    final Object? defs = document[r'$defs'];
-    if (!_v1 || defs is! Map<String, Object?>) return document;
+    final Object? rawDefs = document[r'$defs'];
+    if (!_v1 || rawDefs is! Map) return document;
+    final Map<String, Object?> defs = rawDefs.cast<String, Object?>();
     final List<Object?> declared = switch (defs['anyFunction']) {
       {'oneOf': final List<Object?> entries} => entries,
-      _ => const [],
+      _ => const <Object?>[],
     };
     return {
       ...document,

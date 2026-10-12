@@ -211,6 +211,9 @@
 - `Catalog.fromJson` takes a `catalogId`, used as the catalog's id in place
   of the declared one, so a document that declares none, such as the
   published v0.8 basic catalog, can be loaded.
+- `Catalog` adds `withFunctions`, which returns a copy with functions of
+  another `FunctionApi` type, such as `FunctionImplementation`s, and keeps
+  the authored document that `toJson` and `validationSchema` read.
 - `Catalog` adds `validationSchema`, the self-contained schema used to
   validate messages. Its standard `$defs` follow the catalog's
   `protocolVersion`: the v1.0 common types from `1.0`, the v0.9 ones below.
@@ -225,9 +228,14 @@
     arguments, and the standard `FunctionCall`'s reference to
     `catalog.json#/$defs/anyFunction`, point into its own `$defs`. A catalog
     without functions gets an `anyFunction` that matches nothing, and from
-    `1.0` the union lists only the catalog's functions. The catalog's own
-    `$defs` that entries reference are copied in as well; a standard
-    definition of the same name takes precedence.
+    `1.0` the union lists only the catalog's functions. A deep pointer
+    into the common types, such as `DynamicString/oneOf/0`, keeps its full
+    path.
+  - A component property or function argument that references one of the
+    catalog's own `$defs`, such as `#/$defs/PositiveInt`, keeps the
+    reference, and the definitions it reaches are copied into `$defs`; a
+    standard definition of the same name takes precedence. Mixins reached
+    through `allOf` are still flattened into the component.
   - A reference to a standard definition, including each component's `id`
     and a reference that was already local, such as `#/$defs/DynamicString`
     in function arguments, takes that definition's description when it has

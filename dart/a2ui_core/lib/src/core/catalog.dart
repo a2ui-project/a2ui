@@ -472,6 +472,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final Object? rawFunctions = json['functions'];
     final Object? rawDefs = json[r'$defs'];
 
+    final propertiesWithRefs = <String, Map<String, Object?>>{};
     final List<ComponentApi> components = [
       // Components are read from the authored JSON, so a mixin reached
       // through a local reference keeps its place in the precedence order;
@@ -482,6 +483,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         rawId,
         allowed: allowedComponents,
         atLeastV1: v1,
+        propertiesWithRefs: propertiesWithRefs,
       ))
         _withComponentSource(
           parsed,
@@ -497,6 +499,19 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         _withFunctionSource(parsed, _rawFunction(rawFunctions, parsed.name)),
     ];
     final Schema? themeSchema = _parseTheme(document);
+
+    // The properties and arguments as validationSchema writes them: with
+    // references to the document's own definitions kept, keyed by the
+    // parsed schema they belong to.
+    final referencingSchemas = <Schema, Object?>{
+      for (final ComponentApi component in components)
+        if (propertiesWithRefs[component.name] case final properties?)
+          component.schema: properties,
+      for (final FunctionApi function in functions)
+        if (_rawArguments(_rawFunction(rawFunctions, function.name))
+            case final Object args)
+          function.argumentSchema: _keepAuthoredDefRefs(args, json),
+    };
 
     return CatalogApi._(
       id: rawId,
@@ -533,6 +548,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         themeSchema: themeSchema,
         componentNames: {for (final c in components) c.name},
         functionNames: {for (final f in functions) f.name},
+        referencingSchemas: Map.unmodifiable(referencingSchemas),
       ),
     );
   }
@@ -692,6 +708,59 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     return null;
   }
 
+  /// The authored argument schema of a function definition [raw] in either
+  /// form, or null.
+  static Object? _rawArguments(Object? raw) => switch (raw) {
+        {'properties': {'args': final Object args}} => args,
+        {'parameters': final Object parameters} => parameters,
+        _ => null,
+      };
+
+  /// [node] with its local references inlined, except references into a
+  /// definition the document [root] declares in its own `$defs`, which stay
+  /// references.
+  ///
+  /// The built `theme`, `anyComponent` and `anyFunction` and the common
+  /// types are not kept: the former are inlined as before, and
+  /// [inlineLocalRefs] keeps the latter.
+  static Object? _keepAuthoredDefRefs(Object? node, Map<String, Object?> root) {
+    final Object? defs = root[r'$defs'];
+    if (defs is! Map) return inlineLocalRefs(node, root);
+    final Set<String> authored = {
+      for (final Object? name in defs.keys)
+        if (name is String &&
+            !_builtDefNames.contains(name) &&
+            !isCommonTypeDef(name))
+          name,
+    };
+    if (authored.isEmpty) return inlineLocalRefs(node, root);
+
+    Object? visit(Object? node) {
+      if (node is List) return [for (final Object? item in node) visit(item)];
+      if (node is! Map) return node;
+      final Object? ref = node[r'$ref'];
+      if (ref is String && ref.startsWith('#/')) {
+        final bool keep = ref.startsWith(r'#/$defs/') &&
+            authored.contains(ref.substring(8).split('/').first);
+        if (!keep) return inlineLocalRefs(node, root);
+      }
+      return <String, Object?>{
+        for (final MapEntry<Object?, Object?> entry in node.entries)
+          entry.key! as String: visit(entry.value),
+      };
+    }
+
+    return visit(node);
+  }
+
+  /// The `$defs` validationSchema builds itself rather than copying from the
+  /// document.
+  static const Set<String> _builtDefNames = {
+    'theme',
+    'anyComponent',
+    'anyFunction',
+  };
+
   static Set<String>? _extractAllowedRefs(
     Map<String, Object?> json,
     String defName,
@@ -726,6 +795,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     String catalogId, {
     Set<String>? allowed,
     bool atLeastV1 = false,
+    Map<String, Map<String, Object?>>? propertiesWithRefs,
   }) {
     if (raw == null) return const [];
     if (raw is! Map) {
@@ -807,6 +877,28 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         }
       }
 
+      // The most specific subschema's value wins, but the properties keep
+      // their authored order: the component's own, then its `allOf`
+      // branches (local references in place), then mixins.
+      final keySubSchemas = <Map<String, Object?>>[];
+      _collectComponentSubSchemas(
+        compMap,
+        rootDoc,
+        keySubSchemas,
+        <String>{},
+        atLeastV1: atLeastV1,
+        keyOrder: true,
+      );
+      final Map<String, Object?> orderedProperties = {
+        for (final Map<String, Object?> s in keySubSchemas)
+          if (s['properties'] case final Map<Object?, Object?> props)
+            for (final String key in props.keys.whereType<String>())
+              if (mergedProperties.containsKey(key)) key: mergedProperties[key],
+      };
+      mergedProperties
+        ..clear()
+        ..addAll(orderedProperties);
+
       final String? compDesc = rawCompDesc as String? ?? subSchemaDesc;
 
       // Omit envelope keys from component-level properties
@@ -824,6 +916,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           inlineLocalRefs(propEntry.value, rootDoc),
         );
       }
+      propertiesWithRefs?[compName] = {
+        for (final MapEntry<String, Object?> propEntry
+            in mergedProperties.entries)
+          propEntry.key: _normalizePropertyRefs(
+            _keepAuthoredDefRefs(propEntry.value, rootDoc),
+          ),
+      };
 
       final cleanSchema = <String, Object?>{
         'type': 'object',
@@ -863,6 +962,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   ///
   /// [result] runs from least to most specific: mixins, then local
   /// references, then inline `allOf` branches, then [schema] itself.
+  /// With [keyOrder], [result] instead lists the merged properties in the
+  /// order they had when local references were inlined before parsing:
+  /// [schema] itself, then its `allOf` branches in authored order (local
+  /// references in place), then mixins.
   ///
   /// A `ComponentCommon` mixin contributes the standard properties of the
   /// protocol version: `accessibility`, and from 1.0 ([atLeastV1]) also
@@ -873,7 +976,11 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     List<Map<String, Object?>> result,
     Set<String> visited, {
     bool atLeastV1 = false,
+    bool keyOrder = false,
   }) {
+    final bool contributes =
+        schema.containsKey('properties') || schema.containsKey('description');
+    if (contributes && keyOrder) result.add(schema);
     final Object? allOf = schema['allOf'];
     if (allOf is List) {
       final inlineSubs = <Map<String, Object?>>[];
@@ -943,9 +1050,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                       ? target
                       : target.cast<String, Object?>(),
                   rootDoc,
-                  localRefSubs,
+                  keyOrder ? inlineSubs : localRefSubs,
                   visited,
                   atLeastV1: atLeastV1,
+                  keyOrder: keyOrder,
                 );
               }
             }
@@ -958,17 +1066,24 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           inlineSubs,
           visited,
           atLeastV1: atLeastV1,
+          keyOrder: keyOrder,
         );
       }
-      // From least to most specific, so a component's own definition of a
-      // property overrides the one a mixin or local definition contributes.
-      result.addAll(commonSubs);
-      result.addAll(localRefSubs);
-      result.addAll(inlineSubs);
+      if (keyOrder) {
+        // [schema] first, then its `allOf` branches in authored order with
+        // local references in place, then mixins.
+        result.addAll(inlineSubs);
+        result.addAll(commonSubs);
+      } else {
+        // From least to most specific, so a component's own definition of a
+        // property overrides the one a mixin or local definition
+        // contributes.
+        result.addAll(commonSubs);
+        result.addAll(localRefSubs);
+        result.addAll(inlineSubs);
+      }
     }
-    if (schema.containsKey('properties') || schema.containsKey('description')) {
-      result.add(schema);
-    }
+    if (contributes && !keyOrder) result.add(schema);
   }
 
   static bool _isComponentCommonRef(String ref) =>
@@ -1820,7 +1935,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     // that no reference dangles. A standard definition of the same name
     // wins, and the unions and theme are built above.
     final Map<String, Object?>? authoredDefs = source?.defs;
-    const builtDefs = {'theme', 'anyComponent', 'anyFunction'};
+    const Set<String> builtDefs = _builtDefNames;
 
     int defsCountBefore;
     do {
@@ -1881,7 +1996,11 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// when it declares neither.
   Map<String, Object?> _serializeFunction(String name, FunctionApi fn) {
     final String callKey = _callKey;
-    final Object? argsValue = _deepCopyValue(fn.argumentSchema.value);
+    // A function read from the document keeps its arguments' references to
+    // the document's own definitions.
+    final Object? argsValue = _deepCopyValue(
+      _source?.referencingSchemas[fn.argumentSchema] ?? fn.argumentSchema.value,
+    );
     _restoreRefs(argsValue);
     if (argsValue is Map<String, Object?> && argsValue['type'] == 'object') {
       _closeObject(argsValue);
@@ -2034,6 +2153,16 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
     }
 
+    // A component read from the document keeps its references to the
+    // document's own definitions.
+    if (_source?.referencingSchemas[comp.schema]
+        case final Map<String, Object?> kept) {
+      final copy = _deepCopyValue(kept)! as Map<String, Object?>;
+      _restoreRefs(copy);
+      rawProps
+        ..clear()
+        ..addAll(copy);
+    }
     final sanitizedProps = Map<String, Object?>.from(rawProps)
       ..remove('id')
       ..remove('component');
@@ -2074,7 +2203,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   }
 
   /// Rewrites every reference to a `common_types.json` definition in [node]
-  /// as a local `#/$defs/` reference, in place.
+  /// as a local `#/$defs/` reference, in place. A deep pointer below a
+  /// definition, such as `DynamicString/oneOf/0`, keeps its full path.
   ///
   /// A reference without a `description` of its own takes the description
   /// of the definition it names, from the common types for
@@ -2099,17 +2229,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           'examples',
         };
         map.removeWhere((k, _) => !annotations.contains(k));
-        _localizeRef(map, target.split('/').last);
+        _localizeRef(
+            map, _commonTypesFragment(target) ?? target.split('/').last);
         return;
       }
       final Object? ref = map[r'$ref'];
-      if (ref is String) {
-        final int marker = ref.indexOf(r'common_types.json#/$defs/');
-        final bool isLocal = ref.startsWith(r'#/$defs/');
-        if (marker >= 0 || isLocal) {
-          final String defName = ref.split('/').last;
-          if (_standardDefs.containsKey(defName)) _localizeRef(map, defName);
-        }
+      final String? fragment = _commonTypesFragment(ref);
+      if (fragment != null &&
+          _standardDefs.containsKey(fragment.split('/').first)) {
+        _localizeRef(map, fragment);
       }
       for (final Object? val in map.values) {
         _restoreRefs(val);
@@ -2117,12 +2245,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     }
   }
 
-  /// Points [node] at the standard definition [defName] and, when [node]
-  /// has no description, gives it the definition's.
-  void _localizeRef(Map<dynamic, dynamic> node, String defName) {
-    node[r'$ref'] = '#/\$defs/$defName';
-    if (node.containsKey('description')) return;
-    final Object? definition = _standardDefs[defName];
+  /// Points [node] at [fragment] of the standard definitions, such as
+  /// `DynamicString` or the deep pointer `DynamicString/oneOf/0`, and, when
+  /// [fragment] names a whole definition and [node] has no description,
+  /// gives it the definition's.
+  void _localizeRef(Map<dynamic, dynamic> node, String fragment) {
+    node[r'$ref'] = '#/\$defs/$fragment';
+    if (node.containsKey('description') || fragment.contains('/')) return;
+    final Object? definition = _standardDefs[fragment];
     if (definition is Map && definition['description'] is String) {
       node['description'] = definition['description'];
     }
@@ -2151,6 +2281,28 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         title: title,
         description: description,
         protocolVersion: protocolVersion ?? this.protocolVersion,
+        instructions: instructions,
+        source: _source,
+      );
+
+  /// A copy of this catalog with [functions], which may be of another
+  /// [FunctionApi] type, in place of its own.
+  ///
+  /// Everything else is kept as [copyWith] keeps it, including the authored
+  /// document [toJson] writes back and the authored `$defs` that
+  /// [validationSchema] bundles. Use it to give a catalog read by
+  /// [Catalog.fromJson] evaluable functions, such as
+  /// [FunctionImplementation]s with the same signatures.
+  Catalog<C, G> withFunctions<G extends FunctionApi>(Iterable<G> functions) =>
+      Catalog<C, G>._(
+        id: id,
+        components: components.values.toList(),
+        functions: functions.toList(),
+        themeSchema: themeSchema,
+        schemaId: schemaId,
+        title: title,
+        description: description,
+        protocolVersion: protocolVersion,
         instructions: instructions,
         source: _source,
       );
@@ -2198,6 +2350,7 @@ final class _CatalogSource {
     required this.themeSchema,
     required this.componentNames,
     required this.functionNames,
+    required this.referencingSchemas,
   });
 
   /// The document's top-level keys, in order.
@@ -2240,6 +2393,13 @@ final class _CatalogSource {
   /// The names of the components and functions read from the document.
   final Set<String> componentNames;
   final Set<String> functionNames;
+
+  /// For each component schema and function argument schema read from the
+  /// document, its properties or arguments with references to the
+  /// document's own `$defs` kept, which validationSchema writes in place of
+  /// the inlined schema. Keyed by identity, so an entry a transformer
+  /// replaced is serialized from its new schema.
+  final Map<Schema, Object?> referencingSchemas;
 }
 
 /// A deep copy of the JSON [value] whose maps and lists are unmodifiable.
