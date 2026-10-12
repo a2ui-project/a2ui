@@ -473,9 +473,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final Object? rawDefs = json[r'$defs'];
 
     final List<ComponentApi> components = [
+      // Components are read from the authored JSON, so a mixin reached
+      // through a local reference keeps its place in the precedence order;
+      // their properties are inlined after merging.
       for (final ComponentApi parsed in _parseComponents(
-        document['components'],
-        document,
+        rawComponents,
+        json,
         rawId,
         allowed: allowedComponents,
         atLeastV1: v1,
@@ -771,7 +774,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           catalogId: catalogId,
         );
       }
-      var compDesc = rawCompDesc as String?;
+      String? subSchemaDesc;
 
       for (final s in subSchemas) {
         final Object? subDesc = s['description'];
@@ -781,7 +784,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             catalogId: catalogId,
           );
         }
-        compDesc ??= subDesc as String?;
+        // Subschemas run from least to most specific, so the last
+        // description wins.
+        if (subDesc != null) subSchemaDesc = subDesc as String;
         final Object? props = s['properties'];
         if (props is Map<String, Object?>) {
           mergedProperties.addAll(props);
@@ -802,6 +807,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         }
       }
 
+      final String? compDesc = rawCompDesc as String? ?? subSchemaDesc;
+
       // Omit envelope keys from component-level properties
       mergedProperties.remove('id');
       mergedProperties.remove('component');
@@ -813,8 +820,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       final sanitizedProperties = <String, Object?>{};
       for (final MapEntry<String, Object?> propEntry
           in mergedProperties.entries) {
-        sanitizedProperties[propEntry.key] =
-            _normalizePropertyRefs(propEntry.value);
+        sanitizedProperties[propEntry.key] = _normalizePropertyRefs(
+          inlineLocalRefs(propEntry.value, rootDoc),
+        );
       }
 
       final cleanSchema = <String, Object?>{
@@ -853,6 +861,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// Collects the subschemas of [schema] that contribute component
   /// properties into [result], following `allOf` and local references.
   ///
+  /// [result] runs from least to most specific: mixins, then local
+  /// references, then inline `allOf` branches, then [schema] itself.
+  ///
   /// A `ComponentCommon` mixin contributes the standard properties of the
   /// protocol version: `accessibility`, and from 1.0 ([atLeastV1]) also
   /// `metadata`. Its envelope keys are dropped by the caller.
@@ -863,9 +874,6 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     Set<String> visited, {
     bool atLeastV1 = false,
   }) {
-    if (schema.containsKey('properties') || schema.containsKey('description')) {
-      result.add(schema);
-    }
     final Object? allOf = schema['allOf'];
     if (allOf is List) {
       final inlineSubs = <Map<String, Object?>>[];
@@ -952,9 +960,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           atLeastV1: atLeastV1,
         );
       }
-      result.addAll(inlineSubs);
-      result.addAll(localRefSubs);
+      // From least to most specific, so a component's own definition of a
+      // property overrides the one a mixin or local definition contributes.
       result.addAll(commonSubs);
+      result.addAll(localRefSubs);
+      result.addAll(inlineSubs);
+    }
+    if (schema.containsKey('properties') || schema.containsKey('description')) {
+      result.add(schema);
     }
   }
 

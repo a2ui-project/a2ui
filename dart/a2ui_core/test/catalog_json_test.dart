@@ -44,6 +44,72 @@ Map<String, Object?> loadBasicCatalogV1Json() => jsonDecode(
     ) as Map<String, Object?>;
 
 void main() {
+  group('allOf property precedence', () {
+    test('a component property overrides mixin and local definitions', () {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'https://example.com/precedence',
+        'protocolVersion': '1.0',
+        r'$defs': {
+          'Base': {
+            'type': 'object',
+            'properties': {
+              'label': {'type': 'number'},
+              'size': {'type': 'number'},
+            },
+          },
+        },
+        'components': {
+          'Toggle': {
+            'type': 'object',
+            'properties': {
+              'size': {
+                'type': 'string',
+                'enum': ['s', 'm']
+              },
+            },
+            'allOf': [
+              {
+                'type': 'object',
+                'properties': {
+                  'component': {'const': 'Toggle'},
+                  'checks': {
+                    'type': 'string',
+                    'enum': ['strict']
+                  },
+                  'label': {'type': 'string'},
+                  'size': {'type': 'boolean'},
+                },
+                'required': ['component'],
+              },
+              {r'$ref': r'#/$defs/Base'},
+              {r'$ref': r'common_types.json#/$defs/Checkable'},
+            ],
+          },
+        },
+      });
+
+      final properties = catalog.components['Toggle']!.schema
+          .value['properties']! as Map<String, Object?>;
+      expect(properties['checks'], {
+        'type': 'string',
+        'enum': ['strict'],
+      });
+      expect(properties['label'], {'type': 'string'});
+      expect(properties['size'], {
+        'type': 'string',
+        'enum': ['s', 'm'],
+      });
+
+      final validation =
+          catalog.validationSchema['components']! as Map<String, Object?>;
+      final toggle = (validation['Toggle']!
+          as Map<String, Object?>)['properties']! as Map<String, Object?>;
+      expect(toggle['checks'], properties['checks']);
+      expect(toggle['label'], properties['label']);
+      expect(toggle['size'], properties['size']);
+    });
+  });
+
   group('Catalog.commonTypesSchema', () {
     Map<String, Object?> defsOf(CatalogApi catalog) =>
         (catalog.commonTypesSchema[r'$defs']! as Map).cast<String, Object?>();

@@ -2,22 +2,10 @@
 
 ## Unreleased
 
-- `BasicCatalog.v0_9()` and `BasicCatalog.v1_0()` now carry the basic
-  catalog's 18 components (`Text`, `Image`, `Icon`, `Video`, `AudioPlayer`,
-  `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`, `Button`,
-  `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`) as
-  schema-only `ComponentApi`s, plus the catalog's theme and `protocolVersion`
-  (`v0.9` for the v0.9 catalog, whose document declares none). Component
-  schemas, like the function signatures, come from the embedded copy of the
-  published document and reference the shared types through
-  `common_types.json`, as the published documents do.
-- **Behavior change:** from protocol 1.0, `Catalog.catalogSchema` declares a
-  function's return type as a top-level `returnType` keyword and no longer
-  sets `properties.returnType`, matching the published v1 catalogs. Entries
-  before 1.0 are unchanged.
-- The `conformance/core/catalog.yaml` cases run against the basic catalog, and
-  the `validate` cases of `conformance/core/functions.yaml` run in the
-  message-processor conformance runner.
+- `Catalog.fromJson` merges a component's `allOf` pieces from least to most
+  specific, so a property the component defines itself overrides the same
+  property from a mixin or local definition
+  ([#3053](https://github.com/a2ui-project/a2ui/issues/3053)).
 - `DataContext` adds `parent`, `index`, `childContext(path, {index})`, and
   `subscribeDynamicValue`, which returns a `DataSubscription`. `nested` now
   returns a child context linked to its parent. In v1.0 contexts, the
