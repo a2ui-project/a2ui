@@ -21,6 +21,8 @@
  * factory functions consumed by all version-specific basic catalog definitions.
  */
 
+import {z} from 'zod';
+
 import {ExpressionParser} from '../expressions/expression_parser.js';
 import {computed, isSignal, getValue, Signal} from '../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../catalog/types.js';
@@ -151,9 +153,26 @@ export function validateLength(val: unknown, min?: number, max?: number): Valida
   };
 }
 
+/**
+ * Lets a numeric check receive its resolved `value` as a string too.
+ *
+ * A TextField of variant `number` writes what the user typed as a string, and
+ * the implementation guide asks the check to parse it. The property keeps its
+ * `REF:` description, so the catalog schema still declares a DynamicNumber.
+ */
+export function withStringValue<Api extends {schema: z.AnyZodObject}>(api: Api): Api {
+  const value = api.schema.shape['value'] as z.ZodTypeAny;
+  return {
+    ...api,
+    schema: api.schema.extend({
+      'value': z.union([value, z.string()]).describe(value.description ?? ''),
+    }),
+  };
+}
+
 /** Validates that a numeric value falls within an optional range. */
 export function validateNumeric(val: unknown, min?: number, max?: number): ValidationResult {
-  const num = Number(val);
+  const num = typeof val === 'string' && val.trim() === '' ? NaN : Number(val);
   if (isNaN(num)) {
     return {valid: false, message: 'Value must be a valid number.'};
   }

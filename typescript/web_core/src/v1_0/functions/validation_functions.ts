@@ -28,6 +28,7 @@ import {
   validateLength,
   validateNumeric,
   validateEmail,
+  withStringValue,
 } from '../../common/basic_functions.js';
 
 /**
@@ -60,7 +61,7 @@ export const LengthV1Point0Implementation = createFunctionImplementation(LengthV
  * Validates that a numeric value falls within an optional range for v1.0 catalogs.
  */
 export const NumericV1Point0Implementation = createFunctionImplementation(
-  NumericV1Point0Api,
+  withStringValue(NumericV1Point0Api),
   args => validateNumeric(args.value, args.min, args.max),
 );
 

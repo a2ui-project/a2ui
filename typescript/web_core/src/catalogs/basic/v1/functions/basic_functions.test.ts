@@ -166,6 +166,27 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
       });
     });
 
+    it('numeric parses the string a number TextField writes', () => {
+      assert.deepStrictEqual(invoke('numeric', {value: '30', min: 18, max: 99}), {valid: true});
+      assert.deepStrictEqual(invoke('numeric', {value: '5', min: 18}), {
+        valid: false,
+        message: 'Minimum value is 18.',
+      });
+      assert.deepStrictEqual(invoke('numeric', {value: '', min: 0}), {
+        valid: false,
+        message: 'Value must be a valid number.',
+      });
+    });
+
+    it('numeric still publishes value as a DynamicNumber', () => {
+      const schema = testCatalog.catalogSchema as {
+        functions: Record<string, {properties: Record<string, unknown>}>;
+      };
+      assert.deepStrictEqual(schema.functions['numeric'].properties['value'], {
+        $ref: '#/$defs/DynamicNumber',
+      });
+    });
+
     it('email accepts addresses and rejects malformed ones', () => {
       assert.deepStrictEqual(invoke('email', {value: 'test@example.com'}), {valid: true});
       assert.deepStrictEqual(invoke('email', {value: 'invalid'}), {
