@@ -49,9 +49,6 @@ const String _noV08 = 'Targets v0.8, which a2ui_core does not implement.';
 
 /// Cases whose expected outcome Dart does not produce, with the reason.
 const Map<String, String> _knownDivergences = {
-  'test_v08_catalog_from_json_basic':
-      'Targets v0.8, which a2ui_core does not implement: fromJson does not '
-          'map v0.8 styles to a theme.',
   'test_v10_published_basic_catalog_validates_function_calls':
       'From v1.0, PayloadValidator accepts a call to a function the catalog '
           'does not declare, because the renderer forwards it to the agent.',
