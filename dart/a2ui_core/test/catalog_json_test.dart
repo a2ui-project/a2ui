@@ -748,6 +748,38 @@ void main() {
       });
     }
 
+    test('writes catalogId only when the document declared it', () {
+      final source = <String, Object?>{
+        'components': {
+          'Label': {
+            'type': 'object',
+            'properties': {
+              'text': {'type': 'string'},
+            },
+          },
+        },
+      };
+      final CatalogApi catalog =
+          Catalog.fromJson(source, catalogId: 'https://example.com/given');
+
+      expect(catalog.id, 'https://example.com/given');
+      expect(catalog.toJson(), equals(source));
+      expect(
+        () => Catalog.fromJson(source),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('takes the passed catalogId over the declared one', () {
+      final CatalogApi catalog = Catalog.fromJson(
+        _themedDocument(),
+        catalogId: 'https://example.com/renamed',
+      );
+
+      expect(catalog.id, 'https://example.com/renamed');
+      expect(catalog.toJson()['catalogId'], 'https://example.com/renamed');
+    });
+
     test('keeps the authored JSON of each entry before inlining', () {
       final CatalogApi catalog = Catalog.fromJson(_themedDocument());
 

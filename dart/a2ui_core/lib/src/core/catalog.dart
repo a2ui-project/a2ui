@@ -413,20 +413,27 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// checks it against its own. From v1.0, component names, their property
   /// names, function names and argument names must be UAX #31 identifiers.
   ///
+  /// [catalogId], when given, is the catalog's id in place of the one the
+  /// document declares. It is required for a document that declares none,
+  /// such as the published v0.8 basic catalog.
+  ///
   /// The catalog keeps the authored document, so [toJson] writes it back.
   ///
-  /// Throws [A2uiCatalogError] if the document is malformed, conflicts with
-  /// [expectedCatalogId], declares a `protocolVersion` this SDK does not
-  /// implement, or holds a local `$ref` that names nothing.
+  /// Throws [A2uiCatalogError] if the document is malformed, has no catalog
+  /// id, conflicts with [expectedCatalogId], declares a `protocolVersion`
+  /// this SDK does not implement, or holds a local `$ref` that names
+  /// nothing.
   static CatalogApi fromJson(
     Map<String, Object?> json, {
     String? expectedCatalogId,
     A2uiProtocolVersion? protocolVersion,
+    String? catalogId,
   }) {
-    final Object? rawId = json['catalogId'];
+    final Object? rawId = catalogId ?? json['catalogId'];
     if (rawId is! String || rawId.isEmpty) {
       throw A2uiCatalogError(
-        "Catalog document must declare a non-empty string 'catalogId'.",
+        "Catalog document must declare a non-empty string 'catalogId', or "
+        'one must be passed as catalogId.',
       );
     }
     if (expectedCatalogId != null && expectedCatalogId != rawId) {
@@ -1290,6 +1297,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   ///   `protocolVersion` are written as the document declared them, and
   ///   omitted when it did not. A catalog defined in code writes
   ///   `protocolVersion` in its canonical form, such as `1.0` for `v1.0`.
+  /// - `catalogId` is written when the document declared one; a catalog
+  ///   defined in code always writes it.
   /// - `functions` keeps the form the document used, a map or a list.
   /// - The document's own `$defs` are kept, except one that the catalog's
   ///   components and functions no longer reference after a transformer
@@ -1409,7 +1418,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       if (title != null) 'title': title,
       if (description != null) 'description': description,
       if (emittedVersion != null) 'protocolVersion': emittedVersion,
-      'catalogId': id,
+      // A document that declared no catalogId, such as the published v0.8
+      // basic catalog, is written back without one.
+      if (source == null || source.keyOrder.contains('catalogId'))
+        'catalogId': id,
       if (instructions != null) 'instructions': instructions,
       if (emitComponents) 'components': serializedComponents,
       if (emitFunctions) 'functions': serializedFunctions,

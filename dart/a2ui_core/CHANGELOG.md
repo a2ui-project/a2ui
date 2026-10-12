@@ -217,8 +217,12 @@
   the authored document kept by `Catalog.fromJson`, with external `$ref`s
   left unbundled and entries removed by `copyWith` pruned (along with their
   unused `$defs` and union entries). It writes the `protocolVersion` as the
-  document declared it. A catalog built in code gets a canonical document
-  for its `protocolVersion`.
+  document declared it, and `catalogId` only when the document declared
+  one. A catalog built in code gets a canonical document for its
+  `protocolVersion`.
+- `Catalog.fromJson` takes a `catalogId`, used as the catalog's id in place
+  of the declared one, so a document that declares none, such as the
+  published v0.8 basic catalog, can be loaded.
 - `Catalog` adds `validationSchema`, the self-contained schema used to
   validate messages. Its standard `$defs` follow the catalog's
   `protocolVersion`: the v1.0 common types from `1.0`, the v0.9 ones below.

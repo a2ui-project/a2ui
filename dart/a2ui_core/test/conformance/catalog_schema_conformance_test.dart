@@ -38,19 +38,24 @@ void main() {
 
     for (final testCase in cases) {
       final name = testCase['name']! as String;
-      test(name, () => _runCase(testCase), skip: _knownDivergences[name]);
+      test(
+        name,
+        () => _runCase(testCase),
+        skip: _knownDivergences[name] ??
+            (testCase['protocolVersion'] == 'v0.8' ? _noV08 : null),
+      );
     }
   });
 }
+
+/// Why every case naming protocol version v0.8 is skipped.
+const String _noV08 = 'Targets v0.8, which a2ui_core does not implement.';
 
 /// Cases whose expected outcome Dart does not produce, with the reason.
 const Map<String, String> _knownDivergences = {
   'test_v08_catalog_from_json_basic':
       'Targets v0.8, which a2ui_core does not implement: fromJson does not '
           'map v0.8 styles to a theme.',
-  'test_v08_validation_schema_basic':
-      'Targets v0.8, which a2ui_core does not implement: the document '
-          'declares no version, so it is read as v0.9 and its theme is opened.',
   'test_v10_published_basic_catalog_validates_function_calls':
       'From v1.0, PayloadValidator accepts a call to a function the catalog '
           'does not declare, because the renderer forwards it to the agent.',
@@ -103,11 +108,8 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
   final Map<String, Object?> rawCatalog = _document(
     testCase['catalog'] ?? testCase['catalogPath'],
   );
-  final overrideId = testCase['catalogId'] as String?;
-  final input = <String, Object?>{
-    ...rawCatalog,
-    if (overrideId != null) 'catalogId': overrideId,
-  };
+  final input = rawCatalog;
+  final catalogId = testCase['catalogId'] as String?;
   // As in the other SDK harnesses, a case that names no version reads a
   // document that declares none as v0.9.
   final A2uiProtocolVersion version =
@@ -115,14 +117,22 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
 
   if (testCase['expectError'] != null) {
     expect(
-      () => Catalog.fromJson(input, protocolVersion: version),
+      () => Catalog.fromJson(
+        input,
+        protocolVersion: version,
+        catalogId: catalogId,
+      ),
       throwsA(isA<A2uiCatalogError>()),
       reason: name,
     );
     return;
   }
 
-  final CatalogApi catalog = Catalog.fromJson(input, protocolVersion: version);
+  final CatalogApi catalog = Catalog.fromJson(
+    input,
+    protocolVersion: version,
+    catalogId: catalogId,
+  );
   final Map<String, Object?> expected =
       (testCase['expect'] as Map?)?.cast<String, Object?>() ?? const {};
   final Set<String> unknown =
@@ -292,11 +302,9 @@ void _runValidationSchemaCase(Map<String, Object?> testCase) {
   final Map<String, Object?> source = _document(
     testCase['catalog'] ?? testCase['catalogPath'],
   );
-  final A2uiProtocolVersion? version = _version(testCase);
-
   if (testCase['expectError'] != null) {
     expect(
-      () => Catalog.fromJson(source, protocolVersion: version).validationSchema,
+      () => _load(testCase, source).validationSchema,
       throwsA(isA<A2uiError>()),
       reason: name,
     );
@@ -304,7 +312,7 @@ void _runValidationSchemaCase(Map<String, Object?> testCase) {
   }
 
   final Map<String, Object?> document =
-      Catalog.fromJson(source, protocolVersion: version).validationSchema;
+      _load(testCase, source).validationSchema;
   final String goldenPath = resolveConformancePath(
     testCase['expectFile']! as String,
   );
@@ -432,10 +440,7 @@ void _runRoundTripCase(Map<String, Object?> testCase) {
   final Map<String, Object?> source = _document(
     testCase['catalog'] ?? testCase['catalogPath'],
   );
-  final A2uiProtocolVersion? version = _version(testCase);
-
-  final Map<String, Object?> out =
-      Catalog.fromJson(source, protocolVersion: version).toJson();
+  final Map<String, Object?> out = _load(testCase, source).toJson();
   expect(
     _jsonEquivalent(out, source),
     isTrue,
@@ -443,8 +448,7 @@ void _runRoundTripCase(Map<String, Object?> testCase) {
         'Source: ${jsonEncode(source)}\nOutput: ${jsonEncode(out)}',
   );
 
-  final Map<String, Object?> again =
-      Catalog.fromJson(out, protocolVersion: version).toJson();
+  final Map<String, Object?> again = _load(testCase, out).toJson();
   expect(
     _jsonEquivalent(again, out),
     isTrue,
@@ -453,100 +457,73 @@ void _runRoundTripCase(Map<String, Object?> testCase) {
   );
 }
 
-/// The keys a `ToJsonExpect` may set.
-const Set<String> _toJsonExpectKeys = {
-  'catalogId',
-  'protocolVersion',
-  'metadata',
-  'components',
-  'functions',
-  'defs',
-  'unbundled',
-};
-
-/// Checks `catalog.toJson()` against a `ToJsonExpect`.
+/// Compares `catalog.toJson()` with the document at `expectFile`, as
+/// [_differences] does.
 ///
-/// A case naming a catalog by `catalogPath` loads the published document:
-/// the Dart basic catalogs implement the published functions but none of
-/// the components, so they do not implement the catalog the document
-/// describes.
+/// A case naming `builtinCatalog: basic` serializes this package's own basic
+/// catalog for the case's protocol version; any other case loads its catalog
+/// with [Catalog.fromJson].
 void _runToJsonCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
-  final Map<String, Object?> source = _document(
-    testCase['catalog'] ?? testCase['catalogPath'],
-  );
-  final Map<String, Object?> expected =
-      (testCase['expect']! as Map).cast<String, Object?>();
-  final Set<String> unknown = expected.keys.toSet().difference(
-        _toJsonExpectKeys,
+  final CatalogApi catalog;
+  if (testCase['builtinCatalog'] case final String builtin) {
+    final CatalogApi? implemented =
+        _builtinCatalog(builtin, _version(testCase));
+    if (implemented == null) {
+      markTestSkipped(
+        'a2ui_core has no built-in $builtin catalog for '
+        '${testCase['protocolVersion']}.',
       );
-  if (unknown.isNotEmpty) {
-    fail('$name: unsupported to_json expectations $unknown');
+      return;
+    }
+    if (implemented.components.isEmpty) {
+      markTestSkipped(
+        'The built-in ${implemented.id} implements the published functions '
+        'but none of the published components yet, so its document lists no '
+        'components.',
+      );
+      return;
+    }
+    catalog = implemented;
+  } else {
+    catalog = _load(
+      testCase,
+      _document(testCase['catalog'] ?? testCase['catalogPath']),
+    );
   }
 
-  final Map<String, Object?> document = Catalog.fromJson(
-    source,
-    protocolVersion: _version(testCase),
-  ).toJson();
-
-  if (expected['catalogId'] case final String catalogId) {
-    expect(document['catalogId'], catalogId, reason: '$name: catalogId');
-  }
-  if (expected['protocolVersion'] case final String version) {
-    expect(
-      document['protocolVersion'],
-      version,
-      reason: '$name: protocolVersion',
+  final Map<String, Object?> expected = _document(testCase['expectFile']);
+  final List<String> differences = [
+    for (final (String path, String detail)
+        in _differences(catalog.toJson(), expected))
+      '$path: $detail',
+  ];
+  if (differences.isNotEmpty) {
+    fail(
+      '$name: toJson differs from ${testCase['expectFile']}:\n'
+      '${differences.join('\n')}',
     );
-  }
-  if (expected['metadata'] case final Map<Object?, Object?> metadata) {
-    for (final MapEntry<Object?, Object?> entry in metadata.entries) {
-      expect(
-        document[entry.key],
-        entry.value,
-        reason: '$name: metadata ${entry.key}',
-      );
-    }
-  }
-  if (expected['components'] case final List<Object?> components) {
-    expect(
-      _names(document['components']),
-      unorderedEquals(components),
-      reason: '$name: components',
-    );
-  }
-  if (expected['functions'] case final List<Object?> functions) {
-    expect(
-      _names(document['functions']),
-      unorderedEquals(functions),
-      reason: '$name: functions',
-    );
-  }
-  if (expected['defs'] case final List<Object?> defs) {
-    expect(
-      _names(document[r'$defs']),
-      unorderedEquals(defs),
-      reason: '$name: \$defs',
-    );
-  }
-  if (expected['unbundled'] == true) {
-    for (final String ref in _localRefs(document)) {
-      expect(
-        _resolves(ref, document),
-        isTrue,
-        reason: '$name: dangling reference $ref',
-      );
-    }
-    final Set<String> authored = _names(source[r'$defs']).toSet();
-    for (final String def in _names(document[r'$defs'])) {
-      expect(
-        def == 'anyComponent' || def == 'anyFunction' || authored.contains(def),
-        isTrue,
-        reason: '$name: \$defs.$def was not declared by the document',
-      );
-    }
   }
 }
+
+/// This package's implementation of the built-in catalog [name] for
+/// [version], or null when it has none.
+CatalogApi? _builtinCatalog(String name, A2uiProtocolVersion? version) =>
+    switch ((name, version)) {
+      ('basic', A2uiProtocolVersion.v0_9) => BasicCatalog.v0_9(),
+      ('basic', A2uiProtocolVersion.v1_0) => BasicCatalog.v1_0(),
+      _ => null,
+    };
+
+/// Loads [document] as a case's catalog, with the case's protocol version
+/// and catalog id.
+CatalogApi _load(
+        Map<String, Object?> testCase, Map<String, Object?> document) =>
+    Catalog.fromJson(
+      document,
+      protocolVersion: _version(testCase),
+      catalogId: testCase['catalogId'] as String?,
+    );
 
 /// The names under a document's `components`, `functions` or `$defs`, in
 /// either form `functions` takes.
