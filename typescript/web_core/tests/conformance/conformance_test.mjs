@@ -137,13 +137,6 @@ const SKIP_TEST_NAMES = new Set(['test_v08_topology_card_child_reachable']);
  * then case name, with the behaviour that differs. They are reported as
  * skipped with that reason. An entry that matches no case fails the run.
  */
-const PUBLISHED_CATALOG_NOT_SELF_CONTAINED =
-  "the FunctionCall standard definition keeps its '$ref' to" +
-  " 'catalog.json#/$defs/anyFunction', so the generated catalog schema" +
-  ' points outside itself';
-const V10_PUBLISHED_CATALOG_NOT_SELF_CONTAINED =
-  "the generated catalog schema keeps a '#/$defs/Child' reference without" +
-  ' defining Child in its own $defs';
 const FUNCTION_CALL_EXTRA_KEY_ACCEPTED =
   'the validator accepts a function call carrying a key its catalog function' +
   ' definition does not declare';
@@ -151,17 +144,6 @@ const KNOWN_DIVERGENCES = new Map([
   [
     'core/catalog.yaml',
     new Map([
-      ['test_v09_published_basic_catalog_is_self_contained', PUBLISHED_CATALOG_NOT_SELF_CONTAINED],
-      [
-        'test_v09_published_minimal_catalog_is_self_contained',
-        PUBLISHED_CATALOG_NOT_SELF_CONTAINED,
-      ],
-      ['test_v091_published_basic_catalog_is_self_contained', PUBLISHED_CATALOG_NOT_SELF_CONTAINED],
-      [
-        'test_v10_published_basic_catalog_is_self_contained',
-        V10_PUBLISHED_CATALOG_NOT_SELF_CONTAINED,
-      ],
-      ['test_v10_published_mcp_catalog_is_self_contained', PUBLISHED_CATALOG_NOT_SELF_CONTAINED],
       [
         'test_v09_published_basic_catalog_rejects_function_call_extra_key',
         FUNCTION_CALL_EXTRA_KEY_ACCEPTED,

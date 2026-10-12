@@ -46,8 +46,8 @@
 # 1a. Basic catalogs match the SDK implementation
 # ------------------------------------------------------------------------------
 
-- name: test_v08_basic_catalog_from_json_matches_builtin
-  description: Tests that loading the published v0.8 basic catalog with fromJson yields a catalog equivalent to the SDK's own v0.8 basic catalog implementation.
+- name: test_v08_basic_catalog_from_json
+  description: Tests that loading the published v0.8 basic catalog with fromJson yields a catalog equivalent to the SDK's own v0.8 basic catalog implementation. The v0.8 document has no $ref, so there is no self-contained check.
   action: from_json
   protocolVersion: "v0.8"
   catalogId: "https://a2ui.org/specification/v0_8/standard_catalog_definition.json"
@@ -55,20 +55,22 @@
   expect:
     matchesBuiltinCatalog: true
 
-- name: test_v10_basic_catalog_from_json_matches_builtin
-  description: Tests that loading the published v1 basic catalog with fromJson yields a catalog equivalent to the SDK's own v1 basic catalog implementation.
-  action: from_json
-  protocolVersion: "v1.0"
-  catalogPath: "catalogs/basic/v1/catalog.json"
-  expect:
-    matchesBuiltinCatalog: true
-
-- name: test_v09_basic_catalog_from_json_matches_builtin
-  description: Tests that loading the published v0.9 basic catalog with fromJson yields a catalog equivalent to the SDK's own v0.9 basic catalog implementation.
+- name: test_v09_basic_catalog_from_json
+  description: Tests that the published v0.9 basic catalog loads with fromJson into a catalog equivalent to the SDK's own v0.9 basic catalog implementation, with its common_types references localised so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9"
   catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
   expect:
+    selfContained: true
+    matchesBuiltinCatalog: true
+
+- name: test_v10_basic_catalog_from_json
+  description: Tests that the published v1 basic catalog loads with fromJson into a catalog equivalent to the SDK's own v1 basic catalog implementation, with its common_types references localised so every $ref resolves within the resolved catalog schema.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
+  expect:
+    selfContained: true
     matchesBuiltinCatalog: true
 
 # ------------------------------------------------------------------------------
@@ -83,7 +85,7 @@
       Text: {type: object}
   expectError:
     category: "CatalogError"
-    message: "catalog_id must be provided or exist in catalog_schema"
+    message: "catalog_id must be provided or exist in catalog schema"
 
 - name: test_catalog_from_json_override_catalog_id
   description: Tests overriding catalogId during Catalog.from_json.
@@ -304,17 +306,10 @@
 # catalog also validates a Button whose action calls one of its functions,
 # which exercises the FunctionCall reference into the catalog's own function
 # definitions, and rejects function calls that match no definition.
-# test_catalog_conformance_covers_published_catalogs in the Python suite fails
-# when a published catalog has no self-contained case here.
+# The v0.9 and v1 basic catalogs are checked for self-containment in 1a,
+# together with matchesBuiltinCatalog. test_catalog_conformance_covers_published_catalogs
+# in the Python suite fails when a published catalog has no self-contained case.
 # ------------------------------------------------------------------------------
-
-- name: test_v09_published_basic_catalog_is_self_contained
-  description: Tests that the published v0.9 basic catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
-  action: from_json
-  protocolVersion: "v0.9"
-  catalogPath: "specification/v0_9/catalogs/basic/catalog.json"
-  expect:
-    selfContained: true
 
 - name: test_v09_published_basic_catalog_validates_function_calls
   description: Tests that the published v0.9 basic catalog accepts a Button whose action calls a catalog function, and rejects a call to a function the catalog does not define.
@@ -448,14 +443,6 @@
             call: openUrl
             args: {url: "https://example.com"}
             bogus: 1
-
-- name: test_v10_published_basic_catalog_is_self_contained
-  description: Tests that the published v1.0 basic catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
-  action: from_json
-  protocolVersion: "v1.0"
-  catalogPath: "catalogs/basic/v1/catalog.json"
-  expect:
-    selfContained: true
 
 - name: test_v10_published_basic_catalog_validates_function_calls
   description: Tests that the published v1.0 basic catalog accepts a Button whose action calls a catalog function, and rejects a call to a function the catalog does not define.
