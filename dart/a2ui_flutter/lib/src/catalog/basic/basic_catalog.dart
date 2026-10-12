@@ -41,10 +41,10 @@ import 'video.dart';
 ///
 /// An `openUrl` call, which fails without [openUrl], may run whenever a bound
 /// property resolves, not only on a tap.
-WidgetCatalog basicCatalog({
+CatalogImplementation basicCatalog({
   String locale = 'en-US',
   OpenUrlCallback? openUrl,
-}) => WidgetCatalog(
+}) => CatalogImplementation(
   id: BasicCatalog.v0_9Id,
   components: BasicComponents.all,
   functions: BasicCatalog.v0_9(

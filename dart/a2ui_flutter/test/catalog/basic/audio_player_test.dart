@@ -21,7 +21,9 @@ import '../../support/basic_test_catalog.dart';
 import '../../support/fake_video_player_platform.dart';
 import '../../support/surface_harness.dart';
 
-final WidgetCatalog _catalog = basicTestCatalog([BasicComponents.audioPlayer]);
+final CatalogImplementation _catalog = basicTestCatalog([
+  BasicComponents.audioPlayer,
+]);
 
 const String _url = 'https://example.com/episode.mp3';
 

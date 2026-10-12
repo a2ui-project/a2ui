@@ -27,7 +27,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../support/basic_test_catalog.dart';
 import '../../support/surface_harness.dart';
 
-final WidgetCatalog _catalog = basicTestCatalog([
+final CatalogImplementation _catalog = basicTestCatalog([
   BasicComponents.modal,
   BasicComponents.list,
   BasicComponents.column,

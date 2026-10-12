@@ -25,7 +25,7 @@ import '../../support/surface_harness.dart';
 /// The width of the default test surface.
 const double _width = 800;
 
-final WidgetCatalog _catalog = basicTestCatalog([
+final CatalogImplementation _catalog = basicTestCatalog([
   BasicComponents.row,
   BasicComponents.column,
   BasicComponents.list,

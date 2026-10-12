@@ -27,7 +27,7 @@ void main() {
   });
 
   test('basicCatalog carries the spec catalog and its implementations', () {
-    final WidgetCatalog catalog = basicCatalog();
+    final CatalogImplementation catalog = basicCatalog();
     expect(catalog.id, BasicCatalog.v0_9Id);
     expect(catalog.schemaId, spec.schemaId);
     expect(catalog.title, spec.title);

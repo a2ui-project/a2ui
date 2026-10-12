@@ -21,10 +21,11 @@ const double flexGap = 8;
 
 /// A catalog under the basic catalog's id holding [components], the basic
 /// functions and the basic theme schema.
-WidgetCatalog basicTestCatalog(List<ComponentImplementation> components) =>
-    WidgetCatalog(
-      id: BasicCatalog.v0_9Id,
-      components: components,
-      functions: BasicCatalog.v0_9().functions.values.toList(),
-      themeSchema: BasicComponents.api.themeSchema,
-    );
+CatalogImplementation basicTestCatalog(
+  List<ComponentImplementation> components,
+) => CatalogImplementation(
+  id: BasicCatalog.v0_9Id,
+  components: components,
+  functions: BasicCatalog.v0_9().functions.values.toList(),
+  themeSchema: BasicComponents.api.themeSchema,
+);

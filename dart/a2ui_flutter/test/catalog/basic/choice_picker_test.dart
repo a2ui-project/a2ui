@@ -20,7 +20,9 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../support/basic_test_catalog.dart';
 import '../../support/surface_harness.dart';
 
-final WidgetCatalog _catalog = basicTestCatalog([BasicComponents.choicePicker]);
+final CatalogImplementation _catalog = basicTestCatalog([
+  BasicComponents.choicePicker,
+]);
 
 const List<Map<String, Object?>> _fruit = [
   {'label': 'Apple', 'value': 'apple'},

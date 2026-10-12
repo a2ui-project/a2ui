@@ -83,11 +83,11 @@ class _Example {
   ];
 
   /// The basic catalog, with the stand-ins for any custom components.
-  WidgetCatalog get catalog {
+  CatalogImplementation get catalog {
     final Set<String> custom = {
       ...?(_document['customComponents'] as List?)?.cast<String>(),
     };
-    final WidgetCatalog basic = basicCatalog();
+    final CatalogImplementation basic = basicCatalog();
     if (custom.isEmpty) return basic;
     return basic.copyWith(
       components: [

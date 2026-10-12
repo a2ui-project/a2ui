@@ -25,7 +25,7 @@ import '../../support/basic_test_catalog.dart';
 import '../../support/fake_video_player_platform.dart';
 import '../../support/surface_harness.dart';
 
-final WidgetCatalog _catalog = basicTestCatalog([
+final CatalogImplementation _catalog = basicTestCatalog([
   BasicComponents.video,
   BasicComponents.text,
 ]);

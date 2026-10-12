@@ -22,7 +22,7 @@ import '../../support/basic_test_catalog.dart';
 import '../../support/fixture_catalog.dart';
 import '../../support/surface_harness.dart';
 
-WidgetCatalog _catalog([FixtureLog? log]) => basicTestCatalog([
+CatalogImplementation _catalog([FixtureLog? log]) => basicTestCatalog([
   BasicComponents.tabs,
   BasicComponents.list,
   BasicComponents.column,

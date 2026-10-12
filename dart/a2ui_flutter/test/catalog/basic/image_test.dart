@@ -21,7 +21,7 @@ import '../../support/basic_test_catalog.dart';
 import '../../support/image_server.dart';
 import '../../support/surface_harness.dart';
 
-final WidgetCatalog _catalog = basicTestCatalog([
+final CatalogImplementation _catalog = basicTestCatalog([
   BasicComponents.column,
   BasicComponents.image,
 ]);

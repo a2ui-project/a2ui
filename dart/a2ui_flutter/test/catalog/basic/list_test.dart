@@ -25,7 +25,7 @@ import '../../support/surface_harness.dart';
 const double _width = 800;
 const double _height = 600;
 
-WidgetCatalog _catalog([FixtureLog? log]) => basicTestCatalog([
+CatalogImplementation _catalog([FixtureLog? log]) => basicTestCatalog([
   BasicComponents.list,
   BasicComponents.column,
   BasicComponents.row,

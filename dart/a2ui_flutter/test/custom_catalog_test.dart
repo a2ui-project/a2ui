@@ -62,19 +62,20 @@ final ComponentImplementation _rating = ComponentImplementation(
   },
 );
 
-WidgetCatalog _demoCatalog([List<ComponentImplementation> extra = const []]) =>
-    WidgetCatalog(
-      id: _demoCatalogId,
-      components: [
-        BasicComponents.row,
-        BasicComponents.column,
-        BasicComponents.text,
-        _rating,
-        ...extra,
-      ],
-      functions: BasicCatalog.v0_9().functions.values.toList(),
-      themeSchema: BasicComponents.api.themeSchema,
-    );
+CatalogImplementation _demoCatalog([
+  List<ComponentImplementation> extra = const [],
+]) => CatalogImplementation(
+  id: _demoCatalogId,
+  components: [
+    BasicComponents.row,
+    BasicComponents.column,
+    BasicComponents.text,
+    _rating,
+    ...extra,
+  ],
+  functions: BasicCatalog.v0_9().functions.values.toList(),
+  themeSchema: BasicComponents.api.themeSchema,
+);
 
 List<Map<String, Object?>> _review(Object? value) => [
   {
