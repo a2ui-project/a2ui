@@ -11,3 +11,25 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+"""Public facade for the A2UI processor and catalog management package."""
+
+from __future__ import annotations
+
+from .catalog_config import CatalogConfig
+from .catalog_providers import (
+    CatalogProvider,
+    FileSystemCatalogProvider,
+    InMemoryCatalogProvider,
+)
+from .generator import A2uiGenerator
+from .processor import A2uiRequestProcessor
+
+__all__ = [
+    "A2uiGenerator",
+    "A2uiRequestProcessor",
+    "CatalogConfig",
+    "CatalogProvider",
+    "FileSystemCatalogProvider",
+    "InMemoryCatalogProvider",
+]

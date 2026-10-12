@@ -16,9 +16,18 @@
 
 import {html, nothing, css} from 'lit';
 import {repeat} from 'lit/directives/repeat.js';
+import {styleMap} from 'lit/directives/style-map.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ListSupportedApis} from './supported_apis.js';
 import type {ResolvedChildList} from '../../index.js';
+
+const ALIGN_MAP: Record<string, string> = {
+  start: 'flex-start',
+  center: 'center',
+  end: 'flex-end',
+  stretch: 'stretch',
+  baseline: 'baseline',
+};
 
 function getChildKey(child: any): string {
   return typeof child === 'object' && child !== null
@@ -60,10 +69,12 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
     const children: ResolvedChildList = Array.isArray(props.children) ? props.children : [];
     const listStyle = (props as any).listStyle;
     const direction = props.direction || 'vertical';
+    const alignItems = props.align ? (ALIGN_MAP[props.align] ?? 'stretch') : undefined;
+    const listInlineStyle = alignItems ? styleMap({alignItems}) : nothing;
 
     if (listStyle === 'ordered') {
       return html`
-        <ol class="a2ui-list ${direction}">
+        <ol class="a2ui-list ${direction}" style=${listInlineStyle}>
           ${repeat(children, getChildKey, child => html`<li>${this.renderNode(child)}</li>`)}
         </ol>
       `;
@@ -71,14 +82,14 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
 
     if (listStyle === 'unordered') {
       return html`
-        <ul class="a2ui-list ${direction}">
+        <ul class="a2ui-list ${direction}" style=${listInlineStyle}>
           ${repeat(children, getChildKey, child => html`<li>${this.renderNode(child)}</li>`)}
         </ul>
       `;
     }
 
     return html`
-      <div class="a2ui-list ${direction}">
+      <div class="a2ui-list ${direction}" style=${listInlineStyle}>
         ${repeat(
           children,
           getChildKey,

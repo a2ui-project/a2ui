@@ -218,7 +218,21 @@ struct MessageProcessorTests {
   }
 
   @Test func getRendererDataModelMultiVersionRequiresExplicitVersion() throws {
-    let (processor, _) = try makeProcessor()
+    let v091Catalog = Catalog(
+      id: "cat-v091",
+      protocolVersion: .v091,
+      components: [
+        AnyComponentAPI(name: "text", schema: try Schema(instance: "{\"type\": \"object\"}"))
+      ]
+    )
+    let v10Catalog = Catalog(
+      id: "cat-v10",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(name: "text", schema: try Schema(instance: "{\"type\": \"object\"}"))
+      ]
+    )
+    let processor = MessageProcessor(catalogs: [v091Catalog, v10Catalog])
     processor.process(
       message: try parse(
         """
@@ -226,7 +240,7 @@ struct MessageProcessorTests {
           "version": "v0.9.1",
           "createSurface": {
             "surfaceId": "s1",
-            "catalogId": "default",
+            "catalogId": "cat-v091",
             "sendDataModel": true
           }
         }
@@ -238,7 +252,7 @@ struct MessageProcessorTests {
           "version": "v1.0",
           "createSurface": {
             "surfaceId": "s2",
-            "catalogId": "default",
+            "catalogId": "cat-v10",
             "sendDataModel": true
           }
         }
@@ -384,14 +398,36 @@ struct MessageProcessorTests {
         """
     )
 
+    let requiredFuncSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "description": "Opens a URL",
+          "properties": {
+            "url": { "type": "string" }
+          },
+          "required": ["url"]
+        }
+        """
+    )
+    let openURLFunc = TestOpenURLFunction(schema: requiredFuncSchema)
+
     let textSchema = try Schema(instance: "{\"type\": \"object\"}")
-    let catalog = Catalog(
-      id: "cat-full",
+    let catalogV091 = Catalog(
+      id: "cat-full-v091",
+      protocolVersion: .v091,
       components: [AnyComponentAPI(name: "Button", schema: textSchema)],
       functions: [addFunc],
       themeSchema: themeSchema
     )
-    let processor = MessageProcessor(catalogs: [catalog])
+    let catalogV10 = Catalog(
+      id: "cat-full-v10",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Button", schema: textSchema)],
+      functions: [addFunc, openURLFunc],
+      themeSchema: themeSchema
+    )
+    let processor = MessageProcessor(catalogs: [catalogV091, catalogV10])
     let caps = try processor.getRendererCapabilities(
       options: MessageProcessor.CapabilitiesOptions(
         versions: [.v091, .v10],
@@ -400,7 +436,7 @@ struct MessageProcessorTests {
     )
 
     let inlineCatalogV091 = caps["v0.9.1"]?["inlineCatalogs"]?.arrayValue?.first
-    #expect(inlineCatalogV091?["catalogId"]?.stringValue == "cat-full")
+    #expect(inlineCatalogV091?["catalogId"]?.stringValue == "cat-full-v091")
 
     let functionsV091 = inlineCatalogV091?["functions"]?.arrayValue
     #expect(functionsV091?.count == 1)
@@ -413,10 +449,24 @@ struct MessageProcessorTests {
     #expect(theme?["primaryColor"]?["description"]?.stringValue == "The main color")
 
     let inlineCatalogV10 = caps["v1.0"]?["inlineCatalogs"]?.arrayValue?.first
-    #expect(inlineCatalogV10?["catalogId"]?.stringValue == "cat-full")
+    #expect(inlineCatalogV10?["protocolVersion"]?.stringValue == "1.0")
+    #expect(inlineCatalogV10?["catalogId"]?.stringValue == "cat-full-v10")
+    #expect(inlineCatalogV10?["theme"] == nil)
     let functionsV10 = inlineCatalogV10?["functions"]?.objectValue
+    #expect(functionsV10?["add"]?["type"]?.stringValue == "object")
     #expect(functionsV10?["add"]?["returnType"]?.stringValue == "number")
+    #expect(functionsV10?["add"]?["allowedCallers"]?.stringValue == "rendererOnly")
+    #expect(functionsV10?["add"]?["requiresUserActivation"]?.boolValue == false)
     #expect(functionsV10?["add"]?["description"]?.stringValue == "Adds two numbers")
+    #expect(functionsV10?["add"]?["properties"]?["@call"]?["const"]?.stringValue == "add")
+    #expect(
+      functionsV10?["add"]?["properties"]?["args"]?["unevaluatedProperties"]?.boolValue == false)
+    #expect(functionsV10?["add"]?["required"] == .array([.string("@call")]))
+
+    #expect(functionsV10?["openUrl"]?["allowedCallers"]?.stringValue == "rendererOnly")
+    #expect(functionsV10?["openUrl"]?["requiresUserActivation"]?.boolValue == true)
+    #expect(
+      functionsV10?["openUrl"]?["required"] == .array([.string("@call"), .string("args")]))
   }
 
   // MARK: - RPC DataContext, Outbound Transport & Lifecycle
@@ -483,7 +533,7 @@ struct MessageProcessorTests {
               "call": "echo",
               "catalogId": "default",
               "args": {
-                "text": { "path": "/user/name" }
+                "text": { "@path": "/user/name" }
               }
             }
           }
@@ -544,6 +594,40 @@ struct MessageProcessorTests {
     processor.dispose()
     #expect(processor.surfaceGroupModel["s2"] == nil)
   }
+
+  @Test func createSurfaceStoresMetadataAndEscapesDataModelKeys() throws {
+    let catalog = Catalog(
+      id: "cat-v10",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(name: "Text", schema: try Schema(instance: "{\"type\": \"object\"}"))
+      ]
+    )
+    let processor = MessageProcessor(catalogs: [catalog])
+    let payload = try JSONValue.parse(
+      """
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "cat-v10",
+          "metadata": {
+            "extensions": {
+              "custom_ext": { "enabled": true }
+            }
+          },
+          "dataModel": {
+            "a/b~c": "escapedValue"
+          }
+        }
+      }
+      """
+    )
+    try processor.processMessages(payload)
+    let surface = try #require(processor.surfaceGroupModel["s1"])
+    #expect(surface.metadata?["extensions"]?["custom_ext"]?["enabled"]?.boolValue == true)
+    #expect(surface.dataModel.get("/a~1b~0c")?.stringValue == "escapedValue")
+  }
 }
 
 private struct TestAddFunction: FunctionImplementation {
@@ -572,5 +656,23 @@ private struct TestEchoFunction: FunctionImplementation {
 
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     arguments["text"] ?? .null
+  }
+}
+
+private struct TestOpenURLFunction: FunctionImplementation {
+  let api: FunctionAPI
+
+  init(schema: Schema) {
+    self.api = FunctionAPI(
+      name: "openUrl",
+      returnType: .void,
+      schema: schema,
+      allowedCallers: .rendererOnly,
+      requiresUserActivation: true
+    )
+  }
+
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    .null
   }
 }

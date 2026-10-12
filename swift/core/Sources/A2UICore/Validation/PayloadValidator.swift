@@ -31,10 +31,11 @@ public final class PayloadValidator: Sendable {
   /// The validation configuration controlling strictness and protocol version behavior.
   public let config: ValidationConfig
 
-  private let fallbackCatalog: AnyCatalog?
-
   private var enforceIdentifiers: Bool {
-    config.protocolVersion.isAtLeastV10 || catalog.isAtLeastV10
+    if let version = config.protocolVersion {
+      return version.isAtLeastV10
+    }
+    return catalog.isAtLeastV10
   }
 
   /// Creates a payload validator scoped to a single catalog.
@@ -42,15 +43,12 @@ public final class PayloadValidator: Sendable {
   /// - Parameters:
   ///   - catalog: The catalog to validate against.
   ///   - config: Validation configuration options (defaults to `.strict`).
-  ///   - fallbackCatalog: Optional fallback catalog for component and function lookup.
   public init(
     catalog: any CatalogProtocol,
-    config: ValidationConfig = .strict,
-    fallbackCatalog: (any CatalogProtocol)? = nil
+    config: ValidationConfig = .strict
   ) {
     self.catalog = catalog.eraseToAnyCatalog()
     self.config = config
-    self.fallbackCatalog = fallbackCatalog?.eraseToAnyCatalog()
   }
 
   // MARK: - Component Validation
@@ -139,9 +137,7 @@ public final class PayloadValidator: Sendable {
       )
     }
 
-    guard
-      let componentAPI = catalog.components[type] ?? fallbackCatalog?.components[type]
-    else {
+    guard let componentAPI = catalog.components[type] else {
       guard !config.allowUnknownElements else { return }
       let msg = "Unknown component type '\(type)' in catalog '\(catalog.id)'"
       throw A2UIValidationError(
@@ -295,7 +291,6 @@ public final class PayloadValidator: Sendable {
 
     let fn: (any FunctionImplementation)? =
       catalog.functions[name]
-      ?? fallbackCatalog?.functions[name]
       ?? (enforceIdentifiers && name == "@index" ? IndexFunction() : nil)
 
     guard let fn else {
@@ -445,11 +440,10 @@ public final class PayloadValidator: Sendable {
           callCatalogID == nil
           || callCatalogID?.isEmpty == true
           || callCatalogID == catalog.id
-          || (callCatalogID.map { catalog.id.hasSuffix("/\($0)/catalog.json") } ?? false)
 
         if !targetsThisCatalog {
           try assertFunctionIdentifiers(name: rawName, args: rawArgs)
-        } else if !catalog.functions.isEmpty || fallbackCatalog?.functions.isEmpty == false {
+        } else if !catalog.functions.isEmpty {
           try validateFunctionInternal(
             name: rawName,
             args: rawArgs,

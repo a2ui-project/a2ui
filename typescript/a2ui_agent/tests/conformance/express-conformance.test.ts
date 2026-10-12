@@ -241,6 +241,9 @@ describe('Express Conformance Suite', () => {
         if (testCase.expect_round_trip) {
           expect(parser.compile(notation)).toEqual(messages);
         }
+        if (testCase.expect_recompiled) {
+          expect(parser.compile(notation)).toEqual(testCase.expect_recompiled);
+        }
       } else if (action === 'unwrap') {
         const parser = await getParser(args);
         const actual = parser.unwrap(testCase.input as string);

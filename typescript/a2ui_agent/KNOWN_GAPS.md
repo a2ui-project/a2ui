@@ -6,26 +6,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ## 1. `@a2ui/agent` (This package)
 
-### Unvalidated Direct JSON parser output (Sharp edge)
+### Streaming follows the legacy suite
 
-- **What it is:** `DirectJsonParser.compile` bypasses Zod validation and directly casts the JSON output to `AgentToRendererMessage[]` via an unchecked `as` cast.
-- **Why it exists:** The validation step was deferred to `A2uiRequestProcessor`, which runs `processMessages` on the output.
-- **What it risks:** Callers who use the `Parser` directly rather than through the `A2uiRequestProcessor` facade will receive unvalidated payloads that might not adhere to the protocol schema, leading to unpredictable runtime errors downstream.
-- **Done looks like:** `compile` validates its output against the protocol schema and the parser's `catalogs`, which `DirectJsonFormat.createParser()` already passes in, before returning the payloads.
-
-### Stream processor resolves catalogs per surface, not per component
-
-- **What it is:** `DirectJsonStreamProcessorImpl` checks each component against the catalog its surface's `createSurface` names, or the first active catalog. It ignores a component's own `catalogId`, which v1.0 allows, so components from several catalogs on one surface are checked against the wrong catalog.
-- **Why it exists:** Python adds per-component resolution in #2967, which was still open when streaming landed. The TypeScript port waits for it so it can run that PR's conformance cases unchanged.
-- **What it risks:** On a mixed-catalog surface, a component from another catalog can be held back for missing required properties it doesn't have, or have its child references read with the wrong map.
-- **Done looks like:** A `resolveCatalog(comp)` lookup picks the catalog per component, and `test_v1_0_streaming_multi_catalog_resolution` and `test_v1_0_streaming_component_without_catalog_uses_surface_catalog` from `conformance/agent/legacy/streaming_parser.yaml` pass and leave `KNOWN_FAILURES` in `tests/conformance/loader.ts`. Tracked in #3030.
-
-### Stream processor emits v1.0 components before they close
-
-- **What it is:** `DirectJsonStreamProcessorImpl` emits a component as soon as its required properties have arrived, healing partial strings, in every protocol version. From v1.0 a component may name its own `catalogId`, and the key can arrive after the type and properties, so the component has to wait until its object closes. Python's `DirectJsonStreamParser` does this for v1.0 and later, and Dart does it when `bufferIncompleteComponents` is set.
-- **Why it exists:** The buffering landed in Python and Dart first.
-- **What it risks:** A v1.0 component can be emitted and checked against its surface's catalog before a later `catalogId` names the catalog it belongs to, and renderers can redraw a component while its properties are still arriving.
-- **Done looks like:** The stream processor holds a v1.0 component back until its object closes and emits the closed components of a list while the next one arrives, so `test_v1_0_streaming_component_catalog_id_arrives_late`, `test_v1_0_streaming_catalog_id_split_across_chunks` and `test_v1_0_streaming_component_on_surface_catalog_waits_until_closed` from `conformance/agent/legacy/streaming_parser.yaml` pass and leave `KNOWN_FAILURES` in `tests/conformance/loader.ts`. Tracked in #3030.
+- **What it is:** `DirectJsonStreamProcessorImpl` was written against `conformance/agent/legacy/streaming_parser.yaml`. The harness now runs `conformance/agent/direct_json/response_streaming.yaml`, which replaced it, and 47 of its 79 v0.9 and v1.0 cases fail. The processor adds `loading_*` placeholder components and prunes a message that is still arriving where the suite withholds it until it reads whole; emits a message only once the block closes; keeps the whitespace at the edges of text; raises on an invalid message as it arrives, and a cycle as `A2uiRecursionError`, where the suite raises a validation error when the block closes; drops or accepts messages for a surface the block has not created and drops orphans, where the suite reports them; and heals cut numbers and escape sequences.
+- **Why it exists:** The new suite was written with Python's `DirectJsonParser.parse_chunk`, which replaced the Python stream parser this processor was ported from.
+- **What it risks:** Streamed output differs from Python's and Dart's for the same model output, and a renderer can receive placeholder components and pruned messages.
+- **Done looks like:** The stream processor follows `response_streaming.yaml`, every case leaves `KNOWN_FAILURES` in `tests/conformance/direct-json-response-streaming.test.ts`, and the v0.8 cases stay skipped since this package does not implement v0.8.
 
 ### Express multi-catalog resolution still uses surface-level catalogId
 
@@ -34,12 +20,12 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Multi-catalog Express compilation and decompilation differ between Python and TypeScript until ported.
 - **Done looks like:** The TypeScript Express compiler and decompiler implement name-based multi-catalog resolution and omit `createSurface.catalogId` when multiple catalogs are active, so `test_compile_express_surface_targeting_names_a_catalog` and `test_decompile_express_two_surfaces_in_two_catalogs` pass and leave `KNOWN_FAILURES` in `tests/conformance/express_conformance.test.ts`.
 
-### Streamed payloads are not validated against catalogs
+### Streamed component properties are not validated against catalogs
 
-- **What it is:** With a `ValidationConfig`, `DirectJsonStreamProcessorImpl` checks each completed envelope against the protocol schema and `allowedMessages`, but not against the active catalogs. A component type or property the catalog doesn't define passes through.
-- **Why it exists:** Catalog validation lives in `A2uiRequestProcessor`, and streaming isn't available through that facade yet. Callers construct the stream processor themselves.
-- **What it risks:** Streaming callers can forward components a renderer's catalog can't render.
-- **Done looks like:** The stream processor validates completed messages against the catalog each component resolves to, for example through web_core's `MessageProcessor`, or streaming moves behind `A2uiRequestProcessor` and is validated there. Whether to do this is decided in #3030.
+- **What it is:** With a `ValidationConfig`, `DirectJsonStreamProcessorImpl` checks each completed envelope against the protocol schema and `allowedMessages`, and checks that each reachable component's `component` type exists in its resolved catalog, but does not validate component properties against the catalog schema during streaming.
+- **Why it exists:** Full schema validation against component catalogs lives in `A2uiRequestProcessor`, and streaming isn't available through that facade yet. Callers construct the stream processor themselves.
+- **What it risks:** Streaming callers can forward components with invalid or unknown properties to a renderer.
+- **Done looks like:** The stream processor validates completed component properties against the catalog each component resolves to, for example through web_core's `MessageProcessor`, or streaming moves behind `A2uiRequestProcessor` and is validated there.
 
 ### `resolveCatalogs` can't tell when capabilities omit the catalogs' version
 
@@ -92,7 +78,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Some blueprint conformance suites are not run
 
-- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser, streaming parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness reads them there, as Python's does. Of the suites added for the blueprint interface, `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml` and `agent/direct_json/prompt_generator.yaml` run. The rest do not: the other `agent/direct_json/*.yaml` files, `agent/catalog_transformer.yaml`, `agent/request_processor.yaml` and `agent/builder/`.
+- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness reads them there. Of the suites added for the blueprint interface, `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/direct_json/prompt_generator.yaml` and `agent/direct_json/response_streaming.yaml` run. The rest do not: the other `agent/direct_json/*.yaml` files, `agent/catalog_transformer.yaml`, `agent/request_processor.yaml` and `agent/builder/`.
 - **Why it exists:** Those suites exercise blueprint APIs this package does not implement yet.
 - **What it risks:** Behaviour they pin can drift in this package without a failing test.
 - **Done looks like:** The harness runs every blueprint suite and stops reading `agent/legacy/`, which the conformance README keeps for the earlier agent interface.
@@ -161,13 +147,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ## 4. Upstream Python & Conformance Suite
 
-### `v1.0` has a single canonical streaming case
-
-- **What it is:** `conformance/agent/legacy/streaming_parser.yaml` holds 41 `v0.9` streaming cases and one `v1.0` case. The `v1.0` streaming path is therefore covered by the `v0.9` cases, on the basis that the parser is version-independent in everything they exercise.
-- **Why it exists:** Upstream has not written a `v1.0` streaming suite. The local hand-translations that stood in for one have been retired, because 19 of their 20 cases duplicated a canonical `v0.9` case.
-- **What it risks:** Any streaming behaviour that differs between versions is untested. Today the known differences are small: the server-to-client file is named differently, and `v1.0` adds the `callRendererFunction` and `agentFunctionResponse` messages, which envelope validation accepts but no streaming case sends.
-- **Done looks like:** Upstream publishes `v1.0` streaming cases in `conformance/agent/`, and they run here.
-
 ### Python's `has_format_content` tests substrings
 
 - **What it is:** With `complete=True`, Python's `has_format_content` checks that the opening and closing tags each appear somewhere in the content, so `</a2ui-json> <a2ui-json>` counts as a complete block. TypeScript's `hasFormatContent` runs the block lexer and requires a closing tag after an opening one. Without `complete`, both return true for an opening tag on its own, as the module blueprint specifies. The conformance `has_parts` cases check the `complete` form, and both SDKs pass them.
@@ -181,13 +160,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists:** The TypeScript port started from the same regex. A review of this package pointed out the corruption, and only the TypeScript side was changed.
 - **What it risks:** For the same model output, the two SDKs can emit different string values. Conformance does not catch it: `test_compile_json_trailing_commas_removed` has no comma inside a string.
 - **Done looks like:** Python skips string literals as well, and a conformance case with a `,}` inside a string value pins the behaviour.
-
-### Python's partial data model parse cuts inside strings
-
-- **What it is:** While an `updateDataModel` message streams, Python's `_sniff_partial_data_model` in `direct_json/streaming.py` completes every open object on the brace stack and parses it. When a completed fragment doesn't parse, it cuts the fragment at its last comma with `rsplit(",", 1)` and tries again, including commas inside string values. TypeScript parses only the innermost open object that holds the `updateDataModel` key, and cuts only at commas outside strings.
-- **Why it exists:** The TypeScript port started from the same loop. A review of this package flagged the in-string cuts and the parse count, and only the TypeScript side was changed. Neither SDK was seen producing a wrong value, because later cuts are tried first and a cut inside a string only runs after they all fail.
-- **What it risks:** Python does several times more parsing per chunk. On a 64 KB, 200-item list streamed in 20-character chunks, the old TypeScript loop took 3.8 s and the new one 2.1 s; Python follows the old loop.
-- **Done looks like:** Python parses only the message fragment and cuts outside strings.
 
 ### Python's Express emits checks on components that take none
 

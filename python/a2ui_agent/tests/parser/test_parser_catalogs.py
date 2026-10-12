@@ -18,7 +18,7 @@ import pytest
 
 from a2ui.core import A2uiCatalogError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats.direct_json import DirectJsonParser, DirectJsonStreamParser
+from a2ui.inference_formats.direct_json import DirectJsonParser
 
 
 def _catalog(catalog_id: str, protocol_version: str) -> Catalog:
@@ -29,21 +29,18 @@ def _catalog(catalog_id: str, protocol_version: str) -> Catalog:
     )
 
 
-@pytest.mark.parametrize("parser_type", [DirectJsonParser, DirectJsonStreamParser])
 @pytest.mark.parametrize("version", ["0.8", "0.9", "0.9.1", "1.0"])
-def test_parsers_hold_multiple_catalogs(parser_type, version):
+def test_parsers_hold_multiple_catalogs(version):
     catalogs = [_catalog("basic", version), _catalog("custom", version)]
 
-    assert parser_type(catalogs).catalogs == list(catalogs)
+    assert DirectJsonParser(catalogs).catalogs == list(catalogs)
 
 
-@pytest.mark.parametrize("parser_type", [DirectJsonParser, DirectJsonStreamParser])
-def test_catalogs_of_incompatible_versions_are_rejected(parser_type):
+def test_catalogs_of_incompatible_versions_are_rejected():
     with pytest.raises(A2uiCatalogError, match="incompatible protocol versions"):
-        parser_type([BasicCatalog("0.9"), BasicCatalog("1.0")])
+        DirectJsonParser([BasicCatalog("0.9"), BasicCatalog("1.0")])
 
 
-@pytest.mark.parametrize("parser_type", [DirectJsonParser, DirectJsonStreamParser])
-def test_no_catalogs_are_rejected(parser_type):
+def test_no_catalogs_are_rejected():
     with pytest.raises(A2uiCatalogError, match="At least one catalog"):
-        parser_type([])
+        DirectJsonParser([])

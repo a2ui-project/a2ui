@@ -48,6 +48,8 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
         @if (enableDate()) {
           <input
             type="date"
+            [attr.min]="minDate() || null"
+            [attr.max]="maxDate() || null"
             [value]="dateValue()"
             (change)="handleDateChange($event)"
             class="a2ui-date-time-input"
@@ -56,6 +58,8 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
         @if (enableTime()) {
           <input
             type="time"
+            [attr.min]="minTime() || null"
+            [attr.max]="maxTime() || null"
             [value]="timeValue()"
             (change)="handleTimeChange($event)"
             class="a2ui-date-time-input"
@@ -104,28 +108,64 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
 })
 export class DateTimeInputComponent extends BasicCatalogComponent<typeof DateTimeInputApi> {
   readonly label = computed(() => this.props()['label']?.value());
-  readonly enableDate = computed(() => this.props()['enableDate']?.value() ?? true);
   readonly enableTime = computed(() => this.props()['enableTime']?.value() ?? false);
+  readonly enableDate = computed(() => this.props()['enableDate']?.value() ?? !this.enableTime());
 
   private readonly rawValue = computed(() => this.props()['value']?.value() || '');
+  private readonly rawMin = computed(() => this.props()['min']?.value() || '');
+  private readonly rawMax = computed(() => this.props()['max']?.value() || '');
 
   readonly dateValue = computed(() => {
     const val = this.rawValue();
     if (!val) return '';
-    return val.includes('T') ? val.split('T')[0] : val;
+    if (val.includes('T')) return val.split('T')[0].substring(0, 10);
+    return val.includes('-') ? val.substring(0, 10) : '';
   });
 
   readonly timeValue = computed(() => {
     const val = this.rawValue();
-    if (!val || !val.includes('T')) return '';
-    return val.split('T')[1].substring(0, 5);
+    if (!val) return '';
+    if (val.includes('T')) return val.split('T')[1].substring(0, 5);
+    return val.includes(':') ? val.substring(0, 5) : '';
+  });
+
+  readonly minDate = computed(() => {
+    const val = this.rawMin();
+    if (!val) return '';
+    if (val.includes('T')) return val.split('T')[0].substring(0, 10);
+    return val.includes('-') ? val.substring(0, 10) : '';
+  });
+
+  readonly maxDate = computed(() => {
+    const val = this.rawMax();
+    if (!val) return '';
+    if (val.includes('T')) return val.split('T')[0].substring(0, 10);
+    return val.includes('-') ? val.substring(0, 10) : '';
+  });
+
+  readonly minTime = computed(() => {
+    const val = this.rawMin();
+    if (!val) return '';
+    if (val.includes('T')) return val.split('T')[1].substring(0, 5);
+    return val.includes(':') ? val.substring(0, 5) : '';
+  });
+
+  readonly maxTime = computed(() => {
+    const val = this.rawMax();
+    if (!val) return '';
+    if (val.includes('T')) return val.split('T')[1].substring(0, 5);
+    return val.includes(':') ? val.substring(0, 5) : '';
   });
 
   handleDateChange(event: Event) {
     const date = (event.target as HTMLInputElement).value;
     const current = this.rawValue();
     if (this.enableTime()) {
-      const time = current.includes('T') ? current.split('T')[1] : '00:00:00';
+      const time = current.includes('T')
+        ? current.split('T')[1]
+        : current.includes(':')
+          ? current
+          : '00:00:00';
       this.props()['value']?.onUpdate(`${date}T${time}`);
     } else {
       this.props()['value']?.onUpdate(date);
@@ -134,10 +174,16 @@ export class DateTimeInputComponent extends BasicCatalogComponent<typeof DateTim
 
   handleTimeChange(event: Event) {
     const time = (event.target as HTMLInputElement).value;
-    const current = this.rawValue();
-    const date = current.includes('T')
-      ? current.split('T')[0]
-      : current || new Date().toISOString().split('T')[0];
-    this.props()['value']?.onUpdate(`${date}T${time}:00`);
+    if (this.enableDate()) {
+      const current = this.rawValue();
+      const date = current.includes('T')
+        ? current.split('T')[0]
+        : current.includes('-')
+          ? current
+          : new Date().toISOString().split('T')[0];
+      this.props()['value']?.onUpdate(`${date}T${time}:00`);
+    } else {
+      this.props()['value']?.onUpdate(time);
+    }
   }
 }

@@ -383,9 +383,7 @@ export const ButtonApi = {
     .object({
       'checks': z
         .array(CheckRuleSchema)
-        .describe(
-          'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
-        )
+        .describe('A list of validation check rules to perform on the component.')
         .optional(),
       'child': ChildSchema.describe(
         "REF:#/$defs/Child|The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button.",
@@ -414,9 +412,7 @@ export const TextFieldApi = {
     .object({
       'checks': z
         .array(CheckRuleSchema)
-        .describe(
-          'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
-        )
+        .describe('A list of validation check rules to perform on the component.')
         .optional(),
       'label': DynamicStringSchema.describe(
         'REF:#/$defs/DynamicString|The text label for the input field.',
@@ -448,9 +444,7 @@ export const CheckBoxApi = {
     .object({
       'checks': z
         .array(CheckRuleSchema)
-        .describe(
-          'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
-        )
+        .describe('A list of validation check rules to perform on the component.')
         .optional(),
       'label': DynamicStringSchema.describe(
         'REF:#/$defs/DynamicString|The text to display next to the checkbox.',
@@ -474,9 +468,7 @@ export const ChoicePickerApi = {
     .object({
       'checks': z
         .array(CheckRuleSchema)
-        .describe(
-          'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
-        )
+        .describe('A list of validation check rules to perform on the component.')
         .optional(),
       'label': DynamicStringSchema.describe(
         'REF:#/$defs/DynamicString|The label for the group of options.',
@@ -525,9 +517,7 @@ export const SliderApi = {
     .object({
       'checks': z
         .array(CheckRuleSchema)
-        .describe(
-          'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
-        )
+        .describe('A list of validation check rules to perform on the component.')
         .optional(),
       'label': DynamicStringSchema.describe(
         'REF:#/$defs/DynamicString|The label for the slider.',
@@ -560,9 +550,7 @@ export const DateTimeInputApi = {
     .object({
       'checks': z
         .array(CheckRuleSchema)
-        .describe(
-          'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
-        )
+        .describe('A list of validation check rules to perform on the component.')
         .optional(),
       'value': DynamicStringSchema.describe(
         'REF:#/$defs/DynamicString|The selected date and/or time value in ISO 8601 format. If not yet set, initialize with an empty string.',

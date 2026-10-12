@@ -491,7 +491,7 @@ struct StateEngineV10Tests {
       catalogs: [catalog],
       componentsModel: componentsModel,
       dataModel: dataModel,
-      protocolVersion: "1.0"
+      protocolVersion: .v10
     )
 
     let rootNode = try #require(resolver.resolveTree())

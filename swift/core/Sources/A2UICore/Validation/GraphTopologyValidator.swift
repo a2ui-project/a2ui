@@ -79,26 +79,14 @@ public enum GraphTopologyValidator {
   ) -> (any ComponentAPI)? {
     guard let catalogs, !catalogs.isEmpty else { return nil }
 
-    func findCatalog(_ catID: String?) -> AnyCatalog? {
-      guard let catID else { return nil }
-      if let cat = catalogs[catID] { return cat }
-      return catalogs.values.first {
-        $0.id.hasSuffix("/\(catID)/catalog.json")
-      }
+    if let catalogID, let catalog = catalogs[catalogID] {
+      return catalog.components[type]
     }
-
-    if let catalogID, let catalog = findCatalog(catalogID), let comp = catalog.components[type] {
-      return comp
+    if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
+      return catalog.components[type]
     }
-    if let defaultCatalogID, let catalog = findCatalog(defaultCatalogID),
-      let comp = catalog.components[type]
-    {
-      return comp
-    }
-    for catalog in catalogs.values {
-      if let comp = catalog.components[type] {
-        return comp
-      }
+    if catalogs.count == 1, let soleCatalog = catalogs.values.first {
+      return soleCatalog.components[type]
     }
     return nil
   }

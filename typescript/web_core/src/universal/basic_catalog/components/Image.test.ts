@@ -104,6 +104,38 @@ describe('Image Component', () => {
     assert.strictEqual(img?.classList.contains('avatar'), true);
   });
 
+  it('should map fit="scaleDown" to valid CSS object-fit: scale-down', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'img_scaledown',
+              component: 'Image',
+              url: 'http://example.com/image.png',
+              fit: 'scaleDown',
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-image') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'img_scaledown');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const img = el.querySelector('img') as HTMLImageElement;
+    assert.notStrictEqual(img, null);
+    assert.strictEqual(img.style.objectFit, 'scale-down');
+  });
+
   describe('ImageApi schema validation', () => {
     it('should parse valid image with description', () => {
       const validImage = {

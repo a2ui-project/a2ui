@@ -66,9 +66,19 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
             ]
           )
         }
-        _ = try extractSingleAction(from: dict)
+        do {
+          _ = try extractSingleAction(from: dict)
+        } catch let error as A2UIValidationError {
+          throw rewriteMessageIndex(in: error, to: index)
+        }
       }
-      return try items.flatMap { try extractOperations(from: $0) }
+      return try items.enumerated().flatMap { index, item -> [InternalOperation] in
+        do {
+          return try extractOperations(from: item)
+        } catch let error as A2UIValidationError {
+          throw rewriteMessageIndex(in: error, to: index)
+        }
+      }
     case .object(let dict):
       if let messages = dict["messages"]?.arrayValue {
         return try extractOperations(from: .array(messages))
@@ -97,7 +107,26 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
   }
 
   open func adaptMessage(_ message: AgentToRendererMessage) throws -> [InternalOperation] {
-    fatalError("Subclasses must override adaptMessage(_:)")
+    let encoder = JSONEncoder()
+    encoder.userInfo[.a2uiProtocolVersion] = message.version
+    let data = try encoder.encode(message)
+    let jsonValue = try JSONValue.parse(data)
+    let ops = try extractOperations(from: jsonValue)
+    if case .updateDataModel(let msg) = message, msg.value == nil {
+      return ops.map { op in
+        if case .updateDataModel(let updateOp) = op {
+          return .updateDataModel(
+            InternalUpdateDataModelOp(
+              surfaceID: updateOp.surfaceID,
+              path: updateOp.path,
+              value: nil
+            )
+          )
+        }
+        return op
+      }
+    }
+    return ops
   }
 
   open func extractOperationsFromObject(
@@ -109,6 +138,51 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
   }
 
   // MARK: - Validation Helpers
+
+  private func rewriteMessageIndex(
+    in error: A2UIValidationError,
+    to index: Int
+  ) -> A2UIValidationError {
+    guard index != 0, !error.details.isEmpty else { return error }
+    let rewrittenDetails = error.details.map { detail -> A2UIErrorDetail in
+      if detail.path == "messages.0" {
+        return A2UIErrorDetail(
+          path: "messages.\(index)",
+          code: detail.code,
+          message: detail.message
+        )
+      }
+      if detail.path.hasPrefix("messages.0.") {
+        let suffix = detail.path.dropFirst("messages.0.".count)
+        return A2UIErrorDetail(
+          path: "messages.\(index).\(suffix)",
+          code: detail.code,
+          message: detail.message
+        )
+      }
+      return detail
+    }
+    return A2UIValidationError(error.message, details: rewrittenDetails)
+  }
+
+  internal func validateAllowedKeys(
+    in actionObject: OrderedDictionary<String, JSONValue>,
+    action: String,
+    allowed: Set<String>
+  ) throws {
+    for key in actionObject.keys where !allowed.contains(key) {
+      throw A2UIValidationError(
+        "Invalid \(version.rawValue) message: unrecognized property '\(key)' in \(action)",
+        details: [
+          A2UIErrorDetail(
+            path: "messages.0.\(action).\(key)",
+            code: "invalid_value",
+            message: "Unrecognized property '\(key)' in \(action)"
+          )
+        ]
+      )
+    }
+  }
 
   internal func extractSingleAction(
     from dict: OrderedDictionary<String, JSONValue>
@@ -151,7 +225,7 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
 
     let presentNativeKeys = validActions.filter { dict[$0] != nil }.sorted()
     if presentNativeKeys.isEmpty {
-      let allKnown = VersionAdapterFactory.allKnownActions()
+      let allKnown = VersionAdapterFactory.shared.allKnownActions()
       let otherAction = dict.keys.first {
         allKnown.contains($0) && !validActions.contains($0)
       }

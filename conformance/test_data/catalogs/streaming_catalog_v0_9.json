@@ -1,0 +1,196 @@
+{
+  "catalogId": "test_catalog",
+  "protocolVersion": "0.9",
+  "components": {
+    "Text": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Text"
+        },
+        "text": {
+          "$ref": "common_types.json#/$defs/DynamicString"
+        }
+      },
+      "required": [
+        "component",
+        "text"
+      ]
+    },
+    "Image": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Image"
+        },
+        "url": {
+          "$ref": "common_types.json#/$defs/DynamicString"
+        }
+      },
+      "required": [
+        "component",
+        "url"
+      ]
+    },
+    "AudioPlayer": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "AudioPlayer"
+        },
+        "url": {
+          "$ref": "common_types.json#/$defs/DynamicString"
+        },
+        "description": {
+          "$ref": "common_types.json#/$defs/DynamicString"
+        }
+      },
+      "required": [
+        "component",
+        "url"
+      ]
+    },
+    "Metric": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Metric"
+        },
+        "value": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "component",
+        "value"
+      ]
+    },
+    "Card": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Card"
+        },
+        "child": {
+          "$ref": "common_types.json#/$defs/ComponentId"
+        }
+      },
+      "required": [
+        "component",
+        "child"
+      ]
+    },
+    "Container": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Container"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ]
+    },
+    "Column": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Column"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ]
+    },
+    "Row": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "Row"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ]
+    },
+    "List": {
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "common_types.json#/$defs/ComponentCommon"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "List"
+        },
+        "children": {
+          "$ref": "common_types.json#/$defs/ChildList"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "vertical",
+            "horizontal"
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ]
+    }
+  }
+}

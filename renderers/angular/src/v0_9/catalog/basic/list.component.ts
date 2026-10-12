@@ -18,6 +18,7 @@ import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {ComponentHostComponent} from '@a2ui/angular';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {Child} from '@a2ui/angular';
+import {ALIGN_MAP} from './utils';
 import {ListApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
@@ -37,7 +38,11 @@ import {ListApi} from '@a2ui/web_core/v0_9/basic_catalog';
   template: `
     @switch (listTag()) {
       @case ('ol') {
-        <ol [class]="'a2ui-list ' + direction()" [style.list-style-type]="styleType()">
+        <ol
+          [class]="'a2ui-list ' + direction()"
+          [style.list-style-type]="styleType()"
+          [style.align-items]="align()"
+        >
           @for (child of children(); track trackBy($index, child)) {
             <li>
               <a2ui-v09-component-host [componentKey]="child" [surfaceId]="surfaceId()">
@@ -47,7 +52,11 @@ import {ListApi} from '@a2ui/web_core/v0_9/basic_catalog';
         </ol>
       }
       @case ('ul') {
-        <ul [class]="'a2ui-list ' + direction()" [style.list-style-type]="styleType()">
+        <ul
+          [class]="'a2ui-list ' + direction()"
+          [style.list-style-type]="styleType()"
+          [style.align-items]="align()"
+        >
           @for (child of children(); track trackBy($index, child)) {
             <li>
               <a2ui-v09-component-host [componentKey]="child" [surfaceId]="surfaceId()">
@@ -57,7 +66,11 @@ import {ListApi} from '@a2ui/web_core/v0_9/basic_catalog';
         </ul>
       }
       @default {
-        <div [class]="'a2ui-list ' + direction()" style="list-style-type: none;">
+        <div
+          [class]="'a2ui-list ' + direction()"
+          style="list-style-type: none;"
+          [style.align-items]="align()"
+        >
           @for (child of children(); track trackBy($index, child)) {
             <div class="a2ui-list-item-none">
               <a2ui-v09-component-host [componentKey]="child" [surfaceId]="surfaceId()">
@@ -97,6 +110,10 @@ import {ListApi} from '@a2ui/web_core/v0_9/basic_catalog';
 export class ListComponent extends BasicCatalogComponent<typeof ListApi> {
   readonly listStyle = computed(() => (this.props() as any)['listStyle']?.value());
   readonly direction = computed(() => this.props()['direction']?.value() || 'vertical');
+  readonly align = computed(() => {
+    const val = this.props()['align']?.value();
+    return val ? ALIGN_MAP[val] || 'stretch' : null;
+  });
   readonly children = computed(() => this.props()['children'].value());
 
   readonly listTag = computed(() => {

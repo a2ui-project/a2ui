@@ -308,4 +308,91 @@ describe('DateTimeInput Component', () => {
     const expectedLocalDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     assert.strictEqual(surface.dataModel.get('/new_event'), `${expectedLocalDate}T11:00:00`);
   });
+
+  it('should render only a time picker when enableTime is true and enableDate is omitted', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateDataModel: {
+          surfaceId: 'test-surface',
+          path: '/t',
+          value: '09:15',
+        },
+      },
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'dt_time_implicit',
+              component: 'DateTimeInput',
+              value: {path: '/t'},
+              enableTime: true,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-datetimeinput') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'dt_time_implicit');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    assert.strictEqual(el.querySelector('input[type="date"]'), null);
+    const timeInput = el.querySelector('input[type="time"]') as HTMLInputElement;
+    assert.notStrictEqual(timeInput, null);
+    assert.strictEqual(timeInput.value, '09:15');
+
+    timeInput.value = '10:45';
+    timeInput.dispatchEvent(new Event('change'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(surface.dataModel.get('/t'), '10:45');
+  });
+
+  it('should pass min and max attributes to date and time inputs', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'dt_minmax',
+              component: 'DateTimeInput',
+              value: '2026-01-15T12:00:00Z',
+              enableDate: true,
+              enableTime: true,
+              min: '2026-01-01T09:00:00Z',
+              max: '2026-01-31T17:00:00Z',
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-datetimeinput') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'dt_minmax');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const dateInput = el.querySelector('input[type="date"]') as HTMLInputElement;
+    const timeInput = el.querySelector('input[type="time"]') as HTMLInputElement;
+    assert.notStrictEqual(dateInput, null);
+    assert.notStrictEqual(timeInput, null);
+    assert.strictEqual(dateInput.getAttribute('min'), '2026-01-01');
+    assert.strictEqual(dateInput.getAttribute('max'), '2026-01-31');
+    assert.strictEqual(timeInput.getAttribute('min'), '09:00');
+    assert.strictEqual(timeInput.getAttribute('max'), '17:00');
+  });
 });

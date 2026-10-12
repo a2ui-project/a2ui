@@ -220,7 +220,7 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
   },
   'DynamicBoolean': {
     'description':
-      'A boolean value that can be a literal, a path, or a function call returning a boolean.',
+      "A boolean value that can be a literal, a path, or a function call returning a boolean or a validation result object (coerced to its 'valid' boolean).",
     'oneOf': [
       {
         'type': 'boolean',
@@ -272,7 +272,6 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
     'type': 'object',
     'description':
       'Returns the 0-based index of the current item when rendering a dynamic list from a template. This function MUST ONLY be available when evaluating template items within a list context.',
-    'returnType': 'number',
     'properties': {
       '@call': {
         'const': '@index',
@@ -317,7 +316,7 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
   'CheckRule': {
     'type': 'object',
     'description':
-      'A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object.',
+      'A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object or a boolean (which is coerced to a validation result object).',
     'properties': {
       'condition': {
         'oneOf': [
@@ -328,7 +327,8 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
             '$ref': '#/$defs/FunctionCall',
           },
         ],
-        'description': 'Path or function call evaluating to a structured validation result object.',
+        'description':
+          'Path or function call evaluating to a structured validation result object or a boolean.',
       },
       'message': {
         'type': 'string',
@@ -344,8 +344,7 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
     'properties': {
       'checks': {
         'type': 'array',
-        'description':
-          'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+        'description': 'A list of validation check rules to perform on the component.',
         'items': {
           '$ref': '#/$defs/CheckRule',
         },
@@ -371,7 +370,7 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
               'userMessage': {
                 '$ref': '#/$defs/DynamicString',
                 'description':
-                  'An optional human-readable message describing the action performed by the user, to present in conversation history or user feedback.',
+                  'An optional human-readable message describing the action performed by the user, resolved by the renderer and included in the outbound action message.',
               },
               'context': {
                 'type': 'object',

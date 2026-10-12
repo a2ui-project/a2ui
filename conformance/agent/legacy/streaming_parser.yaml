@@ -1886,7 +1886,8 @@
           type: object
           properties:
             component: {const: "Container"}
-            children: {type: array, items: {type: string}}
+            children:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
           required: ["component"]
       $defs:
         anyComponent:
@@ -2762,7 +2763,8 @@
           type: object
           properties:
             component: {const: "Column"}
-            children: {type: array, items: {type: string}}
+            children:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
           required: ["component"]
         List:
           type: object
@@ -3313,8 +3315,7 @@
               id: {type: string}
               component: {type: string, enum: ["Column"]}
               children:
-                type: array
-                items: {type: string}
+                $ref: "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
             required: ["id", "component", "children"]
     - protocolVersion: "v1.0"
       catalogSchema:
@@ -3362,7 +3363,9 @@
   description: >-
     Verifies that a v1.0 component that names no catalog is checked against its
     surface's catalog only, so a component that only another catalog defines is
-    rejected, as a renderer would reject it.
+    rejected, as a renderer would reject it. The component is closed when it is
+    checked and can't become valid later, so the error is raised on the chunk
+    that closes it rather than at the end of the block.
   protocolVersion: "v1.0"
   catalogs:
     - protocolVersion: "v1.0"
@@ -3399,8 +3402,6 @@
     - input: '{"version": "v1.0", "updateComponents": {"surfaceId": "main", "components": ['
       expect: []
     - input: '{"id": "root", "component": "CustomMetric", "value": 42}'
-      expect: []
-    - input: "]}}]</a2ui-json>"
       expectError: "Validation failed"
 
 - name: test_v1_0_streaming_component_catalog_id_arrives_late
@@ -3421,8 +3422,7 @@
               id: {type: string}
               component: {type: string, enum: ["Column"]}
               children:
-                type: array
-                items: {type: string}
+                $ref: "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
             required: ["id", "component", "children"]
     - protocolVersion: "v1.0"
       catalogSchema:

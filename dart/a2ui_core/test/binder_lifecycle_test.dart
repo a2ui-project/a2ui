@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_core/src/core/contexts.dart' show ComponentContext;
 import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';

@@ -125,13 +125,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         elemental_format = ElementalFormat([self.catalog])
         generator = elemental_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="You are an HTML generator.",
-            workflow_description="Please output Elemental HTML.",
-            include_schema=True,
-        )
-        self.assertIn("You are an HTML generator.", prompt)
-        self.assertIn("Please output Elemental HTML.", prompt)
+        prompt = generator.generate()
         self.assertIn("# A2UI Elemental Output Contract", prompt)
         self.assertIn("interface Text {", prompt)
 
@@ -235,10 +229,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         elemental_format = ElementalFormat([self.catalog])
         generator = elemental_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-        )
+        prompt = generator.generate()
 
         # Check checks property maps to FunctionCall[]
         self.assertIn("checks?: FunctionCall[]", prompt)
@@ -272,18 +263,18 @@ class TestElementalPromptGenerator(unittest.TestCase):
         generator = elemental_format.prompt_generator
 
         # Only allow Text component, which should prune RichComponent
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-        )
+        prompt = generator.generate()
         self.assertNotIn("interface RichComponent", prompt)
         self.assertIn("interface Text", prompt)
 
     def test_elemental_include_examples_transformation(self):
+        from a2ui.inference_formats import to_message_models
+
         example_payload = {
-            "version": "1.0",
+            "version": "v1.0",
             "createSurface": {
                 "surfaceId": "welcome",
+                "catalogId": self.catalog.catalog_id,
                 "components": [
                     {"id": "root", "component": "RichComponent", "refString": "hello"}
                 ],
@@ -296,20 +287,24 @@ class TestElementalPromptGenerator(unittest.TestCase):
         with open(md_file_path, "w", encoding="utf-8") as f:
             f.write(md_content)
 
-        elemental_format = ElementalFormat([self.catalog], examples_path=md_file_path)
+        elemental_format = ElementalFormat(
+            [self.catalog], examples=[to_message_models([example_payload])]
+        )
         generator = elemental_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            include_examples=True,
-            validate_examples=False,
-        )
+        prompt = generator.generate()
 
         self.assertIn("### Examples:", prompt)
         self.assertIn('<ui-rich-component id="root" ref-string="hello" />', prompt)
+        self.assertIn(
+            '<ui-rich-component id="root" ref-string="hello" />',
+            generator.transform_examples(md_content),
+        )
 
     def test_elemental_examples_validation(self):
+        from a2ui.inference_formats import to_message_models
+        from a2ui.schema import load_examples
+
         example_payload = {
             "version": "v1.0",
             "createSurface": {
@@ -324,20 +319,16 @@ class TestElementalPromptGenerator(unittest.TestCase):
         with open(json_file_path, "w", encoding="utf-8") as f:
             json.dump(example_payload, f)
 
+        loaded_md = load_examples([self.catalog], self.tmp_dir.name, validate=True)
         elemental_format = ElementalFormat(
-            [self.catalog], examples_path=self.tmp_dir.name
+            [self.catalog], examples=[to_message_models([example_payload])]
         )
         generator = elemental_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            include_examples=True,
-            validate_examples=True,
-        )
+        prompt = generator.generate()
 
         self.assertIn("### Examples:", prompt)
-        self.assertIn("---BEGIN example_1---", prompt)
+        self.assertIn("---BEGIN example_1---", generator.transform_examples(loaded_md))
 
     def test_catalog_instructions_json_decompilation(self):
         """Test catalog instructions containing JSON blocks are converted to HTML blocks."""
@@ -360,11 +351,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
         generator = elemental_format.prompt_generator
         generator.parser = None
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            include_examples=False,
-        )
+        prompt = generator.generate()
         self.assertIn("```html", prompt)
 
     def test_transform_examples_edge_cases(self):
