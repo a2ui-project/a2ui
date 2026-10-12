@@ -75,6 +75,9 @@ describe('Common Basic Functions', () => {
       assert.strictEqual(validateNumeric(2, 5, 15).valid, false);
       assert.strictEqual(validateNumeric(20, 5, 15).valid, false);
       assert.strictEqual(validateNumeric('not-a-number' as any).valid, false);
+      assert.strictEqual(validateNumeric(null, 0).valid, false);
+      assert.strictEqual(validateNumeric(undefined, 0).valid, false);
+      assert.strictEqual(validateNumeric('', 0).valid, false);
     });
 
     it('validateEmail', () => {

@@ -160,7 +160,7 @@ export function validateLength(val: unknown, min?: number, max?: number): Valida
  * the implementation guide asks the check to parse it. The property keeps its
  * `REF:` description, so the catalog schema still declares a DynamicNumber.
  */
-export function withStringValue<Api extends {schema: z.AnyZodObject}>(api: Api): Api {
+export function withStringValue<Api extends {schema: z.AnyZodObject}>(api: Api) {
   const value = api.schema.shape['value'] as z.ZodTypeAny;
   return {
     ...api,
@@ -172,7 +172,9 @@ export function withStringValue<Api extends {schema: z.AnyZodObject}>(api: Api):
 
 /** Validates that a numeric value falls within an optional range. */
 export function validateNumeric(val: unknown, min?: number, max?: number): ValidationResult {
-  const num = typeof val === 'string' && val.trim() === '' ? NaN : Number(val);
+  const missing =
+    val === null || val === undefined || (typeof val === 'string' && val.trim() === '');
+  const num = missing ? NaN : Number(val);
   if (isNaN(num)) {
     return {valid: false, message: 'Value must be a valid number.'};
   }
