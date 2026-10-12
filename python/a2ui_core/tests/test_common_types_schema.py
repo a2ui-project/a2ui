@@ -279,22 +279,19 @@ def test_catalog_defs_match_specification(version: str) -> None:
     )
     catalog_defs = catalog.validation_schema["$defs"]
     helpers = {
-        name: schema for name, schema in catalog_defs.items() if name not in spec_defs
+        name: schema
+        for name, schema in catalog_defs.items()
+        if name not in spec_defs and name not in ("anyComponent", "anyFunction")
     }
 
-    assert set(catalog_defs) >= set(spec_defs)
+    assert set(catalog_defs) >= set(spec_defs) - {"ComponentCommon", "Checkable"}
     for name, spec_def in spec_defs.items():
+        if name in ("ComponentCommon", "Checkable"):
+            continue
         catalog_def = _inline_refs(catalog_defs[name], helpers)
-        if name == "FunctionCall":
-            spec_props = set(spec_def.get("properties", {}))
-            for part in spec_def.get("allOf", []):
-                ref = part.get("$ref", "")
-                if ref.startswith("#/$defs/"):
-                    spec_props |= set(
-                        spec_defs[ref.removeprefix("#/$defs/")].get("properties", {})
-                    )
-            assert set(catalog_def["properties"]) == spec_props | {"args"}
-            assert catalog_def["additionalProperties"] is False
-            assert catalog_def["required"] == ["@call" if version == "v1_0" else "call"]
-        else:
-            assert catalog_def == spec_def, name
+        expected_def = json.loads(
+            json.dumps(spec_def).replace(
+                "catalog.json#/$defs/anyFunction", "#/$defs/anyFunction"
+            )
+        )
+        assert catalog_def == expected_def, name

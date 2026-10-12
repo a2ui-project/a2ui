@@ -27,7 +27,7 @@ import referencing.exceptions
 
 from ..catalog import system_functions_for
 from ..catalog.catalog import CatalogApi
-from ..common.semver import is_at_least_version
+from ..common.semver import is_at_least_version, to_protocol_version
 from ..common.uax31 import is_valid_uax31_identifier
 from ..exceptions import A2uiCatalogError, A2uiErrorDetail, A2uiValidationError
 from ..processing.format_pydantic_error import format_validation_error
@@ -283,7 +283,25 @@ class PayloadValidator:
         base_schema = (
             getattr(target_cat, "validation_schema", {}) or {} if target_cat else {}
         )
-        defs = base_schema.get("$defs", {}) if isinstance(base_schema, dict) else {}
+        defs = (
+            dict(base_schema.get("$defs", {})) if isinstance(base_schema, dict) else {}
+        )
+        common_defs_fn = (
+            getattr(target_cat, "_common_types_defs_for", None)
+            if target_cat is not None
+            else None
+        )
+        if callable(common_defs_fn):
+            try:
+                p_ver = to_protocol_version(getattr(target_cat, "protocol_version", ""))
+                flat_common_defs = common_defs_fn(p_ver)
+                for mixin_name in ("ComponentCommon", "Checkable"):
+                    if mixin_name not in defs and mixin_name in flat_common_defs:
+                        defs[mixin_name] = flat_common_defs[mixin_name]
+                if "FunctionCall" in flat_common_defs:
+                    defs["FunctionCall"] = flat_common_defs["FunctionCall"]
+            except ValueError:
+                pass
         full_schema = {
             "$schema": JSON_SCHEMA_DRAFT_2020_12,
             "$defs": {**defs, **comp_schema.get("$defs", {})},

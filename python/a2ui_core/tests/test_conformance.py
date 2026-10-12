@@ -67,33 +67,7 @@ SUPPORTED_PROTOCOL_VERSIONS = {
     "1.0",
 }
 
-SKIP_TEST_NAMES: set[str] = {
-    # TODO(#3036): The validation_schema goldens use the flattened shape:
-    # `allOf` envelopes merged into each component's `properties`, and every
-    # component given the canonical envelope (`id` as a `ComponentId`
-    # reference, `component`, both required, and before v1.0
-    # `unevaluatedProperties: false`). Python preserves `allOf` and keeps
-    # components as written, so every golden differs in its components until
-    # #3036 lands. Parity also needs ref-description propagation (cross-SDK
-    # rule 6: a localized reference to a standard definition with no
-    # description of its own takes the definition's description, for example
-    # "Represents a string"). The agent prompts are built from
-    # `validation_schema`, so that needs a decision on prompt output first.
-    # Each entry notes what else still differs once the components are set
-    # aside.
-    #
-    # Only the component envelope.
-    "test_v08_basic_validation_schema",
-    # The #3036 flattening case itself: allOf mixins merged into properties,
-    # with a component property overriding the mixin's.
-    "test_v09_custom_validation_schema_flattening",
-    # Goldens of the published basic catalogs. Besides the envelope and rule
-    # 6, the goldens normalize object closure, which Python keeps as written:
-    # in v0.9 the authored `additionalProperties: false` on the args of
-    # `openUrl` and `required` becomes `unevaluatedProperties: false`.
-    "test_v09_basic_validation_schema",
-    "test_v10_basic_validation_schema",
-}
+SKIP_TEST_NAMES: set[str] = set()
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
 SKIP_TEST_SUITES: set[str] = set()

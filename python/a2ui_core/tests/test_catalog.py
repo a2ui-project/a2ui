@@ -870,7 +870,16 @@ def test_catalog_from_json_determines_common_types_automatically():
 _INLINE_METADATA = {
     "type": "object",
     "description": "Optional component-level metadata for vendor extensions.",
-    "properties": {"extensions": {"$ref": "#/$defs/Extensions"}},
+    "properties": {
+        "extensions": {
+            "$ref": "#/$defs/Extensions",
+            "description": (
+                "Optional extension metadata. Keys MUST be Unicode identifiers"
+                " (UAX #31). Keys starting with 'a2ui_' are reserved for"
+                " official extensions."
+            ),
+        }
+    },
     "additionalProperties": False,
 }
 
@@ -891,8 +900,7 @@ def test_v1_0_catalogs_inline_component_metadata():
     basic_catalog = BasicCatalogV1_0().validation_schema
 
     assert (
-        json_catalog["$defs"]["ComponentCommon"]["properties"]["metadata"]
-        == _INLINE_METADATA
+        json_catalog["components"]["Card"]["properties"]["metadata"] == _INLINE_METADATA
     )
     assert "ComponentCommonMetadata" not in json_catalog["$defs"]
     assert "Extensions" in json_catalog["$defs"]
@@ -977,12 +985,7 @@ def test_concrete_component_subclassing_discriminator():
     )
     schema = cat.validation_schema
     comp_schema = schema["components"]["SpecialButton"]
-    inner = [
-        s
-        for s in comp_schema["allOf"]
-        if "properties" in s and "component" in s["properties"]
-    ][0]
-    assert inner["properties"]["component"] == {"const": "SpecialButton"}
+    assert comp_schema["properties"]["component"] == {"const": "SpecialButton"}
     assert "Button" not in schema.get("$defs", {})
 
 

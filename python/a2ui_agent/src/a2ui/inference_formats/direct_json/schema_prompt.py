@@ -68,9 +68,10 @@ def schema_to_prompt(
     if allowed_messages is not None:
         a2r_schema = prune_messages_schema(a2r_schema, version, allowed_messages)
 
-    catalog_schemas = [c.validation_schema for c in catalogs]
     common_types_schema = prune_common_types_schema(
-        load_common_types_schema(version), *catalog_schemas, a2r_schema
+        load_common_types_schema(version),
+        *[c.to_json() for c in catalogs],
+        a2r_schema,
     )
 
     all_schemas = [constants.A2UI_SCHEMA_BLOCK_START]
@@ -84,8 +85,8 @@ def schema_to_prompt(
         common_str = json.dumps(common_types_schema, separators=(",", ":"))
         all_schemas.append(f"### Common Types Schema:\n{common_str}")
 
-    for catalog_schema in catalog_schemas:
-        catalog_str = json.dumps(catalog_schema, separators=(",", ":"))
+    for catalog in catalogs:
+        catalog_str = json.dumps(catalog.validation_schema, separators=(",", ":"))
         all_schemas.append(f"### Catalog Schema:\n{catalog_str}")
 
     all_schemas.append(constants.A2UI_SCHEMA_BLOCK_END)
