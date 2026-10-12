@@ -151,6 +151,9 @@ class DataModel {
     return currentNode;
   }
 
+  /// Whether a value, possibly null, exists at the JSON pointer [path].
+  bool has(String path) => hasPath(path);
+
   /// Returns whether [path] physically exists in the data model hierarchy.
   bool hasPath(String path) => _hasSegments(_parsePointer(path));
 
