@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Utility for parsing A2UI component and function catalogs.
+"""Catalog schema crawler shared by the compact inference formats.
 
 Provides dynamic schema crawling to identify component properties, logical function
 signatures, and requirements directly from standard catalog JSON schemas.
 """
+
+from __future__ import annotations
 
 from typing import Any
 
@@ -24,6 +26,21 @@ from a2ui.core import CatalogApi
 from a2ui.schema.schema_helper import (
     CatalogSchemaHelper as _BaseCatalogSchemaHelper,
 )
+
+
+def _find_enum(s: Any) -> list[Any] | None:
+    """Returns the first `enum` list found in a schema or its combinators."""
+    if isinstance(s, dict):
+        enum = s.get("enum")
+        if isinstance(enum, list):
+            return enum
+        for k in ("oneOf", "anyOf", "allOf"):
+            if k in s and isinstance(s[k], list):
+                for sub_s in s[k]:
+                    res = _find_enum(sub_s)
+                    if res:
+                        return res
+    return None
 
 
 class CatalogSchemaHelper(_BaseCatalogSchemaHelper):
@@ -92,29 +109,16 @@ class CatalogSchemaHelper(_BaseCatalogSchemaHelper):
                 if "properties" in sub:
                     props.update(sub["properties"])
                     for pk, pv in sub["properties"].items():
-
-                        def _find_enum(s):
-                            if isinstance(s, dict):
-                                if "enum" in s:
-                                    return s["enum"]
-                                for k in ("oneOf", "anyOf", "allOf"):
-                                    if k in s and isinstance(s[k], list):
-                                        for sub_s in s[k]:
-                                            res = _find_enum(sub_s)
-                                            if res:
-                                                return res
-                            return None
-
                         enum_val = _find_enum(pv)
                         if enum_val:
                             self.component_property_enums[(name, pk)] = enum_val
                 if "required" in sub:
                     reqs.extend(sub["required"])
 
-            # Filter out structural properties component and id
+            # Filter out structural properties component, id, and catalogId
             ordered_keys = []
             for k in props:
-                if k not in ["component", "id"]:
+                if k not in ["component", "id", "catalogId"]:
                     ordered_keys.append(k)
 
             # If it's checkable, add checks at the end

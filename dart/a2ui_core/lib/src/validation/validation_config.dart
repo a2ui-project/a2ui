@@ -58,10 +58,13 @@ class ValidationConfig {
   /// not checked either.
   final bool allowMissingRoot;
 
-  /// Whether a component may name a type its catalog does not declare.
+  /// Whether a component or function the catalog does not declare passes
+  /// validation instead of being rejected.
   ///
   /// Such a component is accepted without a schema check, and contributes no
-  /// child references to the graph checks.
+  /// child references to the graph checks. For functions this applies to
+  /// catalogs below v1.0; from v1.0 an unknown function always passes,
+  /// because a renderer forwards it to the agent as a `callAgentFunction`.
   final bool allowUnknownElements;
 
   /// The protocol version the processor must default to, or null to accept

@@ -158,7 +158,7 @@ void main() {
   group('SurfaceModel catalogs', () {
     Catalog<ComponentApi, FunctionImplementation> catalogNamed(
       String id, {
-      String? protocolVersion,
+      A2uiProtocolVersion? protocolVersion,
     }) =>
         Catalog<ComponentApi, FunctionImplementation>(
           id: id,
@@ -234,8 +234,11 @@ void main() {
         () => SurfaceModel<ComponentApi>(
           's1',
           protocolVersion: 'v1.0',
-          defaultCatalog: catalogNamed('basic', protocolVersion: 'v1.0'),
-          availableCatalogs: [catalogNamed('old', protocolVersion: 'v0.9')],
+          defaultCatalog:
+              catalogNamed('basic', protocolVersion: A2uiProtocolVersion.v1_0),
+          availableCatalogs: [
+            catalogNamed('old', protocolVersion: A2uiProtocolVersion.v0_9)
+          ],
         ),
         throwsA(
           catalogError(
@@ -251,9 +254,10 @@ void main() {
       final surface = SurfaceModel<ComponentApi>(
         's1',
         protocolVersion: 'v0.9',
-        defaultCatalog: catalogNamed('a', protocolVersion: 'v0.9.1'),
+        defaultCatalog:
+            catalogNamed('a', protocolVersion: A2uiProtocolVersion.v0_9_1),
         availableCatalogs: [
-          catalogNamed('b', protocolVersion: 'v0.9'),
+          catalogNamed('b', protocolVersion: A2uiProtocolVersion.v0_9),
           catalogNamed('c'),
         ],
       );
@@ -277,7 +281,8 @@ void main() {
         () => SurfaceModel<ComponentApi>(
           's1',
           protocolVersion: 'v1.0',
-          defaultCatalog: catalogNamed('basic', protocolVersion: 'v1.0'),
+          defaultCatalog:
+              catalogNamed('basic', protocolVersion: A2uiProtocolVersion.v1_0),
           availableCatalogs: [catalogNamed('legacy')],
         ),
         throwsA(

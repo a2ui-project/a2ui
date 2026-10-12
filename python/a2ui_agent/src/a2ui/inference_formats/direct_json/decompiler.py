@@ -14,17 +14,21 @@
 
 """Standard Direct JSON format decompiler."""
 
+from collections.abc import Sequence
 import json
-from typing import Any
-from a2ui.schema.constants import A2UI_OPEN_TAG, A2UI_CLOSE_TAG
+
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats._shared import to_message_dicts
+from a2ui.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 
 
-class _DirectJsonDecompiler:
-    """Private helper to decompile structured JSON payloads."""
+class DirectJsonDecompiler:
+    """Decompiles structured A2UI payload messages into pretty-printed JSON."""
 
-    def decompile(self, val: dict[str, Any]) -> str:
-        """Decompiles a structured JSON payload to pretty-printed JSON."""
-        return json.dumps(val, indent=2)
+    def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
+        """Decompiles a sequence of AgentToRendererMessage objects to pretty-printed JSON."""
+        dicts = to_message_dicts(a2ui_payload)
+        return json.dumps(dicts, indent=2)
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         """Wraps JSON string blocks within <a2ui-json> tags."""

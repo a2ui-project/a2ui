@@ -449,4 +449,4 @@
               - id: "node_0"
                 component: "Text"
                 text:
-                  path: "/title"
+                  "@path": "/title"

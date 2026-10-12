@@ -23,7 +23,7 @@ import pytest
 from a2ui.catalog_transformers import ComponentPruningTransformer
 from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog
 from a2ui.core.schema import v0_8, v0_9, v1_0
-from a2ui.schema import CatalogConfig
+from a2ui.processor import CatalogConfig
 from a2ui.utils import resolve_catalogs
 
 
@@ -38,7 +38,7 @@ def _config(catalog_id: str, protocol_version: str, *components: str) -> Catalog
         },
         protocol_version=protocol_version,
     )
-    return CatalogConfig.from_catalog(catalog_id, catalog)
+    return CatalogConfig(catalog)
 
 
 def _ids(catalogs) -> list[str]:
@@ -62,9 +62,8 @@ def test_repeated_ids_activate_a_catalog_once():
 
 
 def test_absent_capabilities_return_the_registered_catalogs_transformed():
-    config = CatalogConfig.from_catalog(
-        "a",
-        _config("a", "0.9", "Text", "Image").to_catalog(),
+    config = CatalogConfig(
+        _config("a", "0.9", "Text", "Image").transformed_catalog,
         transformers=[ComponentPruningTransformer(["Text"])],
     )
 

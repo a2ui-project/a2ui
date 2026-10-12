@@ -1886,7 +1886,8 @@
           type: object
           properties:
             component: {const: "Container"}
-            children: {type: array, items: {type: string}}
+            children:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
           required: ["component"]
       $defs:
         anyComponent:
@@ -2762,7 +2763,8 @@
           type: object
           properties:
             component: {const: "Column"}
-            children: {type: array, items: {type: string}}
+            children:
+              $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ChildList"
           required: ["component"]
         List:
           type: object
@@ -3313,8 +3315,7 @@
               id: {type: string}
               component: {type: string, enum: ["Column"]}
               children:
-                type: array
-                items: {type: string}
+                $ref: "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
             required: ["id", "component", "children"]
     - protocolVersion: "v1.0"
       catalogSchema:
@@ -3421,8 +3422,7 @@
               id: {type: string}
               component: {type: string, enum: ["Column"]}
               children:
-                type: array
-                items: {type: string}
+                $ref: "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"
             required: ["id", "component", "children"]
     - protocolVersion: "v1.0"
       catalogSchema:

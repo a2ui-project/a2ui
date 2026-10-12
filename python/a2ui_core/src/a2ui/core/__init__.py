@@ -44,6 +44,9 @@ from a2ui.core.processing import (
 )
 from a2ui.core.resolution import DataContext as DataContext
 from a2ui.core.rpc import CallOptions as CallOptions, RpcHandler as RpcHandler
+from a2ui.core.schema import (
+    A2uiRendererCapabilities as A2uiRendererCapabilities,
+)
 from a2ui.core.state import (
     ComponentModel as ComponentModel,
     DataModel as DataModel,
@@ -66,6 +69,7 @@ __all__ = [
     "A2uiIntegrityError",
     "A2uiParseError",
     "A2uiRecursionError",
+    "A2uiRendererCapabilities",
     "A2uiRpcError",
     "A2uiStateError",
     "A2uiValidationError",

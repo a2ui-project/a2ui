@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'errors.dart';
+import 'semver.dart';
 
 /// A version of the A2UI protocol.
 ///
@@ -36,6 +37,10 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
 
   /// The value used for the `version` field on the wire.
   final String jsonValue;
+
+  /// The bare semantic version, such as `'1.0'`: the spelling a catalog
+  /// document uses for its `protocolVersion`.
+  String get semverValue => jsonValue.substring(1);
 
   /// The major version number: 0 for v0.9 and v0.9.1, 1 for v1.0.
   final int major;
@@ -103,6 +108,26 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
   static A2uiProtocolVersion? tryParse(String value) {
     for (final A2uiProtocolVersion version in values) {
       if (version.jsonValue == value) return version;
+    }
+    return null;
+  }
+
+  /// Parses a protocol version from a semantic version string, returning null
+  /// when [value] is not one or names a version this SDK does not implement.
+  ///
+  /// This is the lenient reading catalog documents need: `'1.0'`, `'v1.0'`
+  /// and `'1.0.0'` are all [v1_0], and a pre-release or build suffix is
+  /// ignored. The wire `version` field is stricter; use [tryParse] for it.
+  static A2uiProtocolVersion? tryParseSemVer(String value) {
+    final (int, int, int)? numbers = releaseNumbers(value);
+    if (numbers == null) return null;
+    final (int major, int minor, int patch) = numbers;
+    for (final A2uiProtocolVersion version in values) {
+      if (version.major == major &&
+          version.minor == minor &&
+          version._patch == patch) {
+        return version;
+      }
     }
     return null;
   }

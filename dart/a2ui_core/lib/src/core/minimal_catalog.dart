@@ -15,6 +15,7 @@
 import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../primitives/cancellation.dart';
+import '../primitives/protocol_version.dart';
 import 'catalog.dart';
 import 'common_schemas.dart';
 import 'contexts.dart';
@@ -160,7 +161,7 @@ class MinimalCatalog extends Catalog<ComponentApi, FunctionImplementation> {
   MinimalCatalog()
       : super(
           id: 'https://a2ui.org/specification/v0_9/catalogs/minimal/minimal_catalog.json',
-          protocolVersion: 'v0.9',
+          protocolVersion: A2uiProtocolVersion.v0_9,
           components: [
             MinimalTextApi(),
             MinimalRowApi(),

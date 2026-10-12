@@ -345,3 +345,122 @@
     input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Chart", "values": [1, 2, 3]}]}}]</a2ui-json>'
     expect_error:
       category: ValidationError
+
+- name: test_express_format_binds_multiple_catalogs_and_examples
+  description: An Express format bound to two catalogs renders both catalog schemas and decompiles examples belonging to each catalog into Express notation.
+  action: create_format
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    examples:
+      - "test_data/examples/greeting_surface.json"
+      - "test_data/examples/chart_series.json"
+  expect:
+    prompt_snippet_contains:
+      - "conformance/simplified"
+      - "conformance/custom"
+      - "Text("
+      - "Chart("
+      - 'root = Text("Hello")'
+      - "root = Chart([1, 2, 3])"
+
+- name: test_processor_parses_multi_catalog_express_response
+  description: A processor negotiated with two active catalogs and Express format parses a response that creates surfaces with components from both catalogs.
+  action: create_processor
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified", "conformance/custom"]
+  expect:
+    active_catalog_ids: ["conformance/simplified", "conformance/custom"]
+    prompt_snippet_contains: ["conformance/simplified", "conformance/custom", "Text(", "Chart("]
+  then_parse:
+    input: |
+      Here are both views.<a2ui>
+      surface("s1")
+      root = Text("Summary")
+      surface("s2")
+      root = Chart([1, 2], "Q1")
+      </a2ui>
+    expect:
+      - text: "Here are both views."
+      - a2ui:
+          - version: "v1.0"
+            createSurface:
+              surfaceId: "s1"
+              components:
+                - id: "root"
+                  component: "Text"
+                  catalogId: "conformance/simplified"
+                  text: "Summary"
+          - version: "v1.0"
+            createSurface:
+              surfaceId: "s2"
+              components:
+                - id: "root"
+                  component: "Chart"
+                  catalogId: "conformance/custom"
+                  values: [1, 2]
+                  caption: "Q1"
+
+- name: test_express_format_renders_examples_in_its_prompt
+  description: Examples handed to the Express factory are decompiled into Express DSL and included in the format's prompt.
+  action: create_format
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    examples:
+      - "test_data/examples/greeting_surface.json"
+  expect:
+    prompt_snippet_contains: ["Hello", "s1", "Text("]
+
+- name: test_express_format_binds_the_transformed_catalogs
+  description: The Express factory binds the transformed catalogs, so a component the agent pruned is omitted from the Express positional signatures.
+  action: create_format
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Text", "Card"]
+  expect:
+    prompt_snippet_contains: ["Text(", "Card("]
+    prompt_snippet_absent: ["Button(", "Column("]
+
+- name: test_processor_with_direct_json_override_over_express_generator
+  description: A generator configured with Express can create a processor overridden with Direct JSON for a single turn.
+  action: create_processor
+  args:
+    format: express
+    format_override: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    renderer_capabilities:
+      "v1.0":
+        supportedCatalogIds: ["conformance/simplified"]
+  expect:
+    active_catalog_ids: ["conformance/simplified"]
+    prompt_snippet_contains: ["<a2ui-json>", "Text"]
+    prompt_snippet_absent: ["Text("]
+  then_parse:
+    input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Overridden"}]}}]</a2ui-json>'
+    expect:
+      - a2ui:
+          - version: "v1.0"
+            createSurface:
+              surfaceId: "s1"
+              catalogId: "conformance/simplified"
+          - version: "v1.0"
+            updateComponents:
+              surfaceId: "s1"
+              components:
+                - id: "root"
+                  component: "Text"
+                  text: "Overridden"

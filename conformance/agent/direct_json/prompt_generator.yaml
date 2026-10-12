@@ -122,6 +122,32 @@
     - "openUrl"
     - "percent"
 
+- name: test_snippet_with_two_catalogs_and_pruning
+  description: When multiple catalogs are active and transformed, each catalog in the direct JSON snippet reflects its own component and function pruning rules.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Text"]
+          - function_pruning: ["formatString"]
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+        transformers:
+          - component_pruning: ["Chart"]
+  expect_contains:
+    - "conformance/simplified"
+    - "conformance/custom"
+    - "Text"
+    - "formatString"
+    - "Chart"
+    - "percent"
+  expect_absent:
+    - "Button"
+    - "Card"
+    - "openUrl"
+    - "Gauge"
+
 # --- Examples ---
 
 - name: test_snippet_renders_supplied_examples
@@ -134,6 +160,19 @@
     examples:
       - "test_data/examples/greeting_surface.json"
   expect_contains: ["Hello", "s1"]
+
+- name: test_snippet_renders_multi_catalog_examples
+  description: Examples spanning multiple active catalogs are validated against their respective catalogs and rendered in the prompt snippet.
+  action: generate_prompt_snippet
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    examples:
+      - "test_data/examples/greeting_surface.json"
+      - "test_data/examples/chart_series.json"
+  expect_contains: ["Hello", "s1", "Chart", "conformance/custom"]
 
 - name: test_snippet_without_examples_carries_no_example
   description: The same catalog without examples carries none of the example payload. Only content unique to the example is asserted absent, since the envelope names the snippet describes anyway would be absent for the wrong reason.

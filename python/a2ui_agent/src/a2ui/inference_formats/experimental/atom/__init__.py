@@ -14,16 +14,22 @@
 
 """Provides the Atom compact S-expression inference format strategy for A2UI."""
 
-from .format import AtomFormat
-from .parser import AtomParser
+from __future__ import annotations
+
 from .compiler import AtomCompiler
 from .decompiler import AtomDecompiler
+from .format import AtomFormat
+from .format import AtomFormatFactory
+from .parser import AtomParser
 from .prompt_generator import AtomPromptGenerator
+from .sexpr import parse_sexpr
 
 __all__ = [
-    "AtomFormat",
-    "AtomParser",
     "AtomCompiler",
     "AtomDecompiler",
+    "AtomFormat",
+    "AtomFormatFactory",
+    "AtomParser",
     "AtomPromptGenerator",
+    "parse_sexpr",
 ]

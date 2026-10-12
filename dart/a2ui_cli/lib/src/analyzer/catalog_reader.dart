@@ -77,7 +77,7 @@ class CodegenCatalog {
 
   String get id => catalog.id;
 
-  String get version => catalog.protocolVersion ?? 'v0.9.1';
+  String get version => catalog.protocolVersion?.jsonValue ?? 'v0.9.1';
 
   Map<String, CatalogComponentDefinition> get components => {
     for (final c in catalog.components.values)

@@ -19,11 +19,13 @@ import 'base.dart';
 /// Keeps only the components named in [allowedComponents].
 ///
 /// The allowlist is read literally: a name the catalog does not declare is
-/// ignored, and an empty allowlist keeps no components. Functions are left as
-/// they are.
+/// ignored, and a `null` or empty allowlist keeps no components. Functions are
+/// left as they are.
 class ComponentPruningTransformer extends CatalogTransformer {
-  ComponentPruningTransformer(Iterable<String> allowedComponents)
-    : allowedComponents = Set.unmodifiable(allowedComponents);
+  ComponentPruningTransformer([Iterable<String>? allowedComponents])
+    : allowedComponents = Set.unmodifiable(
+        allowedComponents ?? const <String>[],
+      );
 
   final Set<String> allowedComponents;
 
@@ -40,11 +42,11 @@ class ComponentPruningTransformer extends CatalogTransformer {
 /// Keeps only the functions named in [allowedFunctions].
 ///
 /// The allowlist is read literally: a name the catalog does not declare is
-/// ignored, and an empty allowlist keeps no functions. Components are left as
-/// they are.
+/// ignored, and a `null` or empty allowlist keeps no functions. Components are
+/// left as they are.
 class FunctionPruningTransformer extends CatalogTransformer {
-  FunctionPruningTransformer(Iterable<String> allowedFunctions)
-    : allowedFunctions = Set.unmodifiable(allowedFunctions);
+  FunctionPruningTransformer([Iterable<String>? allowedFunctions])
+    : allowedFunctions = Set.unmodifiable(allowedFunctions ?? const <String>[]);
 
   final Set<String> allowedFunctions;
 

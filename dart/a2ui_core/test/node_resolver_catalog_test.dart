@@ -62,7 +62,7 @@ void main() {
       openUrl = _RecordingFunction(parsed.functions['openUrl']!);
       final catalog = Catalog<ComponentApi, FunctionImplementation>(
         id: parsed.id,
-        protocolVersion: 'v0.9',
+        protocolVersion: A2uiProtocolVersion.v0_9,
         components: parsed.components.values.toList(),
         functions: [openUrl],
       );
@@ -235,7 +235,7 @@ void main() {
     });
     final catalog = Catalog<ComponentApi, FunctionImplementation>(
       id: parsed.id,
-      protocolVersion: 'v0.9',
+      protocolVersion: A2uiProtocolVersion.v0_9,
       components: parsed.components.values.toList(),
     );
     final surface = SurfaceModel<ComponentApi>('s', defaultCatalog: catalog);

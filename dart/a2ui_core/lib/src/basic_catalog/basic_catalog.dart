@@ -102,6 +102,8 @@ abstract final class BasicCatalog {
             name: signature.name,
             argumentSchema: signature.argumentSchema,
             returnType: signature.returnType,
+            allowedCallers: signature.allowedCallers,
+            requiresUserActivation: signature.requiresUserActivation,
             body: bodies[signature.name]!,
           ),
       ],

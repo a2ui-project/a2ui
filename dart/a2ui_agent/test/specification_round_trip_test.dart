@@ -154,7 +154,7 @@ Catalog<ComponentApi, FunctionImplementation> _rendererCatalog(
   CatalogApi catalog,
 ) => Catalog<ComponentApi, FunctionImplementation>(
   id: catalog.id,
-  protocolVersion: catalog.protocolVersion ?? 'v0.9',
+  protocolVersion: catalog.protocolVersion ?? A2uiProtocolVersion.v0_9,
   components: catalog.components.values.toList(),
   functions: catalog.functions.values.map(_Signature.new).toList(),
   themeSchema: catalog.themeSchema,

@@ -12,19 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Prompt compiler for A2UI Atom inference format."""
+"""Prompt generator for the A2UI Atom inference format."""
 
-from collections.abc import Mapping, Sequence
-from typing import Any, TYPE_CHECKING
+from __future__ import annotations
 
-from a2ui.core.schema.v0_9 import V09Capabilities
+from collections.abc import Sequence
+from typing import Any, Literal
+
+from a2ui.core import CatalogApi
+from a2ui.core.common import is_at_least_version
+from a2ui.inference_formats._shared import (
+    CatalogSchemaHelper,
+    build_catalog_helpers,
+    catalogs_defining,
+    check_mixed_catalogs,
+    to_message_dicts,
+)
 from a2ui.prompt import PromptGenerator
-from a2ui.schema import load_examples
+from a2ui.utils import validate_payload
 
-# CatalogSchemaHelper import handled lazily inside class
-
-if TYPE_CHECKING:
-    from .format import AtomFormat
+from .decompiler import AtomDecompiler
 
 ATOM_RULES = r"""Output the user interface using compact A2UI Atom S-Expression notation.
 You MUST surround the entire A2UI Atom block with sentinel tags `<a2ui>` and `</a2ui>`. Do NOT output raw JSON messages.
@@ -39,14 +46,15 @@ You MUST surround the entire A2UI Atom block with sentinel tags `<a2ui>` and `</
    - Numbers: Integers or decimals, e.g., 42 or 3.14.
    - Booleans: true or false.
    - Null: null.
+   - Lists: [item1 item2]. Objects: (:key1 val1 :key2 val2).
 
 3. Property Arguments:
    - Tagged attributes: Prefixed with a colon ':', e.g., :attr1 "val1" or :attr2 true. Tagged keys are order-independent.
    - Positional attributes: Can be passed sequentially matching catalog signature order.
 
-4. Child Components & Strict Tree Nesting:
-   - You MUST nest child components directly inside their parent container expressions, e.g., (ContainerComponent (ChildComponent (PrimitiveComponent "Hello"))).
-   - Do NOT output flat adjacency lists, explicit `:id` attributes, or separate component variable IDs. Every UI component must be nested directly within a single root tree expression.
+4. Child Components & Tree Nesting:
+   - Nest child components directly inside their parent container expressions, e.g., (ContainerComponent (ChildComponent (PrimitiveComponent "Hello"))).
+   - Prefer one nested root tree over flat adjacency lists. Component ids are generated for you; `:id "name"` is optional and only needed when a later update must refer to the component.
 
 5. Data Bindings:
    - Absolute data model paths start with '$/', e.g., $/user/firstName.
@@ -56,14 +64,17 @@ You MUST surround the entire A2UI Atom block with sentinel tags `<a2ui>` and `</
    - Initialize data model state using (data $/path1 "val1" $/path2 123) or (data $/map_path (:key1 "val1" :key2 "val2")).
 
 7. Dynamic List Templates:
-   - List templates use (template :item item (ChildComponent $/item/name)) or (ListComponent :children (template :item item (ChildComponent $/item/name))).
+   - A template repeats one child per item of a data model list: (ListComponent :children (template :items $/items (ChildComponent $/item/name))).
 
 8. Action Events:
    - Actions use (Event "action_name" :param1 $/value). Interactive controls with action attributes MUST provide an action expression, e.g., (ActionComponent :child (ChildComponent "Text") :action (Event "click_action")).
 
-9. Standalone Operations:
+9. Surfaces & Standalone Operations:
+   - A block normally creates the surface. To name it or set surface options, start with (surface "surface_id").
+   - Update existing components: start with (updateComponents "surface_id"), then give each changed component with its `:id`.
+   - Update data: (updateDataModel "surface_id" :path "/path" :value "new value"). Omit :path to replace the whole data model.
    - Delete surface: (deleteSurface "surface_id")
-   - Call RPC function: (callFunction "function_name" :arg1 "value1")
+   - Call a client function: (callFunction "function_name" :arg1 "value1")
 
 10. Syntax Structure Examples (Abstract Grammar):
    Example 1 (Container with Child Nodes & Actions):
@@ -78,7 +89,7 @@ You MUST surround the entire A2UI Atom block with sentinel tags `<a2ui>` and `</
    <a2ui>
    (ContainerComponent
      (data $/items [(:id 1 :name "Item 1")] $/title "List Title")
-     (ListComponent :items $/items :template (template item (ChildComponent :title $/item/name))))
+     (ListComponent :items $/items :template (template :item item (ChildComponent :title $/item/name))))
    </a2ui>
 
 11. Strict Catalog Adherence & Conciseness:
@@ -107,122 +118,208 @@ class AtomPromptGenerator(PromptGenerator):
     """Generates system prompts, grammar instructions, and component catalog signatures for Atom format.
 
     Attributes:
-        format: The AtomFormat strategy instance.
-        schema_helper: The catalog schema crawler helper.
+        schema_helpers: Mapping of catalog IDs to catalog schema helpers, in
+            catalog order.
     """
 
-    def __init__(self, format_inst: "AtomFormat"):
-        """Initializes an AtomPromptGenerator instance.
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[Any]] | None = None,
+        allowed_messages: Sequence[str] | None = None,
+    ):
+        """Initializes the Atom prompt generator.
 
         Args:
-            format_inst: The AtomFormat strategy instance.
+            catalogs: The active catalogs.
+            examples: Optional prompt example turns, each a list of messages.
+            allowed_messages: Accepted so every format's prompt generator takes
+                the same arguments. Atom doesn't filter its rules by message
+                type, so the value is not used.
         """
-        self._format = format_inst
-        self.format = format_inst
-        try:
-            from a2ui.schema.schema_helper import CatalogSchemaHelper
-        except ImportError:
-            from a2ui.inference_formats.experimental.express.schema_helper import (
-                CatalogSchemaHelper,
-            )
+        self._catalogs = list(check_mixed_catalogs(catalogs))
+        self._examples = [list(t) for t in examples] if examples is not None else None
+        self.schema_helpers: dict[str, CatalogSchemaHelper] = build_catalog_helpers(
+            self._catalogs
+        )
 
-        try:
-            self.schema_helper = CatalogSchemaHelper(format_inst.catalog)
-        except Exception:
-            self.schema_helper = None
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the catalogs configured on this prompt generator."""
+        return list(self._catalogs)
+
+    def _default_helper(self) -> CatalogSchemaHelper | None:
+        return next(iter(self.schema_helpers.values()), None)
+
+    def _at_least_v10(self) -> bool:
+        if not self.catalogs:
+            return True
+        return is_at_least_version(self.catalogs[0].protocol_version, "1.0")
 
     def generate_base_rules(self) -> str:
-        """Returns core syntax rules for A2UI Atom."""
-        return ATOM_RULES
+        """Returns core syntax rules for A2UI Atom.
+
+        Standalone function calls (`callRendererFunction`) exist from protocol
+        v1.0 on, so the rule for them is omitted for earlier catalogs.
+        """
+        rules = ATOM_RULES
+        if not self._at_least_v10():
+            rules = "".join(
+                line
+                for line in rules.splitlines(keepends=True)
+                if "Call a client function:" not in line
+            )
+        return rules + self._generate_multi_catalog_rules()
+
+    def _generate_multi_catalog_rules(self) -> str:
+        """Explains how components and functions find their catalog.
+
+        Only used with several catalogs (A2UI v1.0 and later). A surface then
+        has no default catalog: names are looked up across all catalogs, and
+        `:catalogId` is needed only for a name that several catalogs define.
+        Those names are listed, derived from the catalogs themselves.
+        """
+        if len(self.schema_helpers) <= 1:
+            return ""
+        lines = [
+            "",
+            "12. Multiple Catalogs:",
+            (
+                "   - Available catalogs:"
+                f' {", ".join(f"`{cat_id}`" for cat_id in self.schema_helpers)}.'
+                " A surface has no default catalog, so never name a catalog in a"
+                " (surface ...) or (updateComponents ...) header."
+            ),
+            (
+                "   - Components and functions are found by name across all"
+                " catalogs. Only a component or function whose name several"
+                ' catalogs define needs `:catalogId "catalog_id"` on that'
+                ' expression, e.g. (ComponentName :catalogId "catalog_id" ...).'
+            ),
+        ]
+        ambiguous = [
+            *self._names_in_several_catalogs("component"),
+            *self._names_in_several_catalogs("function"),
+        ]
+        if ambiguous:
+            lines.append(
+                "   - Names defined in several catalogs, which need `:catalogId`:"
+            )
+            lines.extend(f"     - {entry}" for entry in ambiguous)
+        else:
+            lines.append(
+                "   - No name is defined in more than one catalog, so no"
+                " expression needs `:catalogId`."
+            )
+        return "\n".join(lines) + "\n"
+
+    def _names_in_several_catalogs(
+        self, kind: Literal["component", "function"]
+    ) -> list[str]:
+        """Lists the component or function names that several catalogs define.
+
+        Returns:
+            One entry per name, sorted by name, such as
+            "`Name` (component): `catalog_a`, `catalog_b`".
+        """
+        names = sorted({
+            name
+            for helper in self.schema_helpers.values()
+            for name in (helper.components if kind == "component" else helper.functions)
+        })
+        entries = []
+        for name in names:
+            found = catalogs_defining(self.schema_helpers, kind, name)
+            if len(found) > 1:
+                cats = ", ".join(f"`{cat_id}`" for cat_id in found)
+                entries.append(f"`{name}` ({kind}): {cats}")
+        return entries
 
     def generate_catalog_instructions(
         self,
         include_schema: bool = True,
-        catalog: Any | None = None,
+        catalog: CatalogApi | None = None,
     ) -> str:
-        """Assembles Atom component and function signatures."""
+        """Assembles Atom component and function signatures.
+
+        Args:
+            include_schema: Whether to include the signatures at all.
+            catalog: An optional single catalog to describe instead of the
+                configured catalogs.
+
+        Returns:
+            The signatures. With more than one configured catalog, each
+            catalog gets its own section headed by its ID.
+        """
         if not include_schema:
             return ""
-        if catalog:
-            try:
-                from a2ui.schema.schema_helper import CatalogSchemaHelper
-            except ImportError:
-                from a2ui.inference_formats.experimental.express.schema_helper import (
-                    CatalogSchemaHelper,
-                )
-            helper = CatalogSchemaHelper(catalog)
-        else:
-            helper = self.schema_helper
+        if catalog is not None:
+            helper = self.schema_helpers.get(
+                getattr(catalog, "catalog_id", None)
+            ) or CatalogSchemaHelper(catalog)
+            return self._catalog_body(helper)
+        if len(self.schema_helpers) <= 1:
+            helper = self._default_helper()
+            return self._catalog_body(helper) if helper else ""
+        sections = [
+            f"## Catalog `{cat_id}`\n\n{self._catalog_body(helper)}"
+            for cat_id, helper in self.schema_helpers.items()
+        ]
+        return "\n\n".join(sections)
+
+    def _catalog_body(self, helper: CatalogSchemaHelper) -> str:
         comps = self._generate_component_signatures(helper=helper)
         funcs = self._generate_function_signatures(helper=helper)
-        return (comps + ("\n\n" if funcs else "") + funcs).strip()
+        parts = []
+        if comps:
+            parts.append(f"### Component Catalog Signatures:\n{comps}")
+        if funcs:
+            parts.append(f"### Function Signatures:\n{funcs}")
+        return "\n\n".join(parts)
 
     def generate_examples(
         self,
-        catalog: Any | None = None,
+        catalog: CatalogApi | None = None,
         validate: bool = False,
     ) -> str:
-        """Loads and formats few-shot Atom examples."""
-        target_catalog = catalog or self.format.catalog
-        if not target_catalog or not self.format or not self.format.examples_path:
+        """Formats few-shot Atom examples."""
+        if not self._examples:
             return ""
-        raw_examples = load_examples(
-            [target_catalog], self.format.examples_path, validate=validate
-        )
-        if not raw_examples:
-            return ""
-        return self.transform_examples(raw_examples)
+        active_catalogs = list(self.catalogs)
+        if catalog is not None:
+            active_catalogs = [
+                catalog,
+                *(c for c in active_catalogs if c is not catalog),
+            ]
+        decompiler = AtomDecompiler(self.catalogs)
+        blocks = []
+        for turn in self._examples:
+            if validate:
+                validate_payload(active_catalogs, to_message_dicts(turn))
+            dsl = decompiler.decompile(turn)
+            blocks.append(decompiler.wrap_decompiled_blocks([dsl]))
+        return "\n\n".join(blocks)
 
-    def generate(
-        self,
-        role_description: str = "",
-        workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = True,
-        include_examples: bool = True,
-        validate_examples: bool = False,
-    ) -> str:
-        """Generates a complete system prompt configured for Atom S-expression UI generation.
+    def generate(self) -> str:
+        """Generates the prompt snippet for Atom S-expression UI generation."""
+        parts = [f"## Instructions:\n{self.generate_base_rules()}"]
 
-        Args:
-            role_description: The system role description text.
-            workflow_description: Additional workflow guidance text.
-            ui_description: Target UI requirement details.
-            client_ui_capabilities: Optional client UI capabilities specification.
-            allowed_components: Optional list of allowed component names.
-            allowed_messages: Optional list of allowed message types.
-            include_schema: Whether to include component and function catalog signatures.
-            include_examples: Whether to include prompt examples.
-            validate_examples: Whether to validate prompt examples.
+        if self.schema_helpers:
+            instructions = self.generate_catalog_instructions(include_schema=True)
+            if instructions:
+                parts.append(instructions)
 
-        Returns:
-            The complete system prompt string.
-        """
-        parts = []
-        if role_description:
-            parts.append(role_description)
-
-        rules = ATOM_RULES
-        if workflow_description:
-            rules += f"\n\n{workflow_description}"
-        parts.append(f"## Instructions:\n{rules}")
-
-        if include_schema and self.schema_helper:
-            comp_sigs = self._generate_component_signatures()
-            func_sigs = self._generate_function_signatures()
-            if comp_sigs:
-                parts.append(f"## Component Catalog Signatures:\n{comp_sigs}")
-            if func_sigs:
-                parts.append(f"## Function Signatures:\n{func_sigs}")
+        formatted_examples = self.generate_examples()
+        if formatted_examples:
+            parts.append(f"### Examples:\n{formatted_examples}")
 
         return "\n\n".join(parts)
 
-    def _generate_component_signatures(self, helper: Any | None = None) -> str:
+    def _generate_component_signatures(
+        self, helper: CatalogSchemaHelper | None = None
+    ) -> str:
         """Compiles component definitions into S-expression signatures."""
-        h = helper or self.schema_helper
+        h = helper or self._default_helper()
         if not h:
             return ""
         signatures = []
@@ -265,9 +362,11 @@ class AtomPromptGenerator(PromptGenerator):
             signatures.append(sig)
         return "\n".join(signatures)
 
-    def _generate_function_signatures(self, helper: Any | None = None) -> str:
+    def _generate_function_signatures(
+        self, helper: CatalogSchemaHelper | None = None
+    ) -> str:
         """Compiles function definitions into S-expression signatures."""
-        h = helper or self.schema_helper
+        h = helper or self._default_helper()
         if not h:
             return ""
         signatures = []
@@ -281,7 +380,7 @@ class AtomPromptGenerator(PromptGenerator):
             for p in props:
                 is_req = p in reqs
                 opt_suffix = "" if is_req else "?"
-                p_schema = h.get_property_schema(name, p)
+                p_schema = h.get_function_property_schema(name, p)
 
                 arg_label = f":{p}{opt_suffix}"
                 ordered_args.append(arg_label)
