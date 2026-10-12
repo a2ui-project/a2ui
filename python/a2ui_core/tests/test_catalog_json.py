@@ -569,16 +569,58 @@ def test_code_defined_v10_catalog_always_emits_both_unions() -> None:
 
 @pytest.mark.parametrize(
     "union_defs",
-    [{"anyComponent": True}, {"anyFunction": False}],
-    ids=["anyComponent_true", "anyFunction_false"],
+    [
+        {"anyComponent": True},
+        {"anyFunction": False},
+        {"anyComponent": None},
+        {"anyFunction": None},
+    ],
+    ids=[
+        "anyComponent_true",
+        "anyFunction_false",
+        "anyComponent_null",
+        "anyFunction_null",
+    ],
 )
-def test_boolean_union_round_trips(union_defs: dict[str, bool]) -> None:
+def test_boolean_union_round_trips(union_defs: dict[str, bool | None]) -> None:
     doc = {"catalogId": "x", "$defs": union_defs}
 
     catalog = Catalog.from_json(doc)
 
     assert catalog.to_json() == doc
     assert catalog.copy_with().to_json() == doc
+
+
+def test_null_union_is_listed_from_entries_when_copy_changes_them() -> None:
+    doc = {
+        "catalogId": "x",
+        "components": {"A": {"type": "object"}, "B": {"type": "object"}},
+        "$defs": {"anyComponent": None},
+    }
+    catalog = Catalog.from_json(doc)
+
+    copy = catalog.copy_with(components=[catalog.components["A"]])
+
+    assert copy.null_unions == frozenset()
+    assert copy.to_json()["$defs"]["anyComponent"] == {
+        "oneOf": [{"$ref": "#/components/A"}],
+        "discriminator": {"propertyName": "component"},
+    }
+
+
+def test_catalog_is_immutable_after_first_serialization() -> None:
+    # `to_json` and `validation_schema` are cached on first use, so a catalog
+    # must not be changed afterwards; `copy_with` derives a changed one.
+    doc = {"catalogId": "x", "$defs": {"A": {"type": "string"}}}
+    catalog = Catalog.from_json(doc)
+    assert catalog.to_json() == doc
+
+    catalog.defs["A"] = {"type": "number"}
+    catalog.instructions = "hi"
+
+    assert catalog.to_json() == doc
+    changed = catalog.copy_with(defs={"A": {"type": "number"}})
+    assert changed.to_json()["$defs"] == {"A": {"type": "number"}}
 
 
 def test_code_defined_catalog_emits_metadata_it_was_given() -> None:

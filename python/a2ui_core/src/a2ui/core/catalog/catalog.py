@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import deque
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 import copy
 from dataclasses import dataclass
 import re
@@ -719,6 +719,13 @@ class Catalog(Generic[TComponent, TFunction]):
     that defines it in code, and the catalog keeps the document's top-level
     fields. `validation_schema` bundles the model into a self-contained JSON
     Schema.
+
+    Treat a catalog as immutable once it is built. `to_json`,
+    `validation_schema` and the resolved schemas are computed on first use
+    and cached, so changing a field or entry afterwards (such as `defs`,
+    `extras`, `theme_schema`, `instructions`, `union_defs`, `components` or
+    `functions`) is not reflected in them. To change a catalog, build a new
+    one, for example with `copy_with`.
     """
 
     def __init__(
@@ -745,6 +752,7 @@ class Catalog(Generic[TComponent, TFunction]):
         theme_location: ThemeLocation | None = _UNSET,
         functions_form: FunctionsForm | None = None,
         union_defs: Mapping[str, Any | None] | None = None,
+        null_unions: Collection[str] | None = None,
         extras: Mapping[str, Any] | None = None,
         theme_from_document: bool = False,
         defs_from_document: bool = False,
@@ -791,11 +799,14 @@ class Catalog(Generic[TComponent, TFunction]):
                 as a map or as a list of definitions, or None for a map
                 written only when the catalog has functions.
             union_defs: The `anyComponent` and `anyFunction` unions the
-                catalog document writes. A union mapped to None lists the
-                entries (`#/components/<name>`, `#/functions/<name>`); one
+                catalog document writes. A union mapped to None (and not in
+                `null_unions`) lists the entries (`#/components/<name>`, `#/functions/<name>`); one
                 mapped to a schema is written as that schema. A union left
                 out is not written. By default, a catalog writes the unions of
                 the entries it has, and both from v1.0 on.
+            null_unions: The unions in `union_defs` that the catalog document
+                writes as `null`, which `from_json` sets. Each maps to None in
+                `union_defs` and is written as `null` rather than derived.
             extras: The catalog document's top-level keys that `Catalog`
                 does not model, as written.
             theme_from_document: Whether `theme_schema` was loaded from a
@@ -842,6 +853,13 @@ class Catalog(Generic[TComponent, TFunction]):
                 name: copy.deepcopy(schema) if schema is not None else None
                 for name, schema in union_defs.items()
             }
+        )
+        self.null_unions: frozenset[str] = frozenset(
+            name
+            for name in null_unions or ()
+            if self.union_defs is not None
+            and name in self.union_defs
+            and self.union_defs[name] is None
         )
         self.extras: dict[str, Any] = copy.deepcopy(dict(extras)) if extras else {}
         self.theme_from_document = theme_from_document
@@ -904,7 +922,7 @@ class Catalog(Generic[TComponent, TFunction]):
         The copy keeps this catalog's id, protocol version, theme,
         instructions and document fields. An entry keeps its schema, so
         `to_json` writes each kept entry as before. A union that this catalog
-        writes as an authored schema is listed from the copy's entries
+        writes as an authored schema (or as `null`) is listed from the copy's entries
         instead if the copy has other entries of its kind.
 
         Args:
@@ -943,14 +961,24 @@ class Catalog(Generic[TComponent, TFunction]):
             new_defs = dict(defs)
 
         union_defs = self.union_defs
+        null_unions = set(self.null_unions)
         if union_defs is not None:
             union_defs = dict(union_defs)
-            if [c.name for c in new_components] != list(self.components):
-                if union_defs.get("anyComponent") is not None:
-                    union_defs["anyComponent"] = None
-            if [f.name for f in new_functions] != list(self.functions):
-                if union_defs.get("anyFunction") is not None:
-                    union_defs["anyFunction"] = None
+            for name, changed in (
+                (
+                    "anyComponent",
+                    [c.name for c in new_components] != list(self.components),
+                ),
+                (
+                    "anyFunction",
+                    [f.name for f in new_functions] != list(self.functions),
+                ),
+            ):
+                if changed and name in union_defs:
+                    # An authored union (`null` included) no longer describes
+                    # the copy's entries, so it is listed from them.
+                    union_defs[name] = None
+                    null_unions.discard(name)
 
         return CatalogApi(
             catalog_id=self.catalog_id,
@@ -974,6 +1002,7 @@ class Catalog(Generic[TComponent, TFunction]):
             theme_location=self.theme_location,
             functions_form=self.functions_form,
             union_defs=union_defs,
+            null_unions=null_unions,
             extras=self.extras,
             theme_from_document=self.theme_from_document,
             defs_from_document=self.defs_from_document and defs is None,
@@ -1129,7 +1158,8 @@ class Catalog(Generic[TComponent, TFunction]):
         functions) takes its flat form. System functions, which the runtime
         supplies, are not declared.
 
-        Computed once per catalog; each access returns a new copy.
+        Computed once per catalog; each access returns a new copy. The catalog
+        must not be changed after it is built (see `Catalog`).
 
         Raises:
             A2uiCatalogError: If the catalog's protocol version is unknown.
@@ -1493,7 +1523,8 @@ class Catalog(Generic[TComponent, TFunction]):
         define itself points at `common_types_uri`.
 
         Computed once per catalog; each call returns a new copy, which the
-        caller may mutate.
+        caller may mutate. The catalog itself must not be changed after it is
+        built (see `Catalog`); use `copy_with` to derive a changed catalog.
 
         Returns:
             The catalog document.
@@ -1610,7 +1641,7 @@ class Catalog(Generic[TComponent, TFunction]):
             return unions
         documents: dict[str, Any] = {}
         for name, schema in self.union_defs.items():
-            if schema is not None:
+            if schema is not None or name in self.null_unions:
                 documents[name] = copy.deepcopy(schema)
             elif name == "anyComponent":
                 documents[name] = _component_union(component_names)
@@ -1972,6 +2003,7 @@ class Catalog(Generic[TComponent, TFunction]):
         # A union that lists the loaded entries is derived from them; any
         # other union is kept as written.
         union_defs: dict[str, Any | None] = {}
+        null_unions: set[str] = set()
         component_union = _component_union([c.name for c in components])
         function_union = _function_union([f.name for f in functions])
         for union_name, derived_union in (
@@ -1981,6 +2013,8 @@ class Catalog(Generic[TComponent, TFunction]):
             if union_name in defs_map:
                 authored = defs_map.pop(union_name)
                 union_defs[union_name] = None if authored == derived_union else authored
+                if authored is None:
+                    null_unions.add(union_name)
 
         extras = {
             key: value
@@ -2024,6 +2058,7 @@ class Catalog(Generic[TComponent, TFunction]):
                 else "map"
             ),
             union_defs=union_defs,
+            null_unions=null_unions,
             extras=extras,
             theme_from_document=theme_location is not None,
             defs_from_document=True,

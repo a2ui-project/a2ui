@@ -50,8 +50,11 @@
     model in the shape of its protocol version, and `common_types_uri` names
     the document its common types references point into. A catalog defined in
     code emits a canonical `protocolVersion` and the unions of its entries;
-    an empty union is `{"not": {}}`. `to_json()` and `validation_schema` are
-    computed once per catalog and return a new copy on each call (#3053).
+    an empty union is `{"not": {}}`; a union written as `null` is kept, and
+    `null_unions` names it. `to_json()` and `validation_schema` are computed
+    once per catalog and return a new copy on each call, so a catalog must be
+    treated as immutable once built: later changes to its fields are not
+    reflected, and `copy_with` derives a changed catalog (#3053).
 - The basic catalogs (`a2ui.core.basic_catalog.v0_8`, `v0_9` and `v1_0`)
   rebuild their published catalog documents from their generated models, so
   `BasicCatalog().to_json()` equals the published file without reading it;
