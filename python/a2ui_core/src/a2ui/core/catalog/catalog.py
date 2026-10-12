@@ -1615,8 +1615,9 @@ class Catalog(Generic[TComponent, TFunction]):
         ):
             if value is not None:
                 entry[key] = copy.deepcopy(value)
-            else:
-                entry.pop(key, None)
+            elif entry.get(key) is not None:
+                # A null the schema writes is kept as written.
+                entry.pop(key)
         return cast(dict[str, Any], entry)
 
     def _function_entry(
@@ -1637,15 +1638,23 @@ class Catalog(Generic[TComponent, TFunction]):
         call_return_type = (
             properties.get("returnType") if isinstance(properties, dict) else None
         )
-        if "returnType" in entry:
-            entry["returnType"] = function.return_type
-        elif isinstance(call_return_type, dict) and "const" in call_return_type:
-            call_return_type["const"] = function.return_type
-        elif function.return_type != "any":
-            entry["returnType"] = function.return_type
-        if "allowedCallers" in entry or function.allowed_callers != "rendererOnly":
+        # A value is written only where it differs from the one `from_json`
+        # reads from the entry, so a value the model defaults (a null or
+        # odd-typed one) stays as written.
+        if function.return_type != (_declared_return_type(entry) or "any"):
+            if (
+                "returnType" not in entry
+                and isinstance(call_return_type, dict)
+                and "const" in call_return_type
+            ):
+                call_return_type["const"] = function.return_type
+            else:
+                entry["returnType"] = function.return_type
+        if function.allowed_callers != (entry.get("allowedCallers") or "rendererOnly"):
             entry["allowedCallers"] = function.allowed_callers
-        if "requiresUserActivation" in entry or function.requires_user_activation:
+        if function.requires_user_activation != bool(
+            entry.get("requiresUserActivation")
+        ):
             entry["requiresUserActivation"] = function.requires_user_activation
         return entry
 
@@ -1953,6 +1962,7 @@ class Catalog(Generic[TComponent, TFunction]):
             for key, value in document.items()
             if key not in _MODELED_DOCUMENT_KEYS
             or (key in _METADATA_KEYS and not isinstance(value, str))
+            or (key == "instructions" and not isinstance(value, str))
             or (key == "protocolVersion" and declared_version is None)
             or (key == "theme" and theme_location != "theme")
             or (key == "$defs" and not isinstance(raw_defs, Mapping))
@@ -1970,7 +1980,7 @@ class Catalog(Generic[TComponent, TFunction]):
             components=components,
             functions=functions,
             theme_schema=theme_schema,
-            instructions=document.get("instructions"),
+            instructions=_metadata("instructions"),
             defs=defs_map,
             schema_dialect=_metadata("$schema"),
             schema_id=_metadata("$id"),

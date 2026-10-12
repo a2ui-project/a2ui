@@ -51,9 +51,11 @@ class CatalogSchemaHelper:
         self.catalog_model = catalog
 
         # A catalog built from models refers to its own definitions, such as
-        # `CatalogComponentCommon`, which `Catalog.from_json` writes inline.
-        # Inlining them lets the crawler read both kinds of catalog the same
-        # way, while references to common types, such as `Checkable`, stay.
+        # `CatalogComponentCommon`, while the `validation_schema` of a loaded
+        # catalog writes its own `$defs` inline (through
+        # `Catalog.resolved_component_schema`). Inlining them lets the crawler
+        # read both kinds of catalog the same way, while references to common
+        # types, such as `Checkable`, stay.
         catalog_schema = dict(catalog.validation_schema or {})
         self.catalog = inline_local_refs(catalog_schema, catalog_schema)
         self.components = dict(self.catalog.get("components", {}))

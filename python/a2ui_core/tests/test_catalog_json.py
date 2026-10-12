@@ -292,6 +292,104 @@ def test_loaded_function_entries_round_trip(version: str, functions: Any) -> Non
     assert catalog.copy_with().to_json() == document
 
 
+@pytest.mark.parametrize("version", ["v0.9", "v1.0"])
+@pytest.mark.parametrize(
+    "document",
+    [
+        # Function metadata that the model defaults, in the map form.
+        {
+            "functions": {
+                "f": {
+                    "returnType": None,
+                    "allowedCallers": None,
+                    "requiresUserActivation": None,
+                }
+            }
+        },
+        # The same in the v0.9 list form.
+        {
+            "functions": [{
+                "name": "f",
+                "returnType": None,
+                "allowedCallers": None,
+                "requiresUserActivation": None,
+            }]
+        },
+        # A call schema whose `returnType` const is not a string.
+        {
+            "functions": {
+                "f": {
+                    "type": "object",
+                    "properties": {"returnType": {"const": 5}},
+                }
+            }
+        },
+        # Function metadata written as the default.
+        {
+            "functions": {
+                "f": {
+                    "returnType": "any",
+                    "allowedCallers": "rendererOnly",
+                    "requiresUserActivation": False,
+                }
+            }
+        },
+        # Null component metadata.
+        {
+            "components": {
+                "A": {"type": "object", "allowedParents": None, "allowedChildren": None}
+            }
+        },
+        # Top-level instructions that are not a string.
+        {"instructions": None},
+        {"instructions": 3},
+    ],
+    ids=[
+        "null-function-metadata",
+        "null-function-metadata-list",
+        "non-string-return-const",
+        "default-function-metadata",
+        "null-component-metadata",
+        "null-instructions",
+        "non-string-instructions",
+    ],
+)
+def test_entry_metadata_the_model_defaults_round_trips(
+    version: str, document: dict[str, Any]
+) -> None:
+    document = {"catalogId": "https://example.com/catalogs/m", **document}
+    catalog = Catalog.from_json(document, protocol_version=version)
+    assert catalog.to_json() == document
+    assert catalog.copy_with().to_json() == document
+
+
+def test_changed_function_metadata_is_written_over_the_entry() -> None:
+    document = {
+        "catalogId": "https://example.com/catalogs/m",
+        "functions": {
+            "f": {
+                "type": "object",
+                "properties": {"returnType": {"const": "string"}},
+            },
+            "g": {"returnType": None, "allowedCallers": None},
+        },
+    }
+    catalog = Catalog.from_json(document, protocol_version="v0.9")
+    f, g = catalog.functions["f"], catalog.functions["g"]
+    f.return_type = "number"
+    g.return_type = "boolean"
+    g.allowed_callers = "rendererOrAgent"
+    g.requires_user_activation = True
+
+    out = catalog.copy_with(functions=[f, g]).to_json()["functions"]
+    assert out["f"]["properties"]["returnType"] == {"const": "number"}
+    assert out["g"] == {
+        "returnType": "boolean",
+        "allowedCallers": "rendererOrAgent",
+        "requiresUserActivation": True,
+    }
+
+
 def test_function_is_definition_overrides_the_schema_shape() -> None:
     args = {"type": "object", "properties": {"a": {}}}
     entry = FunctionApi(name="f", schema=args, is_definition=True)
