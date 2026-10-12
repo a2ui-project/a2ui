@@ -64,8 +64,11 @@ struct BasicCatalogConformanceTests {
     let cases = (rawYAML as? [[String: Any]]) ?? []
     #expect(!cases.isEmpty, "core/functions.yaml should hold test cases")
 
-    let functionsMap: [String: any FunctionImplementation] = Dictionary(
-      uniqueKeysWithValues: BasicFunctions.allFunctions.map { ($0.api.name, $0) }
+    let v09Functions: [String: any FunctionImplementation] = Dictionary(
+      uniqueKeysWithValues: BasicFunctions.v09Functions.map { ($0.api.name, $0) }
+    )
+    let v10Functions: [String: any FunctionImplementation] = Dictionary(
+      uniqueKeysWithValues: BasicFunctions.v10Functions.map { ($0.api.name, $0) }
     )
 
     for testCase in cases {
@@ -73,23 +76,25 @@ struct BasicCatalogConformanceTests {
         continue
       }
 
-      // The Swift basic catalog implements v0.9, whose validators return
-      // booleans. Cases pinned to a later protocol version exercise v1.0
-      // behaviour (ValidationResult operands) that this catalog does not have.
-      let catalogVersion = (testCase["catalog"] as? [String: Any])?["protocolVersion"] as? String
-      let protocolVersion = (testCase["protocolVersion"] as? String) ?? catalogVersion
-      if let protocolVersion, !protocolVersion.hasPrefix("v0.9") {
-        continue
-      }
-
+      // Validators return booleans in v0.9 and ValidationResult objects in v1.0, so
+      // each case runs against the functions of the protocol version it is pinned to.
+      // Unpinned cases run against v0.9.
       guard let name = testCase["name"] as? String,
         let funcName = testCase["function"] as? String
       else {
         continue
       }
 
+      let catalogVersion = (testCase["catalog"] as? [String: Any])?["protocolVersion"] as? String
+      let rawVersion = (testCase["protocolVersion"] as? String) ?? catalogVersion ?? "v0.9"
+      guard let protocolVersion = A2UIProtocolVersion(lenientRawValue: rawVersion) else {
+        Issue.record("\(name): unsupported protocol version \(rawVersion)")
+        continue
+      }
+      let functionsMap = protocolVersion.isAtLeastV10 ? v10Functions : v09Functions
+
       guard let fn = functionsMap[funcName] else {
-        Issue.record("\(name): function '\(funcName)' not found in BasicFunctions")
+        Issue.record("\(name): function '\(funcName)' not found for \(protocolVersion.rawValue)")
         continue
       }
 

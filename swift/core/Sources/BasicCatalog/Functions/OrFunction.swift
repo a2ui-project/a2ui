@@ -36,7 +36,15 @@ public final class OrFunction: FunctionImplementation, Sendable {
     )
   )
 
-  public init() {}
+  private let readsValidationResults: Bool
+
+  /// Creates the function.
+  ///
+  /// - Parameter readsValidationResults: When `true`, as in v1.0, an operand that is a
+  ///   ValidationResult object reads as its `valid` member instead of as a truthy object.
+  public init(readsValidationResults: Bool = false) {
+    self.readsValidationResults = readsValidationResults
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let values = arguments["values"]?.arrayValue, values.count >= 2 else {
@@ -44,10 +52,14 @@ public final class OrFunction: FunctionImplementation, Sendable {
         name: "or", message: "OrFunction requires at least 2 values")
     }
     for v in values {
-      if v.isTruthy {
+      if isTrue(v) {
         return .boolean(true)
       }
     }
     return .boolean(false)
+  }
+
+  private func isTrue(_ operand: JSONValue) -> Bool {
+    readsValidationResults ? operand.isTruthyOrValid : operand.isTruthy
   }
 }
