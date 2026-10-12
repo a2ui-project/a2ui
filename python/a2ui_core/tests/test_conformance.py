@@ -84,6 +84,9 @@ SKIP_TEST_NAMES: set[str] = {
     #
     # Only the component envelope.
     "test_v08_basic_validation_schema",
+    # The #3036 flattening case itself: allOf mixins merged into properties,
+    # with a component property overriding the mixin's.
+    "test_v09_custom_validation_schema_flattening",
     # Goldens of the published basic catalogs. Besides the envelope and rule
     # 6, the goldens normalize object closure, which Python keeps as written:
     # in v0.9 the authored `additionalProperties: false` on the args of
