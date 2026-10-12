@@ -231,6 +231,51 @@ describe('MessageProcessor', () => {
       assert.deepStrictEqual(inlineCat, document);
       assertConformsToV10CatalogDefinition(inlineCat);
     });
+
+    const unionsOnly = {
+      anyComponent: {
+        oneOf: [{$ref: '#/components/Label'}],
+        discriminator: {propertyName: 'component'},
+      },
+      anyFunction: {not: {}},
+    };
+    const label = {
+      type: 'object',
+      properties: {component: {const: 'Label'}},
+      required: ['component'],
+    };
+
+    function inlineV10Catalog(catalog: Catalog<any>): Record<string, any> {
+      const proc = new MessageProcessor([catalog]);
+      const caps = proc.getRendererCapabilities({versions: ['v1.0'], includeInlineCatalogs: true});
+      return (caps['v1.0'] as any).inlineCatalogs[0];
+    }
+
+    it('gives a v1.0 inline catalog the catalogId and bare protocolVersion of a $id-only document', () => {
+      const document = {
+        $id: 'https://example.com/by-id.json',
+        protocolVersion: 'v1.0',
+        components: {Label: label},
+        $defs: unionsOnly,
+      };
+      const inlineCat = inlineV10Catalog(Catalog.fromJson(document) as Catalog<any>);
+      assert.strictEqual(inlineCat.catalogId, 'https://example.com/by-id.json');
+      assert.strictEqual(inlineCat.protocolVersion, '1.0');
+      assertConformsToV10CatalogDefinition(inlineCat);
+    });
+
+    it('gives a v1.0 inline catalog the catalogId a catalog was loaded with', () => {
+      for (const document of [
+        {catalogId: 'https://example.com/original', components: {Label: label}, $defs: unionsOnly},
+        {components: {Label: label}, $defs: unionsOnly},
+      ]) {
+        const catalog = Catalog.fromJson(document, '1.0', 'https://example.com/override');
+        const inlineCat = inlineV10Catalog(catalog as Catalog<any>);
+        assert.strictEqual(inlineCat.catalogId, 'https://example.com/override');
+        assert.strictEqual(inlineCat.protocolVersion, '1.0');
+        assertConformsToV10CatalogDefinition(inlineCat);
+      }
+    });
   });
 
   describe('surface lifecycle events', () => {

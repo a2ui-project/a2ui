@@ -23,6 +23,7 @@ import {V08_STANDARD_DEFS} from '../v0_8/standard_defs.js';
 import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
 import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
 import {deepCopyJson} from './schema_serializer.js';
+import {definitionsWithEntrySources, entrySource} from './source_document.js';
 import type {CatalogInterface, ComponentApi, FunctionApi} from './types.js';
 
 const STANDARD_DEFS_BY_VERSION: Readonly<Record<string, Record<string, unknown>>> = {
@@ -360,7 +361,7 @@ function collectSourceSubSchemas(
  * lists, without the envelope keys. The description is the most specific one.
  */
 function sourceComponentSchema(
-  source: JsonObject,
+  source: Readonly<JsonObject>,
   context: SourceContext,
 ): {props: JsonObject; required: string[]; description?: string} {
   const pieces = collectSourceSubSchemas(source, context, new Set());
@@ -395,7 +396,7 @@ function sourceComponentSchema(
  * schema loader reads it, or `undefined` for a function defined in code.
  */
 function authoredFunctionArgs(fn: FunctionApi): JsonObject | undefined {
-  const source = fn.sourceJson;
+  const source = entrySource(fn)?.json;
   if (!source) return undefined;
   const props = isJsonObject(source.properties) ? source.properties : undefined;
   const explicit = props?.args ?? source.args ?? source.parameters;
@@ -579,9 +580,7 @@ function zodComponentDescription(comp: ComponentApi): string | undefined {
  * (`unevaluatedProperties`, else `additionalProperties`), if any. A component
  * defined in code declares none.
  */
-function authoredClosure(comp: ComponentApi): unknown {
-  const source = comp.sourceJson;
-  if (!source) return undefined;
+function authoredClosure(source: Readonly<JsonObject>): unknown {
   return source['unevaluatedProperties'] ?? source['additionalProperties'];
 }
 
@@ -605,17 +604,14 @@ function processSingleComponent(
   let reqList: string[];
   let description: string | undefined;
   let closure: unknown;
-  if (comp.sourceJson) {
-    ({
-      props,
-      required: reqList,
-      description,
-    } = sourceComponentSchema(comp.sourceJson as JsonObject, context));
+  const source = entrySource(comp)?.json;
+  if (source) {
+    ({props, required: reqList, description} = sourceComponentSchema(source, context));
     // From v1.0 the protocol's Component envelope combines the entry with
     // ComponentCommon (accessibility, catalogId, metadata) under its own
     // `unevaluatedProperties: false`, so the entry is closed only when its
     // author closed it. Earlier versions close it unless it was declared open.
-    closure = authoredClosure(comp) ?? (context.isV10 ? undefined : false);
+    closure = authoredClosure(source) ?? (context.isV10 ? undefined : false);
   } else {
     const extracted = extractZodComponentSchema(comp, defs, generated);
     const {component: _ignoredComp, id: _ignoredId, ...sanitized} = extracted.props;
@@ -968,15 +964,21 @@ export function generateValidationSchema<
 
   const standardDefs = getStandardDefsForCatalog(catalog, options);
   const version = options?.protocolVersion ?? catalog.protocolVersion;
-  const rootDoc: JsonObject = isJsonObject(catalog.sourceDocument)
-    ? (catalog.sourceDocument as JsonObject)
+  const sourceDocument: Readonly<JsonObject> = isJsonObject(catalog.sourceDocument)
+    ? catalog.sourceDocument
     : {};
+  // The catalog's own definitions, and those its entries' sources reach that
+  // it does not define, such as the mixin of a reused built-in component.
+  const authoredDefs = definitionsWithEntrySources(
+    isJsonObject(sourceDocument['$defs']) ? sourceDocument['$defs'] : catalog.defs,
+    [...catalog.components.values(), ...catalog.functions.values()],
+  );
+  const rootDoc: JsonObject = {...sourceDocument, $defs: authoredDefs};
   const context: SourceContext = {
     standardDefs,
     rootDoc,
     isV10: Boolean(version) && isAtLeastVersion(version, '1.0'),
   };
-  const authoredDefs = isJsonObject(rootDoc['$defs']) ? rootDoc['$defs'] : (catalog.defs ?? {});
 
   const defs: JsonObject = {};
   // The parts generated from Zod schemas, whose references to standard

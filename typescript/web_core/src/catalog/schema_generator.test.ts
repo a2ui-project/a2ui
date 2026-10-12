@@ -240,11 +240,15 @@ describe('Catalog.validationSchema & schema_generator', () => {
     });
   });
 
-  it('memoizes the validationSchema getter across multiple reads', () => {
+  it('returns an equal, unshared copy of validationSchema on every read', () => {
     const catalog = new Catalog('https://example.com/memo.json', '1.0', []);
     const schema1 = catalog.validationSchema;
     const schema2 = catalog.validationSchema;
-    assert.strictEqual(schema1, schema2);
+    assert.notStrictEqual(schema1, schema2);
+    assert.deepStrictEqual(schema1, schema2);
+    (schema1.components as Record<string, unknown>).Added = {};
+    schema1.catalogId = 'mutated';
+    assert.deepStrictEqual(catalog.validationSchema, schema2);
   });
 
   it('supports componentEnvelopeRef wrapping in generateValidationSchema', () => {

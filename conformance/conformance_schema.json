@@ -290,11 +290,11 @@
           "description": "Protocol version the loaded catalog reports."
         },
         "components": {
-          "description": "Components the loaded catalog must define, as a list of names or a map keyed by name.",
+          "description": "The exact set of components the loaded catalog defines, as a list of names or a map keyed by name.",
           "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "string"}}]
         },
         "functions": {
-          "description": "Functions the loaded catalog must define, as a list of names or a map keyed by name.",
+          "description": "The exact set of functions the loaded catalog defines, as a list of names or a map keyed by name.",
           "oneOf": [{"type": "object"}, {"type": "array", "items": {"type": "string"}}]
         },
         "theme": {

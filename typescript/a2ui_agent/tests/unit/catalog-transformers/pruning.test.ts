@@ -52,7 +52,8 @@ describe('Pruning Transformers', () => {
 
     // Verify immutability: old catalog is unchanged
     expect(catalog.components.size).toBe(2);
-    expect(catalog.validationSchema).toBe(originalSchema);
+    // validationSchema returns a fresh copy of the memoized schema.
+    expect(catalog.validationSchema).toStrictEqual(originalSchema);
     expect(catalog.componentRefMap).toBe(originalRefMap);
 
     // Verify pruned catalog properties

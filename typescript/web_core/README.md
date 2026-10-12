@@ -58,6 +58,24 @@ The code generator uses **Schema Flattening** to remain version-, catalog-, and 
 - **Child References**:
   - Single child references and child collections are identified when their `$defs` reference targets or descriptions indicate a child component relationship (such as references to `ComponentId`, `Child`, or `ChildList`).
 
+## Catalog Serialization
+
+A `Catalog` has three serialization entry points:
+
+- `Catalog.fromJson(json, protocolVersion?, catalogId?)` loads an authored catalog document. It keeps the document's metadata, its `$defs` and the authored JSON of each entry (`sourceJson`). `protocolVersion` applies when the document declares none, and `catalogId` replaces the document's own ID.
+- `catalog.toJson()` returns the unbundled catalog document. A catalog loaded with `fromJson`, and each built-in basic catalog, returns its document unchanged. Entries defined in code are serialized from their Zod schemas.
+- `catalog.validationSchema` is the self-contained schema used to validate payloads: common types are bundled into `$defs` and every `$ref` is local. Each read returns a fresh copy.
+
+```ts
+import {Catalog} from '@a2ui/web_core';
+
+const catalog = Catalog.fromJson(document);
+const unchanged = catalog.toJson(); // deep-equals document
+const schema = catalog.validationSchema; // bundled JSON Schema
+```
+
+The `Catalog` constructor takes a `CatalogOptions` object as its fifth argument, with the `themeSchema`, `instructions` and document metadata (`schemaUri`, `schemaId`, `title`, `description`, `declaredProtocolVersion`, `defs`, `sourceDocument`) that `toJson` emits.
+
 ## Development
 
 ### Building

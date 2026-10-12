@@ -491,6 +491,28 @@
   expect:
     selfContained: true
 
+- name: test_v10_catalog_from_json_filters_entries_by_unions
+  description: Tests that a catalog loaded from a document whose anyComponent and anyFunction unions list only some of its entries defines only the listed ones.
+  action: from_json
+  catalog:
+    protocolVersion: "v1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/filtered"
+    components:
+      Listed: {type: object}
+      Unlisted: {type: object}
+    functions:
+      listed: {returnType: string}
+      unlisted: {returnType: string}
+    $defs:
+      anyComponent:
+        oneOf: [{$ref: "#/components/Listed"}]
+        discriminator: {propertyName: component}
+      anyFunction:
+        oneOf: [{$ref: "#/functions/listed"}]
+  expect:
+    components: [Listed]
+    functions: [listed]
+
 # ==============================================================================
 # 2. to_json
 # ==============================================================================
@@ -587,3 +609,31 @@
   protocolVersion: "v1.0"
   catalogPath: "catalogs/basic/v1/catalog.json"
   expectFile: "conformance/test_data/validation_schema/test_v10_basic_validation_schema.json"
+
+- name: test_v09_custom_validation_schema_flattening
+  description: Tests that validationSchema flattens a v0.9 component that mixes in ComponentCommon, Checkable and a local $defs mixin, and that a property the component declares itself wins over the one its mixin declares.
+  action: validation_schema
+  protocolVersion: "v0.9"
+  catalog:
+    catalogId: "https://a2ui.org/catalogs/v09/flattening"
+    components:
+      Toggle:
+        type: object
+        allOf:
+          - $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"
+          - $ref: "#/$defs/CatalogComponentCommon"
+          - $ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/Checkable"
+          - type: object
+            properties:
+              component: {const: Toggle}
+              label:
+                {$ref: "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString"}
+              weight: {type: integer, minimum: 1}
+            required: [component, label]
+        unevaluatedProperties: false
+    $defs:
+      CatalogComponentCommon:
+        type: object
+        properties:
+          weight: {type: number}
+  expectFile: "conformance/test_data/validation_schema/test_v09_custom_validation_schema_flattening.json"

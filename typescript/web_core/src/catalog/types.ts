@@ -23,7 +23,8 @@ import {isAtLeastVersion} from '../common/semver.js';
 import {SpecVersion} from '../spec_versions.js';
 import {parseCatalogSchema} from './schema_loader.js';
 import {generateValidationSchema} from './schema_generator.js';
-import {serializeCatalogDocument} from './schema_serializer.js';
+import {deepCopyJson, serializeCatalogDocument} from './schema_serializer.js';
+import {frozenJson} from './source_document.js';
 import {
   buildComponentRefMap,
   type ComponentChildRefs,
@@ -82,9 +83,11 @@ export interface FunctionApi {
    * The function's definition exactly as authored in the catalog document it
    * was loaded from, before any reference resolution.
    *
-   * `Catalog.toJson` emits this verbatim. It is absent for functions defined in
-   * code, and a transformer that changes the function's schema must drop it so
-   * `toJson` serializes the changed model instead.
+   * `Catalog.toJson` emits this verbatim, and `validationSchema` is built from
+   * it, for as long as the function keeps the schema it was loaded with: a
+   * copy with a different schema is serialized from that schema instead. It is
+   * absent for functions defined in code; the built-in basic catalogs attach
+   * their published definitions internally. Frozen when loaded.
    */
   readonly sourceJson?: Readonly<Record<string, unknown>>;
 }
@@ -193,9 +196,11 @@ export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
    * The component's definition exactly as authored in the catalog document it
    * was loaded from, before any reference resolution.
    *
-   * `Catalog.toJson` emits this verbatim. It is absent for components defined
-   * in code, and a transformer that changes the component's schema must drop it
-   * so `toJson` serializes the changed model instead.
+   * `Catalog.toJson` emits this verbatim, and `validationSchema` is built from
+   * it, for as long as the component keeps the schema it was loaded with: a
+   * copy with a different schema is serialized from that schema instead. It is
+   * absent for components defined in code; the built-in basic catalogs attach
+   * their published definitions internally. Frozen when loaded.
    */
   readonly sourceJson?: Readonly<Record<string, unknown>>;
 }
@@ -377,12 +382,14 @@ export class Catalog<
    * bundled into `$defs`, together with the component envelope and the
    * `anyComponent`/`anyFunction` unions. Use `toJson` for the catalog document
    * itself.
+   *
+   * Each read returns a fresh copy that the caller may modify.
    */
   get validationSchema(): Record<string, unknown> {
     if (!this.cachedValidationSchema) {
       this.cachedValidationSchema = generateValidationSchema(this);
     }
-    return this.cachedValidationSchema;
+    return deepCopyJson(this.cachedValidationSchema);
   }
 
   /**
@@ -477,8 +484,11 @@ export class Catalog<
     this.title = options.title;
     this.description = options.description;
     this.declaredProtocolVersion = options.declaredProtocolVersion;
-    this.defs = options.defs;
-    this.sourceDocument = options.sourceDocument;
+    // Frozen, so neither the caller nor a reader of the catalog can change the
+    // document `toJson` reproduces. A document that is already frozen, such as
+    // the one `fromJson` produced, is kept without copying.
+    this.defs = frozenJson(options.defs);
+    this.sourceDocument = frozenJson(options.sourceDocument);
     this.invoker = createCatalogInvoker(this.id, this.protocolVersion, this.functions);
   }
 
@@ -493,8 +503,10 @@ export class Catalog<
    *   declare one. Catalog documents published before v1.0 omit the field, in
    *   which case `DEFAULT_PROTOCOL_VERSION` applies.
    * @param catalogId Catalog ID to use instead of the one the document
-   *   declares, for a document that declares none, such as the v0.8 basic
-   *   catalog. `toJson` still emits the document as written.
+   *   declares, or for a document that declares none, such as the v0.8 basic
+   *   catalog. It becomes the catalog's `id`, and replaces the document's own
+   *   `catalogId` in `toJson`; a document that declares none still has none
+   *   in `toJson`.
    * @returns A new Catalog populated with component and function schemas.
    * @throws {Error} If the catalog ID is missing or not a string.
    */

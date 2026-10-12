@@ -35,7 +35,7 @@ import {
 import type {ComponentApi, FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {deepCopyJson} from './schema_serializer.js';
-import {catalogDocumentOptions} from './source_document.js';
+import {catalogDocumentOptions, deepFreeze, recordLoadedSource} from './source_document.js';
 
 export interface ParsedCatalogSchema {
   id: string;
@@ -1077,6 +1077,15 @@ export function parseCatalogSchema(
   );
 
   const themeSchema = parseThemeSchema(catalogSchema, defs);
+
+  // The copy becomes the catalog's frozen source document, and each entry's
+  // source is recorded against the schema built for it.
+  deepFreeze(catalogSchema);
+  for (const entry of [...components, ...functions]) {
+    if (entry.sourceJson) {
+      recordLoadedSource(entry.sourceJson as Record<string, unknown>, entry.schema, catalogSchema);
+    }
+  }
 
   return {
     id: catalogId,

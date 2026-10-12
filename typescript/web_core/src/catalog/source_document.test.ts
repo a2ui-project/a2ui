@@ -20,11 +20,17 @@ import {describe, it} from 'node:test';
 
 import {z} from 'zod';
 
-import {catalogDocumentOptions, withSourceJson} from './source_document.js';
+import {
+  attachSourceJson,
+  catalogDocumentOptions,
+  definitionsWithEntrySources,
+  entrySource,
+  frozenJson,
+} from './source_document.js';
 import type {ComponentApi, FunctionApi} from './types.js';
 
 describe('catalogDocumentOptions', () => {
-  it('reads the document metadata and copies the document', () => {
+  it('reads the document metadata into a frozen copy of the document', () => {
     const document = {
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       $id: 'https://example.com/catalog.json',
@@ -47,8 +53,10 @@ describe('catalogDocumentOptions', () => {
       defs: document.$defs,
       sourceDocument: document,
     });
-    assert.notStrictEqual(options.defs, document.$defs);
     assert.notStrictEqual(options.sourceDocument, document);
+    assert.strictEqual(options.defs, options.sourceDocument!.$defs);
+    assert.ok(Object.isFrozen(options.defs!.Shared));
+    assert.ok(!Object.isFrozen(document), 'the input is left alone');
   });
 
   it('leaves out what the document omits', () => {
@@ -59,25 +67,77 @@ describe('catalogDocumentOptions', () => {
   });
 });
 
-describe('withSourceJson', () => {
-  const label: ComponentApi = {name: 'Label', schema: z.object({})};
-  const extra: ComponentApi = {name: 'Extra', schema: z.object({})};
+describe('frozenJson', () => {
+  it('returns a frozen value as it is and copies anything else', () => {
+    const value = {a: {b: 1}};
+    const frozen = frozenJson(value);
+    assert.notStrictEqual(frozen, value);
+    assert.ok(Object.isFrozen(frozen.a));
+    assert.strictEqual(frozenJson(frozen), frozen);
+  });
+});
 
-  it('attaches each component definition as a copy', () => {
-    const definition = {type: 'object', properties: {component: {const: 'Label'}}};
-    const document = {components: {Label: definition}};
-    const [withSource, without] = withSourceJson([label, extra], document, 'components');
-    assert.deepStrictEqual(withSource.sourceJson, definition);
-    assert.notStrictEqual(withSource.sourceJson, definition);
-    assert.strictEqual(withSource.schema, label.schema);
-    assert.strictEqual(label.sourceJson, undefined, 'the original entry is not mutated');
-    assert.strictEqual(without, extra, 'an entry the document lacks is returned as is');
+describe('attachSourceJson', () => {
+  const document = {
+    components: {
+      Label: {allOf: [{$ref: '#/$defs/Mixin'}, {properties: {component: {const: 'Label'}}}]},
+    },
+    functions: [{name: 'shout', returnType: 'string', parameters: {type: 'object'}}],
+    $defs: {
+      Mixin: {properties: {weight: {$ref: '#/$defs/Weight'}}},
+      Weight: {type: 'number'},
+      Unused: {type: 'string'},
+      anyComponent: {oneOf: [{$ref: '#/components/Label'}]},
+    },
+  };
+
+  it('attaches definitions without copying the entries', () => {
+    const label: ComponentApi = {name: 'Label', schema: z.object({})};
+    const extra: ComponentApi = {name: 'Extra', schema: z.object({})};
+    const entries = [label, extra];
+    assert.strictEqual(attachSourceJson(entries, document, 'components'), entries);
+    assert.strictEqual(label.sourceJson, undefined, 'the entry is not modified');
+    const source = entrySource(label)!;
+    assert.deepStrictEqual(source.json, document.components.Label);
+    assert.deepStrictEqual(source.defs, {
+      Mixin: document.$defs.Mixin,
+      Weight: document.$defs.Weight,
+    });
+    assert.ok(Object.isFrozen(source.json));
+    assert.strictEqual(entrySource(extra), undefined);
   });
 
   it('reads the list form of functions', () => {
     const shout: FunctionApi = {name: 'shout', returnType: 'string', schema: z.object({})};
-    const definition = {name: 'shout', returnType: 'string', parameters: {type: 'object'}};
-    const [entry] = withSourceJson([shout], {functions: [definition]}, 'functions');
-    assert.deepStrictEqual(entry.sourceJson, definition);
+    attachSourceJson([shout], document, 'functions');
+    assert.deepStrictEqual(entrySource(shout)!.json, document.functions[0]);
+  });
+
+  it('ignores the source of a copy with another schema', () => {
+    const label: ComponentApi = {name: 'Label', schema: z.object({})};
+    attachSourceJson([label], document, 'components');
+    assert.strictEqual(entrySource({...label, schema: z.object({x: z.string()})}), undefined);
+    assert.strictEqual(entrySource({...label}), undefined, 'a copy is not the attached entry');
+  });
+
+  it('merges the definitions entries reach into the catalog definitions', () => {
+    const label: ComponentApi = {name: 'Label', schema: z.object({})};
+    attachSourceJson([label], document, 'components');
+    const own = {Weight: {type: 'integer'}};
+    assert.deepStrictEqual(definitionsWithEntrySources(own, [label]), {
+      Weight: {type: 'integer'},
+      Mixin: document.$defs.Mixin,
+    });
+    assert.strictEqual(definitionsWithEntrySources(own, []), own);
+  });
+});
+
+describe('entrySource', () => {
+  it('uses a sourceJson that was set by hand', () => {
+    const json = {type: 'object'};
+    assert.deepStrictEqual(entrySource({name: 'X', schema: z.object({}), sourceJson: json}), {
+      json,
+      defs: {},
+    });
   });
 });

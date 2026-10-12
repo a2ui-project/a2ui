@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import {catalogDocumentOptions, withSourceJson} from '../../catalog/source_document.js';
+import {attachSourceJson, catalogDocumentOptions} from '../../catalog/source_document.js';
 import {Catalog, type ComponentApi, type FunctionApi} from '../../catalog/types.js';
 import STANDARD_CATALOG_DOCUMENT from '../schemas/standard_catalog_definition.json' with {type: 'json'};
 import {BASIC_COMPONENTS, ThemeSchema} from './components/basic_components.js';
@@ -37,7 +37,7 @@ export const BASIC_CATALOG_ID =
 export const basicCatalog = new Catalog<ComponentApi, FunctionApi>(
   BASIC_CATALOG_ID,
   '0.8',
-  withSourceJson(BASIC_COMPONENTS, STANDARD_CATALOG_DOCUMENT, 'components'),
+  attachSourceJson(BASIC_COMPONENTS, STANDARD_CATALOG_DOCUMENT, 'components'),
   [],
   {themeSchema: ThemeSchema, ...catalogDocumentOptions(STANDARD_CATALOG_DOCUMENT)},
 );

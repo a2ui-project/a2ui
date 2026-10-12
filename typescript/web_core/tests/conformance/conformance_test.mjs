@@ -1236,18 +1236,23 @@ function validateFromJsonTestCase(testCase) {
     if (expected.protocolVersion) {
       assert.strictEqual(catalog.protocolVersion, expected.protocolVersion);
     }
+    // The loaded catalog defines exactly the listed entries, so a case can
+    // check that entries left out of the anyComponent/anyFunction unions are
+    // not loaded.
+    const names = listed => (Array.isArray(listed) ? listed : Object.keys(listed)).sort();
     if (expected.components) {
-      for (const compName of Object.keys(expected.components)) {
-        assert.ok(
-          catalog.components.has(compName),
-          `Expected catalog to have component '${compName}'`,
-        );
-      }
+      assert.deepStrictEqual(
+        [...catalog.components.keys()].sort(),
+        names(expected.components),
+        'Component mismatch',
+      );
     }
     if (expected.functions) {
-      for (const fnName of Object.keys(expected.functions)) {
-        assert.ok(catalog.functions.has(fnName), `Expected catalog to have function '${fnName}'`);
-      }
+      assert.deepStrictEqual(
+        [...catalog.functions.keys()].sort(),
+        names(expected.functions),
+        'Function mismatch',
+      );
     }
     if (expected.theme) {
       if (Object.keys(expected.theme).length > 0) {

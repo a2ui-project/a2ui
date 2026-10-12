@@ -234,7 +234,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const inlineCatalogs = options?.includeInlineCatalogs
         ? this.catalogs.map(c => {
             if (compareSemVer(ver, '1.0') >= 0) {
-              return c.toJson();
+              return this.generateInlineCatalog(c);
             }
             return this.generateLegacyInlineCatalog(
               c,
@@ -262,6 +262,25 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    */
   getClientCapabilities(options: CapabilitiesOptions): RendererCapabilities {
     return this.getRendererCapabilities(options);
+  }
+
+  /**
+   * Generates a v1.0 inline catalog: the catalog's `toJson()` document with the
+   * `catalogId` and bare semantic version `protocolVersion` that
+   * `catalog_definition.json` requires, whatever the source document declared.
+   *
+   * @param catalog The catalog instance to serialize.
+   * @returns The inline catalog document.
+   */
+  private generateInlineCatalog(catalog: Catalog<T>): Record<string, unknown> {
+    const doc = catalog.toJson();
+    doc.catalogId = catalog.id;
+    const version =
+      typeof doc.protocolVersion === 'string'
+        ? doc.protocolVersion
+        : (toCanonicalVersion(catalog.protocolVersion) ?? catalog.protocolVersion);
+    doc.protocolVersion = version.trim().replace(/^[vV](?=\d)/, '');
+    return doc;
   }
 
   /**

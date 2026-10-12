@@ -22,8 +22,10 @@ import {describe, it} from 'node:test';
 import {z} from 'zod';
 
 import {basicCatalog as v10BasicCatalog} from '../catalogs/basic/v1/catalog.js';
+import {A2uiText as V10Text} from '../catalogs/basic/v1/components/index.js';
 import {basicCatalog as v08BasicCatalog} from '../v0_8/basic_catalog/catalog.js';
 import {basicCatalog as v09BasicCatalog} from '../v0_9/basic_catalog/catalog.js';
+import {A2uiText as V09Text} from '../v0_9/basic_catalog/components/index.js';
 import {Catalog, createFunctionImplementation, type ComponentApi} from './types.js';
 
 function readRepoJson(relativePath: string): Record<string, any> {
@@ -269,7 +271,7 @@ describe('Catalog.validationSchema', () => {
   it('is the bundled schema that catalogSchema still returns', () => {
     const catalog = Catalog.fromJson(readRepoJson('catalogs/basic/v1/catalog.json'));
     const schema = catalog.validationSchema;
-    assert.strictEqual(catalog.catalogSchema, schema);
+    assert.deepStrictEqual(catalog.catalogSchema, schema);
     const defs = schema.$defs as Record<string, unknown>;
     assert.ok('DynamicString' in defs, 'common types are bundled');
     for (const ref of collectRefs(schema.components)) {
@@ -373,4 +375,183 @@ describe('Catalog.fromJson', () => {
     const document = readRepoJson('catalogs/mcp/catalog.json');
     assert.deepStrictEqual(Catalog.fromSchema(document).toJson(), document);
   });
+});
+
+describe('composite catalogs', () => {
+  const Custom: ComponentApi = {name: 'Custom', schema: z.object({label: z.string()}).strict()};
+
+  for (const [version, basic] of [
+    ['0.9', v09BasicCatalog],
+    ['1.0', v10BasicCatalog],
+  ] as const) {
+    it(`carries the definitions reused v${version} basic entries reference`, () => {
+      const composite = new Catalog(
+        'https://example.com/composite',
+        version,
+        [...basic.components.values(), Custom],
+        [...basic.functions.values()],
+      );
+      const doc = composite.toJson();
+      for (const ref of collectRefs(doc)) {
+        if (!ref.startsWith('#/')) continue;
+        const target = ref
+          .slice(2)
+          .split('/')
+          .reduce<unknown>((node, key) => (node as Record<string, unknown>)?.[key], doc);
+        assert.ok(target !== undefined, `reference '${ref}' resolves in toJson`);
+      }
+      const published = basic.toJson();
+      assert.deepStrictEqual(
+        (doc.components as Record<string, unknown>).Text,
+        (published.components as Record<string, unknown>).Text,
+      );
+
+      const text = (composite.validationSchema.components as Record<string, any>).Text;
+      assert.ok('weight' in text.properties, 'validationSchema keeps weight');
+      assert.deepStrictEqual(
+        text,
+        (basic.validationSchema.components as Record<string, unknown>).Text,
+      );
+
+      const reloaded = Catalog.fromJson(doc, version);
+      const shape = (reloaded.components.get('Text')!.schema as z.AnyZodObject).shape;
+      assert.ok('weight' in shape, 'fromJson(toJson()) keeps weight');
+      assert.ok(reloaded.components.get('Text')!.schema.safeParse({text: 'hi', weight: 1}).success);
+    });
+  }
+});
+
+describe('entry sources', () => {
+  it('keeps the identity of the built-in entries', () => {
+    assert.strictEqual(v09BasicCatalog.components.get('Text'), V09Text);
+    assert.strictEqual(v10BasicCatalog.components.get('Text'), V10Text);
+  });
+
+  it('serializes an entry copied with a new schema from that schema', () => {
+    const changed = {
+      ...v10BasicCatalog.components.get('Text')!,
+      schema: z.object({text: z.string(), extra: z.number()}),
+    };
+    const loadedText = Catalog.fromJson(
+      readRepoJson('catalogs/basic/v1/catalog.json'),
+    ).components.get('Text')!;
+    const changedLoaded = {...loadedText, schema: z.object({text: z.string(), extra: z.number()})};
+    for (const entry of [changed, changedLoaded]) {
+      const catalog = new Catalog('https://example.com/changed', '1.0', [entry]);
+      const text = (catalog.toJson().components as Record<string, any>).Text;
+      assert.deepStrictEqual(Object.keys(text.properties), ['component', 'text', 'extra']);
+      const validation = (catalog.validationSchema.components as Record<string, any>).Text;
+      assert.deepStrictEqual(Object.keys(validation.properties), [
+        'id',
+        'text',
+        'extra',
+        'component',
+      ]);
+    }
+  });
+
+  it('keeps the source of a loaded entry copied with its own schema', () => {
+    const loadedText = Catalog.fromJson(
+      readRepoJson('catalogs/basic/v1/catalog.json'),
+    ).components.get('Text')!;
+    const catalog = new Catalog('https://example.com/copied', '1.0', [{...loadedText}]);
+    assert.deepStrictEqual(
+      (catalog.toJson().components as Record<string, unknown>).Text,
+      loadedText.sourceJson,
+    );
+  });
+
+  it('cannot be changed through the catalog', () => {
+    const catalog = Catalog.fromJson(readRepoJson('catalogs/basic/v1/catalog.json'));
+    const before = catalog.toJson();
+    assert.throws(() => {
+      (catalog.sourceDocument as Record<string, unknown>).title = 'changed';
+    }, TypeError);
+    assert.throws(() => {
+      (catalog.components.get('Text')!.sourceJson as Record<string, unknown>).description =
+        'changed';
+    }, TypeError);
+    assert.throws(() => {
+      (catalog.defs as Record<string, unknown>).extra = {};
+    }, TypeError);
+    assert.deepStrictEqual(catalog.toJson(), before);
+  });
+
+  it('copies the defs and source document a caller passes to the constructor', () => {
+    const defs = {Shared: {type: 'string'}};
+    const sourceDocument = {catalogId: 'https://example.com/own', components: {}, $defs: defs};
+    const catalog = new Catalog('https://example.com/own', '0.9', [], [], {defs, sourceDocument});
+    defs.Shared.type = 'number';
+    assert.deepStrictEqual(catalog.defs, {Shared: {type: 'string'}});
+    assert.deepStrictEqual(catalog.toJson().$defs, {Shared: {type: 'string'}});
+  });
+});
+
+describe('built-in basic catalogs', () => {
+  /**
+   * Differences between a built-in catalog's hand-written Zod schemas and its
+   * published document that are known and accepted, as `<label>:<entry>`.
+   */
+  const KNOWN_DIFFERENCES = new Set<string>([]);
+
+  type Summary = Record<string, unknown>;
+
+  /** The names, properties, required lists and function metadata of a validation schema. */
+  function summarize(schema: Record<string, unknown>): {
+    components: Record<string, Summary>;
+    functions: Record<string, Summary>;
+  } {
+    const components: Record<string, Summary> = {};
+    for (const [name, comp] of Object.entries((schema.components ?? {}) as Record<string, any>)) {
+      components[name] = {
+        properties: Object.keys(comp.properties ?? {}).sort(),
+        required: [...(comp.required ?? [])].sort(),
+      };
+    }
+    const functions: Record<string, Summary> = {};
+    for (const [name, fn] of Object.entries((schema.functions ?? {}) as Record<string, any>)) {
+      const args = fn.properties?.args ?? {};
+      functions[name] = {
+        returnType: fn.returnType ?? fn.properties?.returnType?.const,
+        allowedCallers: fn.allowedCallers,
+        requiresUserActivation: fn.requiresUserActivation,
+        args: Object.keys(args.properties ?? {}).sort(),
+        argsRequired: [...(args.required ?? [])].sort(),
+      };
+    }
+    return {components, functions};
+  }
+
+  for (const [label, builtin] of [
+    ['v0.8', v08BasicCatalog],
+    ['v0.9', v09BasicCatalog],
+    ['v1.0', v10BasicCatalog],
+  ] as const) {
+    it(`keeps the ${label} Zod schemas in line with the published document`, () => {
+      // Copies of the entries carry no source, so they are built from Zod.
+      const fromZod = new Catalog(
+        builtin.id,
+        builtin.protocolVersion,
+        [...builtin.components.values()].map(entry => ({...entry})),
+        [...builtin.functions.values()].map(entry => ({...entry})),
+        {themeSchema: builtin.themeSchema},
+      );
+      const published = summarize(builtin.validationSchema);
+      const zod = summarize(fromZod.validationSchema);
+      assert.deepStrictEqual(
+        Object.keys(zod.components).sort(),
+        Object.keys(published.components).sort(),
+      );
+      assert.deepStrictEqual(
+        Object.keys(zod.functions).sort(),
+        Object.keys(published.functions).sort(),
+      );
+      for (const section of ['components', 'functions'] as const) {
+        for (const [name, expected] of Object.entries(published[section])) {
+          if (KNOWN_DIFFERENCES.has(`${label}:${name}`)) continue;
+          assert.deepStrictEqual(zod[section][name], expected, `${label} ${section} ${name}`);
+        }
+      }
+    });
+  }
 });

@@ -14,32 +14,32 @@
  * limitations under the License.
  */
 
-import {catalogDocumentOptions, withSourceJson} from '../../../catalog/source_document.js';
+import {attachSourceJson, catalogDocumentOptions} from '../../../catalog/source_document.js';
 import {Catalog} from '../../../catalog/types.js';
-import type {WebComponentImplementation} from '../../../universal/index.js';
-import {BASIC_FUNCTIONS} from './functions/basic_functions.js';
 import {BasicCatalogThemeSchema} from '../../../universal/basic_catalog/theme.js';
-import {
-  A2uiText,
-  A2uiButton,
-  A2uiTextField,
-  A2uiRow,
-  A2uiColumn,
-  A2uiList,
-  A2uiImage,
-  A2uiIcon,
-  A2uiVideo,
-  A2uiAudioPlayer,
-  A2uiCard,
-  A2uiDivider,
-  A2uiCheckBox,
-  A2uiSlider,
-  A2uiDateTimeInput,
-  A2uiChoicePicker,
-  A2uiTabs,
-  A2uiModal,
-} from './components/index.js';
+import type {WebComponentImplementation} from '../../../universal/index.js';
 import BASIC_CATALOG_DOCUMENT from '../../../v1_0/schemas/catalogs/basic/catalog.json' with {type: 'json'};
+import {
+  A2uiAudioPlayer,
+  A2uiButton,
+  A2uiCard,
+  A2uiCheckBox,
+  A2uiChoicePicker,
+  A2uiColumn,
+  A2uiDateTimeInput,
+  A2uiDivider,
+  A2uiIcon,
+  A2uiImage,
+  A2uiList,
+  A2uiModal,
+  A2uiRow,
+  A2uiSlider,
+  A2uiTabs,
+  A2uiText,
+  A2uiTextField,
+  A2uiVideo,
+} from './components/index.js';
+import {BASIC_FUNCTIONS} from './functions/basic_functions.js';
 
 /**
  * The v1 basic catalog of A2UI components implemented via Web Components
@@ -52,7 +52,7 @@ import BASIC_CATALOG_DOCUMENT from '../../../v1_0/schemas/catalogs/basic/catalog
 export const basicCatalog = new Catalog<WebComponentImplementation>(
   'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
   '1.0',
-  withSourceJson(
+  attachSourceJson(
     [
       A2uiText,
       A2uiButton,
@@ -76,7 +76,7 @@ export const basicCatalog = new Catalog<WebComponentImplementation>(
     BASIC_CATALOG_DOCUMENT,
     'components',
   ),
-  withSourceJson(BASIC_FUNCTIONS, BASIC_CATALOG_DOCUMENT, 'functions'),
+  attachSourceJson(BASIC_FUNCTIONS, BASIC_CATALOG_DOCUMENT, 'functions'),
   {
     themeSchema: BasicCatalogThemeSchema,
     ...catalogDocumentOptions(BASIC_CATALOG_DOCUMENT),

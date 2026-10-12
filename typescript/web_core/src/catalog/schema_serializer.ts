@@ -15,10 +15,11 @@
  * limitations under the License.
  */
 
-import {zodToJsonSchema} from 'zod-to-json-schema';
 import type {z} from 'zod';
+import {zodToJsonSchema} from 'zod-to-json-schema';
 
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
+import {definitionsWithEntrySources, entrySource} from './source_document.js';
 import type {ComponentApi, FunctionApi} from './types.js';
 
 /** Names of the synthetic union definitions a catalog document carries in `$defs`. */
@@ -363,8 +364,14 @@ function escapePointer(token: string): string {
 export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObject {
   const source = catalog.sourceDocument;
   const isAtLeastV10 = isAtLeastVersion(catalog.protocolVersion, '1.0');
+  // The catalog's own definitions, and those its entries' sources reach that
+  // it does not define, such as the mixin of a reused built-in component.
+  const allDefs = definitionsWithEntrySources(catalog.defs, [
+    ...catalog.components.values(),
+    ...catalog.functions.values(),
+  ]);
   const authoredDefs: JsonObject = {};
-  for (const [name, def] of Object.entries(catalog.defs ?? {})) {
+  for (const [name, def] of Object.entries(allDefs)) {
     if (!UNION_DEF_NAMES.has(name)) authoredDefs[name] = def;
   }
   const localDefs = new Set(Object.keys(authoredDefs));
@@ -387,8 +394,9 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
   // Components.
   const components: JsonObject = {};
   for (const [name, comp] of catalog.components) {
-    components[name] = comp.sourceJson
-      ? deepCopyJson(comp.sourceJson)
+    const compSource = entrySource(comp);
+    components[name] = compSource
+      ? deepCopyJson(compSource.json)
       : serializeComponentModel(name, comp, localDefs);
   }
   if (!source || 'components' in source || catalog.components.size > 0) {
@@ -399,21 +407,23 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
   // belong to the protocol rather than the catalog, so a code-defined one that
   // a catalog registers for evaluation is not part of the document.
   const functionEntries = [...catalog.functions].filter(
-    ([name, fn]) => fn.sourceJson !== undefined || !name.startsWith('@'),
+    ([name, fn]) => entrySource(fn) !== undefined || !name.startsWith('@'),
   );
   const functionNames = functionEntries.map(([name]) => name);
   const functionsAsList = Array.isArray(source?.functions);
   if (functionsAsList) {
-    doc.functions = functionEntries.map(([name, fn]) =>
-      fn.sourceJson
-        ? deepCopyJson(fn.sourceJson)
-        : serializeFunctionModel(name, fn, localDefs, isAtLeastV10, true),
-    );
+    doc.functions = functionEntries.map(([name, fn]) => {
+      const fnSource = entrySource(fn);
+      return fnSource
+        ? deepCopyJson(fnSource.json)
+        : serializeFunctionModel(name, fn, localDefs, isAtLeastV10, true);
+    });
   } else if (functionEntries.length > 0 || (source && 'functions' in source)) {
     const functions: JsonObject = {};
     for (const [name, fn] of functionEntries) {
-      functions[name] = fn.sourceJson
-        ? deepCopyJson(fn.sourceJson)
+      const fnSource = entrySource(fn);
+      functions[name] = fnSource
+        ? deepCopyJson(fnSource.json)
         : serializeFunctionModel(name, fn, localDefs, isAtLeastV10, false);
     }
     doc.functions = functions;
@@ -480,7 +490,27 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
     doc.$defs = defs;
   }
 
-  return doc;
+  if (!source) return doc;
+  // Keep the source's key order, so a loaded or built-in catalog serializes to
+  // its document byte for byte once formatted the same way.
+  if (isObject(doc.components) && isObject(source.components)) {
+    doc.components = inKeyOrder(doc.components, Object.keys(source.components));
+  }
+  if (isObject(doc.functions) && isObject(source.functions)) {
+    doc.functions = inKeyOrder(doc.functions, Object.keys(source.functions));
+  }
+  if (isObject(doc.$defs) && sourceDefs) {
+    doc.$defs = inKeyOrder(doc.$defs, Object.keys(sourceDefs));
+  }
+  return inKeyOrder(doc, Object.keys(source));
+}
+
+/** Returns `obj` with the keys `order` names first, in that order, then the rest. */
+function inKeyOrder(obj: JsonObject, order: readonly string[]): JsonObject {
+  const result: JsonObject = {};
+  for (const key of order) if (key in obj) result[key] = obj[key];
+  for (const [key, value] of Object.entries(obj)) if (!(key in result)) result[key] = value;
+  return result;
 }
 
 function pickUnions(defs: JsonObject | undefined): JsonObject {

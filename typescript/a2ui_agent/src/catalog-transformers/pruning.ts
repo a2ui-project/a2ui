@@ -54,9 +54,9 @@ function registerPrunedDocument(
  * Returns the options that carry a catalog's metadata, authored `$defs` and
  * source document over to a catalog derived from it.
  *
- * Pruning only drops entries, so the kept entries keep their `sourceJson` and
- * `toJson()` of the derived catalog emits them as authored. A transformer that
- * rewrites an entry's schema must drop that entry's `sourceJson` instead.
+ * Pruning only drops entries, so the kept entries keep their authored source
+ * and `toJson()` of the derived catalog emits them as authored. An entry a
+ * transformer copies with a new schema is serialized from that schema.
  */
 function derivedCatalogOptions(catalog: CatalogApi): CatalogOptions {
   return {
