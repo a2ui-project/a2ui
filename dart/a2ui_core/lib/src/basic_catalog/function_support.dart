@@ -31,9 +31,9 @@ import '../processing/expressions.dart';
 
 /// Opens [url] on behalf of the basic catalog's `openUrl` function.
 ///
-/// The URL has already been checked against the allowed schemes (`http`,
-/// `https`, `mailto` and `tel`). A returned future is passed back to the
-/// caller, which may await it.
+/// The URL has already been checked against the allowed schemes (`http` and
+/// `https`). A returned future is passed back to the caller, which may await
+/// it.
 typedef OpenUrlCallback = FutureOr<void> Function(Uri url);
 
 /// Evaluates one basic catalog function call.
@@ -283,12 +283,12 @@ Object? formatTemplate(Object? template, DataContext context) {
 // openUrl
 // ---------------------------------------------------------------------------
 
-const Set<String> _allowedUrlSchemes = {'http', 'https', 'mailto', 'tel'};
+const Set<String> _allowedUrlSchemes = {'http', 'https'};
 
 /// Validates [url] and hands it to [onOpen].
 ///
 /// A missing or blank [url] does nothing. Throws [A2uiExpressionError] when
-/// [url] is not an absolute `http`, `https`, `mailto` or `tel` URL, or when
+/// [url] is not an absolute `http` or `https` URL, or when
 /// there is no [onOpen] to open it with. Returns the callback's future, if
 /// it returns one, and otherwise null.
 Future<void>? openUrl(Object? url, OpenUrlCallback? onOpen) {

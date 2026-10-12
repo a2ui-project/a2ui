@@ -694,3 +694,21 @@
     url: "javascript:alert(1)"
   expectError:
     category: ExpressionError
+
+- name: test_evaluate_function_open_url_rejects_mailto
+  description: Verifies openUrl rejects a mailto URL, since only http and https are allowed.
+  action: evaluate_function
+  function: openUrl
+  args:
+    url: "mailto:someone@example.com"
+  expectError:
+    category: ExpressionError
+
+- name: test_evaluate_function_open_url_rejects_tel
+  description: Verifies openUrl rejects a tel URL, since only http and https are allowed.
+  action: evaluate_function
+  function: openUrl
+  args:
+    url: "tel:+15555550100"
+  expectError:
+    category: ExpressionError

@@ -16,6 +16,7 @@ import pytest
 import math
 from typing import Any
 from pydantic import ValidationError
+from a2ui.core.exceptions import A2uiExpressionError
 from a2ui.core.rpc import CallOptions
 from a2ui.core.schema.v1_0.common_types import FunctionCall
 
@@ -295,6 +296,16 @@ def test_formatting_pluralize():
 def test_actions_open_url():
     # Since openUrl has side effects in browser only and returns None in python, we verify it executes without error.
     assert invoke("openUrl", {"url": "https://google.com"}) is None
+
+
+def test_actions_open_url_allows_only_http_and_https():
+    for url in (
+        "mailto:someone@example.com",
+        "tel:+15555550100",
+        "javascript:alert(1)",
+    ):
+        with pytest.raises(A2uiExpressionError):
+            invoke("openUrl", {"url": url})
 
 
 def test_localized_formatting():

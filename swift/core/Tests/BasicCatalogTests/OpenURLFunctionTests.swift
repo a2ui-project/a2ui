@@ -201,6 +201,19 @@ struct OpenURLFunctionTests {
     }
   }
 
+  @Test func throwsErrorWhenUsingMailtoOrTelScheme() {
+    let function = OpenURLFunction()
+
+    for url in ["mailto:someone@example.com", "tel:+15555550100"] {
+      #expect(throws: FunctionError.self) {
+        try function.evaluate(
+          arguments: ["url": .string(url)],
+          context: context
+        )
+      }
+    }
+  }
+
   @Test func throwsErrorWhenRelativeURLHasNoSchemeAndNoBaseURL() {
     let function = OpenURLFunction()
 

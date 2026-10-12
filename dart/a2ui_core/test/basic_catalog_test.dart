@@ -707,7 +707,13 @@ void main() {
     test('rejects disallowed and relative URLs', () {
       final opened = <Uri>[];
       final _RendererCatalog catalog = BasicCatalog.v0_9(openUrl: opened.add);
-      for (final url in ['javascript:alert(1)', 'file:///etc/passwd', 'a/b']) {
+      for (final url in [
+        'javascript:alert(1)',
+        'file:///etc/passwd',
+        'mailto:a@b.co',
+        'tel:+1555',
+        'a/b',
+      ]) {
         expect(
           () => _call(catalog, 'openUrl', {'url': url}),
           throwsA(isA<A2uiExpressionError>()),
@@ -726,7 +732,7 @@ void main() {
 
     test('fails without a callback', () {
       expect(
-        () => _call(v10, 'openUrl', {'url': 'mailto:a@b.co'}),
+        () => _call(v10, 'openUrl', {'url': 'https://example.com/a'}),
         throwsA(isA<A2uiExpressionError>()),
       );
     });
@@ -739,7 +745,8 @@ void main() {
           done = true;
         },
       );
-      final Object? result = _call(catalog, 'openUrl', {'url': 'tel:+1555'});
+      final Object? result =
+          _call(catalog, 'openUrl', {'url': 'https://example.com/a'});
       expect(result, isA<Future<void>>());
       await (result! as Future<void>);
       expect(done, isTrue);

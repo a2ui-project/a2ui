@@ -1,5 +1,8 @@
 ## Unreleased
 
+- The basic catalog's `openUrl` accepts only `http` and `https` URLs, as its
+  implementation guide requires, and raises `A2uiExpressionError` for `mailto`
+  and `tel`, which it used to accept.
 - **BREAKING**: `a2ui.core.schema.AgentToRendererMessage`,
   `RendererToAgentMessage`, and their legacy aliases now expose the full
   v0.8–v1.0 union instead of being overwritten by v0.9 re-exports. The facade

@@ -436,7 +436,7 @@ def create_pluralize_implementation(
 PluralizeImplementation = create_pluralize_implementation(None)
 
 
-_ALLOWED_URL_SCHEMES = ("http:", "https:", "mailto:", "tel:")
+_ALLOWED_URL_SCHEMES = ("http:", "https:")
 
 
 # Actions

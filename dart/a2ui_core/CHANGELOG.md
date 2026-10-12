@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `openUrl` accepts only absolute `http` and `https` URLs, as the basic
+  catalog's implementation guide requires. `mailto` and `tel` URLs, which it
+  used to accept, now throw `A2uiExpressionError`.
 - `PayloadValidator` takes its rules from the catalog: `Catalog.protocolVersion`
   (parsed from the document's `protocolVersion`) selects the v1.0 rules for
   v1.0 and later and the v0.9 rules otherwise, and the embedded

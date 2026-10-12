@@ -584,6 +584,8 @@ describe('v1.0 BASIC_FUNCTIONS', () => {
           'file:///etc/passwd',
           'chrome://settings',
           'about:blank',
+          'mailto:someone@example.com',
+          'tel:+15555550100',
         ];
 
         for (const {input, expected} of validCases) {

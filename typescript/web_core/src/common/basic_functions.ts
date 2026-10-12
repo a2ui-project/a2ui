@@ -586,12 +586,7 @@ export function executeOpenUrl(urlInput: unknown): void {
     throw new A2uiExpressionError(`Invalid URL specified: ${target}`, 'openUrl', e);
   }
 
-  if (
-    url.protocol !== 'https:' &&
-    url.protocol !== 'http:' &&
-    url.protocol !== 'mailto:' &&
-    url.protocol !== 'tel:'
-  ) {
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
     throw new A2uiExpressionError(`Unsupported URL scheme: ${url.protocol}`, 'openUrl');
   }
 

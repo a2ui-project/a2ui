@@ -1,5 +1,7 @@
 ## Unreleased
 
+- The basic catalog's `openUrl` opens only `http` and `https` URLs, as its implementation guide requires. It also accepted `mailto` and `tel`, and now rejects them with an `A2uiExpressionError`.
+
 ## 0.13.0
 
 - (v1_0) The basic catalog's `and`, `or` and `not` read a ValidationResult operand by its `valid` member instead of treating every object as truthy, so the v1.0 specification's nested `and(required, or(required, required))` check is false when a field is empty. The v0.9 catalog keeps JavaScript truthiness, since its validators return booleans. `createAndImplementation`, `createOrImplementation` and `createNotImplementation` accept a `truthy` option, and `executeAnd`, `executeOr` and `executeNot` a `truthy` argument.
