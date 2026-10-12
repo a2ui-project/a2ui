@@ -62,9 +62,9 @@ The code generator uses **Schema Flattening** to remain version-, catalog-, and 
 
 A `Catalog` has three serialization entry points:
 
-- `Catalog.fromJson(json, protocolVersion?, catalogId?)` loads an authored catalog document. It keeps the document's metadata, its `$defs` and the authored JSON of each entry (`sourceJson`). `protocolVersion` applies when the document declares none, and `catalogId` replaces the document's own ID.
-- `catalog.toJson()` returns the unbundled catalog document. A catalog loaded with `fromJson`, and each built-in basic catalog, returns its document unchanged. Entries defined in code are serialized from their Zod schemas.
-- `catalog.validationSchema` is the self-contained schema used to validate payloads: common types are bundled into `$defs` and every `$ref` is local. Each read returns a fresh copy.
+- `Catalog.fromJson(json, protocolVersion?, catalogId?)` loads a catalog document into the catalog's model. Each entry keeps its JSON Schema definition as written (`definition`), from which its Zod schema is derived, and the catalog keeps the document-level fields (metadata, named `$defs`, other top-level keys). `protocolVersion` applies when the document declares none, and `catalogId` replaces the document's own ID.
+- `catalog.toJson()` assembles the unbundled catalog document from the model, computing the `anyComponent` and `anyFunction` unions. A catalog loaded with `fromJson`, and each built-in basic catalog, returns its document unchanged. Entries without a `definition` are serialized from their Zod schemas. The result is computed once per catalog; each call returns a fresh copy.
+- `catalog.validationSchema` is the self-contained schema used to validate payloads: common types and the catalog's own `$defs` are bundled into `$defs` and every `$ref` is local. It is computed once per catalog; each read returns a fresh copy.
 
 ```ts
 import {Catalog} from '@a2ui/web_core';
@@ -74,7 +74,9 @@ const unchanged = catalog.toJson(); // deep-equals document
 const schema = catalog.validationSchema; // bundled JSON Schema
 ```
 
-The `Catalog` constructor takes a `CatalogOptions` object as its fifth argument, with the `themeSchema`, `instructions` and document metadata (`schemaUri`, `schemaId`, `title`, `description`, `declaredProtocolVersion`, `defs`, `sourceDocument`) that `toJson` emits.
+The `Catalog` constructor takes a `CatalogOptions` object as its fifth argument, with the `themeSchema` and the document-level fields (`instructions`, `schemaUri`, `schemaId`, `title`, `description`, `declaredProtocolVersion`, `declaresCatalogId`, `functionsLayout`, `unions`, `defs`, `extensionFields`) that `toJson` emits. `catalog.withEntries(components, functions)` returns a catalog with the same fields and other entries, as catalog transformers need.
+
+The built-in basic catalogs are defined in code. Their entry definitions and document-level fields are generated from the published catalog documents into `catalog_definitions.ts` modules by `scripts/generate-basic-catalog-definitions.mjs`, which runs as part of `yarn generate-zod-schemas`.
 
 ## Development
 

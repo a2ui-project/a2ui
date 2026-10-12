@@ -32,32 +32,26 @@ import {
   FunctionCallSchema,
   ChildSchema,
 } from '../types/common-types.js';
-import type {ComponentApi, FunctionApi} from './types.js';
+import type {CatalogDocumentOptions, ComponentApi, FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
-import {deepCopyJson} from './schema_serializer.js';
-import {catalogDocumentOptions, deepFreeze, recordLoadedSource} from './source_document.js';
+import {
+  buildComponentUnion,
+  buildFunctionUnion,
+  deepCopyJson,
+  deepFreeze,
+} from './schema_serializer.js';
 
-export interface ParsedCatalogSchema {
+/**
+ * The fields of a parsed catalog document: its ID, version and entries, and
+ * the document-level fields a `Catalog` keeps so that `toJson` reproduces the
+ * document.
+ */
+export interface ParsedCatalogSchema extends CatalogDocumentOptions {
   id: string;
   protocolVersion: string;
   components: ComponentApi[];
   functions: FunctionApi[];
   themeSchema?: z.ZodObject<z.ZodRawShape>;
-  instructions?: string;
-  /** The document's `$schema`, if declared. */
-  schemaUri?: string;
-  /** The document's `$id`, if declared. */
-  schemaId?: string;
-  /** The document's `title`, if declared. */
-  title?: string;
-  /** The document's `description`, if declared. */
-  description?: string;
-  /** The document's `protocolVersion` exactly as declared, if declared. */
-  declaredProtocolVersion?: string;
-  /** The document's authored `$defs`, unmodified, including any unions. */
-  defs?: Readonly<Record<string, unknown>>;
-  /** A deep copy of the whole authored document. */
-  sourceDocument: Record<string, unknown>;
 }
 
 /**
@@ -818,7 +812,7 @@ function parseFunctionDefinitions(
           allowedCallers: fn.allowedCallers,
           requiresUserActivation: fn.requiresUserActivation,
           schema: paramSchema,
-          sourceJson: deepCopyJson(fn as Record<string, unknown>),
+          definition: fn as Record<string, unknown>,
         });
       }
     }
@@ -888,7 +882,7 @@ function parseFunctionDefinitions(
         allowedCallers: allowedCallers as any,
         requiresUserActivation: requiresUserActivation as boolean | undefined,
         schema: paramSchema,
-        sourceJson: deepCopyJson(d),
+        definition: d,
       });
     }
   }
@@ -974,7 +968,7 @@ function parseCatalogComponents(
       allowedChildren: Array.isArray(rawComp.allowedChildren)
         ? rawComp.allowedChildren.filter((c: unknown): c is string => typeof c === 'string')
         : undefined,
-      sourceJson: deepCopyJson(rawComp),
+      definition: rawComp,
     });
   }
   return components;
@@ -1078,14 +1072,9 @@ export function parseCatalogSchema(
 
   const themeSchema = parseThemeSchema(catalogSchema, defs);
 
-  // The copy becomes the catalog's frozen source document, and each entry's
-  // source is recorded against the schema built for it.
+  // The copy is frozen: the entries' definitions and the document fields
+  // refer into it.
   deepFreeze(catalogSchema);
-  for (const entry of [...components, ...functions]) {
-    if (entry.sourceJson) {
-      recordLoadedSource(entry.sourceJson as Record<string, unknown>, entry.schema, catalogSchema);
-    }
-  }
 
   return {
     id: catalogId,
@@ -1093,7 +1082,90 @@ export function parseCatalogSchema(
     components,
     functions,
     themeSchema,
-    ...catalogDocumentOptions(catalogSchema),
-    sourceDocument: catalogSchema,
+    ...readDocumentFields(catalogSchema, components, functions),
   };
+}
+
+/** Top-level keys of a catalog document that `CatalogDocumentOptions` models. */
+const DOCUMENT_STRING_FIELDS = {
+  '$schema': 'schemaUri',
+  '$id': 'schemaId',
+  'title': 'title',
+  'description': 'description',
+  'instructions': 'instructions',
+} as const;
+
+/** Top-level keys of a catalog document that `Catalog` models besides the string fields. */
+const DOCUMENT_STRUCTURE_FIELDS = new Set(['protocolVersion', 'catalogId', 'components']);
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Whether `actual` is the union a catalog computes, ignoring object key order.
+ */
+function isComputedUnion(actual: unknown, computed: Record<string, unknown>): boolean {
+  return canonicalJsonStringify(actual) === canonicalJsonStringify(computed);
+}
+
+/**
+ * Reads the document-level fields of a catalog document into the model fields
+ * `Catalog` keeps.
+ *
+ * The `anyComponent` and `anyFunction` unions become flags when they list
+ * exactly the loaded entries, in order, as `toJson` computes them; a union of
+ * any other form stays in `defs` as written. Keys the model has no field for
+ * are kept in `extensionFields`.
+ *
+ * @param document The frozen catalog document.
+ * @param components The components loaded from it.
+ * @param functions The functions loaded from it.
+ */
+function readDocumentFields(
+  document: Readonly<Record<string, unknown>>,
+  components: readonly ComponentApi[],
+  functions: readonly FunctionApi[],
+): CatalogDocumentOptions {
+  const fields: CatalogDocumentOptions = {};
+  const extensionFields: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(document)) {
+    if (key in DOCUMENT_STRING_FIELDS && typeof value === 'string') {
+      fields[DOCUMENT_STRING_FIELDS[key as keyof typeof DOCUMENT_STRING_FIELDS]] = value;
+    } else if (key === 'protocolVersion' && typeof value === 'string') {
+      fields.declaredProtocolVersion = value;
+    } else if (key === 'functions' && (Array.isArray(value) || isPlainObject(value))) {
+      fields.functionsLayout = Array.isArray(value) ? 'list' : 'map';
+    } else if (key === '$defs' && isPlainObject(value)) {
+      const anyComponent = isComputedUnion(
+        value['anyComponent'],
+        buildComponentUnion(components.map(c => c.name)),
+      );
+      const anyFunction = isComputedUnion(
+        value['anyFunction'],
+        buildFunctionUnion(functions.map(f => f.name)),
+      );
+      fields.unions = {anyComponent, anyFunction};
+      const defs: Record<string, unknown> = {};
+      for (const [name, def] of Object.entries(value)) {
+        if ((name === 'anyComponent' && anyComponent) || (name === 'anyFunction' && anyFunction)) {
+          continue;
+        }
+        defs[name] = def;
+      }
+      fields.defs = Object.freeze(defs);
+    } else if (
+      !DOCUMENT_STRUCTURE_FIELDS.has(key) ||
+      (key === 'components' && !isPlainObject(value))
+    ) {
+      extensionFields[key] = value;
+    }
+  }
+  fields.declaredProtocolVersion ??= null;
+  fields.declaresCatalogId = typeof document['catalogId'] === 'string';
+  fields.unions ??= {anyComponent: false, anyFunction: false};
+  if (Object.keys(extensionFields).length > 0) {
+    fields.extensionFields = Object.freeze(extensionFields);
+  }
+  return fields;
 }

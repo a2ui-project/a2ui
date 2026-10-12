@@ -15,9 +15,12 @@
  * limitations under the License.
  */
 
-import {attachSourceJson, catalogDocumentOptions} from '../../catalog/source_document.js';
 import {Catalog, type ComponentApi, type FunctionApi} from '../../catalog/types.js';
-import STANDARD_CATALOG_DOCUMENT from '../schemas/standard_catalog_definition.json' with {type: 'json'};
+import {withDefinitions} from '../../catalog/with_definitions.js';
+import {
+  BASIC_CATALOG_DOCUMENT_OPTIONS,
+  BASIC_COMPONENT_DEFINITIONS,
+} from './catalog_definitions.js';
 import {BASIC_COMPONENTS, ThemeSchema} from './components/basic_components.js';
 
 /**
@@ -31,13 +34,15 @@ export const BASIC_CATALOG_ID =
  * The v0.8 basic catalog: the component APIs of the published v0.8 standard
  * catalog and its `styles` theme, without implementations.
  *
- * Its components carry their definitions from the published catalog document,
- * so `toJson` returns that document and `validationSchema` is built from it.
+ * Its components carry their published definitions, and the catalog the
+ * published document-level fields, all generated from the published catalog
+ * document by scripts/generate-basic-catalog-definitions.mjs, so `toJson`
+ * returns that document and `validationSchema` is built from it.
  */
 export const basicCatalog = new Catalog<ComponentApi, FunctionApi>(
   BASIC_CATALOG_ID,
   '0.8',
-  attachSourceJson(BASIC_COMPONENTS, STANDARD_CATALOG_DOCUMENT, 'components'),
+  withDefinitions(BASIC_COMPONENTS, BASIC_COMPONENT_DEFINITIONS),
   [],
-  {themeSchema: ThemeSchema, ...catalogDocumentOptions(STANDARD_CATALOG_DOCUMENT)},
+  {themeSchema: ThemeSchema, ...BASIC_CATALOG_DOCUMENT_OPTIONS},
 );

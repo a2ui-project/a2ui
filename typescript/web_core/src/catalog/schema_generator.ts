@@ -22,8 +22,7 @@ import {CommonSchemas} from '../types/common-types.js';
 import {V08_STANDARD_DEFS} from '../v0_8/standard_defs.js';
 import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
 import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
-import {deepCopyJson} from './schema_serializer.js';
-import {definitionsWithEntrySources, entrySource} from './source_document.js';
+import {deepCopyJson, entryDefinition, THEME_DOCUMENT_KEYS} from './schema_serializer.js';
 import type {CatalogInterface, ComponentApi, FunctionApi} from './types.js';
 
 const STANDARD_DEFS_BY_VERSION: Readonly<Record<string, Record<string, unknown>>> = {
@@ -262,12 +261,13 @@ const COMMON_TYPE_REF = /^(?:([^#]*common_types\.json))?#\/\$defs\/([^/]+)(\/.*)
 const STANDARD_MIXIN_REF = /\/(ComponentCommon|Checkable)$/;
 
 /**
- * Configuration the source-backed builders share: the standard definitions of
- * the catalog's protocol version and the authored document local references
- * resolve against.
+ * Configuration the definition-backed builders share: the standard definitions
+ * of the catalog's protocol version and the catalog's own `$defs`, which local
+ * references resolve against.
  */
 interface SourceContext {
   readonly standardDefs: Record<string, unknown>;
+  readonly defs: Readonly<JsonObject>;
   readonly rootDoc: JsonObject;
   readonly isV10: boolean;
 }
@@ -432,11 +432,12 @@ function sourceComponentSchema(
 }
 
 /**
- * Returns the `args` schema a function's source document declares, read as the
- * schema loader reads it, or `undefined` for a function defined in code.
+ * Returns the `args` schema a function's definition declares, read as the
+ * schema loader reads it, or `undefined` for a function without a usable
+ * definition.
  */
-function authoredFunctionArgs(fn: FunctionApi): JsonObject | undefined {
-  const source = entrySource(fn)?.json;
+function authoredFunctionArgs(fn: FunctionApi, context: SourceContext): JsonObject | undefined {
+  const source = entryDefinition(fn, context.defs);
   if (!source) return undefined;
   const props = isJsonObject(source.properties) ? source.properties : undefined;
   const explicit = props?.args ?? source.args ?? source.parameters;
@@ -472,14 +473,17 @@ function authoredFunctionArgs(fn: FunctionApi): JsonObject | undefined {
   return args;
 }
 
-/** Returns the theme schema a catalog's source document declares, if any. */
+/**
+ * Returns the theme schema a catalog declares: under one of the document's
+ * top-level theme keys, or as `$defs.theme`.
+ */
 function authoredTheme(
   catalog: CatalogInterface<ComponentApi, FunctionApi>,
 ): JsonObject | undefined {
-  const source = catalog.sourceDocument;
-  if (!source) return undefined;
-  const defs = isJsonObject(source.$defs) ? source.$defs : undefined;
-  const theme = source.theme ?? source.themeSchema ?? source.styles ?? defs?.theme;
+  const theme =
+    THEME_DOCUMENT_KEYS.map(key => catalog.extensionFields?.[key]).find(
+      value => value !== undefined,
+    ) ?? catalog.defs?.['theme'];
   if (!isJsonObject(theme)) return undefined;
   return 'properties' in theme || 'allOf' in theme || theme.type === 'object'
     ? theme
@@ -644,7 +648,7 @@ function processSingleComponent(
   let reqList: string[];
   let description: string | undefined;
   let closure: unknown;
-  const source = entrySource(comp)?.json;
+  const source = entryDefinition(comp, context.defs);
   if (source) {
     ({props, required: reqList, description} = sourceComponentSchema(source, context));
     // From v1.0 the protocol's Component envelope combines the entry with
@@ -748,7 +752,7 @@ function buildFunctionArgsSchema(
   context: SourceContext,
 ): JsonObject {
   let paramSchemaObj: JsonObject;
-  const authored = authoredFunctionArgs(fn);
+  const authored = authoredFunctionArgs(fn, context);
   if (authored) {
     paramSchemaObj = deepCopyJson(authored);
     restoreSourceRefs(paramSchemaObj, context.standardDefs, false);
@@ -996,7 +1000,7 @@ export function generateValidationSchema<
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     // The declared version, in the bare semantic version form
     // catalog_definition.json requires: `v0.9.1` becomes `0.9.1`.
-    ...(catalog.declaredProtocolVersion !== undefined
+    ...(typeof catalog.declaredProtocolVersion === 'string'
       ? {protocolVersion: catalog.declaredProtocolVersion.trim().replace(/^[vV](?=\d)/, '')}
       : {}),
     catalogId: catalog.id,
@@ -1008,19 +1012,11 @@ export function generateValidationSchema<
 
   const standardDefs = getStandardDefsForCatalog(catalog, options);
   const version = options?.protocolVersion ?? catalog.protocolVersion;
-  const sourceDocument: Readonly<JsonObject> = isJsonObject(catalog.sourceDocument)
-    ? catalog.sourceDocument
-    : {};
-  // The catalog's own definitions, and those its entries' sources reach that
-  // it does not define, such as the mixin of a reused built-in component.
-  const authoredDefs = definitionsWithEntrySources(
-    isJsonObject(sourceDocument['$defs']) ? sourceDocument['$defs'] : catalog.defs,
-    [...catalog.components.values(), ...catalog.functions.values()],
-  );
-  const rootDoc: JsonObject = {...sourceDocument, $defs: authoredDefs};
+  const authoredDefs: Readonly<JsonObject> = catalog.defs ?? {};
   const context: SourceContext = {
     standardDefs,
-    rootDoc,
+    defs: authoredDefs,
+    rootDoc: {$defs: authoredDefs},
     isV10: Boolean(version) && isAtLeastVersion(version, '1.0'),
   };
 

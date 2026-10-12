@@ -154,7 +154,7 @@
   },
   "wireit": {
     "generate-zod-schemas": {
-      "command": "node scripts/generate-standard-defs.mjs && node scripts/generate-zod-schemas.mjs && node scripts/generate-superset-common-types.mjs && node src/v0_9/scripts/generate-catalog.mjs && node src/catalogs/basic/v1/scripts/generate-catalog.mjs && prettier --write \"src/**/*.ts\"",
+      "command": "node scripts/generate-standard-defs.mjs && node scripts/generate-zod-schemas.mjs && node scripts/generate-superset-common-types.mjs && node src/v0_9/scripts/generate-catalog.mjs && node src/catalogs/basic/v1/scripts/generate-catalog.mjs && node scripts/generate-basic-catalog-definitions.mjs && prettier --write \"src/**/*.ts\"",
       "files": [
         "../../specification/v0_8/json/*.json",
         "../../specification/v0_9/catalogs/**/*.json",
@@ -165,6 +165,7 @@
         "scripts/generate-zod-schemas.mjs",
         "scripts/generate-superset-common-types.mjs",
         "scripts/generate-catalog-schemas.mjs",
+        "scripts/generate-basic-catalog-definitions.mjs",
         "scripts/zod-generator-core.mjs",
         "src/types/helpers.ts",
         "src/types/child-ref-helpers.ts",
@@ -194,7 +195,10 @@
         "src/v1_0/schema/catalog-definition.ts",
         "src/v1_0/schema/index.ts",
         "src/catalogs/basic/v1/components/basic_components.ts",
-        "src/catalogs/basic/v1/functions/basic_functions_api.ts"
+        "src/catalogs/basic/v1/functions/basic_functions_api.ts",
+        "src/v0_8/basic_catalog/catalog_definitions.ts",
+        "src/v0_9/basic_catalog/catalog_definitions.ts",
+        "src/catalogs/basic/v1/catalog_definitions.ts"
       ]
     },
     "copy-spec": {

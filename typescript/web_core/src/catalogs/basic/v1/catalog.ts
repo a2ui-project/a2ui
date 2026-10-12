@@ -14,11 +14,15 @@
  * limitations under the License.
  */
 
-import {attachSourceJson, catalogDocumentOptions} from '../../../catalog/source_document.js';
 import {Catalog} from '../../../catalog/types.js';
+import {withDefinitions} from '../../../catalog/with_definitions.js';
 import {BasicCatalogThemeSchema} from '../../../universal/basic_catalog/theme.js';
 import type {WebComponentImplementation} from '../../../universal/index.js';
-import BASIC_CATALOG_DOCUMENT from '../../../v1_0/schemas/catalogs/basic/catalog.json' with {type: 'json'};
+import {
+  BASIC_CATALOG_DOCUMENT_OPTIONS,
+  BASIC_COMPONENT_DEFINITIONS,
+  BASIC_FUNCTION_DEFINITIONS,
+} from './catalog_definitions.js';
 import {
   A2uiAudioPlayer,
   A2uiButton,
@@ -45,14 +49,15 @@ import {BASIC_FUNCTIONS} from './functions/basic_functions.js';
  * The v1 basic catalog of A2UI components implemented via Web Components
  * (Custom Elements).
  *
- * Its components and functions carry their definitions from the published
- * catalog document, so `toJson` returns that document and `validationSchema`
- * is built from it.
+ * Its components and functions carry their published definitions, and the
+ * catalog the published document-level fields, all generated from the
+ * published catalog document by scripts/generate-basic-catalog-definitions.mjs,
+ * so `toJson` returns that document and `validationSchema` is built from it.
  */
 export const basicCatalog = new Catalog<WebComponentImplementation>(
   'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
   '1.0',
-  attachSourceJson(
+  withDefinitions(
     [
       A2uiText,
       A2uiButton,
@@ -73,12 +78,11 @@ export const basicCatalog = new Catalog<WebComponentImplementation>(
       A2uiTabs,
       A2uiModal,
     ],
-    BASIC_CATALOG_DOCUMENT,
-    'components',
+    BASIC_COMPONENT_DEFINITIONS,
   ),
-  attachSourceJson(BASIC_FUNCTIONS, BASIC_CATALOG_DOCUMENT, 'functions'),
+  withDefinitions(BASIC_FUNCTIONS, BASIC_FUNCTION_DEFINITIONS),
   {
     themeSchema: BasicCatalogThemeSchema,
-    ...catalogDocumentOptions(BASIC_CATALOG_DOCUMENT),
+    ...BASIC_CATALOG_DOCUMENT_OPTIONS,
   },
 );
