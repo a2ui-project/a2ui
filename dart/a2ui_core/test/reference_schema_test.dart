@@ -69,6 +69,7 @@ Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
     id: parsed.id,
     protocolVersion: parsed.protocolVersion,
     components: parsed.components.values.toList(),
+    definitions: parsed.definitions,
   );
 }
 

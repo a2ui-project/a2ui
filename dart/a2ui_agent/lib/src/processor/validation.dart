@@ -85,9 +85,8 @@ class _SignatureOnly extends FunctionImplementation {
         argumentSchema: api.argumentSchema,
         returnType: api.returnType,
         description: api.description,
-        allowedCallers: api.allowedCallers,
-        requiresUserActivation: api.requiresUserActivation,
-        sourceJson: api.sourceJson,
+        allowedCallers: api.declaredAllowedCallers,
+        requiresUserActivation: api.declaredRequiresUserActivation,
       );
 
   @override

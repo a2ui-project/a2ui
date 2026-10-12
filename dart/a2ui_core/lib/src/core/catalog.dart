@@ -29,11 +29,23 @@ import 'legacy_inline_catalog.dart';
 /// A definition of a UI component's API.
 ///
 /// Carries the component's name and JSON schema, plus the composition
-/// constraints and authored JSON a catalog document may give it, so it is
-/// what [Catalog.fromJson] produces directly. A renderer that attaches
-/// behaviour subclasses it.
+/// constraints a catalog document may give it, so it is what
+/// [Catalog.fromJson] produces directly. A renderer that attaches behaviour
+/// subclasses it.
 class ComponentApi {
   final String name;
+
+  /// The JSON schema of the component's definition.
+  ///
+  /// For a component read by [Catalog.fromJson], this is the definition as
+  /// the catalog document wrote it: `allOf` mixins, local `#/$defs/...` and
+  /// `common_types.json` references, descriptions and closure keywords are
+  /// all kept, so [Catalog.toJson] writes it back unchanged. Only
+  /// `allowedParents` and `allowedChildren` are taken out, into
+  /// [allowedParents] and [allowedChildren].
+  ///
+  /// Renderers and validators work with the flattened form instead, which
+  /// [Catalog.resolvedComponentSchemas] holds.
   final Schema schema;
 
   /// The component types that may contain this one, from the definition's
@@ -47,22 +59,11 @@ class ComponentApi {
   /// `allowedChildren`, or null when any child is allowed.
   final List<String>? allowedChildren;
 
-  /// The component's definition exactly as a catalog document wrote it, when
-  /// it was read from one.
-  ///
-  /// [Catalog.toJson] emits it in place of a serialization of [schema], so a
-  /// document read by [Catalog.fromJson] is written back unchanged. Leave it
-  /// null for a component defined in code, and for a component derived from
-  /// another with a different schema, so the serialization reflects
-  /// [schema].
-  final Map<String, Object?>? sourceJson;
-
   const ComponentApi({
     required this.name,
     required this.schema,
     this.allowedParents,
     this.allowedChildren,
-    this.sourceJson,
   });
 }
 
@@ -138,36 +139,45 @@ enum AllowedCallers {
 class FunctionApi {
   final String name;
   final A2uiReturnType returnType;
+
+  /// The JSON schema of the function's `args`.
+  ///
+  /// For a function read by [Catalog.fromJson], this is the schema as the
+  /// catalog document wrote it, with its references kept.
   final Schema argumentSchema;
   final String? description;
 
-  /// Who may invoke this function. An agent's `callRendererFunction` is
-  /// refused unless this allows the agent.
-  final AllowedCallers allowedCallers;
+  /// The `allowedCallers` the definition declares, or null when it declares
+  /// none.
+  final AllowedCallers? declaredAllowedCallers;
 
-  /// Whether the function runs only from a user activation, such as an
-  /// action the user triggered, and not from a dynamic value.
-  final bool requiresUserActivation;
+  /// The `requiresUserActivation` the definition declares, or null when it
+  /// declares none.
+  final bool? declaredRequiresUserActivation;
 
-  /// The function's definition exactly as a catalog document wrote it, when
-  /// it was read from one: an entry of the `functions` map, or an item of the
-  /// `functions` list.
+  /// Creates a function signature.
   ///
-  /// [Catalog.toJson] emits it in place of a serialization of the signature,
-  /// so a document read by [Catalog.fromJson] is written back unchanged.
-  /// Leave it null for a function defined in code, and for a function
-  /// derived from another with a different signature.
-  final Map<String, Object?>? sourceJson;
-
+  /// [allowedCallers] and [requiresUserActivation] are written to
+  /// [Catalog.toJson] only when given, even when given their default value,
+  /// so a definition that states a default keeps stating it.
   const FunctionApi({
     required this.name,
     required this.argumentSchema,
     this.returnType = A2uiReturnType.any,
     this.description,
-    this.allowedCallers = AllowedCallers.rendererOnly,
-    this.requiresUserActivation = false,
-    this.sourceJson,
-  });
+    AllowedCallers? allowedCallers,
+    bool? requiresUserActivation,
+  })  : declaredAllowedCallers = allowedCallers,
+        declaredRequiresUserActivation = requiresUserActivation;
+
+  /// Who may invoke this function. An agent's `callRendererFunction` is
+  /// refused unless this allows the agent.
+  AllowedCallers get allowedCallers =>
+      declaredAllowedCallers ?? AllowedCallers.rendererOnly;
+
+  /// Whether the function runs only from a user activation, such as an
+  /// action the user triggered, and not from a dynamic value.
+  bool get requiresUserActivation => declaredRequiresUserActivation ?? false;
 }
 
 /// A function implementation that can be registered with a catalog.
@@ -179,7 +189,6 @@ abstract class FunctionImplementation extends FunctionApi {
     super.description,
     super.allowedCallers,
     super.requiresUserActivation,
-    super.sourceJson,
   });
 
   /// Executes the function. Can return a static value or a [ReadonlySignal].
@@ -210,6 +219,13 @@ typedef SchemaCatalog = CatalogApi;
 ///
 /// For a catalog that declares no functions, pass `Never`
 /// (see https://dart.dev/language/built-in-types).
+///
+/// The catalog is a model of a catalog document: [Catalog.fromJson] reads a
+/// document into the model, keeping each component and function schema as
+/// the document wrote it, and [toJson] writes the model back, so
+/// `Catalog.fromJson(document).toJson()` equals `document`. [toJson],
+/// [validationSchema] and [resolvedComponentSchemas] are computed from the
+/// model on first access and cached on the instance.
 class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// The JSON Schema dialect a catalog document declares.
   static const String jsonSchemaDialect =
@@ -217,6 +233,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   /// The catalog id, from the document's `catalogId` field.
   final String id;
+
+  /// The document's `$schema`, the JSON Schema dialect it is written in, or
+  /// null when it declares none.
+  final String? schemaDialect;
 
   /// The document's `$id`, when it declares one.
   ///
@@ -231,8 +251,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// The document's `description`, when it declares one.
   final String? description;
 
-  /// The protocol version the document declared as its `protocolVersion`,
-  /// when it declared one.
+  /// The protocol version the catalog targets: the one its document declares
+  /// as `protocolVersion`, or else the one it was read or defined with.
   ///
   /// Selects the validation rules applied to payloads drawing on this catalog:
   /// v1.0 and later use the v1.0 rules (`@path` and `@call`, UAX #31
@@ -243,8 +263,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// accepts the catalog and a v1.0 or later surface rejects it.
   /// [validationSchema] writes it as the bare semantic version
   /// ([A2uiProtocolVersion.semverValue]), the spelling the catalog definition
-  /// schema requires.
+  /// schema requires, when the document declares it.
   final A2uiProtocolVersion? protocolVersion;
+
+  /// The document's `protocolVersion` as it is written, or null when the
+  /// document declares none.
+  final String? _declaredProtocolVersion;
 
   /// Markdown design guidelines for this catalog, which agents add to the
   /// prompt alongside its components and functions.
@@ -254,9 +278,22 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   final Map<String, F> functions;
   final Schema? themeSchema;
 
-  /// What [Catalog.fromJson] read from the authored document, so [toJson]
-  /// can write it back; null for a catalog defined in code.
-  final _CatalogSource? _source;
+  /// The document's shared named definitions: its `$defs`, except `theme`
+  /// when [themeSchema] was read from there, and the `anyComponent` and
+  /// `anyFunction` unions, which [toJson] computes from [components] and
+  /// [functions].
+  ///
+  /// Component and function schemas reference these as `#/$defs/<name>`.
+  /// [validationSchema] bundles the ones they reach.
+  final Map<String, Object?> definitions;
+
+  /// The document's top-level keys that this model has no field for, which
+  /// [toJson] writes back as they are.
+  final Map<String, Object?> _otherFields;
+
+  /// Where [toJson] writes the parts of the document that may be laid out
+  /// in more than one way.
+  final _DocumentLayout _layout;
 
   /// The component name the protocol reserves for the surface itself.
   static const String reservedComponentName = 'Surface';
@@ -278,13 +315,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   ///
   /// Graph validation and node resolution both read this map, so a child
   /// reference the validator checks is one the resolver mounts. It is built
-  /// from [components], [validationSchema] and [commonTypesSchema] on first
-  /// access and then cached; a catalog is not expected to change its
-  /// components after that.
+  /// from [resolvedComponentSchemas], [validationSchema] and
+  /// [commonTypesSchema] on first access and then cached; a catalog is not
+  /// expected to change its components after that.
   late final ComponentRefMap refMap = ComponentRefMap(
     {
       for (final MapEntry<String, C> entry in components.entries)
-        entry.key: entry.value.schema.value,
+        entry.key: _flatOf(entry.value).schema.value,
     },
     document: validationSchema,
     commonTypes: commonTypesSchema,
@@ -296,6 +333,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// functions, or when a function declares [A2uiReturnType.validationResult]
   /// on a catalog whose effective protocol version is below 1.0 (an omitted
   /// [protocolVersion] is pre-v1.0).
+  ///
+  /// [toJson] writes [protocolVersion] as the document's `protocolVersion`
+  /// unless [declaresProtocolVersion] is false, as for a catalog published
+  /// before the field existed. [definitions] are the shared `$defs` the
+  /// component and function schemas reference, and [schemaDialect] is the
+  /// document's `$schema`.
   Catalog({
     required String id,
     required List<C> components,
@@ -305,18 +348,26 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     String? title,
     String? description,
     A2uiProtocolVersion? protocolVersion,
+    bool declaresProtocolVersion = true,
     String? instructions,
+    String? schemaDialect = jsonSchemaDialect,
+    Map<String, Object?> definitions = const {},
   }) : this._(
           id: id,
           components: components,
           functions: functions,
           themeSchema: themeSchema,
+          schemaDialect: schemaDialect,
           schemaId: schemaId,
           title: title,
           description: description,
           protocolVersion: protocolVersion,
+          declaredProtocolVersion:
+              declaresProtocolVersion ? protocolVersion?.semverValue : null,
           instructions: instructions,
-          source: null,
+          definitions: definitions,
+          otherFields: const {},
+          layout: const _DocumentLayout(),
         );
 
   Catalog._({
@@ -324,15 +375,22 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     required List<C> components,
     required List<F> functions,
     required this.themeSchema,
+    required this.schemaDialect,
     required this.schemaId,
     required this.title,
     required this.description,
     required this.protocolVersion,
+    required String? declaredProtocolVersion,
     required this.instructions,
-    required _CatalogSource? source,
+    required Map<String, Object?> definitions,
+    required Map<String, Object?> otherFields,
+    required _DocumentLayout layout,
   })  : components = _indexComponents(id, components),
         functions = _indexFunctions(id, functions, protocolVersion),
-        _source = source;
+        definitions = _frozenCopy(definitions)! as Map<String, Object?>,
+        _declaredProtocolVersion = declaredProtocolVersion,
+        _otherFields = _frozenCopy(otherFields)! as Map<String, Object?>,
+        _layout = layout;
 
   static Map<String, T> _indexComponents<T extends ComponentApi>(
     String catalogId,
@@ -400,9 +458,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   /// Parses a catalog document into a schema-only [Catalog].
   ///
-  /// Accepts both forms of `functions`: the map of name to JSON schema used by
-  /// published catalog documents, and the list of definitions used by inline
-  /// catalogs in renderer capabilities.
+  /// Each component and function keeps its schema as the document wrote it,
+  /// and every other part of the document is read into a field of the
+  /// catalog, so [toJson] writes the document back. Accepts both forms of
+  /// `functions`: the map of name to JSON schema used by published catalog
+  /// documents, and the list of definitions used by inline catalogs in
+  /// renderer capabilities.
   ///
   /// A declared `protocolVersion` is read as a semantic version
   /// ([A2uiProtocolVersion.tryParseSemVer]), so `1.0`, `v1.0` and `1.0.0` all
@@ -413,11 +474,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// checks it against its own. From v1.0, component names, their property
   /// names, function names and argument names must be UAX #31 identifiers.
   ///
+  /// A document whose `anyComponent` or `anyFunction` union lists only some
+  /// of its components or functions defines only the listed ones.
+  ///
   /// [catalogId], when given, is the catalog's id in place of the one the
   /// document declares. It is required for a document that declares none,
   /// such as the published v0.8 basic catalog.
-  ///
-  /// The catalog keeps the authored document, so [toJson] writes it back.
   ///
   /// Throws [A2uiCatalogError] if the document is malformed, has no catalog
   /// id, conflicts with [expectedCatalogId], declares a `protocolVersion`
@@ -461,95 +523,110 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final A2uiProtocolVersion? version = declaredVersion ?? protocolVersion;
     final bool v1 = version?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
 
-    // Local references are expanded here, once, so each component and
-    // function schema stands alone afterwards.
-    final document = inlineLocalRefs(json, json)! as Map<String, Object?>;
-    if (v1) _checkIdentifiers(document, rawId);
+    // Expanding the local references checks that each names something, and
+    // lets the identifier check see names reached through them. The
+    // expanded copy is not kept: the model holds the schemas as written.
+    final inlined = inlineLocalRefs(json, json)! as Map<String, Object?>;
+    if (v1) _checkIdentifiers(inlined, rawId);
 
-    // The authored JSON, read before references are inlined, so that toJson
-    // can write the document back as it was written.
-    final Object? rawComponents = json['components'];
-    final Object? rawFunctions = json['functions'];
     final Object? rawDefs = json[r'$defs'];
+    if (rawDefs != null && rawDefs is! Map) {
+      throw A2uiCatalogError(
+        r"Catalog '$defs' must be an object.",
+        catalogId: rawId,
+      );
+    }
+    final Map<String, Object?> defs =
+        rawDefs is Map ? rawDefs.cast<String, Object?>() : const {};
 
-    final propertiesWithRefs = <String, Map<String, Object?>>{};
-    final List<ComponentApi> components = [
-      // Components are read from the authored JSON, so a mixin reached
-      // through a local reference keeps its place in the precedence order;
-      // their properties are inlined after merging.
-      for (final ComponentApi parsed in _parseComponents(
-        rawComponents,
-        json,
-        rawId,
-        allowed: allowedComponents,
-        atLeastV1: v1,
-        propertiesWithRefs: propertiesWithRefs,
-      ))
-        _withComponentSource(
-          parsed,
-          rawComponents is Map ? rawComponents[parsed.name] : null,
-        ),
-    ];
-    final List<FunctionApi> functions = [
-      for (final FunctionApi parsed in _parseFunctions(
-        document['functions'],
-        rawId,
-        allowedFunctions,
-      ))
-        _withFunctionSource(parsed, _rawFunction(rawFunctions, parsed.name)),
-    ];
-    final Schema? themeSchema = _parseTheme(document);
+    final List<ComponentApi> components = _parseComponents(
+      json['components'],
+      rawId,
+      allowedComponents,
+    );
+    final Object? rawFunctions = json['functions'];
+    final List<FunctionApi> functions = _parseFunctions(
+      rawFunctions,
+      rawId,
+      allowedFunctions,
+    );
 
-    // The properties and arguments as validationSchema writes them: with
-    // references to the document's own definitions kept, keyed by the
-    // parsed schema they belong to.
-    final referencingSchemas = <Schema, Object?>{
-      for (final ComponentApi component in components)
-        if (propertiesWithRefs[component.name] case final properties?)
-          component.schema: properties,
-      for (final FunctionApi function in functions)
-        if (_rawArguments(_rawFunction(rawFunctions, function.name))
-            case final Object args)
-          function.argumentSchema: _keepAuthoredDefRefs(args, json),
-    };
+    final Object? topLevelTheme = json['theme'];
+    final bool themeInDefs = topLevelTheme == null && defs['theme'] != null;
+    final Object? theme = topLevelTheme ?? defs['theme'];
 
-    return CatalogApi._(
+    // A union is computed from the components and functions, so it is not
+    // kept when it is exactly the one this catalog computes. Any other
+    // definition of the name, such as the MCP catalog's open
+    // `anyComponent`, is a definition of its own.
+    final bool componentUnion = defs.containsKey('anyComponent') &&
+        _jsonEquals(
+          defs['anyComponent'],
+          _componentUnionOf([for (final c in components) c.name]),
+        );
+    final bool functionUnion = defs.containsKey('anyFunction') &&
+        _jsonEquals(
+          defs['anyFunction'],
+          _functionUnionOf([for (final f in functions) f.name]),
+        );
+
+    final CatalogApi catalog = CatalogApi._(
       id: rawId,
       components: components,
       functions: functions,
-      themeSchema: themeSchema,
-      schemaId: document[r'$id'] as String?,
-      title: document['title'] as String?,
-      description: document['description'] as String?,
+      themeSchema: theme == null
+          ? null
+          : Schema.fromMap(
+              _deepCopyValue(_asSchemaMap(theme))! as Map<String, Object?>,
+            ),
+      schemaDialect: _optionalString(json, r'$schema', rawId),
+      schemaId: _optionalString(json, r'$id', rawId),
+      title: _optionalString(json, 'title', rawId),
+      description: _optionalString(json, 'description', rawId),
       protocolVersion: version,
-      instructions: document['instructions'] as String?,
-      source: _CatalogSource(
-        keyOrder: List.unmodifiable(json.keys),
-        hasSchemaDialect: json.containsKey(r'$schema'),
-        schemaDialect: _frozenCopy(json[r'$schema']),
-        declaredProtocolVersion: rawVersion as String?,
-        protocolVersion: version,
-        hasComponents: json.containsKey('components'),
-        componentsJson: _frozenCopy(rawComponents),
-        functionsForm: switch (rawFunctions) {
-          null => _FunctionsForm.absent,
-          List() => _FunctionsForm.list,
-          _ => _FunctionsForm.map,
-        },
-        functionsJson: _frozenCopy(rawFunctions),
-        defs: rawDefs is Map
-            ? _frozenCopy(rawDefs)! as Map<String, Object?>
-            : null,
-        theme: _frozenCopy(json['theme']),
-        extras: _frozenCopy({
-          for (final MapEntry<String, Object?> entry in json.entries)
-            if (!_documentKeys.contains(entry.key)) entry.key: entry.value,
-        })! as Map<String, Object?>,
-        themeSchema: themeSchema,
-        componentNames: {for (final c in components) c.name},
-        functionNames: {for (final f in functions) f.name},
-        referencingSchemas: Map.unmodifiable(referencingSchemas),
+      declaredProtocolVersion: rawVersion as String?,
+      instructions: _optionalString(json, 'instructions', rawId),
+      definitions: {
+        for (final MapEntry<String, Object?> entry in defs.entries)
+          if (!(entry.key == 'theme' && themeInDefs) &&
+              !(entry.key == 'anyComponent' && componentUnion) &&
+              !(entry.key == 'anyFunction' && functionUnion))
+            entry.key: entry.value,
+      },
+      otherFields: {
+        for (final MapEntry<String, Object?> entry in json.entries)
+          if (!_documentKeys.contains(entry.key)) entry.key: entry.value,
+      },
+      layout: _DocumentLayout(
+        writesCatalogId: json.containsKey('catalogId'),
+        writesComponents: json.containsKey('components'),
+        writesFunctions: rawFunctions != null,
+        listsFunctions: rawFunctions is List,
+        writesDefs: rawDefs != null,
+        themeInDefs: theme == null ? null : themeInDefs,
+        writesComponentUnion: componentUnion,
+        writesFunctionUnion: functionUnion,
       ),
+    );
+    // Flattening each component checks its definition now, rather than when
+    // a renderer or validator first needs it.
+    components.forEach(catalog._flatOf);
+    return catalog;
+  }
+
+  /// The string [json] holds under [key], or null when it holds none.
+  ///
+  /// Throws [A2uiCatalogError] when the value is not a string.
+  static String? _optionalString(
+    Map<String, Object?> json,
+    String key,
+    String catalogId,
+  ) {
+    final Object? value = json[key];
+    if (value == null || value is String) return value as String?;
+    throw A2uiCatalogError(
+      "Catalog '$key' must be a string.",
+      catalogId: catalogId,
     );
   }
 
@@ -597,7 +674,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     }
 
     // The names of an object schema's properties, including those its
-    // `allOf` members declare, since `_parseComponents` merges them in.
+    // `allOf` members declare, since flattening merges them in.
     Iterable<String> propertyNames(Object? schema) sync* {
       if (schema is! Map) return;
       if (schema['properties'] case final Map<Object?, Object?> properties) {
@@ -668,53 +745,411 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     );
   }
 
-  /// [parsed] with the authored JSON of [raw], its definition as the
-  /// document wrote it.
-  static ComponentApi _withComponentSource(ComponentApi parsed, Object? raw) {
-    if (raw is! Map) return parsed;
-    return ComponentApi(
-      name: parsed.name,
-      schema: parsed.schema,
-      allowedParents: parsed.allowedParents,
-      allowedChildren: parsed.allowedChildren,
-      sourceJson: _frozenCopy(raw)! as Map<String, Object?>,
-    );
-  }
-
-  /// [parsed] with the authored JSON of [raw], its definition as the
-  /// document wrote it.
-  static FunctionApi _withFunctionSource(FunctionApi parsed, Object? raw) {
-    if (raw is! Map) return parsed;
-    return FunctionApi(
-      name: parsed.name,
-      argumentSchema: parsed.argumentSchema,
-      returnType: parsed.returnType,
-      description: parsed.description,
-      allowedCallers: parsed.allowedCallers,
-      requiresUserActivation: parsed.requiresUserActivation,
-      sourceJson: _frozenCopy(raw)! as Map<String, Object?>,
-    );
-  }
-
-  /// The authored definition of the function [name] in [rawFunctions], the
-  /// document's `functions` in either form.
-  static Object? _rawFunction(Object? rawFunctions, String name) {
-    if (rawFunctions is Map) return rawFunctions[name];
-    if (rawFunctions is List) {
-      for (final Object? item in rawFunctions) {
-        if (item is Map && item['name'] == name) return item;
+  static Set<String>? _extractAllowedRefs(
+    Map<String, Object?> json,
+    String defName,
+    String prefix,
+  ) {
+    final Object? defs = json[r'$defs'];
+    if (defs is! Map) return null;
+    final Object? union = defs[defName];
+    if (union is! Map) return null;
+    final Object? oneOf = union['oneOf'];
+    if (oneOf is! List) return null;
+    final allowed = <String>{};
+    for (final Object? item in oneOf) {
+      if (item is Map && item[r'$ref'] is String) {
+        final ref = item[r'$ref']! as String;
+        if (ref.startsWith(prefix)) {
+          allowed.add(
+            ref
+                .substring(prefix.length)
+                .replaceAll('~1', '/')
+                .replaceAll('~0', '~'),
+          );
+        }
       }
     }
-    return null;
+    return allowed;
   }
 
-  /// The authored argument schema of a function definition [raw] in either
-  /// form, or null.
-  static Object? _rawArguments(Object? raw) => switch (raw) {
-        {'properties': {'args': final Object args}} => args,
-        {'parameters': final Object parameters} => parameters,
-        _ => null,
+  /// The components of a document's `components` map, each with its
+  /// definition as written, except `allowedParents` and `allowedChildren`,
+  /// which become fields.
+  static List<ComponentApi> _parseComponents(
+    Object? raw,
+    String catalogId,
+    Set<String>? allowed,
+  ) {
+    if (raw == null) return const [];
+    if (raw is! Map) {
+      throw A2uiCatalogError(
+        "Catalog 'components' must be an object mapping names to schemas.",
+        catalogId: catalogId,
+      );
+    }
+    final components = <ComponentApi>[];
+    for (final MapEntry<Object?, Object?> entry in raw.entries) {
+      final compName = entry.key! as String;
+      if (allowed != null && !allowed.contains(compName)) continue;
+
+      final Object? compVal = entry.value;
+      if (compVal is! Map) {
+        throw A2uiCatalogError(
+          "Component '$compName' schema must be an object.",
+          catalogId: catalogId,
+        );
+      }
+      if (compVal.keys.any((k) => k is! String)) {
+        throw A2uiCatalogError(
+          "Component '$compName' schema keys must be strings.",
+          catalogId: catalogId,
+        );
+      }
+      final schema = _deepCopyValue(compVal)! as Map<String, Object?>;
+      final Object? parents = schema.remove('allowedParents');
+      final Object? children = schema.remove('allowedChildren');
+      components.add(
+        ComponentApi(
+          name: compName,
+          schema: Schema.fromMap(schema),
+          allowedParents: _parseTypeList(
+            parents,
+            'allowedParents',
+            compName,
+            catalogId,
+          ),
+          allowedChildren: _parseTypeList(
+            children,
+            'allowedChildren',
+            compName,
+            catalogId,
+          ),
+        ),
+      );
+    }
+    return components;
+  }
+
+  static List<FunctionApi> _parseFunctions(
+    Object? raw,
+    String catalogId, [
+    Set<String>? allowed,
+  ]) {
+    if (raw == null) return const [];
+
+    // Inline form: {name, parameters, returnType} definitions.
+    if (raw is List) {
+      return [
+        for (final Object? entry in raw)
+          if (entry is Map)
+            if (allowed == null ||
+                (entry['name'] is String &&
+                    allowed.contains(entry['name'] as String)))
+              FunctionApi(
+                name: (entry['name'] is String &&
+                        (entry['name'] as String).isNotEmpty)
+                    ? entry['name'] as String
+                    : throw A2uiCatalogError(
+                        "Function definition missing 'name' string.",
+                        catalogId: catalogId,
+                      ),
+                description: entry['description'] is String
+                    ? entry['description'] as String
+                    : (entry['description'] == null
+                        ? null
+                        : throw A2uiCatalogError(
+                            "Function definition 'description' must be a "
+                            'string.',
+                            catalogId: catalogId,
+                          )),
+                argumentSchema: _argumentSchema(entry['parameters']),
+                returnType: A2uiReturnType.fromJson(
+                  entry['returnType'] as String? ?? 'any',
+                ),
+                allowedCallers: _parseAllowedCallers(
+                  entry['allowedCallers'],
+                  entry['name'] as String,
+                  catalogId,
+                ),
+                requiresUserActivation: _parseRequiresUserActivation(
+                  entry['requiresUserActivation'],
+                  entry['name'] as String,
+                  catalogId,
+                ),
+              ),
+      ];
+    }
+
+    // Document form: name to JSON schema, with arguments under
+    // `properties/args` and the return type under `returnType` (v1.0) or
+    // `properties/returnType/const` (v0.9), or shorthand
+    // `{returnType, parameters}`.
+    if (raw is! Map) {
+      throw A2uiCatalogError(
+        "Catalog 'functions' must be an object or a list of definitions.",
+        catalogId: catalogId,
+      );
+    }
+    final functions = <FunctionApi>[];
+    for (final MapEntry<Object?, Object?> entry in raw.entries) {
+      final fnName = entry.key! as String;
+      if (allowed != null && !allowed.contains(fnName)) continue;
+      final Map<String, Object?> schema = _asSchemaMap(entry.value);
+      final Object? rawProperties = schema['properties'];
+      final Map<String, Object?> properties = switch (rawProperties) {
+        null => const <String, Object?>{},
+        final Map<Object?, Object?> map => map.cast<String, Object?>(),
+        _ => throw A2uiCatalogError(
+            "Catalog function '${entry.key}' has a non-object 'properties' "
+            '(got ${rawProperties.runtimeType}).',
+            catalogId: catalogId,
+          ),
       };
+      final Object? args = properties['args'] ?? schema['parameters'];
+      final Object? returnType = properties['returnType'];
+      final Object? rawFnDesc = schema['description'];
+      if (rawFnDesc != null && rawFnDesc is! String) {
+        throw A2uiCatalogError(
+          "Catalog function '$fnName' description must be a string.",
+          catalogId: catalogId,
+        );
+      }
+      final String returnTypeStr =
+          (returnType is Map ? returnType[r'const'] as String? : null) ??
+              (schema['returnType'] is String
+                  ? schema['returnType'] as String
+                  : null) ??
+              'any';
+      functions.add(
+        FunctionApi(
+          name: fnName,
+          description: rawFnDesc as String?,
+          argumentSchema: _argumentSchema(args),
+          returnType: A2uiReturnType.fromJson(returnTypeStr),
+          allowedCallers: _parseAllowedCallers(
+            schema['allowedCallers'],
+            fnName,
+            catalogId,
+          ),
+          requiresUserActivation: _parseRequiresUserActivation(
+            schema['requiresUserActivation'],
+            fnName,
+            catalogId,
+          ),
+        ),
+      );
+    }
+    return functions;
+  }
+
+  /// A copy of the authored argument schema [raw], or an empty schema when
+  /// the definition gives none.
+  static Schema _argumentSchema(Object? raw) => Schema.fromMap(
+        _deepCopyValue(_asSchemaMap(raw ?? const <String, Object?>{}))!
+            as Map<String, Object?>,
+      );
+
+  /// Reads a function's `allowedCallers`, or null when it declares none.
+  static AllowedCallers? _parseAllowedCallers(
+    Object? raw,
+    String functionName,
+    String catalogId,
+  ) {
+    if (raw == null) return null;
+    if (raw is! String) {
+      throw A2uiCatalogError(
+        "Catalog function '$functionName' allowedCallers must be a string.",
+        catalogId: catalogId,
+      );
+    }
+    try {
+      return AllowedCallers.fromJson(raw);
+    } on A2uiCatalogError catch (error) {
+      throw A2uiCatalogError(
+        "Catalog function '$functionName': ${error.message}",
+        catalogId: catalogId,
+        cause: error,
+      );
+    }
+  }
+
+  /// Reads a function's `requiresUserActivation`, or null when it declares
+  /// none.
+  static bool? _parseRequiresUserActivation(
+    Object? raw,
+    String functionName,
+    String catalogId,
+  ) {
+    if (raw == null) return null;
+    if (raw is! bool) {
+      throw A2uiCatalogError(
+        "Catalog function '$functionName' requiresUserActivation must be a "
+        'boolean.',
+        catalogId: catalogId,
+      );
+    }
+    return raw;
+  }
+
+  static Map<String, Object?> _asSchemaMap(Object? value) {
+    if (value is Map) return value.cast<String, Object?>();
+    throw A2uiCatalogError('Expected a JSON schema object, got $value.');
+  }
+
+  /// Each component's schema, flattened into the shape renderers bind and
+  /// validators check, by component name.
+  ///
+  /// Flattening merges the properties, `required` names and description of
+  /// the component's `allOf` members into the schema itself, with the
+  /// component's own properties winning over its mixins'; expands the
+  /// standard `ComponentCommon` and `Checkable` mixins into the properties
+  /// they contribute; inlines local references in the properties, except
+  /// those to common types; writes references to common types as
+  /// `common_types.json#/$defs/...`; and leaves out the `id`, `component`
+  /// and `catalogId` envelope properties. Other keywords are kept as
+  /// written, and so is an `allOf` member whose reference the catalog cannot
+  /// follow.
+  ///
+  /// Each component is flattened from [ComponentApi.schema] and
+  /// [definitions] when first needed, and the result is cached for that
+  /// component. [Catalog.fromJson] flattens every component straight away,
+  /// so a malformed definition fails there. To look up one component, use
+  /// [resolvedComponentSchema].
+  Map<String, Schema> get resolvedComponentSchemas => Map.unmodifiable({
+        for (final MapEntry<String, C> entry in components.entries)
+          entry.key: _flatOf(entry.value).schema,
+      });
+
+  /// The flattened schema of the component named [name], as
+  /// [resolvedComponentSchemas] describes, or null when the catalog has no
+  /// such component.
+  Schema? resolvedComponentSchema(String name) => switch (components[name]) {
+        final C component => _flatOf(component).schema,
+        null => null,
+      };
+
+  /// The flattened schemas computed so far, by component.
+  final Map<ComponentApi, _FlatComponent> _flatComponents = Map.identity();
+
+  _FlatComponent _flatOf(ComponentApi component) =>
+      _flatComponents[component] ??=
+          _flatten(component.name, component.schema.value);
+
+  /// [compMap], the schema of the component [compName], flattened as
+  /// [resolvedComponentSchemas] describes.
+  _FlatComponent _flatten(String compName, Map<String, Object?> compMap) {
+    final Map<String, Object?> rootDoc = _document;
+    final bool atLeastV1 = _isAtLeastV1;
+    final subSchemas = <Map<String, Object?>>[];
+    final unmerged = <Map<String, Object?>>[];
+    _collectComponentSubSchemas(
+      compMap,
+      rootDoc,
+      subSchemas,
+      <String>{},
+      atLeastV1: atLeastV1,
+      unmerged: unmerged,
+    );
+
+    final mergedProperties = <String, Object?>{};
+    final requiredSet = <String>{};
+    final Object? rawCompDesc = compMap['description'];
+    if (rawCompDesc != null && rawCompDesc is! String) {
+      throw A2uiCatalogError(
+        "Component '$compName' description must be a string.",
+        catalogId: id,
+      );
+    }
+    String? subSchemaDesc;
+
+    for (final s in subSchemas) {
+      final Object? subDesc = s['description'];
+      if (subDesc != null && subDesc is! String) {
+        throw A2uiCatalogError(
+          "Component '$compName' description must be a string.",
+          catalogId: id,
+        );
+      }
+      // Subschemas run from least to most specific, so the last
+      // description wins. A schema standing in for a common type, as a
+      // catalog defined in code writes one, describes that type rather than
+      // the component.
+      if (subDesc != null && s['commonTypesRef'] == null) {
+        subSchemaDesc = subDesc as String;
+      }
+      final Object? props = s['properties'];
+      if (props is Map<String, Object?>) {
+        mergedProperties.addAll(props);
+      } else if (props is Map) {
+        if (props.keys.any((k) => k is! String)) {
+          throw A2uiCatalogError(
+            "Component '$compName' property keys must be strings.",
+            catalogId: id,
+          );
+        }
+        mergedProperties.addAll(props.cast<String, Object?>());
+      }
+      final Object? req = s['required'];
+      if (req is List) {
+        for (final Object? item in req) {
+          if (item is String) requiredSet.add(item);
+        }
+      }
+    }
+
+    // The most specific subschema's value wins, but the properties keep
+    // their authored order: the component's own, then its `allOf`
+    // branches (local references in place), then mixins.
+    final keySubSchemas = <Map<String, Object?>>[];
+    _collectComponentSubSchemas(
+      compMap,
+      rootDoc,
+      keySubSchemas,
+      <String>{},
+      atLeastV1: atLeastV1,
+      keyOrder: true,
+    );
+    final Map<String, Object?> orderedProperties = {
+      for (final Map<String, Object?> s in keySubSchemas)
+        if (s['properties'] case final Map<Object?, Object?> props)
+          for (final String key in props.keys.whereType<String>())
+            if (mergedProperties.containsKey(key)) key: mergedProperties[key],
+    };
+
+    final String? compDesc = rawCompDesc as String? ?? subSchemaDesc;
+
+    // Leave out the envelope keys, which the message carries.
+    const envelope = {'id', 'component', 'catalogId'};
+    orderedProperties.removeWhere((String key, _) => envelope.contains(key));
+    requiredSet.removeAll(envelope);
+
+    // Keywords other than those merged here, such as `type`, closure
+    // keywords, `anyOf` or the schema's own `$defs`, are kept as written.
+    const merged = {'allOf', 'properties', 'required', 'description'};
+    final cleanSchema = <String, Object?>{
+      for (final MapEntry<String, Object?> entry in compMap.entries)
+        if (!merged.contains(entry.key)) entry.key: entry.value,
+      if (compDesc != null) 'description': compDesc,
+      'properties': {
+        for (final MapEntry<String, Object?> entry in orderedProperties.entries)
+          entry.key: _normalizePropertyRefs(
+            inlineLocalRefs(entry.value, rootDoc),
+          ),
+      },
+      if (requiredSet.isNotEmpty) 'required': requiredSet.toList()..sort(),
+      if (unmerged.isNotEmpty) 'allOf': unmerged,
+    };
+    return _FlatComponent(
+      schema: Schema.fromMap(cleanSchema),
+      propertiesWithDefRefs: {
+        for (final MapEntry<String, Object?> entry in orderedProperties.entries)
+          entry.key: _normalizePropertyRefs(
+            _keepAuthoredDefRefs(entry.value, rootDoc),
+          ),
+      },
+    );
+  }
 
   /// [node] with its local references inlined, except references into a
   /// definition the document [root] declares in its own `$defs`, which stay
@@ -761,202 +1196,6 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     'anyFunction',
   };
 
-  static Set<String>? _extractAllowedRefs(
-    Map<String, Object?> json,
-    String defName,
-    String prefix,
-  ) {
-    final Object? defs = json[r'$defs'];
-    if (defs is! Map) return null;
-    final Object? union = defs[defName];
-    if (union is! Map) return null;
-    final Object? oneOf = union['oneOf'];
-    if (oneOf is! List) return null;
-    final allowed = <String>{};
-    for (final Object? item in oneOf) {
-      if (item is Map && item[r'$ref'] is String) {
-        final ref = item[r'$ref']! as String;
-        if (ref.startsWith(prefix)) {
-          allowed.add(
-            ref
-                .substring(prefix.length)
-                .replaceAll('~1', '/')
-                .replaceAll('~0', '~'),
-          );
-        }
-      }
-    }
-    return allowed;
-  }
-
-  static List<ComponentApi> _parseComponents(
-    Object? raw,
-    Map<String, Object?> rootDoc,
-    String catalogId, {
-    Set<String>? allowed,
-    bool atLeastV1 = false,
-    Map<String, Map<String, Object?>>? propertiesWithRefs,
-  }) {
-    if (raw == null) return const [];
-    if (raw is! Map) {
-      throw A2uiCatalogError(
-        "Catalog 'components' must be an object mapping names to schemas.",
-        catalogId: catalogId,
-      );
-    }
-    final components = <ComponentApi>[];
-    for (final MapEntry<Object?, Object?> entry in raw.entries) {
-      final compName = entry.key! as String;
-      if (allowed != null && !allowed.contains(compName)) continue;
-
-      final Object? compVal = entry.value;
-      if (compVal is! Map) {
-        throw A2uiCatalogError(
-          "Component '$compName' schema must be an object.",
-          catalogId: catalogId,
-        );
-      }
-      if (compVal.keys.any((k) => k is! String)) {
-        throw A2uiCatalogError(
-          "Component '$compName' schema keys must be strings.",
-          catalogId: catalogId,
-        );
-      }
-      final Map<String, Object?> compMap = compVal is Map<String, Object?>
-          ? compVal
-          : compVal.cast<String, Object?>();
-
-      final subSchemas = <Map<String, Object?>>[];
-      _collectComponentSubSchemas(
-        compMap,
-        rootDoc,
-        subSchemas,
-        <String>{},
-        atLeastV1: atLeastV1,
-      );
-
-      final mergedProperties = <String, Object?>{};
-      final requiredSet = <String>{};
-      final Object? rawCompDesc = compMap['description'];
-      if (rawCompDesc != null && rawCompDesc is! String) {
-        throw A2uiCatalogError(
-          "Component '$compName' description must be a string.",
-          catalogId: catalogId,
-        );
-      }
-      String? subSchemaDesc;
-
-      for (final s in subSchemas) {
-        final Object? subDesc = s['description'];
-        if (subDesc != null && subDesc is! String) {
-          throw A2uiCatalogError(
-            "Component '$compName' description must be a string.",
-            catalogId: catalogId,
-          );
-        }
-        // Subschemas run from least to most specific, so the last
-        // description wins.
-        if (subDesc != null) subSchemaDesc = subDesc as String;
-        final Object? props = s['properties'];
-        if (props is Map<String, Object?>) {
-          mergedProperties.addAll(props);
-        } else if (props is Map) {
-          if (props.keys.any((k) => k is! String)) {
-            throw A2uiCatalogError(
-              "Component '$compName' property keys must be strings.",
-              catalogId: catalogId,
-            );
-          }
-          mergedProperties.addAll(props.cast<String, Object?>());
-        }
-        final Object? req = s['required'];
-        if (req is List) {
-          for (final Object? item in req) {
-            if (item is String) requiredSet.add(item);
-          }
-        }
-      }
-
-      // The most specific subschema's value wins, but the properties keep
-      // their authored order: the component's own, then its `allOf`
-      // branches (local references in place), then mixins.
-      final keySubSchemas = <Map<String, Object?>>[];
-      _collectComponentSubSchemas(
-        compMap,
-        rootDoc,
-        keySubSchemas,
-        <String>{},
-        atLeastV1: atLeastV1,
-        keyOrder: true,
-      );
-      final Map<String, Object?> orderedProperties = {
-        for (final Map<String, Object?> s in keySubSchemas)
-          if (s['properties'] case final Map<Object?, Object?> props)
-            for (final String key in props.keys.whereType<String>())
-              if (mergedProperties.containsKey(key)) key: mergedProperties[key],
-      };
-      mergedProperties
-        ..clear()
-        ..addAll(orderedProperties);
-
-      final String? compDesc = rawCompDesc as String? ?? subSchemaDesc;
-
-      // Omit envelope keys from component-level properties
-      mergedProperties.remove('id');
-      mergedProperties.remove('component');
-      mergedProperties.remove('catalogId');
-      requiredSet.remove('id');
-      requiredSet.remove('component');
-      requiredSet.remove('catalogId');
-
-      final sanitizedProperties = <String, Object?>{};
-      for (final MapEntry<String, Object?> propEntry
-          in mergedProperties.entries) {
-        sanitizedProperties[propEntry.key] = _normalizePropertyRefs(
-          inlineLocalRefs(propEntry.value, rootDoc),
-        );
-      }
-      propertiesWithRefs?[compName] = {
-        for (final MapEntry<String, Object?> propEntry
-            in mergedProperties.entries)
-          propEntry.key: _normalizePropertyRefs(
-            _keepAuthoredDefRefs(propEntry.value, rootDoc),
-          ),
-      };
-
-      final cleanSchema = <String, Object?>{
-        'type': 'object',
-        if (compDesc != null) 'description': compDesc,
-        'properties': sanitizedProperties,
-        if (requiredSet.isNotEmpty) 'required': requiredSet.toList()..sort(),
-        if (compMap.containsKey('unevaluatedProperties'))
-          'unevaluatedProperties': compMap['unevaluatedProperties'],
-        if (compMap.containsKey('additionalProperties'))
-          'additionalProperties': compMap['additionalProperties'],
-      };
-
-      components.add(
-        ComponentApi(
-          name: compName,
-          schema: Schema.fromMap(cleanSchema),
-          allowedParents: _parseTypeList(
-            compMap['allowedParents'],
-            'allowedParents',
-            compName,
-            catalogId,
-          ),
-          allowedChildren: _parseTypeList(
-            compMap['allowedChildren'],
-            'allowedChildren',
-            compName,
-            catalogId,
-          ),
-        ),
-      );
-    }
-    return components;
-  }
-
   /// Collects the subschemas of [schema] that contribute component
   /// properties into [result], following `allOf` and local references.
   ///
@@ -977,6 +1216,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     Set<String> visited, {
     bool atLeastV1 = false,
     bool keyOrder = false,
+    List<Map<String, Object?>>? unmerged,
   }) {
     final bool contributes =
         schema.containsKey('properties') || schema.containsKey('description');
@@ -1036,27 +1276,31 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                 },
               },
             });
-          } else if (ref.startsWith('#/')) {
+          } else if (ref.startsWith('#/') &&
+              _resolveJsonPointer(rootDoc, ref) is Map) {
             if (visited.add(ref)) {
-              final Object? target = _resolveJsonPointer(rootDoc, ref);
-              if (target is Map) {
-                if (target.keys.any((k) => k is! String)) {
-                  throw A2uiCatalogError(
-                    'Target keys must be strings.',
-                  );
-                }
-                _collectComponentSubSchemas(
-                  target is Map<String, Object?>
-                      ? target
-                      : target.cast<String, Object?>(),
-                  rootDoc,
-                  keyOrder ? inlineSubs : localRefSubs,
-                  visited,
-                  atLeastV1: atLeastV1,
-                  keyOrder: keyOrder,
+              final target = _resolveJsonPointer(rootDoc, ref)! as Map;
+              if (target.keys.any((k) => k is! String)) {
+                throw A2uiCatalogError(
+                  'Target keys must be strings.',
                 );
               }
+              _collectComponentSubSchemas(
+                target is Map<String, Object?>
+                    ? target
+                    : target.cast<String, Object?>(),
+                rootDoc,
+                keyOrder ? inlineSubs : localRefSubs,
+                visited,
+                atLeastV1: atLeastV1,
+                keyOrder: keyOrder,
+                unmerged: unmerged,
+              );
             }
+          } else {
+            // A reference this catalog cannot follow, such as one into the
+            // schema's own `$defs`, stays an `allOf` member.
+            unmerged?.add(subMap);
           }
           continue;
         }
@@ -1067,6 +1311,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           visited,
           atLeastV1: atLeastV1,
           keyOrder: keyOrder,
+          unmerged: unmerged,
         );
       }
       if (keyOrder) {
@@ -1143,6 +1388,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     return current;
   }
 
+  /// [node] with each reference to a common type written as
+  /// `common_types.json#/$defs/...`, together with a `commonTypesRef` marker
+  /// naming the same definition.
   static Object? _normalizePropertyRefs(Object? node) {
     if (node is List) {
       return [for (final item in node) _normalizePropertyRefs(item)];
@@ -1153,8 +1401,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       node is Map<String, Object?> ? node : node.cast<String, Object?>(),
     );
 
-    final Object? ref = map[r'$ref'] ?? map['commonTypesRef'];
-    final String? fragment = _commonTypesFragment(ref);
+    final String? fragment = _commonTypesFragment(map[r'$ref']);
     if (fragment != null) {
       final target = 'common_types.json#/\$defs/$fragment';
       map['commonTypesRef'] = target;
@@ -1189,192 +1436,21 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     return isCommonTypeDef(fragment.split('/').first) ? fragment : null;
   }
 
-  static List<FunctionApi> _parseFunctions(
-    Object? raw,
-    String catalogId, [
-    Set<String>? allowed,
-  ]) {
-    if (raw == null) return const [];
-
-    // Inline form: {name, parameters, returnType} definitions.
-    if (raw is List) {
-      return [
-        for (final Object? entry in raw)
-          if (entry is Map)
-            if (allowed == null ||
-                (entry['name'] is String &&
-                    allowed.contains(entry['name'] as String)))
-              FunctionApi(
-                name: (entry['name'] is String &&
-                        (entry['name'] as String).isNotEmpty)
-                    ? entry['name'] as String
-                    : throw A2uiCatalogError(
-                        "Function definition missing 'name' string.",
-                        catalogId: catalogId,
-                      ),
-                description: entry['description'] is String
-                    ? entry['description'] as String
-                    : (entry['description'] == null
-                        ? null
-                        : throw A2uiCatalogError(
-                            "Function definition 'description' must be a "
-                            'string.',
-                            catalogId: catalogId,
-                          )),
-                argumentSchema: Schema.fromMap(
-                  _asSchemaMap(
-                      entry['parameters'] ?? const <String, Object?>{}),
-                ),
-                returnType: A2uiReturnType.fromJson(
-                  entry['returnType'] as String? ?? 'any',
-                ),
-                allowedCallers: _parseAllowedCallers(
-                  entry['allowedCallers'],
-                  entry['name'] as String,
-                  catalogId,
-                ),
-                requiresUserActivation: _parseRequiresUserActivation(
-                  entry['requiresUserActivation'],
-                  entry['name'] as String,
-                  catalogId,
-                ),
-              ),
-      ];
-    }
-
-    // Document form: name to JSON schema, with arguments under
-    // `properties/args` and the return type under
-    // `properties/returnType/const`, or shorthand `{returnType, parameters}`.
-    if (raw is! Map) {
-      throw A2uiCatalogError(
-        "Catalog 'functions' must be an object or a list of definitions.",
-        catalogId: catalogId,
-      );
-    }
-    final functions = <FunctionApi>[];
-    for (final MapEntry<Object?, Object?> entry in raw.entries) {
-      final fnName = entry.key! as String;
-      if (allowed != null && !allowed.contains(fnName)) continue;
-      final Map<String, Object?> schema = _asSchemaMap(entry.value);
-      final Object? rawProperties = schema['properties'];
-      final Map<String, Object?> properties = switch (rawProperties) {
-        null => const <String, Object?>{},
-        final Map<Object?, Object?> map => map.cast<String, Object?>(),
-        _ => throw A2uiCatalogError(
-            "Catalog function '${entry.key}' has a non-object 'properties' "
-            '(got ${rawProperties.runtimeType}).',
-            catalogId: catalogId,
-          ),
-      };
-      final Object? args = properties['args'] ?? schema['parameters'];
-      final Object? returnType = properties['returnType'];
-      final Object? rawFnDesc =
-          schema['description'] ?? properties['description'];
-      if (rawFnDesc != null && rawFnDesc is! String) {
-        throw A2uiCatalogError(
-          "Catalog function '$fnName' description must be a string.",
-          catalogId: catalogId,
-        );
-      }
-      final desc = rawFnDesc as String?;
-      final String returnTypeStr =
-          (returnType is Map ? returnType[r'const'] as String? : null) ??
-              (schema['returnType'] is String
-                  ? schema['returnType'] as String
-                  : null) ??
-              'any';
-      functions.add(
-        FunctionApi(
-          name: fnName,
-          description: desc,
-          argumentSchema: Schema.fromMap(
-            _asSchemaMap(args ?? const <String, Object?>{}),
-          ),
-          returnType: A2uiReturnType.fromJson(returnTypeStr),
-          allowedCallers: _parseAllowedCallers(
-            schema['allowedCallers'],
-            fnName,
-            catalogId,
-          ),
-          requiresUserActivation: _parseRequiresUserActivation(
-            schema['requiresUserActivation'],
-            fnName,
-            catalogId,
-          ),
-        ),
-      );
-    }
-    return functions;
-  }
-
-  /// Reads a function's `allowedCallers`, defaulting to
-  /// [AllowedCallers.rendererOnly] as the catalog definition schema does.
-  static AllowedCallers _parseAllowedCallers(
-    Object? raw,
-    String functionName,
-    String catalogId,
-  ) {
-    if (raw == null) return AllowedCallers.rendererOnly;
-    if (raw is! String) {
-      throw A2uiCatalogError(
-        "Catalog function '$functionName' allowedCallers must be a string.",
-        catalogId: catalogId,
-      );
-    }
-    try {
-      return AllowedCallers.fromJson(raw);
-    } on A2uiCatalogError catch (error) {
-      throw A2uiCatalogError(
-        "Catalog function '$functionName': ${error.message}",
-        catalogId: catalogId,
-        cause: error,
-      );
-    }
-  }
-
-  /// Reads a function's `requiresUserActivation`, defaulting to false.
-  static bool _parseRequiresUserActivation(
-    Object? raw,
-    String functionName,
-    String catalogId,
-  ) {
-    if (raw == null) return false;
-    if (raw is! bool) {
-      throw A2uiCatalogError(
-        "Catalog function '$functionName' requiresUserActivation must be a "
-        'boolean.',
-        catalogId: catalogId,
-      );
-    }
-    return raw;
-  }
-
-  static Schema? _parseTheme(Map<String, Object?> json) {
-    final Object? defs = json[r'$defs'];
-    final Object? theme = json['theme'] ?? (defs is Map ? defs['theme'] : null);
-    if (theme == null) return null;
-    return Schema.fromMap(_asSchemaMap(theme));
-  }
-
-  static Map<String, Object?> _asSchemaMap(Object? value) {
-    if (value is Map) return value.cast<String, Object?>();
-    throw A2uiCatalogError('Expected a JSON schema object, got $value.');
-  }
-
   Map<String, Object?>? _memoizedValidationSchema;
 
   /// This catalog as one self-contained JSON Schema, for validating payloads
   /// and prompting models.
   ///
-  /// Rebuilt from the components and functions the catalog currently holds:
-  /// each component carries the message envelope (`id` and a `component`
-  /// constant), every reference to `common_types.json` becomes a local
-  /// `#/$defs/` reference, and the standard definitions those references
-  /// reach are copied into `$defs`, alongside the `anyComponent` and
-  /// `anyFunction` unions. The standard definitions follow
-  /// [protocolVersion]: v1.0 and later use the v1.0 common types, and every
-  /// earlier or undeclared version uses the v0.9 ones (this SDK does not
-  /// embed the v0.8 definitions).
+  /// Built from the components and functions the catalog holds: each
+  /// component's [resolvedComponentSchemas] entry carries the message
+  /// envelope (`id` and a `component` constant), every reference to
+  /// `common_types.json` becomes a local `#/$defs/` reference, and the
+  /// standard definitions those references reach are copied into `$defs`,
+  /// alongside the [definitions] the schemas reference and the
+  /// `anyComponent` and `anyFunction` unions. The standard definitions
+  /// follow [protocolVersion]: v1.0 and later use the v1.0 common types, and
+  /// every earlier or undeclared version uses the v0.9 ones (this SDK does
+  /// not embed the v0.8 definitions).
   ///
   /// Components and object `args` schemas are closed with
   /// `unevaluatedProperties`: the authored `unevaluatedProperties` or
@@ -1414,174 +1490,90 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       commonTypesForProtocolVersion(A2uiProtocolVersion.v1_0)[r'$defs']!
           as Map<String, Object?>;
 
+  /// The catalog document [toJson] copies, built from the model on first
+  /// access.
+  late final Map<String, Object?> _document = _buildDocument();
+
   /// This catalog as a catalog document, the JSON [Catalog.fromJson] reads.
   ///
-  /// The document is unbundled: references to `common_types.json` stay
-  /// external, and no standard definitions are copied in. Each call returns
-  /// a fresh copy that the caller may edit.
+  /// The document is assembled from the model: each component's
+  /// [ComponentApi.schema] with its `allowedParents` and `allowedChildren`;
+  /// each function's signature in the shape of [protocolVersion] (`@call`
+  /// and a top-level `returnType` from v1.0, `call` and a `returnType`
+  /// property before), or as a `functions` list item when the catalog was
+  /// read from a list; [themeSchema]; [definitions] with the computed
+  /// `anyComponent` and `anyFunction` unions; and the document metadata.
+  /// References stay as the schemas write them, and no standard definitions
+  /// are copied in. A schema defined in code that marks a common type with
+  /// `commonTypesRef` is written as a `common_types.json` reference.
   ///
-  /// A catalog read by [Catalog.fromJson] writes back the document it was
-  /// read from, so `Catalog.fromJson(json).toJson()` equals `json`, up to
-  /// the order of object keys:
+  /// So a catalog read by [Catalog.fromJson] writes back the document it was
+  /// read from: `Catalog.fromJson(json).toJson()` equals `json`, up to the
+  /// order of object keys and of `enum` values and `required` names.
   ///
-  /// - A component or function with a [ComponentApi.sourceJson] or
-  ///   [FunctionApi.sourceJson] is written as that JSON. One without, such as
-  ///   one defined in code, is serialized from its schema: a `component`
-  ///   constant (or the function's `@call` constant from v1.0, `call`
-  ///   before), its properties with `common_types.json` references, and its
-  ///   composition and caller metadata.
-  /// - `$schema`, `$id`, `title`, `description`, `instructions` and
-  ///   `protocolVersion` are written as the document declared them, and
-  ///   omitted when it did not. A catalog defined in code writes
-  ///   `protocolVersion` in its canonical form, such as `1.0` for `v1.0`.
-  /// - `catalogId` is written when the document declared one; a catalog
-  ///   defined in code always writes it.
-  /// - `functions` keeps the form the document used, a map or a list.
-  /// - The document's own `$defs` are kept, except one that the catalog's
-  ///   components and functions no longer reference after a transformer
-  ///   removed its users. `anyComponent` and `anyFunction` are kept while
-  ///   the catalog holds the components and functions the document did, and
-  ///   rebuilt from the current ones otherwise; a document that declared
-  ///   neither does not gain them.
-  /// - Other top-level keys of the document are written back as they are.
+  /// Built on first call and cached; each call returns a fresh copy that the
+  /// caller may edit.
   ///
-  /// A catalog defined in code always declares `anyComponent`, and declares
+  /// A catalog defined in code declares `anyComponent`, and declares
   /// `anyFunction` when it has functions or targets v1.0 or later, where a
-  /// catalog document requires both. A rebuilt union with no members is
+  /// catalog document requires both. A union with no members is
   /// `{"not": {}}`, since JSON Schema requires `oneOf` to be non-empty.
   ///
   /// To advertise a catalog to an agent below protocol v1.0, whose inline
   /// catalog shape differs, use [toLegacyInlineCatalog].
-  Map<String, Object?> toJson() {
-    final _CatalogSource? source = _source;
-    final Set<String> authoredDefNames = {
-      ...?source?.defs?.keys,
+  Map<String, Object?> toJson() =>
+      _deepCopyValue(_document)! as Map<String, Object?>;
+
+  Map<String, Object?> _buildDocument() {
+    final bool v1 = _isAtLeastV1;
+    final _DocumentLayout layout = _layout;
+    final bool themeInDefs = layout.themeInDefs ?? true;
+    final Object? theme =
+        themeSchema == null ? null : _unbundleMarkers(themeSchema!.value);
+    final defs = <String, Object?>{
+      for (final MapEntry<String, Object?> entry in definitions.entries)
+        entry.key: _deepCopyValue(entry.value),
+      if (theme != null && themeInDefs) 'theme': theme,
+      if (layout.writesComponentUnion)
+        'anyComponent': _componentUnionOf(components.keys),
+      if (layout.writesFunctionUnion ?? (functions.isNotEmpty || v1))
+        'anyFunction': _functionUnionOf(functions.keys),
     };
-    Object? unbundle(Object? node) =>
-        _unbundleRefs(node, _standardDefs.keys.toSet(), authoredDefNames);
 
-    final listsFunctions = source?.functionsForm == _FunctionsForm.list;
-    final serializedComponents = <String, Object?>{
-      for (final MapEntry<String, C> entry in components.entries)
-        entry.key: entry.value.sourceJson != null
-            ? _deepCopyValue(entry.value.sourceJson)
-            : _unbundledComponent(entry.key, entry.value, unbundle),
-    };
-    final Object serializedFunctions = listsFunctions
-        ? <Object?>[
-            for (final MapEntry<String, F> entry in functions.entries)
-              _isListItemSource(entry.key, entry.value.sourceJson)
-                  ? _deepCopyValue(entry.value.sourceJson)
-                  : _unbundledListFunction(entry.key, entry.value, unbundle),
-          ]
-        : <String, Object?>{
-            for (final MapEntry<String, F> entry in functions.entries)
-              entry.key: entry.value.sourceJson != null &&
-                      !_isListItemSource(entry.key, entry.value.sourceJson)
-                  ? _deepCopyValue(entry.value.sourceJson)
-                  : _unbundledFunction(entry.key, entry.value, unbundle),
-          };
-
-    Object? theme;
-    Map<String, Object?>? defs;
-    if (source == null) {
-      defs = {
-        if (themeSchema != null && !_isAtLeastV1)
-          'theme': unbundle(_deepCopyValue(themeSchema!.value)),
-        'anyComponent': _componentUnion(),
-        if (functions.isNotEmpty || _isAtLeastV1)
-          'anyFunction': _functionUnion(),
-      };
-    } else {
-      final bool themeChanged = !identical(themeSchema, source.themeSchema);
-      final Object? newTheme = themeSchema == null
-          ? null
-          : unbundle(_deepCopyValue(themeSchema!.value));
-      if (source.theme != null) {
-        theme = themeChanged ? newTheme : _deepCopyValue(source.theme);
-      }
-      defs = source.defs == null
-          ? null
-          : _deepCopyValue(source.defs) as Map<String, Object?>;
-      if (themeChanged &&
-          newTheme != null &&
-          source.theme == null &&
-          !_isAtLeastV1) {
-        (defs ??= {})['theme'] = newTheme;
-      }
-      if (defs != null) {
-        if (defs.containsKey('anyComponent') &&
-            !_sameNames(components.keys, source.componentNames)) {
-          defs['anyComponent'] = _componentUnion();
-        }
-        if (defs.containsKey('anyFunction') &&
-            !_sameNames(functions.keys, source.functionNames)) {
-          defs['anyFunction'] = _functionUnion();
-        }
-        // Drop the definitions that only removed entries referenced.
-        final Set<String> referencedBefore = _referencedDefs(
-          [source.componentsJson, source.functionsJson, source.theme],
-          source.defs!,
-        );
-        final Set<String> referencedAfter = _referencedDefs(
-          [serializedComponents, serializedFunctions, theme],
-          defs,
-        );
-        defs.removeWhere(
-          (String name, _) =>
-              referencedBefore.contains(name) &&
-              !referencedAfter.contains(name),
-        );
-      }
-    }
-
-    final A2uiProtocolVersion? version = protocolVersion;
-    final String? emittedVersion =
-        source != null && version == source.protocolVersion
-            ? source.declaredProtocolVersion
-            : version?.semverValue;
-    final bool emitComponents =
-        source == null || source.hasComponents || components.isNotEmpty;
-    final bool emitFunctions = source == null
-        ? functions.isNotEmpty
-        : source.functionsForm != _FunctionsForm.absent || functions.isNotEmpty;
-
-    final document = <String, Object?>{
-      if (source == null)
-        r'$schema': jsonSchemaDialect
-      else if (source.hasSchemaDialect)
-        r'$schema': _deepCopyValue(source.schemaDialect),
+    // The keys follow the order of the published catalogs.
+    return <String, Object?>{
+      if (schemaDialect != null) r'$schema': schemaDialect,
       if (schemaId != null) r'$id': schemaId,
+      if (_declaredProtocolVersion != null)
+        'protocolVersion': _declaredProtocolVersion,
       if (title != null) 'title': title,
       if (description != null) 'description': description,
-      if (emittedVersion != null) 'protocolVersion': emittedVersion,
-      // A document that declared no catalogId, such as the published v0.8
-      // basic catalog, is written back without one.
-      if (source == null || source.keyOrder.contains('catalogId'))
-        'catalogId': id,
+      if (layout.writesCatalogId) 'catalogId': id,
       if (instructions != null) 'instructions': instructions,
-      if (emitComponents) 'components': serializedComponents,
-      if (emitFunctions) 'functions': serializedFunctions,
-      if (theme != null) 'theme': theme,
-      if (defs != null) r'$defs': defs,
-      // Keys this SDK does not model pass through unchanged.
-      if (source != null)
-        for (final MapEntry<String, Object?> entry in source.extras.entries)
-          if (!_documentKeys.contains(entry.key))
-            entry.key: _deepCopyValue(entry.value),
-    };
-    if (source == null) return document;
-    // Follow the key order of the source document.
-    return {
-      for (final String key in source.keyOrder)
-        if (document.containsKey(key)) key: document[key],
-      for (final MapEntry<String, Object?> entry in document.entries)
-        if (!source.keyOrder.contains(entry.key)) entry.key: entry.value,
+      if (layout.writesComponents || components.isNotEmpty)
+        'components': <String, Object?>{
+          for (final MapEntry<String, C> entry in components.entries)
+            entry.key: _componentDocument(entry.value),
+        },
+      if (layout.writesFunctions || functions.isNotEmpty)
+        'functions': layout.listsFunctions
+            ? <Object?>[
+                for (final MapEntry<String, F> entry in functions.entries)
+                  _functionListItem(entry.key, entry.value),
+              ]
+            : <String, Object?>{
+                for (final MapEntry<String, F> entry in functions.entries)
+                  entry.key: _functionDocument(entry.key, entry.value),
+              },
+      if (theme != null && !themeInDefs) 'theme': theme,
+      if (layout.writesDefs || defs.isNotEmpty) r'$defs': defs,
+      for (final MapEntry<String, Object?> entry in _otherFields.entries)
+        entry.key: _deepCopyValue(entry.value),
     };
   }
 
   /// The top-level keys of a catalog document that [toJson] writes from the
-  /// model.
+  /// model's fields.
   static const Set<String> _documentKeys = {
     r'$schema',
     r'$id',
@@ -1594,6 +1586,106 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     'functions',
     'theme',
     r'$defs',
+  };
+
+  /// The catalog document definition of [component].
+  static Map<String, Object?> _componentDocument(ComponentApi component) =>
+      <String, Object?>{
+        ...(_unbundleMarkers(component.schema.value)! as Map<String, Object?>),
+        if (component.allowedParents case final List<String> parents)
+          'allowedParents': [...parents],
+        if (component.allowedChildren case final List<String> children)
+          'allowedChildren': [...children],
+      };
+
+  /// The catalog document definition of [function], in the shape of
+  /// [protocolVersion].
+  Map<String, Object?> _functionDocument(String name, FunctionApi function) {
+    final Object? args = _unbundleMarkers(function.argumentSchema.value);
+    final String callKey = _callKey;
+    final required = <String>[
+      callKey,
+      if (_hasRequiredParameters(function.argumentSchema)) 'args',
+    ];
+    if (_isAtLeastV1) {
+      return <String, Object?>{
+        'type': 'object',
+        if (function.description != null) 'description': function.description,
+        'returnType': function.returnType.jsonValue,
+        ..._callerMetadata(function),
+        'properties': <String, Object?>{
+          callKey: <String, Object?>{'const': name},
+          'args': args,
+        },
+        'required': required,
+      };
+    }
+    return <String, Object?>{
+      'type': 'object',
+      if (function.description != null) 'description': function.description,
+      ..._callerMetadata(function),
+      'properties': <String, Object?>{
+        callKey: <String, Object?>{'const': name},
+        'args': args,
+        'returnType': <String, Object?>{'const': function.returnType.jsonValue},
+      },
+      'required': required,
+      'unevaluatedProperties': false,
+    };
+  }
+
+  /// The `functions` list item for [function].
+  static Map<String, Object?> _functionListItem(
+    String name,
+    FunctionApi function,
+  ) =>
+      <String, Object?>{
+        'name': name,
+        if (function.description != null) 'description': function.description,
+        'returnType': function.returnType.jsonValue,
+        ..._callerMetadata(function),
+        'parameters': _unbundleMarkers(function.argumentSchema.value),
+      };
+
+  /// [node] as a catalog document writes it: a copy in which each schema
+  /// marked with a `commonTypesRef`, as a catalog defined in code writes a
+  /// common type, becomes a `common_types.json` reference that keeps the
+  /// schema's annotations. Everything else is copied as it is.
+  static Object? _unbundleMarkers(Object? node) {
+    if (node is List) {
+      return [for (final Object? item in node) _unbundleMarkers(item)];
+    }
+    if (node is! Map) return node;
+    final Object? marker = node['commonTypesRef'];
+    if (marker is String) {
+      return <String, Object?>{
+        r'$ref': _externalRef(marker),
+        for (final MapEntry<Object?, Object?> entry in node.entries)
+          if (_annotationKeywords.contains(entry.key))
+            entry.key! as String: _deepCopyValue(entry.value),
+      };
+    }
+    return <String, Object?>{
+      for (final MapEntry<Object?, Object?> entry in node.entries)
+        entry.key! as String: _unbundleMarkers(entry.value),
+    };
+  }
+
+  /// [ref], a reference into some spelling of `common_types.json`, as the
+  /// relative `common_types.json#...` a catalog document uses.
+  static String _externalRef(String ref) {
+    final int hash = ref.indexOf('#');
+    return hash == -1 ? ref : 'common_types.json${ref.substring(hash)}';
+  }
+
+  static const Set<String> _annotationKeywords = {
+    'description',
+    'title',
+    'default',
+    'deprecated',
+    'readOnly',
+    'writeOnly',
+    'examples',
   };
 
   /// This catalog in the inline catalog shape of renderer capabilities below
@@ -1632,264 +1724,35 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     return legacyInlineCatalog(document);
   }
 
-  /// Whether [names] and [sourceNames] hold the same names.
-  static bool _sameNames(Iterable<String> names, Set<String> sourceNames) {
-    final Set<String> current = names.toSet();
-    return current.length == sourceNames.length &&
-        current.containsAll(sourceNames);
-  }
-
-  /// Whether [sourceJson] is an item of a `functions` list, `{name, ...}`,
-  /// rather than an entry of a `functions` map.
-  static bool _isListItemSource(
-          String name, Map<String, Object?>? sourceJson) =>
-      sourceJson != null &&
-      sourceJson['name'] == name &&
-      !sourceJson.containsKey('properties');
-
-  /// The union of every component, `$defs/anyComponent`.
+  /// The union of the components [names], `$defs/anyComponent`.
   ///
   /// With no components, a schema nothing matches, `{"not": {}}`: JSON
   /// Schema requires `oneOf` to list at least one schema.
-  Map<String, Object?> _componentUnion() => components.isEmpty
-      ? {'not': <String, Object?>{}}
-      : {
-          'oneOf': [
-            for (final String name in components.keys)
-              {r'$ref': '#/components/${_escapePointer(name)}'},
-          ],
-          'discriminator': {'propertyName': 'component'},
-        };
+  static Map<String, Object?> _componentUnionOf(Iterable<String> names) =>
+      names.isEmpty
+          ? {'not': <String, Object?>{}}
+          : {
+              'oneOf': [
+                for (final String name in names)
+                  {r'$ref': '#/components/${_escapePointer(name)}'},
+              ],
+              'discriminator': {'propertyName': 'component'},
+            };
 
-  /// The union of every function, `$defs/anyFunction`, or `{"not": {}}`
-  /// with no functions.
-  Map<String, Object?> _functionUnion() => functions.isEmpty
-      ? {'not': <String, Object?>{}}
-      : {
-          'oneOf': [
-            for (final String name in functions.keys)
-              {r'$ref': '#/functions/${_escapePointer(name)}'},
-          ],
-        };
+  /// The union of the functions [names], `$defs/anyFunction`, or
+  /// `{"not": {}}` with no functions.
+  static Map<String, Object?> _functionUnionOf(Iterable<String> names) =>
+      names.isEmpty
+          ? {'not': <String, Object?>{}}
+          : {
+              'oneOf': [
+                for (final String name in names)
+                  {r'$ref': '#/functions/${_escapePointer(name)}'},
+              ],
+            };
 
   static String _escapePointer(String segment) =>
       segment.replaceAll('~', '~0').replaceAll('/', '~1');
-
-  /// The names of the `$defs` entries [roots] reference, directly or through
-  /// other entries of [defs].
-  Set<String> _referencedDefs(
-    List<Object?> roots,
-    Map<String, Object?> defs,
-  ) {
-    final String? base = schemaId;
-    final referenced = <String>{};
-    final pending = <Object?>[...roots];
-    while (pending.isNotEmpty) {
-      final Object? node = pending.removeLast();
-      if (node is List) {
-        pending.addAll(node);
-      } else if (node is Map) {
-        final Object? ref = node[r'$ref'];
-        if (ref is String) {
-          String? fragment;
-          if (ref.startsWith('#/')) {
-            fragment = ref;
-          } else if (base != null && ref.startsWith('$base#/')) {
-            fragment = ref.substring(base.length);
-          }
-          if (fragment != null && fragment.startsWith(r'#/$defs/')) {
-            final String name = fragment
-                .substring(8)
-                .split('/')
-                .first
-                .replaceAll('~1', '/')
-                .replaceAll('~0', '~');
-            if (referenced.add(name) && defs.containsKey(name)) {
-              pending.add(defs[name]);
-            }
-          }
-        }
-        pending.addAll(node.values);
-      }
-    }
-    return referenced;
-  }
-
-  /// [node] with its references to the standard definitions in
-  /// [standardNames] written as `common_types.json` references, and the
-  /// common types markers code-defined schemas carry collapsed into them.
-  ///
-  /// A local reference to a definition in [authoredDefNames] stays local.
-  static Object? _unbundleRefs(
-    Object? node,
-    Set<String> standardNames,
-    Set<String> authoredDefNames,
-  ) {
-    if (node is List) {
-      return [
-        for (final Object? item in node)
-          _unbundleRefs(item, standardNames, authoredDefNames),
-      ];
-    }
-    if (node is! Map) return node;
-    final Object? marker = node['commonTypesRef'];
-    if (marker is String) {
-      return <String, Object?>{
-        r'$ref': _externalRef(marker),
-        for (final MapEntry<Object?, Object?> entry in node.entries)
-          if (_annotationKeywords.contains(entry.key))
-            entry.key! as String: entry.value,
-      };
-    }
-    final result = <String, Object?>{};
-    for (final MapEntry<Object?, Object?> entry in node.entries) {
-      final key = entry.key! as String;
-      final Object? value = entry.value;
-      if (key == r'$ref' && value is String) {
-        result[key] = _unbundleRef(value, standardNames, authoredDefNames);
-      } else {
-        result[key] = _unbundleRefs(value, standardNames, authoredDefNames);
-      }
-    }
-    return result;
-  }
-
-  static String _unbundleRef(
-    String ref,
-    Set<String> standardNames,
-    Set<String> authoredDefNames,
-  ) {
-    if (ref.contains('common_types.json#')) return _externalRef(ref);
-    if (ref.startsWith(r'#/$defs/')) {
-      final String name = ref.substring(8).split('/').first;
-      if (standardNames.contains(name) && !authoredDefNames.contains(name)) {
-        return 'common_types.json$ref';
-      }
-    }
-    return ref;
-  }
-
-  /// [ref], a reference into some spelling of `common_types.json`, as the
-  /// relative `common_types.json#...` a catalog document uses.
-  static String _externalRef(String ref) {
-    final int hash = ref.indexOf('#');
-    return hash == -1 ? ref : 'common_types.json${ref.substring(hash)}';
-  }
-
-  static const Set<String> _annotationKeywords = {
-    'description',
-    'title',
-    'default',
-    'deprecated',
-    'readOnly',
-    'writeOnly',
-    'examples',
-  };
-
-  /// The catalog document definition of [component], serialized from its
-  /// schema.
-  static Map<String, Object?> _unbundledComponent(
-    String name,
-    ComponentApi component,
-    Object? Function(Object?) unbundle,
-  ) {
-    final raw = unbundle(component.schema.value)! as Map<String, Object?>;
-    final properties = <String, Object?>{};
-    final required = <String>[];
-    void collect(Map<Object?, Object?> branch) {
-      if (branch['properties'] case final Map<Object?, Object?> props) {
-        properties.addAll(props.cast<String, Object?>());
-      }
-      if (branch['required'] case final List<Object?> names) {
-        required.addAll(names.whereType<String>());
-      }
-    }
-
-    collect(raw);
-    if (raw['allOf'] case final List<Object?> branches) {
-      for (final branch in branches) {
-        if (branch is Map) collect(branch);
-      }
-    }
-    const envelope = {'id', 'component', 'catalogId'};
-    properties.removeWhere((String key, _) => envelope.contains(key));
-
-    return <String, Object?>{
-      'type': 'object',
-      if (raw['description'] != null) 'description': raw['description'],
-      if (component.allowedParents != null)
-        'allowedParents': [...component.allowedParents!],
-      if (component.allowedChildren != null)
-        'allowedChildren': [...component.allowedChildren!],
-      'properties': <String, Object?>{
-        'component': <String, Object?>{'const': name},
-        ...properties,
-      },
-      'required': <String>[
-        'component',
-        for (final String key in required)
-          if (!envelope.contains(key)) key,
-      ],
-      if (raw.containsKey('unevaluatedProperties'))
-        'unevaluatedProperties': raw['unevaluatedProperties'],
-      if (raw.containsKey('additionalProperties'))
-        'additionalProperties': raw['additionalProperties'],
-    };
-  }
-
-  /// The catalog document definition of [function], serialized from its
-  /// signature in the shape of [protocolVersion].
-  Map<String, Object?> _unbundledFunction(
-    String name,
-    FunctionApi function,
-    Object? Function(Object?) unbundle,
-  ) {
-    final Object? args = unbundle(function.argumentSchema.value);
-    final String callKey = _callKey;
-    final required = <String>[
-      callKey,
-      if (_hasRequiredParameters(function.argumentSchema)) 'args',
-    ];
-    if (_isAtLeastV1) {
-      return <String, Object?>{
-        'type': 'object',
-        if (function.description != null) 'description': function.description,
-        'returnType': function.returnType.jsonValue,
-        ..._callerMetadata(function),
-        'properties': <String, Object?>{
-          callKey: <String, Object?>{'const': name},
-          'args': args,
-        },
-        'required': required,
-      };
-    }
-    return <String, Object?>{
-      'type': 'object',
-      if (function.description != null) 'description': function.description,
-      ..._callerMetadata(function),
-      'properties': <String, Object?>{
-        callKey: <String, Object?>{'const': name},
-        'args': args,
-        'returnType': <String, Object?>{'const': function.returnType.jsonValue},
-      },
-      'required': required,
-      'unevaluatedProperties': false,
-    };
-  }
-
-  /// The `functions` list item for [function], serialized from its
-  /// signature.
-  static Map<String, Object?> _unbundledListFunction(
-    String name,
-    FunctionApi function,
-    Object? Function(Object?) unbundle,
-  ) =>
-      <String, Object?>{
-        'name': name,
-        if (function.description != null) 'description': function.description,
-        'returnType': function.returnType.jsonValue,
-        'parameters': unbundle(function.argumentSchema.value),
-      };
 
   Map<String, Object?> _buildValidationSchema() {
     final serializedComponents = <String, Object?>{
@@ -1924,17 +1787,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     // The declared version, in the bare semantic version form the catalog
     // definition schema requires; a fallback passed to fromJson is not
     // emitted.
-    final A2uiProtocolVersion? version = protocolVersion;
-    final _CatalogSource? source = _source;
-    final String? emittedVersion = source != null &&
-            version == source.protocolVersion
-        ? (source.declaredProtocolVersion == null ? null : version?.semverValue)
-        : version?.semverValue;
+    final String? emittedVersion =
+        _declaredProtocolVersion == null ? null : protocolVersion?.semverValue;
 
     // The catalog's own `$defs` that entries reference are copied too, so
     // that no reference dangles. A standard definition of the same name
     // wins, and the unions and theme are built above.
-    final Map<String, Object?>? authoredDefs = source?.defs;
+    final Map<String, Object?> authoredDefs = definitions;
     const Set<String> builtDefs = _builtDefNames;
 
     int defsCountBefore;
@@ -1949,8 +1808,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         if (defs.containsKey(refName)) continue;
         if (standardDefs.containsKey(refName)) {
           defs[refName] = _deepCopyValue(standardDefs[refName]);
-        } else if (authoredDefs != null &&
-            authoredDefs.containsKey(refName) &&
+        } else if (authoredDefs.containsKey(refName) &&
             !builtDefs.contains(refName)) {
           final Object? copy = _deepCopyValue(authoredDefs[refName]);
           _restoreRefs(copy);
@@ -1987,19 +1845,19 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// function under [_callKey] and passes its arguments under `args`.
   ///
   /// From 1.0 this is the published v1 entry: `returnType`, and
-  /// `allowedCallers` and `requiresUserActivation` when set, are top-level
-  /// keywords, and the entry is not closed. Below 1.0 the call may restate
-  /// its `returnType` as a property, and the entry is closed.
+  /// `allowedCallers` and `requiresUserActivation` when declared, are
+  /// top-level keywords, and the entry is not closed. Below 1.0 the call may
+  /// restate its `returnType` as a property, and the entry is closed.
   ///
-  /// An object `args` schema is closed with `unevaluatedProperties`: the
-  /// authored `unevaluatedProperties` or `additionalProperties`, and `false`
-  /// when it declares neither.
+  /// The arguments keep their references to the catalog's [definitions],
+  /// and other local references are inlined. An object `args` schema is
+  /// closed with `unevaluatedProperties`: the authored
+  /// `unevaluatedProperties` or `additionalProperties`, and `false` when it
+  /// declares neither.
   Map<String, Object?> _serializeFunction(String name, FunctionApi fn) {
     final String callKey = _callKey;
-    // A function read from the document keeps its arguments' references to
-    // the document's own definitions.
     final Object? argsValue = _deepCopyValue(
-      _source?.referencingSchemas[fn.argumentSchema] ?? fn.argumentSchema.value,
+      _keepAuthoredDefRefs(fn.argumentSchema.value, _document),
     );
     _restoreRefs(argsValue);
     if (argsValue is Map<String, Object?> && argsValue['type'] == 'object') {
@@ -2043,20 +1901,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     };
   }
 
-  /// The `allowedCallers` and `requiresUserActivation` of [fn], each when
-  /// it differs from the catalog definition schema's default or when the
-  /// function's authored definition declares it.
-  static Map<String, Object?> _callerMetadata(FunctionApi fn) {
-    final Map<String, Object?>? source = fn.sourceJson;
-    return <String, Object?>{
-      if (fn.allowedCallers != AllowedCallers.rendererOnly ||
-          (source?.containsKey('allowedCallers') ?? false))
-        'allowedCallers': fn.allowedCallers.jsonValue,
-      if (fn.requiresUserActivation ||
-          (source?.containsKey('requiresUserActivation') ?? false))
-        'requiresUserActivation': fn.requiresUserActivation,
-    };
-  }
+  /// The `allowedCallers` and `requiresUserActivation` that [fn] declares.
+  static Map<String, Object?> _callerMetadata(FunctionApi fn) =>
+      <String, Object?>{
+        if (fn.declaredAllowedCallers case final AllowedCallers callers)
+          'allowedCallers': callers.jsonValue,
+        if (fn.declaredRequiresUserActivation case final bool activation)
+          'requiresUserActivation': activation,
+      };
 
   static void _collectReferencedDefs(Object? node, Set<String> result) {
     if (node is List) {
@@ -2120,50 +1972,20 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         schema['unevaluatedProperties'] ?? additional ?? false;
   }
 
-  /// The schema of [comp] with the component envelope: an `id`, the
-  /// `component` constant, and `unevaluatedProperties` from the authored
+  /// The flattened schema of [comp] with the component envelope: an `id`,
+  /// the `component` constant, and `unevaluatedProperties` from the authored
   /// `unevaluatedProperties` or `additionalProperties`. Below 1.0 it is
   /// `false` when the component declares neither; from 1.0 it is then
   /// omitted. Non-empty [ComponentApi.allowedParents] and
-  /// [ComponentApi.allowedChildren] are carried over.
+  /// [ComponentApi.allowedChildren] are carried over, and the properties
+  /// keep their references to the catalog's [definitions].
   Map<String, Object?> _serializeComponent(String name, ComponentApi comp) {
-    final raw = _deepCopyValue(comp.schema.value) as Map<String, Object?>;
-    _restoreRefs(raw);
-
-    final rawProps = <String, Object?>{};
-    final rawReq = <String>[];
-    if (raw['properties'] is Map<String, Object?>) {
-      rawProps.addAll(raw['properties'] as Map<String, Object?>);
-    }
-    if (raw['required'] is List) {
-      rawReq.addAll((raw['required'] as List).cast<String>());
-    }
-    if (raw['allOf'] is List) {
-      for (final branch in raw['allOf'] as List) {
-        if (branch is Map) {
-          if (branch['properties'] is Map<String, Object?>) {
-            rawProps.addAll(
-              branch['properties'] as Map<String, Object?>,
-            );
-          }
-          if (branch['required'] is List) {
-            rawReq.addAll((branch['required'] as List).cast<String>());
-          }
-        }
-      }
-    }
-
-    // A component read from the document keeps its references to the
-    // document's own definitions.
-    if (_source?.referencingSchemas[comp.schema]
-        case final Map<String, Object?> kept) {
-      final copy = _deepCopyValue(kept)! as Map<String, Object?>;
-      _restoreRefs(copy);
-      rawProps
-        ..clear()
-        ..addAll(copy);
-    }
-    final sanitizedProps = Map<String, Object?>.from(rawProps)
+    final _FlatComponent flat = _flatOf(comp);
+    final Map<String, Object?> raw = flat.schema.value;
+    final properties =
+        _deepCopyValue(flat.propertiesWithDefRefs)! as Map<String, Object?>;
+    _restoreRefs(properties);
+    properties
       ..remove('id')
       ..remove('component');
 
@@ -2174,13 +1996,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final innerProperties = <String, Object?>{
       'id': id,
       'component': <String, Object?>{'const': name},
-      ...sanitizedProps,
+      ...properties,
     };
 
     final innerRequired = <String>[
       'id',
-      for (final r in rawReq)
-        if (r != 'id' && r != 'component') r,
+      for (final Object? r in raw['required'] as List? ?? const [])
+        if (r is String && r != 'id' && r != 'component') r,
       'component',
     ];
 
@@ -2219,16 +2041,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       final Map<dynamic, dynamic> map = node;
       if (map['commonTypesRef'] is String) {
         final target = map['commonTypesRef'] as String;
-        const annotations = {
-          'description',
-          'title',
-          'default',
-          'deprecated',
-          'readOnly',
-          'writeOnly',
-          'examples',
-        };
-        map.removeWhere((k, _) => !annotations.contains(k));
+        map.removeWhere((k, _) => !_annotationKeywords.contains(k));
         _localizeRef(
             map, _commonTypesFragment(target) ?? target.split('/').last);
         return;
@@ -2261,51 +2074,134 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// A copy of this catalog with the given components and functions.
   ///
   /// Used by catalog transformers to narrow a catalog before prompting or
-  /// validation. The copy keeps the document metadata and authored `$defs`
-  /// that [toJson] writes, and each component and function keeps its
-  /// authored JSON, so a transformer that changes an entry's schema must
-  /// pass an entry without [ComponentApi.sourceJson] or
-  /// [FunctionApi.sourceJson].
+  /// validation. The copy keeps the document metadata and layout that
+  /// [toJson] writes, and the [definitions], except one that only removed
+  /// or replaced entries referenced. The `anyComponent` and `anyFunction`
+  /// unions follow the new components and functions.
   Catalog<C, F> copyWith({
     Iterable<C>? components,
     Iterable<F>? functions,
     Schema? themeSchema,
     A2uiProtocolVersion? protocolVersion,
-  }) =>
-      Catalog<C, F>._(
-        id: id,
-        components: (components ?? this.components.values).toList(),
-        functions: (functions ?? this.functions.values).toList(),
-        themeSchema: themeSchema ?? this.themeSchema,
-        schemaId: schemaId,
-        title: title,
-        description: description,
-        protocolVersion: protocolVersion ?? this.protocolVersion,
-        instructions: instructions,
-        source: _source,
-      );
+  }) {
+    final List<C> newComponents =
+        (components ?? this.components.values).toList();
+    final List<F> newFunctions = (functions ?? this.functions.values).toList();
+    final Schema? newTheme = themeSchema ?? this.themeSchema;
+    return Catalog<C, F>._(
+      id: id,
+      components: newComponents,
+      functions: newFunctions,
+      themeSchema: newTheme,
+      schemaDialect: schemaDialect,
+      schemaId: schemaId,
+      title: title,
+      description: description,
+      protocolVersion: protocolVersion ?? this.protocolVersion,
+      declaredProtocolVersion:
+          protocolVersion == null || protocolVersion == this.protocolVersion
+              ? _declaredProtocolVersion
+              : protocolVersion.semverValue,
+      instructions: instructions,
+      definitions: _definitionsFor(newComponents, newFunctions, newTheme),
+      otherFields: _otherFields,
+      layout: _layout,
+    );
+  }
+
+  /// [definitions] without those that the current entries reference but
+  /// [components], [functions] and [theme] no longer do.
+  Map<String, Object?> _definitionsFor(
+    Iterable<ComponentApi> components,
+    Iterable<FunctionApi> functions,
+    Schema? theme,
+  ) {
+    if (definitions.isEmpty) return definitions;
+    Set<String> referencedBy(
+      Iterable<ComponentApi> components,
+      Iterable<FunctionApi> functions,
+      Schema? theme,
+    ) =>
+        _referencedDefs([
+          for (final ComponentApi component in components)
+            component.schema.value,
+          for (final FunctionApi function in functions)
+            function.argumentSchema.value,
+          theme?.value,
+        ]);
+    final Set<String> before = referencedBy(
+        this.components.values, this.functions.values, themeSchema);
+    final Set<String> after = referencedBy(components, functions, theme);
+    return {
+      for (final MapEntry<String, Object?> entry in definitions.entries)
+        if (!before.contains(entry.key) || after.contains(entry.key))
+          entry.key: entry.value,
+    };
+  }
+
+  /// The names of the [definitions] that [roots] reference, directly or
+  /// through other definitions.
+  Set<String> _referencedDefs(List<Object?> roots) {
+    final String? base = schemaId;
+    final referenced = <String>{};
+    final pending = <Object?>[...roots];
+    while (pending.isNotEmpty) {
+      final Object? node = pending.removeLast();
+      if (node is List) {
+        pending.addAll(node);
+      } else if (node is Map) {
+        final Object? ref = node[r'$ref'];
+        if (ref is String) {
+          String? fragment;
+          if (ref.startsWith('#/')) {
+            fragment = ref;
+          } else if (base != null && ref.startsWith('$base#/')) {
+            fragment = ref.substring(base.length);
+          }
+          if (fragment != null && fragment.startsWith(r'#/$defs/')) {
+            final String name = fragment
+                .substring(8)
+                .split('/')
+                .first
+                .replaceAll('~1', '/')
+                .replaceAll('~0', '~');
+            if (referenced.add(name) && definitions.containsKey(name)) {
+              pending.add(definitions[name]);
+            }
+          }
+        }
+        pending.addAll(node.values);
+      }
+    }
+    return referenced;
+  }
 
   /// A copy of this catalog with [functions], which may be of another
   /// [FunctionApi] type, in place of its own.
   ///
-  /// Everything else is kept as [copyWith] keeps it, including the authored
-  /// document [toJson] writes back and the authored `$defs` that
-  /// [validationSchema] bundles. Use it to give a catalog read by
-  /// [Catalog.fromJson] evaluable functions, such as
+  /// Everything else is kept as [copyWith] keeps it. Use it to give a
+  /// catalog read by [Catalog.fromJson] evaluable functions, such as
   /// [FunctionImplementation]s with the same signatures.
-  Catalog<C, G> withFunctions<G extends FunctionApi>(Iterable<G> functions) =>
-      Catalog<C, G>._(
-        id: id,
-        components: components.values.toList(),
-        functions: functions.toList(),
-        themeSchema: themeSchema,
-        schemaId: schemaId,
-        title: title,
-        description: description,
-        protocolVersion: protocolVersion,
-        instructions: instructions,
-        source: _source,
-      );
+  Catalog<C, G> withFunctions<G extends FunctionApi>(Iterable<G> functions) {
+    final List<G> newFunctions = functions.toList();
+    return Catalog<C, G>._(
+      id: id,
+      components: components.values.toList(),
+      functions: newFunctions,
+      themeSchema: themeSchema,
+      schemaDialect: schemaDialect,
+      schemaId: schemaId,
+      title: title,
+      description: description,
+      protocolVersion: protocolVersion,
+      declaredProtocolVersion: _declaredProtocolVersion,
+      instructions: instructions,
+      definitions:
+          _definitionsFor(components.values, newFunctions, themeSchema),
+      otherFields: _otherFields,
+      layout: _layout,
+    );
+  }
 
   static bool _hasRequiredParameters(Schema schema) {
     final Object? required = schema.value['required'];
@@ -2324,82 +2220,89 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     }
     return value;
   }
+
+  /// Whether the JSON values [a] and [b] are equal.
+  static bool _jsonEquals(Object? a, Object? b) {
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final MapEntry<Object?, Object?> entry in a.entries) {
+        if (!b.containsKey(entry.key) ||
+            !_jsonEquals(entry.value, b[entry.key])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (!_jsonEquals(a[i], b[i])) return false;
+      }
+      return true;
+    }
+    return a == b;
+  }
 }
 
-/// How a catalog document writes `functions`.
-enum _FunctionsForm { absent, map, list }
-
-/// What [Catalog.fromJson] read from an authored catalog document, beyond
-/// the model, so that [Catalog.toJson] can write the document back.
-///
-/// Every JSON value here is a deep, unmodifiable copy.
-final class _CatalogSource {
-  const _CatalogSource({
-    required this.keyOrder,
-    required this.hasSchemaDialect,
-    required this.schemaDialect,
-    required this.declaredProtocolVersion,
-    required this.protocolVersion,
-    required this.hasComponents,
-    required this.componentsJson,
-    required this.functionsForm,
-    required this.functionsJson,
-    required this.defs,
-    required this.theme,
-    required this.extras,
-    required this.themeSchema,
-    required this.componentNames,
-    required this.functionNames,
-    required this.referencingSchemas,
+/// A component schema flattened by [Catalog.resolvedComponentSchemas].
+final class _FlatComponent {
+  const _FlatComponent({
+    required this.schema,
+    required this.propertiesWithDefRefs,
   });
 
-  /// The document's top-level keys, in order.
-  final List<String> keyOrder;
+  /// The flattened schema, with local references inlined.
+  final Schema schema;
 
-  /// Whether the document declares `$schema`, and its value.
-  final bool hasSchemaDialect;
-  final Object? schemaDialect;
+  /// The flattened properties with their references to the catalog's own
+  /// `$defs` kept, which [Catalog.validationSchema] writes so that a shared
+  /// definition is bundled once.
+  final Map<String, Object?> propertiesWithDefRefs;
+}
 
-  /// `protocolVersion` as the document declares it, or null when it does
-  /// not declare one.
-  final String? declaredProtocolVersion;
+/// How [Catalog.toJson] lays out the parts of a catalog document that may be
+/// written in more than one way.
+///
+/// [Catalog.fromJson] records the layout of the document it read; a catalog
+/// defined in code uses the defaults.
+final class _DocumentLayout {
+  const _DocumentLayout({
+    this.writesCatalogId = true,
+    this.writesComponents = true,
+    this.writesFunctions = false,
+    this.listsFunctions = false,
+    this.writesDefs = false,
+    this.themeInDefs,
+    this.writesComponentUnion = true,
+    this.writesFunctionUnion,
+  });
 
-  /// The protocol version the catalog was read with: the declared one, else
-  /// the one passed to [Catalog.fromJson].
-  final A2uiProtocolVersion? protocolVersion;
+  /// Whether the document declares `catalogId`. The published v0.8 basic
+  /// catalog does not.
+  final bool writesCatalogId;
 
-  /// Whether the document declares `components`, and its value.
-  final bool hasComponents;
-  final Object? componentsJson;
+  /// Whether `components` is written even when the catalog has none.
+  final bool writesComponents;
 
-  /// The form of the document's `functions`, and its value.
-  final _FunctionsForm functionsForm;
-  final Object? functionsJson;
+  /// Whether `functions` is written even when the catalog has none.
+  final bool writesFunctions;
 
-  /// The document's `$defs`, including `anyComponent` and `anyFunction`.
-  final Map<String, Object?>? defs;
+  /// Whether `functions` is a list of definitions rather than a map.
+  final bool listsFunctions;
 
-  /// The document's top-level `theme`.
-  final Object? theme;
+  /// Whether `$defs` is written even when it is empty.
+  final bool writesDefs;
 
-  /// The document's other top-level keys, which [Catalog.toJson] writes
-  /// back as they are.
-  final Map<String, Object?> extras;
+  /// Whether the theme is `$defs/theme` rather than a top-level `theme`;
+  /// null for `$defs/theme`.
+  final bool? themeInDefs;
 
-  /// The theme schema read from the document, to tell whether the catalog
-  /// still carries it.
-  final Schema? themeSchema;
+  /// Whether `$defs/anyComponent` is the union of the components.
+  final bool writesComponentUnion;
 
-  /// The names of the components and functions read from the document.
-  final Set<String> componentNames;
-  final Set<String> functionNames;
-
-  /// For each component schema and function argument schema read from the
-  /// document, its properties or arguments with references to the
-  /// document's own `$defs` kept, which validationSchema writes in place of
-  /// the inlined schema. Keyed by identity, so an entry a transformer
-  /// replaced is serialized from its new schema.
-  final Map<Schema, Object?> referencingSchemas;
+  /// Whether `$defs/anyFunction` is the union of the functions; null when
+  /// the catalog has functions or targets v1.0 or later.
+  final bool? writesFunctionUnion;
 }
 
 /// A deep copy of the JSON [value] whose maps and lists are unmodifiable.

@@ -88,7 +88,8 @@ void main() {
         },
       });
 
-      final properties = catalog.components['Toggle']!.schema
+      final properties = catalog
+          .resolvedComponentSchema('Toggle')!
           .value['properties']! as Map<String, Object?>;
       expect(properties['checks'], {
         'type': 'string',
@@ -846,20 +847,20 @@ void main() {
       expect(catalog.toJson()['catalogId'], 'https://example.com/renamed');
     });
 
-    test('keeps the authored JSON of each entry before inlining', () {
+    test('keeps each component schema as written', () {
       final CatalogApi catalog = Catalog.fromJson(_themedDocument());
 
       expect(
-        catalog.components['Card']!.sourceJson,
+        catalog.components['Card']!.schema.value,
         (_themedDocument()['components']! as Map<String, Object?>)['Card'],
       );
       expect(
-        jsonEncode(catalog.components['Card']!.sourceJson),
+        jsonEncode(catalog.components['Card']!.schema.value),
         contains(r'#/$defs/Weighted'),
       );
       expect(
-        () => catalog.components['Card']!.sourceJson!['type'] = 'x',
-        throwsUnsupportedError,
+        jsonEncode(catalog.resolvedComponentSchema('Card')!.value),
+        isNot(contains(r'#/$defs/Weighted')),
       );
     });
 
@@ -934,6 +935,85 @@ void main() {
     });
   });
 
+  group('Catalog model', () {
+    test('reads the document into fields', () {
+      final CatalogApi catalog = Catalog.fromJson(_v10Document());
+
+      expect(catalog.schemaDialect, Catalog.jsonSchemaDialect);
+      expect(catalog.title, 'Versioned');
+      expect(catalog.definitions.keys, ['Weighted', 'Unused']);
+      expect(
+        catalog.components['Spacer']!.schema.value,
+        isNot(contains('allowedParents')),
+      );
+      final FunctionApi launch = catalog.functions['launch']!;
+      expect(launch.declaredAllowedCallers, AllowedCallers.rendererOnly);
+      expect(launch.declaredRequiresUserActivation, isTrue);
+      expect(
+        launch.argumentSchema.value,
+        ((((_v10Document()['functions']! as Map)['launch']!
+                as Map)['properties']! as Map)['args']! as Map)
+            .cast<String, Object?>(),
+      );
+    });
+
+    test('writes a replaced function from its signature', () {
+      final CatalogApi catalog = Catalog.fromJson(_v10Document());
+      final FunctionApi launch = catalog.functions['launch']!;
+      final CatalogApi changed = catalog.copyWith(functions: [
+        FunctionApi(
+          name: 'launch',
+          description: 'Opens a URL.',
+          returnType: launch.returnType,
+          argumentSchema: launch.argumentSchema,
+        ),
+      ]);
+
+      final functions = changed.toJson()['functions']! as Map;
+      final written = functions['launch']! as Map<String, Object?>;
+      expect(written['description'], 'Opens a URL.');
+      expect(written, isNot(contains('allowedCallers')));
+      expect(written, isNot(contains('requiresUserActivation')));
+      expect(catalog.toJson(), equals(_v10Document()));
+    });
+
+    test('keeps a top-level theme at the top level', () {
+      final CatalogApi catalog = Catalog.fromJson(_themedDocument());
+
+      expect(catalog.themeSchema!.value, _themedDocument()['theme']);
+      expect(catalog.definitions.keys, ['Weighted']);
+      expect(catalog.toJson()['theme'], _themedDocument()['theme']);
+      expect(
+        (catalog.toJson()[r'$defs']! as Map).keys,
+        isNot(contains('theme')),
+      );
+    });
+
+    test('flattens each component once', () {
+      final CatalogApi catalog = Catalog.fromJson(_themedDocument());
+      final Schema card = catalog.resolvedComponentSchema('Card')!;
+
+      expect(identical(catalog.resolvedComponentSchema('Card'), card), isTrue);
+      expect(
+        (card.value['properties']! as Map).keys,
+        unorderedEquals(['child', 'weight']),
+      );
+      expect(card.value['required'], ['child']);
+      expect(card.value, isNot(contains('allOf')));
+      expect(catalog.resolvedComponentSchema('Missing'), isNull);
+    });
+
+    test('caches validationSchema and copies toJson', () {
+      final CatalogApi catalog = Catalog.fromJson(_themedDocument());
+
+      expect(
+        identical(catalog.validationSchema, catalog.validationSchema),
+        isTrue,
+      );
+      expect(identical(catalog.toJson(), catalog.toJson()), isFalse);
+    });
+  });
+
   group('Catalog.toJson of a derived catalog', () {
     test('rebuilds a union whose entries changed and keeps the other', () {
       final CatalogApi catalog = Catalog.fromJson(_v10Document());
@@ -973,7 +1053,7 @@ void main() {
       expect(withCard[r'$defs'], contains('Weighted'));
     });
 
-    test('serializes an entry without authored JSON from its schema', () {
+    test('serializes a replaced entry from its schema', () {
       final CatalogApi catalog = Catalog.fromJson(_v10Document());
       final CatalogApi changed = catalog.copyWith(
         components: [
@@ -994,13 +1074,11 @@ void main() {
           'type': 'object',
           'allowedParents': ['Surface'],
           'properties': {
-            'component': {'const': 'Spacer'},
             'size': {
               r'$ref': r'common_types.json#/$defs/DynamicBoolean',
               'description': CommonSchemas.dynamicBoolean.value['description'],
             },
           },
-          'required': ['component'],
         },
       );
     });
@@ -1056,8 +1134,10 @@ void main() {
       expect(jsonEncode(out), isNot(contains(r'"#/$defs/')));
       final label = (out['components']! as Map)['Label'] as Map;
       expect(label['allowedParents'], ['Surface', 'Card']);
-      expect(label['required'], ['component', 'text']);
-      expect((label['properties']! as Map).keys, ['component', 'text']);
+      // The schema is written as defined, with no `component` constant
+      // added.
+      expect(label['required'], ['text']);
+      expect((label['properties']! as Map).keys, ['text']);
       expect(
         ((label['properties']! as Map)['text'] as Map)[r'$ref'],
         r'common_types.json#/$defs/DynamicString',

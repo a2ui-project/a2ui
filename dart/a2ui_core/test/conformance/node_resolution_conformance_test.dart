@@ -160,6 +160,7 @@ class _Runner {
         for (final FunctionApi api in parsed.functions.values)
           _RecordingFunction(api, functions),
       ],
+      definitions: parsed.definitions,
     );
     surface = SurfaceModel('s', defaultCatalog: catalog);
     surface.dataModel.set('/', _copy(fixture['data']));

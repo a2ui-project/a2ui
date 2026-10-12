@@ -1218,7 +1218,7 @@ void v1RulesTests() {
               ],
             },
           },
-        }).components['Box']!.schema.value['properties'],
+        }).resolvedComponentSchemas['Box']!.value['properties'],
         containsPair('label', anything),
       );
     });

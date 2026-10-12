@@ -9,8 +9,10 @@
   `Catalog.withFunctions`, so a catalog read by `Catalog.fromJson` keeps its
   protocol version, its authored `$defs` (a recursive `#/$defs/node` no
   longer fails as an unresolvable reference) and each function's
-  `description`, `allowedCallers`, `requiresUserActivation` and
-  `sourceJson`.
+  `description` and declared `allowedCallers` and `requiresUserActivation`.
+- The Express format reads component signatures from
+  `Catalog.resolvedComponentSchema`, since `ComponentApi.schema` now keeps a
+  component's schema as the catalog document wrote it.
 - `FileSystemCatalogProvider` and `InMemoryCatalogProvider` pass the
   provider's id and protocol version to `Catalog.fromJson` instead of
   writing the id into the document, so `load().toJson()` writes back a

@@ -137,8 +137,10 @@
 - `FunctionApi` adds `allowedCallers` (`AllowedCallers.rendererOnly`,
   `agentOnly` or `rendererOrAgent`, default `rendererOnly`) and
   `requiresUserActivation`, read by `Catalog.fromJson` from both function
-  forms and emitted by `toJson` and `validationSchema` when they differ from
-  the defaults or the document declares them.
+  forms. `declaredAllowedCallers` and `declaredRequiresUserActivation` hold
+  what the definition states, null when it states nothing, and `toJson` and
+  `validationSchema` emit a value only when it is declared, even when it is
+  the default.
   `BasicFunction` carries them, so `BasicCatalog.v1_0().functions['openUrl']`
   requires a user activation.
 - On a v1.0 surface, a function call that no available catalog implements
@@ -201,19 +203,39 @@
   `Catalog.fromJson`, which takes an `A2uiProtocolVersion` fallback for
   documents that declare none. `toJson` and `validationSchema` emit it and,
   from `1.0`, name functions under `@call` instead of `call`.
-- `Catalog` adds `toJson`, which returns a catalog document for the catalog:
-  the authored document kept by `Catalog.fromJson`, with external `$ref`s
-  left unbundled and entries removed by `copyWith` pruned (along with their
-  unused `$defs` and union entries). It writes the `protocolVersion` as the
-  document declared it, and `catalogId` only when the document declared
-  one. A catalog built in code gets a canonical document for its
-  `protocolVersion`.
+- `Catalog` becomes a lossless model of a catalog document.
+  `Catalog.fromJson` keeps each component's schema as written in
+  `ComponentApi.schema` (with `allOf` mixins, local `#/$defs/...` and
+  `common_types.json` references, descriptions and closure keywords intact;
+  `allowedParents` and `allowedChildren` move to their fields) and each
+  function's `args` schema as written in `FunctionApi.argumentSchema`, and
+  reads the rest of the document into fields: `schemaDialect` (`$schema`),
+  `schemaId`, `title`, `description`, `protocolVersion`, `instructions`,
+  `themeSchema`, and `definitions` (the shared `$defs`). Keys it does not
+  model, the form of `functions` (map or list) and where the theme lives are
+  kept too.
+- `Catalog` adds `toJson`, which assembles the catalog document from the
+  model, so `Catalog.fromJson(document).toJson()` equals `document` up to key
+  order. The `anyComponent` and `anyFunction` unions are computed from the
+  components and functions; references are left as written. It writes the
+  `protocolVersion` as the document declared it, and `catalogId` only when
+  the document declared one. A catalog built in code is written in the
+  shape of its `protocolVersion`, with each component schema as defined.
+  The document is built once per catalog and each call returns a copy.
+- `Catalog` adds `resolvedComponentSchemas` and `resolvedComponentSchema`,
+  each component's schema with its mixins merged, local references inlined
+  and envelope properties left out: what renderers bind and validators
+  check. Each is computed once per component.
+- The `Catalog` constructor takes `definitions`, `schemaDialect` and
+  `declaresProtocolVersion`. `copyWith` keeps the `definitions` except one
+  that only removed entries referenced.
 - `Catalog.fromJson` takes a `catalogId`, used as the catalog's id in place
   of the declared one, so a document that declares none, such as the
   published v0.8 basic catalog, can be loaded.
 - `Catalog` adds `withFunctions`, which returns a copy with functions of
   another `FunctionApi` type, such as `FunctionImplementation`s, and keeps
-  the authored document that `toJson` and `validationSchema` read.
+  the document fields and `definitions` that `toJson` and
+  `validationSchema` read.
 - `Catalog` adds `validationSchema`, the self-contained schema used to
   validate messages. Its standard `$defs` follow the catalog's
   `protocolVersion`: the v1.0 common types from `1.0`, the v0.9 ones below.
@@ -259,10 +281,9 @@
   renderer capabilities send below v1.0, derived from `validationSchema` as
   described below. Function parameters and the theme are written as defined,
   without the closing keywords `validationSchema` adds.
-- `ComponentApi` adds `sourceJson`. `FunctionApi` and `FunctionImplementation`
-  add `sourceJson`. `BasicFunction` takes `description`, `allowedCallers`,
-  `requiresUserActivation` and `sourceJson`, and the basic catalog's
-  functions carry their published `description`.
+- `BasicFunction` takes `description`, `allowedCallers` and
+  `requiresUserActivation`, and the basic catalog's functions carry their
+  published `description`.
 - **Behavior change:** from v1.0, inline catalogs in renderer capabilities are
   the catalog documents `Catalog.toJson` returns, rather than a copy of the
   bundled validation schema. Below v1.0 they are `toLegacyInlineCatalog`.
@@ -444,9 +465,10 @@
 - Added `BasicCatalog.v0_9()` and `BasicCatalog.v1_0()`, which carry the
   basic catalog's 14 functions (`required`, `regex`, `length`, `numeric`,
   `email`, `formatString`, `formatNumber`, `formatCurrency`, `formatDate`,
-  `pluralize`, `openUrl`, `and`, `or`, `not`). Each function's argument schema
-  and return type are read from an embedded copy of the published catalog
-  document, so they cannot drift from it.
+  `pluralize`, `openUrl`, `and`, `or`, `not`), and its 18 components, theme
+  and shared definitions. They are defined in code, generated from the
+  published catalog documents by `tool/generate_basic_catalogs.dart`, and
+  `toJson` writes the published document.
   - v0.9 validation rules return `bool`; v1.0 rules return a
     `ValidationResult` with a failure message.
   - In v1.0, `and`, `or`, and `not` read the validity of a `ValidationResult`

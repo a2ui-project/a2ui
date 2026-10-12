@@ -153,11 +153,11 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
     );
     for (final compName in expectedComps) {
       final Map<String, Object?> schemaValue =
-          catalog.components[compName]!.schema.value;
+          catalog.resolvedComponentSchemas[compName]!.value;
       expect(
         jsonEncode(schemaValue),
         isNot(contains(r'"$ref":"#/$defs/')),
-        reason: '$name: local \$defs inlined in $compName',
+        reason: '$name: local \$defs inlined in resolved $compName',
       );
     }
   }
@@ -204,10 +204,6 @@ List<Object?> _list(Object? value) => value is List ? value : const <Object?>[];
 
 /// Checks `matchesBuiltinCatalog`: [loaded] is equivalent to this package's
 /// own implementation of the catalog with the same id.
-///
-/// The Dart basic catalogs implement the published functions but no
-/// components yet, so for them every other part is checked and the case is
-/// then marked skipped rather than failed on the components.
 void _checkMatchesBuiltinCatalog(CatalogApi loaded, String name) {
   final CatalogApi? builtin = _builtinCatalogs[loaded.id];
   if (builtin == null) {
@@ -224,14 +220,6 @@ void _checkMatchesBuiltinCatalog(CatalogApi loaded, String name) {
     equals(_functionSignatures(builtin)),
     reason: '$name: functions',
   );
-  if (builtin.components.isEmpty && loaded.components.isNotEmpty) {
-    markTestSkipped(
-      'The built-in ${loaded.id} implements the published functions but '
-      'none of the ${loaded.components.length} published components yet; '
-      'catalog id, protocol version and function signatures match.',
-    );
-    return;
-  }
   expect(
     _componentShapes(loaded),
     equals(_componentShapes(builtin)),
@@ -466,14 +454,6 @@ void _runToJsonCase(Map<String, Object?> testCase) {
       markTestSkipped(
         'a2ui_core has no built-in $builtin catalog for '
         '${testCase['protocolVersion']}.',
-      );
-      return;
-    }
-    if (implemented.components.isEmpty) {
-      markTestSkipped(
-        'The built-in ${implemented.id} implements the published functions '
-        'but none of the published components yet, so its document lists no '
-        'components.',
       );
       return;
     }

@@ -16,8 +16,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_core/src/basic_catalog/v0_9/catalog.g.dart';
-import 'package:a2ui_core/src/basic_catalog/v1_0/catalog.g.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
@@ -80,7 +78,8 @@ void main() {
         'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
       );
       expect(v09.functions.keys.toSet(), _functionNames);
-      expect(v09.protocolVersion, A2uiProtocolVersion.v0_9);
+      expect(v09.components.keys, contains('Text'));
+      expect(v09.components, hasLength(18));
     });
 
     test('v1.0 matches the published catalog document', () {
@@ -89,7 +88,8 @@ void main() {
         'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
       );
       expect(v10.functions.keys.toSet(), _functionNames);
-      expect(v10.protocolVersion, A2uiProtocolVersion.v1_0);
+      expect(v10.components.keys, contains('Text'));
+      expect(v10.components, hasLength(18));
     });
 
     test('validators return booleans in v0.9 and results in v1.0', () {
@@ -134,27 +134,17 @@ void main() {
         jsonDecode(File(resolveConformancePath('../$path')).readAsStringSync())
             as Map<String, Object?>;
 
-    for (final (String constant, String embedded, String path) in [
-      (
-        'basicCatalogV0_9Json',
-        basicCatalogV0_9Json,
-        'specification/v0_9/catalogs/basic/catalog.json',
-      ),
-      (
-        'basicCatalogV1_0Json',
-        basicCatalogV1_0Json,
-        'catalogs/basic/v1/catalog.json',
-      ),
-    ]) {
-      test('$constant is identical to $path', () {
-        expect(
-          embedded,
-          File(resolveConformancePath('../$path')).readAsStringSync(),
-          reason: '$constant has drifted from $path. Run '
-              '`dart run tool/generate_basic_catalogs.dart`.',
-        );
-      });
-    }
+    test('the generated definitions are up to date', () {
+      final ProcessResult result = Process.runSync(
+        Platform.resolvedExecutable,
+        ['run', 'tool/generate_basic_catalogs.dart', '--check'],
+      );
+      expect(
+        result.exitCode,
+        0,
+        reason: '${result.stdout}${result.stderr}',
+      );
+    });
 
     for (final (String label, _RendererCatalog catalog, String path) in [
       ('v0.9', v09, 'specification/v0_9/catalogs/basic/catalog.json'),
@@ -215,7 +205,24 @@ void main() {
         }
       });
 
-      test('$label carries the published identity and theme', () {
+      test('$label writes the published document', () {
+        expect(catalog.toJson(), equals(published(path)));
+      });
+
+      test('$label components are the published ones', () {
+        final CatalogApi parsed = Catalog.fromJson(published(path));
+
+        expect(catalog.components.keys, parsed.components.keys);
+        for (final String name in parsed.components.keys) {
+          expect(
+            catalog.components[name]!.schema.value,
+            parsed.components[name]!.schema.value,
+            reason: '$name schema',
+          );
+        }
+      });
+
+      test('$label carries the published identity', () {
         final Map<String, Object?> document = published(path);
         final Object? defs = document[r'$defs'];
 

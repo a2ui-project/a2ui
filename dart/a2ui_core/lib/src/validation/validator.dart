@@ -608,8 +608,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   }
 
   Map<String, Schema> get _resolvedComponentSchemas => _resolvedComponents ??= {
-        for (final MapEntry<String, C> entry in catalog.components.entries)
-          entry.key: _resolve(entry.value.schema.value),
+        for (final MapEntry<String, Schema> entry
+            in catalog.resolvedComponentSchemas.entries)
+          entry.key: _resolve(entry.value.value),
       };
 
   Map<String, Schema> get _resolvedFunctionSchemas => _resolvedFunctions ??= {
