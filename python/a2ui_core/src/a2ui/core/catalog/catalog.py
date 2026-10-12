@@ -407,8 +407,17 @@ def _is_authored_component(component: Any) -> bool:
 
 
 def _is_authored_function(function: Any) -> bool:
-    """Whether a function's schema is its catalog document entry."""
-    return _is_function_definition(getattr(function, "schema", None))
+    """Whether a function's schema is its catalog document entry.
+
+    A function that says whether it is (`FunctionApi.is_definition`, which
+    `Catalog.from_json` sets on every entry it loads) is taken at its word;
+    for any other, the schema's shape decides.
+    """
+    schema = getattr(function, "schema", None)
+    is_definition = getattr(function, "is_definition", None)
+    if is_definition is not None:
+        return bool(is_definition) and isinstance(schema, Mapping)
+    return _is_function_definition(schema)
 
 
 def _local_def_name(ref: Any) -> str | None:
@@ -1453,9 +1462,9 @@ class Catalog(Generic[TComponent, TFunction]):
           A component defined by a model is derived from the model in the
           shape of its protocol version.
         - `functions`, in the catalog's `functions_form`: a function whose
-          schema is its catalog entry (a call schema, or one declaring
-          `returnType`) is written as that schema, with the function's
-          `description`, `returnType`, `allowedCallers` and
+          schema is its catalog entry (every function `from_json` loads; see
+          `FunctionApi.is_definition`) is written as that schema, with the
+          function's `description`, `returnType`, `allowedCallers` and
           `requiresUserActivation`. Any other function (an args schema or
           model) is written in the call shape of its protocol version.
           System functions defined in code are not declared.
@@ -1648,7 +1657,7 @@ class Catalog(Generic[TComponent, TFunction]):
             return None
         if self.theme_model is not None:
             return derived_theme
-        if not self.theme_schema and self.theme_location != "theme":
+        if not self.theme_schema and self.theme_location not in ("theme", "$defs"):
             return None
         return cast(
             dict[str, Any],
@@ -1910,6 +1919,7 @@ class Catalog(Generic[TComponent, TFunction]):
                         description=(
                             fn_description if isinstance(fn_description, str) else None
                         ),
+                        is_definition=True,
                     )
                 )
 

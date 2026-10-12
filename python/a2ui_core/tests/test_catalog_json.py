@@ -269,6 +269,49 @@ def test_to_json_keeps_unknown_top_level_keys() -> None:
     assert Catalog.from_json(document).to_json() == document
 
 
+@pytest.mark.parametrize("version", ["v0.9", "v1.0"])
+@pytest.mark.parametrize(
+    "functions",
+    [
+        # An entry that only describes its arguments.
+        {"f": {"type": "object", "properties": {"a": {}}}},
+        # An empty entry.
+        {"f": {}},
+        # A list entry without `parameters` or `returnType`.
+        [{"name": "f", "description": "d"}],
+        # Entries named like system functions.
+        {"required": {"type": "object"}, "formatString": {}},
+    ],
+    ids=["args-only", "empty", "list-without-parameters", "system-names"],
+)
+def test_loaded_function_entries_round_trip(version: str, functions: Any) -> None:
+    document = {"catalogId": "https://example.com/catalogs/f", "functions": functions}
+    catalog = Catalog.from_json(document, protocol_version=version)
+    assert catalog.to_json() == document
+    # A copy keeps its entries as they were loaded.
+    assert catalog.copy_with().to_json() == document
+
+
+def test_function_is_definition_overrides_the_schema_shape() -> None:
+    args = {"type": "object", "properties": {"a": {}}}
+    entry = FunctionApi(name="f", schema=args, is_definition=True)
+    wrapped = FunctionApi(name="g", schema={"returnType": "any"}, is_definition=False)
+    out = Catalog(
+        catalog_id="c", protocol_version="v1.0", functions=[entry, wrapped]
+    ).to_json()
+
+    assert out["functions"]["f"] == args
+    assert out["functions"]["g"]["properties"]["@call"] == {"const": "g"}
+
+
+@pytest.mark.parametrize("version", ["v0.9", "v1.0"])
+def test_to_json_keeps_an_empty_theme_in_defs(version: str) -> None:
+    document = {"catalogId": "https://example.com/catalogs/t", "$defs": {"theme": {}}}
+    catalog = Catalog.from_json(document, protocol_version=version)
+    assert catalog.theme_location == "$defs"
+    assert catalog.to_json() == document
+
+
 # ==============================================================================
 # 2. Derived catalogs
 # ==============================================================================

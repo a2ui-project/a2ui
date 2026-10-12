@@ -6,6 +6,13 @@
   no longer re-exports `AGENT_TO_RENDERER_DEFS`, `INLINE_DEF_MARKER`,
   `SchemaKeywords`, `def_ref` or `Annotated`, which leaked through the old
   star imports; import them from their defining modules (#3064).
+- **BREAKING**: `Catalog.from_json` keeps each component's and function's
+  definition as the document writes it and no longer writes local references
+  inline, so `ComponentApi.schema` and `FunctionApi.schema` of a loaded
+  catalog may contain `$ref` and `allOf`. To migrate, read
+  `Catalog.resolved_component_schema(name)`, `resolved_function_schema(name)`
+  and `resolved_theme_schema`, which give the schemas with references
+  resolved (#3053).
 - `Catalog.from_json` deserializes a catalog document into the catalog model,
   and `Catalog.to_json()` serializes the model back into an unbundled catalog
   document, so `Catalog.from_json(document).to_json()` equals `document`
@@ -15,12 +22,14 @@
     document writes it, with `allOf` mixins, local `#/$defs/...` and
     `common_types.json#/$defs/...` references, descriptions, closure keywords,
     `allowedParents`/`allowedChildren` and the function's `returnType`,
-    `allowedCallers` and `requiresUserActivation`. `from_json` no longer
-    writes local references inline; `Catalog.resolved_component_schema`,
-    `resolved_function_schema` and `resolved_theme_schema` give the schemas
-    with references resolved, computed once per catalog, which
-    `validation_schema`, `PayloadValidator` and the component reference map
-    use.
+    `allowedCallers` and `requiresUserActivation`. The resolved schemas are
+    computed once per catalog, and `validation_schema`, `PayloadValidator`
+    and the component reference map use them.
+  - `FunctionApi.is_definition` says whether a function's `schema` is its
+    whole catalog document entry rather than the schema of its `args`.
+    `from_json` sets it on every function it loads, so `to_json()` writes
+    each entry as it was loaded, whatever its shape or name; for a function
+    defined in code it defaults to None, which infers it from the schema.
   - The catalog keeps the document's top-level fields as attributes:
     `schema_dialect` (`$schema`), `schema_id` (`$id`), `title`,
     `description`, `declared_protocol_version`, `declares_catalog_id`,
@@ -44,13 +53,15 @@
   document's top-level fields to `Catalog` and its theme as `theme_model`.
   Their `validation_schema` is unchanged except that the v1.0 catalog emits
   the `protocolVersion: "1.0"` its document declares (#3053).
-- (v0_8) The generated basic catalog models no longer share one model between
-  nested objects of different shapes: `CheckBox.value` keeps `literalBoolean`
-  (`ValueItem`), and `DateTimeInput.value`, `Slider.value` and a `Button`
-  action's context `value` get their own models (`DateTimeInputValueItem`,
-  `SliderValueItem`, `ContextValueItem`), so values the specification allows
-  are no longer rejected. Nested object models carry their descriptions on
-  the fields, with line breaks kept, rather than as docstrings (#3053).
+- **BREAKING**: (v0_8) The generated basic catalog models no longer share one
+  model between nested objects of different shapes: `CheckBox.value` keeps
+  `literalBoolean` (`ValueItem`), and `DateTimeInput.value`, `Slider.value`
+  and a `Button` action's context `value` get their own models
+  (`DateTimeInputValueItem`, `SliderValueItem`, `ContextValueItem`), so values
+  the specification allows are no longer rejected. Nested object models carry
+  their descriptions on the fields, with line breaks kept, rather than as
+  docstrings. To migrate, build those values with the new models instead of
+  `ValueItem` (#3053).
 - `Catalog.from_json` reads a v0.8 document's top-level `styles` as the theme
   schema (#3053).
 - `Catalog.validation_schema` is the self-contained schema used to validate
@@ -86,9 +97,10 @@
 - `Catalog.from_json` no longer raises when neither the document nor the
   `protocol_version` argument names a protocol version; the catalog defaults
   to v0.9 (#3053).
-- From v1.0, `MessageProcessor.get_renderer_capabilities` builds
-  `inlineCatalogs` from `Catalog.to_json()` instead of the bundled schema,
-  matching the v1.0 `catalog_definition.json` shape (#3053).
+- **BREAKING**: From v1.0, `MessageProcessor.get_renderer_capabilities`
+  builds `inlineCatalogs` from `Catalog.to_json()` instead of the bundled
+  schema, matching the v1.0 `catalog_definition.json` shape, so an inline
+  catalog keeps its external `common_types.json` references (#3053).
 
 ## 0.3.0 (2026-10-08)
 
