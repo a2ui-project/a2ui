@@ -22,6 +22,8 @@ import {describe, it} from 'node:test';
 import {z} from 'zod';
 
 import {basicCatalog as v10BasicCatalog} from '../catalogs/basic/v1/catalog.js';
+import {basicCatalog as v08BasicCatalog} from '../v0_8/basic_catalog/catalog.js';
+import {basicCatalog as v09BasicCatalog} from '../v0_9/basic_catalog/catalog.js';
 import {Catalog, createFunctionImplementation, type ComponentApi} from './types.js';
 
 function readRepoJson(relativePath: string): Record<string, any> {
@@ -98,8 +100,42 @@ describe('Catalog.toJson', () => {
     assert.deepStrictEqual(Catalog.fromJson(document).toJson(), document);
   });
 
+  for (const [label, builtin, catalogPath] of [
+    ['v0.8', v08BasicCatalog, 'specification/v0_8/json/standard_catalog_definition.json'],
+    ['v0.9', v09BasicCatalog, 'specification/v0_9/catalogs/basic/catalog.json'],
+    ['v1.0', v10BasicCatalog, 'catalogs/basic/v1/catalog.json'],
+  ] as const) {
+    it(`returns the published document for the built-in ${label} basic catalog`, () => {
+      assert.deepStrictEqual(builtin.toJson(), readRepoJson(catalogPath));
+    });
+  }
+
+  it('emits catalogId only when the source declared it', () => {
+    const document = {
+      components: {Label: {type: 'object', properties: {component: {const: 'Label'}}}},
+    };
+    const catalog = Catalog.fromJson(document, '1.0', 'https://example.com/injected');
+    assert.strictEqual(catalog.id, 'https://example.com/injected');
+    assert.deepStrictEqual(catalog.toJson(), document);
+
+    const declared = {catalogId: 'https://example.com/declared', ...document};
+    const overridden = Catalog.fromJson(declared, '1.0', 'https://example.com/other');
+    assert.strictEqual(overridden.id, 'https://example.com/other');
+    assert.strictEqual(overridden.toJson().catalogId, 'https://example.com/other');
+  });
+
   it('serializes a code-defined v1.0 catalog unbundled, with both unions', () => {
-    const out = v10BasicCatalog.toJson();
+    const stripSource = <E extends {sourceJson?: unknown}>(entry: E): E => {
+      const {sourceJson: _sourceJson, ...rest} = entry;
+      return rest as E;
+    };
+    const codeDefined = new Catalog(
+      v10BasicCatalog.id,
+      '1.0',
+      [...v10BasicCatalog.components.values()].map(stripSource),
+      [...v10BasicCatalog.functions.values()].map(stripSource),
+    );
+    const out = codeDefined.toJson();
     assert.strictEqual(out.catalogId, v10BasicCatalog.id);
     assert.strictEqual(out.protocolVersion, '1.0');
     assert.strictEqual(out.theme, undefined);

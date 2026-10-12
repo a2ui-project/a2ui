@@ -15,3 +15,4 @@
  */
 
 export * from './components/basic_components.js';
+export {BASIC_CATALOG_ID, basicCatalog} from './catalog.js';

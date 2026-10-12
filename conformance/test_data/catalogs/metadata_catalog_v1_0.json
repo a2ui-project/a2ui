@@ -1,0 +1,20 @@
+{
+  "$id": "https://example.com/catalogs/meta.json",
+  "title": "Meta",
+  "description": "Catalog with metadata.",
+  "protocolVersion": "1.0",
+  "catalogId": "https://example.com/catalogs/meta",
+  "components": {
+    "Spacer": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Spacer"
+        }
+      },
+      "required": [
+        "component"
+      ]
+    }
+  }
+}

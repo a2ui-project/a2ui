@@ -22,7 +22,7 @@ import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {SpecVersion} from '../spec_versions.js';
 import {parseCatalogSchema} from './schema_loader.js';
-import {generateCatalogSchema} from './schema_generator.js';
+import {generateValidationSchema} from './schema_generator.js';
 import {serializeCatalogDocument} from './schema_serializer.js';
 import {
   buildComponentRefMap,
@@ -380,7 +380,7 @@ export class Catalog<
    */
   get validationSchema(): Record<string, unknown> {
     if (!this.cachedValidationSchema) {
-      this.cachedValidationSchema = generateCatalogSchema(this);
+      this.cachedValidationSchema = generateValidationSchema(this);
     }
     return this.cachedValidationSchema;
   }
@@ -405,7 +405,9 @@ export class Catalog<
    * transformer, are serialized from their model with common types references
    * written as `common_types.json#/$defs/<name>`. Authored definitions that only
    * dropped entries referenced are left out, and unions are rebuilt when the
-   * set of entries differs from the source.
+   * set of entries differs from the source. `catalogId` is emitted when the
+   * source document declares one, or the catalog has no source document, so
+   * an ID given to `fromJson` for a document without one stays out.
    *
    * @returns A fresh document that the caller may modify.
    */
@@ -490,17 +492,24 @@ export class Catalog<
    * @param protocolVersion Protocol version to use when the document does not
    *   declare one. Catalog documents published before v1.0 omit the field, in
    *   which case `DEFAULT_PROTOCOL_VERSION` applies.
+   * @param catalogId Catalog ID to use instead of the one the document
+   *   declares, for a document that declares none, such as the v0.8 basic
+   *   catalog. `toJson` still emits the document as written.
    * @returns A new Catalog populated with component and function schemas.
    * @throws {Error} If the catalog ID is missing or not a string.
    */
-  static fromJson(json: Record<string, any>, protocolVersion?: string): CatalogApi {
+  static fromJson(
+    json: Record<string, any>,
+    protocolVersion?: string,
+    catalogId?: string,
+  ): CatalogApi {
     const {
       id,
       protocolVersion: resolvedVersion,
       components,
       functions,
       ...options
-    } = parseCatalogSchema(json, protocolVersion);
+    } = parseCatalogSchema(json, protocolVersion, catalogId);
     return new Catalog(id, resolvedVersion, components, functions, options);
   }
 

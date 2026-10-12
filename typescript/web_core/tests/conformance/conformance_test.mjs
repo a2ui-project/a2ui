@@ -39,6 +39,7 @@ import {
 } from '../../dist/src/catalogs/basic/v1/index.js';
 import {basicCatalog as V1_0_SDK_BASIC_CATALOG} from '../../dist/src/catalogs/basic/v1/catalog.js';
 import {basicCatalog as V0_9_SDK_BASIC_CATALOG} from '../../dist/src/v0_9/basic_catalog/catalog.js';
+import {basicCatalog as V0_8_SDK_BASIC_CATALOG} from '../../dist/src/v0_8/basic_catalog/catalog.js';
 import {ExpressionParser} from '../../dist/src/expressions/expression_parser.js';
 import {
   A2uiCatalogError,
@@ -208,27 +209,27 @@ const FROM_JSON_EXPECT_KEYS = new Set([
 ]);
 
 /**
- * The `expect` keys a `to_json` case may use (`ToJsonExpect` in
- * conformance_schema.json).
- */
-const TO_JSON_EXPECT_KEYS = new Set([
-  'catalogId',
-  'components',
-  'defs',
-  'functions',
-  'metadata',
-  'protocolVersion',
-  'unbundled',
-]);
-
-/**
- * Catalogs web_core implements itself, keyed by catalog ID. A `to_json` case
- * whose `catalogPath` file has one of these IDs checks the implementation
- * rather than the loaded file.
+ * Catalogs web_core implements itself, keyed by catalog ID, for
+ * `matchesBuiltinCatalog` cases.
  */
 const SDK_CATALOGS = new Map(
-  [V1_0_SDK_BASIC_CATALOG, V0_9_SDK_BASIC_CATALOG].map(catalog => [catalog.id, catalog]),
+  [V1_0_SDK_BASIC_CATALOG, V0_9_SDK_BASIC_CATALOG, V0_8_SDK_BASIC_CATALOG].map(catalog => [
+    catalog.id,
+    catalog,
+  ]),
 );
+
+/**
+ * web_core's own basic catalog for a protocol version, for a `to_json` case
+ * that names `builtinCatalog: basic`.
+ */
+function sdkBasicCatalog(protocolVersion) {
+  const version = toCanonicalVersion(protocolVersion);
+  if (version === '0.8') return V0_8_SDK_BASIC_CATALOG;
+  if (version === '0.9' || version === '0.9.1') return V0_9_SDK_BASIC_CATALOG;
+  if (version === '1.0') return V1_0_SDK_BASIC_CATALOG;
+  throw new Error(`web_core has no basic catalog for protocol version '${protocolVersion}'.`);
+}
 
 /**
  * Thrown by a case handler when the case does not apply to web_core, for
@@ -1214,26 +1215,16 @@ function validateFromJsonTestCase(testCase) {
         fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', testCase.catalogPath), 'utf8'),
       )
     : testCase.catalogSchema || testCase.catalog || testCase.schema || testCase;
-  const cId =
-    testCase.catalogId ||
-    (rawSchema && typeof rawSchema === 'object'
-      ? rawSchema.catalogId || rawSchema.$id || rawSchema.id
-      : undefined);
   const pVer =
     testCase.protocolVersion ||
     (rawSchema && typeof rawSchema === 'object' ? rawSchema.protocolVersion : undefined) ||
     'v0.9';
-
-  const schemaToLoad = {
-    ...(typeof rawSchema === 'object' ? rawSchema : {}),
-    ...(cId ? {catalogId: cId} : {}),
-    ...(pVer ? {protocolVersion: pVer} : {}),
-  };
+  const load = () => Catalog.fromJson(rawSchema, pVer, testCase.catalogId);
 
   if (testCase.expectError) {
     assert.throws(
       () => {
-        Catalog.fromJson(schemaToLoad);
+        load();
       },
       err => {
         if (testCase.expectError.message) {
@@ -1250,7 +1241,7 @@ function validateFromJsonTestCase(testCase) {
     return;
   }
 
-  const catalog = Catalog.fromJson(schemaToLoad);
+  const catalog = load();
   assert.ok(catalog, 'Catalog should be initialized from schema');
 
   if (testCase.expect) {
@@ -1498,8 +1489,8 @@ function sortKeysDeep(node) {
  * loaded with `fromJson`, even when it is one web_core implements. Built-in
  * equivalence is covered by `matchesBuiltinCatalog`.
  */
-function loadValidationSchemaCatalog(_testCase, rawSchema, pVer) {
-  return Catalog.fromJson(rawSchema, pVer);
+function loadValidationSchemaCatalog(testCase, rawSchema, pVer) {
+  return Catalog.fromJson(rawSchema, pVer, testCase.catalogId);
 }
 
 /** Runs a `validation_schema` case against its golden `expectFile`. */
@@ -1583,76 +1574,35 @@ function assertJsonSetEqual(actual, expected, message) {
 function validateRoundTripTestCase(testCase) {
   const document = readCaseCatalogDocument(testCase);
   const pVer = testCase.protocolVersion;
-  const out = Catalog.fromJson(document, pVer).toJson();
+  const out = Catalog.fromJson(document, pVer, testCase.catalogId).toJson();
   assertJsonSetEqual(out, document, 'toJson() does not equal the loaded document.');
-  const again = Catalog.fromJson(out, pVer).toJson();
+  const again = Catalog.fromJson(out, pVer, testCase.catalogId).toJson();
   assertJsonSetEqual(again, out, 'toJson() is not idempotent.');
 }
 
-/** Names declared by a catalog document's `functions`, as a map or a list. */
-function documentFunctionNames(doc) {
-  const functions = doc.functions;
-  if (Array.isArray(functions)) return functions.map(fn => fn.name);
-  return functions && typeof functions === 'object' ? Object.keys(functions) : [];
-}
-
-function assertSameNames(actual, expected, label) {
-  assert.deepStrictEqual([...actual].sort(), [...expected].sort(), `${label} mismatch`);
-}
-
-/** Asserts that every `$ref` starting with '#' resolves within `doc`. */
-function assertLocalRefsResolve(doc) {
-  for (const ref of collectRefs(doc)) {
-    if (!ref.startsWith('#')) continue;
-    let target = doc;
-    for (const rawToken of ref.slice(1).split('/').slice(1)) {
-      const token = rawToken.replaceAll('~1', '/').replaceAll('~0', '~');
-      assert.ok(
-        target && typeof target === 'object' && Object.hasOwn(target, token),
-        `Reference '${ref}' does not resolve within the catalog document.`,
-      );
-      target = target[token];
-    }
-  }
-}
-
+/**
+ * Runs a `to_json` case: serializes web_core's own basic catalog
+ * (`builtinCatalog: basic`) or the catalog loaded with `fromJson`, and compares
+ * the document exactly with `expectFile`.
+ */
 function validateToJsonTestCase(testCase) {
-  const document = readCaseCatalogDocument(testCase);
-  const expected = testCase.expect;
-  assert.ok(expected, 'to_json case requires an expect object.');
-  const unknownKeys = Object.keys(expected).filter(key => !TO_JSON_EXPECT_KEYS.has(key));
-  assert.deepStrictEqual(unknownKeys, [], `Unknown to_json expect keys: ${unknownKeys}`);
-
-  const sdkCatalog =
-    testCase.catalogPath || testCase.catalogFile ? SDK_CATALOGS.get(document.catalogId) : undefined;
-  const catalog = sdkCatalog ?? Catalog.fromJson(document, testCase.protocolVersion);
-  const out = catalog.toJson();
-
-  if (expected.catalogId !== undefined) {
-    assert.strictEqual(out.catalogId, expected.catalogId, 'catalogId mismatch');
+  assert.ok(testCase.expectFile, 'to_json case requires expectFile.');
+  let catalog;
+  if (testCase.builtinCatalog !== undefined) {
+    assert.strictEqual(testCase.builtinCatalog, 'basic', 'Unknown builtinCatalog.');
+    catalog = sdkBasicCatalog(testCase.protocolVersion);
+  } else {
+    const document = readCaseCatalogDocument(testCase);
+    catalog = Catalog.fromJson(document, testCase.protocolVersion, testCase.catalogId);
   }
-  if (expected.protocolVersion !== undefined) {
-    assert.strictEqual(out.protocolVersion, expected.protocolVersion, 'protocolVersion mismatch');
-  }
-  for (const [key, value] of Object.entries(expected.metadata ?? {})) {
-    assert.deepStrictEqual(out[key], value, `Metadata '${key}' mismatch`);
-  }
-  if (expected.components !== undefined) {
-    assertSameNames(Object.keys(out.components ?? {}), expected.components, 'Component names');
-  }
-  if (expected.functions !== undefined) {
-    assertSameNames(documentFunctionNames(out), expected.functions, 'Function names');
-  }
-  if (expected.defs !== undefined) {
-    assertSameNames(Object.keys(out.$defs ?? {}), expected.defs, '$defs names');
-  }
-  if (expected.unbundled) {
-    assertLocalRefsResolve(out);
-    const authored = new Set(['anyComponent', 'anyFunction', ...Object.keys(document.$defs ?? {})]);
-    for (const name of Object.keys(out.$defs ?? {})) {
-      assert.ok(authored.has(name), `$defs entry '${name}' was not declared by the document.`);
-    }
-  }
+  const expected = JSON.parse(
+    fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', testCase.expectFile), 'utf8'),
+  );
+  assert.deepStrictEqual(
+    catalog.toJson(),
+    expected,
+    `toJson() differs from ${testCase.expectFile}`,
+  );
 }
 
 import {z} from 'zod';

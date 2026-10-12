@@ -1,0 +1,38 @@
+{
+  "catalogId": "https://a2ui.org/catalogs/v09/function_list",
+  "components": {
+    "Text": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Text"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "text"
+      ]
+    }
+  },
+  "functions": [
+    {
+      "name": "shout",
+      "description": "Upper-cases a string.",
+      "returnType": "string",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ]
+      }
+    }
+  ]
+}

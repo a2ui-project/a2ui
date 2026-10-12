@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {catalogDocumentOptions, withSourceJson} from '../../../catalog/source_document.js';
 import {Catalog} from '../../../catalog/types.js';
 import type {WebComponentImplementation} from '../../../universal/index.js';
 import {BASIC_FUNCTIONS} from './functions/basic_functions.js';
@@ -38,30 +39,46 @@ import {
   A2uiTabs,
   A2uiModal,
 } from './components/index.js';
+import BASIC_CATALOG_DOCUMENT from '../../../v1_0/schemas/catalogs/basic/catalog.json' with {type: 'json'};
 
+/**
+ * The v1 basic catalog of A2UI components implemented via Web Components
+ * (Custom Elements).
+ *
+ * Its components and functions carry their definitions from the published
+ * catalog document, so `toJson` returns that document and `validationSchema`
+ * is built from it.
+ */
 export const basicCatalog = new Catalog<WebComponentImplementation>(
   'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
   '1.0',
-  [
-    A2uiText,
-    A2uiButton,
-    A2uiTextField,
-    A2uiRow,
-    A2uiColumn,
-    A2uiList,
-    A2uiImage,
-    A2uiIcon,
-    A2uiVideo,
-    A2uiAudioPlayer,
-    A2uiCard,
-    A2uiDivider,
-    A2uiCheckBox,
-    A2uiSlider,
-    A2uiDateTimeInput,
-    A2uiChoicePicker,
-    A2uiTabs,
-    A2uiModal,
-  ],
-  BASIC_FUNCTIONS,
-  BasicCatalogThemeSchema,
+  withSourceJson(
+    [
+      A2uiText,
+      A2uiButton,
+      A2uiTextField,
+      A2uiRow,
+      A2uiColumn,
+      A2uiList,
+      A2uiImage,
+      A2uiIcon,
+      A2uiVideo,
+      A2uiAudioPlayer,
+      A2uiCard,
+      A2uiDivider,
+      A2uiCheckBox,
+      A2uiSlider,
+      A2uiDateTimeInput,
+      A2uiChoicePicker,
+      A2uiTabs,
+      A2uiModal,
+    ],
+    BASIC_CATALOG_DOCUMENT,
+    'components',
+  ),
+  withSourceJson(BASIC_FUNCTIONS, BASIC_CATALOG_DOCUMENT, 'functions'),
+  {
+    themeSchema: BasicCatalogThemeSchema,
+    ...catalogDocumentOptions(BASIC_CATALOG_DOCUMENT),
+  },
 );

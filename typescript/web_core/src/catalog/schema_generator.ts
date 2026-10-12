@@ -43,7 +43,7 @@ const STANDARD_DEFS_BY_VERSION: Readonly<Record<string, Record<string, unknown>>
  */
 function getStandardDefsForCatalog(
   catalog: CatalogInterface<ComponentApi, FunctionApi>,
-  options?: GenerateCatalogSchemaOptions,
+  options?: GenerateValidationSchemaOptions,
 ): Record<string, unknown> {
   if (options?.standardDefs) {
     return options.standardDefs;
@@ -187,7 +187,7 @@ export function cleanSchemaNode(
 /**
  * Configuration options for catalog JSON schema generation.
  */
-export interface GenerateCatalogSchemaOptions {
+export interface GenerateValidationSchemaOptions {
   /** Reference URI to a base component schema envelope (e.g. `common_types.json#/$defs/ComponentCommon`). */
   componentEnvelopeRef?: string;
   /** Explicit standard $defs dictionary to use when serializing catalog components and functions. */
@@ -601,7 +601,7 @@ function processSingleComponent(
   defs: JsonObject,
   generated: unknown[],
   context: SourceContext,
-  options?: GenerateCatalogSchemaOptions,
+  options?: GenerateValidationSchemaOptions,
 ): JsonObject {
   let props: JsonObject;
   let reqList: string[];
@@ -674,7 +674,7 @@ function processComponents(
   defs: JsonObject,
   generated: unknown[],
   context: SourceContext,
-  options?: GenerateCatalogSchemaOptions,
+  options?: GenerateValidationSchemaOptions,
 ): void {
   if (catalog.components.size === 0) {
     schema['components'] = {};
@@ -950,10 +950,10 @@ function collectReferencedDefs(
  * @param options Optional configuration options such as component envelope wrapping.
  * @returns Specification-compliant A2UI Catalog JSON Schema object.
  */
-export function generateCatalogSchema<
+export function generateValidationSchema<
   T extends ComponentApi = ComponentApi,
   F extends FunctionApi = FunctionApi,
->(catalog: CatalogInterface<T, F>, options?: GenerateCatalogSchemaOptions): JsonObject {
+>(catalog: CatalogInterface<T, F>, options?: GenerateValidationSchemaOptions): JsonObject {
   const schema: JsonObject = {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     // The declared version, in the bare semantic version form

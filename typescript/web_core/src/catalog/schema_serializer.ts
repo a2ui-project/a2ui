@@ -376,7 +376,9 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
   } else if (!source) {
     doc.protocolVersion = toCanonicalVersion(catalog.protocolVersion) ?? catalog.protocolVersion;
   }
-  doc.catalogId = catalog.id;
+  // A document that declares no catalogId, such as the v0.8 basic catalog, is
+  // loaded with an ID given by the caller, which is not part of the document.
+  if (!source || 'catalogId' in source) doc.catalogId = catalog.id;
   if (catalog.instructions !== undefined) doc.instructions = catalog.instructions;
 
   // Components.

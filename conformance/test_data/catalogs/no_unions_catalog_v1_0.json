@@ -1,0 +1,20 @@
+{
+  "catalogId": "https://a2ui.org/catalogs/v10/unions",
+  "components": {
+    "Label": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Label"
+        },
+        "text": {
+          "$ref": "common_types.json#/$defs/DynamicString"
+        }
+      },
+      "required": [
+        "component",
+        "text"
+      ]
+    }
+  }
+}

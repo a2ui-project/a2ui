@@ -23,7 +23,7 @@ import {z} from 'zod';
 import {CheckRuleSchema} from '../types/common-types.js';
 import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
 import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
-import {cleanSchemaNode, generateCatalogSchema} from './schema_generator.js';
+import {cleanSchemaNode, generateValidationSchema} from './schema_generator.js';
 import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from './types.js';
 
 /** A standard definition as validationSchema bundles it: its catalog union ref localized. */
@@ -247,13 +247,13 @@ describe('Catalog.validationSchema & schema_generator', () => {
     assert.strictEqual(schema1, schema2);
   });
 
-  it('supports componentEnvelopeRef wrapping in generateCatalogSchema', () => {
+  it('supports componentEnvelopeRef wrapping in generateValidationSchema', () => {
     const textComp: ComponentApi = {
       name: 'CustomText',
       schema: z.object({text: z.string()}),
     };
     const catalog = new Catalog('https://example.com/envelope.json', '1.0', [textComp]);
-    const schema = generateCatalogSchema(catalog, {
+    const schema = generateValidationSchema(catalog, {
       componentEnvelopeRef: 'https://example.com/base.json#/$defs/Base',
     });
 
@@ -427,7 +427,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
     };
 
     const catalog = new Catalog('https://example.com/envelope.json', '0.9', [CustomWidget]);
-    const schema = generateCatalogSchema(catalog, {
+    const schema = generateValidationSchema(catalog, {
       componentEnvelopeRef: 'common_types.json#/$defs/ComponentCommon',
     });
     const components = schema['components'] as Record<string, any>;
@@ -439,7 +439,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
     assert.strictEqual(widget.allOf[1].additionalProperties, undefined);
   });
 
-  it('respects explicit protocolVersion in GenerateCatalogSchemaOptions for non-standard catalog IDs', () => {
+  it('respects explicit protocolVersion in GenerateValidationSchemaOptions for non-standard catalog IDs', () => {
     const CustomWidget: ComponentApi = {
       name: 'CustomWidget',
       schema: z.object({
@@ -450,7 +450,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
     const catalog = new Catalog('guid-550e8400-e29b-41d4-a716-446655440000', '1.0', [CustomWidget]);
 
     for (const v10Ver of ['v1.0', '1.0', 'v1_0', '1.0.0', 'V1.0']) {
-      const v10Schema = generateCatalogSchema(catalog, {
+      const v10Schema = generateValidationSchema(catalog, {
         protocolVersion: v10Ver,
       });
       const v10Defs = v10Schema['$defs'] as Record<string, any>;
@@ -459,7 +459,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
     }
 
     for (const v08Ver of ['v0.8', '0.8', 'v0_8', '0.8.0']) {
-      const v08Schema = generateCatalogSchema(catalog, {
+      const v08Schema = generateValidationSchema(catalog, {
         protocolVersion: v08Ver,
       });
       const v08Defs = v08Schema['$defs'] as Record<string, any>;
@@ -467,7 +467,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
     }
 
     for (const v09Ver of ['v0.9', '0.9', 'v0.9.1', '0.9.1', 'v0_9']) {
-      const v09Schema = generateCatalogSchema(catalog, {
+      const v09Schema = generateValidationSchema(catalog, {
         protocolVersion: v09Ver,
       });
       const v09Defs = v09Schema['$defs'] as Record<string, any>;
@@ -496,7 +496,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
     assert.deepStrictEqual(v09Defs['FunctionCall'], bundled(V09_STANDARD_DEFS['FunctionCall']));
     assert.strictEqual(v09Defs['Child'], undefined);
 
-    const overridden = generateCatalogSchema(
+    const overridden = generateValidationSchema(
       new Catalog('https://example.com/v10.json', '1.0', [CustomWidget]),
       {protocolVersion: 'v0.9'},
     )['$defs'] as Record<string, unknown>;
@@ -523,7 +523,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
     assert.deepStrictEqual(v092Defs['DynamicString'], V09_STANDARD_DEFS['DynamicString']);
   });
 
-  it('respects explicit standardDefs in GenerateCatalogSchemaOptions', () => {
+  it('respects explicit standardDefs in GenerateValidationSchemaOptions', () => {
     const CustomWidget: ComponentApi = {
       name: 'CustomWidget',
       schema: z.object({
@@ -536,7 +536,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
     };
 
     const catalog = new Catalog('https://example.com/arbitrary-id', '1.0', [CustomWidget]);
-    const schema = generateCatalogSchema(catalog, {
+    const schema = generateValidationSchema(catalog, {
       standardDefs: customDefs,
     });
     const defs = schema['$defs'] as Record<string, any>;

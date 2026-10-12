@@ -54,7 +54,7 @@ The code generator uses **Schema Flattening** to remain version-, catalog-, and 
   - Reusable type schemas reside under `$defs`. Definition names are not hardcoded; any definition present in `$defs` is resolved dynamically when referenced.
 - **Reference Annotations**:
   - When a component property references `$defs/<DefName>`, the generator maps it to `<DefName>Schema` and attaches a `.describe('REF:#/$defs/<DefName>|<description>')` annotation.
-  - At runtime, `generateCatalogSchema` inspects these markers to emit `$ref` pointers and tree-shake unused `$defs` definitions.
+  - At runtime, `generateValidationSchema` inspects these markers to emit `$ref` pointers and tree-shake unused `$defs` definitions.
 - **Child References**:
   - Single child references and child collections are identified when their `$defs` reference targets or descriptions indicate a child component relationship (such as references to `ComponentId`, `Child`, or `ChildList`).
 

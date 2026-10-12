@@ -35,6 +35,7 @@ import {
 import type {ComponentApi, FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {deepCopyJson} from './schema_serializer.js';
+import {catalogDocumentOptions} from './source_document.js';
 
 export interface ParsedCatalogSchema {
   id: string;
@@ -54,7 +55,7 @@ export interface ParsedCatalogSchema {
   /** The document's `protocolVersion` exactly as declared, if declared. */
   declaredProtocolVersion?: string;
   /** The document's authored `$defs`, unmodified, including any unions. */
-  defs?: Record<string, unknown>;
+  defs?: Readonly<Record<string, unknown>>;
   /** A deep copy of the whole authored document. */
   sourceDocument: Record<string, unknown>;
 }
@@ -1012,14 +1013,18 @@ function parseThemeSchema(
  *   one. Catalog schemas published before v1.0 omit `protocolVersion`; when
  *   neither the caller nor the schema supplies it, `DEFAULT_PROTOCOL_VERSION`
  *   applies.
+ * @param catalogIdOverride Catalog ID to use instead of the one the schema
+ *   declares. The schema itself is kept as written.
  * @returns Parsed catalog fields ready to construct a `Catalog` instance.
  * @throws {Error} If the catalog ID is missing or not a string.
  */
 export function parseCatalogSchema(
   catalogSchema: Record<string, unknown>,
   protocolVersion?: string,
+  catalogIdOverride?: string,
 ): ParsedCatalogSchema {
-  const catalogId = catalogSchema.catalogId ?? catalogSchema.$id ?? catalogSchema.id;
+  const catalogId =
+    catalogIdOverride ?? catalogSchema.catalogId ?? catalogSchema.$id ?? catalogSchema.id;
   if (!catalogId || typeof catalogId !== 'string') {
     throw new Error("Catalog ID must be specified via catalog metadata ('catalogId' or '$id').");
   }
@@ -1055,11 +1060,6 @@ export function parseCatalogSchema(
   );
 
   const themeSchema = parseThemeSchema(catalogSchema, defs);
-  const instructions =
-    typeof catalogSchema.instructions === 'string' ? catalogSchema.instructions : undefined;
-
-  const optionalString = (key: string): string | undefined =>
-    typeof catalogSchema[key] === 'string' ? (catalogSchema[key] as string) : undefined;
 
   return {
     id: catalogId,
@@ -1067,13 +1067,7 @@ export function parseCatalogSchema(
     components,
     functions,
     themeSchema,
-    instructions,
-    schemaUri: optionalString('$schema'),
-    schemaId: optionalString('$id'),
-    title: optionalString('title'),
-    description: optionalString('description'),
-    declaredProtocolVersion: optionalString('protocolVersion'),
-    defs: defs && typeof defs === 'object' ? deepCopyJson(defs) : undefined,
+    ...catalogDocumentOptions(catalogSchema),
     sourceDocument: deepCopyJson(catalogSchema),
   };
 }
