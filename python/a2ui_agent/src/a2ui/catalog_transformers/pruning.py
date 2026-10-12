@@ -83,8 +83,8 @@ def _pruned(
     `None` keeps every entry of that kind. The copy's schema is generated from
     the entries it keeps, so its `anyComponent`, `anyFunction`, and helper
     `$defs` refer only to those. The kept entries are unchanged, so the copy
-    keeps the catalog's document metadata and their authored JSON, which
-    `to_json` emits.
+    keeps the catalog's document fields and the entries' schemas, which
+    `to_json` writes as before.
     """
     kept_components = [
         component

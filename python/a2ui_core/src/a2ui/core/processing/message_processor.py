@@ -231,8 +231,13 @@ class MessageProcessor:
         """Generates a legacy (< 1.0) inline catalog dictionary."""
         components: dict[str, Any] = {}
         raw_components = getattr(catalog, "components", {}) or {}
+        resolve_component = getattr(catalog, "resolved_component_schema", None)
         for name, comp in raw_components.items():
-            s = getattr(comp, "schema", None)
+            s = (
+                resolve_component(name)
+                if callable(resolve_component)
+                else getattr(comp, "schema", None)
+            )
             if isinstance(s, type) and hasattr(s, "model_json_schema"):
                 s = s.model_json_schema()
             s_dict = copy.deepcopy(s) if isinstance(s, dict) else {}
@@ -257,8 +262,13 @@ class MessageProcessor:
 
         functions: list[dict[str, Any]] = []
         raw_functions = getattr(catalog, "functions", {}) or {}
+        resolve_function = getattr(catalog, "resolved_function_schema", None)
         for name, fn in raw_functions.items():
-            s = getattr(fn, "schema", None)
+            s = (
+                resolve_function(name)
+                if callable(resolve_function)
+                else getattr(fn, "schema", None)
+            )
             if isinstance(s, type) and hasattr(s, "model_json_schema"):
                 s = s.model_json_schema()
             s_dict = copy.deepcopy(s) if isinstance(s, dict) else {}
@@ -288,7 +298,9 @@ class MessageProcessor:
             fn_entry["parameters"] = params
             functions.append(fn_entry)
 
-        raw_theme = getattr(catalog, "theme_schema", None)
+        raw_theme = getattr(catalog, "resolved_theme_schema", None) or getattr(
+            catalog, "theme_schema", None
+        )
         theme: dict[str, Any] | None = None
         if isinstance(raw_theme, dict) and raw_theme:
             theme = raw_theme["properties"] if "properties" in raw_theme else raw_theme

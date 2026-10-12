@@ -18,7 +18,7 @@ import copy
 from dataclasses import dataclass
 import re
 import sys
-from typing import Any, Callable, Final, Generic, TypeAlias, cast
+from typing import Any, Callable, Final, Generic, Literal, TypeAlias, cast
 import warnings
 
 if sys.version_info >= (3, 13):
@@ -51,7 +51,7 @@ from ..schema.common_types_schema import (
     get_common_types_schema_map,
     get_dynamic_type_index,
 )
-from ._spec_shape import SpecSchema, SpecShaper
+from ._spec_shape import SpecSchema, SpecShaper, v08_document_schema
 from .components import ComponentApi, ComponentImplementation, ModelComponentApi
 from .functions import (
     AllowedCallers,
@@ -325,7 +325,8 @@ _DEFAULT_PROTOCOL_VERSION: Final[str] = "0.9"
 # semantic version form of `catalog_definition.json` omits.
 _BARE_VERSION_PREFIX: Final[re.Pattern[str]] = re.compile(r"^[vV](?=\d)")
 
-# The document every unbundled common types reference points into.
+# The document every unbundled common types reference points into, unless a
+# catalog names another (`Catalog.common_types_uri`).
 _COMMON_TYPES_DOCUMENT: Final[str] = "common_types.json"
 
 # The `$defs` that a catalog derives from its components and functions.
@@ -337,16 +338,8 @@ _METADATA_KEYS: Final[frozenset[str]] = frozenset(
     {"$schema", "$id", "title", "description"}
 )
 
-# Each metadata key of a catalog document and the `Catalog` attribute it sets.
-_METADATA_ATTRS: Final[tuple[tuple[str, str], ...]] = (
-    ("$schema", "schema_dialect"),
-    ("$id", "schema_id"),
-    ("title", "title"),
-    ("description", "description"),
-)
-
 # Top-level catalog document keys that `Catalog` models itself. Any other key
-# of an authored document is kept as written.
+# of an authored document is kept in `Catalog.extras`.
 _MODELED_DOCUMENT_KEYS: Final[frozenset[str]] = frozenset({
     "$schema",
     "$id",
@@ -361,41 +354,61 @@ _MODELED_DOCUMENT_KEYS: Final[frozenset[str]] = frozenset({
     "$defs",
 })
 
+# Where a catalog document writes its theme (`Catalog.theme_location`): the
+# top-level `theme`, v0.8's top-level `styles` (a bare map of properties), or
+# `$defs.theme`.
+ThemeLocation: TypeAlias = Literal["theme", "styles", "$defs"]
+_THEME_LOCATIONS: Final[frozenset[str]] = frozenset({"theme", "styles", "$defs"})
 
-@dataclass(frozen=True)
-class _CatalogSource:
-    """What a catalog document wrote, beyond its entries, for `to_json`.
+# The forms of a catalog document's `functions` (`Catalog.functions_form`): a
+# map of name to definition, or the list of `{name, ...}` definitions of v0.9
+# inline catalogs.
+FunctionsForm: TypeAlias = Literal["map", "list"]
 
-    Attributes:
-        protocol_version: The `protocolVersion` exactly as declared, or None
-            if the document declares none.
-        has_catalog_id: Whether the document declares a `catalogId`, rather
-            than taking it from the `catalog_id` argument of `from_json`.
-        has_components: Whether the document has a `components` key.
-        functions_form: `"map"` or `"list"`, as the document wrote
-            `functions`, or None if it has no `functions` key.
-        defs: The document's `$defs` as written, unions included, or None if
-            it has no `$defs` key.
-        has_theme: Whether the document has a top-level `theme` key.
-        theme: The document's top-level `theme` as written.
-        extras: The document's top-level keys that `Catalog` does not model.
-        component_names: The components loaded from the document.
-        function_names: The functions loaded from the document.
-        referenced_defs: The authored `$defs` that the document's entries
-            and theme reference, directly or through other `$defs`.
+
+# The default of a `Catalog` argument that the catalog derives when it is not
+# given, where None is a meaningful value.
+_UNSET: Final[Any] = object()
+
+# Keywords of a function definition that only a catalog document's entry
+# writes, never a schema of the function's arguments.
+_FUNCTION_DEFINITION_KEYWORDS: Final[frozenset[str]] = frozenset(
+    {"returnType", "parameters", "allowedCallers", "requiresUserActivation"}
+)
+
+
+def _is_function_definition(schema: Any) -> bool:
+    """Whether a function's JSON schema is its catalog document entry.
+
+    A function defined in code may give the schema of its arguments instead,
+    which `to_json` wraps in the call shape of its protocol version. An entry
+    is a call schema (`properties` has `call` or `@call`) or declares a
+    keyword only entries write, such as `returnType`.
     """
+    if not isinstance(schema, Mapping):
+        return False
+    properties = schema.get("properties")
+    if isinstance(properties, Mapping) and (
+        "call" in properties or "@call" in properties
+    ):
+        return True
+    return any(key in schema for key in _FUNCTION_DEFINITION_KEYWORDS)
 
-    protocol_version: str | None
-    has_catalog_id: bool
-    has_components: bool
-    functions_form: str | None
-    defs: dict[str, Any] | None
-    has_theme: bool
-    theme: Any
-    extras: dict[str, Any]
-    component_names: frozenset[str]
-    function_names: frozenset[str]
-    referenced_defs: frozenset[str]
+
+def _is_authored_component(component: Any) -> bool:
+    """Whether a component's schema is its catalog document entry.
+
+    That is a component whose `schema` is a JSON schema rather than one a
+    model generates.
+    """
+    return getattr(component, "model_class", None) is None and isinstance(
+        getattr(component, "schema", None), dict
+    )
+
+
+def _is_authored_function(function: Any) -> bool:
+    """Whether a function's schema is its catalog document entry."""
+    return _is_function_definition(getattr(function, "schema", None))
 
 
 def _local_def_name(ref: Any) -> str | None:
@@ -444,16 +457,19 @@ def _reachable_defs(roots: Sequence[Any], defs: Mapping[str, Any]) -> set[str]:
     return reachable
 
 
-def _externalize_refs(node: Any, common_names: set[str]) -> Any:
-    """Points local references to common types back at `common_types.json`.
+def _externalize_refs(
+    node: Any, common_names: set[str], document: str = _COMMON_TYPES_DOCUMENT
+) -> Any:
+    """Points local references to common types back at the common types document.
 
     Args:
         node: A schema fragment whose references are catalog-local.
         common_names: The common types names to point outside the catalog.
+        document: The common types document, such as `common_types.json`.
 
     Returns:
         A copy of `node` in which each `#/$defs/X` reference to a name in
-        `common_names` reads `common_types.json#/$defs/X`.
+        `common_names` reads `<document>#/$defs/X`.
     """
     if isinstance(node, dict):
         result: dict[str, Any] = {}
@@ -464,12 +480,12 @@ def _externalize_refs(node: Any, common_names: set[str]) -> Any:
                 and value.startswith("#/$defs/")
                 and value[len("#/$defs/") :].split("/")[0] in common_names
             ):
-                result[key] = f"{_COMMON_TYPES_DOCUMENT}{value}"
+                result[key] = f"{document}{value}"
             else:
-                result[key] = _externalize_refs(value, common_names)
+                result[key] = _externalize_refs(value, common_names, document)
         return result
     if isinstance(node, list):
-        return [_externalize_refs(item, common_names) for item in node]
+        return [_externalize_refs(item, common_names, document) for item in node]
     return node
 
 
@@ -661,8 +677,40 @@ TComponent = TypeVar("TComponent", bound=ComponentApi, default=Any, covariant=Tr
 TFunction = TypeVar("TFunction", bound=FunctionApi, default=Any, covariant=True)
 
 
+@dataclass(frozen=True)
+class _ResolvedSchemas:
+    """The authored schemas of a catalog with their local references resolved.
+
+    References into other specification documents (for example
+    `common_types.json#/$defs/DynamicString`) become local `#/$defs/...`
+    pointers, and references to the catalog's own definitions are written
+    inline, except references to common types. Entries defined by models keep
+    their schemas.
+
+    Attributes:
+        components: Each component's resolved schema.
+        functions: Each function's resolved schema.
+        defs: The catalog's own `$defs`, resolved.
+        theme: The resolved theme schema.
+    """
+
+    components: dict[str, Any]
+    functions: dict[str, Any]
+    defs: dict[str, Any]
+    theme: dict[str, Any]
+
+
 class Catalog(Generic[TComponent, TFunction]):
-    """A versioned set of component and function API definitions."""
+    """A versioned set of component and function API definitions.
+
+    The catalog is the model of a catalog document: `from_json` reads a
+    document into it, and `to_json` writes it back, so that
+    `Catalog.from_json(document).to_json()` equals `document`. Each component
+    and function keeps its schema as the document writes it, or the model
+    that defines it in code, and the catalog keeps the document's top-level
+    fields. `validation_schema` bundles the model into a self-contained JSON
+    Schema.
+    """
 
     def __init__(
         self,
@@ -675,10 +723,20 @@ class Catalog(Generic[TComponent, TFunction]):
         defs: dict[str, Any] | None = None,
         common_types_defs: dict[str, Any] | None = None,
         *,
-        schema_dialect: str | None = None,
+        schema_dialect: str | None = _JSON_SCHEMA_DIALECT,
         schema_id: str | None = None,
         title: str | None = None,
         description: str | None = None,
+        declared_protocol_version: str | None = _UNSET,
+        declares_catalog_id: bool = True,
+        declares_components: bool = False,
+        declares_defs: bool = False,
+        common_types_uri: str = _COMMON_TYPES_DOCUMENT,
+        theme_model: type[BaseModel] | None = None,
+        theme_location: ThemeLocation | None = _UNSET,
+        functions_form: FunctionsForm | None = None,
+        union_defs: Mapping[str, Mapping[str, Any] | None] | None = None,
+        extras: Mapping[str, Any] | None = None,
     ):
         """Initializes the catalog.
 
@@ -687,20 +745,52 @@ class Catalog(Generic[TComponent, TFunction]):
             protocol_version: The A2UI protocol version the catalog targets.
             components: The catalog's components.
             functions: The catalog's functions.
-            theme_schema: The JSON schema of the catalog's theme.
+            theme_schema: The JSON schema of the catalog's theme. Defaults to
+                the schema of `theme_model`.
             instructions: Instructions for agents that use the catalog.
-            defs: Additional catalog-level `$defs`.
+            defs: The catalog document's own named `$defs`, as written.
+                `anyComponent` and `anyFunction` are derived from the entries
+                (see `union_defs`).
             common_types_defs: Shared type definitions that override the
                 built-in common types definitions.
-            schema_dialect: The catalog document's `$schema`. `to_json` uses
-                JSON Schema 2020-12 for a catalog defined in code without one.
+            schema_dialect: The catalog document's `$schema`, or None if it
+                declares none.
             schema_id: The catalog document's `$id`.
             title: The catalog document's `title`.
             description: The catalog document's `description`.
+            declared_protocol_version: The catalog document's
+                `protocolVersion` as written, or None if it declares none.
+                Defaults to the canonical form of `protocol_version`, such as
+                `1.0`.
+            declares_catalog_id: Whether the catalog document declares
+                `catalogId`.
+            declares_components: Whether the catalog document has a
+                `components` key even without components.
+            declares_defs: Whether the catalog document has a `$defs` key
+                even without definitions.
+            common_types_uri: The document that the catalog document's
+                references to common types point into, such as
+                `common_types.json`.
+            theme_model: The model that defines the theme in code. `to_json`
+                then derives the theme from the model rather than writing
+                `theme_schema` as it is.
+            theme_location: Where the catalog document writes the theme. By
+                default, `$defs.theme` before v1.0 and nowhere from v1.0 on.
+            functions_form: Whether the catalog document writes `functions`
+                as a map or as a list of definitions, or None for a map
+                written only when the catalog has functions.
+            union_defs: The `anyComponent` and `anyFunction` unions the
+                catalog document writes. A union mapped to None lists the
+                entries (`#/components/<name>`, `#/functions/<name>`); one
+                mapped to a schema is written as that schema. A union left
+                out is not written. By default, a catalog writes the unions of
+                the entries it has, and both from v1.0 on.
+            extras: The catalog document's top-level keys that `Catalog`
+                does not model, as written.
 
         Raises:
-            A2uiCatalogError: If `protocol_version` is missing or an identifier
-                is invalid.
+            A2uiCatalogError: If `protocol_version` is missing, an identifier
+                is invalid or `theme_location` is unknown.
         """
         if not protocol_version:
             raise A2uiCatalogError("protocol_version must be provided.")
@@ -711,6 +801,15 @@ class Catalog(Generic[TComponent, TFunction]):
         self.schema_id = schema_id
         self.title = title
         self.description = description
+        self.declared_protocol_version: str | None = (
+            (to_canonical_version(protocol_version) or protocol_version)
+            if declared_protocol_version is _UNSET
+            else declared_protocol_version
+        )
+        self.declares_catalog_id = declares_catalog_id
+        self.declares_components = declares_components
+        self.declares_defs = declares_defs
+        self.common_types_uri = common_types_uri
         self.defs: dict[str, Any] = copy.deepcopy(defs) if defs else {}
         # Shared type definitions that override the built-in common types
         # definitions derived from the Pydantic schema models, for a catalog
@@ -718,10 +817,16 @@ class Catalog(Generic[TComponent, TFunction]):
         self.common_types_defs: dict[str, Any] = (
             copy.deepcopy(common_types_defs) if common_types_defs else {}
         )
-        self._cached_catalog_schema: dict[str, Any] | None = None
-        # What the authored document wrote, for a catalog loaded with
-        # `from_json`; None for a catalog defined in code.
-        self._source: _CatalogSource | None = None
+        self.functions_form = functions_form
+        self.union_defs: dict[str, dict[str, Any] | None] | None = (
+            None
+            if union_defs is None
+            else {
+                name: copy.deepcopy(dict(schema)) if schema is not None else None
+                for name, schema in union_defs.items()
+            }
+        )
+        self.extras: dict[str, Any] = copy.deepcopy(dict(extras)) if extras else {}
 
         validate_identifiers = is_at_least_version(
             protocol_version, ProtocolVersion.V1_0
@@ -743,7 +848,24 @@ class Catalog(Generic[TComponent, TFunction]):
                 )
             self.functions[fn.name] = fn
 
+        self.theme_model = theme_model
+        if theme_schema is None and theme_model is not None:
+            theme_schema = theme_model.model_json_schema()
         self.theme_schema = theme_schema or {}
+        if theme_location is _UNSET:
+            theme_location = (
+                "$defs"
+                if self.theme_schema
+                and not is_at_least_version(protocol_version, ProtocolVersion.V1_0)
+                else None
+            )
+        if theme_location is not None and theme_location not in _THEME_LOCATIONS:
+            raise A2uiCatalogError(f"Unknown theme location: {theme_location!r}")
+        self.theme_location: ThemeLocation | None = theme_location
+
+        self._cached_catalog_schema: dict[str, Any] | None = None
+        self._cached_document: dict[str, Any] | None = None
+        self._resolved: _ResolvedSchemas | None = None
         self._component_ref_map: dict[str, ComponentRefSpec] | None = None
 
     @property
@@ -761,82 +883,196 @@ class Catalog(Generic[TComponent, TFunction]):
         """Returns a catalog derived from this one, for catalog transformers.
 
         The copy keeps this catalog's id, protocol version, theme,
-        instructions, document metadata and authored document, so `to_json`
-        emits what the source document wrote for everything the copy keeps.
-        A transformer that changes an entry's schema must pass a new entry
-        whose `source_json` is None, so `to_json` serializes the new schema
-        rather than the stale authored JSON.
+        instructions and document fields. An entry keeps its schema, so
+        `to_json` writes each kept entry as before. A union that this catalog
+        writes as an authored schema is listed from the copy's entries
+        instead if the copy has other entries of its kind.
 
         Args:
             components: The copy's components. None keeps this catalog's.
             functions: The copy's functions. None keeps this catalog's.
-            defs: The copy's catalog-level `$defs`. None keeps this catalog's.
+            defs: The copy's own `$defs`. None keeps this catalog's, except
+                those that only the dropped entries referenced.
 
         Returns:
             A schema-only catalog.
         """
-        derived = CatalogApi(
+        new_components: list[ComponentApi] = list(
+            self.components.values() if components is None else components
+        )
+        new_functions: list[FunctionApi] = list(
+            self.functions.values() if functions is None else functions
+        )
+        if defs is None:
+            # A def that the old entries referenced and the new ones no longer
+            # do goes with the entries that used it.
+            old_reachable = _reachable_defs(self._document_roots(), self.defs)
+            new_roots = [
+                *(getattr(c, "schema", None) for c in new_components),
+                *(getattr(f, "schema", None) for f in new_functions),
+                self.theme_schema,
+                *self.extras.values(),
+            ]
+            new_reachable = _reachable_defs(new_roots, self.defs)
+            new_defs = {
+                name: schema
+                for name, schema in self.defs.items()
+                if name not in old_reachable or name in new_reachable
+            }
+        else:
+            new_defs = dict(defs)
+
+        union_defs = self.union_defs
+        if union_defs is not None:
+            union_defs = dict(union_defs)
+            if [c.name for c in new_components] != list(self.components):
+                if union_defs.get("anyComponent") is not None:
+                    union_defs["anyComponent"] = None
+            if [f.name for f in new_functions] != list(self.functions):
+                if union_defs.get("anyFunction") is not None:
+                    union_defs["anyFunction"] = None
+
+        return CatalogApi(
             catalog_id=self.catalog_id,
             protocol_version=self.protocol_version,
-            components=list(
-                self.components.values() if components is None else components
-            ),
-            functions=list(self.functions.values() if functions is None else functions),
+            components=new_components,
+            functions=new_functions,
             theme_schema=copy.deepcopy(self.theme_schema),
             instructions=self.instructions,
-            defs=dict(self.defs if defs is None else defs),
+            defs=new_defs,
             common_types_defs=self.common_types_defs,
-            schema_dialect=getattr(self, "schema_dialect", None),
-            schema_id=getattr(self, "schema_id", None),
-            title=getattr(self, "title", None),
-            description=getattr(self, "description", None),
+            schema_dialect=self.schema_dialect,
+            schema_id=self.schema_id,
+            title=self.title,
+            description=self.description,
+            declared_protocol_version=self.declared_protocol_version,
+            declares_catalog_id=self.declares_catalog_id,
+            declares_components=self.declares_components,
+            declares_defs=self.declares_defs,
+            common_types_uri=self.common_types_uri,
+            theme_model=self.theme_model,
+            theme_location=self.theme_location,
+            functions_form=self.functions_form,
+            union_defs=union_defs,
+            extras=self.extras,
         )
-        derived._source = getattr(self, "_source", None)
-        return derived
 
-    def _adopt_source_document(self, document: Mapping[str, Any]) -> None:
-        """Carries the published document that this catalog implements in code.
+    def _document_roots(self) -> list[Any]:
+        """The parts of the catalog document that reference its `$defs`."""
+        return [
+            *(getattr(c, "schema", None) for c in self.components.values()),
+            *(getattr(f, "schema", None) for f in self.functions.values()),
+            self.theme_schema,
+            *self.extras.values(),
+        ]
 
-        `to_json` then returns that document, as for a catalog loaded with
-        `from_json`: each entry the document defines carries its definition as
-        `source_json`, and the document's metadata and top-level layout are
-        kept. Entries are copied before `source_json` is set, so entry objects
-        shared with other catalogs are left unchanged. Validation still uses
-        the entries' own schemas.
+    # ==========================================================================
+    # Resolved schemas
+    # ==========================================================================
+
+    def _resolved_schemas(self) -> _ResolvedSchemas:
+        """Returns the catalog's authored schemas with references resolved.
+
+        Computed once per catalog.
+        """
+        cached: _ResolvedSchemas | None = getattr(self, "_resolved", None)
+        if cached is not None:
+            return cached
+        own_defs = {
+            name: schema
+            for name, schema in self.defs.items()
+            if name not in _UNION_DEFS
+        }
+        authored_theme = self.theme_model is None and bool(self.theme_schema)
+        if authored_theme and self.theme_location == "$defs":
+            own_defs["theme"] = self.theme_schema
+        authored_components = {
+            name: comp.schema
+            for name, comp in self.components.items()
+            if _is_authored_component(comp)
+        }
+        authored_functions = {
+            name: fn.schema
+            for name, fn in self.functions.items()
+            if isinstance(fn.schema, dict)
+        }
+        root: dict[str, Any] = _normalize_external_schema_refs({
+            "$defs": own_defs,
+            "components": authored_components,
+            "functions": authored_functions,
+        })
+
+        def resolve(node: Any) -> Any:
+            return copy.deepcopy(
+                inline_local_refs(_normalize_external_schema_refs(node), root)
+            )
+
+        components: dict[str, Any] = {}
+        for name, comp in self.components.items():
+            components[name] = (
+                resolve(comp.schema) if name in authored_components else comp.schema
+            )
+        functions: dict[str, Any] = {}
+        for name, fn in self.functions.items():
+            functions[name] = (
+                resolve(fn.schema) if name in authored_functions else fn.schema
+            )
+        resolved = _ResolvedSchemas(
+            components=components,
+            functions=functions,
+            defs={
+                name: resolve(schema)
+                for name, schema in self.defs.items()
+                if name not in _UNION_DEFS
+            },
+            theme=resolve(self.theme_schema) if authored_theme else self.theme_schema,
+        )
+        self._resolved = resolved
+        return resolved
+
+    def resolved_component_schema(self, name: str) -> Any:
+        """Returns a component's schema with its references resolved.
+
+        For a component whose schema the catalog document writes, references
+        to other specification documents become local `#/$defs/...`
+        pointers, which `validation_schema` defines, and references to the
+        catalog's own `$defs` are written inline. A component defined by a
+        model keeps its schema. The result is shared; do not mutate it.
 
         Args:
-            document: The published catalog document.
+            name: The component's name.
+
+        Returns:
+            The schema, or None if the catalog has no such component.
         """
-        document = copy.deepcopy(dict(document))
-        raw_components = document.get("components")
-        component_defs = raw_components if isinstance(raw_components, dict) else {}
-        function_defs = dict(
-            _function_entries(document.get("functions"), self.catalog_id)
-        )
-        for name, comp in list(self.components.items()):
-            if isinstance(component_defs.get(name), dict):
-                adopted = copy.copy(comp)
-                adopted.source_json = component_defs[name]
-                self.components[name] = adopted
-        for name, fn in list(self.functions.items()):
-            if isinstance(function_defs.get(name), dict):
-                adopted_fn = copy.copy(fn)
-                adopted_fn.source_json = function_defs[name]
-                self.functions[name] = adopted_fn
-        for key, attr in _METADATA_ATTRS:
-            value = document.get(key)
-            if isinstance(value, str) and getattr(self, attr, None) is None:
-                setattr(self, attr, value)
-        self._source = _catalog_source(
-            document,
-            component_names=frozenset(
-                name for name in self.components if name in component_defs
-            ),
-            function_names=frozenset(
-                name for name in self.functions if name in function_defs
-            ),
-        )
-        self._cached_catalog_schema = None
+        return self._resolved_schemas().components.get(name)
+
+    def resolved_function_schema(self, name: str) -> Any:
+        """Returns a function's schema with its references resolved.
+
+        See `resolved_component_schema`. The result is shared; do not mutate
+        it.
+
+        Args:
+            name: The function's name.
+
+        Returns:
+            The schema, or None if the catalog has no such function.
+        """
+        return self._resolved_schemas().functions.get(name)
+
+    @property
+    def resolved_theme_schema(self) -> dict[str, Any]:
+        """The theme schema with its references resolved.
+
+        See `resolved_component_schema`. The result is shared; do not mutate
+        it.
+        """
+        return self._resolved_schemas().theme
+
+    # ==========================================================================
+    # validation_schema
+    # ==========================================================================
 
     @property
     def catalog_schema(self) -> dict[str, Any]:
@@ -863,13 +1099,15 @@ class Catalog(Generic[TComponent, TFunction]):
         From v0.9 on, components and functions defined by Pydantic models emit
         the specification's shape: a component composes the defs of its base
         models with `allOf`, and a function schema describes the whole call.
-        Other components and functions keep the flat schemas of
-        `ComponentApi.schema` and `FunctionApi.schema`. The common types defs
+        Other components and functions keep their schemas, with references
+        resolved (see `resolved_component_schema`). The common types defs
         they reference, transitively, come from the published common types
         schema with local refs; a published def that would reference a def
         the catalog lacks (such as `FunctionCall` in a catalog without
         functions) takes its flat form. System functions, which the runtime
         supplies, are not declared.
+
+        Computed once per catalog; each access returns a new copy.
 
         Raises:
             A2uiCatalogError: If the catalog's protocol version is unknown.
@@ -881,7 +1119,7 @@ class Catalog(Generic[TComponent, TFunction]):
             self._assemble_schema()
         )
 
-        self._add_published_common_types(
+        self._bundle_common_types(
             cleaned_schema,
             referenced_dynamics | _defs_refs(cleaned_schema),
             protocol_version,
@@ -893,20 +1131,18 @@ class Catalog(Generic[TComponent, TFunction]):
     ) -> dict[str, Any]:
         """Applies the last canonical touches to a validation schema and caches it.
 
-        A `protocolVersion` that the catalog document declared is emitted in
+        The `protocolVersion` that the catalog document declares is emitted in
         the bare semantic version form that `catalog_definition.json`
-        requires: `v0.9.1` becomes `0.9.1`. Before v1.0, each function a
-        catalog document wrote is given the specification's call shape: a
+        requires: `v0.9.1` becomes `0.9.1`. Before v1.0, each function the
+        catalog document writes is given the specification's call shape: a
         `returnType` constant, and no properties beyond those it lists, in the
         call or in its `args`. From v1.0, a function entry stays open, since
         `FunctionCall` composes it with `FunctionCommon` (`catalogId`) and
         closes the call itself.
         """
-        source = getattr(self, "_source", None)
-        if source is not None and source.protocol_version is not None:
-            schema["protocolVersion"] = _BARE_VERSION_PREFIX.sub(
-                "", source.protocol_version.strip()
-            )
+        declared = self.declared_protocol_version
+        if isinstance(declared, str):
+            schema["protocolVersion"] = _BARE_VERSION_PREFIX.sub("", declared.strip())
         if not is_at_least_version(protocol_version, ProtocolVersion.V1_0):
             for name, entry in (schema.get("functions") or {}).items():
                 fn = self.functions.get(name)
@@ -933,6 +1169,12 @@ class Catalog(Generic[TComponent, TFunction]):
             **self.common_types_defs,
         }
 
+    def _protocol_version_enum(self) -> ProtocolVersion:
+        try:
+            return to_protocol_version(self.protocol_version)
+        except ValueError as e:
+            raise A2uiCatalogError(str(e)) from e
+
     def _assemble_schema(
         self,
     ) -> tuple[dict[str, Any], set[str], bool, ProtocolVersion]:
@@ -947,10 +1189,8 @@ class Catalog(Generic[TComponent, TFunction]):
         Raises:
             A2uiCatalogError: If the catalog's protocol version is unknown.
         """
-        try:
-            protocol_version = to_protocol_version(self.protocol_version)
-        except ValueError as e:
-            raise A2uiCatalogError(str(e)) from e
+        protocol_version = self._protocol_version_enum()
+        resolved = self._resolved_schemas()
         schema: dict[str, Any] = {
             "$schema": _JSON_SCHEMA_DIALECT,
             "catalogId": self.catalog_id,
@@ -959,13 +1199,9 @@ class Catalog(Generic[TComponent, TFunction]):
         if self.instructions:
             schema["instructions"] = self.instructions
 
-        defs: dict[str, Any] = {}
-        if self.defs:
-            for def_name, def_schema in self.defs.items():
-                if def_name not in ("anyComponent", "anyFunction"):
-                    defs[def_name] = copy.deepcopy(def_schema)
-        if self.theme_schema:
-            theme = copy.deepcopy(self.theme_schema)
+        defs: dict[str, Any] = copy.deepcopy(resolved.defs)
+        if resolved.theme:
+            theme = copy.deepcopy(resolved.theme)
             # From v0.9, a theme that does not close itself states that it is
             # open, so renderers may add their own theme properties.
             if (
@@ -1019,7 +1255,7 @@ class Catalog(Generic[TComponent, TFunction]):
         for name, comp in self.components.items():
             if name in spec_components:
                 continue
-            s = comp.schema
+            s = resolved.components[name]
             if isinstance(s, dict) and isinstance(s.get("$defs"), dict):
                 for def_name, def_schema in s["$defs"].items():
                     if def_name not in defs:
@@ -1029,7 +1265,7 @@ class Catalog(Generic[TComponent, TFunction]):
         for name, fn in functions.items():
             if name in spec_functions:
                 continue
-            s = fn.schema
+            s = resolved.functions[name]
             if isinstance(s, type) and hasattr(s, "model_json_schema"):
                 s = s.model_json_schema()
             flat_functions[name] = s
@@ -1046,15 +1282,12 @@ class Catalog(Generic[TComponent, TFunction]):
                         spec_components[name].schema
                     )
                     continue
-                s = comp.schema
+                s = resolved.components[name]
                 if isinstance(s, dict):
                     s = copy.deepcopy(s)
-                    # Only a schema read from a document has authored titles;
-                    # a model's schema has Pydantic's.
-                    if (
-                        getattr(comp, "source_json", None) is not None
-                        and getattr(comp, "model_class", None) is None
-                    ):
+                    # Only an authored schema has authored titles; a model's
+                    # schema has Pydantic's.
+                    if _is_authored_component(comp):
                         s = _mark_authored_titles(s)
                     if "$defs" in s:
                         del s["$defs"]
@@ -1087,9 +1320,7 @@ class Catalog(Generic[TComponent, TFunction]):
                 s = flat_functions[name]
                 if isinstance(s, dict):
                     s = copy.deepcopy(s)
-                    if getattr(
-                        functions[name], "source_json", None
-                    ) is not None and isinstance(functions[name].schema, dict):
+                    if isinstance(functions[name].schema, dict):
                         s = _mark_authored_titles(s)
                     if "$defs" in s:
                         del s["$defs"]
@@ -1130,7 +1361,7 @@ class Catalog(Generic[TComponent, TFunction]):
 
         return cleaned_schema, referenced_dynamics, bool(spec_shaped), protocol_version
 
-    def _add_published_common_types(
+    def _bundle_common_types(
         self,
         schema: dict[str, Any],
         seeds: set[str],
@@ -1198,119 +1429,113 @@ class Catalog(Generic[TComponent, TFunction]):
         for name in sorted(chosen):
             defs[name] = copy.deepcopy(chosen[name])
 
+    # ==========================================================================
+    # to_json
+    # ==========================================================================
+
     def to_json(self) -> dict[str, Any]:
         """Returns the catalog document, with references left unbundled.
 
         This is the catalog as an author writes it, and what `from_json`
-        reads: for a catalog loaded with `from_json`, `to_json` returns the
-        loaded document. References to common types stay external
+        reads, so that `Catalog.from_json(document).to_json()` equals
+        `document`. References to common types stay external
         (`common_types.json#/$defs/X`) and no common types are copied into
         `$defs`. For the self-contained schema that payloads validate
-        against, use `validation_schema`.
+        against, use `validation_schema`. The document is assembled from the
+        catalog's fields:
 
-        - Top-level metadata (`$schema`, `$id`, `title`, `description`,
-          `instructions`) appears only when known. `catalogId` appears for a
-          catalog defined in code, and for a loaded catalog only if its
-          document declared one: an id given to `from_json` for a document
-          without one is not added. A loaded catalog emits
-          `protocolVersion` exactly as its document declared it, and not at
-          all if it declared none; a catalog defined in code emits its
-          canonical version, such as `1.0`.
-        - A component or function with `source_json` emits it unchanged. The
-          others (defined in code or changed by a transformer) are
-          serialized from their schema: a component has `component:
-          {const: <name>}` and its `allowedParents` and `allowedChildren`,
-          and a function has the call shape of the protocol version with its
+        - Top-level metadata: `$schema`, `$id`, `title`, `description`,
+          `catalogId` (if `declares_catalog_id`), `protocolVersion` (the
+          `declared_protocol_version`), `instructions`, and the `extras`,
+          each only when the catalog has it.
+        - `components`: a component whose schema is a JSON schema is written
+          as that schema, with its `allowedParents` and `allowedChildren`.
+          A component defined by a model is derived from the model in the
+          shape of its protocol version.
+        - `functions`, in the catalog's `functions_form`: a function whose
+          schema is its catalog entry (a call schema, or one declaring
+          `returnType`) is written as that schema, with the function's
           `description`, `returnType`, `allowedCallers` and
-          `requiresUserActivation`. System functions, which the runtime
-          supplies, are not declared.
-        - `functions` keeps the list form if the loaded document used it.
-        - `$defs` keeps the authored definitions, except one that the
-          document's entries referenced and that nothing references any
-          more. A union (`anyComponent`, `anyFunction`) that the document
-          wrote is emitted as written while the catalog has the same
-          entries, and is rebuilt otherwise; a loaded document without
-          unions does not gain them. A catalog defined in code always emits
-          rebuilt unions, both of them from v1.0 on.
+          `requiresUserActivation`. Any other function (an args schema or
+          model) is written in the call shape of its protocol version.
+          System functions defined in code are not declared.
+        - The theme, at its `theme_location`: `theme_schema` as it is, or
+          derived from `theme_model`.
+        - `$defs`: the catalog's own `defs`, the defs that model-defined
+          entries compose (such as `CatalogComponentCommon`), and the
+          `union_defs`.
+
+        A reference to a common type that the document does not define
+        itself points at `common_types_uri`.
+
+        Computed once per catalog; each call returns a new copy, which the
+        caller may mutate.
 
         Returns:
-            A new document, which the caller may mutate.
+            The catalog document.
 
         Raises:
-            A2uiCatalogError: If an entry needs serializing from its schema
-                and the catalog's protocol version is unknown.
+            A2uiCatalogError: If an entry is derived from a model and the
+                catalog's protocol version is unknown.
         """
-        source: _CatalogSource | None = getattr(self, "_source", None)
+        cached = getattr(self, "_cached_document", None)
+        if cached is None:
+            cached = self._build_document()
+            self._cached_document = cached
+        return copy.deepcopy(cached)
+
+    def _build_document(self) -> dict[str, Any]:
+        """Assembles the catalog document that `to_json` returns."""
         # The protocol reserves the `@` namespace for system functions.
         system_names = set(system_functions_for(self.protocol_version))
         functions = {
             name: fn
             for name, fn in self.functions.items()
-            if getattr(fn, "source_json", None) is not None
+            if _is_authored_function(fn)
             or not (name in system_names or name.startswith("@"))
         }
-        needs_serializing = any(
-            getattr(entry, "source_json", None) is None
-            for entry in [*self.components.values(), *functions.values()]
-        )
-        serialized_components: dict[str, Any] = {}
-        serialized_functions: dict[str, Any] = {}
-        serialized_defs: dict[str, Any] = {}
-        if needs_serializing:
-            serialized_components, serialized_functions, serialized_defs = (
-                self._serialize_unbundled(functions)
-            )
+        derived = self._derive_model_entries(functions)
+        common_names = derived.common_names - set(self.defs)
 
         doc: dict[str, Any] = {}
-        dialect = getattr(self, "schema_dialect", None)
-        if dialect is None and source is None:
-            dialect = _JSON_SCHEMA_DIALECT
-        if dialect is not None:
-            doc["$schema"] = dialect
-        for key, attr in (("$id", "schema_id"), ("title", "title")):
-            value = getattr(self, attr, None)
+        if self.schema_dialect is not None:
+            doc["$schema"] = self.schema_dialect
+        for key, value in (
+            ("$id", self.schema_id),
+            ("title", self.title),
+            ("description", self.description),
+        ):
             if value is not None:
                 doc[key] = value
-        description = getattr(self, "description", None)
-        if description is not None:
-            doc["description"] = description
-        if source is None or source.has_catalog_id:
+        if self.declares_catalog_id:
             doc["catalogId"] = self.catalog_id
-        if source is not None:
-            version = source.protocol_version
-        else:
-            version = (
-                to_canonical_version(self.protocol_version) or self.protocol_version
-            )
-        if version is not None:
-            doc["protocolVersion"] = version
+        if self.declared_protocol_version is not None:
+            doc["protocolVersion"] = self.declared_protocol_version
         if self.instructions is not None:
             doc["instructions"] = self.instructions
-        if source is not None:
-            doc.update(source.extras)
+        doc.update(copy.deepcopy(self.extras))
 
         components: dict[str, Any] = {}
         for name, comp in self.components.items():
-            source_json = getattr(comp, "source_json", None)
-            components[name] = (
-                source_json if source_json is not None else serialized_components[name]
-            )
-        if components or (source is not None and source.has_components):
+            if name in derived.components:
+                components[name] = derived.components[name]
+            else:
+                components[name] = self._component_entry(comp, common_names)
+        if components or self.declares_components:
             doc["components"] = components
 
         function_docs: dict[str, Any] = {}
         for name, fn in functions.items():
-            source_json = getattr(fn, "source_json", None)
-            function_docs[name] = (
-                source_json if source_json is not None else serialized_functions[name]
-            )
-        functions_form = source.functions_form if source is not None else None
-        if function_docs or functions_form is not None:
-            if functions_form == "list":
+            if name in derived.functions:
+                function_docs[name] = derived.functions[name]
+            else:
+                function_docs[name] = self._function_entry(fn, common_names)
+        if function_docs or self.functions_form is not None:
+            if self.functions_form == "list":
                 doc["functions"] = [
                     (
                         {"name": name, **function_docs[name]}
-                        if getattr(fn, "source_json", None) is not None
+                        if name not in derived.functions
                         else _function_list_entry(fn, function_docs[name])
                     )
                     for name, fn in functions.items()
@@ -1318,33 +1543,150 @@ class Catalog(Generic[TComponent, TFunction]):
             else:
                 doc["functions"] = function_docs
 
-        if source is not None and source.has_theme:
-            doc["theme"] = source.theme
+        theme = self._theme_document(derived.theme, common_names)
+        if theme is not None and self.theme_location == "theme":
+            doc["theme"] = theme
+        elif theme is not None and self.theme_location == "styles":
+            properties = theme.get("properties") if isinstance(theme, dict) else None
+            doc["styles"] = properties if isinstance(properties, dict) else theme
 
-        defs = self._document_defs(
-            doc, source, serialized_defs, list(components), list(function_docs)
+        defs: dict[str, Any] = {
+            name: _externalize_refs(schema, common_names, self.common_types_uri)
+            for name, schema in self.defs.items()
+            if name not in _UNION_DEFS
+        }
+        reachable = _reachable_defs(
+            [doc.get("components"), doc.get("functions")], derived.defs
         )
-        if defs or (source is not None and source.defs is not None):
+        for name, schema in derived.defs.items():
+            if name in reachable and name not in defs:
+                defs[name] = schema
+        if theme is not None and self.theme_location == "$defs":
+            defs["theme"] = theme
+        defs.update(self._union_documents(list(components), list(function_docs)))
+        if defs or self.declares_defs:
             doc["$defs"] = defs
-        return copy.deepcopy(doc)
+        return doc
 
-    def _serialize_unbundled(
+    def _union_documents(
+        self, component_names: list[str], function_names: list[str]
+    ) -> dict[str, Any]:
+        """Returns the `anyComponent` and `anyFunction` unions to write."""
+        if self.union_defs is None:
+            v1 = is_at_least_version(self.protocol_version, ProtocolVersion.V1_0)
+            unions: dict[str, Any] = {}
+            if component_names or v1:
+                unions["anyComponent"] = _component_union(component_names)
+            if function_names or v1:
+                unions["anyFunction"] = _function_union(function_names)
+            return unions
+        documents: dict[str, Any] = {}
+        for name, schema in self.union_defs.items():
+            if schema is not None:
+                documents[name] = copy.deepcopy(schema)
+            elif name == "anyComponent":
+                documents[name] = _component_union(component_names)
+            elif name == "anyFunction":
+                documents[name] = _function_union(function_names)
+        return documents
+
+    def _component_entry(
+        self, component: ComponentApi, common_names: set[str]
+    ) -> dict[str, Any]:
+        """Returns the document entry of a component whose schema is authored."""
+        schema = component.schema
+        entry = _externalize_refs(
+            schema if isinstance(schema, dict) else {},
+            common_names,
+            self.common_types_uri,
+        )
+        for key, value in (
+            ("allowedParents", component.allowed_parents),
+            ("allowedChildren", component.allowed_children),
+        ):
+            if value is not None:
+                entry[key] = copy.deepcopy(value)
+            else:
+                entry.pop(key, None)
+        return cast(dict[str, Any], entry)
+
+    def _function_entry(
+        self, function: FunctionApi, common_names: set[str]
+    ) -> dict[str, Any]:
+        """Returns the document entry of a function whose schema is its entry.
+
+        The entry is the function's schema, with the function's metadata
+        written where the schema declares it, or added where it differs from
+        the default.
+        """
+        entry: dict[str, Any] = _externalize_refs(
+            function.schema, common_names, self.common_types_uri
+        )
+        if function.description is not None:
+            entry["description"] = function.description
+        properties = entry.get("properties")
+        call_return_type = (
+            properties.get("returnType") if isinstance(properties, dict) else None
+        )
+        if "returnType" in entry:
+            entry["returnType"] = function.return_type
+        elif isinstance(call_return_type, dict) and "const" in call_return_type:
+            call_return_type["const"] = function.return_type
+        elif function.return_type != "any":
+            entry["returnType"] = function.return_type
+        if "allowedCallers" in entry or function.allowed_callers != "rendererOnly":
+            entry["allowedCallers"] = function.allowed_callers
+        if "requiresUserActivation" in entry or function.requires_user_activation:
+            entry["requiresUserActivation"] = function.requires_user_activation
+        return entry
+
+    def _theme_document(
+        self, derived_theme: dict[str, Any] | None, common_names: set[str]
+    ) -> dict[str, Any] | None:
+        """Returns the theme schema to write, or None if there is none."""
+        if self.theme_location is None:
+            return None
+        if self.theme_model is not None:
+            return derived_theme
+        if not self.theme_schema and self.theme_location != "theme":
+            return None
+        return cast(
+            dict[str, Any],
+            _externalize_refs(self.theme_schema, common_names, self.common_types_uri),
+        )
+
+    def _derive_model_entries(
         self, functions: Mapping[str, FunctionApi]
-    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-        """Serializes the entries without `source_json`, unbundled.
+    ) -> "_DerivedEntries":
+        """Derives the document entries of model-defined entries and theme.
 
         The schemas are those of `validation_schema`, before common types are
         bundled, with their references to common types pointed back at
-        `common_types.json`.
+        `common_types_uri`. A v0.8 component or theme model is written in the
+        v0.8 document shape, whose nested objects are inline.
 
         Args:
             functions: The functions `to_json` declares.
 
         Returns:
-            The serialized components and functions without `source_json`, by
-            name, and the catalog's own `$defs` they may reference.
+            The derived entries, by name, and the defs they may reference.
         """
-        assembled, _, _, protocol_version = self._assemble_schema()
+        model_components = [
+            name
+            for name, comp in self.components.items()
+            if not _is_authored_component(comp)
+        ]
+        model_functions = [
+            name for name, fn in functions.items() if not _is_authored_function(fn)
+        ]
+        derives = bool(model_components or model_functions or self.theme_model)
+        try:
+            protocol_version = self._protocol_version_enum()
+        except A2uiCatalogError:
+            if derives:
+                raise
+            # Authored entries are written as they are, whatever the version.
+            return _DerivedEntries({}, {}, {}, None, set(self.common_types_defs))
         common_types_version = (
             ProtocolVersion.V0_9
             if protocol_version is ProtocolVersion.V0_8
@@ -1354,19 +1696,26 @@ class Catalog(Generic[TComponent, TFunction]):
             *get_common_types_schema_map(common_types_version)["$defs"],
             *self._common_types_defs_for(protocol_version),
         }
+        if not derives:
+            return _DerivedEntries({}, {}, {}, None, common_names)
+
+        assembled, _, _, _ = self._assemble_schema()
         assembled_defs: dict[str, Any] = assembled.get("$defs", {})
         own = {*self.defs, *(n for n in assembled_defs if n not in common_names)}
-        source: _CatalogSource | None = getattr(self, "_source", None)
-        if source is not None and source.defs:
-            own |= set(source.defs)
-        common_names -= own
+        common = common_names - own
 
-        components: dict[str, Any] = {}
+        def unbundled(node: Any) -> Any:
+            return _externalize_refs(node, common, self.common_types_uri)
+
+        components = {}
         assembled_components: dict[str, Any] = assembled.get("components", {})
-        for name, comp in self.components.items():
-            if getattr(comp, "source_json", None) is not None:
+        for name in model_components:
+            comp = self.components[name]
+            model_class = getattr(comp, "model_class", None)
+            if protocol_version is ProtocolVersion.V0_8 and model_class is not None:
+                components[name] = v08_document_schema(model_class, component=True)
                 continue
-            schema = _externalize_refs(assembled_components.get(name, {}), common_names)
+            schema = unbundled(assembled_components.get(name, {}))
             properties = schema.get("properties")
             if getattr(comp, "model_class", None) is not None and isinstance(
                 properties, dict
@@ -1385,79 +1734,29 @@ class Catalog(Generic[TComponent, TFunction]):
         v1 = is_at_least_version(protocol_version, ProtocolVersion.V1_0)
         function_docs: dict[str, Any] = {}
         assembled_functions: dict[str, Any] = assembled.get("functions", {})
-        for name, fn in functions.items():
-            if getattr(fn, "source_json", None) is not None:
-                continue
-            schema = _externalize_refs(assembled_functions.get(name, {}), common_names)
-            function_docs[name] = _function_document(fn, schema, v1)
+        for name in model_functions:
+            schema = unbundled(assembled_functions.get(name, {}))
+            function_docs[name] = _function_document(functions[name], schema, v1)
 
+        theme: dict[str, Any] | None = None
+        if self.theme_model is not None:
+            if protocol_version is ProtocolVersion.V0_8:
+                theme = v08_document_schema(self.theme_model, component=False)
+            elif isinstance(assembled_defs.get("theme"), dict):
+                theme = unbundled(assembled_defs["theme"])
         defs = {
-            name: _externalize_refs(schema, common_names)
+            name: unbundled(schema)
             for name, schema in assembled_defs.items()
-            if name in own and name not in _UNION_DEFS
+            if name in own
+            and name not in _UNION_DEFS
+            and name != "theme"
+            and name not in self.defs
         }
-        return components, function_docs, defs
+        return _DerivedEntries(components, function_docs, defs, theme, common_names)
 
-    def _document_defs(
-        self,
-        doc: Mapping[str, Any],
-        source: _CatalogSource | None,
-        serialized_defs: Mapping[str, Any],
-        component_names: list[str],
-        function_names: list[str],
-    ) -> dict[str, Any]:
-        """Returns the `$defs` of the document `to_json` emits.
-
-        Args:
-            doc: The document so far, whose entries and theme are the roots of
-                `$defs` references.
-            source: What the loaded document wrote, or None for a catalog
-                defined in code.
-            serialized_defs: The catalog's own `$defs` that serialized entries
-                may reference.
-            component_names: The components the document declares.
-            function_names: The functions the document declares.
-        """
-        roots = [
-            doc.get("components"),
-            doc.get("functions"),
-            doc.get("theme"),
-            *(source.extras.values() if source is not None else ()),
-        ]
-        defs: dict[str, Any] = {}
-        if source is None:
-            v1 = is_at_least_version(self.protocol_version, ProtocolVersion.V1_0)
-            reachable = _reachable_defs(roots, serialized_defs)
-            for name, schema in serialized_defs.items():
-                # A v1.0 catalog document has no theme.
-                if name == "theme" and v1:
-                    continue
-                if name in self.defs or name == "theme" or name in reachable:
-                    defs[name] = schema
-            if component_names or v1:
-                defs["anyComponent"] = _component_union(component_names)
-            if function_names or v1:
-                defs["anyFunction"] = _function_union(function_names)
-            return defs
-
-        authored = source.defs or {}
-        pool = {
-            **serialized_defs,
-            **{k: v for k, v in authored.items() if k not in _UNION_DEFS},
-        }
-        reachable = _reachable_defs(roots, pool)
-        for name, schema in authored.items():
-            if name == "anyComponent":
-                same = set(component_names) == source.component_names
-                defs[name] = schema if same else _component_union(component_names)
-            elif name == "anyFunction":
-                same = set(function_names) == source.function_names
-                defs[name] = schema if same else _function_union(function_names)
-            elif name not in source.referenced_defs or name in reachable:
-                defs[name] = schema
-        for name in sorted(reachable - set(authored)):
-            defs[name] = pool[name]
-        return defs
+    # ==========================================================================
+    # Lookups
+    # ==========================================================================
 
     def get_component(self, name: str) -> TComponent | None:
         """Directly retrieves a component by name."""
@@ -1487,6 +1786,10 @@ class Catalog(Generic[TComponent, TFunction]):
     def get_theme_schema(self) -> dict[str, Any]:
         return self.theme_schema
 
+    # ==========================================================================
+    # from_json
+    # ==========================================================================
+
     @classmethod
     def from_json(
         cls,
@@ -1496,9 +1799,10 @@ class Catalog(Generic[TComponent, TFunction]):
     ) -> "CatalogApi":
         """Constructs a schema-only Catalog from a catalog document.
 
-        The catalog keeps the document as written, so `to_json` returns it
-        unchanged, and resolves its references for validation, so
-        `validation_schema` is self-contained.
+        Each component and function keeps its definition as the document
+        writes it, as its `schema`, and the catalog keeps the document's
+        top-level fields, so `to_json` writes the document back.
+        `validation_schema` resolves the references for validation.
 
         Args:
             catalog_schema: Raw catalog JSON Schema document.
@@ -1511,8 +1815,7 @@ class Catalog(Generic[TComponent, TFunction]):
                 `to_json` emits `catalogId` only if the document declared it.
 
         Returns:
-            A schema-only catalog. Its entries carry their authored JSON in
-            `source_json`.
+            A schema-only catalog.
 
         Raises:
             A2uiCatalogError: If the document has no catalog id or is
@@ -1524,40 +1827,26 @@ class Catalog(Generic[TComponent, TFunction]):
                 "catalog_id must be provided or exist in catalog schema."
             )
 
-        # The document as written, before references are localized and
-        # inlined, for `to_json`.
-        raw_document: dict[str, Any] = copy.deepcopy(dict(catalog_schema))
-        raw_version = raw_document.get("protocolVersion")
+        document: dict[str, Any] = copy.deepcopy(dict(catalog_schema))
+        raw_version = document.get("protocolVersion")
         declared_version = raw_version if isinstance(raw_version, str) else None
         p_ver = protocol_version or declared_version or _DEFAULT_PROTOCOL_VERSION
 
-        normalized_catalog_schema = _normalize_external_schema_refs(
-            dict(catalog_schema)
-        )
-        inlined_catalog_schema = inline_local_refs(
-            normalized_catalog_schema, normalized_catalog_schema
-        )
-
-        components_map = inlined_catalog_schema.get("components", {})
+        components_map = document.get("components", {})
         if not isinstance(components_map, Mapping):
             raise A2uiCatalogError(
                 "Catalog 'components' must be an object mapping names to schemas."
             )
-        raw_components: Mapping[str, Any] = raw_document.get("components", {})
-        raw_functions = dict(
-            _function_entries(raw_document.get("functions"), catalog_id)
+        raw_defs = document.get("$defs")
+        defs_map: dict[str, Any] = (
+            dict(raw_defs) if isinstance(raw_defs, Mapping) else {}
         )
-        any_comp_refs = (
-            inlined_catalog_schema.get("$defs", {})
-            .get("anyComponent", {})
-            .get("oneOf", [])
+        permitted_names = _union_member_names(
+            defs_map.get("anyComponent"), "#/components/"
         )
-        permitted_names = set()
-        for item in any_comp_refs:
-            if isinstance(item, dict):
-                ref = item.get("$ref", "")
-                if isinstance(ref, str) and ref.startswith("#/components/"):
-                    permitted_names.add(ref.split("/")[-1])
+        permitted_func_names = _union_member_names(
+            defs_map.get("anyFunction"), "#/functions/"
+        )
 
         validate_identifiers = is_at_least_version(p_ver, ProtocolVersion.V1_0)
 
@@ -1572,12 +1861,7 @@ class Catalog(Generic[TComponent, TFunction]):
                 raise A2uiCatalogError(
                     f"Invalid UAX #31 component identifier: '{name}'"
                 )
-            if (
-                validate_identifiers
-                and isinstance(schema, dict)
-                and "properties" in schema
-                and isinstance(schema["properties"], dict)
-            ):
+            if validate_identifiers and isinstance(schema.get("properties"), Mapping):
                 for prop_name in schema["properties"]:
                     if not is_valid_uax31_identifier(prop_name):
                         raise A2uiCatalogError(
@@ -1586,47 +1870,24 @@ class Catalog(Generic[TComponent, TFunction]):
                         )
 
             if not permitted_names or name in permitted_names:
-                allowed_parents = (
-                    schema.get("allowedParents") if isinstance(schema, dict) else None
-                )
-                allowed_children = (
-                    schema.get("allowedChildren") if isinstance(schema, dict) else None
-                )
                 components.append(
                     ComponentApi(
                         name,
-                        schema,
-                        allowed_parents=allowed_parents,
-                        allowed_children=allowed_children,
-                        source_json=raw_components.get(name),
+                        dict(schema),
+                        allowed_parents=schema.get("allowedParents"),
+                        allowed_children=schema.get("allowedChildren"),
                     )
                 )
 
         functions = []
-        function_entries = _function_entries(
-            inlined_catalog_schema.get("functions"), catalog_id
-        )
-        any_func_refs = (
-            inlined_catalog_schema.get("$defs", {})
-            .get("anyFunction", {})
-            .get("oneOf", [])
-        )
-        permitted_func_names = set()
-        for item in any_func_refs:
-            if isinstance(item, dict):
-                ref = item.get("$ref", "")
-                if isinstance(ref, str) and ref.startswith("#/functions/"):
-                    permitted_func_names.add(ref.split("/")[-1])
-
-        for name, spec in function_entries:
+        for name, spec in _function_entries(document.get("functions"), catalog_id):
             if validate_identifiers and not is_valid_uax31_identifier(name):
                 raise A2uiCatalogError(f"Invalid UAX #31 function identifier: '{name}'")
-            spec_dict = spec
             props = (
-                spec_dict.get("properties")
-                if isinstance(spec_dict.get("properties"), dict)
-                else spec_dict.get("parameters")
-                if isinstance(spec_dict.get("parameters"), dict)
+                spec.get("properties")
+                if isinstance(spec.get("properties"), dict)
+                else spec.get("parameters")
+                if isinstance(spec.get("parameters"), dict)
                 else None
             )
             if validate_identifiers and isinstance(props, dict):
@@ -1638,120 +1899,126 @@ class Catalog(Generic[TComponent, TFunction]):
                         )
 
             if not permitted_func_names or name in permitted_func_names:
+                fn_description = spec.get("description")
                 functions.append(
                     FunctionApi(
                         name=name,
-                        return_type=_declared_return_type(spec_dict),
+                        return_type=_declared_return_type(spec),
                         schema=spec,
-                        allowed_callers=spec_dict.get("allowedCallers"),
-                        requires_user_activation=spec_dict.get(
-                            "requiresUserActivation"
+                        allowed_callers=spec.get("allowedCallers"),
+                        requires_user_activation=spec.get("requiresUserActivation"),
+                        description=(
+                            fn_description if isinstance(fn_description, str) else None
                         ),
-                        source_json=raw_functions.get(name),
                     )
                 )
 
-        source = _catalog_source(
-            raw_document,
-            component_names=frozenset(c.name for c in components),
-            function_names=frozenset(f.name for f in functions),
-        )
+        # The theme, in the first place a document may write it.
+        theme_location: ThemeLocation | None = None
+        theme_schema: dict[str, Any] = {}
+        styles = document.get("styles")
+        if isinstance(document.get("theme"), Mapping):
+            theme_location, theme_schema = "theme", dict(document["theme"])
+        elif isinstance(styles, Mapping) and styles and not _is_object_schema(styles):
+            theme_location = "styles"
+            theme_schema = {"type": "object", "properties": dict(styles)}
+        elif isinstance(defs_map.get("theme"), Mapping):
+            theme_location, theme_schema = "$defs", dict(defs_map.pop("theme"))
+
+        # A union that lists the loaded entries is derived from them; any
+        # other union is kept as written.
+        union_defs: dict[str, dict[str, Any] | None] = {}
+        component_union = _component_union([c.name for c in components])
+        function_union = _function_union([f.name for f in functions])
+        for union_name, derived_union in (
+            ("anyComponent", component_union),
+            ("anyFunction", function_union),
+        ):
+            if union_name in defs_map:
+                authored = defs_map.pop(union_name)
+                union_defs[union_name] = None if authored == derived_union else authored
+
+        extras = {
+            key: value
+            for key, value in document.items()
+            if key not in _MODELED_DOCUMENT_KEYS
+            or (key in _METADATA_KEYS and not isinstance(value, str))
+            or (key == "protocolVersion" and declared_version is None)
+            or (key == "theme" and theme_location != "theme")
+            or (key == "$defs" and not isinstance(raw_defs, Mapping))
+        }
+        if theme_location == "styles":
+            extras.pop("styles", None)
 
         def _metadata(key: str) -> str | None:
-            value = raw_document.get(key)
+            value = document.get(key)
             return value if isinstance(value, str) else None
 
-        # `validation_schema` merges in the built-in common types defs.
-        catalog = CatalogApi(
+        return CatalogApi(
             catalog_id=catalog_id,
             protocol_version=p_ver,
             components=components,
             functions=functions,
-            theme_schema=_document_theme(inlined_catalog_schema),
-            instructions=inlined_catalog_schema.get("instructions"),
-            defs=inlined_catalog_schema.get("$defs"),
+            theme_schema=theme_schema,
+            instructions=document.get("instructions"),
+            defs=defs_map,
             schema_dialect=_metadata("$schema"),
             schema_id=_metadata("$id"),
             title=_metadata("title"),
             description=_metadata("description"),
+            declared_protocol_version=declared_version,
+            declares_catalog_id="catalogId" in document,
+            declares_components="components" in document,
+            declares_defs=isinstance(raw_defs, Mapping),
+            theme_location=theme_location,
+            functions_form=(
+                None
+                if "functions" not in document
+                else "list"
+                if isinstance(document["functions"], list)
+                else "map"
+            ),
+            union_defs=union_defs,
+            extras=extras,
         )
-        catalog._source = source
-        return catalog
 
 
-def _document_theme(document: Mapping[str, Any]) -> dict[str, Any]:
-    """Returns the theme schema a catalog document declares, or `{}`.
+@dataclass(frozen=True)
+class _DerivedEntries:
+    """The document entries `to_json` derives from a catalog's models.
 
-    The theme is the top-level `theme`, else v0.8's top-level `styles`, else
-    `$defs.theme`. A bare map of properties, as v0.8's `styles` is written,
-    becomes an object schema with those properties.
+    Attributes:
+        components: The model-defined components' entries, by name.
+        functions: The entries of functions that are not written as their
+            catalog entries, by name.
+        defs: The defs the derived entries may reference, such as
+            `CatalogComponentCommon`.
+        theme: The theme derived from the catalog's theme model, or None.
+        common_names: The names of the common types the catalog may
+            reference.
     """
-    defs = document.get("$defs")
-    theme = (
-        document.get("theme")
-        or document.get("styles")
-        or (defs.get("theme") if isinstance(defs, Mapping) else None)
-    )
-    if not isinstance(theme, Mapping) or not theme:
-        return {}
-    if "properties" in theme or "allOf" in theme or theme.get("type") == "object":
-        return dict(theme)
-    return {"type": "object", "properties": dict(theme)}
+
+    components: dict[str, Any]
+    functions: dict[str, Any]
+    defs: dict[str, Any]
+    theme: dict[str, Any] | None
+    common_names: set[str]
 
 
-def _catalog_source(
-    raw_document: Mapping[str, Any],
-    component_names: frozenset[str],
-    function_names: frozenset[str],
-) -> _CatalogSource:
-    """Returns what a catalog document wrote, beyond its entries, for `to_json`.
+def _is_object_schema(node: Mapping[str, Any]) -> bool:
+    """Whether a theme is written as an object schema, not a bare property map."""
+    return "properties" in node or "allOf" in node or node.get("type") == "object"
 
-    Args:
-        raw_document: The catalog document as written.
-        component_names: The components the catalog took from the document.
-        function_names: The functions the catalog took from the document.
-    """
-    raw_version = raw_document.get("protocolVersion")
-    raw_defs = raw_document.get("$defs")
-    authored_defs = (
-        {k: v for k, v in raw_defs.items() if k not in _UNION_DEFS}
-        if isinstance(raw_defs, Mapping)
-        else {}
-    )
-    raw_functions = raw_document.get("functions")
-    return _CatalogSource(
-        protocol_version=raw_version if isinstance(raw_version, str) else None,
-        has_catalog_id="catalogId" in raw_document,
-        has_components="components" in raw_document,
-        functions_form=(
-            None
-            if raw_functions is None
-            else "list"
-            if isinstance(raw_functions, list)
-            else "map"
-        ),
-        defs=dict(raw_defs) if isinstance(raw_defs, Mapping) else None,
-        has_theme="theme" in raw_document,
-        theme=raw_document.get("theme"),
-        extras={
-            k: v
-            for k, v in raw_document.items()
-            if k not in _MODELED_DOCUMENT_KEYS
-            or (k in _METADATA_KEYS and not isinstance(v, str))
-        },
-        component_names=component_names,
-        function_names=function_names,
-        referenced_defs=frozenset(
-            _reachable_defs(
-                [
-                    raw_document.get("components", {}),
-                    raw_functions,
-                    raw_document.get("theme"),
-                ],
-                authored_defs,
-            )
-        ),
-    )
+
+def _union_member_names(union: Any, prefix: str) -> set[str]:
+    """The entry names that a `oneOf` union lists as `<prefix><name>` refs."""
+    names: set[str] = set()
+    members = union.get("oneOf") if isinstance(union, Mapping) else None
+    for item in members if isinstance(members, list) else []:
+        ref = item.get("$ref") if isinstance(item, Mapping) else None
+        if isinstance(ref, str) and ref.startswith(prefix):
+            names.add(ref.split("/")[-1])
+    return names
 
 
 def _function_entries(raw: Any, catalog_id: str) -> list[tuple[str, dict[str, Any]]]:

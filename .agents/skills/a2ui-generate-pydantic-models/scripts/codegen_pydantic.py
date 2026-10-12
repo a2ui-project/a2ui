@@ -434,7 +434,7 @@ def generate_basic_catalog(
         comp_code,
         func_code,
         style_code,
-        catalog_data=cat_data if common_data else None,
+        catalog_data=cat_data,
     )
     with open(os.path.join(out_dir, "__init__.py"), "w", encoding="utf-8") as f:
         f.write(cat_init_code)

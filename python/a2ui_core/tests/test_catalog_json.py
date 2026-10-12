@@ -138,7 +138,7 @@ def test_published_catalogs_round_trip(path: str) -> None:
     assert Catalog.from_json(out).to_json() == out
 
 
-def test_from_json_keeps_metadata_and_entry_sources() -> None:
+def test_from_json_keeps_metadata_and_authored_schemas() -> None:
     document = _label_catalog()
     catalog = Catalog.from_json(document)
 
@@ -146,8 +146,57 @@ def test_from_json_keeps_metadata_and_entry_sources() -> None:
     assert catalog.schema_id == document["$id"]
     assert catalog.title == "Labels"
     assert catalog.description == "A catalog of labels."
-    assert catalog.components["Label"].source_json == document["components"]["Label"]
-    assert catalog.functions["shout"].source_json == document["functions"]["shout"]
+    assert catalog.declared_protocol_version == "1.0"
+    assert catalog.instructions == "Use Label for text."
+    # Each entry's schema is its definition as written, with its `allOf`
+    # mixin, local `$defs` reference and `common_types.json` reference.
+    assert catalog.components["Label"].schema == document["components"]["Label"]
+    assert catalog.functions["shout"].schema == document["functions"]["shout"]
+    assert catalog.functions["shout"].return_type == "string"
+    # The shared named `$defs` are kept; the unions are derived from the
+    # entries, since they list them.
+    assert catalog.defs == {
+        "Weighted": document["$defs"]["Weighted"],
+        "Unused": document["$defs"]["Unused"],
+    }
+    assert catalog.union_defs == {"anyComponent": None, "anyFunction": None}
+
+
+def test_resolved_schemas_inline_local_defs_for_validation() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+    resolved = catalog.resolved_component_schema("Label")
+
+    assert resolved["allOf"][0] == _label_catalog()["$defs"]["Weighted"]
+    assert resolved["allOf"][1]["properties"]["text"] == {
+        "$ref": "#/$defs/DynamicString"
+    }
+    # The authored schema is unchanged.
+    assert catalog.components["Label"].schema == _label_catalog()["components"]["Label"]
+
+
+def test_to_json_writes_the_model_fields() -> None:
+    # `to_json` assembles the document from the catalog's fields, so a
+    # changed field is written, before the document is first computed.
+    catalog = Catalog.from_json(_label_catalog())
+    catalog.title = "Renamed"
+    catalog.functions["shout"].description = "Upper-cases a string."
+    catalog.components["Spacer"].allowed_parents = ["Label"]
+
+    out = catalog.to_json()
+    assert out["title"] == "Renamed"
+    assert out["functions"]["shout"]["description"] == "Upper-cases a string."
+    assert out["components"]["Spacer"]["allowedParents"] == ["Label"]
+
+
+def test_to_json_and_validation_schema_are_computed_once() -> None:
+    catalog = Catalog.from_json(_label_catalog())
+    first = catalog.to_json()
+    catalog.title = "Changed after the first call"
+
+    assert catalog.to_json() == first
+    assert catalog.to_json() is not catalog.to_json()
+    assert catalog.validation_schema == catalog.validation_schema
+    assert catalog.validation_schema is not catalog.validation_schema
 
 
 def test_from_json_validates_with_resolved_refs() -> None:
@@ -194,8 +243,8 @@ def test_to_json_returns_independent_copies() -> None:
     again = catalog.to_json()
     assert "mutated" not in again["components"]["Label"]
     assert "mutated" not in again["$defs"]["Weighted"]
-    assert catalog.components["Label"].source_json is not None
-    assert "mutated" not in catalog.components["Label"].source_json
+    assert "mutated" not in catalog.components["Label"].schema
+    assert "mutated" not in catalog.defs["Weighted"]
 
 
 def test_to_json_keeps_function_list_form() -> None:
@@ -405,9 +454,15 @@ def test_validation_schema_emits_a_declared_protocol_version_bare() -> None:
     # `to_json` keeps the document as written.
     assert catalog.validation_schema["protocolVersion"] == "0.9.1"
     assert catalog.to_json()["protocolVersion"] == "v0.9.1"
+    undeclared = Catalog.from_json({"catalogId": "c"}, protocol_version="v0.9")
+    assert "protocolVersion" not in undeclared.validation_schema
+    assert "protocolVersion" not in undeclared.to_json()
+    # A catalog defined in code declares its canonical protocol version.
     assert (
-        "protocolVersion"
-        not in Catalog(catalog_id="c", protocol_version="v0.9").validation_schema
+        Catalog(catalog_id="c", protocol_version="v0.9").validation_schema[
+            "protocolVersion"
+        ]
+        == "0.9"
     )
 
 

@@ -81,7 +81,6 @@ from .function_impls import (
 )
 from ...schema.v0_9.constants import PROTOCOL_VERSION, PROTOCOL_BASE_URL
 from ...catalog import Catalog, ModelComponentApi, FunctionImplementation
-from .._published import published_document
 
 
 def _basic_catalog_id(protocol_version: str) -> str:
@@ -100,10 +99,16 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
             protocol_version=PROTOCOL_VERSION,
             components=BASIC_COMPONENTS,
             functions=create_basic_catalog_functions(locale=locale),
-            theme_schema=Theme.model_json_schema(),
+            theme_model=Theme,
+            schema_dialect="https://json-schema.org/draft/2020-12/schema",
+            schema_id="https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+            title="A2UI Basic Catalog",
+            description="Unified catalog of basic A2UI components and functions.",
+            declared_protocol_version=None,
+            common_types_uri="https://a2ui.org/specification/v0_9/common_types.json",
+            theme_location="$defs",
+            union_defs={"anyComponent": None, "anyFunction": None},
         )
-        # `to_json` returns the published catalog document.
-        self._adopt_source_document(published_document("v0_9"))
 
 
 __all__ = [
