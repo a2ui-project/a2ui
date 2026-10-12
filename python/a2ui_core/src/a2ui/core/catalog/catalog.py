@@ -1521,7 +1521,7 @@ class Catalog(Generic[TComponent, TFunction]):
         catalog_id = catalog_id or catalog_schema.get("catalogId")
         if not catalog_id:
             raise A2uiCatalogError(
-                "catalog_id must be provided or exist in catalog_schema."
+                "catalog_id must be provided or exist in catalog schema."
             )
 
         # The document as written, before references are localized and
