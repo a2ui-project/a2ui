@@ -744,7 +744,7 @@ class Catalog(Generic[TComponent, TFunction]):
         theme_model: type[BaseModel] | None = None,
         theme_location: ThemeLocation | None = _UNSET,
         functions_form: FunctionsForm | None = None,
-        union_defs: Mapping[str, Mapping[str, Any] | None] | None = None,
+        union_defs: Mapping[str, Any | None] | None = None,
         extras: Mapping[str, Any] | None = None,
         theme_from_document: bool = False,
         defs_from_document: bool = False,
@@ -835,11 +835,11 @@ class Catalog(Generic[TComponent, TFunction]):
             copy.deepcopy(common_types_defs) if common_types_defs else {}
         )
         self.functions_form = functions_form
-        self.union_defs: dict[str, dict[str, Any] | None] | None = (
+        self.union_defs: dict[str, Any | None] | None = (
             None
             if union_defs is None
             else {
-                name: copy.deepcopy(dict(schema)) if schema is not None else None
+                name: copy.deepcopy(schema) if schema is not None else None
                 for name, schema in union_defs.items()
             }
         )
@@ -1971,7 +1971,7 @@ class Catalog(Generic[TComponent, TFunction]):
 
         # A union that lists the loaded entries is derived from them; any
         # other union is kept as written.
-        union_defs: dict[str, dict[str, Any] | None] = {}
+        union_defs: dict[str, Any | None] = {}
         component_union = _component_union([c.name for c in components])
         function_union = _function_union([f.name for f in functions])
         for union_name, derived_union in (

@@ -567,6 +567,20 @@ def test_code_defined_v10_catalog_always_emits_both_unions() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    "union_defs",
+    [{"anyComponent": True}, {"anyFunction": False}],
+    ids=["anyComponent_true", "anyFunction_false"],
+)
+def test_boolean_union_round_trips(union_defs: dict[str, bool]) -> None:
+    doc = {"catalogId": "x", "$defs": union_defs}
+
+    catalog = Catalog.from_json(doc)
+
+    assert catalog.to_json() == doc
+    assert catalog.copy_with().to_json() == doc
+
+
 def test_code_defined_catalog_emits_metadata_it_was_given() -> None:
     catalog = Catalog(
         catalog_id="https://example.com/meta",
