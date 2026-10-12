@@ -46,10 +46,6 @@ public final class NotFunction: FunctionImplementation, Sendable {
     guard let value = arguments["value"] else {
       throw FunctionError.missingArgument("value")
     }
-    return .boolean(!isTrue(value))
-  }
-
-  private func isTrue(_ operand: JSONValue) -> Bool {
-    readsValidationResults ? operand.isTruthyOrValid : operand.isTruthy
+    return .boolean(!value.isTruthy(readsValidationResults: readsValidationResults))
   }
 }

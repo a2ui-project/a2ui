@@ -22,9 +22,15 @@ extension JSONValue {
   /// carries a `valid` key reads as true only when `valid` is `true`. Every other value falls
   /// back to ``isTruthy``, so a value cannot pass as a check and fail as an operand.
   var isTruthyOrValid: Bool {
-    if case .object(let members) = self, let valid = members["valid"] {
-      return valid == .boolean(true)
+    guard case .object(let members) = self, let valid = members["valid"] else {
+      return isTruthy
     }
-    return isTruthy
+    return valid == .boolean(true)
+  }
+
+  /// Reads this value as an operand of `and`, `or` or `not`: as ``isTruthyOrValid`` when
+  /// `readsValidationResults` is `true`, as in v1.0, and as ``isTruthy`` otherwise.
+  func isTruthy(readsValidationResults: Bool) -> Bool {
+    readsValidationResults ? isTruthyOrValid : isTruthy
   }
 }

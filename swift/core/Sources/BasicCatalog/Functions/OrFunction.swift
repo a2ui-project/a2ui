@@ -52,14 +52,10 @@ public final class OrFunction: FunctionImplementation, Sendable {
         name: "or", message: "OrFunction requires at least 2 values")
     }
     for v in values {
-      if isTrue(v) {
+      if v.isTruthy(readsValidationResults: readsValidationResults) {
         return .boolean(true)
       }
     }
     return .boolean(false)
-  }
-
-  private func isTrue(_ operand: JSONValue) -> Bool {
-    readsValidationResults ? operand.isTruthyOrValid : operand.isTruthy
   }
 }
