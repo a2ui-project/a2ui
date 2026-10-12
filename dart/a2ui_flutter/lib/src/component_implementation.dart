@@ -59,5 +59,5 @@ class ComponentImplementation extends ComponentApi {
 }
 
 /// A catalog whose components carry Flutter implementations.
-typedef WidgetCatalog =
+typedef CatalogImplementation =
     Catalog<ComponentImplementation, FunctionImplementation>;

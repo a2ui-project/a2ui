@@ -147,7 +147,7 @@ class SurfaceHarness {
 Future<SurfaceHarness> pumpSurface(
   WidgetTester tester,
   List<Map<String, Object?>> messages, {
-  WidgetCatalog? catalog,
+  CatalogImplementation? catalog,
   ValidationConfig? validationConfig = ValidationConfig.strict,
   SurfaceHost host = scrollingHost,
 }) async {
@@ -198,12 +198,12 @@ Future<SurfaceHarness> pumpSurface(
 Future<SurfaceHarness> pumpComponents(
   WidgetTester tester,
   List<Map<String, Object?>> components, {
-  WidgetCatalog? catalog,
+  CatalogImplementation? catalog,
   Map<String, Object?>? data,
   ValidationConfig? validationConfig = ValidationConfig.strict,
   SurfaceHost host = scrollingHost,
 }) {
-  final WidgetCatalog resolved = catalog ?? fixtureCatalog();
+  final CatalogImplementation resolved = catalog ?? fixtureCatalog();
   return pumpSurface(
     tester,
     [

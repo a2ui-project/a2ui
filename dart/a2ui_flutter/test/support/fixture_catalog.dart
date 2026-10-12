@@ -48,7 +48,10 @@ class FixtureLog {
 ///
 /// It declares one function, `record`, which logs its arguments. Its id is
 /// [id], [fixtureCatalogId] unless given another.
-WidgetCatalog fixtureCatalog([FixtureLog? log, String id = fixtureCatalogId]) {
+CatalogImplementation fixtureCatalog([
+  FixtureLog? log,
+  String id = fixtureCatalogId,
+]) {
   ComponentImplementation component(
     String name,
     Map<String, Schema> properties,
@@ -63,7 +66,7 @@ WidgetCatalog fixtureCatalog([FixtureLog? log, String id = fixtureCatalogId]) {
     },
   );
 
-  return WidgetCatalog(
+  return CatalogImplementation(
     id: id,
     components: [
       component(

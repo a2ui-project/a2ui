@@ -156,7 +156,7 @@ final rating = ComponentImplementation(
   },
 );
 
-final demoCatalog = WidgetCatalog(
+final demoCatalog = CatalogImplementation(
   id: 'https://example.com/demo/catalog.json',
   components: [...BasicComponents.all, rating],
   functions: BasicCatalog.v0_9().functions.values.toList(),
