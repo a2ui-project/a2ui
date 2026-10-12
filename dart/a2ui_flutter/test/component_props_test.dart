@@ -71,7 +71,10 @@ ComponentProps _resolve(
 }) {
   final surface = SurfaceModel<ComponentImplementation>(
     's',
-    defaultCatalog: WidgetCatalog(id: 'test', components: [_probe, _leaf]),
+    defaultCatalog: CatalogImplementation(
+      id: 'test',
+      components: [_probe, _leaf],
+    ),
   );
   addTearDown(surface.dispose);
   surface.dataModel.set('/', Map<String, Object?>.of(data));

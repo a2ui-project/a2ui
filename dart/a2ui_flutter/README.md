@@ -105,7 +105,7 @@ processor.groupModel.dispose();
 
 ## Defining Custom Components
 
-List your components in a `WidgetCatalog` under your own catalog id:
+List your components in a `CatalogImplementation` under your own catalog id:
 
 ```dart
 final rating = ComponentImplementation(
@@ -140,7 +140,7 @@ final rating = ComponentImplementation(
   },
 );
 
-final demoCatalog = WidgetCatalog(
+final demoCatalog = CatalogImplementation(
   id: 'https://example.com/demo/catalog.json',
   components: [rating],
 );
