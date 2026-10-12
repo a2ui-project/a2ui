@@ -263,6 +263,33 @@ void main() {
     expect(log.probeStates, ['p', 'p']);
   });
 
+  testWidgets('resets the implementation state on a catalog change', (
+    tester,
+  ) async {
+    surface.dispose();
+    surface = SurfaceModel<ComponentImplementation>(
+      's',
+      defaultCatalog: fixtureCatalog(log),
+      availableCatalogs: [fixtureCatalog(log, 'other')],
+    );
+    add('root', 'Column', {
+      'children': ['p'],
+    });
+    add('p', 'Probe', {'label': 'Probe'});
+    await pumpRoot(tester);
+    final Element before = viewElement(tester, 'p');
+
+    surface.componentsModel.removeComponent('p');
+    surface.componentsModel.addComponent(
+      ComponentModel('p', 'Probe', {'label': 'Other'}, catalog: 'other'),
+    );
+    await tester.pump();
+
+    expect(find.text('Other'), findsOneWidget);
+    expect(viewElement(tester, 'p'), same(before));
+    expect(log.probeStates, ['p', 'p']);
+  });
+
   group('template children', () {
     Future<void> pumpItems(WidgetTester tester, List<String> names) async {
       surface.dataModel.set('/items', [

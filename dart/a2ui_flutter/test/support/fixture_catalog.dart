@@ -46,8 +46,9 @@ class FixtureLog {
 ///   logs its state's creation.
 /// - `OtherProbe`: the same as `Probe`, under another type name.
 ///
-/// It declares one function, `record`, which logs its arguments.
-WidgetCatalog fixtureCatalog([FixtureLog? log]) {
+/// It declares one function, `record`, which logs its arguments. Its id is
+/// [id], [fixtureCatalogId] unless given another.
+WidgetCatalog fixtureCatalog([FixtureLog? log, String id = fixtureCatalogId]) {
   ComponentImplementation component(
     String name,
     Map<String, Schema> properties,
@@ -63,7 +64,7 @@ WidgetCatalog fixtureCatalog([FixtureLog? log]) {
   );
 
   return WidgetCatalog(
-    id: fixtureCatalogId,
+    id: id,
     components: [
       component(
         'Text',

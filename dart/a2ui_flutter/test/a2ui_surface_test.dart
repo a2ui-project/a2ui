@@ -87,6 +87,21 @@ void main() {
       expect(log.probeStates, ['root', 'root']);
     });
 
+    testWidgets('exposes its surface below it through of and maybeOf', (
+      tester,
+    ) async {
+      final SurfaceModel<ComponentImplementation> s = surface();
+      add(s, 'root', 'Text', {'text': 'Root'});
+
+      await tester.pumpWidget(host(s));
+
+      final BuildContext inside = tester.element(find.text('Root'));
+      expect(A2uiSurface.of(inside), same(s));
+      expect(A2uiSurface.maybeOf(inside), same(s));
+      final BuildContext outside = tester.element(find.byType(Scaffold));
+      expect(A2uiSurface.maybeOf(outside), isNull);
+    });
+
     testWidgets('applies a change made during a build after the frame', (
       tester,
     ) async {
