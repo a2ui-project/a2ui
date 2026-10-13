@@ -158,6 +158,7 @@ Catalog<ComponentApi, FunctionImplementation> _rendererCatalog(
   components: catalog.components.values.toList(),
   functions: catalog.functions.values.map(_Signature.new).toList(),
   themeSchema: catalog.themeSchema,
+  definitions: catalog.definitions,
 );
 
 class _Signature extends FunctionImplementation {

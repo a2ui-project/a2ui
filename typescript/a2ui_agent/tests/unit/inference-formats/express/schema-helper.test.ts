@@ -27,10 +27,6 @@ import {
   isActionSlot,
 } from '../../../../src/inference-formats/express/schema-helper.js';
 import {Catalog} from '../../../../src/internal/web-core.js';
-import {
-  getCatalogDocument,
-  registerCatalogDocument,
-} from '../../../../src/utils/catalog-document.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 
@@ -160,7 +156,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
     {version: 'v0.9' as const, specDir: 'v0_9' as const},
   ])('reads the $version basic catalog as its JSON declares it', ({version, specDir}) => {
     const catalog = basicCatalogs[version];
-    const doc = getCatalogDocument(catalog);
+    const doc = catalog.toJson();
     const commonDefs = readCommonDefs(specDir);
     const helper = new CatalogSchemaHelper(catalog, version);
     const componentNames = Object.keys(doc.components as Schema);
@@ -390,8 +386,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
         },
       };
 
-      const customCat = Catalog.fromSchema(mockDoc);
-      registerCatalogDocument(customCat, mockDoc);
+      const customCat = Catalog.fromJson(mockDoc);
       const helper = new CatalogSchemaHelper(customCat, 'v1.0');
 
       const actionSlotSchema = helper.getPropertySchema('CustomComp', 'actionSlot');

@@ -57,8 +57,9 @@ class CatalogSchemaHelper {
 
   /// The component's own description, if its schema has one.
   String? componentDescription(String component) {
-    final Map<String, Object?> schema =
-        catalog.components[component]!.schema.value;
+    final Map<String, Object?> schema = catalog
+        .resolvedComponentSchema(component)!
+        .value;
     for (final Map<String, Object?> sub in _subschemas(schema)) {
       if (sub['description'] case final String description) return description;
     }
@@ -96,8 +97,9 @@ class CatalogSchemaHelper {
 
   _ComponentSignature _signature(String component) =>
       _components.putIfAbsent(component, () {
-        final Map<String, Object?> schema =
-            catalog.components[component]!.schema.value;
+        final Map<String, Object?> schema = catalog
+            .resolvedComponentSchema(component)!
+            .value;
         final List<Map<String, Object?>> subschemas = _subschemas(schema);
         final schemas = <String, Map<String, Object?>>{};
         final required = <String>[];

@@ -120,9 +120,6 @@ export const OpenUrlImplementation = createOpenUrlImplementation(OpenUrlApi);
 export function createBasicCatalogFunctions(options?: {locale?: string}): FunctionImplementation[] {
   const locale = options?.locale;
   return [
-    AndImplementation,
-    OrImplementation,
-    NotImplementation,
     RequiredImplementation,
     RegexImplementation,
     LengthImplementation,
@@ -134,6 +131,9 @@ export function createBasicCatalogFunctions(options?: {locale?: string}): Functi
     createFormatDateImplementation(locale),
     createPluralizeImplementation(locale),
     OpenUrlImplementation,
+    AndImplementation,
+    OrImplementation,
+    NotImplementation,
   ];
 }
 

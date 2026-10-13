@@ -63,6 +63,8 @@ const {
   extractFunctionDefinition,
   generateComponentsFile,
   generateFunctionsFile,
+  annotationFor,
+  literal,
 } = catalogGen;
 
 describe('zod-generator-core.mjs', () => {
@@ -349,6 +351,70 @@ describe('generate-catalog-schemas.mjs', () => {
     assert.ok(usedImports.has('DynamicStringSchema'));
   });
 
+  it('annotates a property with what its Zod code does not express', () => {
+    const commonDefs = {DynamicString: {type: 'string'}};
+    const usedImports = new Set<string>();
+    const uri = 'https://example.com/common_types.json';
+    const code = generatePropertyZod(
+      'min',
+      {
+        allOf: [
+          {$ref: `${uri}#/$defs/DynamicString`},
+          {if: {type: 'string'}, then: {format: 'date'}},
+        ],
+        description: 'The minimum.',
+      },
+      [],
+      commonDefs,
+      usedImports,
+      uri,
+    );
+    assert.strictEqual(
+      code,
+      "spec(DynamicStringSchema.describe('REF:#/$defs/DynamicString|The minimum.'), " +
+        '{allOf: [{if: {type: "string"}, then: {format: "date"}}]}).optional()',
+    );
+    const plainCode = generatePropertyZod(
+      'count',
+      {type: 'integer', minimum: 0},
+      ['count'],
+      commonDefs,
+      usedImports,
+      uri,
+    );
+    assert.strictEqual(plainCode, 'spec(z.number().int(), {keywords: {minimum: 0}})');
+  });
+
+  it('derives annotations from the difference to the published schema', () => {
+    assert.strictEqual(annotationFor({type: 'string'}, {type: 'string'}), undefined);
+    assert.deepStrictEqual(
+      annotationFor(
+        {
+          type: 'object',
+          properties: {a: {}, b: {}},
+          required: ['b', 'a'],
+          additionalProperties: false,
+          anyOf: [{required: ['a']}],
+        },
+        {type: 'object', properties: {a: {}, b: {}}, required: ['a', 'b']},
+      ),
+      {
+        closure: 'additionalProperties',
+        required: ['b', 'a'],
+        keywords: {anyOf: [{required: ['a']}]},
+      },
+    );
+    assert.throws(() => annotationFor({}, {type: 'string'}), /Cannot remove 'type'/);
+    assert.throws(
+      () => annotationFor({description: 'a'}, {description: 'b'}),
+      /Cannot reproduce 'description'/,
+    );
+  });
+
+  it('writes annotation literals with bare identifier keys', () => {
+    assert.strictEqual(literal({a: 1, 'b-c': [true, null]}), '{a: 1, "b-c": [true, null]}');
+  });
+
   it('merges properties across multiple component schemas', () => {
     const target: {properties: Record<string, unknown>; required: string[]} = {
       properties: {a: {type: 'string'}},
@@ -403,7 +469,9 @@ describe('generate-catalog-schemas.mjs', () => {
       commonDefs,
       usedImports,
     );
-    assert.ok(arrCode.includes('z.array(DynamicStringSchema).min(2)'));
+    assert.ok(
+      arrCode.includes("z.array(DynamicStringSchema.describe('REF:#/$defs/DynamicString')).min(2)"),
+    );
   });
 
   it('flattens allOf inheritance and resolves catalog and common definitions', () => {

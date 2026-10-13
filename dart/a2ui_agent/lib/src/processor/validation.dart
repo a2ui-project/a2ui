@@ -76,16 +76,7 @@ void validatePayloads(
 /// its catalogs carry [FunctionImplementation]s rather than signatures.
 /// Validation never invokes one, so each function keeps its signature only.
 Catalog<ComponentApi, FunctionImplementation> _signed(CatalogApi catalog) =>
-    Catalog<ComponentApi, FunctionImplementation>(
-      id: catalog.id,
-      components: catalog.components.values.toList(),
-      functions: catalog.functions.values.map(_SignatureOnly.new).toList(),
-      themeSchema: catalog.themeSchema,
-      protocolVersion: catalog.protocolVersion,
-      schemaId: catalog.schemaId,
-      title: catalog.title,
-      description: catalog.description,
-    );
+    catalog.withFunctions(catalog.functions.values.map(_SignatureOnly.new));
 
 class _SignatureOnly extends FunctionImplementation {
   _SignatureOnly(FunctionApi api)
@@ -93,6 +84,10 @@ class _SignatureOnly extends FunctionImplementation {
         name: api.name,
         argumentSchema: api.argumentSchema,
         returnType: api.returnType,
+        description: api.description,
+        allowedCallers: api.declaredAllowedCallers,
+        requiresUserActivation: api.declaredRequiresUserActivation,
+        definition: api.definition,
       );
 
   @override

@@ -15,56 +15,66 @@
  */
 
 import {Catalog} from '../../catalog/types.js';
-import type {WebComponentImplementation} from '../../universal/index.js';
-import {BASIC_FUNCTIONS} from './functions/basic_functions.js';
 import {BasicCatalogThemeSchema} from '../../universal/basic_catalog/theme.js';
+import type {WebComponentImplementation} from '../../universal/index.js';
+import {BASIC_CATALOG_DOCUMENT_OPTIONS} from './components/basic_components.js';
 import {
-  A2uiText,
-  A2uiButton,
-  A2uiTextField,
-  A2uiRow,
-  A2uiColumn,
-  A2uiList,
-  A2uiImage,
-  A2uiIcon,
-  A2uiVideo,
   A2uiAudioPlayer,
+  A2uiButton,
   A2uiCard,
-  A2uiDivider,
   A2uiCheckBox,
-  A2uiSlider,
-  A2uiDateTimeInput,
   A2uiChoicePicker,
-  A2uiTabs,
+  A2uiColumn,
+  A2uiDateTimeInput,
+  A2uiDivider,
+  A2uiIcon,
+  A2uiImage,
+  A2uiList,
   A2uiModal,
+  A2uiRow,
+  A2uiSlider,
+  A2uiTabs,
+  A2uiText,
+  A2uiTextField,
+  A2uiVideo,
 } from './components/index.js';
+import {BASIC_FUNCTIONS} from './functions/basic_functions.js';
 
 /**
  * The single canonical basic catalog of A2UI components implemented via Web Components (Custom Elements).
+ *
+ * Its components and functions are the models generated from the published
+ * catalog document (see scripts/generate-catalog-schemas.mjs), listed in the
+ * document's order, and its document-level fields are those the generated
+ * models carry, so `toJson` computes the published document from the models
+ * and `validationSchema` is built from it.
  */
 export const basicCatalog = new Catalog<WebComponentImplementation>(
   'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
   '0.9',
   [
     A2uiText,
-    A2uiButton,
-    A2uiTextField,
-    A2uiRow,
-    A2uiColumn,
-    A2uiList,
     A2uiImage,
     A2uiIcon,
     A2uiVideo,
     A2uiAudioPlayer,
+    A2uiRow,
+    A2uiColumn,
+    A2uiList,
     A2uiCard,
-    A2uiDivider,
-    A2uiCheckBox,
-    A2uiSlider,
-    A2uiDateTimeInput,
-    A2uiChoicePicker,
     A2uiTabs,
     A2uiModal,
+    A2uiDivider,
+    A2uiButton,
+    A2uiTextField,
+    A2uiCheckBox,
+    A2uiChoicePicker,
+    A2uiSlider,
+    A2uiDateTimeInput,
   ],
   BASIC_FUNCTIONS,
-  BasicCatalogThemeSchema,
+  {
+    themeSchema: BasicCatalogThemeSchema,
+    ...BASIC_CATALOG_DOCUMENT_OPTIONS,
+  },
 );

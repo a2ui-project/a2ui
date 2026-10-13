@@ -608,8 +608,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   }
 
   Map<String, Schema> get _resolvedComponentSchemas => _resolvedComponents ??= {
-        for (final MapEntry<String, C> entry in catalog.components.entries)
-          entry.key: _resolve(entry.value.schema.value),
+        for (final MapEntry<String, Schema> entry
+            in catalog.resolvedComponentSchemas.entries)
+          entry.key: _resolve(entry.value.value),
       };
 
   Map<String, Schema> get _resolvedFunctionSchemas => _resolvedFunctions ??= {
@@ -623,10 +624,49 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           entry.key: _resolve(entry.value),
       };
 
+  /// The document local references resolve against: the catalog's
+  /// [Catalog.validationSchema], except that from v1.0 its function union
+  /// also matches a call to a function the catalog does not declare. Such a
+  /// call is forwarded to the agent, so its arguments go unchecked; `@index`
+  /// is matched by `IndexSystemFunction`.
+  late final Map<String, Object?> _resolutionDocument = () {
+    final Map<String, Object?> document = catalog.validationSchema;
+    final Object? rawDefs = document[r'$defs'];
+    if (!_v1 || rawDefs is! Map) return document;
+    final Map<String, Object?> defs = rawDefs.cast<String, Object?>();
+    final List<Object?> declared = switch (defs['anyFunction']) {
+      {'oneOf': final List<Object?> entries} => entries,
+      _ => const <Object?>[],
+    };
+    return {
+      ...document,
+      r'$defs': {
+        ...defs,
+        'anyFunction': {
+          'oneOf': [
+            ...declared,
+            {
+              'type': 'object',
+              'properties': {
+                '@call': {
+                  'not': {
+                    'enum': [...catalog.functions.keys, '@index'],
+                  },
+                },
+                'args': {'type': 'object'},
+              },
+              'required': ['@call'],
+            },
+          ],
+        },
+      },
+    };
+  }();
+
   Schema _resolve(Map<String, Object?> schema) => Schema.fromMap(
         resolveSchemaRefs(
           schema,
-          catalog.catalogSchema,
+          _resolutionDocument,
           commonTypes: commonTypesSchema,
           fallbackCommonTypes: _fallbackCommonTypes,
         ),

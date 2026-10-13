@@ -27,6 +27,18 @@ import {readFileSync, writeFileSync} from 'node:fs';
  * from common_types.json are resolved dynamically without hardcoding schema names,
  * and component properties are annotated with REF markers to allow runtime schema
  * reconstruction and definition pruning.
+ *
+ * The generated models also carry what the catalog document writes that Zod
+ * does not express, so that `Catalog.toJson` can compute the published
+ * document from them (see src/catalog/spec_shape.ts): `spec()` annotations
+ * with the mixins each component composes, object closures, `required` order
+ * and keywords such as `format`, descriptions on the component schemas,
+ * `specDef()` models of the catalog's own definitions (such as
+ * `CatalogComponentCommon` and the theme), and the scalar document-level
+ * fields. For every node, the generator predicts the JSON Schema the shaper
+ * derives from the Zod code it emits, and annotates the node with the
+ * difference to the published schema, failing when the difference cannot be
+ * expressed.
  */
 
 const HEADER = `/*
@@ -108,9 +120,24 @@ export function findReferencedDefName(schema, commonDefs) {
 }
 
 /**
+ * Returns a JSON value as a JS expression, with identifier keys unquoted.
+ */
+export function literal(value) {
+  if (Array.isArray(value)) return `[${value.map(literal).join(', ')}]`;
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value).map(
+      ([key, item]) =>
+        `${/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? key : JSON.stringify(key)}: ${literal(item)}`,
+    );
+    return `{${entries.join(', ')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+/**
  * Attaches default values and descriptions to a Zod code string.
  */
-export function applyModifiers(baseCode, propSchema, isRequired) {
+function addDefaultAndDescription(baseCode, propSchema) {
   let code = baseCode;
   if (propSchema.default !== undefined) {
     code +=
@@ -121,6 +148,14 @@ export function applyModifiers(baseCode, propSchema, isRequired) {
   if (propSchema.description) {
     code += `.describe('${escapeStr(propSchema.description)}')`;
   }
+  return code;
+}
+
+/**
+ * Attaches default values, descriptions and optionality to a Zod code string.
+ */
+export function applyModifiers(baseCode, propSchema, isRequired) {
+  const code = addDefaultAndDescription(baseCode, propSchema);
   return isRequired ? code : `${code}.optional()`;
 }
 
@@ -136,47 +171,252 @@ export function generatePrimitiveZod(propSchema) {
 }
 
 /**
+ * The JSON Schema the shaper derives from a primitive's Zod code.
+ */
+function primitivePrediction(propSchema) {
+  return {type: propSchema.type};
+}
+
+/**
+ * Generation context: the common types definitions, the imports used so far
+ * and, when the generated models must reproduce the document, how the
+ * document writes the common types document in references.
+ *
+ * @typedef {{commonDefs: object, usedImports: Set<string>, commonTypesUri?: string}} GenContext
+ */
+
+/**
+ * Generates the Zod code of a JSON Schema node, without its optionality, and
+ * the JSON Schema the shaper derives from that code.
+ *
+ * @param {object} schema The node.
+ * @param {GenContext} ctx Generation context.
+ * @param {boolean} [isRequired] Whether the node is a required property, which
+ *     a schema that accepts anything must refine to reject `undefined`.
+ * @returns {{code: string, prediction: object}}
+ */
+function generateNode(schema, ctx, isRequired = true) {
+  const {commonDefs, usedImports} = ctx;
+  const desc = schema.description;
+  const describe = prediction => (desc ? {...prediction, description: desc} : prediction);
+
+  // 1. Schema-driven $ref resolution via common_types $defs
+  const defName = findReferencedDefName(schema, commonDefs);
+  if (defName) {
+    usedImports.add(`${defName}Schema`);
+    const marker = desc ? `REF:#/$defs/${defName}|${escapeStr(desc)}` : `REF:#/$defs/${defName}`;
+    return {
+      code: `${defName}Schema.describe('${marker}')`,
+      prediction: describe({$ref: `${ctx.commonTypesUri}#/$defs/${defName}`}),
+    };
+  }
+
+  // 2. OneOf / AnyOf unions
+  const unionBranches = schema.oneOf || schema.anyOf;
+  if (Array.isArray(unionBranches) && unionBranches.length > 0) {
+    const branches = unionBranches.map(branch => annotatedNode(branch, ctx));
+    const unionCode =
+      branches.length === 1
+        ? branches[0].code
+        : `z.union([${branches.map(b => b.code).join(', ')}])`;
+    const prediction =
+      branches.length === 1 ? branches[0].prediction : {oneOf: branches.map(b => b.prediction)};
+    return withModifiers(unionCode, prediction, schema);
+  }
+
+  // 3. Arrays
+  if (schema.type === 'array') {
+    const {code, prediction} = generateArrayNode(schema, ctx);
+    return withModifiers(code, prediction, schema);
+  }
+
+  // 4. Enums
+  if (Array.isArray(schema.enum)) {
+    const enumCode = `z.enum([${schema.enum.map(v => `'${v}'`).join(', ')}])`;
+    return withModifiers(enumCode, {type: 'string', enum: [...schema.enum]}, schema);
+  }
+
+  // 5. Primitive types
+  const primCode = generatePrimitiveZod(schema);
+  if (primCode) {
+    const pattern =
+      schema.type === 'string' && typeof schema.pattern === 'string'
+        ? `.regex(new RegExp(${literal(schema.pattern)}))`
+        : '';
+    const prediction = primitivePrediction(schema);
+    if (pattern) prediction.pattern = schema.pattern;
+    return withModifiers(primCode + pattern, prediction, schema);
+  }
+
+  // 6. Objects
+  if (schema.type === 'object') {
+    const {code, prediction} = generateObjectNode(schema, ctx);
+    return withModifiers(code, prediction, schema);
+  }
+
+  // Generic fallback
+  const fallback = isRequired ? "z.any().refine(v => v !== undefined, 'Required')" : 'z.any()';
+  return {
+    code: desc ? `${fallback}.describe('${escapeStr(desc)}')` : fallback,
+    prediction: describe({}),
+  };
+}
+
+/**
+ * Adds a node's default and description to its code and prediction.
+ */
+export function withModifiers(code, prediction, schema) {
+  const result = {...prediction};
+  if (schema.description) result.description = schema.description;
+  if (schema.default !== undefined) result.default = schema.default;
+  return {code: addDefaultAndDescription(code, schema), prediction: result};
+}
+
+/**
+ * Generates the Zod code and prediction of an array node.
+ */
+function generateArrayNode(schema, ctx) {
+  const items = schema.items;
+  let item = {code: 'z.any()', prediction: {}};
+  if (items) {
+    if (findReferencedDefName(items, ctx.commonDefs)) {
+      item = annotatedNode(items, ctx);
+    } else if (items.type === 'string' && !Array.isArray(items.enum)) {
+      item = annotatedNode(items, ctx, {code: 'z.string()', prediction: {type: 'string'}});
+    } else if (items.type === 'boolean') {
+      item = annotatedNode(items, ctx, {code: 'z.boolean()', prediction: {type: 'boolean'}});
+    } else if (Array.isArray(items.enum)) {
+      item = annotatedNode(items, ctx, {
+        code: `z.enum([${items.enum.map(v => `'${v}'`).join(', ')}])`,
+        prediction: {type: 'string', enum: [...items.enum]},
+      });
+    } else if (items.type === 'number' || items.type === 'integer') {
+      item = annotatedNode(items, ctx, {code: 'z.number()', prediction: {type: 'number'}});
+    } else if (items.type === 'object' && items.properties) {
+      item = annotatedNode(items, ctx, generateObjectNode(items, ctx));
+    }
+  }
+  let code = `z.array(${item.code})`;
+  const prediction = {type: 'array', items: item.prediction};
+  if (schema.minItems !== undefined) {
+    code += `.min(${schema.minItems})`;
+    prediction.minItems = schema.minItems;
+  }
+  return {code, prediction};
+}
+
+/**
+ * Generates the Zod code and prediction of an object node with child
+ * properties, without its own annotation.
+ */
+export function generateObjectNode(schema, ctx, indent = '      ') {
+  if (!schema.properties) {
+    return {code: 'z.record(z.any())', prediction: {type: 'object', additionalProperties: {}}};
+  }
+  const objProps = [];
+  const properties = {};
+  const required = [];
+  const itemReq = schema.required || [];
+  for (const [subKey, subSchema] of Object.entries(schema.properties)) {
+    const isRequired = itemReq.includes(subKey);
+    const node = annotatedNode(subSchema, ctx, generateNode(subSchema, ctx, isRequired));
+    objProps.push(`${indent}'${subKey}': ${isRequired ? node.code : `${node.code}.optional()`}`);
+    properties[subKey] = node.prediction;
+    if (isRequired) required.push(subKey);
+  }
+  const prediction = {type: 'object', properties};
+  if (required.length > 0) prediction.required = required;
+  return {
+    code: `z.object({\n${objProps.join(',\n')},\n${indent.substring(2)}})`,
+    prediction,
+  };
+}
+
+/** Keywords that close an object schema. */
+const CLOSURE_KEYWORDS = ['additionalProperties', 'unevaluatedProperties'];
+
+/**
+ * Returns the annotation that makes the shaper derive `actual` from code whose
+ * derivation is `prediction`, or `undefined` when none is needed.
+ *
+ * @throws {Error} If `prediction` has a keyword that `actual` lacks, which no
+ *     annotation removes.
+ */
+export function annotationFor(actual, prediction) {
+  const annotation = {};
+  let target = actual;
+  // A reference combined with further schemas, such as a format rule.
+  if (Array.isArray(actual.allOf) && typeof prediction.$ref === 'string') {
+    const index = actual.allOf.findIndex(
+      member => member && typeof member.$ref === 'string' && Object.keys(member).length === 1,
+    );
+    if (index !== -1) {
+      annotation.allOf = actual.allOf.filter((_, i) => i !== index);
+      target = Object.fromEntries(Object.entries(actual).filter(([key]) => key !== 'allOf'));
+      target.$ref = actual.allOf[index].$ref;
+    }
+  }
+  const keywords = {};
+  for (const [key, value] of Object.entries(target)) {
+    if (key === 'description' || key === 'default') {
+      if (JSON.stringify(value) !== JSON.stringify(prediction[key])) {
+        throw new Error(`Cannot reproduce '${key}' of ${JSON.stringify(actual)}.`);
+      }
+      continue;
+    }
+    if (CLOSURE_KEYWORDS.includes(key) && value === false && prediction[key] === undefined) {
+      annotation.closure = key;
+      continue;
+    }
+    if (key === 'required' && Array.isArray(value) && Array.isArray(prediction.required)) {
+      if ([...value].sort().join() === [...prediction.required].sort().join()) {
+        if (value.join() !== prediction.required.join()) annotation.required = value;
+        continue;
+      }
+    }
+    if (key === 'properties' || key === 'items' || key === 'oneOf') {
+      // Children carry their own annotations.
+      continue;
+    }
+    if (JSON.stringify(value) !== JSON.stringify(prediction[key])) keywords[key] = value;
+  }
+  for (const key of Object.keys(prediction)) {
+    if (!(key in target)) {
+      throw new Error(`Cannot remove '${key}' from the derivation of ${JSON.stringify(actual)}.`);
+    }
+  }
+  if (Object.keys(keywords).length > 0) annotation.keywords = keywords;
+  return Object.keys(annotation).length > 0 ? annotation : undefined;
+}
+
+/**
+ * Generates a node's Zod code, annotated with what the document writes that
+ * the code does not express, and the node's JSON Schema.
+ *
+ * @param {object} schema The node.
+ * @param {GenContext} ctx Generation context.
+ * @param {{code: string, prediction: object}} [generated] The node's
+ *     unannotated code and prediction, when the caller generated them.
+ */
+function annotatedNode(schema, ctx, generated = generateNode(schema, ctx)) {
+  if (ctx.commonTypesUri === undefined) return {code: generated.code, prediction: schema};
+  const annotation = annotationFor(schema, generated.prediction);
+  if (!annotation) return {code: generated.code, prediction: schema};
+  return {code: `spec(${generated.code}, ${literal(annotation)})`, prediction: schema};
+}
+
+/**
  * Generates Zod code for object schemas with child properties.
  */
 export function generateObjectSchemaZod(schema, commonDefs, usedImports, indent = '      ') {
-  if (!schema.properties) return 'z.record(z.any())';
-  const objProps = [];
-  const itemReq = schema.required || [];
-  for (const [subKey, subSchema] of Object.entries(schema.properties)) {
-    const subCode = generatePropertyZod(subKey, subSchema, itemReq, commonDefs, usedImports);
-    objProps.push(`${indent}'${subKey}': ${subCode}`);
-  }
-  return `z.object({\n${objProps.join(',\n')},\n${indent.substring(2)}})`;
+  return generateObjectNode(schema, {commonDefs, usedImports}, indent).code;
 }
 
 /**
  * Generates Zod code for array schemas.
  */
 export function generateArrayZod(propSchema, commonDefs, usedImports) {
-  const items = propSchema.items;
-  let itemsCode = 'z.any()';
-  if (items) {
-    const itemDefName = findReferencedDefName(items, commonDefs);
-    if (itemDefName) {
-      usedImports.add(`${itemDefName}Schema`);
-      itemsCode = `${itemDefName}Schema`;
-    } else if (items.type === 'string') {
-      itemsCode = 'z.string()';
-    } else if (items.type === 'boolean') {
-      itemsCode = 'z.boolean()';
-    } else if (Array.isArray(items.enum)) {
-      itemsCode = `z.enum([${items.enum.map(v => `'${v}'`).join(', ')}])`;
-    } else if (items.type === 'number' || items.type === 'integer') {
-      itemsCode = 'z.number()';
-    } else if (items.type === 'object' && items.properties) {
-      itemsCode = generateObjectSchemaZod(items, commonDefs, usedImports, '          ');
-    }
-  }
-  let code = `z.array(${itemsCode})`;
-  if (propSchema.minItems !== undefined) {
-    code += `.min(${propSchema.minItems})`;
-  }
-  return code;
+  return generateArrayNode(propSchema, {commonDefs, usedImports}).code;
 }
 
 export function generateRefPropertyZod(defName, desc, isRequired, usedImports) {
@@ -186,25 +426,16 @@ export function generateRefPropertyZod(defName, desc, isRequired, usedImports) {
   return isRequired ? code : `${code}.optional()`;
 }
 
-export function generateUnionPropertyZod(
-  branches,
-  propSchema,
-  isRequired,
-  commonDefs,
-  usedImports,
-) {
-  const generatedBranches = branches.map(branch =>
-    generatePropertyZod('', branch, [''], commonDefs, usedImports),
-  );
-  const unionCode =
-    generatedBranches.length === 1
-      ? generatedBranches[0]
-      : `z.union([${generatedBranches.join(', ')}])`;
-  return applyModifiers(unionCode, propSchema, isRequired);
-}
-
 /**
  * Generates Zod expression for a component or function property schema.
+ *
+ * @param {string} propName The property's name.
+ * @param {object} propSchema The property's schema.
+ * @param {string[]} requiredList The required properties of the enclosing object.
+ * @param {object} commonDefs The common types definitions.
+ * @param {Set<string>} usedImports The imports used so far.
+ * @param {string} [commonTypesUri] How the document writes the common types
+ *     document; when set, the code is annotated to reproduce `propSchema`.
  */
 export function generatePropertyZod(
   propName,
@@ -212,55 +443,12 @@ export function generatePropertyZod(
   requiredList = [],
   commonDefs,
   usedImports,
+  commonTypesUri,
 ) {
   const isRequired = requiredList.includes(propName);
-  const desc = propSchema.description;
-
-  // 1. Schema-driven $ref resolution via common_types $defs
-  const defName = findReferencedDefName(propSchema, commonDefs);
-  if (defName) {
-    return generateRefPropertyZod(defName, desc, isRequired, usedImports);
-  }
-
-  // 2. OneOf / AnyOf unions
-  const unionBranches = propSchema.oneOf || propSchema.anyOf;
-  if (Array.isArray(unionBranches) && unionBranches.length > 0) {
-    return generateUnionPropertyZod(unionBranches, propSchema, isRequired, commonDefs, usedImports);
-  }
-
-  // 3. Arrays
-  if (propSchema.type === 'array') {
-    return applyModifiers(
-      generateArrayZod(propSchema, commonDefs, usedImports),
-      propSchema,
-      isRequired,
-    );
-  }
-
-  // 4. Enums
-  if (Array.isArray(propSchema.enum)) {
-    const enumCode = `z.enum([${propSchema.enum.map(v => `'${v}'`).join(', ')}])`;
-    return applyModifiers(enumCode, propSchema, isRequired);
-  }
-
-  // 5. Primitive types
-  const primCode = generatePrimitiveZod(propSchema);
-  if (primCode) {
-    return applyModifiers(primCode, propSchema, isRequired);
-  }
-
-  // 6. Objects
-  if (propSchema.type === 'object') {
-    return applyModifiers(
-      generateObjectSchemaZod(propSchema, commonDefs, usedImports),
-      propSchema,
-      isRequired,
-    );
-  }
-
-  // Generic fallback
-  const fallback = isRequired ? "z.any().refine(v => v !== undefined, 'Required')" : 'z.any()';
-  return desc ? `${fallback}.describe('${escapeStr(desc)}')` : fallback;
+  const ctx = {commonDefs, usedImports, commonTypesUri};
+  const {code} = annotatedNode(propSchema, ctx, generateNode(propSchema, ctx, isRequired));
+  return isRequired ? code : `${code}.optional()`;
 }
 
 /**
@@ -342,8 +530,55 @@ export function extractFunctionDefinition(funcName, funcDef, catalogDefs = {}, c
     requiresUserActivation: Boolean(requiresUserActivation),
     argsProps,
     argsRequired,
+    argsSchema,
     description: funcDef.description,
   };
+}
+
+/**
+ * Returns how a catalog document writes the common types document in its
+ * references, such as `common_types.json`, or `undefined` if it has none.
+ */
+export function commonTypesUriOf(catalogJson) {
+  let found;
+  const visit = node => {
+    if (found !== undefined || !node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (typeof node.$ref === 'string') {
+      const hash = node.$ref.indexOf('#');
+      if (hash > 0 && node.$ref.substring(0, hash).endsWith('common_types.json')) {
+        found = node.$ref.substring(0, hash);
+        return;
+      }
+    }
+    Object.values(node).forEach(visit);
+  };
+  visit(catalogJson);
+  return found;
+}
+
+/** The catalog definitions that a catalog computes rather than declares. */
+const COMPUTED_DEFS = new Set(['anyComponent', 'anyFunction']);
+
+/**
+ * Returns the identifier of the model of a catalog definition.
+ */
+function defModelName(name) {
+  return name === 'theme' ? 'ThemeDefSchema' : `${name}Schema`;
+}
+
+/**
+ * Generates a catalog definition's model: a `specDef()`-named Zod object.
+ */
+function generateDefModel(name, schema, ctx) {
+  const node = generateObjectNode(schema, ctx, '    ');
+  const {code, prediction} = withModifiers(node.code, node.prediction, schema);
+  const annotation = annotationFor(schema, prediction);
+  const extra = annotation ? `, ${literal(annotation)}` : '';
+  return `export const ${defModelName(name)} = specDef('${name}', ${code}${extra});\n\n`;
 }
 
 /**
@@ -356,9 +591,14 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
   const idProp = 'id';
   const commonTypesImportPath = options.commonTypesImportPath || '../../schema/common-types.js';
   const typesImportPath = options.typesImportPath || '../../../catalog/types.js';
+  const specImportPath = typesImportPath.replace(/types\.js$/, 'spec_annotations.js');
+  const commonTypesUri = options.reproduceDocument ? commonTypesUriOf(catalogJson) : undefined;
+  const ctx = {commonDefs, usedImports, commonTypesUri};
+  const reproduce = commonTypesUri !== undefined;
 
   const compNames = Object.keys(catalogJson.components || {});
   const apiNames = [];
+  const mixinDefs = new Set();
   let bodyCode = '';
 
   for (const compName of compNames) {
@@ -367,33 +607,97 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
     const apiName = `${compName}Api`;
     apiNames.push(apiName);
 
+    // The mixins the definition composes, and the schema of its own properties.
+    const mixins = [];
+    const spreads = [];
+    let own = compDef;
+    for (const member of Array.isArray(compDef.allOf) ? compDef.allOf : []) {
+      if (typeof member.$ref !== 'string') {
+        own = member;
+        continue;
+      }
+      const refName = extractRefName(member.$ref);
+      if (member.$ref.startsWith('#/$defs/') && catalogDefs[refName]) {
+        mixinDefs.add(refName);
+        mixins.push(defModelName(refName));
+        spreads.push(refName);
+      } else {
+        mixins.push(`'${refName}'`);
+      }
+    }
+    const description = compDef.description ?? (own !== compDef ? own.description : undefined);
+    const ownKeys = new Set(Object.keys(own.properties || {}));
+    const spreadKeys = new Set(
+      spreads.flatMap(name => Object.keys(catalogDefs[name].properties || {})),
+    );
+
     bodyCode += `export const ${apiName} = {\n`;
     bodyCode += `  name: '${compName}',\n`;
-    bodyCode += `  schema: z\n`;
+    bodyCode += `  schema: ${reproduce ? 'spec(' : ''}z\n`;
     bodyCode += `    .object({\n`;
+    if (reproduce) {
+      for (const name of spreads) bodyCode += `      ...${defModelName(name)}.shape,\n`;
+    }
 
+    const ownRequired = [];
     for (const [propName, propDef] of Object.entries(properties)) {
       if (propName === discriminatorProp || propName === idProp) {
         continue;
       }
-      const zodCode = generatePropertyZod(propName, propDef, required, commonDefs, usedImports);
+      if (reproduce && spreadKeys.has(propName) && !ownKeys.has(propName)) continue;
+      const zodCode = generatePropertyZod(
+        propName,
+        propDef,
+        required,
+        commonDefs,
+        usedImports,
+        reproduce && ownKeys.has(propName) ? commonTypesUri : undefined,
+      );
       bodyCode += `      '${propName}': ${zodCode},\n`;
+      if (ownKeys.has(propName) && required.includes(propName)) ownRequired.push(propName);
     }
 
     bodyCode += `    })\n`;
-    bodyCode += `    .strict(),\n`;
+    if (reproduce && description) {
+      bodyCode += `    .describe('${escapeStr(description)}')\n`;
+    }
+    bodyCode += `    .strict()`;
+    if (reproduce) {
+      const annotation = [`mixins: [${mixins.join(', ')}]`];
+      const authoredRequired = (own.required || []).filter(
+        name => name !== discriminatorProp && name !== idProp,
+      );
+      if (authoredRequired.join() !== ownRequired.join()) {
+        annotation.push(`required: ${literal(authoredRequired)}`);
+      }
+      bodyCode += `, {${annotation.join(', ')}})`;
+    }
+    bodyCode += `,\n`;
     bodyCode += `} satisfies ComponentApi;\n\n`;
+  }
+
+  let defsCode = '';
+  if (reproduce) {
+    for (const name of mixinDefs) defsCode += generateDefModel(name, catalogDefs[name], ctx);
+    if (catalogDefs.theme) defsCode += generateDefModel('theme', catalogDefs.theme, ctx);
+    for (const name of Object.keys(catalogDefs)) {
+      if (!COMPUTED_DEFS.has(name) && !mixinDefs.has(name) && name !== 'theme') {
+        throw new Error(`The catalog definition '${name}' has no model.`);
+      }
+    }
   }
 
   let out = HEADER;
   out += `import {z} from 'zod';
-import {ComponentApi} from '${typesImportPath}';
+
+${reproduce ? `import {${defsCode ? 'spec, specDef' : 'spec'}} from '${specImportPath}';\n` : ''}import {${reproduce ? 'CatalogDocumentOptions, ' : ''}ComponentApi} from '${typesImportPath}';
 import {
   ${Array.from(usedImports).sort().join(',\n  ')},
 } from '${commonTypesImportPath}';
 
 `;
 
+  out += defsCode;
   out += bodyCode;
 
   out += `export const BASIC_COMPONENTS: ComponentApi[] = [\n`;
@@ -402,7 +706,36 @@ import {
   }
   out += `];\n`;
 
+  if (reproduce) {
+    out += generateDocumentOptions(catalogJson, commonTypesUri, catalogDefs.theme !== undefined);
+  }
+
   return out;
+}
+
+/**
+ * Generates the scalar document-level fields of a catalog document as
+ * `CatalogDocumentOptions`.
+ */
+function generateDocumentOptions(catalogJson, commonTypesUri, hasThemeDef) {
+  const fields = [];
+  const add = (key, value) => fields.push(`  ${key}: ${literal(value)},`);
+  if (catalogJson.$schema !== undefined) add('schemaUri', catalogJson.$schema);
+  if (catalogJson.$id !== undefined) add('schemaId', catalogJson.$id);
+  if (catalogJson.title !== undefined) add('title', catalogJson.title);
+  if (catalogJson.description !== undefined) add('description', catalogJson.description);
+  if (catalogJson.instructions !== undefined) add('instructions', catalogJson.instructions);
+  add('declaredProtocolVersion', catalogJson.protocolVersion ?? null);
+  add('commonTypesUri', commonTypesUri);
+  if (hasThemeDef) fields.push(`  defModels: [ThemeDefSchema],`);
+  return `
+/**
+ * The document-level fields of the published catalog document.
+ */
+export const BASIC_CATALOG_DOCUMENT_OPTIONS = {
+${fields.join('\n')}
+} satisfies CatalogDocumentOptions;
+`;
 }
 
 /**
@@ -414,11 +747,14 @@ export function generateFunctionsFile(version, catalogJson, commonDefs, options 
   const funcNames = Object.keys(catalogJson.functions || {});
   const apiNames = [];
   const commonTypesImportPath = options.commonTypesImportPath || '../../schema/common-types.js';
+  const specImportPath = options.specImportPath || '../../../catalog/spec_annotations.js';
+  const commonTypesUri = options.reproduceDocument ? commonTypesUriOf(catalogJson) : undefined;
+  const reproduce = commonTypesUri !== undefined;
   let bodyCode = '';
 
   for (const funcName of funcNames) {
     const funcDef = catalogJson.functions[funcName];
-    const {returnType, requiresUserActivation, argsProps, argsRequired, description} =
+    const {returnType, requiresUserActivation, argsProps, argsRequired, argsSchema, description} =
       extractFunctionDefinition(funcName, funcDef, catalogDefs, commonDefs);
     const apiName = `${toPascalCase(funcName)}Api`;
     apiNames.push(apiName);
@@ -434,19 +770,46 @@ export function generateFunctionsFile(version, catalogJson, commonDefs, options 
     if (requiresUserActivation) {
       bodyCode += `  requiresUserActivation: true as const,\n`;
     }
-    bodyCode += `  schema: z.object({\n`;
-
-    for (const [argName, argDef] of Object.entries(argsProps)) {
-      const zodCode = generatePropertyZod(argName, argDef, argsRequired, commonDefs, usedImports);
-      bodyCode += `    '${argName}': ${zodCode},\n`;
+    if (reproduce && description) {
+      bodyCode += `  description: '${escapeStr(description)}',\n`;
     }
+    bodyCode += `  schema: ${reproduce ? 'spec(' : ''}z.object({\n`;
 
-    bodyCode += `  }),\n`;
+    const prediction = {type: 'object', properties: {}};
+    for (const [argName, argDef] of Object.entries(argsProps)) {
+      const zodCode = generatePropertyZod(
+        argName,
+        argDef,
+        argsRequired,
+        commonDefs,
+        usedImports,
+        commonTypesUri,
+      );
+      bodyCode += `    '${argName}': ${zodCode},\n`;
+      prediction.properties[argName] = argDef;
+    }
+    const required = Object.keys(argsProps).filter(name => argsRequired.includes(name));
+    if (required.length > 0) prediction.required = required;
+
+    bodyCode += `  })`;
+    if (reproduce) {
+      // Every argument model is annotated, which marks it as one whose call
+      // schema `toJson` computes.
+      const annotation = annotationFor(argsSchema ?? {type: 'object', properties: {}}, prediction);
+      bodyCode += `, ${literal(annotation ?? {closure: 'none'})})`;
+    }
+    bodyCode += `,\n`;
     bodyCode += `};\n\n`;
   }
 
   let out = HEADER;
   out += `import {z} from 'zod';\n`;
+  if (reproduce || usedImports.size > 0) {
+    out += '\n';
+  }
+  if (reproduce) {
+    out += `import {spec} from '${specImportPath}';\n`;
+  }
   if (usedImports.size > 0) {
     out += `import {
   ${Array.from(usedImports).sort().join(',\n  ')},
@@ -479,6 +842,8 @@ export function generateFunctionsFile(version, catalogJson, commonDefs, options 
  * @param {string} [options.functionsOutPath] Path to output function APIs file.
  * @param {string} [options.commonTypesImportPath] Relative import path for common types.
  * @param {string} [options.typesImportPath] Relative import path for catalog types.
+ * @param {string} [options.specImportPath] Relative import path for spec annotations,
+ *     from the functions file.
  */
 export function generateCatalogApi({
   version,
@@ -488,6 +853,7 @@ export function generateCatalogApi({
   functionsOutPath,
   commonTypesImportPath,
   typesImportPath,
+  specImportPath,
 }) {
   const commonJson = JSON.parse(readFileSync(commonTypesPath, 'utf8'));
   const catalogJson = JSON.parse(readFileSync(catalogPath, 'utf8'));
@@ -497,6 +863,7 @@ export function generateCatalogApi({
     const componentsTs = generateComponentsFile(version, catalogJson, commonDefs, {
       commonTypesImportPath,
       typesImportPath,
+      reproduceDocument: true,
     });
     writeFileSync(componentsOutPath, componentsTs);
   }
@@ -504,6 +871,8 @@ export function generateCatalogApi({
   if (functionsOutPath) {
     const functionsTs = generateFunctionsFile(version, catalogJson, commonDefs, {
       commonTypesImportPath,
+      specImportPath,
+      reproduceDocument: true,
     });
     writeFileSync(functionsOutPath, functionsTs);
   }

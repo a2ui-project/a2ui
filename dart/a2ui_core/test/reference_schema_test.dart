@@ -69,6 +69,7 @@ Catalog<ComponentApi, FunctionImplementation> _wireCatalog(
     id: parsed.id,
     protocolVersion: parsed.protocolVersion,
     components: parsed.components.values.toList(),
+    definitions: parsed.definitions,
   );
 }
 
@@ -111,7 +112,7 @@ void _expectFields(
   );
   final RefFields resolution = extractRefFields(
     catalog.components['Parent']!.schema,
-    document: catalog.catalogSchema,
+    document: catalog.validationSchema,
   );
   final ComponentRefFields? validation = extractComponentRefFields(
     catalog,

@@ -24,7 +24,6 @@ import * as path from 'path';
 import {fileURLToPath} from 'url';
 
 import {Catalog, CatalogApi} from '../../src/internal/web-core.js';
-import {registerCatalogDocument} from '../../src/utils/catalog-document.js';
 
 /** A catalog document, with the two maps tests most often reach into. */
 export interface CatalogDocument extends Record<string, unknown> {
@@ -48,15 +47,12 @@ export function readConformanceCatalog(fileName: string): CatalogDocument {
 }
 
 /**
- * Builds a catalog from a document and registers the document, as the SDK's catalog
- * providers do, so Express can read its source JSON.
+ * Builds a catalog from a document, as the SDK's catalog providers do.
  *
  * @param doc The catalog document.
  */
 export function catalogFromTestDocument(doc: Record<string, unknown>): CatalogApi {
-  const catalog = Catalog.fromSchema(doc);
-  registerCatalogDocument(catalog, doc);
-  return catalog;
+  return Catalog.fromJson(doc);
 }
 
 /**

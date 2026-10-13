@@ -247,7 +247,8 @@ Object? inlineLocalRefs(
   final Object? ref = object[r'$ref'];
 
   if (ref is String && ref.startsWith('#/')) {
-    if (ref.startsWith(r'#/$defs/') && isCommonTypeDef(ref.split('/').last)) {
+    if (ref.startsWith(r'#/$defs/') &&
+        isCommonTypeDef(ref.substring(8).split('/').first)) {
       return object;
     }
     if (visited.contains(ref)) return object;
