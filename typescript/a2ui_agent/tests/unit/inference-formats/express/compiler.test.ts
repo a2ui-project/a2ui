@@ -14,9 +14,15 @@
  * limitations under the License.
  */
 
+import {basicCatalog as codeDefinedBasicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {A2uiCatalogError} from '../../../../src/errors.js';
+import {
+  ComponentPruningTransformer,
+  FunctionPruningTransformer,
+  InMemoryCatalogProvider,
+} from '../../../../src/index.js';
 import {ExpressCompiler} from '../../../../src/inference-formats/express/compiler.js';
 import {ExpressDecompiler} from '../../../../src/inference-formats/express/decompiler.js';
 import {
@@ -27,14 +33,18 @@ import {
   ExpressUnknownPropertyError,
   ExpressValidationError,
 } from '../../../../src/inference-formats/express/errors.js';
-import {Catalog} from '../../../../src/internal/web-core.js';
-import {registerCatalogDocument} from '../../../../src/utils/catalog-document.js';
+import {Catalog, CatalogApi} from '../../../../src/internal/web-core.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
 
 const basicCatalogV10 = loadBasicCatalog('v1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
 const basicCatalogV091 = loadBasicCatalog('v0.9.1');
+
+/** The components of the first message's `createSurface`. */
+function createSurfaceComponents(messages: unknown[]): unknown[] {
+  return (messages[0] as {createSurface: {components: unknown[]}}).createSurface.components;
+}
 
 describe('ExpressCompiler', () => {
   const simplifiedCatalog = loadConformanceCatalog('simplified_catalog_v1_0.json');
@@ -452,8 +462,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       },
       functions: {},
     };
-    const labelsCatalog = Catalog.fromSchema(labelsDoc);
-    registerCatalogDocument(labelsCatalog, labelsDoc);
+    const labelsCatalog = Catalog.fromJson(labelsDoc);
 
     afterEach(() => {
       vi.restoreAllMocks();
@@ -519,6 +528,68 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
           createSurface: {surfaceId: 's', catalogId: 'test/labels', components: []},
         }),
       ).toThrow(A2uiCatalogError);
+    });
+  });
+
+  describe('Catalogs read through their model', () => {
+    const columnSource =
+      'root = Column([t1, b1])\nt1 = Text("Title", "body")\nb1 = Button(Text("Click"), action=Event("btn_click", {"id": 1}))';
+
+    it('compiles against a catalog defined in code as against its published document', () => {
+      const codeDefined = codeDefinedBasicCatalogV10 as unknown as CatalogApi;
+      const fromCode = new ExpressCompiler([codeDefined], 'v1.0').compile(columnSource);
+      const fromDocument = new ExpressCompiler([basicCatalogV10], 'v1.0').compile(columnSource);
+      expect(fromCode).toEqual(fromDocument);
+      expect(createSurfaceComponents(fromCode)).toHaveLength(4);
+    });
+
+    it('decompiles against a catalog defined in code', () => {
+      const codeDefined = codeDefinedBasicCatalogV10 as unknown as CatalogApi;
+      const messages = new ExpressCompiler([codeDefined], 'v1.0').compile(columnSource);
+      const dsl = new ExpressDecompiler(codeDefined, 'v1.0').decompile(messages[0]);
+      expect(new ExpressCompiler([codeDefined], 'v1.0').compile(dsl)).toEqual(messages);
+    });
+
+    it.each([
+      ['loaded from a document', () => basicCatalogV10],
+      ['defined in code', () => codeDefinedBasicCatalogV10 as unknown as CatalogApi],
+    ])('compiles against a pruned catalog %s', (_, source) => {
+      const pruned = new FunctionPruningTransformer([]).transform(
+        new ComponentPruningTransformer(['Column', 'Text']).transform(source()),
+      );
+      const compiler = new ExpressCompiler([pruned], 'v1.0');
+      expect(
+        createSurfaceComponents(compiler.compile('root = Column([t])\nt = Text("hi")')),
+      ).toEqual([
+        {id: 'root', component: 'Column', children: ['t']},
+        {id: 't', component: 'Text', text: 'hi'},
+      ]);
+      expect(() => compiler.compile('root = Button(Text("Click"))')).toThrow(
+        ExpressValidationError,
+      );
+    });
+
+    it('ignores changes the caller makes to the document after loading', () => {
+      const document: Record<string, unknown> = {
+        catalogId: 'test/mutable',
+        protocolVersion: '1.0',
+        components: {
+          Label: {
+            type: 'object',
+            properties: {component: {const: 'Label'}, text: {type: 'string'}},
+            required: ['component', 'text'],
+          },
+        },
+      };
+      const catalog = new InMemoryCatalogProvider(document).load();
+      const label = (document.components as Record<string, Record<string, unknown>>).Label;
+      label.properties = {component: {const: 'Label'}, caption: {type: 'string'}};
+      label.required = ['component', 'caption'];
+
+      const messages = new ExpressCompiler([catalog], 'v1.0').compile('root = Label("hi")');
+      expect(createSurfaceComponents(messages)).toEqual([
+        {id: 'root', component: 'Label', text: 'hi'},
+      ]);
     });
   });
 });

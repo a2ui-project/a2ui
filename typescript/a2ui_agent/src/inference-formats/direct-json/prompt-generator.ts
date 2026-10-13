@@ -72,7 +72,7 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     if (catalog.instructions) {
       parts.push(catalog.instructions);
     }
-    parts.push(JSON.stringify(catalog.catalogSchema));
+    parts.push(JSON.stringify(catalog.validationSchema));
     return parts.join('\n');
   }
 

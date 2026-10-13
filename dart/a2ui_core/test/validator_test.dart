@@ -802,7 +802,7 @@ void v1RulesTests() {
 
       expect(catalog.protocolVersion, A2uiProtocolVersion.v1_0);
       expect(catalog.copyWith().protocolVersion, A2uiProtocolVersion.v1_0);
-      expect(catalog.catalogSchema['protocolVersion'], '1.0');
+      expect(catalog.validationSchema['protocolVersion'], '1.0');
       expect(_versionedCatalog(null).protocolVersion, isNull);
     });
   });
@@ -1085,7 +1085,7 @@ void v1RulesTests() {
               ],
             },
           },
-        }).components['Box']!.schema.value['properties'],
+        }).resolvedComponentSchemas['Box']!.value['properties'],
         containsPair('label', anything),
       );
     });

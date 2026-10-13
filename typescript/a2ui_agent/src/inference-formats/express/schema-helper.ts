@@ -23,7 +23,6 @@
 
 import {A2uiCatalogError} from '../../errors.js';
 import {CatalogApi, V09_STANDARD_DEFS, V10_STANDARD_DEFS} from '../../internal/web-core.js';
-import {getCatalogDocument} from '../../utils/catalog-document.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 
 const COMMON_DEF_REGEX = /(?:^|\/)common_types\.json#\/(?:\$defs|definitions)\/(\w+)$/;
@@ -200,7 +199,7 @@ export class CatalogSchemaHelper {
   private readonly functionRequired = new Map<string, string[]>();
 
   constructor(catalog: CatalogApi, protocolVersion: string) {
-    this.catalog = getCatalogDocument(catalog);
+    this.catalog = catalog.toJson();
     this.commonTypes = {$defs: standardDefsFor(protocolVersion)};
     this.keys = reservedKeysFor(protocolVersion);
 

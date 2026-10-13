@@ -28,7 +28,7 @@
       "description": "Checks that the value is not null, undefined or empty.",
       "returnType": "validationResult",
       "properties": {
-        "call": { "const": "required" },
+        "@call": { "const": "required" },
         "args": {
           "type": "object",
           "properties": { "value": {} },
@@ -36,14 +36,14 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     },
     "regex": {
       "type": "object",
       "description": "Checks the value against a regular expression.",
       "returnType": "validationResult",
       "properties": {
-        "call": { "const": "regex" },
+        "@call": { "const": "regex" },
         "args": {
           "type": "object",
           "properties": {
@@ -54,7 +54,7 @@
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"]
+      "required": ["@call", "args"]
     }
   },
   "$defs": {
@@ -67,7 +67,7 @@
         { "$ref": "#/functions/required" },
         { "$ref": "#/functions/regex" }
       ],
-      "discriminator": { "propertyName": "call" }
+      "discriminator": { "propertyName": "@call" }
     }
   }
 }

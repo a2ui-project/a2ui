@@ -66,6 +66,7 @@ void main() {
         protocolVersion: A2uiProtocolVersion.v0_9,
         components: parsed.components.values.toList(),
         functions: [openUrl],
+        definitions: parsed.definitions,
       );
       processor = MessageProcessor<ComponentApi>(
         catalogs: [catalog],
@@ -238,6 +239,7 @@ void main() {
       id: parsed.id,
       protocolVersion: A2uiProtocolVersion.v0_9,
       components: parsed.components.values.toList(),
+      definitions: parsed.definitions,
     );
     final surface = SurfaceModel<ComponentApi>('s', defaultCatalog: catalog);
     final resolver = NodeResolver<ComponentApi>(surface);

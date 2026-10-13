@@ -581,7 +581,7 @@ void main() {
           jsonEncode(PayloadValidator.commonTypesFor(A2uiProtocolVersion.v0_9)),
         ),
       );
-      expect(text, contains(jsonEncode(basic.catalogSchema)));
+      expect(text, contains(jsonEncode(basic.validationSchema)));
       expect(text, contains('"version": "v0.9"'));
     });
 

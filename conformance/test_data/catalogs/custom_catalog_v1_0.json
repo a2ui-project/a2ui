@@ -10,9 +10,9 @@
       "type": "object",
       "description": "Plots a series of numbers.",
       "properties": {
-        "component": { "const": "Chart" },
-        "values": { "type": "array", "items": { "type": "number" } },
-        "caption": { "type": "string" }
+        "component": {"const": "Chart"},
+        "values": {"type": "array", "items": {"type": "number"}},
+        "caption": {"type": "string"}
       },
       "required": ["component", "values"]
     },
@@ -20,8 +20,8 @@
       "type": "object",
       "description": "Shows a single value on a scale.",
       "properties": {
-        "component": { "const": "Gauge" },
-        "value": { "type": "number" }
+        "component": {"const": "Gauge"},
+        "value": {"type": "number"}
       },
       "required": ["component", "value"]
     }
@@ -32,24 +32,23 @@
       "description": "Renders a ratio as a percentage string.",
       "returnType": "string",
       "properties": {
-        "call": { "const": "percent" },
+        "@call": {"const": "percent"},
         "args": {
           "type": "object",
-          "properties": { "value": { "type": "number" } },
+          "properties": {"value": {"type": "number"}},
           "required": ["value"],
           "unevaluatedProperties": false
         }
       },
-      "required": ["call", "args"],
-      "unevaluatedProperties": false
+      "required": ["@call", "args"]
     }
   },
   "$defs": {
     "anyComponent": {
-      "oneOf": [{ "$ref": "#/components/Chart" }, { "$ref": "#/components/Gauge" }]
+      "oneOf": [{"$ref": "#/components/Chart"}, {"$ref": "#/components/Gauge"}]
     },
     "anyFunction": {
-      "oneOf": [{ "$ref": "#/functions/percent" }]
+      "oneOf": [{"$ref": "#/functions/percent"}]
     }
   }
 }

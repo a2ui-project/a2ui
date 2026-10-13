@@ -510,7 +510,7 @@ class NodeResolver<T extends ComponentApi> {
     }
 
     _clearDispatched(componentId, dataPath);
-    final Schema schema = api.schema;
+    final Schema schema = catalog.resolvedComponentSchema(model.type)!;
     final context = ComponentContext(
       _surface,
       model,

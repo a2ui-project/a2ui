@@ -109,7 +109,7 @@ class GenericBinder {
         context.surface.resolveCatalog(context.componentModel.catalog);
     _schemaReader = ReferenceSchemaReader(
       schema.value,
-      document: catalog.catalogSchema,
+      document: catalog.validationSchema,
       commonTypes: catalog.commonTypesSchema,
     );
     _behaviorTree = _withAccessibility(_scrapeSchemaBehavior(schema.value));

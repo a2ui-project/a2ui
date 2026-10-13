@@ -20,7 +20,7 @@ import 'package:logging/logging.dart';
 import 'package:preact_signals/preact_signals.dart' show SignalEffectException;
 import 'package:test/test.dart';
 
-Catalog<ComponentApi, FunctionImplementation> _catalog() => Catalog(
+Catalog<ComponentApi, FunctionImplementation> _catalog() => _MutableCatalog(
       id: 'diagnostic-test',
       components: [
         ComponentApi(name: 'Text', schema: Schema.object()),
@@ -36,6 +36,18 @@ Catalog<ComponentApi, FunctionImplementation> _catalog() => Catalog(
         ),
       ],
     );
+
+/// A catalog whose components a test may add and remove while a surface
+/// uses it. [Catalog.components] is unmodifiable, so the tests that change
+/// the catalog under a live resolver work on a copy of it.
+class _MutableCatalog extends Catalog<ComponentApi, FunctionImplementation> {
+  _MutableCatalog({required super.id, required super.components});
+
+  late final Map<String, ComponentApi> _components = {...super.components};
+
+  @override
+  Map<String, ComponentApi> get components => _components;
+}
 
 void _add(
   SurfaceModel<ComponentApi> surface,
