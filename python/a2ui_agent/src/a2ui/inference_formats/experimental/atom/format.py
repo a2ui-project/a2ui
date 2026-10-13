@@ -18,14 +18,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from google.adk.utils.feature_decorator import experimental
-
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat
 from a2ui.inference_format import InferenceFormatFactory
 from a2ui.inference_formats._shared import check_mixed_catalogs
 from a2ui.parser import Parser
+from a2ui.utils._experimental import experimental
 
 from .parser import AtomParser
 from .prompt_generator import AtomPromptGenerator

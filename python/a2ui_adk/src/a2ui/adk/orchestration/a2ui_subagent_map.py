@@ -90,7 +90,7 @@ from a2ui.schema.constants import (
     A2UI_ERROR_KEY,
     A2UI_CLIENT_DATA_MODEL_SURFACES_KEY,
 )
-from a2ui.a2a.parts import is_a2ui_part
+from a2ui.a2a import is_a2ui_part
 from a2a.types import Part, DataPart
 
 

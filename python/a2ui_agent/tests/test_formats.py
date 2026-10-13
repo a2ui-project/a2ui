@@ -22,9 +22,7 @@ from a2ui.inference_formats.direct_json import (
     DirectJsonFormat,
     DirectJsonParser,
 )
-from a2ui.adk import A2uiPartConverter
 from a2ui.utils import resolve_catalogs
-from google.genai import types as genai_types
 from a2ui.inference_formats.experimental.express import ExpressFormat, ExpressParser
 from a2ui.inference_formats.experimental.elemental import (
     ElementalFormat,
@@ -134,18 +132,15 @@ def test_schema_parser_with_nested_close_tag(test_catalog):
     )
 
 
-def test_strategy_based_converters(test_catalog, monkeypatch):
+def test_direct_json_parser_extracts_tagged_block(test_catalog, monkeypatch):
     monkeypatch.setenv("A2UI_VERSION_1_0", "true")
-    # Test JSON default (DirectJsonParser)
-    json_converter = A2uiPartConverter(catalogs=[test_catalog])
-    part_json = genai_types.Part(
-        text=(
-            '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
-            ' "catalogId": "https://a2ui.org/test_catalog"}}]</a2ui-json>'
-        )
+    parser = DirectJsonFormat([test_catalog]).create_parser()
+    parsed = parser.parse_response(
+        '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
+        ' "catalogId": "https://a2ui.org/test_catalog"}}]</a2ui-json>'
     )
-    parts_json = json_converter.convert(part_json)
-    assert len(parts_json) == 1
+    a2ui_parts = [p for p in parsed if p.a2ui is not None]
+    assert len(a2ui_parts) == 1
 
 
 def test_supports_streaming_property(test_catalog):

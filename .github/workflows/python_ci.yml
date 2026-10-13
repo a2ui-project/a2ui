@@ -84,6 +84,18 @@ jobs:
           done
       - name: Install Dependencies
         run: uv sync --all-packages
+      - name: Check Agent SDK Installs Without Agent Frameworks
+        # The workspace venv has every package installed, so this check uses an
+        # isolated environment with only a2ui-core and a2ui-agent-sdk.
+        run: |
+          uv run --isolated --no-project \
+            --with ./python/a2ui_core --with ./python/a2ui_agent \
+            python -c "
+          import importlib.util
+          import a2ui.extensions.file_resolve, a2ui.inference_formats, a2ui.parser, a2ui.processor
+          leaked = [m for m in ('a2a', 'google.adk', 'google.genai') if importlib.util.find_spec(m.split('.')[0]) and importlib.util.find_spec(m)]
+          assert not leaked, f'a2ui-agent-sdk pulls in agent frameworks: {leaked}'
+          "
       - name: Set Up Java
         uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
         with:

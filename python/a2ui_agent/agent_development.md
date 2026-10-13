@@ -22,6 +22,8 @@ The `agent_sdk` revolves around four main classes:
 ## Prerequisites
 
 - Install the SDK: `pip install a2ui-agent-sdk`
+- To serve A2UI over A2A, also install the A2A extension: `pip install a2ui-a2a`
+- To use the ADK toolset and converters, also install the ADK extension: `pip install "a2ui-adk[a2a]"`
 
 ## Generating A2UI Messages
 
@@ -174,7 +176,7 @@ agent_executor = MyAgentExecutor(
 Before processing a request, negotiate which version of the A2UI extension to activate based on the client request and your agent's advertised capabilities.
 
 ```python
-from a2ui.a2a.extension import try_activate_a2ui_extension
+from a2ui.a2a import try_activate_a2ui_extension
 
 # In your request handler:
 activated_version = try_activate_a2ui_extension(context, agent_card)

@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 
 from google.adk.sessions.session import Session
 
-from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap, SurfaceIdAlreadyExistsError
+from a2ui.adk import A2uiSubagentMap, SurfaceIdAlreadyExistsError
 from a2ui.schema.constants import A2UI_CLIENT_DATA_MODEL_SURFACES_KEY
 from a2a.types import DataPart, TextPart
 

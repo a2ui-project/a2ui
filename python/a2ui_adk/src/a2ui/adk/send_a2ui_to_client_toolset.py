@@ -79,6 +79,7 @@ Usage Examples:
 import inspect
 import logging
 from typing import (
+    TYPE_CHECKING,
     Any,
     Awaitable,
     Callable,
@@ -93,7 +94,6 @@ from google.adk.tools import tool_context
 from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
 
-from a2ui.adk.a2a import A2uiPartConverter
 from a2ui.core import A2uiValidationError, Catalog, CatalogApi
 from a2ui.inference_formats.direct_json import schema_to_prompt
 from a2ui.parser import parse_and_fix
@@ -104,6 +104,9 @@ from a2ui.schema.constants import (
     A2UI_VALIDATED_JSON_KEY,
 )
 from a2ui.utils import validate_payload
+
+if TYPE_CHECKING:
+    from a2ui.adk.a2a import A2uiPartConverter
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +187,13 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
         Returns:
             A configured A2uiPartConverter.
+
+        Raises:
+            ImportError: If the `a2a` extra (`pip install "a2ui-adk[a2a]"`) is
+              not installed.
         """
+        from a2ui.adk.a2a import A2uiPartConverter
+
         catalog = await self._ui_tool._resolve_a2ui_catalog(ctx)
         return A2uiPartConverter([catalog])
 

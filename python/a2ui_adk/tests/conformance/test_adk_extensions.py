@@ -33,7 +33,7 @@ cases_adk_extensions = get_conformance_cases("extensions/adk/adk_extensions.yaml
     ids=[c[0] for c in cases_adk_extensions],
 )
 def test_adk_extensions_conformance(name, test_case):
-    from a2ui.adk.send_a2ui_to_client_toolset import SendA2uiToClientToolset
+    from a2ui.adk import SendA2uiToClientToolset
     from a2ui.core import Catalog
     from unittest.mock import MagicMock, patch
 
@@ -83,11 +83,8 @@ def test_adk_extensions_conformance(name, test_case):
     elif action == "convert_event":
         # Handle Subagent Map or Event Converter
         if "subagent" in args and "message" in args:
-            from a2ui.adk.orchestration.a2ui_subagent_map import (
-                A2uiSubagentMap,
-                SurfaceIdAlreadyExistsError,
-            )
-            from a2ui.a2a.parts import create_a2ui_part
+            from a2ui.adk import A2uiSubagentMap, SurfaceIdAlreadyExistsError
+            from a2ui.a2a import create_a2ui_part
             from unittest.mock import AsyncMock, MagicMock
             from google.adk.sessions.session import Session
 
@@ -130,7 +127,7 @@ def test_adk_extensions_conformance(name, test_case):
                     assert event.actions.state_delta == expect["stateDelta"]
 
     elif action == "data_model":
-        from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap
+        from a2ui.adk import A2uiSubagentMap
         import copy
 
         subagent = args.get("subagent")

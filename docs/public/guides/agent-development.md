@@ -100,7 +100,7 @@ Select `my_agent` from the list, and ask questions about restaurants in New York
 
 Getting the LLM to generate A2UI messages requires some prompt engineering. The SDK provides the `DirectJsonFormat` inference format to help you generate a system prompt that includes the A2UI schema and examples from your component catalog.
 
-First, make sure you have `a2ui-agent-sdk` installed (it is included in the samples).
+First, make sure you have `a2ui-agent-sdk` installed (it is included in the samples). The agent SDK does not depend on an agent framework. The A2A and ADK integrations are separate packages: install `a2ui-a2a` to serve A2UI over A2A, and `a2ui-adk[a2a]` to use the ADK toolset and converters.
 
 In your agent file (e.g., `agent.py`), import the necessary classes:
 

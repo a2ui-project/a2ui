@@ -52,7 +52,7 @@ from a2a.client.middleware import ClientCallContext, ClientCallInterceptor
 from a2a.extensions.common import HTTP_EXTENSION_HEADER
 from a2a.types import TransportProtocol as A2ATransport, AgentCard, AgentCapabilities, Message
 
-from a2ui.a2a.extension import (
+from a2ui.a2a import (
     try_activate_a2ui_extension,
     get_a2ui_extension_uri,
     A2UI_EXTENSION_BASE_URI,

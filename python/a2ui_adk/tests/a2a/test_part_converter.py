@@ -344,3 +344,27 @@ def test_converter_class_convert_tool_response_with_result_containing_invalid_a2
     a2a_parts = converter.convert(part)
     assert len(a2a_parts) == 1
     assert a2a_parts[0].root.text == custom_fallback
+
+
+def test_converter_uses_direct_json_parser_by_default(monkeypatch):
+    monkeypatch.setenv("A2UI_VERSION_1_0", "true")
+    catalog = Catalog.from_json(
+        {
+            "catalogId": "https://a2ui.org/test_catalog",
+            "components": {
+                "Text": {
+                    "properties": {"text": {"type": "string", "positionalIndex": 0}}
+                }
+            },
+        },
+        protocol_version="v0.9",
+    )
+    json_converter = A2uiPartConverter(catalogs=[catalog])
+    part_json = genai_types.Part(
+        text=(
+            '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "main",'
+            ' "catalogId": "https://a2ui.org/test_catalog"}}]</a2ui-json>'
+        )
+    )
+    parts_json = json_converter.convert(part_json)
+    assert len(parts_json) == 1
