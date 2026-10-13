@@ -534,8 +534,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     );
 
     final Object? rawVersion = json['protocolVersion'];
-    final A2uiProtocolVersion? declaredVersion =
-        _parseProtocolVersion(rawVersion, rawId);
+    final A2uiProtocolVersion? declaredVersion = _parseProtocolVersion(
+      rawVersion,
+      rawId,
+    );
     final A2uiProtocolVersion? version = declaredVersion ?? protocolVersion;
     final bool v1 = version?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
 
@@ -826,12 +828,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
       final Object? parents = compVal['allowedParents'];
       final Object? children = compVal['allowedChildren'];
-      final Map<String, Object?> schema = _markRead(_frozenCopy({
-        for (final MapEntry<Object?, Object?> property in compVal.entries)
-          if (property.key != 'allowedParents' &&
-              property.key != 'allowedChildren')
-            property.key: property.value,
-      })! as Map<String, Object?>);
+      final Map<String, Object?> schema = _markRead(
+        _frozenCopy({
+          for (final MapEntry<Object?, Object?> property in compVal.entries)
+            if (property.key != 'allowedParents' &&
+                property.key != 'allowedChildren')
+              property.key: property.value,
+        })! as Map<String, Object?>,
+      );
       components.add(
         ComponentApi(
           name: compName,
@@ -1072,8 +1076,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   final Map<ComponentApi, _FlatComponent> _flatComponents = Map.identity();
 
   _FlatComponent _flatOf(ComponentApi component) =>
-      _flatComponents[component] ??=
-          _flatten(component.name, component.schema.value);
+      _flatComponents[component] ??= _flatten(
+        component.name,
+        component.schema.value,
+      );
 
   /// [compMap], the schema of the component [compName], flattened as
   /// [resolvedComponentSchemas] describes.
@@ -1407,11 +1413,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     String pointer,
   ) {
     if (!pointer.startsWith('#/')) return null;
-    final Iterable<String> segments =
-        pointer.substring(2).split('/').map((s) => s.replaceAllMapped(
-              RegExp(r'~([01])'),
-              (m) => m[1] == '1' ? '/' : '~',
-            ));
+    final Iterable<String> segments = pointer.substring(2).split('/').map(
+          (s) => s.replaceAllMapped(
+            RegExp(r'~([01])'),
+            (m) => m[1] == '1' ? '/' : '~',
+          ),
+        );
     Object? current = rootDoc;
     for (final seg in segments) {
       if (current is Map && current.containsKey(seg)) {
@@ -1546,7 +1553,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   ///
   /// So a catalog read by [Catalog.fromJson] writes back the document it was
   /// read from: `Catalog.fromJson(json).toJson()` equals `json`, up to the
-  /// order of object keys and of `enum` values and `required` names.
+  /// order of object keys and of `enum` values and `required` names. Because
+  /// [Catalog.fromJson] loads only the components and functions listed in
+  /// `anyComponent.oneOf` and `anyFunction.oneOf`, entries that the document's
+  /// union left out are omitted.
   ///
   /// Built on first call and cached; each call returns a fresh copy that the
   /// caller may edit.
@@ -1569,10 +1579,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         themeSchema == null ? null : _asWritten(themeSchema!.value);
     final defs = <String, Object?>{
       for (final MapEntry<String, Object?> entry in definitions.entries)
-        entry.key: _deepCopyValue(entry.value),
+        if (entry.key != 'anyFunction') entry.key: _deepCopyValue(entry.value),
       if (theme != null && themeInDefs) 'theme': theme,
       if (layout.writesComponentUnion)
         'anyComponent': _componentUnionOf(components.keys),
+      if (definitions.containsKey('anyFunction'))
+        'anyFunction': _deepCopyValue(definitions['anyFunction']),
       if (layout.writesFunctionUnion ?? (functions.isNotEmpty || v1))
         'anyFunction': _functionUnionOf(functions.keys),
     };
@@ -1636,14 +1648,20 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       };
 
   /// The catalog document definition of [function]: its
-  /// [FunctionApi.definition] when it has one, and otherwise its signature
-  /// in the shape of [protocolVersion].
+  /// [FunctionApi.definition] when it has one matching [protocolVersion]'s
+  /// call key, and otherwise its signature in the shape of [protocolVersion].
   Map<String, Object?> _functionDocument(String name, FunctionApi function) {
+    final String callKey = _callKey;
+    final otherCallKey = _isAtLeastV1 ? 'call' : r'@call';
     if (function.definition case final Map<String, Object?> definition) {
-      return _deepCopyValue(definition)! as Map<String, Object?>;
+      final Object? props = definition['properties'];
+      if (props is! Map ||
+          props.containsKey(callKey) ||
+          !props.containsKey(otherCallKey)) {
+        return _deepCopyValue(definition)! as Map<String, Object?>;
+      }
     }
     final Object? args = _asWritten(function.argumentSchema.value);
-    final String callKey = _callKey;
     final required = <String>[
       callKey,
       if (_hasRequiredParameters(function.argumentSchema)) 'args',
@@ -1953,10 +1971,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       'properties': <String, Object?>{
         callKey: <String, Object?>{'const': name},
         'args': argsValue,
-        if (!v1)
-          'returnType': <String, Object?>{
-            'const': fn.returnType.jsonValue,
-          },
+        'returnType': <String, Object?>{'const': fn.returnType.jsonValue},
       },
       'required': required,
       'unevaluatedProperties': false,
@@ -2105,7 +2120,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         final target = map['commonTypesRef'] as String;
         map.removeWhere((k, _) => !_annotationKeywords.contains(k));
         _localizeRef(
-            map, _commonTypesFragment(target) ?? target.split('/').last);
+          map,
+          _commonTypesFragment(target) ?? target.split('/').last,
+        );
         return;
       }
       final Object? ref = map[r'$ref'];
@@ -2150,6 +2167,15 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         (components ?? this.components.values).toList();
     final List<F> newFunctions = (functions ?? this.functions.values).toList();
     final Schema? newTheme = themeSchema ?? this.themeSchema;
+    final A2uiProtocolVersion? nextVersion =
+        protocolVersion ?? this.protocolVersion;
+    final bool nextIsAtLeastV1 =
+        nextVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
+    final Map<String, Object?> nextDefs = _definitionsFor(
+      newComponents,
+      newFunctions,
+      newTheme,
+    );
     return Catalog<C, F>._(
       id: id,
       components: newComponents,
@@ -2159,15 +2185,40 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       schemaId: schemaId,
       title: title,
       description: description,
-      protocolVersion: protocolVersion ?? this.protocolVersion,
+      protocolVersion: nextVersion,
       declaredProtocolVersion:
           protocolVersion == null || protocolVersion == this.protocolVersion
               ? _declaredProtocolVersion
               : protocolVersion.semverValue,
       instructions: instructions,
-      definitions: _definitionsFor(newComponents, newFunctions, newTheme),
+      definitions: {
+        for (final MapEntry<String, Object?> entry in nextDefs.entries)
+          if ((components == null || entry.key != 'anyComponent') &&
+              (functions == null || entry.key != 'anyFunction'))
+            entry.key: entry.value,
+      },
       otherFields: _otherFields,
-      layout: _layout,
+      layout: _DocumentLayout(
+        writesCatalogId: _layout.writesCatalogId,
+        writesComponents: _layout.writesComponents,
+        writesFunctions: _layout.writesFunctions,
+        listsFunctions: nextIsAtLeastV1 ? false : _layout.listsFunctions,
+        writesDefs: _layout.writesDefs,
+        themeInDefs: _layout.themeInDefs,
+        writesComponentUnion: components != null
+            ? (_layout.writesComponentUnion ||
+                definitions.containsKey('anyComponent'))
+            : _layout.writesComponentUnion,
+        writesFunctionUnion: functions != null
+            ? (definitions.containsKey('anyFunction')
+                ? true
+                : _layout.writesFunctionUnion)
+            : (nextIsAtLeastV1 &&
+                    _layout.writesFunctionUnion == null &&
+                    !definitions.containsKey('anyFunction')
+                ? true
+                : _layout.writesFunctionUnion),
+      ),
     );
   }
 
@@ -2192,7 +2243,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           theme?.value,
         ]);
     final Set<String> before = referencedBy(
-        this.components.values, this.functions.values, themeSchema);
+      this.components.values,
+      this.functions.values,
+      themeSchema,
+    );
     final Set<String> after = referencedBy(components, functions, theme);
     return {
       for (final MapEntry<String, Object?> entry in definitions.entries)
@@ -2258,8 +2312,11 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       protocolVersion: protocolVersion,
       declaredProtocolVersion: _declaredProtocolVersion,
       instructions: instructions,
-      definitions:
-          _definitionsFor(components.values, newFunctions, themeSchema),
+      definitions: _definitionsFor(
+        components.values,
+        newFunctions,
+        themeSchema,
+      ),
       otherFields: _otherFields,
       layout: _layout,
     );

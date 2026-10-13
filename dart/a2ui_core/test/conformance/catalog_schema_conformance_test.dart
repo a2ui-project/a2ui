@@ -54,6 +54,10 @@ const String _noV08 = 'Targets v0.8, which a2ui_core does not implement.';
 
 /// Cases whose expected outcome Dart does not produce, with the reason.
 const Map<String, String> _knownDivergences = {
+  // See #2994: PayloadValidator._resolutionDocument appends the v1.0 catch-all
+  // branch to anyFunction so undeclared agent-bound function calls pass payload
+  // validation and are forwarded to the agent, whereas Catalog.validationSchema
+  // omits the catch-all branch.
   'test_v10_published_basic_catalog_validates_function_calls':
       'From v1.0, PayloadValidator accepts a call to a function the catalog '
           'does not declare, because the renderer forwards it to the agent.',
@@ -133,8 +137,9 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
   );
   final Map<String, Object?> expected =
       (testCase['expect'] as Map?)?.cast<String, Object?>() ?? const {};
-  final Set<String> unknown =
-      expected.keys.toSet().difference(_fromJsonExpectKeys);
+  final Set<String> unknown = expected.keys.toSet().difference(
+        _fromJsonExpectKeys,
+      );
   if (unknown.isNotEmpty) {
     fail('$name: unsupported from_json expectations $unknown');
   }
@@ -279,10 +284,10 @@ A2uiProtocolVersion? _version(Map<String, Object?> testCase) =>
 /// Compares `validationSchema` with the golden document at `expectFile`,
 /// ignoring object key order and the order of `enum` and `required`.
 ///
-/// A case naming a catalog by `catalogPath` loads the published document:
-/// the Dart basic catalogs implement the published functions but none of
-/// the components, so they do not implement the catalog the document
-/// describes.
+/// A case naming a catalog by `catalogPath` loads the published document
+/// with `fromJson`, even when this package implements that catalog itself:
+/// equivalence with the built-in catalog is covered by
+/// `matchesBuiltinCatalog` in the `from_json` cases.
 void _runValidationSchemaCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final Map<String, Object?> source = _document(
@@ -297,8 +302,10 @@ void _runValidationSchemaCase(Map<String, Object?> testCase) {
     return;
   }
 
-  final Map<String, Object?> document =
-      _load(testCase, source).validationSchema;
+  final Map<String, Object?> document = _load(
+    testCase,
+    source,
+  ).validationSchema;
   final String goldenPath = resolveConformancePath(
     testCase['expectFile']! as String,
   );
@@ -453,8 +460,10 @@ void _runToJsonCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final CatalogApi catalog;
   if (testCase['builtinCatalog'] case final String builtin) {
-    final CatalogApi? implemented =
-        _builtinCatalog(builtin, _version(testCase));
+    final CatalogApi? implemented = _builtinCatalog(
+      builtin,
+      _version(testCase),
+    );
     if (implemented == null) {
       markTestSkipped(
         'a2ui_core has no built-in $builtin catalog for '
@@ -472,8 +481,10 @@ void _runToJsonCase(Map<String, Object?> testCase) {
 
   final Map<String, Object?> expected = _document(testCase['expectFile']);
   final List<String> differences = [
-    for (final (String path, String detail)
-        in _differences(catalog.toJson(), expected))
+    for (final (String path, String detail) in _differences(
+      catalog.toJson(),
+      expected,
+    ))
       '$path: $detail',
   ];
   if (differences.isNotEmpty) {
@@ -496,7 +507,9 @@ CatalogApi? _builtinCatalog(String name, A2uiProtocolVersion? version) =>
 /// Loads [document] as a case's catalog, with the case's protocol version
 /// and catalog id.
 CatalogApi _load(
-        Map<String, Object?> testCase, Map<String, Object?> document) =>
+  Map<String, Object?> testCase,
+  Map<String, Object?> document,
+) =>
     Catalog.fromJson(
       document,
       protocolVersion: _version(testCase),

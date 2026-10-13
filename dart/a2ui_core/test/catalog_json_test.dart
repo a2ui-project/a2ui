@@ -64,7 +64,7 @@ void main() {
             'properties': {
               'size': {
                 'type': 'string',
-                'enum': ['s', 'm']
+                'enum': ['s', 'm'],
               },
             },
             'allOf': [
@@ -74,7 +74,7 @@ void main() {
                   'component': {'const': 'Toggle'},
                   'checks': {
                     'type': 'string',
-                    'enum': ['strict']
+                    'enum': ['strict'],
                   },
                   'label': {'type': 'string'},
                   'size': {'type': 'boolean'},
@@ -207,8 +207,11 @@ void main() {
             'components': <String, Object?>{},
           }),
           throwsA(
-            isA<A2uiCatalogError>()
-                .having((e) => e.catalogId, 'catalogId', 'versioned'),
+            isA<A2uiCatalogError>().having(
+              (e) => e.catalogId,
+              'catalogId',
+              'versioned',
+            ),
           ),
           reason: '$spelling',
         );
@@ -314,156 +317,144 @@ void main() {
     });
 
     test(
-      'rejects validationResult function returnType when effective '
-      'protocolVersion is below 1.0',
-      () {
-        Map<String, Object?> docWithVersion(String? protocolVersion) => {
-              'catalogId': 'https://example.com/pre_v1_validation_catalog',
-              if (protocolVersion != null) 'protocolVersion': protocolVersion,
-              'functions': {
-                'checkEmail': {
-                  'returnType': 'validationResult',
-                  'parameters': {
-                    'type': 'object',
-                    'properties': {
-                      'value': {'type': 'string'},
-                    },
+        'rejects validationResult function returnType when effective '
+        'protocolVersion is below 1.0', () {
+      Map<String, Object?> docWithVersion(String? protocolVersion) => {
+            'catalogId': 'https://example.com/pre_v1_validation_catalog',
+            if (protocolVersion != null) 'protocolVersion': protocolVersion,
+            'functions': {
+              'checkEmail': {
+                'returnType': 'validationResult',
+                'parameters': {
+                  'type': 'object',
+                  'properties': {
+                    'value': {'type': 'string'},
                   },
                 },
               },
-            };
+            },
+          };
 
-        for (final String? badVersion in [null, '0.9', 'v0.9', '0.9.1']) {
-          expect(
-            () => Catalog.fromJson(docWithVersion(badVersion)),
-            throwsA(
-              isA<A2uiCatalogError>().having(
-                (e) => e.message,
-                'message',
-                allOf(
-                  contains('checkEmail'),
-                  contains('validationResult'),
-                ),
+      for (final String? badVersion in [null, '0.9', 'v0.9', '0.9.1']) {
+        expect(
+          () => Catalog.fromJson(docWithVersion(badVersion)),
+          throwsA(
+            isA<A2uiCatalogError>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('checkEmail'), contains('validationResult')),
+            ),
+          ),
+          reason: 'Catalog.fromJson with protocolVersion=$badVersion',
+        );
+        expect(
+          () => Catalog<ComponentApi, FunctionApi>(
+            id: 'https://example.com/pre_v1_validation_catalog',
+            protocolVersion: badVersion == null
+                ? null
+                : A2uiProtocolVersion.tryParseSemVer(badVersion),
+            components: const [],
+            functions: [
+              FunctionApi(
+                name: 'checkEmail',
+                argumentSchema: S.object(),
+                returnType: A2uiReturnType.validationResult,
               ),
+            ],
+          ),
+          throwsA(
+            isA<A2uiCatalogError>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('checkEmail'), contains('validationResult')),
             ),
-            reason: 'Catalog.fromJson with protocolVersion=$badVersion',
-          );
-          expect(
-            () => Catalog<ComponentApi, FunctionApi>(
-              id: 'https://example.com/pre_v1_validation_catalog',
-              protocolVersion: badVersion == null
-                  ? null
-                  : A2uiProtocolVersion.tryParseSemVer(badVersion),
-              components: const [],
-              functions: [
-                FunctionApi(
-                  name: 'checkEmail',
-                  argumentSchema: S.object(),
-                  returnType: A2uiReturnType.validationResult,
-                ),
-              ],
-            ),
-            throwsA(
-              isA<A2uiCatalogError>().having(
-                (e) => e.message,
-                'message',
-                allOf(
-                  contains('checkEmail'),
-                  contains('validationResult'),
-                ),
-              ),
-            ),
-            reason: 'Catalog(...) constructor with protocolVersion=$badVersion',
-          );
-        }
+          ),
+          reason: 'Catalog(...) constructor with protocolVersion=$badVersion',
+        );
+      }
 
-        for (final goodVersion in ['1.0', 'v1.0']) {
-          expect(
-            Catalog.fromJson(docWithVersion(goodVersion))
-                .functions['checkEmail']!
-                .returnType,
-            A2uiReturnType.validationResult,
-          );
-          expect(
-            Catalog<ComponentApi, FunctionApi>(
-              id: 'https://example.com/v1_validation_catalog',
-              protocolVersion: A2uiProtocolVersion.tryParseSemVer(goodVersion),
-              components: const [],
-              functions: [
-                FunctionApi(
-                  name: 'checkEmail',
-                  argumentSchema: S.object(),
-                  returnType: A2uiReturnType.validationResult,
-                ),
-              ],
-            ).functions['checkEmail']!.returnType,
-            A2uiReturnType.validationResult,
-          );
-        }
-      },
-    );
+      for (final goodVersion in ['1.0', 'v1.0']) {
+        expect(
+          Catalog.fromJson(
+            docWithVersion(goodVersion),
+          ).functions['checkEmail']!.returnType,
+          A2uiReturnType.validationResult,
+        );
+        expect(
+          Catalog<ComponentApi, FunctionApi>(
+            id: 'https://example.com/v1_validation_catalog',
+            protocolVersion: A2uiProtocolVersion.tryParseSemVer(goodVersion),
+            components: const [],
+            functions: [
+              FunctionApi(
+                name: 'checkEmail',
+                argumentSchema: S.object(),
+                returnType: A2uiReturnType.validationResult,
+              ),
+            ],
+          ).functions['checkEmail']!.returnType,
+          A2uiReturnType.validationResult,
+        );
+      }
+    });
 
     test(
-      'GenericBinder evaluates checks on a JSON-loaded catalog referencing '
-      'common_types.json#/\$defs/Checkable',
-      () {
-        final CatalogApi parsed = Catalog.fromJson(loadBasicCatalogJson());
-        final rendererCatalog = Catalog<ComponentApi, FunctionImplementation>(
-          id: parsed.id,
-          components: parsed.components.values.toList(),
-          functions: const [],
-        );
-        final surface = SurfaceModel<ComponentApi>(
-          's-json',
-          defaultCatalog: rendererCatalog,
-        );
-        addTearDown(surface.dispose);
+        'GenericBinder evaluates checks on a JSON-loaded catalog referencing '
+        'common_types.json#/\$defs/Checkable', () {
+      final CatalogApi parsed = Catalog.fromJson(loadBasicCatalogJson());
+      final rendererCatalog = Catalog<ComponentApi, FunctionImplementation>(
+        id: parsed.id,
+        components: parsed.components.values.toList(),
+        functions: const [],
+      );
+      final surface = SurfaceModel<ComponentApi>(
+        's-json',
+        defaultCatalog: rendererCatalog,
+      );
+      addTearDown(surface.dispose);
 
-        surface.dataModel.set('/isValidEmail', false);
-        final model = ComponentModel('tf1', 'TextField', {
-          'label': 'Email',
-          'value': 'invalid@',
-          'checks': [
-            {
-              'condition': {'path': '/isValidEmail'},
-              'message': 'Enter a valid email address',
-            },
-          ],
-        });
-        surface.componentsModel.addComponent(model);
+      surface.dataModel.set('/isValidEmail', false);
+      final model = ComponentModel('tf1', 'TextField', {
+        'label': 'Email',
+        'value': 'invalid@',
+        'checks': [
+          {
+            'condition': {'path': '/isValidEmail'},
+            'message': 'Enter a valid email address',
+          },
+        ],
+      });
+      surface.componentsModel.addComponent(model);
 
-        final binder = GenericBinder(
-          ComponentContext(surface, model),
-          rendererCatalog.components['TextField']!.schema,
-        );
-        addTearDown(binder.dispose);
+      final binder = GenericBinder(
+        ComponentContext(surface, model),
+        rendererCatalog.components['TextField']!.schema,
+      );
+      addTearDown(binder.dispose);
 
-        expect(binder.resolvedProps.value['isValid'], isFalse);
-        expect(binder.resolvedProps.value['validationErrors'], [
-          'Enter a valid email address',
-        ]);
-        expect(binder.resolvedProps.value['validationResults'], [
-          const ValidationResult(
-            valid: false,
-            message: 'Enter a valid email address',
-            severity: 'error',
-          ),
-        ]);
+      expect(binder.resolvedProps.value['isValid'], isFalse);
+      expect(binder.resolvedProps.value['validationErrors'], [
+        'Enter a valid email address',
+      ]);
+      expect(binder.resolvedProps.value['validationResults'], [
+        const ValidationResult(
+          valid: false,
+          message: 'Enter a valid email address',
+          severity: 'error',
+        ),
+      ]);
 
-        surface.dataModel.set('/isValidEmail', true);
-        expect(binder.resolvedProps.value['isValid'], isTrue);
-        expect(binder.resolvedProps.value['validationErrors'], isEmpty);
-        expect(binder.resolvedProps.value['validationResults'], isEmpty);
-      },
-    );
+      surface.dataModel.set('/isValidEmail', true);
+      expect(binder.resolvedProps.value['isValid'], isTrue);
+      expect(binder.resolvedProps.value['validationErrors'], isEmpty);
+      expect(binder.resolvedProps.value['validationResults'], isEmpty);
+    });
   });
 
   group('Catalog generics', () {
     test('separates function signatures from function implementations', () {
       // Agents hold schema-only functions; renderers hold implementations.
-      final CatalogApi agentCatalog = Catalog.fromJson(
-        loadBasicCatalogJson(),
-      );
+      final CatalogApi agentCatalog = Catalog.fromJson(loadBasicCatalogJson());
       expect(agentCatalog.functions.values, everyElement(isA<FunctionApi>()));
       expect(
         agentCatalog.functions.values,
@@ -493,8 +484,9 @@ void main() {
     }
 
     test('is @call from protocol 1.0', () {
-      final Map<String, Object?> schema =
-          functionSchema(A2uiProtocolVersion.v1_0);
+      final Map<String, Object?> schema = functionSchema(
+        A2uiProtocolVersion.v1_0,
+      );
       expect(
         (schema['properties']! as Map).keys,
         containsAll(<String>['@call', 'args']),
@@ -520,8 +512,9 @@ void main() {
     });
 
     test('writes the published v1 entry from protocol 1.0', () {
-      final Map<String, Object?> schema =
-          functionSchema(A2uiProtocolVersion.v1_0);
+      final Map<String, Object?> schema = functionSchema(
+        A2uiProtocolVersion.v1_0,
+      );
 
       expect(schema['returnType'], 'string');
       expect((schema['properties']! as Map).containsKey('returnType'), isFalse);
@@ -566,8 +559,9 @@ void main() {
     });
 
     test('closes the entry and restates returnType before protocol 1.0', () {
-      final Map<String, Object?> schema =
-          functionSchema(A2uiProtocolVersion.v0_9);
+      final Map<String, Object?> schema = functionSchema(
+        A2uiProtocolVersion.v0_9,
+      );
 
       expect(schema.containsKey('returnType'), isFalse);
       expect((schema['properties']! as Map)['returnType'], {'const': 'string'});
@@ -796,9 +790,9 @@ void main() {
   });
 
   group('Catalog.toJson of a document', () {
-    Map<String, Object?> load(String path) => jsonDecode(
-          File(resolveConformancePath(path)).readAsStringSync(),
-        ) as Map<String, Object?>;
+    Map<String, Object?> load(String path) =>
+        jsonDecode(File(resolveConformancePath(path)).readAsStringSync())
+            as Map<String, Object?>;
 
     for (final path in [
       '../catalogs/basic/v1/catalog.json',
@@ -826,15 +820,14 @@ void main() {
           },
         },
       };
-      final CatalogApi catalog =
-          Catalog.fromJson(source, catalogId: 'https://example.com/given');
+      final CatalogApi catalog = Catalog.fromJson(
+        source,
+        catalogId: 'https://example.com/given',
+      );
 
       expect(catalog.id, 'https://example.com/given');
       expect(catalog.toJson(), equals(source));
-      expect(
-        () => Catalog.fromJson(source),
-        throwsA(isA<A2uiCatalogError>()),
-      );
+      expect(() => Catalog.fromJson(source), throwsA(isA<A2uiCatalogError>()));
     });
 
     test('takes the passed catalogId over the declared one', () {
@@ -878,8 +871,10 @@ void main() {
 
       expect(catalog.components['Spacer']!.allowedParents, ['Surface']);
       expect(catalog.components['Spacer']!.allowedChildren, isEmpty);
-      expect(catalog.functions['launch']!.allowedCallers,
-          AllowedCallers.rendererOnly);
+      expect(
+        catalog.functions['launch']!.allowedCallers,
+        AllowedCallers.rendererOnly,
+      );
       expect(catalog.functions['launch']!.requiresUserActivation, isTrue);
       expect(catalog.functions['launch']!.description, 'Launches a URL.');
     });
@@ -928,8 +923,10 @@ void main() {
       };
 
       expect(
-        Catalog.fromJson(source, protocolVersion: A2uiProtocolVersion.v1_0)
-            .toJson(),
+        Catalog.fromJson(
+          source,
+          protocolVersion: A2uiProtocolVersion.v1_0,
+        ).toJson(),
         equals(source),
       );
     });
@@ -1140,14 +1137,16 @@ void main() {
     test('writes a replaced function from its signature', () {
       final CatalogApi catalog = Catalog.fromJson(_v10Document());
       final FunctionApi launch = catalog.functions['launch']!;
-      final CatalogApi changed = catalog.copyWith(functions: [
-        FunctionApi(
-          name: 'launch',
-          description: 'Opens a URL.',
-          returnType: launch.returnType,
-          argumentSchema: launch.argumentSchema,
-        ),
-      ]);
+      final CatalogApi changed = catalog.copyWith(
+        functions: [
+          FunctionApi(
+            name: 'launch',
+            description: 'Opens a URL.',
+            returnType: launch.returnType,
+            argumentSchema: launch.argumentSchema,
+          ),
+        ],
+      );
 
       final functions = changed.toJson()['functions']! as Map;
       final written = functions['launch']! as Map<String, Object?>;
@@ -1367,8 +1366,9 @@ void main() {
 
     test('writes the basic catalog functions as published', () {
       final published = jsonDecode(
-        File(resolveConformancePath('../catalogs/basic/v1/catalog.json'))
-            .readAsStringSync(),
+        File(
+          resolveConformancePath('../catalogs/basic/v1/catalog.json'),
+        ).readAsStringSync(),
       ) as Map<String, Object?>;
 
       final Map<String, Object?> out = BasicCatalog.v1_0().toJson();
@@ -1456,13 +1456,16 @@ void main() {
 
     for (final version in ['0.9', '1.0']) {
       test('is self-contained at version $version', () {
-        final Map<String, Object?> schema =
-            Catalog.fromJson(labelDocument(version)).validationSchema;
+        final Map<String, Object?> schema = Catalog.fromJson(
+          labelDocument(version),
+        ).validationSchema;
         final defs = schema[r'$defs']! as Map<String, Object?>;
 
         expect(jsonEncode(schema), isNot(contains('catalog.json#')));
-        expect(jsonEncode(defs['FunctionCall']),
-            contains(r'"#/$defs/anyFunction"'));
+        expect(
+          jsonEncode(defs['FunctionCall']),
+          contains(r'"#/$defs/anyFunction"'),
+        );
         // The label catalog has no functions, so its union matches nothing.
         expect(defs['anyFunction'], {'not': <String, Object?>{}});
       });
@@ -1473,8 +1476,9 @@ void main() {
         labelDocument(null),
         protocolVersion: A2uiProtocolVersion.v0_9,
       ).validationSchema;
-      final Map<String, Object?> declared =
-          Catalog.fromJson(labelDocument('0.9')).validationSchema;
+      final Map<String, Object?> declared = Catalog.fromJson(
+        labelDocument('0.9'),
+      ).validationSchema;
 
       expect(undeclared.containsKey('protocolVersion'), isFalse);
       expect(declared['protocolVersion'], '0.9');
@@ -1532,10 +1536,7 @@ void main() {
         'catalogId': 'v1',
         'protocolVersion': '1.0',
         'components': {
-          'Open': {
-            'type': 'object',
-            'properties': <String, Object?>{},
-          },
+          'Open': {'type': 'object', 'properties': <String, Object?>{}},
           'Closed': {
             'type': 'object',
             'properties': <String, Object?>{},
@@ -1956,8 +1957,9 @@ void main() {
             as Map)['args'] as Map)['properties'] as Map<String, Object?>;
 
     test('keeps the full path of a deep pointer into the common types', () {
-      final Map<String, Object?> schema =
-          Catalog.fromJson(document()).validationSchema;
+      final Map<String, Object?> schema = Catalog.fromJson(
+        document(),
+      ).validationSchema;
       const deep = {r'$ref': r'#/$defs/DynamicString/oneOf/0'};
 
       // No description: the pointer names part of a definition.
@@ -1967,8 +1969,9 @@ void main() {
     });
 
     test('keeps references to authored definitions and bundles them', () {
-      final Map<String, Object?> schema =
-          Catalog.fromJson(document()).validationSchema;
+      final Map<String, Object?> schema = Catalog.fromJson(
+        document(),
+      ).validationSchema;
       const ref = {r'$ref': r'#/$defs/PositiveInt'};
 
       expect(properties(schema)['count'], ref);
@@ -1986,15 +1989,19 @@ void main() {
       );
 
       expect(
-        () => validator.validateComponent(
-          {'id': 'c', 'component': 'Counter', 'count': 1},
-        ),
+        () => validator.validateComponent({
+          'id': 'c',
+          'component': 'Counter',
+          'count': 1,
+        }),
         returnsNormally,
       );
       expect(
-        () => validator.validateComponent(
-          {'id': 'c', 'component': 'Counter', 'count': 0},
-        ),
+        () => validator.validateComponent({
+          'id': 'c',
+          'component': 'Counter',
+          'count': 0,
+        }),
         throwsA(isA<A2uiValidationError>()),
       );
       expect(
@@ -2023,11 +2030,54 @@ void main() {
   group('Catalog.withFunctions', () {
     test('keeps the authored document and definitions', () {
       final CatalogApi catalog = Catalog.fromJson(_v10Document());
-      final Catalog<ComponentApi, FunctionApi> retyped =
-          catalog.withFunctions(catalog.functions.values);
+      final Catalog<ComponentApi, FunctionApi> retyped = catalog.withFunctions(
+        catalog.functions.values,
+      );
 
       expect(retyped.toJson(), equals(catalog.toJson()));
       expect(retyped.validationSchema, equals(catalog.validationSchema));
+    });
+  });
+
+  group('Catalog.copyWith', () {
+    test('recomputes an authored union when entries change', () {
+      final Map<String, Object?> doc = _v10Document();
+      // Give anyComponent a non-default order so fromJson keeps it in
+      // definitions.
+      (doc[r'$defs']! as Map)['anyComponent'] = {
+        'oneOf': [
+          {r'$ref': '#/components/Card'},
+          {r'$ref': '#/components/Spacer'},
+        ],
+        'discriminator': {'propertyName': 'component'},
+      };
+      final CatalogApi loaded = Catalog.fromJson(doc);
+      final CatalogApi pruned = loaded.copyWith(
+        components: [loaded.components['Card']!],
+      );
+
+      final defs = pruned.toJson()[r'$defs']! as Map<String, Object?>;
+      expect(defs['anyComponent'], {
+        'oneOf': [
+          {r'$ref': '#/components/Card'},
+        ],
+        'discriminator': {'propertyName': 'component'},
+      });
+    });
+
+    test('re-serializes functions when protocolVersion crosses v1.0', () {
+      final CatalogApi v09Loaded = Catalog.fromJson(loadBasicCatalogJson());
+      final CatalogApi upgraded = v09Loaded.copyWith(
+        protocolVersion: A2uiProtocolVersion.v1_0,
+      );
+      final Map<String, Object?> json = upgraded.toJson();
+      expect(json['protocolVersion'], '1.0');
+      final functions = json['functions']! as Map<String, Object?>;
+      final requiredFn = functions['required']! as Map<String, Object?>;
+      expect(requiredFn['returnType'], 'boolean');
+      final props = requiredFn['properties']! as Map<String, Object?>;
+      expect(props[r'@call'], {'const': 'required'});
+      expect(props.containsKey('call'), isFalse);
     });
   });
 }

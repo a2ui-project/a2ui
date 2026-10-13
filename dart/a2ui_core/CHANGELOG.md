@@ -229,8 +229,9 @@
   `copyWith` or `withFunctions` for a changed catalog.
 - `Catalog` adds `toJson`, which assembles the catalog document from the
   model, so `Catalog.fromJson(document).toJson()` equals `document` up to key
-  order. The `anyComponent` and `anyFunction` unions are computed from the
-  components and functions; references are left as written. It writes the
+  order (excluding components and functions omitted from `anyComponent.oneOf`
+  and `anyFunction.oneOf`). The `anyComponent` and `anyFunction` unions are
+  computed from the components and functions; references are left as written. It writes the
   `protocolVersion` as the document declared it, and `catalogId` only when
   the document declared one. A catalog built in code is written in the
   shape of its `protocolVersion`, with each component schema as defined,
