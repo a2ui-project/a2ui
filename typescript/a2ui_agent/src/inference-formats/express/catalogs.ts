@@ -19,7 +19,7 @@
  */
 
 import {A2uiCatalogError} from '../../errors.js';
-import {CatalogApi} from '../../internal/web-core.js';
+import {CatalogApi, compareSemVer} from '../../internal/web-core.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 import {CatalogSchemaHelper} from './schema-helper.js';
 
@@ -48,6 +48,42 @@ function versionLine(version: string): string {
 }
 
 /**
+ * Checks that all catalogs share one protocol release line and have unique IDs,
+ * and that multi-catalog configurations target v1.0 or later.
+ *
+ * @param catalogs The active catalogs (non-empty).
+ * @returns The first catalog's wire protocol version.
+ * @throws A2uiCatalogError if catalog IDs are duplicated, versions span release lines,
+ *     or multiple catalogs are used below v1.0.
+ */
+export function checkMixedCatalogs(catalogs: CatalogApi[]): string {
+  if (catalogs.length === 0) {
+    throw new A2uiCatalogError('Express requires at least one catalog.');
+  }
+  const version = toWireProtocolVersion(catalogs[0].protocolVersion);
+  const line = versionLine(version);
+  const seenIds = new Set<string>();
+  for (const catalog of catalogs) {
+    if (seenIds.has(catalog.id)) {
+      throw new A2uiCatalogError(`Duplicate catalog ID: '${catalog.id}'`);
+    }
+    seenIds.add(catalog.id);
+    const other = toWireProtocolVersion(catalog.protocolVersion);
+    if (versionLine(other) !== line) {
+      throw new A2uiCatalogError(
+        `Express catalogs must share one protocol version, but '${catalogs[0].id}' is '${version}' and '${catalog.id}' is '${other}'.`,
+      );
+    }
+  }
+  if (catalogs.length > 1 && compareSemVer(line, '1.0.0') < 0) {
+    throw new A2uiCatalogError(
+      `Several catalogs need A2UI v1.0 or later, where components and function calls carry their own catalogId, but got '${line}'.`,
+    );
+  }
+  return version;
+}
+
+/**
  * Returns the wire protocol version Express should emit for a set of catalogs.
  *
  * An Express block compiles to messages of a single version, so all catalogs must
@@ -61,15 +97,7 @@ function versionLine(version: string): string {
  * @throws A2uiCatalogError if the catalogs, or the requested version, span release lines.
  */
 export function resolveExpressVersion(catalogs: CatalogApi[], requested?: string): string {
-  const version = toWireProtocolVersion(catalogs[0].protocolVersion);
-  for (const catalog of catalogs) {
-    const other = toWireProtocolVersion(catalog.protocolVersion);
-    if (versionLine(other) !== versionLine(version)) {
-      throw new A2uiCatalogError(
-        `Express catalogs must share one protocol version, but '${catalogs[0].id}' is '${version}' and '${catalog.id}' is '${other}'.`,
-      );
-    }
-  }
+  const version = checkMixedCatalogs(catalogs);
   if (!requested) {
     return version;
   }
@@ -80,6 +108,35 @@ export function resolveExpressVersion(catalogs: CatalogApi[], requested?: string
     );
   }
   return target;
+}
+
+/**
+ * Returns the catalogId to put on `createSurface`, or `undefined` when several catalogs are active.
+ *
+ * With one active catalog, the surface is bound to it on `createSurface` and its
+ * components need no `catalogId`. With several, the surface is not bound to one
+ * catalog; components and function calls carry their own `catalogId`.
+ */
+export function surfaceCatalogId(catalogs: CatalogApi[]): string | undefined {
+  return catalogs.length === 1 ? catalogs[0].id : undefined;
+}
+
+/**
+ * Returns the catalog IDs (in catalog order) whose helper defines the component or function `name`.
+ */
+export function catalogsDefining(
+  helpers: ReadonlyMap<string, CatalogSchemaHelper>,
+  kind: 'component' | 'function',
+  name: string,
+): string[] {
+  const result: string[] = [];
+  for (const [cid, helper] of helpers.entries()) {
+    const defs = kind === 'component' ? helper.components : helper.functions;
+    if (defs.has(name)) {
+      result.push(cid);
+    }
+  }
+  return result;
 }
 
 /**
