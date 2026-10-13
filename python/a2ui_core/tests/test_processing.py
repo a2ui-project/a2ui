@@ -303,7 +303,11 @@ async def test_message_processor_call_renderer_function_async_coroutine():
         "version": "v1.0",
         "callRendererFunction": {
             "functionCallId": "async_call_1",
-            "callFunction": {"call": "asyncUrl", "args": {}},
+            "callFunction": {
+                "call": "asyncUrl",
+                "catalogId": cat.id,
+                "args": {},
+            },
         },
     }])
     assert len(resp) == 1

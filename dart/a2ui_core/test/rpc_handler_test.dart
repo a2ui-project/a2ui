@@ -56,7 +56,7 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(
 
 CallRendererFunctionMessage _inbound(
   String name, {
-  String? catalogId,
+  String? catalogId = 'basic',
   Map<String, Object?> args = const {},
   String id = 'call-1',
   String version = 'v1.0',
@@ -535,11 +535,27 @@ void main() {
       );
     });
 
-    test('reports no catalog when headless and no catalogId', () async {
-      final A2uiFunctionResponse r =
-          await run(handler(), _inbound('echo'), withSurface: false);
+    test(
+        'reports no catalog when catalogId is omitted (headless or with surface)',
+        () async {
+      final A2uiFunctionResponse rHeadless = await run(
+        handler(),
+        _inbound('echo', catalogId: null),
+        withSurface: false,
+      );
       expectError(
-        r,
+        rHeadless,
+        RpcErrorCode.invalidFunctionCall,
+        'No catalog available for function resolution.',
+      );
+
+      final A2uiFunctionResponse rSurface = await run(
+        handler(),
+        _inbound('echo', catalogId: null),
+        withSurface: true,
+      );
+      expectError(
+        rSurface,
         RpcErrorCode.invalidFunctionCall,
         'No catalog available for function resolution.',
       );

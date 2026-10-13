@@ -40,7 +40,7 @@ def test_rpc_handler_initialization_and_disposal() -> None:
             version="v1.0",
             call_renderer_function=CallRendererFunction(
                 function_call_id="call-1",
-                call_function=FunctionCall(call="someFunc"),
+                call_function=FunctionCall(call="someFunc", catalog_id="basic"),
             ),
         ),
         context=None,
@@ -540,4 +540,42 @@ async def test_call_renderer_function_surface_id_resolution() -> None:
     assert (
         res_index_err[0]["rendererFunctionResponse"]["error"]["code"]
         == RpcErrorCode.EXECUTION_ERROR.value
+    )
+
+    # 5. Omitting catalogId on wire message is rejected by schema validation even with surfaceId
+    from a2ui.core.exceptions import A2uiValidationError
+
+    with pytest.raises(A2uiValidationError, match="catalogId"):
+        await proc.process_messages_async({
+            "version": "v1.0",
+            "callRendererFunction": {
+                "surfaceId": "s1",
+                "functionCallId": "rpc-surf-5",
+                "callFunction": {
+                    "@call": "readUserName",
+                    "args": {},
+                },
+            },
+        })
+
+    # 6. Direct RpcHandler invocation without catalogId rejects with INVALID_FUNCTION_CALL
+    # even when the DataContext has a surface with a defaultCatalog
+    s1_surface = proc.model.get_surface("s1")
+    assert s1_surface is not None
+    unvalidated_msg = CallRendererFunctionMessage.model_construct(
+        version="v1.0",
+        call_renderer_function=CallRendererFunction.model_construct(
+            surface_id="s1",
+            function_call_id="rpc-surf-6",
+            call_function=FunctionCall(call="readUserName"),
+        ),
+    )
+    direct_handler = RpcHandler([cat])
+    direct_res = await direct_handler.handle_call_renderer_function_async(
+        unvalidated_msg,
+        context=DataContext(surface=s1_surface, path="/"),
+    )
+    assert (
+        direct_res["rendererFunctionResponse"]["error"]["code"]
+        == RpcErrorCode.INVALID_FUNCTION_CALL.value
     )

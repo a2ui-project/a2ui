@@ -636,8 +636,27 @@ struct MessageProcessorTests {
       Issue.record("Expected .rendererFunctionResponse with executionError")
     }
 
-    // "surfaceId": null is rejected by V10VersionAdapter as type_mismatch
+    // "surfaceId": null is rejected by V10VersionAdapter as type_mismatch and by MessageParser
+    let nullSurfacePayload = try JSONValue.parse(
+      """
+      {
+        "version": "v1.0",
+        "callRendererFunction": {
+          "surfaceId": null,
+          "functionCallId": "rpc-5",
+          "callFunction": {
+            "@call": "echo",
+            "catalogId": "default",
+            "args": {}
+          }
+        }
+      }
+      """
+    )
     #expect(throws: A2UIValidationError.self) {
+      try processor.processMessages(nullSurfacePayload)
+    }
+    #expect(throws: MessageParseError.self) {
       try parse(
         """
         {

@@ -50,7 +50,7 @@ public final class RPCHandler {
     userActivationPresent: Bool = false
   ) async -> RendererFunctionResponseMessage {
     let callName = message.callFunction.call
-    let targetCatalogID = message.callFunction.catalogID ?? defaultCatalogID
+    let targetCatalogID = message.callFunction.catalogID
 
     if let surfaceID = message.surfaceID, dataContext == nil {
       return RendererFunctionResponseMessage(

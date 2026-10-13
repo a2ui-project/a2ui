@@ -41,7 +41,11 @@ public struct CallRendererFunctionMessage: Codable, Sendable, Equatable, Protoco
 
   public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    surfaceID = try container.decodeIfPresent(String.self, forKey: .surfaceID)
+    if container.contains(.surfaceID) {
+      surfaceID = try container.decode(String.self, forKey: .surfaceID)
+    } else {
+      surfaceID = nil
+    }
     functionCallID = try container.decode(String.self, forKey: .functionCallID)
     callFunction = try container.decode(CallFunctionPayload.self, forKey: .callFunction)
     self.version = version

@@ -181,7 +181,8 @@ struct RPCHandlerTests {
 
     let response = await handler.handleIncomingCall(
       callMsg,
-      catalogs: ["basic": basicCatalog, "other": otherCatalog]
+      catalogs: ["basic": basicCatalog, "other": otherCatalog],
+      defaultCatalogID: "basic"
     )
 
     #expect(response.functionCallID == "call_ambiguous")

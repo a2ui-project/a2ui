@@ -386,18 +386,45 @@ class SpecAllOf:
     """Annotation that adds `allOf` members a type cannot express.
 
     The type's schema becomes the first member of an `allOf` followed by
-    `schemas`, for example an `if`/`then` format rule. It documents the
-    specification and does not change validation.
+    `schemas`, for example an `if`/`then` format rule or additional `required`
+    properties. Enforces any `"required"` constraints during validation.
     """
 
     def __init__(self, *schemas: dict[str, Any]) -> None:
         self.schemas = schemas
+        self._required: tuple[str, ...] = tuple(
+            prop
+            for s in schemas
+            for prop in s.get("required", ())
+            if isinstance(prop, str)
+        )
+
+    def __get_pydantic_core_schema__(
+        self, source: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        inner = handler(source)
+        if not self._required:
+            return inner
+        return core_schema.no_info_after_validator_function(
+            self._validate_required, inner
+        )
 
     def __get_pydantic_json_schema__(
         self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
         json_schema = handler(schema)
         return {"allOf": [json_schema, *copy.deepcopy(list(self.schemas))]}
+
+    def _validate_required(self, value: Any) -> Any:
+        model_fields = getattr(type(value), "model_fields", {})
+        alias_to_field = {
+            (info.alias or name): name for name, info in model_fields.items()
+        }
+        for prop in self._required:
+            field_name = alias_to_field.get(prop, prop)
+            if getattr(value, field_name, None) is None:
+                raise ValueError(f"Field '{prop}' is required")
+        return value
 
 
 def is_identifier_key(key: str) -> bool:

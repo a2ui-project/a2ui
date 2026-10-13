@@ -247,12 +247,7 @@ class RpcHandler:
         Returns:
             A _ResolvedFunctionImplementation object containing fn, catalog, and error if resolution failed.
         """
-        surface = getattr(context, "surface", None) if context else None
-
-        if catalog_id:
-            matched_catalog = self.resolve_catalog(catalog_id)
-        else:
-            matched_catalog = getattr(surface, "default_catalog", None)
+        matched_catalog = self.resolve_catalog(catalog_id) if catalog_id else None
 
         if not matched_catalog:
             return _ResolvedFunctionImplementation(
@@ -321,10 +316,14 @@ class RpcHandler:
         try:
             from ..state.surface_model import SurfaceModel
 
+            available_catalogs = {
+                getattr(cat, "catalog_id", f"cat_{i}"): cat
+                for i, cat in enumerate(self.catalogs)
+            }
             fallback_surface = SurfaceModel(
                 surface_id=f"_rpc_fallback_{call_id or 'default'}",
                 default_catalog=matched_catalog,
-                available_catalogs=dict(self.catalogs),
+                available_catalogs=available_catalogs,
             )
             return DataContext(surface=fallback_surface, path="/")
         except Exception:

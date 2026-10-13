@@ -434,9 +434,6 @@ class RpcHandler {
         RpcErrorCode.invalidFunctionCall,
       );
     }
-    final Catalog<ComponentApi, FunctionImplementation>? fallback =
-        surface?.defaultCatalog;
-    if (fallback != null) return fallback;
     throw A2uiRpcError(
       'No catalog available for function resolution.',
       RpcErrorCode.invalidFunctionCall,
