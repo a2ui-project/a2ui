@@ -23,6 +23,8 @@ from ..schema.common_types_schema import (
 from .catalog import (
     Catalog,
     CatalogApi,
+    FunctionsForm,
+    ThemeLocation,
     inline_local_refs,
     is_valid_uax31_identifier,
 )
@@ -65,12 +67,14 @@ __all__ = [
     "FunctionImplementation",
     "FunctionInvoker",
     "FunctionReturnType",
+    "FunctionsForm",
     "INDEX_FUNCTION_NAME",
     "IndexApi",
     "IndexArgs",
     "IndexImplementation",
     "InferA2uiReturnType",
     "ModelComponentApi",
+    "ThemeLocation",
     "analyze_child_ref_schema",
     "build_component_ref_map",
     "create_function_implementation",

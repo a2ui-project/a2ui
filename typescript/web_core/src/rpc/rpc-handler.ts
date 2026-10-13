@@ -17,6 +17,7 @@
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {DataContext} from '../resolution/data-context.js';
 import {isSignal, getValue} from '../reactivity/signals.js';
+import {SurfaceModel} from '../state/surface-model.js';
 import {FunctionCall} from '../v1_0/schema/common-types.js';
 import {
   CallRendererFunctionMessage,
@@ -137,7 +138,7 @@ export class RpcHandler {
    */
   async handleCallRendererFunction(
     message: CallRendererFunctionMessage,
-    context: DataContext,
+    context?: DataContext,
     isUserActivated: boolean = false,
   ): Promise<RendererFunctionResponseMessage> {
     const validationError = this.validateInboundMessage(message);
@@ -147,7 +148,17 @@ export class RpcHandler {
     }
 
     const {version, callRendererFunction} = message;
-    const {functionCallId, callFunction} = callRendererFunction;
+    const {surfaceId, functionCallId, callFunction} = callRendererFunction;
+    if (surfaceId !== undefined && context?.surface?.id !== surfaceId) {
+      const errorResponse = this.createResponseError(
+        functionCallId,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+        `Surface not found: ${surfaceId}`,
+        version,
+      );
+      await this.emitOutboundResponse(errorResponse);
+      return errorResponse;
+    }
     const call = ((callFunction as any)['@call'] ?? callFunction.call) as string;
     const {catalogId, args} = callFunction;
 
@@ -175,7 +186,29 @@ export class RpcHandler {
       return errorResponse;
     }
 
-    const parsedArgsResult = this.parseArguments(resolved.catalog, resolved.funcImpl, args, call);
+    const effectiveContext = this.ensureDataContext(context, resolved.catalog, functionCallId);
+    const resolvedArgsResult = this.resolveDynamicArguments(
+      args,
+      effectiveContext,
+      isUserActivated,
+    );
+    if ('error' in resolvedArgsResult) {
+      const errorResponse = this.createResponseError(
+        functionCallId,
+        RpcErrorCode.EXECUTION_ERROR,
+        resolvedArgsResult.error,
+        version,
+      );
+      await this.emitOutboundResponse(errorResponse);
+      return errorResponse;
+    }
+
+    const parsedArgsResult = this.parseArguments(
+      resolved.catalog,
+      resolved.funcImpl,
+      resolvedArgsResult.args,
+      call,
+    );
     if ('error' in parsedArgsResult) {
       const errorResponse = this.createResponseError(
         functionCallId,
@@ -190,7 +223,7 @@ export class RpcHandler {
     const response = await this.executeFunctionSafely(
       resolved.funcImpl,
       parsedArgsResult.args,
-      context,
+      effectiveContext,
       functionCallId,
       version,
     );
@@ -372,12 +405,12 @@ export class RpcHandler {
   ): {funcImpl: FunctionImplementation; catalog: Catalog<any>} | {error: string} {
     let catalog: Catalog<any> | undefined;
     if (catalogId) {
-      catalog = this.catalogs.find(c => c.id === catalogId);
+      catalog =
+        context?.surface?.availableCatalogs?.get(catalogId) ??
+        this.catalogs.find(c => c.id === catalogId);
       if (!catalog) {
         return {error: `Catalog not found: ${catalogId}`};
       }
-    } else if (context?.surface?.defaultCatalog) {
-      catalog = context.surface.defaultCatalog;
     }
 
     if (!catalog) {
@@ -397,6 +430,80 @@ export class RpcHandler {
       return {error: `Function not found: ${call}`};
     }
     return {funcImpl, catalog};
+  }
+
+  /**
+   * Ensures a valid DataContext is available for dynamic argument resolution and function execution.
+   *
+   * @param context Optional context supplied by the caller.
+   * @param catalog Resolved target catalog.
+   * @param functionCallId Function call identifier for fallback surface naming.
+   * @returns A DataContext backed by the caller's surface or an isolated empty fallback surface.
+   */
+  private ensureDataContext(
+    context: DataContext | undefined,
+    catalog: Catalog<any>,
+    functionCallId: string,
+  ): DataContext {
+    if (context instanceof DataContext && context.surface) {
+      return context;
+    }
+    const availableCatalogs = new Map<string, Catalog<any>>();
+    for (const cat of this.catalogs) {
+      if (
+        catalog.protocolVersion &&
+        cat.protocolVersion &&
+        isCatalogVersionCompatible(catalog.protocolVersion, cat.protocolVersion)
+      ) {
+        availableCatalogs.set(cat.id, cat);
+      }
+    }
+    availableCatalogs.set(catalog.id, catalog);
+    const fallbackSurface = new SurfaceModel(
+      `_rpc_fallback_${functionCallId || 'default'}`,
+      catalog,
+      availableCatalogs,
+    );
+    return new DataContext(fallbackSurface, '/');
+  }
+
+  /**
+   * Resolves dynamic values (`@path` bindings and `@call` expressions) inside function arguments.
+   *
+   * @param args Raw arguments dictionary from the call payload.
+   * @param context DataContext used to evaluate dynamic expressions.
+   * @param isUserActivated Whether execution occurs in an active user gesture context.
+   * @returns The resolved arguments dictionary, or an error descriptor if expression evaluation fails.
+   */
+  private resolveDynamicArguments(
+    args: Record<string, unknown> | undefined,
+    context: DataContext,
+    isUserActivated: boolean,
+  ): {args: Record<string, unknown> | undefined} | {error: string} {
+    if (args === undefined || typeof args !== 'object' || args === null || Array.isArray(args)) {
+      return {args};
+    }
+    const resolvedArgs: Record<string, unknown> = {};
+    let expressionError: string | undefined;
+    const errorSub = context.surface?.onError.subscribe(err => {
+      if (!expressionError && err?.code === 'EXPRESSION_ERROR') {
+        expressionError = err.message || 'An error occurred during function execution.';
+      }
+    });
+    try {
+      for (const [key, val] of Object.entries(args)) {
+        resolvedArgs[key] = context.resolveDynamicValue(val, 0, isUserActivated);
+      }
+    } catch (err: unknown) {
+      expressionError =
+        this.extractErrorMessage(err) || 'An error occurred during function execution.';
+    } finally {
+      errorSub?.unsubscribe();
+    }
+    if (expressionError) {
+      return {error: expressionError};
+    }
+    return {args: resolvedArgs};
   }
 
   /**

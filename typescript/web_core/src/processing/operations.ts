@@ -96,6 +96,8 @@ export interface InternalDeleteSurfaceOp {
 export interface InternalCallRendererFunctionOp {
   /** Discriminator indicating a renderer function call. */
   readonly type: 'callRendererFunction';
+  /** Optional identifier of the surface whose data model provides the evaluation context. */
+  readonly surfaceId?: string;
   /** Correlation identifier used to match this call with a subsequent response or error. */
   readonly functionCallId: string;
   /** Name of the registered catalog function to execute on the renderer. */

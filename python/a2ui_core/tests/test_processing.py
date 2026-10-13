@@ -47,7 +47,7 @@ def mock_catalog():
             self.protocol_version = PROTOCOL_VERSION
             self.version = PROTOCOL_VERSION
             self.catalog_id = "https://a2ui.org/mock.json"
-            self.catalog_schema = {"components": {}}
+            self.validation_schema = {"components": {}}
             self.single_refs = set()
             self.list_refs = set()
 
@@ -303,7 +303,11 @@ async def test_message_processor_call_renderer_function_async_coroutine():
         "version": "v1.0",
         "callRendererFunction": {
             "functionCallId": "async_call_1",
-            "callFunction": {"call": "asyncUrl", "args": {}},
+            "callFunction": {
+                "call": "asyncUrl",
+                "catalogId": cat.id,
+                "args": {},
+            },
         },
     }])
     assert len(resp) == 1

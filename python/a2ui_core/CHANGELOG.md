@@ -6,6 +6,111 @@
   no longer re-exports `AGENT_TO_RENDERER_DEFS`, `INLINE_DEF_MARKER`,
   `SchemaKeywords`, `def_ref` or `Annotated`, which leaked through the old
   star imports; import them from their defining modules (#3064).
+- **BREAKING**: `Catalog.from_json` keeps each component's and function's
+  definition as the document writes it and no longer writes local references
+  inline, so `ComponentApi.schema` and `FunctionApi.schema` of a loaded
+  catalog may contain `$ref` and `allOf`. To migrate, read
+  `Catalog.resolved_component_schema(name)`, `resolved_function_schema(name)`
+  and `resolved_theme_schema`, which give the schemas with references
+  resolved (#3053).
+- `Catalog.from_json` deserializes a catalog document into the catalog model,
+  and `Catalog.to_json()` serializes the model back into an unbundled catalog
+  document, so `Catalog.from_json(document).to_json()` equals `document`
+  (ignoring key order and the order of `enum` and `required`, and excluding
+  components and functions omitted from `anyComponent.oneOf` and
+  `anyFunction.oneOf`, which `from_json` filters out). No authored JSON is
+  cached beside the model:
+  - Each component's and function's `schema` is its definition as the
+    document writes it, with `allOf` mixins, local `#/$defs/...` and
+    `common_types.json#/$defs/...` references, descriptions, closure keywords,
+    `allowedParents`/`allowedChildren` and the function's `returnType`,
+    `allowedCallers` and `requiresUserActivation`. The resolved schemas are
+    computed once per catalog, and `validation_schema`, `PayloadValidator`
+    and the component reference map use them.
+  - `FunctionApi.is_definition` says whether a function's `schema` is its
+    whole catalog document entry rather than the schema of its `args`.
+    `from_json` sets it on every function it loads, so `to_json()` writes
+    each entry as it was loaded, whatever its shape or name; for a function
+    defined in code it defaults to None, which infers it from the schema.
+  - `ComponentApi.from_document` and `FunctionApi.from_document` mark entries
+    loaded by `from_json`. `to_json()` writes loaded entries, defs and themes
+    with their references as written, and points a local reference to a
+    common type at `common_types_uri` only in those defined in code. A list
+    of `functions` that repeats a `name` raises `A2uiCatalogError`.
+  - The catalog keeps the document's top-level fields as attributes:
+    `schema_dialect` (`$schema`), `schema_id` (`$id`), `title`,
+    `description`, `declared_protocol_version`, `declares_catalog_id`,
+    `instructions`, `theme_schema` with its `theme_location` (top-level
+    `theme`, v0.8's `styles`, or `$defs.theme`), the shared named `defs`,
+    `functions_form` (map or list), `union_defs` and the unknown top-level
+    `extras`.
+  - `to_json()` assembles the document from those fields. An `anyComponent`
+    or `anyFunction` union that lists the entries is derived from them, so a
+    transformed catalog lists its own entries; any other union is kept as
+    written. A component or function defined by a model is derived from the
+    model in the shape of its protocol version, and `common_types_uri` names
+    the document its common types references point into. A catalog defined in
+    code emits a canonical `protocolVersion` and the unions of its entries;
+    an empty union is `{"not": {}}`; a union written as `null` is kept.
+    `to_json()` and `validation_schema` are computed once per catalog and
+    return a new copy on each call, so a catalog must be treated as immutable
+    once built: later changes to its fields are not reflected, and `copy_with`
+    derives a changed catalog (#3053).
+- The basic catalogs (`a2ui.core.basic_catalog.v0_8`, `v0_9` and `v1_0`)
+  rebuild their published catalog documents from their generated models, so
+  `BasicCatalog().to_json()` equals the published file without reading it;
+  `a2ui-core` ships no catalog JSON. The generated `BasicCatalog` passes the
+  document's top-level fields to `Catalog` and its theme as `theme_model`.
+  Their `validation_schema` is unchanged except that the v1.0 catalog emits
+  the `protocolVersion: "1.0"` its document declares (#3053).
+- **BREAKING**: (v0_8) The generated basic catalog models no longer share one
+  model between nested objects of different shapes: `CheckBox.value` keeps
+  `literalBoolean` (`ValueItem`), and `DateTimeInput.value`, `Slider.value`
+  and a `Button` action's context `value` get their own models
+  (`DateTimeInputValueItem`, `SliderValueItem`, `ContextValueItem`), so values
+  the specification allows are no longer rejected. Nested object models carry
+  their descriptions on the fields, with line breaks kept, rather than as
+  docstrings. To migrate, build those values with the new models instead of
+  `ValueItem` (#3053).
+- `Catalog.from_json` reads a v0.8 document's top-level `styles` as the theme
+  schema (#3053).
+- `Catalog.validation_schema` is the self-contained schema used to validate
+  messages, previously `catalog_schema`. `catalog_schema` remains as a
+  deprecated alias that emits a `DeprecationWarning`; to migrate, read
+  `validation_schema` instead (#3053).
+- `Catalog.validation_schema` emits the `protocolVersion` that the catalog
+  document declares (including the canonical version of a catalog defined in
+  code), in the bare semantic version form that
+  `catalog_definition.json` requires (`v0.9.1` becomes `0.9.1`; `to_json`
+  keeps it as written). Before v1.0, each function call schema in it
+  has the specification's shape: a `returnType` constant, `args` required when
+  it has required arguments, and `unevaluatedProperties: false` on the call
+  and on its `args` unless the document already decides on unlisted
+  properties. v1.0 function entries stay open, since `FunctionCall` closes the
+  call (#3053).
+- `Catalog.validation_schema` bundles the published common types defs, with
+  local references, for every catalog, including catalogs loaded with
+  `Catalog.from_json`, which previously got the flat model-derived defs. A
+  catalog without functions still gets the flat `FunctionCall`, which admits
+  any call. From v0.9, a theme object schema that does not decide on unlisted
+  properties gets `additionalProperties: true`. A `title` keyword written in a
+  catalog document is kept instead of being stripped (#3053).
+- `Catalog.from_json` reads a v0.9 function's return type from its
+  `returnType` constant, so `FunctionApi.return_type` is no longer `any` for
+  the published v0.9 basic catalog's functions (#3053).
+- `Catalog.copy_with(components=, functions=, defs=)` returns a copy that
+  keeps the document fields, lists its own entries in the unions it derives,
+  and drops the authored definitions that only the dropped entries
+  referenced (#3053).
+- `Catalog.from_json` sets a function's `description` from its definition
+  (#3053).
+- `Catalog.from_json` no longer raises when neither the document nor the
+  `protocol_version` argument names a protocol version; the catalog defaults
+  to v0.9 (#3053).
+- **BREAKING**: From v1.0, `MessageProcessor.get_renderer_capabilities`
+  builds `inlineCatalogs` from `Catalog.to_json()` instead of the bundled
+  schema, matching the v1.0 `catalog_definition.json` shape, so an inline
+  catalog keeps its external `common_types.json` references (#3053).
 
 ## 0.3.0 (2026-10-08)
 

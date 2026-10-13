@@ -425,7 +425,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     assert.strictEqual(res.rendererFunctionResponse.value, 42);
   });
 
-  it('rejects callRendererFunction when catalogId is omitted and surface context is missing', async () => {
+  it('rejects callRendererFunction when catalogId is omitted, with or without surface context', async () => {
     const handler = new RpcHandler([mockCatalog]);
     const emptyContext = {} as DataContext;
 
@@ -437,7 +437,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
           callFunction: {
             call: 'customRpc',
             args: {text: 'hi'},
-          },
+          } as any,
         },
       },
       emptyContext,
@@ -448,6 +448,35 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     assert.strictEqual(res.rendererFunctionResponse.error.code, RpcErrorCode.INVALID_FUNCTION_CALL);
     assert.ok(
       res.rendererFunctionResponse.error.message.includes(
+        'No catalog available for function resolution',
+      ),
+    );
+
+    const surface = new SurfaceModel('s1', mockCatalog);
+    const surfaceContext = new DataContext(surface, '/');
+    const resWithSurface = await handler.handleCallRendererFunction(
+      {
+        version: 'v1.0',
+        callRendererFunction: {
+          surfaceId: 's1',
+          functionCallId: 'call-with-surface-no-catalog',
+          callFunction: {
+            call: 'customRpc',
+            args: {text: 'hi'},
+          } as any,
+        },
+      },
+      surfaceContext,
+      true,
+    );
+
+    assert.ok(resWithSurface.rendererFunctionResponse.error);
+    assert.strictEqual(
+      resWithSurface.rendererFunctionResponse.error.code,
+      RpcErrorCode.INVALID_FUNCTION_CALL,
+    );
+    assert.ok(
+      resWithSurface.rendererFunctionResponse.error.message.includes(
         'No catalog available for function resolution',
       ),
     );

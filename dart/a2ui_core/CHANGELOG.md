@@ -28,6 +28,11 @@
   `A2uiRecursionError` (`RECURSION_ERROR`), reserving `A2uiRecursionError` for
   exceeding the maximum component traversal depth (`maxDepth`) or
   function-call nesting depth (`maxFunctionCallDepth`).
+- `CallRendererFunctionMessage` and `CallRendererFunctionOp` accept an optional
+  `surfaceId` (`String?`). When provided, `MessageProcessor` evaluates the
+  function call against that surface's root `DataContext` (returning
+  `INVALID_FUNCTION_CALL` if no such surface exists); when omitted, the call
+  executes against an isolated empty root data model.
 - `Catalog.fromJson` merges a component's `allOf` pieces from least to most
   specific, so a property the component defines itself overrides the same
   property from a mixin or local definition

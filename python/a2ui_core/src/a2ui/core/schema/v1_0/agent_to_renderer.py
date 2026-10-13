@@ -217,6 +217,15 @@ class CallRendererFunction(StrictBaseModel):
     model_config = ConfigDict(
         populate_by_name=True, json_schema_extra={INLINE_DEF_MARKER: True}
     )
+    surface_id: str | None = Field(
+        default=None,
+        alias="surfaceId",
+        description=(
+            "Optional ID of the surface whose data model provides the evaluation"
+            " context for this call. If omitted, the function executes in a"
+            " surface-independent root context with an empty data model."
+        ),
+    )
     function_call_id: CallId = Field(
         ...,
         alias="functionCallId",

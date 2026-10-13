@@ -88,6 +88,7 @@ export class V1Point0Adapter extends BaseVersionAdapter {
       const cf = (crf?.callFunction || {}) as Record<string, unknown>;
       ops.push({
         type: 'callRendererFunction',
+        surfaceId: typeof crf?.surfaceId === 'string' ? crf.surfaceId : undefined,
         functionCallId: String(crf?.functionCallId || ''),
         call: String(cf?.['@call'] || cf?.call || ''),
         version: this.version,

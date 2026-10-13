@@ -182,18 +182,22 @@ class MessageProcessor:
             is_user_activated = (
                 getattr(context, "is_user_activated", False) if context else False
             )
-            surface = next(iter(self.model.surfaces.values()), None)
-            data_context = DataContext(surface=surface, path="/") if surface else None
+            data_context = self._resolve_rpc_data_context(op)
             call_msg = CallRendererFunctionMessage(
                 version=cast(Any, op.version),
                 call_renderer_function=CallRendererFunction(  # type: ignore[call-arg]
                     functionCallId=op.function_call_id,
-                    # An unset catalogId stays absent: FunctionCall rejects
-                    # explicit nulls.
+                    # Optional fields stay absent when unset: SpecBaseModel
+                    # rejects explicit nulls.
                     callFunction=FunctionCall(  # type: ignore[call-arg]
                         call=op.call,
                         args=op.args,
                         **({"catalogId": op.catalog_id} if op.catalog_id else {}),
+                    ),
+                    **(
+                        {"surfaceId": op.surface_id}
+                        if op.surface_id is not None
+                        else {}
                     ),
                 ),
             )
@@ -231,8 +235,13 @@ class MessageProcessor:
         """Generates a legacy (< 1.0) inline catalog dictionary."""
         components: dict[str, Any] = {}
         raw_components = getattr(catalog, "components", {}) or {}
+        resolve_component = getattr(catalog, "resolved_component_schema", None)
         for name, comp in raw_components.items():
-            s = getattr(comp, "schema", None)
+            s = (
+                resolve_component(name)
+                if callable(resolve_component)
+                else getattr(comp, "schema", None)
+            )
             if isinstance(s, type) and hasattr(s, "model_json_schema"):
                 s = s.model_json_schema()
             s_dict = copy.deepcopy(s) if isinstance(s, dict) else {}
@@ -257,8 +266,13 @@ class MessageProcessor:
 
         functions: list[dict[str, Any]] = []
         raw_functions = getattr(catalog, "functions", {}) or {}
+        resolve_function = getattr(catalog, "resolved_function_schema", None)
         for name, fn in raw_functions.items():
-            s = getattr(fn, "schema", None)
+            s = (
+                resolve_function(name)
+                if callable(resolve_function)
+                else getattr(fn, "schema", None)
+            )
             if isinstance(s, type) and hasattr(s, "model_json_schema"):
                 s = s.model_json_schema()
             s_dict = copy.deepcopy(s) if isinstance(s, dict) else {}
@@ -288,7 +302,9 @@ class MessageProcessor:
             fn_entry["parameters"] = params
             functions.append(fn_entry)
 
-        raw_theme = getattr(catalog, "theme_schema", None)
+        raw_theme = getattr(catalog, "resolved_theme_schema", None) or getattr(
+            catalog, "theme_schema", None
+        )
         theme: dict[str, Any] | None = None
         if isinstance(raw_theme, dict) and raw_theme:
             theme = raw_theme["properties"] if "properties" in raw_theme else raw_theme
@@ -345,9 +361,9 @@ class MessageProcessor:
                 inline_catalogs: list[dict[str, Any]] = []
                 for c in self.catalogs:
                     if is_at_least_version(ver_str, ProtocolVersion.V1_0):
-                        schema = getattr(c, "catalog_schema", None)
-                        if schema is not None:
-                            inline_catalogs.append(schema)
+                        to_json = getattr(c, "to_json", None)
+                        if callable(to_json):
+                            inline_catalogs.append(to_json())
                     else:
                         inline_catalogs.append(
                             self._generate_legacy_inline_catalog(c, envelope_ref)
@@ -436,6 +452,29 @@ class MessageProcessor:
             self._process_agent_function_response_op(op)
         return None
 
+    def _resolve_rpc_data_context(
+        self, op: InternalCallRendererFunctionOp
+    ) -> DataContext | None:
+        """Resolves the DataContext for an inbound callRendererFunction operation."""
+        if op.surface_id is not None:
+            surface = self.model.get_surface(op.surface_id)
+            return DataContext(surface=surface, path="/") if surface else None
+
+        target_catalog = cast(Any, self._resolve_catalog(op.catalog_id))
+        if target_catalog is None:
+            return None
+
+        available_catalogs = {
+            getattr(cat, "catalog_id", f"cat_{i}"): cat
+            for i, cat in enumerate(self.catalogs)
+        }
+        fallback_surface = SurfaceModel(
+            surface_id=f"_rpc_fallback_{op.function_call_id or 'default'}",
+            default_catalog=target_catalog,
+            available_catalogs=available_catalogs,
+        )
+        return DataContext(surface=fallback_surface, path="/")
+
     def _process_call_renderer_function_op(
         self,
         op: InternalCallRendererFunctionOp,
@@ -445,17 +484,17 @@ class MessageProcessor:
         is_user_activated = (
             getattr(context, "is_user_activated", False) if context else False
         )
-        surface = next(iter(self.model.surfaces.values()), None)
-        data_context = DataContext(surface=surface, path="/") if surface else None
+        data_context = self._resolve_rpc_data_context(op)
         call_msg = CallRendererFunctionMessage(
             version=cast(Any, op.version),
             call_renderer_function=CallRendererFunction(  # type: ignore[call-arg]
                 functionCallId=op.function_call_id,
                 callFunction=FunctionCall(  # type: ignore[call-arg]
                     call=op.call,
-                    catalogId=op.catalog_id,
                     args=op.args,
+                    **({"catalogId": op.catalog_id} if op.catalog_id else {}),
                 ),
+                **({"surfaceId": op.surface_id} if op.surface_id is not None else {}),
             ),
         )
         try:

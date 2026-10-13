@@ -722,6 +722,128 @@ describe('MessageProcessor', () => {
       assert.strictEqual(responses[0].rendererFunctionResponse.error, undefined);
     });
 
+    it('targets the specified surfaceId data model when surfaceId is provided, uses an isolated empty model when omitted, and returns INVALID_FUNCTION_CALL when surfaceId does not exist', async () => {
+      const readModelApi = {
+        name: 'readUserName',
+        returnType: 'string' as const,
+        schema: z.object({text: z.string().optional()}),
+        allowedCallers: 'rendererOrAgent' as const,
+      };
+      const readModelImpl = createFunctionImplementation(
+        readModelApi,
+        (args: any, ctx: any) =>
+          args?.text ?? ctx?.surface?.dataModel?.get('/user/name') ?? 'empty',
+      );
+      const cat = new Catalog('rpc-model-cat', '1.0', [], [readModelImpl]);
+      const proc = new MessageProcessor([cat]);
+
+      proc.processMessages([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'rpc-model-cat',
+            dataModel: {user: {name: 'Alice'}},
+          },
+        },
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's2',
+            catalogId: 'rpc-model-cat',
+            dataModel: {user: {name: 'Bob'}},
+          },
+        },
+      ]);
+
+      // 1. With surfaceId: 's2' and @path arg -> resolves against s2's data model ('Bob')
+      const resWithSurface = await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          surfaceId: 's2',
+          functionCallId: 'rpc-surf-1',
+          callFunction: {
+            call: 'readUserName',
+            catalogId: 'rpc-model-cat',
+            args: {text: {'@path': '/user/name'}},
+          },
+        },
+      });
+      assert.strictEqual(resWithSurface.length, 1);
+      assert.strictEqual(resWithSurface[0].rendererFunctionResponse.value, 'Bob');
+
+      // 2. Without surfaceId and @path arg -> resolves against isolated empty root model ('empty')
+      const resIsolated = await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-surf-2',
+          callFunction: {
+            call: 'readUserName',
+            catalogId: 'rpc-model-cat',
+            args: {text: {'@path': '/user/name'}},
+          },
+        },
+      });
+      assert.strictEqual(resIsolated.length, 1);
+      assert.strictEqual(resIsolated[0].rendererFunctionResponse.value, 'empty');
+
+      // 3. With non-existent surfaceId -> returns INVALID_FUNCTION_CALL
+      const resMissing = await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          surfaceId: 'non_existent_surface',
+          functionCallId: 'rpc-surf-3',
+          callFunction: {
+            call: 'readUserName',
+            catalogId: 'rpc-model-cat',
+            args: {},
+          },
+        },
+      });
+      assert.strictEqual(resMissing.length, 1);
+      assert.strictEqual(
+        resMissing[0].rendererFunctionResponse.error?.code,
+        RpcErrorCode.INVALID_FUNCTION_CALL,
+      );
+      assert.match(
+        resMissing[0].rendererFunctionResponse.error?.message ?? '',
+        /Surface not found: non_existent_surface/,
+      );
+
+      // 4. With @call: '@index' in args -> returns EXECUTION_ERROR
+      const resIndexErr = await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-surf-4',
+          callFunction: {
+            call: 'readUserName',
+            catalogId: 'rpc-model-cat',
+            args: {text: {'@call': '@index'}},
+          },
+        },
+      });
+      assert.strictEqual(resIndexErr.length, 1);
+      assert.strictEqual(
+        resIndexErr[0].rendererFunctionResponse.error?.code,
+        RpcErrorCode.EXECUTION_ERROR,
+      );
+
+      // 5. Wire message missing callFunction.catalogId -> throws A2uiValidationError
+      await assert.rejects(
+        proc.processMessagesAsync({
+          version: 'v1.0',
+          callRendererFunction: {
+            functionCallId: 'rpc-surf-5',
+            callFunction: {
+              call: 'readUserName',
+              args: {},
+            },
+          },
+        } as any),
+        A2uiValidationError,
+      );
+    });
+
     it('enforces requiresUserActivation in processMessagesAsync via context options', async () => {
       const proc = new MessageProcessor([rpcCatalog]);
       proc.processMessages({

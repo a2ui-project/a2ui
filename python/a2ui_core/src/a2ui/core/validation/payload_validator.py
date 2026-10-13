@@ -96,6 +96,28 @@ def _is_unknown_property_error(err: jsonschema.exceptions.ValidationError) -> bo
     return not (isinstance(err.schema, dict) and "patternProperties" in err.schema)
 
 
+def _resolved_entry_schema(catalog: Any, kind: str, entry: Any) -> Any:
+    """Returns an entry's schema with the catalog's local references resolved.
+
+    A catalog keeps each authored schema as its document writes it, with
+    references to its own `$defs` and to other specification documents;
+    `Catalog.resolved_component_schema` and `resolved_function_schema` resolve
+    them. Other catalogs give the entry's schema as it is.
+
+    Args:
+        catalog: The catalog that defines the entry.
+        kind: `"component"` or `"function"`.
+        entry: The component or function.
+    """
+    resolve = getattr(catalog, f"resolved_{kind}_schema", None)
+    name = getattr(entry, "name", None)
+    if callable(resolve) and isinstance(name, str):
+        resolved = resolve(name)
+        if isinstance(resolved, dict):
+            return resolved
+    return entry.schema
+
+
 class PayloadValidator:
     """Validates A2UI payloads against catalog JSON schema definitions."""
 
@@ -161,7 +183,7 @@ class PayloadValidator:
             else None
         )
         if c is None and isinstance(comp_type, str):
-            cat_schema = getattr(target_cat, "catalog_schema", {}) or {}
+            cat_schema = getattr(target_cat, "validation_schema", {}) or {}
             comps_dict = (
                 cat_schema.get("components", {}) if isinstance(cat_schema, dict) else {}
             )
@@ -249,7 +271,7 @@ class PayloadValidator:
     ) -> None:
         """Validates a component against a JSON Schema dict definition."""
         comp_schema = (
-            target_comp.schema
+            _resolved_entry_schema(target_cat, "component", target_comp)
             if hasattr(target_comp, "schema") and isinstance(target_comp.schema, dict)
             else target_comp
             if isinstance(target_comp, dict)
@@ -259,7 +281,7 @@ class PayloadValidator:
             return
 
         base_schema = (
-            getattr(target_cat, "catalog_schema", {}) or {} if target_cat else {}
+            getattr(target_cat, "validation_schema", {}) or {} if target_cat else {}
         )
         defs = base_schema.get("$defs", {}) if isinstance(base_schema, dict) else {}
         full_schema = {
@@ -524,11 +546,11 @@ class PayloadValidator:
             comp_fn = cat.get_function(name)
             if comp_fn:
                 fn_def = comp_fn
-                base_schema = getattr(cat, "catalog_schema", {}) or {}
+                base_schema = getattr(cat, "validation_schema", {}) or {}
                 if hasattr(comp_fn, "schema") and isinstance(comp_fn.schema, dict):
-                    fn_schema = comp_fn.schema
+                    fn_schema = _resolved_entry_schema(cat, "function", comp_fn)
         if fn_def is None:
-            cat_schema = getattr(cat, "catalog_schema", {}) or {}
+            cat_schema = getattr(cat, "validation_schema", {}) or {}
             funcs_schema = cat_schema.get("functions", {})
             if isinstance(funcs_schema, dict) and name in funcs_schema:
                 fn_schema = funcs_schema[name]
@@ -720,13 +742,18 @@ class PayloadValidator:
                     )
                 ],
             )
-        base_schema = getattr(self.catalog, "catalog_schema", {}) or {}
+        base_schema = getattr(self.catalog, "validation_schema", {}) or {}
         defs: dict[str, Any] = (
             base_schema.get("$defs", {}) if isinstance(base_schema, dict) else {}
         )
-        theme_schema = getattr(self.catalog, "theme_schema", None) or (
+        theme_schema = (
+            getattr(self.catalog, "resolved_theme_schema", None)
+            or getattr(self.catalog, "theme_schema", None)
+        ) or (
             base_schema.get("properties", {}) if isinstance(base_schema, dict) else {}
-        ).get("theme")
+        ).get(
+            "theme"
+        )
 
         if theme_schema:
             full_theme_schema = {

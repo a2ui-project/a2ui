@@ -612,21 +612,21 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   /**
    * Resolves the DataContext for an inbound RPC callRendererFunction operation.
    *
-   * @param op Operation containing optional catalog and function call identifiers.
-   * @returns A DataContext attached to an existing matching surface or a fallback surface.
+   * @param op Operation containing optional surface, catalog, and function call identifiers.
+   * @returns A DataContext attached to the requested surface, an isolated fallback surface when surfaceId is omitted, or undefined if surfaceId is not found.
    */
-  private resolveRpcDataContext(op: {catalogId?: string; functionCallId?: string}): DataContext {
-    const targetCatalog =
-      (op.catalogId ? this.catalogs.find(c => c.id === op.catalogId) : undefined) ??
-      this.catalogs[0];
-    const surface =
-      (op.catalogId
-        ? Array.from(this.model.surfacesMap.values()).find(
-            s => s.defaultCatalog?.id === op.catalogId || s.availableCatalogs?.has(op.catalogId!),
-          )
-        : undefined) ?? this.model.surfacesMap.values().next().value;
-    if (surface) {
-      return new DataContext(surface, '/');
+  private resolveRpcDataContext(op: {
+    surfaceId?: string;
+    catalogId?: string;
+    functionCallId?: string;
+  }): DataContext | undefined {
+    if (op.surfaceId !== undefined) {
+      const surface = this.model.surfacesMap.get(op.surfaceId);
+      return surface ? new DataContext(surface, '/') : undefined;
+    }
+    const targetCatalog = op.catalogId ? this.catalogs.find(c => c.id === op.catalogId) : undefined;
+    if (!targetCatalog) {
+      return undefined;
     }
     const fallbackSurfaceId = `_rpc_fallback_${op.functionCallId || 'default'}`;
     const availableCatalogs = new Map<string, Catalog<T>>();
@@ -661,6 +661,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const callMsg: CallRendererFunctionMessage = {
         version: (op.version ?? 'v1.0') as 'v1.0',
         callRendererFunction: {
+          ...(op.surfaceId !== undefined ? {surfaceId: op.surfaceId} : {}),
           functionCallId: op.functionCallId,
           callFunction: {
             call: op.call,
@@ -688,6 +689,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const callMsg: CallRendererFunctionMessage = {
         version: (op.version ?? 'v1.0') as 'v1.0',
         callRendererFunction: {
+          ...(op.surfaceId !== undefined ? {surfaceId: op.surfaceId} : {}),
           functionCallId: op.functionCallId,
           callFunction: {
             call: op.call,

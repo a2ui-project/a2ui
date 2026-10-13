@@ -277,7 +277,7 @@ def test_catalog_defs_match_specification(version: str) -> None:
         catalog_id="https://a2ui.org/test/all_common_types",
         protocol_version=_protocol_version(version),
     )
-    catalog_defs = catalog.catalog_schema["$defs"]
+    catalog_defs = catalog.validation_schema["$defs"]
     helpers = {
         name: schema for name, schema in catalog_defs.items() if name not in spec_defs
     }

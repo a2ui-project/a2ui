@@ -58,11 +58,13 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(String id) =>
 Map<String, Object?> _callRendererFunction(
   String id,
   String name, {
+  String? surfaceId,
   String? catalogId,
 }) =>
     {
       'version': 'v1.0',
       'callRendererFunction': {
+        if (surfaceId != null) 'surfaceId': surfaceId,
         'functionCallId': id,
         'callFunction': {
           '@call': name,
@@ -106,8 +108,9 @@ void main() {
     expect(responses().single.response.error!.code, 'INVALID_FUNCTION_CALL');
   });
 
-  test('callRendererFunction targets the surface holding the catalog',
-      () async {
+  test(
+      'callRendererFunction targets surfaceId when provided, runs isolated '
+      'when omitted, and rejects missing surfaceId', () async {
     processor.processMessages([
       {
         'version': 'v1.0',
@@ -120,11 +123,34 @@ void main() {
     ]);
     processor.model.getSurface('one')!.dataModel.set('/name', 'one');
     processor.model.getSurface('two')!.dataModel.set('/name', 'two');
+
+    // Explicit surfaceId targets surface 'two'.
     await processor.processMessagesAsync(
-      _callRendererFunction('c3', 'whereAmI', catalogId: 'beta'),
+      _callRendererFunction(
+        'c3',
+        'whereAmI',
+        surfaceId: 'two',
+        catalogId: 'beta',
+      ),
     );
-    // Surface 'two' was created with defaultCatalog 'beta', so it is chosen.
-    expect(responses().single.response.value, 'two');
+    expect(responses().last.response.value, 'two');
+
+    // Omitted surfaceId runs against an isolated empty root data model.
+    await processor.processMessagesAsync(
+      _callRendererFunction('c4', 'whereAmI', catalogId: 'beta'),
+    );
+    expect(responses().last.response.value, isNull);
+
+    // Unknown surfaceId returns INVALID_FUNCTION_CALL.
+    await processor.processMessagesAsync(
+      _callRendererFunction(
+        'c5',
+        'whereAmI',
+        surfaceId: 'missing_surface',
+        catalogId: 'beta',
+      ),
+    );
+    expect(responses().last.response.error?.code, 'INVALID_FUNCTION_CALL');
   });
 
   test('isUserActivated reaches the handler', () async {
@@ -224,7 +250,12 @@ void main() {
       ),
     );
     await processor.processMessagesAsync(
-      _callRendererFunction('c-unversioned', 'versionOf', catalogId: 'alpha'),
+      _callRendererFunction(
+        'c-unversioned',
+        'versionOf',
+        surfaceId: 'unversioned-surface',
+        catalogId: 'alpha',
+      ),
     );
     expect(responses().single.response.error, isNull);
     expect(responses().single.response.value, isNull);
