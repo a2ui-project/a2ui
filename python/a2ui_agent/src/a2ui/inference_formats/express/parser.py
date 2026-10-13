@@ -51,7 +51,6 @@ def _compilation_error_class(error: BaseException) -> Type[A2uiCompilationError]
     return A2uiCompilationError
 
 
-@experimental
 class ExpressParser(Parser):
     """Concrete parser implementation for A2UI Express DSL responses."""
 

@@ -29,7 +29,6 @@ from .parser import ExpressParser
 from .prompt_generator import ExpressPromptGenerator
 
 
-@experimental
 class ExpressFormat(InferenceFormat):
     """Concrete strategy for Express DSL representation."""
 
