@@ -39,5 +39,5 @@
       "zod": ["../../../node_modules/zod"]
     }
   },
-  "include": ["*.ts", "../a2ui_filesystem.json"]
+  "include": ["**/*.ts", "../a2ui_filesystem.json"]
 }

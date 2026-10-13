@@ -15,7 +15,7 @@
  */
 
 import * as assert from 'node:assert';
-import {describe, it} from 'node:test';
+import {describe, it} from 'vitest';
 import {
   A2uiExpressionError,
   Catalog,
@@ -25,7 +25,11 @@ import {
   type FunctionImplementation,
 } from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
-import {DATA_FUNCTIONS} from '../index.js';
+import {JmespathImplementation} from './jmespath.js';
+import {RegexCaptureImplementation} from './regexCapture.js';
+import {RegexReplaceImplementation} from './regexReplace.js';
+import {SplitImplementation} from './split.js';
+import {UpdateDataModelImplementation} from './updateDataModel.js';
 
 const AsyncSourceImplementation: FunctionImplementation = createFunctionImplementation(
   {
@@ -41,9 +45,15 @@ const AsyncSourceImplementation: FunctionImplementation = createFunctionImplemen
 
 const catalog = new Catalog<any>(
   'https://a2ui.org/test/updateDataModel',
-  '0.9',
   [],
-  [...DATA_FUNCTIONS, AsyncSourceImplementation],
+  [
+    JmespathImplementation,
+    SplitImplementation,
+    RegexCaptureImplementation,
+    RegexReplaceImplementation,
+    UpdateDataModelImplementation,
+    AsyncSourceImplementation,
+  ],
 );
 
 const createTestDataContext = (
@@ -53,7 +63,7 @@ const createTestDataContext = (
 ) => {
   const mockSurface = {
     dataModel: model,
-    defaultCatalog: {invoker: catalog.invoker},
+    catalog: {invoker: catalog.invoker},
     dispatchError: onError,
   } as any;
   return new DataContext(mockSurface, path);
@@ -165,6 +175,19 @@ describe('updateDataModel', () => {
     const stored = model.get('/entry') as {name: string};
     assert.deepStrictEqual(stored, originalEntry);
     assert.notStrictEqual(stored, originalEntry);
+  });
+
+  it('writes a Date nested in updates as is, without flattening it to a record', () => {
+    const model = new DataModel({});
+    const when = new Date('2026-10-13T00:00:00Z');
+    catalog.invoker(
+      'updateDataModel',
+      {updates: {'/when': when, '/meta': {when}}},
+      createTestDataContext(model),
+    );
+    assert.ok(model.get('/when') instanceof Date);
+    assert.strictEqual((model.get('/when') as Date).toISOString(), when.toISOString());
+    assert.ok((model.get('/meta') as {when: unknown}).when instanceof Date);
   });
 
   it('propagates a rejected argument', async () => {

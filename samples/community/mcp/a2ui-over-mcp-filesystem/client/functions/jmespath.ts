@@ -22,7 +22,7 @@ import {
 import {search as searchJmespath} from 'jmespath';
 import {z} from 'zod';
 
-import {resolveDynamicValueDeep} from '../dynamic-values.js';
+import {resolveDynamicValueDeep} from './dynamic_values.js';
 import {asyncable, withSettledArgs} from './common.js';
 
 /**

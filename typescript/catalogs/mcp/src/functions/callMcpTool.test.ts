@@ -24,12 +24,7 @@ import {
   MessageProcessor,
 } from '@a2ui/web_core/v0_9';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
-import {
-  CallMcpToolApi,
-  DATA_FUNCTION_APIS,
-  MCP_CATALOG_ID,
-  createMcpCatalogFunctions,
-} from '../index.js';
+import {CallMcpToolApi, MCP_CATALOG_ID} from '../index.js';
 import {
   A2UI_MIME_TYPE,
   createCallMcpToolImplementation,
@@ -711,29 +706,38 @@ describe('callMcpTool', () => {
 
     it('publishes every function a host registers', () => {
       // A function missing from the JSON is invisible to an agent writing a
-      // payload, however well it works at runtime.
-      const registered = createMcpCatalogFunctions(
-        () => asClient(createFakeClient()),
-        new MessageProcessor([], async () => {}),
-      ).map(fn => fn.name);
-      assert.deepStrictEqual(
-        Object.keys((mcpCatalogJson as any).functions).sort(),
-        registered.sort(),
-      );
+      // payload, however well it works at runtime. The v0.9 schema also lists
+      // the data functions, which now live with the filesystem sample.
+      const registered = [
+        createCallMcpToolImplementation(
+          () => asClient(createFakeClient()),
+          new MessageProcessor([], async () => {}),
+        ),
+      ].map(fn => fn.name);
+      assert.deepStrictEqual(registered, ['callMcpTool']);
+      const published = Object.keys((mcpCatalogJson as any).functions);
+      for (const name of registered) {
+        assert.ok(published.includes(name), `${name} is not published`);
+      }
     });
 
     it('publishes the argument names and descriptions the schemas carry', () => {
       // The catalog JSON is what an agent reads before writing a payload, and
       // it is generated from these schemas. This catches it going stale.
-      for (const api of DATA_FUNCTION_APIS) {
+      for (const api of [CallMcpToolApi]) {
         const published = (mcpCatalogJson as any).functions[api.name];
         assert.ok(published, `${api.name} is not published`);
         assert.strictEqual(published.properties.returnType.const, api.returnType);
 
         const args = published.properties.args;
-        const fields = Object.keys(api.schema.shape);
+        const shape = api.schema.shape as Record<string, {isOptional(): boolean}>;
+        const fields = Object.keys(shape);
         assert.deepStrictEqual(Object.keys(args.properties), fields, `${api.name} arguments`);
-        assert.deepStrictEqual(args.required, fields, `${api.name} required arguments`);
+        assert.deepStrictEqual(
+          args.required,
+          fields.filter(field => !shape[field].isOptional()),
+          `${api.name} required arguments`,
+        );
         assert.strictEqual(args.additionalProperties, false);
 
         for (const field of fields) {

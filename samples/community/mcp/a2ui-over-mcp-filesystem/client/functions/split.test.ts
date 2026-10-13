@@ -15,18 +15,18 @@
  */
 
 import * as assert from 'node:assert';
-import {describe, it} from 'node:test';
+import {describe, it} from 'vitest';
 import {Catalog, DataContext, DataModel} from '@a2ui/web_core/v0_9';
 import {SplitImplementation} from './split.js';
 
-const catalog = new Catalog<any>('https://a2ui.org/test/split', '0.9', [], [SplitImplementation]);
+const catalog = new Catalog<any>('https://a2ui.org/test/split', [], [SplitImplementation]);
 
 const call = (args: Record<string, unknown>) =>
   catalog.invoker(
     'split',
     args,
     new DataContext(
-      {dataModel: new DataModel({}), defaultCatalog: {invoker: catalog.invoker}} as any,
+      {dataModel: new DataModel({}), catalog: {invoker: catalog.invoker}} as any,
       '/',
     ),
   );
