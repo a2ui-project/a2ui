@@ -593,11 +593,19 @@ public final class MessageProcessor: ObservableObject {
     if let targetCatalog, let opVersion = op.version,
       !isCatalogCompatible(targetCatalog, with: opVersion)
     {
-      throw CatalogResolutionErrors.incompatibleCatalog(
-        op.catalogID ?? targetCatalog.id,
-        catalog: targetCatalog,
-        surfaceVersion: opVersion,
-        path: "createSurface.catalogId"
+      let catVerStr = targetCatalog.protocolVersion ?? "v0.9"
+      let catalogName = op.catalogID ?? targetCatalog.id
+      let msg =
+        "Catalog '\(catalogName)' (version \(catVerStr)) is incompatible with surface version \(opVersion.rawValue)."
+      throw A2UICatalogError(
+        msg,
+        details: [
+          A2UIErrorDetail(
+            path: "createSurface.catalogId",
+            code: "INCOMPATIBLE_CATALOG_VERSION",
+            message: msg
+          )
+        ]
       )
     }
 
@@ -727,14 +735,8 @@ public final class MessageProcessor: ObservableObject {
     for catalog: AnyCatalog,
     config: ValidationConfig
   ) -> PayloadValidator {
-    let flags = [
-      config.allowOrphanComponents,
-      config.allowDanglingReferences,
-      config.allowMissingRoot,
-      config.allowUnknownElements,
-      config.allowUnknownFunctions,
-    ].map { $0 ? "1" : "0" }.joined()
-    let cacheKey = "\(catalog.id)|\(flags)|\(config.targetVersion ?? "")"
+    let cacheKey =
+      "\(catalog.id)|\(config.allowOrphanComponents)|\(config.allowDanglingReferences)|\(config.allowMissingRoot)|\(config.allowUnknownElements)|\(config.targetVersion ?? "")"
     if let cached = payloadValidators[cacheKey] {
       return cached
     }

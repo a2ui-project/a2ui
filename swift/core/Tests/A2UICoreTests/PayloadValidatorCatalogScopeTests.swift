@@ -236,25 +236,4 @@ struct PayloadValidatorCatalogScopeTests {
       )
     }
   }
-
-  // MARK: - Unknown functions
-
-  @Test func allowUnknownFunctionsAcceptsUndeclaredCatalogFunctions() throws {
-    var relaxed = ValidationConfig.relaxed
-    relaxed.protocolVersion = .v10
-    #expect(relaxed.allowUnknownFunctions)
-    #expect(!ValidationConfig.strict.allowUnknownFunctions)
-
-    let relaxedValidator = try makeValidator(config: relaxed)
-    try relaxedValidator.validateFunction(name: "mystery", args: [:])
-    // An unknown reserved name is never accepted.
-    #expect(throws: A2UIValidationError.self) {
-      try relaxedValidator.validateFunction(name: "@mystery", args: [:])
-    }
-
-    let strictValidator = try makeValidator()
-    #expect(throws: A2UIValidationError.self) {
-      try strictValidator.validateFunction(name: "mystery", args: [:])
-    }
-  }
 }

@@ -26,14 +26,6 @@ public struct ValidationConfig: Sendable, Equatable {
   /// Whether unrecognized component types or function names are permitted.
   public var allowUnknownElements: Bool
 
-  /// Whether calls to functions that the resolved catalog does not declare are permitted.
-  ///
-  /// Such a call is accepted at processing time so that a renderer can forward it to the agent
-  /// (for example through `callAgentFunction`); it reports an error only if it is evaluated
-  /// locally. Unknown reserved `@` system functions are always rejected from v1.0, and a
-  /// call's catalog must still resolve. `allowUnknownElements` also permits unknown functions.
-  public var allowUnknownFunctions: Bool
-
   /// The target protocol version (e.g. `"v0.9.1"`), or `nil` when unspecified.
   public var targetVersion: String?
 
@@ -52,14 +44,12 @@ public struct ValidationConfig: Sendable, Equatable {
     allowDanglingReferences: Bool = false,
     allowMissingRoot: Bool = false,
     allowUnknownElements: Bool = false,
-    allowUnknownFunctions: Bool = false,
     targetVersion: String? = nil
   ) {
     self.allowOrphanComponents = allowOrphanComponents
     self.allowDanglingReferences = allowDanglingReferences
     self.allowMissingRoot = allowMissingRoot
     self.allowUnknownElements = allowUnknownElements
-    self.allowUnknownFunctions = allowUnknownFunctions
     self.targetVersion = targetVersion
   }
 
@@ -69,14 +59,12 @@ public struct ValidationConfig: Sendable, Equatable {
     allowDanglingReferences: Bool = false,
     allowMissingRoot: Bool = false,
     allowUnknownElements: Bool = false,
-    allowUnknownFunctions: Bool = false,
     protocolVersion: A2UIProtocolVersion
   ) {
     self.allowOrphanComponents = allowOrphanComponents
     self.allowDanglingReferences = allowDanglingReferences
     self.allowMissingRoot = allowMissingRoot
     self.allowUnknownElements = allowUnknownElements
-    self.allowUnknownFunctions = allowUnknownFunctions
     self.targetVersion = protocolVersion.rawValue
   }
 
@@ -84,13 +72,9 @@ public struct ValidationConfig: Sendable, Equatable {
   public static let strict = ValidationConfig()
 
   /// Relaxed validation rules suitable for streaming or incremental component updates.
-  ///
-  /// This is the default processing mode of ``MessageProcessor``. It accepts calls to functions
-  /// that the resolved catalog does not declare, so the renderer can forward them to the agent.
   public static let relaxed = ValidationConfig(
     allowOrphanComponents: true,
     allowDanglingReferences: true,
-    allowMissingRoot: true,
-    allowUnknownFunctions: true
+    allowMissingRoot: true
   )
 }

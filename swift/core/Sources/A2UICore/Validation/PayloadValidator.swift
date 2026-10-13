@@ -349,7 +349,7 @@ public final class PayloadValidator: Sendable {
     guard let fn else {
       // An unknown reserved `@` name is never accepted: v1.0 defines its system functions.
       let isSystemName = enforceIdentifiers && name.hasPrefix("@")
-      if !isSystemName && (config.allowUnknownElements || config.allowUnknownFunctions) {
+      if !isSystemName && config.allowUnknownElements {
         return
       }
       let msg = "Unrecognized function '\(name)'"

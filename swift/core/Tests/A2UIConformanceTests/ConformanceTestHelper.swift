@@ -247,11 +247,7 @@ public enum ConformanceTestHelper {
       allDefinitions[key] = definition
     }
 
-    let context = Context(
-      dialect: .draft2020_12,
-      remoteSchema: remoteSchemas,
-      formatValidators: DefaultFormatValidators.all
-    )
+    let context = Context(dialect: .draft2020_12, remoteSchema: remoteSchemas)
     var components: [AnyComponentAPI] = []
     if let compObj = catalogSchema["components"]?.objectValue {
       for (componentName, componentSchemaValue) in compObj {

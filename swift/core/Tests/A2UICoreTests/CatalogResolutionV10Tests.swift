@@ -129,54 +129,6 @@ struct CatalogResolutionV10Tests {
     #expect(surface.componentsModel.get("root")?.catalogID == "a")
   }
 
-  // MARK: - Default processing of undeclared functions
-
-  private func updateWithCall(_ callName: String) throws -> JSONValue {
-    try JSONValue.parse(
-      """
-      {
-        "version": "v1.0",
-        "updateComponents": {
-          "surfaceId": "s",
-          "components": [
-            { "id": "root", "component": "Text", "text": { "@call": "\(callName)" } }
-          ]
-        }
-      }
-      """
-    )
-  }
-
-  private func makeProcessorWithSurface(
-    validationConfig: ValidationConfig
-  ) throws -> MessageProcessor {
-    let processor = MessageProcessor(
-      catalogs: [try makeCatalog(id: "a")],
-      validationConfig: validationConfig
-    )
-    try processor.processMessages(
-      try JSONValue.parse(
-        """
-        { "version": "v1.0", "createSurface": { "surfaceId": "s", "catalogId": "a" } }
-        """
-      )
-    )
-    return processor
-  }
-
-  @Test func defaultProcessingAcceptsUndeclaredFunction() throws {
-    let relaxed = try makeProcessorWithSurface(validationConfig: .relaxed)
-    try relaxed.processMessages(try updateWithCall("notAFunction"))
-    #expect(throws: A2UIValidationError.self) {
-      try relaxed.processMessages(try self.updateWithCall("@notAFunction"))
-    }
-
-    let strict = try makeProcessorWithSurface(validationConfig: .strict)
-    #expect(throws: A2UIValidationError.self) {
-      try strict.processMessages(try self.updateWithCall("notAFunction"))
-    }
-  }
-
   // MARK: - Runtime resolution
 
   private func makeResolver(
