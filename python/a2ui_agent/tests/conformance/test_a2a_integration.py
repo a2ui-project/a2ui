@@ -32,7 +32,7 @@ cases_a2a_integration = get_conformance_cases("extensions/a2a/a2a_integration.ya
 )
 def test_a2a_integration_conformance(name, test_case):
     from a2ui.a2a.parts import create_a2ui_part, is_a2ui_part, get_a2ui_datapart
-    from a2a.types import DataPart, Part
+    from a2ui.a2a._compat import make_data_part
     from a2ui.a2a.extension import (
         get_a2ui_agent_extension,
         try_activate_a2ui_extension,
@@ -56,7 +56,7 @@ def test_a2a_integration_conformance(name, test_case):
 
     elif action == "is_a2ui_part":
         mime_type = args.get("mimeType")
-        part = Part(root=DataPart(data={}, metadata={"mimeType": mime_type}))
+        part = make_data_part({}, metadata={"mimeType": mime_type})
         result = is_a2ui_part(part)
         assert result == test_case["expect"]
 
@@ -75,7 +75,9 @@ def test_a2a_integration_conformance(name, test_case):
         expect = test_case["expect"]
         assert ext.uri == expect["uri"]
         if expect["params"] is None:
-            assert ext.params is None
+            # a2a-sdk 0.3 leaves ``params`` as None; on 1.x it is a protobuf
+            # Struct, which is never None, so "no params" is an empty one.
+            assert not ext.params
         else:
             assert ext.params == expect["params"]
 

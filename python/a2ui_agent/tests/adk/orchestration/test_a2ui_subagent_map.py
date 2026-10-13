@@ -19,7 +19,7 @@ from google.adk.sessions.session import Session
 
 from a2ui.adk.orchestration.a2ui_subagent_map import A2uiSubagentMap, SurfaceIdAlreadyExistsError
 from a2ui.schema.constants import A2UI_CLIENT_DATA_MODEL_SURFACES_KEY
-from a2a.types import DataPart, TextPart
+from a2ui.a2a._compat import make_data_part, make_text_part
 
 
 class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
@@ -42,10 +42,7 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
     @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     async def test_get_subagent_name_for_client_event_action(self, mock_is_a2ui_part):
         mock_is_a2ui_part.return_value = True
-        a2a_part = MagicMock()
-        a2a_part.root = MagicMock()
-        a2a_part.root.__class__ = DataPart
-        a2a_part.root.data = {"action": {"surfaceId": "surface1"}}
+        a2a_part = make_data_part({"action": {"surfaceId": "surface1"}})
 
         state = {"a2ui_surface_id_surface1": "agent_beta"}
         result = await A2uiSubagentMap.get_subagent_name_for_client_event(
@@ -56,10 +53,7 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
     @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     async def test_get_subagent_name_for_client_event_error(self, mock_is_a2ui_part):
         mock_is_a2ui_part.return_value = True
-        a2a_part = MagicMock()
-        a2a_part.root = MagicMock()
-        a2a_part.root.__class__ = DataPart
-        a2a_part.root.data = {"error": {"surfaceId": "surface1"}}
+        a2a_part = make_data_part({"error": {"surfaceId": "surface1"}})
 
         state = {"a2ui_surface_id_surface1": "agent_beta"}
         result = await A2uiSubagentMap.get_subagent_name_for_client_event(
@@ -70,9 +64,7 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
     @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     async def test_get_subagent_name_for_client_event_not_a2ui(self, mock_is_a2ui_part):
         mock_is_a2ui_part.return_value = False
-        a2a_part = MagicMock()
-        a2a_part.root = MagicMock()
-        a2a_part.root.__class__ = DataPart
+        a2a_part = make_data_part({})
         state = {"a2ui_surface_id_surface1": "agent_beta"}
         result = await A2uiSubagentMap.get_subagent_name_for_client_event(
             a2a_part, state
@@ -148,10 +140,7 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         self, mock_set_subagent, mock_is_a2ui_part
     ):
         mock_is_a2ui_part.return_value = True
-        a2a_part = MagicMock()
-        a2a_part.root = MagicMock()
-        a2a_part.root.__class__ = DataPart
-        a2a_part.root.data = {"beginRendering": {"surfaceId": "surface1"}}
+        a2a_part = make_data_part({"beginRendering": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
@@ -171,10 +160,7 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         self, mock_set_subagent, mock_is_a2ui_part
     ):
         mock_is_a2ui_part.return_value = True
-        a2a_part = MagicMock()
-        a2a_part.root = MagicMock()
-        a2a_part.root.__class__ = DataPart
-        a2a_part.root.data = {"createSurface": {"surfaceId": "surface1"}}
+        a2a_part = make_data_part({"createSurface": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
@@ -194,10 +180,7 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         self, mock_set_subagent, mock_is_a2ui_part
     ):
         mock_is_a2ui_part.return_value = True
-        a2a_part = MagicMock()
-        a2a_part.root = MagicMock()
-        a2a_part.root.__class__ = DataPart
-        a2a_part.root.data = {"beginRendering": {"surfaceId": "surface1"}}
+        a2a_part = make_data_part({"beginRendering": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
@@ -218,10 +201,7 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         self, mock_set_subagent, mock_is_a2ui_part
     ):
         mock_is_a2ui_part.return_value = True
-        a2a_part = MagicMock()
-        a2a_part.root = MagicMock()
-        a2a_part.root.__class__ = DataPart
-        a2a_part.root.data = {"beginRendering": {"surfaceId": "surface1"}}
+        a2a_part = make_data_part({"beginRendering": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
@@ -244,10 +224,7 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         self, mock_remove_subagent, mock_is_a2ui_part
     ):
         mock_is_a2ui_part.return_value = True
-        a2a_part = MagicMock()
-        a2a_part.root = MagicMock()
-        a2a_part.root.__class__ = DataPart
-        a2a_part.root.data = {"deleteSurface": {"surfaceId": "surface1"}}
+        a2a_part = make_data_part({"deleteSurface": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
@@ -268,10 +245,7 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         self, mock_remove_subagent, mock_set_subagent, mock_is_a2ui_part
     ):
         mock_is_a2ui_part.return_value = False
-        a2a_part = MagicMock()
-        a2a_part.root = MagicMock()
-        a2a_part.root.__class__ = DataPart
-        a2a_part.root.data = {"beginRendering": {"surfaceId": "surface1"}}
+        a2a_part = make_data_part({"beginRendering": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
@@ -290,10 +264,7 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         self, mock_remove_subagent, mock_set_subagent, mock_is_a2ui_part
     ):
         mock_is_a2ui_part.return_value = True
-        a2a_part = MagicMock()
-        a2a_part.root = MagicMock()
-        a2a_part.root.__class__ = TextPart
-        a2a_part.root.text = "hello"
+        a2a_part = make_text_part("hello")
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
@@ -305,17 +276,18 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         mock_set_subagent.assert_not_called()
         mock_remove_subagent.assert_not_called()
 
+    @patch(
+        "a2ui.adk.orchestration.a2ui_subagent_map.part_data_as_dict",
+        return_value="this is a string, not a dict",
+    )
     @patch("a2ui.adk.orchestration.a2ui_subagent_map.is_a2ui_part")
     @patch.object(A2uiSubagentMap, "set_subagent")
     @patch.object(A2uiSubagentMap, "remove_subagent")
     async def test_update_from_server_event_data_not_dict(
-        self, mock_remove_subagent, mock_set_subagent, mock_is_a2ui_part
+        self, mock_remove_subagent, mock_set_subagent, mock_is_a2ui_part, _mock_data
     ):
         mock_is_a2ui_part.return_value = True
-        a2a_part = MagicMock()
-        a2a_part.root = MagicMock()
-        a2a_part.root.__class__ = DataPart
-        a2a_part.root.data = "this is a string, not a dict"
+        a2a_part = make_data_part({})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)
@@ -334,10 +306,7 @@ class TestA2uiSubagentMap(unittest.IsolatedAsyncioTestCase):
         self, mock_remove_subagent, mock_set_subagent, mock_is_a2ui_part
     ):
         mock_is_a2ui_part.return_value = True
-        a2a_part = MagicMock()
-        a2a_part.root = MagicMock()
-        a2a_part.root.__class__ = DataPart
-        a2a_part.root.data = {"updateComponents": {"surfaceId": "surface1"}}
+        a2a_part = make_data_part({"updateComponents": {"surfaceId": "surface1"}})
 
         session_service = AsyncMock()
         session = MagicMock(spec=Session)

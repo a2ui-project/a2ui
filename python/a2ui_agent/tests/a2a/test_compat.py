@@ -38,7 +38,9 @@ def test_helpers_accept_none(helper, empty):
 
 
 def test_part_metadata_reads_what_make_data_part_wrote():
-    part = _compat.make_data_part({"a": 1}, metadata={"mimeType": "application/a2ui+json"})
+    part = _compat.make_data_part(
+        {"a": 1}, metadata={"mimeType": "application/a2ui+json"}
+    )
     assert _compat.part_metadata(part) == {"mimeType": "application/a2ui+json"}
 
 
@@ -53,7 +55,9 @@ def test_part_metadata_v1_reads_a_plain_map(monkeypatch):
     class ScalarMapContainer(dict):
         pass
 
-    part = SimpleNamespace(metadata=ScalarMapContainer({"mimeType": "application/a2ui+json"}))
+    part = SimpleNamespace(
+        metadata=ScalarMapContainer({"mimeType": "application/a2ui+json"})
+    )
     assert _compat.part_metadata(part) == {"mimeType": "application/a2ui+json"}
 
 

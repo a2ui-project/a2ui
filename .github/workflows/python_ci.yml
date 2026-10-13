@@ -139,10 +139,11 @@ jobs:
             -e "$core" \
             -e "$agent" \
             "a2a-sdk>=1.0.0,<2" \
-            pytest
+            pytest \
+            pytest-asyncio
       - name: Show a2a-sdk version
         run: |
           .venv-a2a-sdk-1x/bin/python -c "import importlib.metadata as m; print('a2a-sdk', m.version('a2a-sdk'))"
-      - name: Run a2ui-agent-sdk 1.x Part tests
+      - name: Run a2ui-agent-sdk tests on a2a-sdk 1.x
         run: |
-          .venv-a2a-sdk-1x/bin/pytest python/a2ui_agent/tests/a2a -q
+          .venv-a2a-sdk-1x/bin/pytest python/a2ui_agent/tests -q
