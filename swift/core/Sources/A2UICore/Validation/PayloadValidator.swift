@@ -31,7 +31,21 @@ public final class PayloadValidator: Sendable {
   /// The validation configuration controlling strictness and protocol version behavior.
   public let config: ValidationConfig
 
+  /// The component envelope keys that a v1.0 component schema may not declare.
+  private static let envelopeKeys = ["id", "component", "catalogId", "metadata"]
+
+  /// The envelope keys that the shared `ComponentCommon` definition declares.
+  private static let componentCommonKeys: Set<String> = ["id", "catalogId", "metadata"]
+
+  /// The envelope keys each component schema declares, by component name. Computed once from
+  /// v1.0, where undeclared envelope keys are left out of the instance checked by the schema.
+  private let declaredEnvelopeKeys: [String: Set<String>]
+
   private var enforceIdentifiers: Bool {
+    Self.enforcesIdentifiers(catalog: catalog, config: config)
+  }
+
+  private static func enforcesIdentifiers(catalog: AnyCatalog, config: ValidationConfig) -> Bool {
     if let version = config.protocolVersion {
       return version.isAtLeastV10
     }
@@ -47,8 +61,16 @@ public final class PayloadValidator: Sendable {
     catalog: any CatalogProtocol,
     config: ValidationConfig = .strict
   ) {
-    self.catalog = catalog.eraseToAnyCatalog()
+    let anyCatalog = catalog.eraseToAnyCatalog()
+    self.catalog = anyCatalog
     self.config = config
+    if Self.enforcesIdentifiers(catalog: anyCatalog, config: config) {
+      self.declaredEnvelopeKeys = anyCatalog.components.mapValues {
+        Self.envelopeKeysDeclared(in: $0.schema.jsonValue)
+      }
+    } else {
+      self.declaredEnvelopeKeys = [:]
+    }
   }
 
   // MARK: - Component Validation
@@ -138,18 +160,13 @@ public final class PayloadValidator: Sendable {
     }
 
     if enforceIdentifiers, let rawCatID = component["catalogId"], rawCatID.stringValue == nil {
-      throw A2UIValidationError(
-        "Field 'catalogId' must be a string",
-        details: [
-          A2UIErrorDetail(
-            path: "catalogId",
-            code: "type_mismatch",
-            message: "Field 'catalogId' must be a string"
-          )
-        ]
+      throw CatalogResolutionErrors.nonStringCatalogID(
+        path: CatalogResolutionErrors.componentCatalogIDPath
       )
     }
 
+    // Called directly, the validator takes a component that names no catalogId to be in the
+    // surface default catalog, and one that names a catalogId to possibly be in another.
     let componentNamesCatalog = component["catalogId"] != nil
 
     guard let componentAPI = catalog.components[type] else {
@@ -180,9 +197,9 @@ public final class PayloadValidator: Sendable {
 
     var schemaTargetDict = component
     if enforceIdentifiers {
-      let schemaJSON = componentAPI.schema.jsonValue
-      for key in ["id", "component", "catalogId", "metadata"]
-      where !schemaHasProperty(key, in: schemaJSON) {
+      let declaredKeys =
+        declaredEnvelopeKeys[type] ?? Self.envelopeKeysDeclared(in: componentAPI.schema.jsonValue)
+      for key in Self.envelopeKeys where !declaredKeys.contains(key) {
         schemaTargetDict.removeValue(forKey: key)
       }
     }
@@ -330,7 +347,11 @@ public final class PayloadValidator: Sendable {
     }
 
     guard let fn else {
-      guard !config.allowUnknownElements else { return }
+      // An unknown reserved `@` name is never accepted: v1.0 defines its system functions.
+      let isSystemName = enforceIdentifiers && name.hasPrefix("@")
+      if !isSystemName && (config.allowUnknownElements || config.allowUnknownFunctions) {
+        return
+      }
       let msg = "Unrecognized function '\(name)'"
       throw A2UIValidationError(
         msg,
@@ -511,30 +532,14 @@ public final class PayloadValidator: Sendable {
         enforceIdentifiers || !rawName.isEmpty
       {
         if enforceIdentifiers, let rawCatID = dict["catalogId"], rawCatID.stringValue == nil {
-          throw A2UIValidationError(
-            "Field 'catalogId' must be a string",
-            details: [
-              A2UIErrorDetail(
-                path: "catalogId",
-                code: "type_mismatch",
-                message: "Field 'catalogId' must be a string"
-              )
-            ]
+          throw CatalogResolutionErrors.nonStringCatalogID(
+            path: CatalogResolutionErrors.callCatalogIDPath(functionName: rawName)
           )
         }
         if enforceIdentifiers, let rawArgs = dict["args"], rawArgs != .null,
           rawArgs.objectValue == nil
         {
-          throw A2UIValidationError(
-            "Function arguments for '\(rawName)' must be an object",
-            details: [
-              A2UIErrorDetail(
-                path: "functions.\(rawName).args",
-                code: "type_mismatch",
-                message: "Function arguments for '\(rawName)' must be an object"
-              )
-            ]
-          )
+          throw CatalogResolutionErrors.nonObjectArguments(functionName: rawName)
         }
         let rawArgs = dict["args"]?.dictionaryValue
 
@@ -547,7 +552,7 @@ public final class PayloadValidator: Sendable {
               msg,
               details: [
                 A2UIErrorDetail(
-                  path: "functions.\(rawName).catalogId",
+                  path: CatalogResolutionErrors.callCatalogIDPath(functionName: rawName),
                   code: "invalid_value",
                   message: msg
                 )
@@ -599,21 +604,73 @@ public final class PayloadValidator: Sendable {
     return callCatalogID == nil || callCatalogID?.isEmpty == true || callCatalogID == catalog.id
   }
 
-  private func schemaHasProperty(_ key: String, in schemaJSON: JSONValue) -> Bool {
-    if schemaJSON["properties"]?.objectValue?[key] != nil {
+  /// Returns the component envelope keys that a component schema declares.
+  ///
+  /// A key is declared when the schema lists it under `properties`, directly, through a local
+  /// `$ref` into the schema's own definitions, or through `allOf`, `anyOf`, or `oneOf`. A `$ref`
+  /// to another document's `ComponentCommon` declares `id`, `catalogId`, and `metadata`.
+  private static func envelopeKeysDeclared(in schema: JSONValue) -> Set<String> {
+    Set(
+      envelopeKeys.filter {
+        schemaDeclaresProperty($0, in: schema, root: schema, visitedRefs: [])
+      }
+    )
+  }
+
+  private static func schemaDeclaresProperty(
+    _ key: String,
+    in schema: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String>
+  ) -> Bool {
+    if schema["properties"]?.objectValue?[key] != nil {
       return true
     }
-    if let ref = schemaJSON["$ref"]?.stringValue, ref.hasSuffix("/ComponentCommon") {
-      return true
+    var visitedRefs = visitedRefs
+    if let ref = schema["$ref"]?.stringValue {
+      if ref.hasPrefix("#") {
+        if visitedRefs.insert(ref).inserted, let target = resolveLocalRef(ref, in: root),
+          schemaDeclaresProperty(key, in: target, root: root, visitedRefs: visitedRefs)
+        {
+          return true
+        }
+      } else if ref.hasSuffix("/ComponentCommon"), componentCommonKeys.contains(key) {
+        return true
+      }
     }
     for combiner in ["allOf", "anyOf", "oneOf"] {
-      if let subSchemas = schemaJSON[combiner]?.arrayValue,
-        subSchemas.contains(where: { schemaHasProperty(key, in: $0) })
+      if let subSchemas = schema[combiner]?.arrayValue,
+        subSchemas.contains(where: {
+          schemaDeclaresProperty(key, in: $0, root: root, visitedRefs: visitedRefs)
+        })
       {
         return true
       }
     }
     return false
+  }
+
+  /// Resolves a local `$ref` such as `#/$defs/Common` against the schema's root document.
+  private static func resolveLocalRef(_ ref: String, in root: JSONValue) -> JSONValue? {
+    guard ref == "#" || ref.hasPrefix("#/") else { return nil }
+    var current = root
+    let tokens = ref.dropFirst().split(separator: "/", omittingEmptySubsequences: false)
+    for rawToken in tokens.dropFirst() {
+      let token =
+        rawToken
+        .replacingOccurrences(of: "~1", with: "/")
+        .replacingOccurrences(of: "~0", with: "~")
+      if let next = current.objectValue?[token] {
+        current = next
+      } else if let items = current.arrayValue, let index = Int(token),
+        items.indices.contains(index)
+      {
+        current = items[index]
+      } else {
+        return nil
+      }
+    }
+    return current
   }
 
   private func containsDynamicExpression(in args: [String: JSONValue]) -> Bool {
