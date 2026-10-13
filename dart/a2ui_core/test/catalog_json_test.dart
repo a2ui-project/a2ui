@@ -463,7 +463,7 @@ void main() {
       );
 
       final Catalog<ComponentApi, FunctionImplementation> rendererCatalog =
-          MinimalCatalog();
+          TestCatalog();
       expect(
         rendererCatalog.functions.values,
         everyElement(isA<FunctionImplementation>()),
@@ -1390,7 +1390,7 @@ void main() {
     });
 
     test('uses the v0.9 shape below v1.0', () {
-      final Map<String, Object?> out = MinimalCatalog().toJson();
+      final Map<String, Object?> out = TestCatalog().toJson();
 
       expect(out['protocolVersion'], '0.9');
       final capitalize = (out['functions']! as Map).values.single as Map;
@@ -1927,7 +1927,7 @@ void main() {
 
     test('follow the version a processor advertises', () {
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog()],
+        catalogs: [TestCatalog()],
       );
 
       final Map<String, Object?> json = processor
@@ -1941,11 +1941,11 @@ void main() {
 
       expect(
         ((json['v1.0']! as Map)['inlineCatalogs'] as List).single,
-        equals(MinimalCatalog().toJson()),
+        equals(TestCatalog().toJson()),
       );
       expect(
         ((json['v0.9']! as Map)['inlineCatalogs'] as List).single,
-        equals(MinimalCatalog().toLegacyInlineCatalog()),
+        equals(TestCatalog().toLegacyInlineCatalog()),
       );
     });
   });

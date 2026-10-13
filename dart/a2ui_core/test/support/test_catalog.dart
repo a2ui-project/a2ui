@@ -15,8 +15,8 @@
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
-class MinimalTextApi extends ComponentApi {
-  MinimalTextApi()
+class TestTextApi extends ComponentApi {
+  TestTextApi()
       : super(
           name: 'Text',
           schema: Schema.object(
@@ -31,8 +31,8 @@ class MinimalTextApi extends ComponentApi {
         );
 }
 
-class MinimalRowApi extends ComponentApi {
-  MinimalRowApi()
+class TestRowApi extends ComponentApi {
+  TestRowApi()
       : super(
           name: 'Row',
           schema: Schema.object(
@@ -58,8 +58,8 @@ class MinimalRowApi extends ComponentApi {
         );
 }
 
-class MinimalColumnApi extends ComponentApi {
-  MinimalColumnApi()
+class TestColumnApi extends ComponentApi {
+  TestColumnApi()
       : super(
           name: 'Column',
           schema: Schema.object(
@@ -85,8 +85,8 @@ class MinimalColumnApi extends ComponentApi {
         );
 }
 
-class MinimalButtonApi extends ComponentApi {
-  MinimalButtonApi()
+class TestButtonApi extends ComponentApi {
+  TestButtonApi()
       : super(
           name: 'Button',
           schema: Schema.combined(
@@ -106,8 +106,8 @@ class MinimalButtonApi extends ComponentApi {
         );
 }
 
-class MinimalTextFieldApi extends ComponentApi {
-  MinimalTextFieldApi()
+class TestTextFieldApi extends ComponentApi {
+  TestTextFieldApi()
       : super(
           name: 'TextField',
           schema: Schema.combined(
@@ -152,17 +152,17 @@ class CapitalizeFunction extends FunctionImplementation {
   }
 }
 
-class MinimalCatalog extends Catalog<ComponentApi, FunctionImplementation> {
-  MinimalCatalog()
+class TestCatalog extends Catalog<ComponentApi, FunctionImplementation> {
+  TestCatalog()
       : super(
           id: 'https://a2ui.org/specification/v0_9/catalogs/minimal/minimal_catalog.json',
           protocolVersion: A2uiProtocolVersion.v0_9,
           components: [
-            MinimalTextApi(),
-            MinimalRowApi(),
-            MinimalColumnApi(),
-            MinimalButtonApi(),
-            MinimalTextFieldApi(),
+            TestTextApi(),
+            TestRowApi(),
+            TestColumnApi(),
+            TestButtonApi(),
+            TestTextFieldApi(),
           ],
           functions: [CapitalizeFunction()],
           themeSchema: Schema.object(

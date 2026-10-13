@@ -170,11 +170,11 @@ void main() {
   });
 
   group('MessageProcessor', () {
-    late MinimalCatalog catalog;
+    late TestCatalog catalog;
     late MessageProcessor processor;
 
     setUp(() {
-      catalog = MinimalCatalog();
+      catalog = TestCatalog();
       processor = MessageProcessor(
         catalogs: [catalog],
         defaultVersion: A2uiProtocolVersion.v0_9,
@@ -580,9 +580,9 @@ void main() {
   });
 
   group('MessageProcessor per-update integrity', () {
-    late MinimalCatalog catalog;
+    late TestCatalog catalog;
 
-    setUp(() => catalog = MinimalCatalog());
+    setUp(() => catalog = TestCatalog());
 
     MessageProcessor processorWith([
       ValidationConfig config = ValidationConfig.strict,
@@ -1094,11 +1094,11 @@ void main() {
           ],
         );
 
-    final String minimalId = MinimalCatalog().id;
+    final String minimalId = TestCatalog().id;
 
     test('holds v0.9 and v1.0 surfaces side by side', () {
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog(), v10Catalog()],
+        catalogs: [TestCatalog(), v10Catalog()],
       );
       processor.processMessages([
         {
@@ -1131,7 +1131,7 @@ void main() {
 
     test('accepts a lone raw envelope, a raw list and the wrapper', () {
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog()],
+        catalogs: [TestCatalog()],
       );
       processor.processMessages({
         'version': 'v0.9',
@@ -1166,7 +1166,7 @@ void main() {
 
     test('rejects a malformed payload before applying any of it', () {
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog()],
+        catalogs: [TestCatalog()],
       );
       expect(
         () => processor.processMessages([
@@ -1194,7 +1194,7 @@ void main() {
 
     test('processMessagesAsync applies the payload', () async {
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog()],
+        catalogs: [TestCatalog()],
       );
       await processor.processMessagesAsync({
         'version': 'v0.9',
@@ -1396,7 +1396,7 @@ void main() {
 
     test('rejects a catalog with an incompatible version', () {
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog(), v10Catalog()],
+        catalogs: [TestCatalog(), v10Catalog()],
       );
       expect(
         () => processor.processMessages({

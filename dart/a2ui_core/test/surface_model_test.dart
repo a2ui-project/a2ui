@@ -19,10 +19,10 @@ import 'support/test_catalog.dart';
 
 void main() {
   group('SurfaceGroupModel', () {
-    late MinimalCatalog catalog;
+    late TestCatalog catalog;
 
     setUp(() {
-      catalog = MinimalCatalog();
+      catalog = TestCatalog();
     });
 
     test('removes action forwarder listener when surface is deleted', () {

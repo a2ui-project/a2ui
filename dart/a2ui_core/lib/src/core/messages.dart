@@ -15,6 +15,7 @@
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/semver.dart';
+import '../primitives/uax31.dart';
 
 /// Base class for the messages an agent sends a renderer.
 ///
@@ -446,7 +447,7 @@ Map<String, dynamic>? _optionalObject(
     body[field] == null ? null : _object(body, field, messageType);
 
 /// Reads an optional v1.0 `metadata` object, which may hold only an
-/// `extensions` object.
+/// `extensions` object whose keys are valid UAX #31 identifiers.
 Map<String, dynamic>? _metadata(Map<String, dynamic> body, String messageType) {
   final Map<String, dynamic>? metadata = _optionalObject(
     body,
@@ -455,7 +456,18 @@ Map<String, dynamic>? _metadata(Map<String, dynamic> body, String messageType) {
   );
   if (metadata == null) return null;
   _checkKeys(metadata, const {'extensions'}, '$messageType.metadata');
-  _optionalObject(metadata, 'extensions', '$messageType.metadata');
+  final Map<String, dynamic>? extensions =
+      _optionalObject(metadata, 'extensions', '$messageType.metadata');
+  if (extensions != null) {
+    for (final String key in extensions.keys) {
+      if (!isValidUax31Identifier(key)) {
+        throw A2uiValidationError(
+          "Extension key '$key' in '$messageType.metadata.extensions' is not "
+          'a valid UAX #31 identifier.',
+        );
+      }
+    }
+  }
   return metadata;
 }
 

@@ -62,17 +62,11 @@ void main() {
   });
 
   group('BasicCatalog child references', () {
-    for (final (String label, _RendererCatalog catalog, String? skip) in [
-      ('v0.9', BasicCatalog.v0_9(), null),
-      (
-        'v1.0',
-        BasicCatalog.v1_0(),
-        'Child references are found through `ComponentId` and '
-            '`ChildList`, not the v1.0 `Child` type yet.',
-      ),
+    for (final (String label, _RendererCatalog catalog) in [
+      ('v0.9', BasicCatalog.v0_9()),
+      ('v1.0', BasicCatalog.v1_0()),
     ]) {
-      test('$label declares the child references of its layout components',
-          skip: skip, () {
+      test('$label declares the child references of its layout components', () {
         final Map<String, ComponentRefFields> refs = extractComponentRefFields(
           catalog,
         );

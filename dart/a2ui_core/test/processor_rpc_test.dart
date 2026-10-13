@@ -44,7 +44,7 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(String id) =>
     Catalog<ComponentApi, FunctionImplementation>(
       id: id,
       protocolVersion: A2uiProtocolVersion.v1_0,
-      components: [MinimalTextApi()],
+      components: [TestTextApi()],
       functions: [
         _Fn('whereAmI', (_, context) => context.dataModel.get('/name')),
         _Fn('versionOf', (_, context) => context.protocolVersion?.name),

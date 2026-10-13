@@ -34,14 +34,9 @@ const Map<String, String> _v10ExpectedFailures = {
   'test_permissive_mode_allows_orphan_components':
       'The v1.0 basic catalog requires `child` and `action` on `Button`, '
           "which the case's `orphan_comp` omits.",
-  'test_v10_component_catalog_override':
-      "The case's inline catalogs declare no components, so `children` is "
-          'not known as a child reference and reads back null.',
   'test_v10_create_surface_inline_initialization':
       'The v1.0 basic catalog requires `child` and `action` on `Button`, '
           "which the case's `btn1` omits.",
-  'test_v10_create_surface_metadata_extension_key_must_be_identifier':
-      'Metadata extension keys are not checked against the v1.0 schema yet.',
 };
 
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to
@@ -60,7 +55,8 @@ const Map<String, String> _functionsExpectedFailures = {};
 /// [DataContext]: `core/message_processor_v0_9.yaml`,
 /// `core/message_processor_v1_0.yaml`, the `process_messages` cases of
 /// `core/reserved_keys.yaml`, and the `validate` cases of
-/// `core/functions.yaml`, which render basic-catalog components.
+/// `core/functions.yaml`, `core/expressions.yaml`, `core/index_function.yaml`,
+/// and `core/multi_catalog.yaml`, which render basic-catalog components.
 void main() {
   _registerSuite('core/message_processor_v0_9.yaml');
   _registerSuite(
@@ -77,6 +73,9 @@ void main() {
     onlyAction: 'validate',
     expectedFailures: _functionsExpectedFailures,
   );
+  _registerSuite('core/expressions.yaml', onlyAction: 'validate');
+  _registerSuite('core/index_function.yaml', onlyAction: 'validate');
+  _registerSuite('core/multi_catalog.yaml', onlyAction: 'validate');
 }
 
 void _registerSuite(
@@ -116,7 +115,8 @@ void _runCase(Map<String, Object?> testCase) {
 
 void _runProcessMessagesCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
-  final strictMode = testCase['strictMode'] == true;
+  final isValidate = _actionOf(testCase) == 'validate';
+  final bool strictMode = isValidate || testCase['strictMode'] == true;
   final processor = MessageProcessor<ComponentApi>(
     catalogs: _catalogsFor(testCase),
     validationConfig:
@@ -124,21 +124,26 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
   );
 
   if (testCase['steps'] case final List<Object?> steps) {
-    _runSteps(processor, testCase, steps.cast<Map<String, Object?>>());
+    _runSteps(
+      processor,
+      testCase,
+      steps.cast<Map<String, Object?>>(),
+      resolveNodes: isValidate,
+    );
     return;
   }
 
   final Object? expectError = testCase['expectError'];
   if (expectError != null) {
     expect(
-      () => _process(processor, testCase),
+      () => _process(processor, testCase, resolveNodes: isValidate),
       throwsA(_matchesError(expectError as Map<String, Object?>)),
       reason: name,
     );
     return;
   }
 
-  _process(processor, testCase);
+  _process(processor, testCase, resolveNodes: isValidate);
 
   final Map<String, Object?> expected =
       (testCase['expect'] as Map<String, Object?>?) ?? const {};
@@ -152,8 +157,9 @@ void _runProcessMessagesCase(Map<String, Object?> testCase) {
 void _runSteps(
   MessageProcessor<ComponentApi> processor,
   Map<String, Object?> testCase,
-  List<Map<String, Object?>> steps,
-) {
+  List<Map<String, Object?>> steps, {
+  bool resolveNodes = false,
+}) {
   final name = testCase['name']! as String;
   for (var index = 0; index < steps.length; index++) {
     final Map<String, Object?> step = steps[index];
@@ -162,12 +168,16 @@ void _runSteps(
         (index == steps.length - 1 ? testCase['expectError'] : null);
     if (expectError != null) {
       expect(
-        () => processor.processMessages(payload),
+        () => _processPayload(
+          processor,
+          payload,
+          resolveNodes: resolveNodes,
+        ),
         throwsA(_matchesError(expectError as Map<String, Object?>)),
         reason: '$name: step $index',
       );
     } else {
-      processor.processMessages(payload);
+      _processPayload(processor, payload, resolveNodes: resolveNodes);
     }
   }
   _checkSurfaces(
@@ -240,11 +250,25 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
 ) {
   final String version = _versionOf(testCase);
   if (testCase['catalogs'] case final List<Object?> rawCatalogs) {
-    return [
+    final includeBasic = _actionOf(testCase) != 'get_renderer_capabilities';
+    final List<Catalog<ComponentApi, FunctionImplementation>> built = [
       for (final Object? item in rawCatalogs)
         if (item is Map<String, Object?>)
-          rendererCatalog(item, protocolVersion: version),
+          if (includeBasic &&
+              !item.containsKey('components') &&
+              !item.containsKey('functions') &&
+              !item.containsKey('theme'))
+            basicCatalogFor(
+              (item['protocolVersion'] as String?) ?? version,
+              asCatalogId: item['catalogId'] as String?,
+            )
+          else
+            rendererCatalog(item, protocolVersion: version),
     ];
+    if (includeBasic && !built.any((c) => c.id == 'basic')) {
+      built.add(basicCatalogFor(version, asCatalogId: 'basic'));
+    }
+    return built;
   }
   // v0.9 cases naming documents run over the basic catalog with its schema
   // checks relaxed (see [_permissive]): they test processing, the schema
@@ -343,9 +367,36 @@ String _catalogIdOf(Map<String, Object?> testCase) =>
 /// Processes the case's raw payload, in whichever shape it declares it.
 void _process(
   MessageProcessor<ComponentApi> processor,
-  Map<String, Object?> testCase,
-) {
-  processor.processMessages(testCase['messages'] ?? testCase['payload']);
+  Map<String, Object?> testCase, {
+  bool resolveNodes = false,
+}) {
+  _processPayload(
+    processor,
+    testCase['messages'] ?? testCase['payload'],
+    resolveNodes: resolveNodes,
+  );
+}
+
+void _processPayload(
+  MessageProcessor<ComponentApi> processor,
+  Object? payload, {
+  required bool resolveNodes,
+}) {
+  processor.processMessages(payload);
+  if (!resolveNodes) return;
+  for (final SurfaceModel<ComponentApi> surface
+      in processor.model.allSurfaces) {
+    A2uiRendererError? reported;
+    final Subscription sub = surface.onError.subscribe((error) {
+      reported ??= error;
+    });
+    final resolver = NodeResolver<ComponentApi>(surface);
+    resolver.dispose();
+    sub.unsubscribe();
+    if (reported != null) {
+      throw A2uiValidationError(reported!.message);
+    }
+  }
 }
 
 void _checkSurfaces(
@@ -464,19 +515,19 @@ void _checkComponents(
   final Set<Object?> expectedIds = {
     for (final Map<String, Object?> entry in expected) entry['id'],
   };
-  expect(
-    actualIds,
-    exhaustive ? equals(expectedIds) : containsAll(expectedIds),
-    reason: '$reason: component ids',
-  );
 
   final resolver = NodeResolver<ComponentApi>(surface);
   addTearDown(resolver.dispose);
   final nodes = <String, ComponentNode<ComponentApi>>{};
+  final visited = Set<ComponentNode<ComponentApi>>.identity();
   void collect(Object? value) {
     if (value is ComponentNode<ComponentApi>) {
-      if (nodes.containsKey(value.componentId)) return;
-      nodes[value.componentId] = value;
+      if (!visited.add(value)) return;
+      final int? itemIndex = value.context?.dataContext.index;
+      if (itemIndex != null) {
+        nodes.putIfAbsent('${value.componentId}_$itemIndex', () => value);
+      }
+      nodes.putIfAbsent(value.componentId, () => value);
       collect(value.props.peek());
     } else if (value is Map) {
       value.values.forEach(collect);
@@ -487,11 +538,17 @@ void _checkComponents(
 
   collect(resolver.rootNode.peek());
 
+  expect(
+    exhaustive ? actualIds : <String>{...actualIds, ...nodes.keys},
+    exhaustive ? equals(expectedIds) : containsAll(expectedIds),
+    reason: '$reason: component ids',
+  );
+
   for (final entry in expected) {
     final id = entry['id']! as String;
     final ComponentModel? component = surface.componentsModel.get(id);
-    expect(component, isNotNull, reason: '$reason: component $id');
     final ComponentNode<ComponentApi>? node = nodes[id];
+    expect(component ?? node, isNotNull, reason: '$reason: component $id');
 
     entry.forEach((key, value) {
       if (key == 'id') return;
@@ -500,10 +557,11 @@ void _checkComponents(
             reason: '$reason: $id type');
         return;
       }
+      final Object? actual = node == null || node.isPlaceholder
+          ? component!.properties[key]
+          : _plain(node.props.peek()[key]);
       expect(
-        node == null
-            ? component!.properties[key]
-            : _plain(node.props.peek()[key]),
+        actual is num && value is String ? actual.toString() : actual,
         equals(value),
         reason: '$reason: $id.$key',
       );

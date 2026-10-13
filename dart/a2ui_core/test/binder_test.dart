@@ -40,11 +40,11 @@ class _SpyFunction extends FunctionImplementation {
 
 void main() {
   group('GenericBinder', () {
-    late MinimalCatalog catalog;
+    late TestCatalog catalog;
     late SurfaceModel surface;
 
     setUp(() {
-      catalog = MinimalCatalog();
+      catalog = TestCatalog();
       surface = SurfaceModel('s1', defaultCatalog: catalog);
     });
 
@@ -56,7 +56,7 @@ void main() {
       surface.dataModel.set('/val', 'initial');
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalTextApi().schema);
+      final binder = GenericBinder(context, TestTextApi().schema);
 
       expect(
         (binder.resolvedProps.value['text'] as ResolvedBinding<Object?>).value,
@@ -85,7 +85,7 @@ void main() {
       surface.componentsModel.addComponent(comp);
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalButtonApi().schema);
+      final binder = GenericBinder(context, TestButtonApi().schema);
 
       final Object? action = binder.resolvedProps.value['action'];
       expect(action, isA<Function>());
@@ -108,7 +108,7 @@ void main() {
           's2',
           defaultCatalog: Catalog<ComponentApi, FunctionImplementation>(
             id: 'test',
-            components: [MinimalButtonApi()],
+            components: [TestButtonApi()],
             functions: [
               _SpyFunction('spy', (args) {
                 calls.add(args);
@@ -144,7 +144,7 @@ void main() {
         });
         spySurface.componentsModel.addComponent(comp);
         final context = ComponentContext(spySurface, comp, basePath: basePath);
-        final binder = GenericBinder(context, MinimalButtonApi().schema);
+        final binder = GenericBinder(context, TestButtonApi().schema);
         final Object? callback = binder.resolvedProps.value['action'];
         expect(callback, isA<Future<void> Function()>());
         await (callback as Future<void> Function())();
@@ -242,7 +242,7 @@ void main() {
       surface.componentsModel.addComponent(comp);
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalButtonApi().schema);
+      final binder = GenericBinder(context, TestButtonApi().schema);
       await (binder.resolvedProps.value['action'] as Future<void> Function())();
 
       expect(dispatchedAction, isNotNull);
@@ -275,7 +275,7 @@ void main() {
       surface.componentsModel.addComponent(comp);
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalButtonApi().schema);
+      final binder = GenericBinder(context, TestButtonApi().schema);
 
       final Object? action = binder.resolvedProps.value['action'];
       expect(action, isA<Function>());
@@ -294,7 +294,7 @@ void main() {
       surface.componentsModel.addComponent(comp);
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalTextApi().schema);
+      final binder = GenericBinder(context, TestTextApi().schema);
       final binding =
           binder.resolvedProps.value['text'] as WritableBinding<Object?>;
 
@@ -318,7 +318,7 @@ void main() {
       surface.componentsModel.addComponent(comp);
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalTextApi().schema);
+      final binder = GenericBinder(context, TestTextApi().schema);
       final binding =
           binder.resolvedProps.value['text'] as WritableBinding<Object?>;
 
@@ -336,7 +336,7 @@ void main() {
       surface.componentsModel.addComponent(comp);
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalRowApi().schema);
+      final binder = GenericBinder(context, TestRowApi().schema);
 
       final children =
           binder.resolvedProps.value['children'] as List<ChildNode>;
@@ -354,7 +354,7 @@ void main() {
       surface.componentsModel.addComponent(comp);
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalRowApi().schema);
+      final binder = GenericBinder(context, TestRowApi().schema);
 
       final children =
           binder.resolvedProps.value['children'] as List<ChildNode>;
@@ -407,7 +407,7 @@ void main() {
       surface.dataModel.set('/valid', false);
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+      final binder = GenericBinder(context, TestTextFieldApi().schema);
 
       expect(binder.resolvedProps.value['isValid'], false);
       expect(binder.resolvedProps.value['validationErrors'], ['Must be valid']);
@@ -429,7 +429,7 @@ void main() {
     test('evaluates checks returning ValidationResult maps and instances', () {
       final customCatalog = Catalog<ComponentApi, FunctionImplementation>(
         id: 'validation-test',
-        components: [MinimalTextFieldApi()],
+        components: [TestTextFieldApi()],
         functions: [
           _SpyFunction('checkResult', (args) => args['result']),
         ],
@@ -510,7 +510,7 @@ void main() {
       customSurface.componentsModel.addComponent(comp);
 
       final context = ComponentContext(customSurface, comp);
-      final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+      final binder = GenericBinder(context, TestTextFieldApi().schema);
 
       expect(binder.resolvedProps.value['isValid'], isFalse);
       expect(binder.resolvedProps.value['validationErrors'], [
@@ -590,7 +590,7 @@ void main() {
       surface.componentsModel.addComponent(comp);
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+      final binder = GenericBinder(context, TestTextFieldApi().schema);
 
       expect(errors, hasLength(2));
       expect(errors[0].code, 'VALIDATION_FAILED');
@@ -668,7 +668,7 @@ void main() {
       surface.componentsModel.addComponent(comp);
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+      final binder = GenericBinder(context, TestTextFieldApi().schema);
 
       expect(binder.resolvedProps.value['isValid'], isTrue);
       expect(binder.resolvedProps.value['validationErrors'], isEmpty);
@@ -695,7 +695,7 @@ void main() {
       surface.dataModel.set('/valid', false);
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+      final binder = GenericBinder(context, TestTextFieldApi().schema);
 
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
@@ -730,7 +730,7 @@ void main() {
         v1Surface.componentsModel.addComponent(comp);
 
         final context = ComponentContext(v1Surface, comp);
-        final binder = GenericBinder(context, MinimalTextApi().schema);
+        final binder = GenericBinder(context, TestTextApi().schema);
 
         final Object? binding = binder.resolvedProps.value['text'];
         expect(binding, isA<WritableBinding<Object?>>());
@@ -748,7 +748,7 @@ void main() {
         v1Surface.componentsModel.addComponent(comp2);
         final binder2 = GenericBinder(
           ComponentContext(v1Surface, comp2),
-          MinimalTextApi().schema,
+          TestTextApi().schema,
         );
         final Object? plainBinding = binder2.resolvedProps.value['text'];
         expect(plainBinding, isNot(isA<WritableBinding<Object?>>()));
@@ -770,7 +770,7 @@ void main() {
           defaultCatalog: Catalog<ComponentApi, FunctionImplementation>(
             id: 'test-v1',
             protocolVersion: A2uiProtocolVersion.v1_0,
-            components: [MinimalButtonApi()],
+            components: [TestButtonApi()],
             functions: [
               _SpyFunction('spy', (args) {
                 calls.add(args);
@@ -799,7 +799,7 @@ void main() {
           v1Surface.componentsModel.removeComponent('c1');
           v1Surface.componentsModel.addComponent(comp);
           final ctx = ComponentContext(v1Surface, comp, basePath: basePath);
-          final binder = GenericBinder(ctx, MinimalButtonApi().schema);
+          final binder = GenericBinder(ctx, TestButtonApi().schema);
           final callback =
               binder.resolvedProps.value['action'] as Future<void> Function();
           await callback();
@@ -870,7 +870,7 @@ void main() {
       v1Surface.componentsModel.addComponent(comp);
 
       final context = ComponentContext(v1Surface, comp);
-      final binder = GenericBinder(context, MinimalRowApi().schema);
+      final binder = GenericBinder(context, TestRowApi().schema);
 
       final children =
           binder.resolvedProps.value['children'] as List<ChildNode>;
@@ -904,7 +904,7 @@ void main() {
         surface.componentsModel.addComponent(comp);
 
         final context = ComponentContext(surface, comp);
-        final binder = GenericBinder(context, MinimalButtonApi().schema);
+        final binder = GenericBinder(context, TestButtonApi().schema);
         final callback =
             binder.resolvedProps.value['action'] as Future<void> Function();
         await callback();
@@ -936,7 +936,7 @@ void main() {
       surface.componentsModel.addComponent(comp);
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalButtonApi().schema);
+      final binder = GenericBinder(context, TestButtonApi().schema);
       final callback =
           binder.resolvedProps.value['action'] as Future<void> Function();
       await callback();

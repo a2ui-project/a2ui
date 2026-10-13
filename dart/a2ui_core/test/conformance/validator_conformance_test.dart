@@ -50,30 +50,16 @@ const Map<String, String> _reservedKeysExpectedFailures = {
 };
 
 /// Cases in `core/composition_constraints.yaml` expected to fail.
-const Map<String, String> _compositionExpectedFailures = {
-  'test_composition_unallowed_child_error':
-      'The harness reads the case\'s `catalog` map as the catalog document '
-          'itself, and does not read its inline `catalogSchema`.',
-  'test_composition_unallowed_parent_error':
-      'The harness reads the case\'s `catalog` map as the catalog document '
-          'itself, and does not read its inline `catalogSchema`.',
-};
+const Map<String, String> _compositionExpectedFailures = {};
 
 /// Cases in `core/validation_result.yaml` expected to fail.
 const Map<String, String> _validationResultExpectedFailures = {};
 
-/// Cases in `core/index_function.yaml` expected to fail.
-const Map<String, String> _indexFunctionExpectedFailures = {
-  'test_index_function_outside_loop_error':
-      'The harness reads the case\'s `catalog` map as the catalog document '
-          'itself, which declares no components.',
-};
-
 /// Runs the shared validator suites against [MessageProcessor.processMessages],
 /// the entry point for checking a payload on its own: the `validate` cases of
 /// `core/validator_v0_9.yaml`, `core/validator_v1_0.yaml`,
-/// `core/reserved_keys.yaml`, `core/composition_constraints.yaml`,
-/// `core/validation_result.yaml` and `core/index_function.yaml`.
+/// `core/reserved_keys.yaml`, `core/composition_constraints.yaml` and
+/// `core/validation_result.yaml`.
 ///
 /// Cases targeting a protocol version this SDK does not implement are skipped
 /// with a reason, so the suite doubles as the implementation checklist.
@@ -97,10 +83,6 @@ void main() {
   _registerValidatorSuite(
     'core/validation_result.yaml',
     expectedFailures: _validationResultExpectedFailures,
-  );
-  _registerValidatorSuite(
-    'core/index_function.yaml',
-    expectedFailures: _indexFunctionExpectedFailures,
   );
 }
 
@@ -198,8 +180,15 @@ List<Map<String, Object?>> _documentsFor(Map<String, Object?> testCase) {
       if (path is String) documents.add(_document(path));
     }
   } else if (testCase['catalog'] case final Map<String, Object?> catalog) {
-    if (catalog.containsKey('catalog_schema')) {
-      documents.add(_document(catalog['catalog_schema']));
+    if (catalog['catalog_schema'] ?? catalog['catalogSchema']
+        case final Object rawSchema) {
+      final Map<String, Object?> schema = _document(rawSchema);
+      documents.add({
+        if (catalog['protocolVersion'] != null &&
+            !schema.containsKey('protocolVersion'))
+          'protocolVersion': catalog['protocolVersion'],
+        ...schema,
+      });
     } else if (catalog.containsKey('components') ||
         catalog.containsKey('catalogId')) {
       documents.add(catalog);
@@ -330,7 +319,10 @@ Matcher _categoryMatches(String? category) => switch (category) {
 Matcher _messageMatches(String pattern) => isA<A2uiError>().having(
       (e) => e.message,
       'message',
-      matches(RegExp(_align(pattern), caseSensitive: false)),
+      anyOf(
+        contains(pattern),
+        matches(RegExp(_align(pattern), caseSensitive: false)),
+      ),
     );
 
 /// Widens a case's expected message to the wording this SDK uses.

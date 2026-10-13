@@ -221,7 +221,7 @@ void main() {
     late List<A2uiRendererError> clientErrors;
 
     setUp(() {
-      surface = SurfaceModel('surf-1', defaultCatalog: MinimalCatalog());
+      surface = SurfaceModel('surf-1', defaultCatalog: TestCatalog());
       component = ComponentModel('root', 'Text', {});
       clientErrors = [];
       surface.onError.subscribe(clientErrors.add);
@@ -727,7 +727,7 @@ void main() {
     late ComponentModel component;
 
     setUp(() {
-      surface = SurfaceModel('surf-err', defaultCatalog: MinimalCatalog());
+      surface = SurfaceModel('surf-err', defaultCatalog: TestCatalog());
       component = ComponentModel('root', 'Column', {});
       surface.componentsModel.addComponent(component);
       surface.componentsModel.addComponent(ComponentModel('child', 'Text', {}));

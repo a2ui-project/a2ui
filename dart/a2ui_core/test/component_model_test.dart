@@ -75,7 +75,7 @@ void main() {
     late SurfaceComponentsModel model;
 
     setUp(() {
-      model = SurfaceComponentsModel(catalog: MinimalCatalog());
+      model = SurfaceComponentsModel(catalog: TestCatalog());
       model.addComponent(
         ComponentModel('root', 'Column', {
           'children': ['a', 'b'],

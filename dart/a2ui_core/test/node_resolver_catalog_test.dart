@@ -283,7 +283,7 @@ void main() {
         functions: [_ConstantFunction('capitalize', 'from second')],
       );
       processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog(), second],
+        catalogs: [TestCatalog(), second],
         defaultVersion: A2uiProtocolVersion.v0_9,
       );
       processor.processMessages(
@@ -291,7 +291,7 @@ void main() {
           CreateSurfaceMessage(
             version: 'v0.9',
             surfaceId: 's',
-            catalogId: MinimalCatalog().id,
+            catalogId: TestCatalog().id,
           ),
         ),
       );

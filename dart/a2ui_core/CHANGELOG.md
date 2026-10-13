@@ -97,8 +97,9 @@
   unless `ValidationConfig.allowUnknownElements`.
 - **Behavior change:** v1.0 catalogs require UAX #31 identifiers for component
   ids, component and property names, function names and argument names, and
-  reject objects with unrecognized single-`@` keys (code
-  `INVALID_RESERVED_KEY`); `@@name` remains an escaped literal key.
+  `createSurface.metadata.extensions` keys, and reject objects with
+  unrecognized single-`@` keys (code `INVALID_RESERVED_KEY`); `@@name` remains
+  an escaped literal key.
 - **Behavior change:** a `$ref` into a document the SDK holds that names
   nothing now throws `A2uiCatalogError("Unresolvable schema reference:
 '<ref>'")` instead of silently leaving the subschema unconstrained, and
@@ -184,7 +185,7 @@
 - `DataContext` adds `isUserActivated`, `withUserActivation()`,
   `evaluateFunctionCall` (what an action runs: locally when possible,
   otherwise through the agent), `isPendingAgentCall` and
-  `resolveListenableWithPending` (returning a signal of `DynamicValueState`),
+  `resolveSignalWithPending` (returning a signal of `DynamicValueState`),
   and takes `callAgentFunction` (`AgentFunctionCaller`).
   `CatalogInvokerExtension.argumentErrors` returns a function's argument
   schema failures without throwing. **Behavior change:** `Catalog.invoke`

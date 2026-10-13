@@ -49,7 +49,7 @@ Catalog<ComponentApi, FunctionImplementation> _catalog({
       protocolVersion: protocolVersion != null
           ? A2uiProtocolVersion.tryParseSemVer(protocolVersion)
           : null,
-      components: [MinimalTextApi(), MinimalButtonApi(), MinimalTextFieldApi()],
+      components: [TestTextApi(), TestButtonApi(), TestTextFieldApi()],
       functions: [
         _Fn('upper', (args) => (args['value'] as String).toUpperCase()),
         _Fn('gated', (_) => 'opened', requiresUserActivation: true),
@@ -448,7 +448,7 @@ void main() {
       final comp = ComponentModel('c1', 'TextField', props);
       surface.componentsModel.addComponent(comp);
       final binder = GenericBinder(
-          ComponentContext(surface, comp), MinimalTextFieldApi().schema);
+          ComponentContext(surface, comp), TestTextFieldApi().schema);
       addTearDown(binder.dispose);
       return binder;
     }
@@ -548,7 +548,7 @@ void main() {
       });
       surface.componentsModel.addComponent(comp);
       final binder = GenericBinder(
-          ComponentContext(surface, comp), MinimalButtonApi().schema);
+          ComponentContext(surface, comp), TestButtonApi().schema);
       addTearDown(binder.dispose);
       final callback =
           binder.resolvedProps.value['action'] as Future<void> Function();
