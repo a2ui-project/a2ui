@@ -97,8 +97,8 @@
   `component`, `catalogId`) before reconstructing the canonical component
   envelope, prunes `ComponentCommon`, `Checkable` and inlined local mixins from
   `$defs`, and propagates `$ref` target descriptions onto reference objects. A
-  catalog without functions gets `anyFunction: {"not": {}}` and the flat
-  `FunctionCall` when loaded from JSON without functions. From v0.9, a theme
+  catalog without functions gets `anyFunction: {"not": {}}`, so the bundled
+  `FunctionCall` admits no catalog function call. From v0.9, a theme
   object schema that does not decide on unlisted properties gets
   `additionalProperties: true`. A `title` keyword written in a catalog document
   is kept instead of being stripped (#3036, #3053).

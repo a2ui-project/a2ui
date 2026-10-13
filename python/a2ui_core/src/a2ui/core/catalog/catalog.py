@@ -1399,7 +1399,7 @@ class Catalog(Generic[TComponent, TFunction]):
         if not isinstance(components, dict):
             return
         local_defs: dict[str, Any] = schema.get("$defs") or {}
-        used_local_mixins: set[str] = {"CatalogComponentCommon"}
+        used_local_mixins: set[str] = set()
         v1 = is_at_least_version(protocol_version, ProtocolVersion.V1_0)
 
         for name, comp_schema in list(components.items()):
