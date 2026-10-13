@@ -399,204 +399,211 @@ export class ExpressDecompiler {
     let callIndex = 0;
 
     for (const envelope of coalesced) {
-      if (
-        'deleteSurface' in envelope &&
-        envelope.deleteSurface &&
-        typeof envelope.deleteSurface === 'object'
-      ) {
-        const surfOp = envelope.deleteSurface as Record<string, unknown>;
-        const surfaceId = typeof surfOp.surfaceId === 'string' ? surfOp.surfaceId : '';
-        surfaceCatalogs.delete(surfaceId);
-        blocks.push(`deleteSurface(${decompileString(surfaceId)})`);
+      const ds = asRecord(envelope.deleteSurface);
+      if (ds) {
+        blocks.push(this.decompileDeleteSurface(ds, surfaceCatalogs));
         continue;
       }
 
-      let funcOp: Record<string, unknown> | null = null;
-      let functionCallId: string | undefined;
-      if (
-        'callRendererFunction' in envelope &&
-        envelope.callRendererFunction &&
-        typeof envelope.callRendererFunction === 'object'
-      ) {
-        const crf = envelope.callRendererFunction as Record<string, unknown>;
-        if (typeof crf.functionCallId === 'string' && crf.functionCallId) {
-          functionCallId = crf.functionCallId;
-        }
-        if (crf.callFunction && typeof crf.callFunction === 'object') {
-          funcOp = crf.callFunction as Record<string, unknown>;
-        }
-      } else if (
-        'callFunction' in envelope &&
-        envelope.callFunction &&
-        typeof envelope.callFunction === 'object'
-      ) {
-        funcOp = envelope.callFunction as Record<string, unknown>;
-      }
-
+      const crf = asRecord(envelope.callRendererFunction);
+      const funcOp = crf ? asRecord(crf.callFunction) : asRecord(envelope.callFunction);
       if (funcOp) {
         callIndex += 1;
-        const extraKwargs =
-          functionCallId && functionCallId !== `call_${callIndex}`
-            ? [`functionCallId=${decompileString(functionCallId)}`]
+        const callId =
+          crf && typeof crf.functionCallId === 'string' && crf.functionCallId
+            ? crf.functionCallId
             : undefined;
-        blocks.push(this.formatFunctionCall(funcOp, new Set(), this.soleCatalogId, extraKwargs));
+        blocks.push(this.decompileCallFunction(funcOp, callId, callIndex));
         continue;
       }
 
-      if (
-        'updateDataModel' in envelope &&
-        envelope.updateDataModel &&
-        typeof envelope.updateDataModel === 'object'
-      ) {
-        const valOp = envelope.updateDataModel as Record<string, unknown>;
-        const surfaceId = typeof valOp.surfaceId === 'string' ? valOp.surfaceId : '';
-        const surfaceCatalogId = surfaceCatalogs.get(surfaceId) ?? this.soleCatalogId;
-        const helper =
-          (surfaceCatalogId ? this.helpers.get(surfaceCatalogId) : undefined) ??
-          this.helpers.get(this.catalogs[0].id)!;
-        const rawPath = typeof valOp.path === 'string' ? valOp.path : '';
-        const basePath = rawPath.replace(/\/+$/, '');
-        const dataVal = valOp.value ?? {};
-        const dslLines: string[] = [];
-
-        if (surfaceId && surfaceId !== 'default_surface') {
-          dslLines.push(this.formatSurfaceHeader(surfaceId));
-        }
-
-        if (hasDataToWrite(dataVal)) {
-          const flattened = flattenDataModel(dataVal);
-          flattened.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-          for (const [leafPath, val] of flattened) {
-            const combinedPath = basePath ? `${basePath}${leafPath}` : leafPath;
-            const valStr = this.decompileValue(val, new Set(), false, helper, surfaceCatalogId);
-            dslLines.push(`$${combinedPath} = ${valStr}`);
-          }
-        }
-        if (dslLines.length > 0) {
-          blocks.push(dslLines.join('\n'));
-        }
+      const udm = asRecord(envelope.updateDataModel);
+      if (udm) {
+        const block = this.decompileUpdateDataModel(udm, surfaceCatalogs);
+        if (block) blocks.push(block);
         continue;
       }
 
-      if (
-        'createSurface' in envelope &&
-        envelope.createSurface &&
-        typeof envelope.createSurface === 'object'
-      ) {
-        const cs = envelope.createSurface as Record<string, unknown>;
-        const surfaceId = typeof cs.surfaceId === 'string' ? cs.surfaceId : '';
-        if (typeof cs.catalogId === 'string' && cs.catalogId) {
-          if (this.helpers.size > 0 && !this.helpers.has(cs.catalogId)) {
-            throw new A2uiCatalogError(
-              `Message for surface '${surfaceId}' names catalog '${cs.catalogId}', which is not among the active catalogs (${[...this.helpers.keys()].join(', ')}).`,
-            );
-          }
-          surfaceCatalogs.set(surfaceId, cs.catalogId);
-        } else if (surfaceId) {
-          surfaceCatalogs.delete(surfaceId);
-        }
-        const surfaceCatalogId = surfaceCatalogs.get(surfaceId) ?? this.soleCatalogId;
-        const defaultHelper =
-          (surfaceCatalogId ? this.helpers.get(surfaceCatalogId) : undefined) ??
-          this.helpers.get(this.catalogs[0].id)!;
-
-        const sendDataModel = typeof cs.sendDataModel === 'boolean' ? cs.sendDataModel : undefined;
-        const dslLines: string[] = [];
-        if ((surfaceId && surfaceId !== 'default_surface') || sendDataModel !== undefined) {
-          dslLines.push(this.formatSurfaceHeader(surfaceId || 'default_surface', {sendDataModel}));
-        }
-
-        const components = Array.isArray(cs.components)
-          ? (cs.components as Array<Record<string, unknown>>)
-          : [];
-        const compIds = new Set<string>();
-        for (const c of components) {
-          if (typeof c.id === 'string') {
-            compIds.add(c.id);
-          }
-        }
-
-        if (asRecord(cs.dataModel) && hasDataToWrite(cs.dataModel)) {
-          const flattened = flattenDataModel(cs.dataModel);
-          flattened.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-          for (const [leafPath, val] of flattened) {
-            const valStr = this.decompileValue(
-              val,
-              compIds,
-              false,
-              defaultHelper,
-              surfaceCatalogId,
-            );
-            dslLines.push(`$${leafPath} = ${valStr}`);
-          }
-        }
-
-        for (const c of components) {
-          dslLines.push(this.formatComponent(c, compIds, surfaceCatalogId, useKeywordArgs));
-        }
-
-        if (asRecord(cs._coalesced_data_model) && hasDataToWrite(cs._coalesced_data_model)) {
-          const flattened = flattenDataModel(cs._coalesced_data_model);
-          flattened.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-          for (const [leafPath, val] of flattened) {
-            const valStr = this.decompileValue(
-              val,
-              compIds,
-              false,
-              defaultHelper,
-              surfaceCatalogId,
-            );
-            dslLines.push(`$${leafPath} = ${valStr}`);
-          }
-        }
-
-        if (dslLines.length > 0) {
-          blocks.push(dslLines.join('\n'));
-        }
+      const cs = asRecord(envelope.createSurface);
+      if (cs) {
+        const block = this.decompileCreateSurface(cs, surfaceCatalogs, useKeywordArgs);
+        if (block) blocks.push(block);
         continue;
       }
 
-      if (
-        'updateComponents' in envelope &&
-        envelope.updateComponents &&
-        typeof envelope.updateComponents === 'object'
-      ) {
-        const uc = envelope.updateComponents as Record<string, unknown>;
-        const surfaceId = typeof uc.surfaceId === 'string' ? uc.surfaceId : '';
-        const surfaceCatalogId = surfaceCatalogs.get(surfaceId) ?? this.soleCatalogId;
-        const components = Array.isArray(uc.components)
-          ? (uc.components as Array<Record<string, unknown>>)
-          : [];
-        const hasRoot = components.some(c => asRecord(c)?.id === 'root');
-
-        const dslLines: string[] = [];
-        if ((surfaceId && surfaceId !== 'default_surface') || hasRoot) {
-          dslLines.push(
-            this.formatSurfaceHeader(surfaceId || 'default_surface', {
-              update: hasRoot ? true : undefined,
-            }),
-          );
-        }
-
-        const compIds = new Set<string>();
-        for (const c of components) {
-          if (typeof c.id === 'string') {
-            compIds.add(c.id);
-          }
-        }
-
-        for (const c of components) {
-          dslLines.push(this.formatComponent(c, compIds, surfaceCatalogId, useKeywordArgs));
-        }
-
-        if (dslLines.length > 0) {
-          blocks.push(dslLines.join('\n'));
-        }
+      const uc = asRecord(envelope.updateComponents);
+      if (uc) {
+        const block = this.decompileUpdateComponents(uc, surfaceCatalogs, useKeywordArgs);
+        if (block) blocks.push(block);
         continue;
       }
     }
 
     return blocks.join('\n');
+  }
+
+  private resolveSurfaceContext(
+    surfaceId: string,
+    surfaceCatalogs: ReadonlyMap<string, string>,
+  ): {surfaceCatalogId: string | undefined; helper: CatalogSchemaHelper} {
+    const surfaceCatalogId = surfaceCatalogs.get(surfaceId) ?? this.soleCatalogId;
+    const helper =
+      (surfaceCatalogId ? this.helpers.get(surfaceCatalogId) : undefined) ??
+      this.helpers.get(this.catalogs[0].id)!;
+    return {surfaceCatalogId, helper};
+  }
+
+  private collectComponentIds(components: Array<Record<string, unknown>>): Set<string> {
+    const compIds = new Set<string>();
+    for (const c of components) {
+      if (typeof c.id === 'string') {
+        compIds.add(c.id);
+      }
+    }
+    return compIds;
+  }
+
+  private formatDataModelLines(
+    dataVal: unknown,
+    basePath: string,
+    compIds: Set<string>,
+    helper: CatalogSchemaHelper,
+    surfaceCatalogId: string | undefined,
+  ): string[] {
+    if (!hasDataToWrite(dataVal)) {
+      return [];
+    }
+    const flattened = flattenDataModel(dataVal);
+    flattened.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    return flattened.map(([leafPath, val]) => {
+      const combinedPath = basePath ? `${basePath}${leafPath}` : leafPath;
+      const valStr = this.decompileValue(val, compIds, false, helper, surfaceCatalogId);
+      return `$${combinedPath} = ${valStr}`;
+    });
+  }
+
+  private decompileDeleteSurface(
+    surfOp: Record<string, unknown>,
+    surfaceCatalogs: Map<string, string>,
+  ): string {
+    const surfaceId = typeof surfOp.surfaceId === 'string' ? surfOp.surfaceId : '';
+    surfaceCatalogs.delete(surfaceId);
+    return `deleteSurface(${decompileString(surfaceId)})`;
+  }
+
+  private decompileCallFunction(
+    funcOp: Record<string, unknown>,
+    functionCallId: string | undefined,
+    callIndex: number,
+  ): string {
+    const extraKwargs =
+      functionCallId && functionCallId !== `call_${callIndex}`
+        ? [`functionCallId=${decompileString(functionCallId)}`]
+        : undefined;
+    return this.formatFunctionCall(funcOp, new Set(), this.soleCatalogId, extraKwargs);
+  }
+
+  private decompileUpdateDataModel(
+    valOp: Record<string, unknown>,
+    surfaceCatalogs: ReadonlyMap<string, string>,
+  ): string | undefined {
+    const surfaceId = typeof valOp.surfaceId === 'string' ? valOp.surfaceId : '';
+    const {surfaceCatalogId, helper} = this.resolveSurfaceContext(surfaceId, surfaceCatalogs);
+    const rawPath = typeof valOp.path === 'string' ? valOp.path : '';
+    const basePath = rawPath.replace(/\/+$/, '');
+    const dataVal = valOp.value ?? {};
+    const dslLines: string[] = [];
+
+    if (surfaceId && surfaceId !== 'default_surface') {
+      dslLines.push(this.formatSurfaceHeader(surfaceId));
+    }
+    dslLines.push(
+      ...this.formatDataModelLines(dataVal, basePath, new Set(), helper, surfaceCatalogId),
+    );
+    return dslLines.length > 0 ? dslLines.join('\n') : undefined;
+  }
+
+  private decompileCreateSurface(
+    cs: Record<string, unknown>,
+    surfaceCatalogs: Map<string, string>,
+    useKeywordArgs: boolean,
+  ): string | undefined {
+    const surfaceId = typeof cs.surfaceId === 'string' ? cs.surfaceId : '';
+    if (typeof cs.catalogId === 'string' && cs.catalogId) {
+      if (this.helpers.size > 0 && !this.helpers.has(cs.catalogId)) {
+        throw new A2uiCatalogError(
+          `Message for surface '${surfaceId}' names catalog '${cs.catalogId}', which is not among the active catalogs (${[...this.helpers.keys()].join(', ')}).`,
+        );
+      }
+      surfaceCatalogs.set(surfaceId, cs.catalogId);
+    } else if (surfaceId) {
+      surfaceCatalogs.delete(surfaceId);
+    }
+    const {surfaceCatalogId, helper} = this.resolveSurfaceContext(surfaceId, surfaceCatalogs);
+
+    const sendDataModel = typeof cs.sendDataModel === 'boolean' ? cs.sendDataModel : undefined;
+    const dslLines: string[] = [];
+    if ((surfaceId && surfaceId !== 'default_surface') || sendDataModel !== undefined) {
+      dslLines.push(this.formatSurfaceHeader(surfaceId || 'default_surface', {sendDataModel}));
+    }
+
+    const components = Array.isArray(cs.components)
+      ? (cs.components as Array<Record<string, unknown>>)
+      : [];
+    const compIds = this.collectComponentIds(components);
+
+    if (asRecord(cs.dataModel)) {
+      dslLines.push(
+        ...this.formatDataModelLines(cs.dataModel, '', compIds, helper, surfaceCatalogId),
+      );
+    }
+
+    for (const c of components) {
+      dslLines.push(this.formatComponent(c, compIds, surfaceCatalogId, useKeywordArgs));
+    }
+
+    if (asRecord(cs._coalesced_data_model)) {
+      dslLines.push(
+        ...this.formatDataModelLines(
+          cs._coalesced_data_model,
+          '',
+          compIds,
+          helper,
+          surfaceCatalogId,
+        ),
+      );
+    }
+
+    return dslLines.length > 0 ? dslLines.join('\n') : undefined;
+  }
+
+  private decompileUpdateComponents(
+    uc: Record<string, unknown>,
+    surfaceCatalogs: ReadonlyMap<string, string>,
+    useKeywordArgs: boolean,
+  ): string | undefined {
+    const surfaceId = typeof uc.surfaceId === 'string' ? uc.surfaceId : '';
+    const {surfaceCatalogId} = this.resolveSurfaceContext(surfaceId, surfaceCatalogs);
+    const components = Array.isArray(uc.components)
+      ? (uc.components as Array<Record<string, unknown>>)
+      : [];
+    const hasRoot = components.some(c => asRecord(c)?.id === 'root');
+
+    const dslLines: string[] = [];
+    if ((surfaceId && surfaceId !== 'default_surface') || hasRoot) {
+      dslLines.push(
+        this.formatSurfaceHeader(surfaceId || 'default_surface', {
+          update: hasRoot ? true : undefined,
+        }),
+      );
+    }
+
+    const compIds = this.collectComponentIds(components);
+    for (const c of components) {
+      dslLines.push(this.formatComponent(c, compIds, surfaceCatalogId, useKeywordArgs));
+    }
+
+    return dslLines.length > 0 ? dslLines.join('\n') : undefined;
   }
 
   /**
