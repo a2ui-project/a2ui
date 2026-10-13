@@ -477,8 +477,10 @@ struct MessageProcessorConformanceTests {
     if let expectedSurfaces = expectedDict?["surfaces"] {
       #expect(
         actual?["surfaces"] == ConformanceTestHelper.toJSONValue(expectedSurfaces),
-        "[\(name)] Expected renderer data model \(expectedSurfaces), "
-          + "got \(String(describing: actual))"
+        """
+        [\(name)] Expected renderer data model \(expectedSurfaces), \
+        got \(String(describing: actual))
+        """
       )
     } else {
       #expect(
