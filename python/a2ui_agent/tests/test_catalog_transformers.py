@@ -284,6 +284,44 @@ def test_pruning_a_loaded_catalog_keeps_its_defs_as_written():
         validator.validate({"component": "A", "x": {"n": "one"}})
 
 
+def test_pruning_keeps_defs_that_a_kept_unreferenced_def_references():
+    source = {
+        "catalogId": "https://a2ui.org/x/catalog.json",
+        "components": {
+            "A": {"type": "object", "properties": {"component": {"const": "A"}}},
+            "B": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "B"},
+                    "d": {"$ref": "#/$defs/D"},
+                },
+            },
+        },
+        "$defs": {
+            "D": {"type": "string"},
+            # No entry references `Helper`, so it stays, and `D` with it.
+            "Helper": {
+                "type": "object",
+                "properties": {"d": {"$ref": "#/$defs/D"}},
+            },
+        },
+    }
+    catalog = Catalog.from_json(source)
+
+    pruned = ComponentPruningTransformer(["A"]).transform(catalog)
+    out = pruned.to_json()
+
+    assert out["$defs"]["D"] == source["$defs"]["D"]
+    assert out["$defs"]["Helper"] == source["$defs"]["Helper"]
+    assert Catalog.from_json(out).to_json() == out
+
+    defs = pruned.validation_schema["$defs"]
+    validator = jsonschema.Draft202012Validator({"$defs": defs, **defs["Helper"]})
+    validator.validate({"d": "text"})
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate({"d": 1})
+
+
 class _RecordingTransformer(CatalogTransformer):
     """Records the components of each catalog it sees."""
 

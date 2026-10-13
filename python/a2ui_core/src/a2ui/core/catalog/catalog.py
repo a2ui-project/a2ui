@@ -943,13 +943,21 @@ class Catalog(Generic[TComponent, TFunction]):
         )
         if defs is None:
             # A def that the old entries referenced and the new ones no longer
-            # do goes with the entries that used it.
+            # do goes with the entries that used it. Defs that no old entry
+            # referenced stay, so they count as roots too: a def they
+            # reference stays with them.
             old_reachable = _reachable_defs(self._document_roots(), self.defs)
+            orphans = [
+                schema
+                for name, schema in self.defs.items()
+                if name not in old_reachable
+            ]
             new_roots = [
                 *(getattr(c, "schema", None) for c in new_components),
                 *(getattr(f, "schema", None) for f in new_functions),
                 self.theme_schema,
                 *self.extras.values(),
+                *orphans,
             ]
             new_reachable = _reachable_defs(new_roots, self.defs)
             new_defs = {
