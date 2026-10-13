@@ -1,13 +1,5 @@
 # A2UI Spec-Driven Development Blueprints
 
-> [!IMPORTANT]
-> **INSTRUCTION FOR AI AGENTS:**
-> **IGNORE THIS ENTIRE `blueprints/` FOLDER AND ALL FILES WITHIN IT** during normal coding, debugging, or feature implementation tasks, **UNLESS** the user explicitly specifies that they want to use blueprints or Spec-Driven Development (SDD), or unless you are explicitly asked to work on blueprint files.
-
----
-
-## What is this directory?
-
 This directory houses the language-agnostic specifications (**Blueprints**) for the A2UI repository under our Spec-Driven Development (SDD) methodology.
 
 ### Directory Layout
@@ -16,41 +8,21 @@ This directory houses the language-agnostic specifications (**Blueprints**) for 
 blueprints/
 ├── README.md                 # This file
 ├── validate_blueprints.py    # Python script to validate blueprint frontmatter and structure
-├── link_skills.sh            # Helper script to symlink blueprint skills into .agents/skills/
 ├── modules/                  # Language-agnostic Module Blueprints (e.g. a2ui_core.blueprint.md)
 ├── features/                 # Standalone / Optional Feature Blueprints (unmerged)
 │   └── archived/             # Merged Feature Blueprints (required capabilities merged into module blueprints)
-├── codebases/                # Codebase Blueprints tracking module compliance by commit hash
-└── skills/                   # SDD Agent Skills (isolated by default)
+└── codebases/                # Codebase Blueprints tracking module compliance by commit hash
 ```
 
-## Enabling Blueprint Skills (`link_skills.sh`)
+## First-Class Blueprint Skills
 
-By default, blueprint/SDD agent skills are kept inside `blueprints/skills/` so they do not clutter an AI agent's general skill set during standard coding or debugging tasks.
+Spec-Driven Development agent skills are maintained as first-class tools in `.agents/skills/`:
 
-When you (or an agent) want to actively work with Spec-Driven Development or create/maintain blueprints, run:
-
-```bash
-./blueprints/link_skills.sh
-```
-
-This creates local symlinks from `blueprints/skills/<skill-name>` into `.agents/skills/<skill-name>`:
-
-- `a2ui-blueprint-navigator`
-- `a2ui-create-feature-blueprint`
-- `a2ui-implement-feature-from-blueprint`
-- `a2ui-blueprint-maintenance`
-
-_(Note: These symlinks are ignored in `.gitignore`, so enabling them will not dirty your git working tree.)_
-
-To disable or remove the symlinked skills when you are done working with blueprints, remove the symlinks from `.agents/skills/`:
-
-```bash
-rm -f .agents/skills/a2ui-blueprint-navigator \
-      .agents/skills/a2ui-create-feature-blueprint \
-      .agents/skills/a2ui-implement-feature-from-blueprint \
-      .agents/skills/a2ui-blueprint-maintenance
-```
+- **[`a2ui-blueprint-navigator`](../.agents/skills/a2ui-blueprint-navigator/SKILL.md)**: Discovers blueprints, maps module specs to physical codebases, and checks commit-hash compliance.
+- **[`a2ui-blueprint-compliance`](../.agents/skills/a2ui-blueprint-compliance/SKILL.md)**: Audits all platform codebases for module blueprint compliance and feature claim discrepancies.
+- **[`a2ui-create-feature-blueprint`](../.agents/skills/a2ui-create-feature-blueprint/SKILL.md)**: Formats and designs new language-agnostic Feature Blueprints in `features/`.
+- **[`a2ui-implement-feature-from-blueprint`](../.agents/skills/a2ui-implement-feature-from-blueprint/SKILL.md)**: Guides implementing blueprint specifications in a specific codebase.
+- **[`a2ui-blueprint-maintenance`](../.agents/skills/a2ui-blueprint-maintenance/SKILL.md)**: Handles lifecycle management, merging feature specs into module blueprints, and archiving.
 
 ## Spec-Driven Development Overview
 
@@ -58,4 +30,4 @@ rm -f .agents/skills/a2ui-blueprint-navigator \
 - **Feature Blueprints (`features/`)**: Standalone specification files for new features. Features begin as optional specs in `features/<feature_name>.blueprint.md`. When merged into a Module Blueprint, the feature blueprint file is moved to `features/archived/<feature_name>.blueprint.md`.
 - **Codebase Blueprints (`codebases/`)**: Track each concrete codebase implementation's compliance with its associated Module Blueprint at a specific git commit hash (`module_blueprint_commit`), along with any optional features it implements (`implemented_features`).
 
-For full details on the SDD workflow, read [`docs/proposals/spec_driven_development.md`](../docs/proposals/spec_driven_development.md).
+For full details on the SDD workflow, read the [Spec-Driven Development Reference Guide](../.agents/skills/a2ui-blueprint-navigator/references/spec_driven_development.md).

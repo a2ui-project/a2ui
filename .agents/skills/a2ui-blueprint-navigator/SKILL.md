@@ -49,3 +49,9 @@ Rather than checking against a list of required feature names, a codebase's comp
 1. Locate the codebase blueprint at `blueprints/codebases/<relative_path>/codebase.blueprint.md`.
 2. Look up `associated_module` in the frontmatter.
 3. Open `blueprints/modules/<associated_module>.blueprint.md`.
+
+---
+
+## **References**
+
+- Consult the authoritative [Spec-Driven Development Methodology Guide](references/spec_driven_development.md) for background context, lifecycle flows, blueprint naming schemas, and architectural principles.

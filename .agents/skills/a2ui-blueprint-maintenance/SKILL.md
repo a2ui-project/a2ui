@@ -40,3 +40,9 @@ If an optional feature in `blueprints/features/<feature_name>.blueprint.md` is d
    ```bash
    python3 blueprints/validate_blueprints.py
    ```
+
+---
+
+## **References**
+
+- Consult the authoritative [Spec-Driven Development Methodology Guide](../a2ui-blueprint-navigator/references/spec_driven_development.md) for full details on feature archiving and lifecycle policies.

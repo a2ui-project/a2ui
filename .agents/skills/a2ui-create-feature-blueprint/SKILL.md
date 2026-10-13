@@ -58,3 +58,9 @@ Run the blueprint validator script:
 ```bash
 python3 blueprints/validate_blueprints.py
 ```
+
+---
+
+## **References**
+
+- Consult the authoritative [Spec-Driven Development Methodology Guide](../a2ui-blueprint-navigator/references/spec_driven_development.md) for full context on feature blueprint lifecycles and required vs. optional features.

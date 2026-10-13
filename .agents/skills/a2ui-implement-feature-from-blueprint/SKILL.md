@@ -43,3 +43,9 @@ Verify blueprint consistency across the monorepo:
 ```bash
 python3 blueprints/validate_blueprints.py
 ```
+
+---
+
+## **References**
+
+- Consult the authoritative [Spec-Driven Development Methodology Guide](../a2ui-blueprint-navigator/references/spec_driven_development.md) for full context on the implementation workflow, developer journeys, and codebase blueprints.
