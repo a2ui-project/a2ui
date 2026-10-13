@@ -16,8 +16,10 @@
 - `Catalog.from_json` deserializes a catalog document into the catalog model,
   and `Catalog.to_json()` serializes the model back into an unbundled catalog
   document, so `Catalog.from_json(document).to_json()` equals `document`
-  (ignoring key order and the order of `enum` and `required`). No authored
-  JSON is cached beside the model:
+  (ignoring key order and the order of `enum` and `required`, and excluding
+  components and functions omitted from `anyComponent.oneOf` and
+  `anyFunction.oneOf`, which `from_json` filters out). No authored JSON is
+  cached beside the model:
   - Each component's and function's `schema` is its definition as the
     document writes it, with `allOf` mixins, local `#/$defs/...` and
     `common_types.json#/$defs/...` references, descriptions, closure keywords,
@@ -30,9 +32,8 @@
     `from_json` sets it on every function it loads, so `to_json()` writes
     each entry as it was loaded, whatever its shape or name; for a function
     defined in code it defaults to None, which infers it from the schema.
-  - `ComponentApi.from_document` and `FunctionApi.from_document`, and the
-    catalog's `theme_from_document` and `defs_from_document`, mark what
-    `from_json` loaded. `to_json()` writes loaded entries, defs and themes
+  - `ComponentApi.from_document` and `FunctionApi.from_document` mark entries
+    loaded by `from_json`. `to_json()` writes loaded entries, defs and themes
     with their references as written, and points a local reference to a
     common type at `common_types_uri` only in those defined in code. A list
     of `functions` that repeats a `name` raises `A2uiCatalogError`.
@@ -50,11 +51,11 @@
     model in the shape of its protocol version, and `common_types_uri` names
     the document its common types references point into. A catalog defined in
     code emits a canonical `protocolVersion` and the unions of its entries;
-    an empty union is `{"not": {}}`; a union written as `null` is kept, and
-    `null_unions` names it. `to_json()` and `validation_schema` are computed
-    once per catalog and return a new copy on each call, so a catalog must be
-    treated as immutable once built: later changes to its fields are not
-    reflected, and `copy_with` derives a changed catalog (#3053).
+    an empty union is `{"not": {}}`; a union written as `null` is kept.
+    `to_json()` and `validation_schema` are computed once per catalog and
+    return a new copy on each call, so a catalog must be treated as immutable
+    once built: later changes to its fields are not reflected, and `copy_with`
+    derives a changed catalog (#3053).
 - The basic catalogs (`a2ui.core.basic_catalog.v0_8`, `v0_9` and `v1_0`)
   rebuild their published catalog documents from their generated models, so
   `BasicCatalog().to_json()` equals the published file without reading it;

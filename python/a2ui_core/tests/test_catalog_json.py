@@ -601,7 +601,7 @@ def test_null_union_is_listed_from_entries_when_copy_changes_them() -> None:
 
     copy = catalog.copy_with(components=[catalog.components["A"]])
 
-    assert copy.null_unions == frozenset()
+    assert copy._layout.null_unions == frozenset()
     assert copy.to_json()["$defs"]["anyComponent"] == {
         "oneOf": [{"$ref": "#/components/A"}],
         "discriminator": {"propertyName": "component"},

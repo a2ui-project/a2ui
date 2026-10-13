@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import deque
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 import copy
 from dataclasses import dataclass
 import re
@@ -746,16 +746,13 @@ class Catalog(Generic[TComponent, TFunction]):
         declared_protocol_version: str | None = _UNSET,
         declares_catalog_id: bool = True,
         declares_components: bool = False,
-        declares_defs: bool = False,
         common_types_uri: str = _COMMON_TYPES_DOCUMENT,
         theme_model: type[BaseModel] | None = None,
         theme_location: ThemeLocation | None = _UNSET,
         functions_form: FunctionsForm | None = None,
         union_defs: Mapping[str, Any | None] | None = None,
-        null_unions: Collection[str] | None = None,
         extras: Mapping[str, Any] | None = None,
-        theme_from_document: bool = False,
-        defs_from_document: bool = False,
+        _layout: "_DocumentLayout | None" = None,
     ):
         """Initializes the catalog.
 
@@ -785,8 +782,6 @@ class Catalog(Generic[TComponent, TFunction]):
                 `catalogId`.
             declares_components: Whether the catalog document has a
                 `components` key even without components.
-            declares_defs: Whether the catalog document has a `$defs` key
-                even without definitions.
             common_types_uri: The document that the catalog document's
                 references to common types point into, such as
                 `common_types.json`.
@@ -799,22 +794,13 @@ class Catalog(Generic[TComponent, TFunction]):
                 as a map or as a list of definitions, or None for a map
                 written only when the catalog has functions.
             union_defs: The `anyComponent` and `anyFunction` unions the
-                catalog document writes. A union mapped to None (and not in
-                `null_unions`) lists the entries (`#/components/<name>`, `#/functions/<name>`); one
+                catalog document writes. A union mapped to None lists the
+                entries (`#/components/<name>`, `#/functions/<name>`); one
                 mapped to a schema is written as that schema. A union left
                 out is not written. By default, a catalog writes the unions of
                 the entries it has, and both from v1.0 on.
-            null_unions: The unions in `union_defs` that the catalog document
-                writes as `null`, which `from_json` sets. Each maps to None in
-                `union_defs` and is written as `null` rather than derived.
             extras: The catalog document's top-level keys that `Catalog`
                 does not model, as written.
-            theme_from_document: Whether `theme_schema` was loaded from a
-                catalog document, which `from_json` sets. `to_json` then
-                writes it with its references exactly as they are.
-            defs_from_document: Whether `defs` were loaded from a catalog
-                document, which `from_json` sets. `to_json` then writes them
-                with their references exactly as they are.
 
         Raises:
             A2uiCatalogError: If `protocol_version` is missing, an identifier
@@ -836,7 +822,6 @@ class Catalog(Generic[TComponent, TFunction]):
         )
         self.declares_catalog_id = declares_catalog_id
         self.declares_components = declares_components
-        self.declares_defs = declares_defs
         self.common_types_uri = common_types_uri
         self.defs: dict[str, Any] = copy.deepcopy(defs) if defs else {}
         # Shared type definitions that override the built-in common types
@@ -854,16 +839,20 @@ class Catalog(Generic[TComponent, TFunction]):
                 for name, schema in union_defs.items()
             }
         )
-        self.null_unions: frozenset[str] = frozenset(
-            name
-            for name in null_unions or ()
-            if self.union_defs is not None
-            and name in self.union_defs
-            and self.union_defs[name] is None
-        )
         self.extras: dict[str, Any] = copy.deepcopy(dict(extras)) if extras else {}
-        self.theme_from_document = theme_from_document
-        self.defs_from_document = defs_from_document
+        raw_layout = _layout or _DocumentLayout()
+        self._layout = _DocumentLayout(
+            declares_defs=raw_layout.declares_defs,
+            null_unions=frozenset(
+                name
+                for name in raw_layout.null_unions
+                if self.union_defs is not None
+                and name in self.union_defs
+                and self.union_defs[name] is None
+            ),
+            theme_from_document=raw_layout.theme_from_document,
+            defs_from_document=raw_layout.defs_from_document,
+        )
 
         validate_identifiers = is_at_least_version(
             protocol_version, ProtocolVersion.V1_0
@@ -942,7 +931,7 @@ class Catalog(Generic[TComponent, TFunction]):
             self.functions.values() if functions is None else functions
         )
         union_defs = self.union_defs
-        null_unions = set(self.null_unions)
+        null_unions = set(self._layout.null_unions)
         if union_defs is not None:
             union_defs = dict(union_defs)
             for name, changed in (
@@ -1010,16 +999,18 @@ class Catalog(Generic[TComponent, TFunction]):
             declared_protocol_version=self.declared_protocol_version,
             declares_catalog_id=self.declares_catalog_id,
             declares_components=self.declares_components,
-            declares_defs=self.declares_defs,
             common_types_uri=self.common_types_uri,
             theme_model=self.theme_model,
             theme_location=self.theme_location,
             functions_form=self.functions_form,
             union_defs=union_defs,
-            null_unions=null_unions,
             extras=self.extras,
-            theme_from_document=self.theme_from_document,
-            defs_from_document=self.defs_from_document and defs is None,
+            _layout=_DocumentLayout(
+                declares_defs=self._layout.declares_defs,
+                null_unions=frozenset(null_unions),
+                theme_from_document=self._layout.theme_from_document,
+                defs_from_document=self._layout.defs_from_document and defs is None,
+            ),
         )
 
     def _document_roots(self) -> list[Any]:
@@ -1509,7 +1500,9 @@ class Catalog(Generic[TComponent, TFunction]):
 
         This is the catalog as an author writes it, and what `from_json`
         reads, so that `Catalog.from_json(document).to_json()` equals
-        `document`. References to common types stay external
+        `document` (excluding components and functions omitted from
+        `anyComponent.oneOf` and `anyFunction.oneOf`, which `from_json`
+        filters out). References to common types stay external
         (`common_types.json#/$defs/X`) and no common types are copied into
         `$defs`. For the self-contained schema that payloads validate
         against, use `validation_schema`. The document is assembled from the
@@ -1627,7 +1620,7 @@ class Catalog(Generic[TComponent, TFunction]):
         defs: dict[str, Any] = {
             name: (
                 copy.deepcopy(schema)
-                if self.defs_from_document
+                if self._layout.defs_from_document
                 else _externalize_refs(schema, common_names, self.common_types_uri)
             )
             for name, schema in self.defs.items()
@@ -1642,7 +1635,7 @@ class Catalog(Generic[TComponent, TFunction]):
         if theme is not None and self.theme_location == "$defs":
             defs["theme"] = theme
         defs.update(self._union_documents(list(components), list(function_docs)))
-        if defs or self.declares_defs:
+        if defs or self._layout.declares_defs:
             doc["$defs"] = defs
         return doc
 
@@ -1660,7 +1653,7 @@ class Catalog(Generic[TComponent, TFunction]):
             return unions
         documents: dict[str, Any] = {}
         for name, schema in self.union_defs.items():
-            if schema is not None or name in self.null_unions:
+            if schema is not None or name in self._layout.null_unions:
                 documents[name] = copy.deepcopy(schema)
             elif name == "anyComponent":
                 documents[name] = _component_union(component_names)
@@ -1739,7 +1732,7 @@ class Catalog(Generic[TComponent, TFunction]):
             return derived_theme
         if not self.theme_schema and self.theme_location not in ("theme", "$defs"):
             return None
-        if self.theme_from_document:
+        if self._layout.theme_from_document:
             return copy.deepcopy(self.theme_schema)
         return cast(
             dict[str, Any],
@@ -2067,7 +2060,6 @@ class Catalog(Generic[TComponent, TFunction]):
             declared_protocol_version=declared_version,
             declares_catalog_id="catalogId" in document,
             declares_components="components" in document,
-            declares_defs=isinstance(raw_defs, Mapping),
             theme_location=theme_location,
             functions_form=(
                 None
@@ -2077,11 +2069,24 @@ class Catalog(Generic[TComponent, TFunction]):
                 else "map"
             ),
             union_defs=union_defs,
-            null_unions=null_unions,
             extras=extras,
-            theme_from_document=theme_location is not None,
-            defs_from_document=True,
+            _layout=_DocumentLayout(
+                declares_defs=isinstance(raw_defs, Mapping),
+                null_unions=frozenset(null_unions),
+                theme_from_document=theme_location is not None,
+                defs_from_document=True,
+            ),
         )
+
+
+@dataclass(frozen=True)
+class _DocumentLayout:
+    """How `Catalog.from_json` records document-originated layout state for `to_json`."""
+
+    declares_defs: bool = False
+    null_unions: frozenset[str] = frozenset()
+    theme_from_document: bool = False
+    defs_from_document: bool = False
 
 
 @dataclass(frozen=True)
