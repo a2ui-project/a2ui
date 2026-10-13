@@ -49,6 +49,7 @@ export interface SerializableCatalog {
   readonly description?: string;
   readonly declaredProtocolVersion?: string | null;
   readonly declaresCatalogId?: boolean;
+  readonly declaresComponents?: boolean;
   readonly functionsLayout?: 'map' | 'list';
   readonly unions?: CatalogUnions;
   readonly defs?: Readonly<Record<string, unknown>>;
@@ -546,15 +547,18 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
   if (catalog.declaresCatalogId !== false) doc.catalogId = catalog.id;
   if (catalog.instructions !== undefined) doc.instructions = catalog.instructions;
 
-  // Components.
-  const components: JsonObject = {};
-  for (const [name, comp] of catalog.components) {
-    const definition = model.components.get(name);
-    components[name] = definition
-      ? deepCopyJson(definition)
-      : serializeComponentModel(name, comp, localDefs);
+  // Components, unless the document has no `components` key and the catalog
+  // has none.
+  if (catalog.declaresComponents !== false || catalog.components.size > 0) {
+    const components: JsonObject = {};
+    for (const [name, comp] of catalog.components) {
+      const definition = model.components.get(name);
+      components[name] = definition
+        ? deepCopyJson(definition)
+        : serializeComponentModel(name, comp, localDefs);
+    }
+    doc.components = components;
   }
-  doc.components = components;
 
   // Functions, in the document's layout. System functions such as `@index`
   // belong to the protocol rather than the catalog, so a code-defined one that

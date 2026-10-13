@@ -689,8 +689,9 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
 
   let out = HEADER;
   out += `import {z} from 'zod';
-import {${reproduce ? 'CatalogDocumentOptions, ' : ''}ComponentApi} from '${typesImportPath}';
-${reproduce ? `import {${defsCode ? 'spec, specDef' : 'spec'}} from '${specImportPath}';\n` : ''}import {
+
+${reproduce ? `import {${defsCode ? 'spec, specDef' : 'spec'}} from '${specImportPath}';\n` : ''}import {${reproduce ? 'CatalogDocumentOptions, ' : ''}ComponentApi} from '${typesImportPath}';
+import {
   ${Array.from(usedImports).sort().join(',\n  ')},
 } from '${commonTypesImportPath}';
 
@@ -803,6 +804,9 @@ export function generateFunctionsFile(version, catalogJson, commonDefs, options 
 
   let out = HEADER;
   out += `import {z} from 'zod';\n`;
+  if (reproduce || usedImports.size > 0) {
+    out += '\n';
+  }
   if (reproduce) {
     out += `import {spec} from '${specImportPath}';\n`;
   }

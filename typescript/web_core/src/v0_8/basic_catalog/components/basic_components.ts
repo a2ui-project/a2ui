@@ -18,8 +18,9 @@
 // Generated from specification/v0_8/json/standard_catalog_definition.json via
 // src/v0_8/scripts/generate-catalog.mjs
 import {z} from 'zod';
-import {CatalogDocumentOptions, ComponentApi} from '../../../catalog/types.js';
+
 import {spec} from '../../../catalog/spec_annotations.js';
+import {CatalogDocumentOptions, ComponentApi} from '../../../catalog/types.js';
 
 export const TextApi = {
   name: 'Text',

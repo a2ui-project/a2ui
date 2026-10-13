@@ -244,6 +244,13 @@ export interface CatalogDocumentOptions {
    */
   declaresCatalogId?: boolean;
   /**
+   * Whether the document declares `components`. Defaults to `true`. `false`
+   * for a document that has no `components` key, such as a catalog of
+   * functions only, so that `toJson` does not add an empty map. `toJson`
+   * still writes `components` if the catalog has any.
+   */
+  declaresComponents?: boolean;
+  /**
    * Whether the document writes `functions` as a map from name to call schema
    * (`'map'`) or as a list of named function definitions (`'list'`). When set,
    * `toJson` emits `functions` in that form even if the catalog has none. When
@@ -339,6 +346,8 @@ export declare interface CatalogInterface<
   readonly declaredProtocolVersion?: string | null;
   /** See {@link CatalogDocumentOptions.declaresCatalogId}. */
   readonly declaresCatalogId?: boolean;
+  /** See {@link CatalogDocumentOptions.declaresComponents}. */
+  readonly declaresComponents?: boolean;
   /** See {@link CatalogDocumentOptions.functionsLayout}. */
   readonly functionsLayout?: 'map' | 'list';
   /** See {@link CatalogDocumentOptions.unions}. */
@@ -447,6 +456,9 @@ export class Catalog<
   /** See {@link CatalogDocumentOptions.declaresCatalogId}. */
   readonly declaresCatalogId: boolean;
 
+  /** See {@link CatalogDocumentOptions.declaresComponents}. */
+  readonly declaresComponents: boolean;
+
   /** See {@link CatalogDocumentOptions.functionsLayout}. */
   readonly functionsLayout?: 'map' | 'list';
 
@@ -553,6 +565,7 @@ export class Catalog<
       description: this.description,
       declaredProtocolVersion: this.declaredProtocolVersion,
       declaresCatalogId: this.declaresCatalogId,
+      declaresComponents: this.declaresComponents,
       functionsLayout: this.functionsLayout,
       unions: this.unions,
       defs: retainedDefs(
@@ -631,6 +644,7 @@ export class Catalog<
     this.description = options.description;
     this.declaredProtocolVersion = options.declaredProtocolVersion;
     this.declaresCatalogId = options.declaresCatalogId ?? true;
+    this.declaresComponents = options.declaresComponents ?? true;
     this.functionsLayout = options.functionsLayout;
     this.unions = options.unions ? Object.freeze({...options.unions}) : undefined;
     // Frozen, so neither the caller nor a reader of the catalog can change the
@@ -653,9 +667,13 @@ export class Catalog<
    * the document unchanged.
    *
    * @param json Raw catalog document or client capabilities inline catalog.
-   * @param protocolVersion Protocol version to use when the document does not
-   *   declare one. Catalog documents published before v1.0 omit the field, in
-   *   which case `DEFAULT_PROTOCOL_VERSION` applies.
+   * @param protocolVersion Protocol version of the catalog. When given, it
+   *   takes precedence over the `protocolVersion` the document declares: it
+   *   becomes the catalog's `protocolVersion` and selects the version's
+   *   loading rules, while `toJson` still writes the version the document
+   *   declares. When omitted, the document's version applies, and for a
+   *   document that declares none, such as those published before v1.0,
+   *   `DEFAULT_PROTOCOL_VERSION`.
    * @param catalogId Catalog ID to use instead of the one the document
    *   declares, or for a document that declares none, such as the v0.8 basic
    *   catalog. It becomes the catalog's `id`, and replaces the document's own
@@ -684,8 +702,8 @@ export class Catalog<
    *
    * @deprecated Use `Catalog.fromJson` instead.
    * @param catalogSchema Raw catalog schema or client capabilities payload object.
-   * @param protocolVersion Protocol version to use when the schema does not
-   *   declare one.
+   * @param protocolVersion Protocol version of the catalog, which takes
+   *   precedence over the one the schema declares, as in `fromJson`.
    * @returns A new Catalog populated with component and function schemas.
    * @throws {Error} If the catalog ID is missing or not a string.
    */

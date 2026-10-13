@@ -27,6 +27,7 @@ import {basicCatalog as v08BasicCatalog} from '../v0_8/basic_catalog/catalog.js'
 import {basicCatalog as v09BasicCatalog} from '../v0_9/basic_catalog/catalog.js';
 import {A2uiText as V09Text} from '../v0_9/basic_catalog/components/index.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
+import {DEFAULT_PROTOCOL_VERSION} from './schema_loader.js';
 import {spec, specDef} from './spec_annotations.js';
 import {
   Catalog,
@@ -117,6 +118,47 @@ describe('Catalog.toJson', () => {
     assert.deepStrictEqual((outDefs as Record<string, unknown>).anyFunction, {not: {}});
     assert.deepStrictEqual((outDefs as Record<string, unknown>).theme, documentDefs.theme);
     assert.strictEqual(derived.themeSchema, loaded.themeSchema);
+  });
+
+  it('returns a v1.0 document without components unchanged', () => {
+    const document = {
+      catalogId: 'https://example.com/functions-only',
+      protocolVersion: '1.0',
+      functions: {f: {returnType: 'string'}},
+      $defs: {anyComponent: {not: {}}, anyFunction: {oneOf: [{$ref: '#/functions/f'}]}},
+    };
+    const catalog = Catalog.fromJson(document);
+    assert.strictEqual(catalog.declaresComponents, false);
+    assert.deepStrictEqual(catalog.toJson(), document);
+  });
+
+  it('returns a v0.9 document without components unchanged', () => {
+    const document = readRepoJson('specification/v0_9/catalogs/basic/catalog.json');
+    delete document.components;
+    delete document.$defs.anyComponent;
+    delete document.$defs.CatalogComponentCommon;
+    const catalog = Catalog.fromJson(document);
+    assert.strictEqual(catalog.declaresComponents, false);
+    assert.deepStrictEqual(catalog.toJson(), document);
+  });
+
+  it('writes components when the document declares none but the catalog has some', () => {
+    const loaded = Catalog.fromJson({
+      catalogId: 'https://example.com/functions-only',
+      protocolVersion: '1.0',
+      functions: {f: {returnType: 'string'}},
+    });
+    const label: ComponentApi = {name: 'Label', schema: z.object({text: z.string()})};
+    const derived = loaded.withEntries([label], [...loaded.functions.values()]);
+    assert.strictEqual(derived.declaresComponents, false);
+    assert.deepStrictEqual(Object.keys(derived.toJson().components as object), ['Label']);
+    assert.ok(!('components' in loaded.withEntries([], []).toJson()));
+  });
+
+  it('writes an empty components map for a catalog defined in code', () => {
+    const catalog = new Catalog('https://example.com/empty', '1.0');
+    assert.strictEqual(catalog.declaresComponents, true);
+    assert.deepStrictEqual(catalog.toJson().components, {});
   });
 
   it('does not add metadata, protocolVersion or $defs the document omits', () => {
@@ -334,6 +376,26 @@ describe('Catalog.validationSchema', () => {
 });
 
 describe('Catalog.fromJson', () => {
+  it('lets a protocolVersion argument take precedence over the declared one', () => {
+    const document = {
+      catalogId: 'https://example.com/versioned',
+      protocolVersion: '1.0',
+      components: {},
+      $defs: {anyComponent: {not: {}}, anyFunction: {not: {}}},
+    };
+    const overridden = Catalog.fromJson(document, '0.9');
+    assert.strictEqual(overridden.protocolVersion, '0.9');
+    assert.strictEqual(overridden.declaredProtocolVersion, '1.0');
+    assert.deepStrictEqual(overridden.toJson(), document);
+
+    const declared = Catalog.fromJson(document);
+    assert.strictEqual(declared.protocolVersion, '1.0');
+
+    const {protocolVersion: _version, ...undeclared} = document;
+    assert.strictEqual(Catalog.fromJson(undeclared, '0.9').protocolVersion, '0.9');
+    assert.strictEqual(Catalog.fromJson(undeclared).protocolVersion, DEFAULT_PROTOCOL_VERSION);
+  });
+
   it('captures document metadata and authored entries', () => {
     const document = readRepoJson('catalogs/basic/v1/catalog.json');
     const catalog = Catalog.fromJson(document);

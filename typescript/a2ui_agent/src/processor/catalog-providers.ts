@@ -19,7 +19,6 @@ import * as fs from 'fs';
 import {A2uiCatalogError} from '../errors.js';
 import {Catalog, CatalogApi, normalizeVersionString} from '../internal/web-core.js';
 import {ProtocolVersion} from '../types.js';
-import {registerCatalogDocument} from '../utils/catalog-document.js';
 import {toWireProtocolVersion} from '../utils/protocol-version.js';
 
 /**
@@ -92,7 +91,6 @@ export function catalogFromDocument(
       `Failed to build catalog from schema in ${source}: ${(e as Error).message}`,
     );
   }
-  registerCatalogDocument(catalog, document);
   return catalog;
 }
 

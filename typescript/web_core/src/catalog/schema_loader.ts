@@ -994,8 +994,10 @@ function parseThemeSchema(
  *
  * @param inputSchema Raw catalog schema or capabilities definition object. It
  *   is copied first and never referenced afterwards.
- * @param protocolVersion Protocol version to use when the schema does not declare
- *   one. Catalog schemas published before v1.0 omit `protocolVersion`; when
+ * @param protocolVersion Protocol version of the catalog. When given, it takes
+ *   precedence over the `protocolVersion` the schema declares and selects the
+ *   version's loading rules; the declared version is still kept as written.
+ *   Catalog schemas published before v1.0 omit `protocolVersion`; when
  *   neither the caller nor the schema supplies it, `DEFAULT_PROTOCOL_VERSION`
  *   applies.
  * @param catalogIdOverride Catalog ID to use instead of the one the schema
@@ -1140,6 +1142,7 @@ function readDocumentFields(
   }
   fields.declaredProtocolVersion ??= null;
   fields.declaresCatalogId = typeof document['catalogId'] === 'string';
+  fields.declaresComponents = isPlainObject(document['components']);
   fields.unions ??= {anyComponent: false, anyFunction: false};
   if (Object.keys(extensionFields).length > 0) {
     fields.extensionFields = Object.freeze(extensionFields);

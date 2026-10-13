@@ -103,8 +103,9 @@ const ctx = {commonDefs: {}, usedImports: new Set(), commonTypesUri: ''};
 
 let out = HEADER;
 out += `import {z} from 'zod';
-import {CatalogDocumentOptions, ComponentApi} from '../../../catalog/types.js';
+
 import {spec} from '../../../catalog/spec_annotations.js';
+import {CatalogDocumentOptions, ComponentApi} from '../../../catalog/types.js';
 
 `;
 

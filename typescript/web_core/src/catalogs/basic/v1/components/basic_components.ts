@@ -17,8 +17,9 @@
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/ catalogs via scripts/generate-catalog-schemas.mjs
 import {z} from 'zod';
-import {CatalogDocumentOptions, ComponentApi} from '../../../../catalog/types.js';
+
 import {spec} from '../../../../catalog/spec_annotations.js';
+import {CatalogDocumentOptions, ComponentApi} from '../../../../catalog/types.js';
 import {
   ActionSchema,
   CheckRuleSchema,

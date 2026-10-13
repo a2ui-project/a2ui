@@ -20,7 +20,6 @@ import {describe, test, expect} from 'vitest';
 import {CONFORMANCE_ROOT, loadCases} from './loader.js';
 import {createFileCatalogConfig} from './fixtures.js';
 import {Catalog, CatalogApi} from '../../src/internal/web-core.js';
-import {registerCatalogDocument} from '../../src/utils/catalog-document.js';
 import {
   A2uiCatalogError,
   A2uiCompilationError,
@@ -314,7 +313,6 @@ describe('Express Conformance Suite', () => {
           const fullPath = path.resolve(CONFORMANCE_ROOT, entry.catalog);
           const schema = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
           let catalog = Catalog.fromJson(schema);
-          registerCatalogDocument(catalog, schema);
 
           if (entry.transformers) {
             for (const trans of entry.transformers) {
