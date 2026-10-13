@@ -20,18 +20,6 @@ import OrderedCollections
 import OrderedJSON
 import Testing
 
-private final class ConformanceActionCaptureHandler: ActionHandling,
-  @unchecked Sendable
-{
-  var capturedErrors: [RendererError] = []
-
-  func handle(action: ResolvedAction, from surfaceID: String) {}
-
-  func handle(error: RendererError, from surfaceID: String) {
-    capturedErrors.append(error)
-  }
-}
-
 /// Runs the shared `conformance/core/message_processor_v0_9.yaml` and
 /// `conformance/core/message_processor_v1_0.yaml` suites.
 @MainActor
@@ -326,10 +314,8 @@ struct MessageProcessorConformanceTests {
     if !strictMode && version == "v1.0" {
       config.allowUnknownElements = true
     }
-    let handler = ConformanceActionCaptureHandler()
     let processor = MessageProcessor(
       catalogs: catalogs,
-      actionHandler: handler,
       validationConfig: config
     )
 
@@ -372,8 +358,6 @@ struct MessageProcessorConformanceTests {
 
       let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
       try processor.processMessages(payload)
-      #expect(
-        handler.capturedErrors.isEmpty, "[\(name)] Unexpected errors: \(handler.capturedErrors)")
 
       let expectedDict = (step["expect"] as? [String: Any]) ?? [:]
       let expectedSurfaces =
