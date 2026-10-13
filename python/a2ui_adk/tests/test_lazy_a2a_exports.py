@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,11 @@
 
 """Tests for the lazy exports that need the `a2a` extra."""
 
+import asyncio
 import importlib
 import sys
+from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -68,6 +71,32 @@ def test_base_exports_work_without_a2a(adk_without_a2a) -> None:
 def test_a2a_exports_explain_missing_extra(adk_without_a2a, name: str) -> None:
     with pytest.raises(ImportError, match=r'pip install "a2ui-adk\[a2a\]"'):
         getattr(adk_without_a2a, name)
+
+
+def test_unrelated_import_errors_are_not_masked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    adk = importlib.import_module("a2ui.adk")
+    monkeypatch.delitem(adk.__dict__, "A2uiPartConverter", raising=False)
+
+    def broken_import(name: str, package: str | None = None) -> Any:
+        raise ModuleNotFoundError(
+            "No module named 'some_dependency'", name="some_dependency"
+        )
+
+    monkeypatch.setattr(importlib, "import_module", broken_import)
+    with pytest.raises(ModuleNotFoundError) as excinfo:
+        adk.A2uiPartConverter
+    assert excinfo.value.name == "some_dependency"
+    assert "a2ui-adk[a2a]" not in str(excinfo.value)
+
+
+def test_get_part_converter_explains_missing_extra(adk_without_a2a) -> None:
+    toolset = adk_without_a2a.SendA2uiToClientToolset(
+        a2ui_enabled=True, a2ui_catalog=MagicMock(), a2ui_examples=""
+    )
+    with pytest.raises(ImportError, match=r'pip install "a2ui-adk\[a2a\]"'):
+        asyncio.run(toolset.get_part_converter(MagicMock()))
 
 
 def test_unknown_attribute_raises_attribute_error() -> None:

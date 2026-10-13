@@ -57,6 +57,22 @@ _A2A_EXPORTS: dict[str, tuple[str, str | None]] = {
 }
 
 
+# Top-level modules that the `a2a` extra installs: `a2a-sdk` and `a2ui-a2a`.
+_A2A_EXTRA_MODULES = ("a2a", "a2ui.a2a")
+
+
+def _is_missing_a2a_extra(error: ImportError) -> bool:
+    """Reports whether an import failed because the `a2a` extra is missing.
+
+    Any other import error, such as a circular import or a broken dependency,
+    is not about the extra and must propagate unchanged.
+    """
+    name = error.name or ""
+    return isinstance(error, ModuleNotFoundError) and any(
+        name == module or name.startswith(module + ".") for module in _A2A_EXTRA_MODULES
+    )
+
+
 def __getattr__(name: str) -> Any:
     target = _A2A_EXPORTS.get(name)
     if target is None:
@@ -65,6 +81,8 @@ def __getattr__(name: str) -> Any:
     try:
         module = importlib.import_module(module_name, __name__)
     except ImportError as e:
+        if not _is_missing_a2a_extra(e):
+            raise
         raise ImportError(
             f"'a2ui.adk.{name}' requires the A2A extension. Install it with:"
             ' pip install "a2ui-adk[a2a]"'

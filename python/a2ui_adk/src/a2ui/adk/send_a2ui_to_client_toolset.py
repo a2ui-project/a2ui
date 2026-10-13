@@ -192,7 +192,9 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             ImportError: If the `a2a` extra (`pip install "a2ui-adk[a2a]"`) is
               not installed.
         """
-        from a2ui.adk.a2a import A2uiPartConverter
+        # Through the package facade, so a missing extra raises the ImportError
+        # that names the install command.
+        from a2ui.adk import A2uiPartConverter
 
         catalog = await self._ui_tool._resolve_a2ui_catalog(ctx)
         return A2uiPartConverter([catalog])

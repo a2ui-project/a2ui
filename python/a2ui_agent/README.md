@@ -57,9 +57,9 @@ The following directories contain the base protocol logic, parsing, and schema o
 The agent SDK does not depend on an agent framework. Integrations are separate
 packages that add to the `a2ui` namespace:
 
-* [`a2ui-a2a`](../a2ui_a2a/README.md) provides `a2ui.a2a`, the A2UI extension
+- [`a2ui-a2a`](../a2ui_a2a/README.md) provides `a2ui.a2a`, the A2UI extension
   for the Agent-to-Agent (A2A) protocol.
-* [`a2ui-adk`](../a2ui_adk/README.md) provides `a2ui.adk`, the integration
+- [`a2ui-adk`](../a2ui_adk/README.md) provides `a2ui.adk`, the integration
   with the [Agent Development Kit (ADK)](https://github.com/google/adk-python).
 
 Code in this package must not import an agent framework or model SDK.
