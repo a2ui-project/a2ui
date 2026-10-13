@@ -21,9 +21,10 @@ import 'signal_state.dart';
 
 /// Renders one [ComponentNode] and rebuilds when the node's own props change.
 ///
-/// A resolved node renders through its implementation's builder. A pending
-/// node renders a [LoadingPlaceholder], and an unknown-type or cyclic node
-/// a short diagnostic.
+/// A resolved node renders through its implementation's builder, under a
+/// semantics node carrying its `accessibility` label and description, if it
+/// has either. A pending node renders a [LoadingPlaceholder], and an
+/// unknown-type or cyclic node a short diagnostic.
 class NodeView extends StatefulWidget {
   /// Creates a view of [node], keyed by its instance id.
   NodeView(this.node) : super(key: NodeKey(node.instanceId));
@@ -67,17 +68,7 @@ class _NodeViewState extends State<NodeView> with SignalState {
   Widget build(BuildContext context) {
     final ComponentNode<ComponentImplementation> node = widget.node;
     return switch (node.state) {
-      // A type or catalog change keeps the instance id, so the
-      // implementation keys the subtree.
-      NodeState.resolved => KeyedSubtree(
-        key: ObjectKey(node.impl),
-        child: node.impl!.builder(
-          context,
-          node,
-          ComponentProps(node.props.peek()),
-          NodeView.new,
-        ),
-      ),
+      NodeState.resolved => _buildResolved(context, node),
       NodeState.pending => const LoadingPlaceholder(),
       NodeState.unknownType => _Diagnostic(
         'Unknown component type "${node.type}"',
@@ -87,6 +78,38 @@ class _NodeViewState extends State<NodeView> with SignalState {
       ),
     };
   }
+}
+
+/// Builds a resolved [node] through its implementation, in a [Semantics]
+/// with the component's `accessibility` label and description. The
+/// [Semantics] is there even without them, so adding one later keeps the
+/// subtree's state.
+Widget _buildResolved(
+  BuildContext context,
+  ComponentNode<ComponentImplementation> node,
+) {
+  final props = ComponentProps(node.props.peek());
+  final Object? attributes = props.value('accessibility');
+  String? read(String key) {
+    final String? text = attributes is Map
+        ? ComponentProps.asString(attributes[key])
+        : null;
+    return text == null || text.isEmpty ? null : text;
+  }
+
+  final String? label = read('label');
+  final String? description = read('description');
+  return Semantics(
+    container: label != null || description != null,
+    label: label,
+    hint: description,
+    // A type or catalog change keeps the instance id, so the implementation
+    // keys the subtree.
+    child: KeyedSubtree(
+      key: ObjectKey(node.impl),
+      child: node.impl!.builder(context, node, props, NodeView.new),
+    ),
+  );
 }
 
 /// A small progress indicator that stands in for a component that has not

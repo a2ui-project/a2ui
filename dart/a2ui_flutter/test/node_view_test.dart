@@ -391,4 +391,57 @@ void main() {
     expect(dropped.disposed, isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  group('accessibility', () {
+    testWidgets('gives a component its label and description', (tester) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      add('root', 'Button', {
+        'child': 'icon',
+        'accessibility': {'label': 'Close', 'description': 'Closes the order'},
+      });
+      add('icon', 'Text', {'text': 'x'});
+      await pumpRoot(tester);
+
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Close')),
+        matchesSemantics(label: 'Close', hint: 'Closes the order'),
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('follows a bound label', (tester) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      surface.dataModel.set('/label', 'Inbox');
+      add('root', 'Text', {
+        'text': 'x',
+        'accessibility': {
+          'label': {'path': '/label'},
+        },
+      });
+      await pumpRoot(tester);
+      expect(find.bySemanticsLabel(RegExp('^Inbox')), findsOneWidget);
+
+      surface.dataModel.set('/label', 'Archive');
+      await tester.pump();
+
+      expect(find.bySemanticsLabel(RegExp('^Inbox')), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('^Archive')), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('keeps the implementation state when a label is added', (
+      tester,
+    ) async {
+      add('root', 'Probe', {'label': 'p'});
+      await pumpRoot(tester);
+
+      update('root', {
+        'label': 'p',
+        'accessibility': {'label': 'Probe'},
+      });
+      await tester.pump();
+
+      expect(log.probeStates, ['root']);
+    });
+  });
 }
