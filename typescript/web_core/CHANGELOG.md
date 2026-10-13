@@ -25,6 +25,25 @@
 - (v1_0) A nested call with an empty `@call` name is rejected as an invalid identifier by `PayloadValidator` and `MessageProcessor` instead of being skipped.
 - `PayloadValidator` checks function calls nested under property keys named `id` or `component`, which it used to skip. Below v1.0 it validates a nested call that names a `catalogId` against its catalog instead of skipping it, since a v0.9 call runs in the surface catalog whatever `catalogId` it carries.
 - `NodeResolver` resolves each component against its own model's catalog, and its `catalog` argument is optional and may be undefined, so surfaces without a default catalog render.
+- **BREAKING CHANGE**: Every class the basic catalog elements render now carries the `a2ui-` prefix, so an application's own `.error`, `.active`, `.container` or similar rules no longer match element internals ([#3169](https://github.com/a2ui-project/a2ui/pull/3169)). `TextField` validation messages now render `a2ui-error-message` like the other inputs.
+
+  | Component                      | Before                                               | After                               |
+  | ------------------------------ | ---------------------------------------------------- | ----------------------------------- |
+  | All inputs (validation errors) | `error a2ui-error-message`                           | `a2ui-error-message`                |
+  | `Button`                       | `a2ui-button <variant> a2ui-button-<variant>`        | `a2ui-button a2ui-button-<variant>` |
+  | `CheckBox`                     | `container`                                          | `a2ui-checkbox-container`           |
+  | `CheckBox`, `TextField`        | `invalid`                                            | `a2ui-invalid`                      |
+  | `ChoicePicker`                 | `options a2ui-options-group`                         | `a2ui-options-group`                |
+  | `ChoicePicker`                 | `chips a2ui-chips-group`                             | `a2ui-chips-group`                  |
+  | `ChoicePicker`                 | `a2ui-chip chip`                                     | `a2ui-chip`                         |
+  | `ChoicePicker`                 | `active selected` (on a chip)                        | `a2ui-chip-selected`                |
+  | `ChoicePicker`                 | `filter-input`                                       | `a2ui-filter-input`                 |
+  | `Divider`                      | `horizontal` / `vertical`                            | `a2ui-divider-<axis>`               |
+  | `Icon`                         | `svg`                                                | `a2ui-icon-svg`                     |
+  | `Image`                        | `a2ui-image <variant>`                               | `a2ui-image a2ui-image-<variant>`   |
+  | `List`                         | `a2ui-list <direction>`                              | `a2ui-list a2ui-list-<direction>`   |
+  | `Tabs`                         | `active`                                             | `a2ui-tab-button-active`            |
+  | `Text`                         | `a2ui-text <variant>` (and the `.a2ui-caption` rule) | `a2ui-text a2ui-text-<variant>`     |
 
 ## 0.13.0
 

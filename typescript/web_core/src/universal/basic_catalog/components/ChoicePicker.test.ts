@@ -143,6 +143,7 @@ describe('ChoicePicker Component', () => {
 
     const buttons = el.querySelectorAll('button.a2ui-chip') as NodeListOf<HTMLButtonElement>;
     assert.strictEqual(buttons.length, 2);
+    assert.strictEqual(buttons[0].classList.contains('a2ui-chip-selected'), false);
 
     // Click Apple chip
     buttons[0].click();
@@ -150,6 +151,9 @@ describe('ChoicePicker Component', () => {
 
     const selected = surface.dataModel.get('/chosen');
     assert.deepStrictEqual(selected, ['apple']);
+    await asyncUpdate(el, () => {});
+    assert.deepStrictEqual(Array.from(buttons[0].classList), ['a2ui-chip', 'a2ui-chip-selected']);
+    assert.deepStrictEqual(Array.from(buttons[1].classList), ['a2ui-chip']);
 
     document.body.removeChild(el);
   });

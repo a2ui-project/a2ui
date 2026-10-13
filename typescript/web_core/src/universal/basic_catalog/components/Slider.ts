@@ -56,7 +56,6 @@ export class A2uiSliderElement extends BasicCatalogA2uiLitElement<SliderSupporte
       accent-color: var(--a2ui-slider-thumb-color, var(--a2ui-color-primary, #007bff));
       background: var(--a2ui-slider-track-color, var(--a2ui-color-secondary, #e9ecef));
     }
-    .error,
     .a2ui-error-message {
       color: var(--a2ui-slider-color-error, red);
       font-size: var(--a2ui-font-size-xs, 0.75rem);

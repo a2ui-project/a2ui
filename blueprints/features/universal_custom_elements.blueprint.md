@@ -56,6 +56,8 @@ A web adapter whose implementations are not custom elements (React function comp
 ### **6. Styling**
 
 - Elements render into the light DOM by default, so the application's stylesheet reaches them and framework components can be composed inside them. An element MAY opt into shadow DOM.
+- The surface element also renders into the light DOM, so the application's styles reach the elements inside it the same way; a surface does not add a shadow boundary of its own.
+- Class names on the markup an element renders carry the `a2ui-` prefix (for example `a2ui-error-message`), so an application's own class selectors do not match element internals by accident.
 - An element's own styles are adopted once per document or shadow root and scoped to its tag name, so that two elements with the same selectors do not leak styles into each other.
 - Elements style themselves from CSS custom properties with documented names and defaults. They read no styling from the protocol: a surface at v1.0 or later carries no `theme`, and the element layer MUST NOT depend on one. A legacy v0.9 theme, where an adapter still supports it, is applied by setting the same custom properties from outside the element.
 

@@ -41,7 +41,7 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<DividerSuppor
       margin: var(--a2ui-divider-spacing, var(--a2ui-spacing-m, 16px)) 0;
       width: 100%;
     }
-    .a2ui-divider.vertical {
+    .a2ui-divider.a2ui-divider-vertical {
       width: var(--a2ui-border-width, 1px);
       height: 100%;
       margin: 0 var(--a2ui-divider-spacing, var(--a2ui-spacing-m, 16px));
@@ -60,8 +60,7 @@ export class A2uiDividerElement extends BasicCatalogA2uiLitElement<DividerSuppor
     const axis = props.axis ?? 'horizontal';
     const classes = {
       'a2ui-divider': true,
-      horizontal: axis === 'horizontal',
-      vertical: axis === 'vertical',
+      ['a2ui-divider-' + axis]: true,
     };
 
     return html`<hr class=${classMap(classes)} />`;

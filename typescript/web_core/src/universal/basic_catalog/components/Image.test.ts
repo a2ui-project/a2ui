@@ -101,7 +101,7 @@ describe('Image Component', () => {
     assert.strictEqual(img?.getAttribute('src'), 'http://example.com/image.png');
     assert.strictEqual(img?.getAttribute('alt'), 'An example image');
     assert.strictEqual(img?.classList.contains('a2ui-image'), true);
-    assert.strictEqual(img?.classList.contains('avatar'), true);
+    assert.strictEqual(img?.classList.contains('a2ui-image-avatar'), true);
   });
 
   it('should map fit="scaleDown" to valid CSS object-fit: scale-down', async () => {

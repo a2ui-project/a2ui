@@ -41,7 +41,7 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupp
     a2ui-checkbox {
       display: block;
     }
-    .container {
+    .a2ui-checkbox-container {
       display: flex;
       flex-direction: column;
       margin: var(--a2ui-checkbox-margin, var(--a2ui-spacing-m));
@@ -57,7 +57,7 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupp
       font-weight: var(--a2ui-checkbox-label-font-weight, var(--a2ui-label-font-weight, bold));
       cursor: pointer;
     }
-    label.invalid {
+    label.a2ui-invalid {
       color: var(--a2ui-checkbox-color-error, red);
     }
     input {
@@ -67,10 +67,9 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupp
       border: var(--a2ui-checkbox-border, var(--a2ui-border));
       border-radius: var(--a2ui-checkbox-border-radius, 4px);
     }
-    input.invalid {
+    input.a2ui-invalid {
       outline: 1px solid var(--a2ui-checkbox-color-error, red);
     }
-    .error,
     .a2ui-error-message {
       color: var(--a2ui-checkbox-color-error, red);
       font-size: var(--a2ui-font-size-xs, 0.75rem);
@@ -83,11 +82,11 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupp
     if (!props) return nothing;
 
     const isInvalid = props.isValid === false;
-    const labelClasses = {'a2ui-checkbox': true, invalid: isInvalid};
-    const inputClasses = {invalid: isInvalid};
+    const labelClasses = {'a2ui-checkbox': true, 'a2ui-invalid': isInvalid};
+    const inputClasses = {'a2ui-invalid': isInvalid};
 
     return html`
-      <div class="container">
+      <div class="a2ui-checkbox-container">
         <label class=${classMap(labelClasses)}>
           <input
             type="checkbox"
@@ -97,11 +96,7 @@ export class A2uiCheckBoxElement extends BasicCatalogA2uiLitElement<CheckBoxSupp
           />
           <span class="a2ui-check-box-text">${props.label}</span>
         </label>
-        ${isInvalid && props.validationErrors?.length
-          ? props.validationErrors.map(
-              (msg: string) => html`<div class="error a2ui-error-message">${msg}</div>`,
-            )
-          : nothing}
+        ${this.renderValidationErrors(props)}
       </div>
     `;
   }

@@ -103,8 +103,8 @@ describe('Tabs Component', () => {
     assert.strictEqual(buttons.length, 2);
     assert.strictEqual(buttons[0].textContent?.trim(), 'Tab 1');
     assert.strictEqual(buttons[1].textContent?.trim(), 'Tab 2');
-    assert.strictEqual(buttons[0].classList.contains('active'), true);
-    assert.strictEqual(buttons[1].classList.contains('active'), false);
+    assert.strictEqual(buttons[0].classList.contains('a2ui-tab-button-active'), true);
+    assert.strictEqual(buttons[1].classList.contains('a2ui-tab-button-active'), false);
 
     const content = el.querySelector('.a2ui-tab-content');
     assert.notStrictEqual(content, null);
@@ -129,8 +129,8 @@ describe('Tabs Component', () => {
     buttons[1].click();
     await asyncUpdate(el, () => {});
 
-    assert.strictEqual(buttons[0].classList.contains('active'), false);
-    assert.strictEqual(buttons[1].classList.contains('active'), true);
+    assert.strictEqual(buttons[0].classList.contains('a2ui-tab-button-active'), false);
+    assert.strictEqual(buttons[1].classList.contains('a2ui-tab-button-active'), true);
 
     const content = el.querySelector('.a2ui-tab-content');
     assert.notStrictEqual(content, null);
