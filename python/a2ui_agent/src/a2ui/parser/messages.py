@@ -99,10 +99,15 @@ def _message_to_dict(msg: AgentToRendererMessage | Mapping[str, Any]) -> dict[st
     """Converts a single message model or dict into a wire-format dict."""
     if isinstance(msg, BaseModel):
         d = msg.model_dump(mode="json", by_alias=True, exclude_unset=True)
-        # `version` is a constant with a default, so a model built without it
-        # leaves it unset. v0.9 and later messages require it on the wire.
         version = getattr(msg, "version", None)
-        if version is not None and version != "v0.8" and "version" not in d:
+        if version == "v0.8":
+            # v0.8 messages carry no `version` on the wire, even when a caller
+            # set the model's constant explicitly.
+            d.pop("version", None)
+        elif version is not None and "version" not in d:
+            # `version` is a constant with a default, so a model built without
+            # it leaves it unset. v0.9 and later messages require it on the
+            # wire.
             d = {"version": version, **d}
         return d
     if isinstance(msg, Mapping):

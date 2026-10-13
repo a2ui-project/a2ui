@@ -104,4 +104,14 @@ describe('ImageComponent', () => {
       expect(img.className).toContain(variant);
     }
   });
+
+  it('should map scaleDown fit to scale-down CSS object-fit', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      fit: createBoundProperty('scaleDown' as const),
+    });
+    fixture.detectChanges();
+    const img = fixture.nativeElement.querySelector('img') as HTMLImageElement;
+    expect(img.style.objectFit).toBe('scale-down');
+  });
 });

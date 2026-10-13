@@ -214,14 +214,14 @@ def test_direct_json_compile_passes_messages_through_unchanged():
         },
     ]
     parser = DirectJsonParser([BasicCatalog("1.0")])
-    compiled = parser.compile(json.dumps(messages), is_final=False)
+    compiled = parser.compile(json.dumps(messages))
     assert to_message_dicts(compiled) == messages
 
 
-def test_direct_json_partial_compile_of_invalid_messages_raises_validation_error():
+def test_direct_json_compile_of_invalid_messages_raises_validation_error():
     parser = DirectJsonParser([BasicCatalog("1.0")])
     with pytest.raises(A2uiValidationError):
-        parser.compile('[{"version": "v1.0", "notAMessage": {}}]', is_final=False)
+        parser.compile('[{"version": "v1.0", "notAMessage": {}}]')
 
 
 def test_direct_json_decompiler_writes_the_messages_unchanged():

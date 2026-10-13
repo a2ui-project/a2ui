@@ -17,30 +17,30 @@ Translates standard JSON catalog schemas into TypeScript/TSX interface
 definitions and instruction blocks for on-device models.
 """
 
-from collections.abc import Mapping, Sequence
+from __future__ import annotations
+
+from collections.abc import Sequence
 import json
 import re
-from typing import Any, Literal, TYPE_CHECKING
+from typing import Any, Literal
 
 from a2ui.core import CatalogApi
 from a2ui.core.common import is_at_least_version
-from a2ui.core.schema.v0_9 import V09Capabilities
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
     build_catalog_helpers,
     catalogs_defining,
+    check_mixed_catalogs,
     catalogs_protocol_version,
     normalize_prompt_example_messages,
     surface_catalog_id,
+    to_message_dicts,
 )
 from a2ui.prompt import PromptGenerator
-from a2ui.schema import load_examples
+from a2ui.utils import validate_payload
 
 from .compiler import UPDATE_ATTR
 from .parser import ElementalParser
-
-if TYPE_CHECKING:
-    from .format import ElementalFormat
 
 ELEMENTAL_RULES = r"""# A2UI Elemental Output Contract
 
@@ -131,26 +131,42 @@ class ElementalPromptGenerator(PromptGenerator):
     TypeScript/TSX interfaces and function declarations.
     """
 
-    def __init__(self, format_inst: "ElementalFormat"):
-        """Initializes the generator with the specified format instance.
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[Any]] | None = None,
+        allowed_messages: Sequence[str] | None = None,
+        *,
+        surface_id: str = "main",
+    ):
+        """Initializes the Elemental prompt generator.
 
         Args:
-            format_inst: An ElementalFormat instance.
+            catalogs: The active catalogs.
+            examples: Optional prompt example turns, each a list of messages.
+            allowed_messages: Accepted so every format's prompt generator takes
+                the same arguments. Elemental doesn't filter its rules by
+                message type, so the value is not used.
+            surface_id: The surface ID given to the Elemental parser that this
+                generator uses.
         """
-        self._format = format_inst
-        catalogs = self.catalogs
-        self.helpers: dict[str, CatalogSchemaHelper] = build_catalog_helpers(catalogs)
-        self.catalog_id: str = catalogs[0].catalog_id
+        self._catalogs = list(check_mixed_catalogs(catalogs))
+        self._examples = [list(t) for t in examples] if examples is not None else None
+        self._surface_id = surface_id
+        self.helpers: dict[str, CatalogSchemaHelper] = build_catalog_helpers(
+            self._catalogs
+        )
+        self.catalog_id: str = self._catalogs[0].catalog_id
         self.parser: ElementalParser | None = None
 
     @property
     def catalogs(self) -> list[CatalogApi]:
-        """A copy of the catalogs configured on this prompt generator's format."""
-        return self._format.catalogs
+        """A copy of the catalogs configured on this prompt generator."""
+        return list(self._catalogs)
 
     def _get_parser(self) -> ElementalParser:
         if self.parser is None:
-            self.parser = ElementalParser(self.catalogs, self._format.surface_id)
+            self.parser = ElementalParser(self.catalogs, self._surface_id)
         return self.parser
 
     def _at_least_v10(self) -> bool:
@@ -301,21 +317,23 @@ class ElementalPromptGenerator(PromptGenerator):
         catalog: Any | None = None,
         validate: bool = False,
     ) -> str:
-        """Loads and formats few-shot Elemental examples."""
+        """Formats few-shot Elemental examples."""
+        if not self._examples:
+            return ""
         active_catalogs = list(self.catalogs)
         if catalog is not None:
             active_catalogs = [
                 catalog,
                 *(c for c in active_catalogs if c is not catalog),
             ]
-        if not active_catalogs or not self._format or not self._format.examples_path:
-            return ""
-        raw_examples = load_examples(
-            active_catalogs, self._format.examples_path, validate=validate
-        )
-        if not raw_examples:
-            return ""
-        return self.transform_examples(raw_examples)
+        parser = self._get_parser()
+        blocks = []
+        for turn in self._examples:
+            if validate:
+                validate_payload(active_catalogs, to_message_dicts(turn))
+            decompiled = parser.decompile_blocks(turn)
+            blocks.append(parser.wrap_decompiled_blocks(decompiled))
+        return "\n\n".join(blocks)
 
     def _map_schema_to_ts_type(
         self, component_name: str, prop_name: str, prop_schema: Any
@@ -623,56 +641,19 @@ class ElementalPromptGenerator(PromptGenerator):
             flags=re.DOTALL,
         )
 
-    def generate(
-        self,
-        role_description: str,
-        workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = False,
-        include_examples: bool = False,
-        validate_examples: bool = False,
-    ) -> str:
-        """Assembles the complete system instruction block for the LLM.
-
-        Args:
-            role_description: Description of the agent's role.
-            workflow_description: Optional description of the task workflow.
-            ui_description: Optional UI context or rules.
-            client_ui_capabilities: Optional client UI capability details.
-            allowed_components: Optional list of component tags the LLM may use.
-            allowed_messages: Optional list of A2UI message types allowed.
-            include_schema: Whether to include component schemas in the prompt.
-            include_examples: Whether to include few-shot examples.
-            validate_examples: Whether to validate few-shot examples on generation.
-
-        Returns:
-            The complete system prompt string explaining A2UI Elemental and its catalog.
-        """
-        parts = [role_description]
+    def generate(self) -> str:
+        """Assembles the prompt snippet explaining A2UI Elemental and its catalog."""
+        parts: list[str] = []
 
         rules = self.generate_base_rules()
-        if workflow_description:
-            rules += f"\n\n{workflow_description}"
         parts.append(f"## Workflow Description:\n{rules}")
 
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
-
-        if include_schema and self.helpers:
+        if self.helpers:
             parts.append(self.generate_catalog_instructions(include_schema=True))
 
-        if include_examples and self._format.examples_path and self.catalogs:
-            raw_examples = load_examples(
-                list(self.catalogs),
-                self._format.examples_path,
-                validate=validate_examples,
-            )
-            if raw_examples:
-                formatted_examples = self.transform_examples(raw_examples)
-                parts.append(f"### Examples:\n{formatted_examples}")
+        formatted_examples = self.generate_examples()
+        if formatted_examples:
+            parts.append(f"### Examples:\n{formatted_examples}")
 
         return "\n\n".join(parts)
 

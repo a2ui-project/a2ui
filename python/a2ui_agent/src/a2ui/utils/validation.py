@@ -17,7 +17,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any
+import copy
+from typing import Any, cast
+
+from pydantic import BaseModel
 
 from a2ui.core import (
     A2uiCatalogError,
@@ -30,7 +33,12 @@ from a2ui.core import (
     ValidationConfig,
 )
 from a2ui.core.common import to_protocol_version
-from a2ui.core.schema import AgentToRendererMessagePayload, ProtocolVersion
+from a2ui.core.schema import (
+    AgentToRendererMessage,
+    AgentToRendererMessagePayload,
+    ProtocolVersion,
+)
+from a2ui.parser import to_message_dicts
 
 # The `version` values that messages for each protocol version's catalogs
 # state, spelled as the specification spells them. A v0.8 message has no
@@ -74,7 +82,9 @@ def validate_payload(
     The check is stateless: it sees one payload, with no record of what earlier
     payloads sent. A surface that the payload creates, with `createSurface` or
     the v0.8 `beginRendering`, is checked in full, so its components must be
-    valid and reachable from the root, and their references must resolve. A
+    valid and reachable from the root, and their references must resolve once
+    every message in the payload is applied: a component may name a child that
+    a later message adds. A
     surface that the payload only updates may already hold components, so
     references to components outside the payload and a missing root are
     accepted there. Each of its components is still checked against a catalog
@@ -119,6 +129,14 @@ def validate_payload(
     messages = _extract_messages(payload)
     for index, message in enumerate(messages):
         _check_version(message, index, protocol_version)
+        for action in ("updateComponents", "surfaceUpdate", "createSurface"):
+            body = message.get(action)
+            if isinstance(body, Mapping) and "components" in body:
+                comps = body["components"]
+                if isinstance(comps, list) and not comps:
+                    raise A2uiValidationError(
+                        f"Message {index} ({action}) has an empty 'components' list."
+                    )
 
     created = {
         surface_id
@@ -137,7 +155,7 @@ def validate_payload(
     if checked:
         if protocol_version is ProtocolVersion.V0_8:
             checked = _begin_rendering_first(checked)
-        _process(catalogs, checked, STRICT_VALIDATION)
+        _process_created(catalogs, checked)
     known_catalog_ids = surface_catalog_ids or {}
     for surface_id, surface_messages in updated.items():
         _check_updated_surface(
@@ -152,12 +170,17 @@ def validate_payload(
 def _extract_messages(
     payload: AgentToRendererMessagePayload,
 ) -> list[dict[str, Any]]:
-    """Normalizes a payload into a list of message dictionaries."""
+    """Normalizes a payload into a list of message dictionaries.
+
+    Message models are converted with `to_message_dicts`, so the check sees
+    exactly the dictionaries that go on the wire. The conversion keeps an
+    explicitly set `None`, since a `null` can be meaningful there (v1.0
+    deletes a data model key with an `updateDataModel` value of `null`), so an
+    optional field set to `None` is checked as `null` rather than dropped.
+    """
     raw: Any = payload
-    if hasattr(raw, "model_dump"):
-        raw = raw.model_dump(by_alias=True, exclude_none=True)
-        if isinstance(raw, Mapping) and isinstance(raw.get("messages"), list):
-            raw = raw["messages"]
+    if hasattr(raw, "model_dump") and isinstance(getattr(raw, "messages", None), list):
+        raw = raw.messages
     raw_messages = (
         raw
         if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes))
@@ -165,11 +188,11 @@ def _extract_messages(
     )
     messages: list[dict[str, Any]] = []
     for index, item in enumerate(raw_messages):
-        if hasattr(item, "model_dump"):
-            item = item.model_dump(by_alias=True, exclude_none=True)
+        if isinstance(item, BaseModel):
+            item = to_message_dicts(cast(AgentToRendererMessage, item))[0]
         if not isinstance(item, Mapping):
             raise A2uiValidationError(f"Message {index} is not a JSON object.")
-        messages.append(dict(item))
+        messages.append(copy.deepcopy(dict(item)))
     return messages
 
 
@@ -220,24 +243,37 @@ def _begin_rendering_first(messages: list[dict[str, Any]]) -> list[dict[str, Any
     """Moves each surface's first `beginRendering` ahead of its other messages.
 
     A v0.8 renderer buffers the components and data that arrive before
-    `beginRendering`, so a surface's updates may precede it.
+    `beginRendering`, so a surface's updates may precede it. A `deleteSurface`
+    ends the surface, and the messages after it start the surface over, so
+    each run of messages up to and including a `deleteSurface` is reordered on
+    its own.
     """
-    first_creation: dict[str, int] = {}
-    for index, message in enumerate(messages):
-        surface_id, creates = _target(message)
-        if creates and surface_id is not None:
-            first_creation.setdefault(surface_id, index)
+    moved_to: dict[int, int] = {}
+    runs: dict[str, list[int]] = {}
 
-    reordered: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    def end_run(surface_id: str) -> None:
+        run = runs.pop(surface_id, [])
+        creation = next((i for i in run if _target(messages[i])[1]), None)
+        if creation is not None and creation != run[0]:
+            moved_to[run[0]] = creation
+
     for index, message in enumerate(messages):
         surface_id, _ = _target(message)
-        if surface_id is not None and surface_id in first_creation:
-            if surface_id not in seen:
-                seen.add(surface_id)
-                reordered.append(messages[first_creation[surface_id]])
-            if index == first_creation[surface_id]:
-                continue
+        if surface_id is None:
+            continue
+        runs.setdefault(surface_id, []).append(index)
+        if "deleteSurface" in message:
+            end_run(surface_id)
+    for surface_id in list(runs):
+        end_run(surface_id)
+
+    moved = set(moved_to.values())
+    reordered: list[dict[str, Any]] = []
+    for index, message in enumerate(messages):
+        if index in moved:
+            continue
+        if index in moved_to:
+            reordered.append(messages[moved_to[index]])
         reordered.append(message)
     return reordered
 
@@ -332,8 +368,11 @@ def _process(
     catalogs: Sequence[CatalogApi],
     messages: list[dict[str, Any]],
     validation_config: ValidationConfig,
-) -> None:
+) -> MessageProcessor:
     """Runs messages through a new processor that holds the catalogs.
+
+    Returns:
+      The processor, holding the surfaces the messages left behind.
 
     Raises:
       A2uiValidationError: If the processor rejects a message. Errors of other
@@ -351,3 +390,33 @@ def _process(
         raise
     except A2uiError as e:
         raise A2uiValidationError(str(e), details=e.details) from e
+    return processor
+
+
+def _process_created(
+    catalogs: Sequence[CatalogApi],
+    messages: list[dict[str, Any]],
+) -> None:
+    """Checks the messages for the surfaces that the payload creates.
+
+    Each message is checked as it is applied, except for the shape of the
+    tree: a component may name a child that a later message adds, as the
+    protocol allows, so references, the root and reachability are checked
+    once every message has been applied.
+
+    Raises:
+      A2uiValidationError: If a message is rejected, or a surface the
+        messages leave behind has a dangling reference, no root, an
+        unreachable component or a cycle.
+    """
+    processor = _process(catalogs, messages, _UPDATED_SURFACE_VALIDATION)
+    for surface in processor.model.surfaces.values():
+        config = STRICT_VALIDATION.model_copy(
+            update={"root_id": surface.root_id or STRICT_VALIDATION.root_id}
+        )
+        try:
+            surface.components_model.validate_topology(config)
+        except A2uiValidationError:
+            raise
+        except A2uiError as e:
+            raise A2uiValidationError(str(e), details=e.details) from e

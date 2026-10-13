@@ -188,4 +188,36 @@ describe('List Component', () => {
     assert.strictEqual(reorderedNodes[1].__marker, 'marker-1');
     assert.strictEqual(reorderedNodes[2].__marker, 'marker-2');
   });
+
+  it('should apply align property to list container', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'list-aligned',
+              component: 'List',
+              children: ['txt1', 'txt2'],
+              align: 'center',
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-list') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'list-aligned');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const listDiv = el.querySelector('.a2ui-list') as HTMLElement;
+    assert.notStrictEqual(listDiv, null);
+    assert.strictEqual(listDiv.style.alignItems, 'center');
+  });
 });

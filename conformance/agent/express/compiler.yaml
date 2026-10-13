@@ -968,3 +968,127 @@
   input: "root = Column(_template($/items))"
   expect_error:
     category: "ParseError"
+
+- name: test_compile_express_list_of_numbers
+  description: An array of plain numbers passed to a numeric list property compiles to a JSON array of numbers, whereas every other array case in this suite holds child component references or inline components.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  input: 'root = Chart([10, 20, 30], "Sales")'
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/custom"
+        components:
+          - id: "root"
+            component: "Chart"
+            values: [10, 20, 30]
+            caption: "Sales"
+
+- name: test_compile_express_inline_id_collision_is_a_validation_error
+  description: An inline child component takes the synthesized id <parent>_<property>, so a block that also assigns a variable of that name collides on the component id and fails validation rather than silently overwriting one of the two.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root_child = Text("c2")
+    root = Card(Text("c1"))
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_inline_array_id_collision_is_a_validation_error
+  description: An inline child inside an array takes the synthesized id <parent>_<property>_<index> (1-based), so a block that also assigns a variable of that name collides on the component id and fails validation.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root_children_1 = Text("conflict")
+    root = Column([Text("a"), Text("b")])
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_checks_on_uncheckable_component_is_a_validation_error
+  description: Passing a check list ([?...]) to a component whose catalog schema does not declare a checks property is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("hi", [?required])'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_components_without_root_is_update_components
+  description: A block that assigns components without defining root compiles to an updateComponents message for an existing surface rather than createSurface.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'some_var = Text("Hi")'
+  expect:
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "default_surface"
+        components:
+          - id: "some_var"
+            component: "Text"
+            text: "Hi"
+
+- name: test_compile_express_duplicate_property_is_a_validation_error
+  description: Supplying a component property both positionally and by keyword argument in the same call is a validation error rather than letting one overwrite the other.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Text("hi", text="duplicate")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_undeclared_function_parameter_is_a_validation_error
+  description: A keyword argument on a function call naming a parameter the catalog function does not declare is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Button(Text("hi"), action=openUrl("https://example.com", badArg=1))'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_duplicate_function_parameter_is_a_validation_error
+  description: Supplying a function parameter both positionally and by keyword argument in the same call is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'root = Button(Text("hi"), action=openUrl("https://example.com", url="https://other.com"))'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_component_outside_pinned_surface_catalog_is_a_validation_error
+  description: When surface(...) explicitly pins a catalogId, referencing a component that belongs to a different active catalog is a validation error.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |-
+    surface("s1", catalogId="conformance/simplified")
+    root = Gauge(30)
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_express_surface_targeting_unknown_catalog_is_a_validation_error
+  description: A surface(...) declaration naming a catalogId that is not among the active catalogs is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    surface("main", catalogId="unknown")
+    root = Text("hi")
+  expect_error:
+    category: "ValidationError"

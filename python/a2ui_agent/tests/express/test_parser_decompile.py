@@ -203,9 +203,10 @@ class TestExpressParser(unittest.TestCase):
 
         content = "Intro\n<a2ui>\nroot = Text('Hi')\n</a2ui>\nOutro"
         parts = parser.unwrap(content)
-        self.assertEqual(len(parts), 2)
-        self.assertEqual(parts[0].text, "Intro")
-        self.assertIn("root = Text('Hi')", parts[0].a2ui_raw)
+        self.assertEqual(len(parts), 3)
+        self.assertEqual(parts[0].part.text, "Intro")
+        self.assertIn("root = Text('Hi')", parts[1].part.a2ui_raw)
+        self.assertEqual(parts[2].part.text, "Outro")
 
 
 if __name__ == "__main__":

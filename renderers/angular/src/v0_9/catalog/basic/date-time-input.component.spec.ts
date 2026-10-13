@@ -119,4 +119,45 @@ describe('DateTimeInputComponent', () => {
     expect(dateInput.value).toBe('');
     expect(timeInput.value).toBe('');
   });
+
+  it('should render only time input when enableTime is true and enableDate is undefined', () => {
+    const onUpdateSpy = jasmine.createSpy('onUpdate');
+    setComponentProps(fixture, {
+      ...defaultProps,
+      value: {
+        value: angularSignal('09:15'),
+        raw: '09:15',
+        onUpdate: onUpdateSpy,
+      },
+      enableDate: createBoundProperty<boolean | undefined>(undefined),
+      enableTime: createBoundProperty<boolean | undefined>(true),
+    });
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('input[type="date"]')).toBeNull();
+    const timeInput = fixture.nativeElement.querySelector('input[type="time"]');
+    expect(timeInput).toBeTruthy();
+    expect(timeInput.value).toBe('09:15');
+
+    timeInput.value = '10:30';
+    timeInput.dispatchEvent(new Event('change'));
+    expect(onUpdateSpy).toHaveBeenCalledWith('10:30');
+  });
+
+  it('should bind min and max attributes to date and time inputs', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      value: createBoundProperty('2026-01-15T12:00:00'),
+      min: createBoundProperty<string | undefined>('2026-01-01T09:00:00'),
+      max: createBoundProperty<string | undefined>('2026-01-31T17:00:00'),
+    });
+    fixture.detectChanges();
+
+    const dateInput = fixture.nativeElement.querySelector('input[type="date"]');
+    const timeInput = fixture.nativeElement.querySelector('input[type="time"]');
+    expect(dateInput.getAttribute('min')).toBe('2026-01-01');
+    expect(dateInput.getAttribute('max')).toBe('2026-01-31');
+    expect(timeInput.getAttribute('min')).toBe('09:00');
+    expect(timeInput.getAttribute('max')).toBe('17:00');
+  });
 });

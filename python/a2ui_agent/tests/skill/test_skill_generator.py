@@ -21,10 +21,9 @@ from unittest.mock import MagicMock
 
 from a2ui.core import Catalog
 from a2ui.inference_formats.experimental.express import ExpressFormat
-from a2ui.schema import CatalogConfig
-from a2ui.skill import SkillGenerator
-
+from a2ui.processor import CatalogConfig
 from a2ui.schema.utils import find_repo_root
+from a2ui.skill import SkillGenerator
 
 # Locate standard basic catalog in repository
 _repo_root = find_repo_root(os.path.dirname(__file__)) or ""
@@ -38,8 +37,8 @@ class TestSkillGenerator(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.catalog_config = CatalogConfig.from_path("basic", CATALOG_PATH)
-        self.catalog = self.catalog_config.to_catalog()
+        self.catalog_config = CatalogConfig.from_path(CATALOG_PATH)
+        self.catalog = self.catalog_config.transformed_catalog
         self.express_fmt = ExpressFormat([self.catalog])
         self.generator = SkillGenerator(self.express_fmt)
 
@@ -160,8 +159,8 @@ class TestSkillGenerator(unittest.TestCase):
         """Verifies methods accept explicit catalog arguments overriding format defaults."""
         testing_catalog_path = os.path.join(SPEC_DIR, "test", "testing_catalog.json")
         testing_catalog = CatalogConfig.from_path(
-            "testing", testing_catalog_path
-        ).to_catalog()
+            testing_catalog_path, protocol_version="1.0"
+        ).transformed_catalog
 
         # 1. generate_catalog_skill with explicit catalog generates for that catalog
         cat_skill = self.generator.generate_catalog_skill(testing_catalog)

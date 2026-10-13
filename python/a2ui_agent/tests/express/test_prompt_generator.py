@@ -54,13 +54,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
         express_format = ExpressFormat([self.catalog])
         generator = express_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="You are a helpful assistant.",
-            workflow_description="Please adhere to constraints.",
-            include_schema=True,
-        )
-        self.assertIn("You are a helpful assistant.", prompt)
-        self.assertIn("Please adhere to constraints.", prompt)
+        prompt = generator.generate()
         self.assertIn("# A2UI Express DSL Output Contract", prompt)
         self.assertIn("Text(", prompt)
 
@@ -78,18 +72,17 @@ class TestExpressPromptGenerator(unittest.TestCase):
         generator = express_format.prompt_generator
 
         # Only allow other component tags, Text should be pruned out
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-        )
+        prompt = generator.generate()
         self.assertNotIn("Text(", prompt)
 
     def test_express_include_examples_transformation(self):
-        # Write a markdown file containing a JSON block wrapped in backticks
+        from a2ui.inference_formats import to_message_models
+
         example_payload = {
-            "version": "1.0",
+            "version": "v1.0",
             "createSurface": {
                 "surfaceId": "welcome",
+                "catalogId": self.catalog.catalog_id,
                 "components": [
                     {"id": "root", "component": "Text", "text": "Hello World"}
                 ],
@@ -102,28 +95,25 @@ class TestExpressPromptGenerator(unittest.TestCase):
         with open(md_file_path, "w", encoding="utf-8") as f:
             f.write(md_content)
 
-        # Initialize ExpressFormat with examples.md path
-        express_format = ExpressFormat([self.catalog], examples_path=md_file_path)
+        express_format = ExpressFormat(
+            [self.catalog], examples=[to_message_models([example_payload])]
+        )
         generator = express_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            workflow_description="Custom workflow instructions",
-            ui_description="Custom UI rules",
-            include_schema=True,
-            include_examples=True,
-            validate_examples=False,
-        )
-
-        # Verify workflow_description and ui_description are included
-        self.assertIn("Custom workflow instructions", prompt)
-        self.assertIn("Custom UI rules", prompt)
+        prompt = generator.generate()
 
         # Verify examples are included and decompiled
         self.assertIn("### Examples:", prompt)
         self.assertIn('root = Text("Hello World")', prompt)
 
+        # Also verify transform_examples on markdown content
+        transformed = generator.transform_examples(md_content)
+        self.assertIn('root = Text("Hello World")', transformed)
+
     def test_express_examples_validation(self):
+        from a2ui.inference_formats import to_message_models
+        from a2ui.schema import load_examples
+
         # Write a valid standard A2UI JSON example file
         example_payload = {
             "version": "v1.0",
@@ -139,18 +129,16 @@ class TestExpressPromptGenerator(unittest.TestCase):
         with open(json_file_path, "w", encoding="utf-8") as f:
             json.dump(example_payload, f)
 
-        # Initialize ExpressFormat with directory path
-        express_format = ExpressFormat([self.catalog], examples_path=self.tmp_dir.name)
+        loaded_md = load_examples([self.catalog], self.tmp_dir.name, validate=True)
+        express_format = ExpressFormat(
+            [self.catalog], examples=[to_message_models([example_payload])]
+        )
         generator = express_format.prompt_generator
 
-        prompt = generator.generate(
-            role_description="Test role",
-            include_schema=True,
-            include_examples=True,
-            validate_examples=True,
-        )
+        prompt = generator.generate()
 
         self.assertIn("### Examples:", prompt)
+        self.assertIn("---BEGIN example_1---", generator.transform_examples(loaded_md))
 
     def test_express_transform_examples_edge_cases(self):
         """Test transform_examples with JSON array blocks, non-A2UI JSON, and invalid JSON."""

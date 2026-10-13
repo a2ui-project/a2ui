@@ -62,6 +62,17 @@
   expect:
     components: ["Text"]
 
+- name: test_component_pruning_null_allowlist_keeps_nothing
+  description: A null component allowlist leaves no components and leaves functions alone, since keeping everything is said by applying no transformer.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    transformers:
+      - component_pruning: null
+  expect:
+    components: []
+    functions: ["required", "formatString", "openUrl"]
+
 - name: test_component_pruning_empty_allowlist_keeps_nothing
   description: An empty allowlist leaves no components, since keeping everything is said by applying no transformer.
   action: transform_catalog
@@ -95,6 +106,17 @@
       - function_pruning: ["required"]
   expect:
     functions: ["required"]
+
+- name: test_function_pruning_null_allowlist_keeps_nothing
+  description: A null function allowlist leaves no functions and leaves components alone, since keeping everything is said by applying no transformer.
+  action: transform_catalog
+  args:
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    transformers:
+      - function_pruning: null
+  expect:
+    components: ["Text", "Button", "Card", "Column"]
+    functions: []
 
 - name: test_function_pruning_empty_allowlist_keeps_nothing
   description: An empty function allowlist leaves no functions, and the components are untouched.

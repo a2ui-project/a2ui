@@ -14,6 +14,8 @@
 
 """Transformers that prune a catalog's components or functions to an allowlist."""
 
+from __future__ import annotations
+
 from collections import deque
 from collections.abc import Iterable, Mapping, Sequence
 import copy
@@ -23,10 +25,17 @@ from a2ui.core import Catalog, CatalogApi
 
 from .base import CatalogTransformer
 
+__all__ = [
+    "ComponentPruningTransformer",
+    "FunctionPruningTransformer",
+]
+
 _DEFS_REF_PREFIX = "#/$defs/"
 
 
-def _allowlist(names: Sequence[str], argument: str) -> frozenset[str]:
+def _allowlist(names: Sequence[str] | None, argument: str) -> frozenset[str]:
+    if names is None:
+        return frozenset()
     if isinstance(names, str):
         raise TypeError(f"{argument} must be a sequence of names, not a string.")
     return frozenset(names)
@@ -117,11 +126,12 @@ class ComponentPruningTransformer(CatalogTransformer):
     don't apply the transformer. Functions and the other definitions are kept.
     """
 
-    def __init__(self, allowed_components: Sequence[str]) -> None:
+    def __init__(self, allowed_components: Sequence[str] | None = None) -> None:
         """Initializes the transformer.
 
         Args:
-            allowed_components: The names of the components to keep.
+            allowed_components: The names of the components to keep, or None
+              to keep no components.
 
         Raises:
             TypeError: If `allowed_components` is a single string.
@@ -141,11 +151,12 @@ class FunctionPruningTransformer(CatalogTransformer):
     apply the transformer. Components and the other definitions are kept.
     """
 
-    def __init__(self, allowed_functions: Sequence[str]) -> None:
+    def __init__(self, allowed_functions: Sequence[str] | None = None) -> None:
         """Initializes the transformer.
 
         Args:
-            allowed_functions: The names of the functions to keep.
+            allowed_functions: The names of the functions to keep, or None
+              to keep no functions.
 
         Raises:
             TypeError: If `allowed_functions` is a single string.

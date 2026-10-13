@@ -174,7 +174,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         from a2ui.inference_formats.experimental.express import ExpressFormat
 
         fmt = ExpressFormat([core_catalog])
-        prompt = fmt.prompt_generator.generate(role_description="", include_schema=True)
+        prompt = fmt.prompt_generator.generate()
         self.assertIn("TextField(", prompt)
 
         # Parser
@@ -183,7 +183,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
             response
         )
         self.assertEqual(len(parts), 1)
-        self.assertIsNotNone(parts[0].a2ui_json)
+        self.assertIsNotNone(parts[0].a2ui)
 
     def test_catalog_schema_helper_initialization_errors(self):
         """Verifies that CatalogSchemaHelper raises correct errors for invalid initialization inputs."""

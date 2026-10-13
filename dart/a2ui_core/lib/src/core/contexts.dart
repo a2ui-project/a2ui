@@ -43,6 +43,42 @@ typedef CatalogInvokerResolver = FunctionInvoker Function(String catalogId);
 /// Reports a failed function evaluation without depending on a surface.
 typedef ExpressionErrorReporter = void Function(A2uiExpressionError error);
 
+/// Reports a data binding whose absolute [path] does not exist in the data
+/// model when the binding is resolved.
+typedef MissingDataReporter = void Function(String path);
+
+/// The deepest nesting of lists, maps, and function arguments that
+/// [DataContext] resolves inside one dynamic value. Deeper payloads fail with
+/// an [A2uiExpressionError] instead of exhausting the call stack.
+const int maxDynamicValueDepth = 1000;
+
+/// A live subscription to a dynamic value, returned by
+/// [DataContext.subscribeDynamicValue].
+abstract interface class DataSubscription {
+  /// The latest resolved value.
+  Object? get value;
+
+  /// Stops change notifications. Idempotent.
+  void unsubscribe();
+}
+
+class _SignalDataSubscription implements DataSubscription {
+  final ReadonlySignal<Object?> _signal;
+  void Function()? _dispose;
+
+  _SignalDataSubscription(this._signal);
+
+  @override
+  Object? get value => _signal.peek();
+
+  @override
+  void unsubscribe() {
+    final void Function()? dispose = _dispose;
+    _dispose = null;
+    dispose?.call();
+  }
+}
+
 /// A dynamic value as [DataContext.resolveListenableWithPending] reports it:
 /// its current `value`, and whether that value is a placeholder for an
 /// agent call whose response has not arrived (`pending`).
@@ -54,15 +90,27 @@ typedef DynamicValueState = ({Object? value, bool pending});
 /// lets components use relative paths like `name` instead of absolute
 /// paths like `/users/0/name`. Also evaluates data bindings and
 /// function calls.
+///
+/// Contexts form a chain through [parent]: a component's context links to
+/// the context of the component that references it, and a template child's
+/// context records its iteration [index]. The v1.0 `@index` system function
+/// reads that chain.
 class DataContext {
   final DataModel dataModel;
   final FunctionInvoker _invoke;
   final CatalogInvokerResolver? _invokerForCatalog;
   final ExpressionErrorReporter? _onError;
+  final MissingDataReporter? _onMissingData;
+  final Set<String> _warnedPaths;
   final AgentFunctionCaller? _callAgentFunction;
   final _AgentCallCache _agentCalls;
   final String path;
   final String? protocolVersion;
+
+  /// The context this one was derived from, or null for a root context.
+  final DataContext? parent;
+
+  final int? _explicitIndex;
 
   /// Whether this context evaluates within a user activation, such as an
   /// action the user triggered. A function whose
@@ -82,6 +130,12 @@ class DataContext {
   /// or no such function) is sent to the agent instead; see
   /// [evaluateFunctionCall] and [isPendingAgentCall] for how its result
   /// arrives.
+  ///
+  /// [index] is the collection iteration index when this context scopes a
+  /// template child. [onMissingData] is called once per absolute path, per
+  /// chain of contexts sharing a root, when a data binding names a path that
+  /// does not exist; it defaults to [parent]'s reporter. A context with a
+  /// [parent] also shares its pending agent calls.
   DataContext(
     this.dataModel,
     FunctionInvoker invoke,
@@ -89,13 +143,19 @@ class DataContext {
     ExpressionErrorReporter? onError,
     this.protocolVersion,
     CatalogInvokerResolver? invokerForCatalog,
+    this.parent,
+    int? index,
+    MissingDataReporter? onMissingData,
     this.isUserActivated = false,
     AgentFunctionCaller? callAgentFunction,
   })  : _invoke = invoke,
         _onError = onError,
         _invokerForCatalog = invokerForCatalog,
+        _explicitIndex = index,
+        _onMissingData = onMissingData ?? parent?._onMissingData,
+        _warnedPaths = parent?._warnedPaths ?? <String>{},
         _callAgentFunction = callAgentFunction,
-        _agentCalls = _AgentCallCache();
+        _agentCalls = parent?._agentCalls ?? _AgentCallCache();
 
   DataContext._derived(
     this.dataModel,
@@ -107,10 +167,39 @@ class DataContext {
     required this.isUserActivated,
     required AgentFunctionCaller? callAgentFunction,
     required _AgentCallCache agentCalls,
+    this.parent,
+    int? index,
+    MissingDataReporter? onMissingData,
+    Set<String>? warnedPaths,
   })  : _onError = onError,
         _invokerForCatalog = invokerForCatalog,
         _callAgentFunction = callAgentFunction,
-        _agentCalls = agentCalls;
+        _agentCalls = agentCalls,
+        _explicitIndex = index,
+        _onMissingData = onMissingData ?? parent?._onMissingData,
+        _warnedPaths = warnedPaths ?? parent?._warnedPaths ?? <String>{};
+
+  /// The 0-based iteration index of the nearest enclosing collection
+  /// template, or null outside any template.
+  ///
+  /// Walks this context and its ancestors, taking the first explicit index,
+  /// or else the first path whose last segment is a non-negative integer.
+  int? get index {
+    for (DataContext? ctx = this; ctx != null; ctx = ctx.parent) {
+      final int? explicit = ctx._explicitIndex;
+      if (explicit != null) return explicit;
+      final String last = ctx.path.split('/').lastWhere(
+            (segment) => segment.isNotEmpty,
+            orElse: () => '',
+          );
+      // tryParse: a digit run too long for an int is not an index.
+      final int? parsed = _digits.hasMatch(last) ? int.tryParse(last) : null;
+      if (parsed != null) return parsed;
+    }
+    return null;
+  }
+
+  static final RegExp _digits = RegExp(r'^\d+$');
 
   bool get isV10 {
     final String? v = protocolVersion;
@@ -241,17 +330,23 @@ class DataContext {
   /// An array or map payload resolves per element, since a dynamic value may
   /// be nested at any depth inside literal structure. A payload holding no
   /// bindings or calls is returned as-is rather than copied.
-  Object? resolveSync(Object? value) {
+  Object? resolveSync(Object? value) => _resolveSync(value, 0);
+
+  Object? _resolveSync(Object? value, int depth) {
+    if (depth > maxDynamicValueDepth) {
+      _reportDepthExceeded();
+      return null;
+    }
     if (isV10) {
       if (value is Map && value.containsKey('@path')) {
         final binding = DataBinding.fromJson(_asStringKeyedMap(value));
-        return dataModel.get(resolvePath(binding.path));
+        return _readBinding(resolvePath(binding.path));
       }
       if (value is Map && value.containsKey('@call')) {
         final call = FunctionCall.fromJson(_asStringKeyedMap(value));
         final args = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
-          args[entry.key] = resolveSync(entry.value);
+          args[entry.key] = _resolveSync(entry.value, depth + 1);
         }
         final Object? result = _evaluateFunction(call, args);
         if (result is ReadonlySignal) {
@@ -262,26 +357,26 @@ class DataContext {
       if (value is Map) {
         final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
         _validateReservedDirectives(stringMap.keys);
-        if (!_containsDynamicValue(value)) return value;
+        if (!_containsDynamicValue(value, depth)) return value;
         final result = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in stringMap.entries) {
           final String keyStr = entry.key;
           final String unescapedKey =
               keyStr.startsWith('@@') ? keyStr.substring(1) : keyStr;
-          result[unescapedKey] = resolveSync(entry.value);
+          result[unescapedKey] = _resolveSync(entry.value, depth + 1);
         }
         return result;
       }
     } else {
       if (isDataBinding(value)) {
         final pathVal = (value as Map)['path'] as String;
-        return dataModel.get(resolvePath(pathVal));
+        return _readBinding(resolvePath(pathVal));
       }
       if (isFunctionCall(value)) {
         final call = FunctionCall.fromJson(_asStringKeyedMap(value as Map));
         final args = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in call.args.entries) {
-          args[entry.key] = resolveSync(entry.value);
+          args[entry.key] = _resolveSync(entry.value, depth + 1);
         }
         final Object? result = _evaluateFunction(call, args);
         if (result is ReadonlySignal) {
@@ -291,19 +386,19 @@ class DataContext {
       }
       if (value is Map) {
         final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
-        if (!_containsDynamicValue(value)) return value;
+        if (!_containsDynamicValue(value, depth)) return value;
         final result = <String, dynamic>{};
         for (final MapEntry<String, dynamic> entry in stringMap.entries) {
-          result[entry.key] = resolveSync(entry.value);
+          result[entry.key] = _resolveSync(entry.value, depth + 1);
         }
         return result;
       }
     }
     if (value is List) {
-      if (!_containsDynamicValue(value)) {
+      if (!_containsDynamicValue(value, depth)) {
         return value;
       }
-      return value.map(resolveSync).toList();
+      return [for (final item in value) _resolveSync(item, depth + 1)];
     }
     return value;
   }
@@ -311,9 +406,13 @@ class DataContext {
   /// Whether a value (typically an array element or map) contains any dynamic
   /// parts (path bindings, function calls, or v1.0 `@` directives/escapes)
   /// that require resolution or unescaping in the current protocol mode.
-  bool _containsDynamicValue(Object? value) {
+  ///
+  /// Past [maxDynamicValueDepth] it reports true, so resolution reaches the
+  /// depth guard instead of returning the payload unchecked.
+  bool _containsDynamicValue(Object? value, int depth) {
+    if (depth > maxDynamicValueDepth) return true;
     if (value is List) {
-      return value.any(_containsDynamicValue);
+      return value.any((item) => _containsDynamicValue(item, depth + 1));
     }
     if (value is Map) {
       if (isDataBinding(value) || isFunctionCall(value)) {
@@ -322,7 +421,7 @@ class DataContext {
       if (isV10 && value.keys.any((k) => k is String && k.startsWith('@'))) {
         return true;
       }
-      return value.values.any(_containsDynamicValue);
+      return value.values.any((item) => _containsDynamicValue(item, depth + 1));
     }
     return false;
   }
@@ -330,17 +429,24 @@ class DataContext {
   /// Returns a reactive signal that re-evaluates a dynamic value
   /// whenever its underlying data dependencies change. Array and map
   /// payloads resolve per entry, mirroring [resolveSync].
-  ReadonlySignal<Object?> resolveListenable(Object? value) {
+  ReadonlySignal<Object?> resolveListenable(Object? value) =>
+      _resolveListenable(value, 0);
+
+  ReadonlySignal<Object?> _resolveListenable(Object? value, int depth) {
+    if (depth > maxDynamicValueDepth) {
+      _reportDepthExceeded();
+      return signal(null);
+    }
     if (isV10) {
       if (value is Map && value.containsKey('@path')) {
         final binding = DataBinding.fromJson(_asStringKeyedMap(value));
-        return dataModel.watch(resolvePath(binding.path));
+        return _watchBinding(resolvePath(binding.path));
       }
       if (value is Map && value.containsKey('@call')) {
         final call = FunctionCall.fromJson(_asStringKeyedMap(value));
         final Map<String, ReadonlySignal<Object?>> argSignals = {
           for (final MapEntry<String, dynamic> entry in call.args.entries)
-            entry.key: resolveListenable(entry.value),
+            entry.key: _resolveListenable(entry.value, depth + 1),
         };
         return computed(() {
           final args = <String, dynamic>{
@@ -358,13 +464,13 @@ class DataContext {
       if (value is Map) {
         final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
         _validateReservedDirectives(stringMap.keys);
-        if (!_containsDynamicValue(value)) {
+        if (!_containsDynamicValue(value, depth)) {
           return signal(value);
         }
         final entries = <String, ReadonlySignal<Object?>>{
           for (final MapEntry<String, dynamic> e in stringMap.entries)
             (e.key.startsWith('@@') ? e.key.substring(1) : e.key):
-                resolveListenable(e.value),
+                _resolveListenable(e.value, depth + 1),
         };
         return computed(() => {
               for (final e in entries.entries) e.key: e.value.value,
@@ -373,13 +479,13 @@ class DataContext {
     } else {
       if (isDataBinding(value)) {
         final pathVal = (value as Map)['path'] as String;
-        return dataModel.watch(resolvePath(pathVal));
+        return _watchBinding(resolvePath(pathVal));
       }
       if (isFunctionCall(value)) {
         final call = FunctionCall.fromJson(_asStringKeyedMap(value as Map));
         final Map<String, ReadonlySignal<Object?>> argSignals = {
           for (final MapEntry<String, dynamic> entry in call.args.entries)
-            entry.key: resolveListenable(entry.value),
+            entry.key: _resolveListenable(entry.value, depth + 1),
         };
         return computed(() {
           final args = <String, dynamic>{
@@ -396,12 +502,12 @@ class DataContext {
       }
       if (value is Map) {
         final Map<String, dynamic> stringMap = _asStringKeyedMap(value);
-        if (!_containsDynamicValue(value)) {
+        if (!_containsDynamicValue(value, depth)) {
           return signal(value);
         }
         final Map<String, ReadonlySignal<Object?>> entries = {
           for (final MapEntry<String, dynamic> entry in stringMap.entries)
-            entry.key: resolveListenable(entry.value),
+            entry.key: _resolveListenable(entry.value, depth + 1),
         };
         return computed(
           () => {
@@ -413,11 +519,12 @@ class DataContext {
       }
     }
     if (value is List) {
-      if (!_containsDynamicValue(value)) {
+      if (!_containsDynamicValue(value, depth)) {
         return signal(value);
       }
-      final List<ReadonlySignal<Object?>> items =
-          value.map(resolveListenable).toList();
+      final List<ReadonlySignal<Object?>> items = [
+        for (final item in value) _resolveListenable(item, depth + 1),
+      ];
       return computed(() => [for (final item in items) item.value]);
     }
     return signal(value);
@@ -449,12 +556,85 @@ class DataContext {
     }
   }
 
+  static const String _indexFunctionName = '@index';
+
+  /// Evaluates `@index`: the iteration [index] plus the optional `offset`.
+  Object? _evaluateIndex(Map<String, dynamic> args) {
+    final Object? offset = args['offset'];
+    if (offset != null && (offset is! num || !offset.isFinite)) {
+      throw A2uiExpressionError(
+        "Argument 'offset' of '$_indexFunctionName' must be a finite number, "
+        'got $offset.',
+        expression: _indexFunctionName,
+      );
+    }
+    final int? current = index;
+    if (current == null) {
+      throw A2uiValidationError(
+        '$_indexFunctionName function can only be evaluated inside a '
+        'collection template iteration scope.',
+      );
+    }
+    return offset == null ? current : current + (offset as num);
+  }
+
+  void _reportDepthExceeded() {
+    final error = A2uiExpressionError(
+      'Maximum dynamic value nesting depth exceeded ($maxDynamicValueDepth).',
+    );
+    final ExpressionErrorReporter? onError = _onError;
+    if (onError == null) throw error;
+    onError(error);
+  }
+
+  Object? _readBinding(String absolutePath) {
+    _checkMissing(absolutePath);
+    return dataModel.get(absolutePath);
+  }
+
+  ReadonlySignal<Object?> _watchBinding(String absolutePath) {
+    _checkMissing(absolutePath);
+    return dataModel.watch(absolutePath);
+  }
+
+  void _checkMissing(String absolutePath) {
+    final MissingDataReporter? report = _onMissingData;
+    if (report == null ||
+        dataModel.has(absolutePath) ||
+        !_warnedPaths.add(absolutePath)) {
+      return;
+    }
+    report(absolutePath);
+  }
+
+  /// Resolves [value] like [resolveListenable] and calls [onChange] with each
+  /// later value until [DataSubscription.unsubscribe]. The current value is
+  /// available from [DataSubscription.value]; [onChange] is not called for
+  /// it.
+  DataSubscription subscribeDynamicValue(
+    Object? value,
+    void Function(Object? value) onChange,
+  ) {
+    final ReadonlySignal<Object?> source = resolveListenable(value);
+    final subscription = _SignalDataSubscription(source);
+    var initial = true;
+    subscription._dispose = source.subscribe((next) {
+      if (!initial) onChange(next);
+    });
+    initial = false;
+    return subscription;
+  }
+
   /// Runs [call] in the catalog it resolves to, with [args] already resolved.
+  ///
+  /// The v1.0 `@index` system function is evaluated here, before any catalog
+  /// lookup: catalogs cannot define `@` names.
   ///
   /// Throws [A2uiCatalogResolutionError] when no catalog or function matches,
   /// and whatever the invoker throws otherwise.
   Object? _invokeLocally(FunctionCall call, Map<String, dynamic> args) {
     final String name = call.call;
+    if (isV10 && name == _indexFunctionName) return _evaluateIndex(args);
     if (args.length > maxFunctionCallArgs) {
       throw A2uiExpressionError(
         "Function call '$name' exceeds maximum allowed arguments count "
@@ -601,6 +781,10 @@ class DataContext {
         isUserActivated: isUserActivated,
         callAgentFunction: null,
         agentCalls: _agentCalls,
+        parent: parent,
+        index: _explicitIndex,
+        onMissingData: _onMissingData,
+        warnedPaths: _warnedPaths,
       );
       final args = <String, dynamic>{
         for (final MapEntry<String, dynamic> entry in call.args.entries)
@@ -674,7 +858,8 @@ class DataContext {
   }
 
   /// This context with [isUserActivated] set, for evaluation triggered by
-  /// the user. Shares the data model, reporter and pending agent calls.
+  /// the user. Shares the data model, reporter, parent chain, missing-data
+  /// reporter and pending agent calls.
   DataContext withUserActivation() => DataContext._derived(
         dataModel,
         _invoke,
@@ -685,9 +870,16 @@ class DataContext {
         isUserActivated: true,
         callAgentFunction: _callAgentFunction,
         agentCalls: _agentCalls,
+        parent: parent,
+        index: _explicitIndex,
+        onMissingData: _onMissingData,
+        warnedPaths: _warnedPaths,
       );
 
-  DataContext nested(String relativePath) {
+  /// Returns a context scoped to [relativePath] whose [parent] is this
+  /// context. Pass [index] when the new context scopes a collection template
+  /// item.
+  DataContext childContext(String relativePath, {int? index}) {
     return DataContext._derived(
       dataModel,
       _invoke,
@@ -698,8 +890,13 @@ class DataContext {
       isUserActivated: isUserActivated,
       callAgentFunction: _callAgentFunction,
       agentCalls: _agentCalls,
+      parent: this,
+      index: index,
     );
   }
+
+  /// Returns a child context scoped to [relativePath], without an index.
+  DataContext nested(String relativePath) => childContext(relativePath);
 
   void set(String relativePath, Object? value) {
     dataModel.set(resolvePath(relativePath), value);
@@ -814,11 +1011,21 @@ class ComponentContext {
   /// [A2uiRpcError] from a call the agent answered with a failure, and as
   /// `EXPRESSION_ERROR` otherwise. Supply [onError] to control their
   /// reporting policy instead.
+  ///
+  /// [parentDataContext] links this component's data context to the context
+  /// of the component that references it, and [index] records its position
+  /// in a collection template. Without [parentDataContext], bindings to
+  /// missing data are dispatched as `MISSING_DATA_BINDING` warnings on the
+  /// surface unless [onMissingData] is supplied; with it, the parent's
+  /// reporter applies by default.
   ComponentContext(
     this.surface,
     this.componentModel, {
     String? basePath,
     ExpressionErrorReporter? onError,
+    DataContext? parentDataContext,
+    int? index,
+    MissingDataReporter? onMissingData,
   }) : dataContext = DataContext._derived(
           surface.dataModel,
           (name, args, context) =>
@@ -831,6 +1038,14 @@ class ComponentContext {
           isUserActivated: false,
           callAgentFunction: surface.callAgentFunction,
           agentCalls: _surfaceAgentCalls[surface] ??= _AgentCallCache(),
+          parent: parentDataContext,
+          index: index,
+          onMissingData: onMissingData ??
+              (parentDataContext == null
+                  ? (path) {
+                      surface.dispatchWarning(missingDataBindingWarning(path));
+                    }
+                  : null),
         );
 
   static ExpressionErrorReporter _surfaceReporter(SurfaceModel surface) =>
@@ -887,9 +1102,18 @@ class ComponentContext {
       childModel,
       basePath: basePath ?? dataContext.path,
       onError: dataContext._onError,
+      parentDataContext: dataContext,
     );
   }
 }
+
+/// The `MISSING_DATA_BINDING` warning for a binding to the absent [path].
+A2uiWarning missingDataBindingWarning(String path) => A2uiWarning(
+      code: 'MISSING_DATA_BINDING',
+      path: path,
+      message: "Data binding path '$path' does not exist in the data model; "
+          'it resolves to null.',
+    );
 
 /// Resolved function argument schemas, per catalog and then per function.
 final Expando<Map<FunctionImplementation, Map<String, Object?>>>

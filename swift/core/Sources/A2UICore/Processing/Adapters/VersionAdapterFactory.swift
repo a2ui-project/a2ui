@@ -171,31 +171,4 @@ public final class VersionAdapterFactory: @unchecked Sendable {
       ]
     )
   }
-
-  // MARK: - Static Convenience API
-
-  /// Returns the union of all action keys supported across all registered adapters on `.shared`.
-  public static func allKnownActions() -> Set<String> {
-    shared.allKnownActions()
-  }
-
-  /// Registers a version adapter on the shared factory instance.
-  public static func registerAdapter(_ adapter: any VersionAdapter) {
-    shared.registerAdapter(adapter)
-  }
-
-  /// Resolves the version adapter for a typed ``A2UIProtocolVersion`` on `.shared`.
-  public static func getAdapter(for version: A2UIProtocolVersion) -> any VersionAdapter {
-    shared.getAdapter(for: version)
-  }
-
-  /// Resolves the version adapter for the specified version string on `.shared`.
-  public static func getAdapter(for version: String) throws -> any VersionAdapter {
-    try shared.getAdapter(for: version)
-  }
-
-  /// Resolves the version adapter directly from a raw JSON payload on `.shared`.
-  public static func resolveFromPayload(_ payload: JSONValue) throws -> any VersionAdapter {
-    try shared.resolveFromPayload(payload)
-  }
 }

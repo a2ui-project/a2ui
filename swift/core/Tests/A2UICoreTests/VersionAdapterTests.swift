@@ -122,7 +122,7 @@ struct VersionAdapterTests {
       Issue.record("Expected .createSurface operation")
     }
 
-    let v10Payload: JSONValue = try .parse(
+    let v10WithThemePayload: JSONValue = try .parse(
       """
       {
         "version": "v1.0",
@@ -131,7 +131,22 @@ struct VersionAdapterTests {
           "catalogId": "basic",
           "theme": {
             "primaryColor": "#FF0000"
-          },
+          }
+        }
+      }
+      """
+    )
+    #expect(throws: A2UIValidationError.self) {
+      _ = try v10Adapter.extractOperations(from: v10WithThemePayload)
+    }
+
+    let v10Payload: JSONValue = try .parse(
+      """
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s2",
+          "catalogId": "basic",
           "sendDataModel": true,
           "components": [
             { "id": "root", "component": "Text", "text": "Hi" }
@@ -251,17 +266,18 @@ struct VersionAdapterTests {
   // MARK: - VersionAdapterFactory & Catalog Version Compatibility
 
   @Test func versionAdapterFactoryResolvesAdaptersAndChecksCatalogCompatibility() throws {
-    let v09Adapter = try VersionAdapterFactory.getAdapter(for: "v0.9")
+    let factory = VersionAdapterFactory()
+    let v09Adapter = try factory.getAdapter(for: "v0.9")
     #expect(v09Adapter.version == .v09)
 
-    let v091Adapter = try VersionAdapterFactory.getAdapter(for: "0.9.1")
+    let v091Adapter = try factory.getAdapter(for: "0.9.1")
     #expect(v091Adapter.version == .v091)
 
-    let v10Adapter = try VersionAdapterFactory.getAdapter(for: "v1.0")
+    let v10Adapter = try factory.getAdapter(for: "v1.0")
     #expect(v10Adapter.version == .v10)
 
     #expect(throws: A2UIValidationError.self) {
-      _ = try VersionAdapterFactory.getAdapter(for: "v2.0")
+      _ = try factory.getAdapter(for: "v2.0")
     }
 
     let payload: JSONValue = try .parse(
@@ -272,7 +288,7 @@ struct VersionAdapterTests {
       }
       """
     )
-    let resolved = try VersionAdapterFactory.resolveFromPayload(payload)
+    let resolved = try factory.resolveFromPayload(payload)
     #expect(resolved.version == .v10)
 
     // Catalog compatibility rules (Blueprint Rule 5):
@@ -341,5 +357,39 @@ struct VersionAdapterTests {
     let surface = try #require(processor.surfaceGroupModel["s1"])
     #expect(surface.dataModel.get("/greeting") == .string("Hello"))
     #expect(surface.componentsModel.get("root")?.type == "Text")
+  }
+
+  @Test func v10AdapterRejectsEmptyComponentsArray() throws {
+    let adapter = V10VersionAdapter()
+    let emptyCreateComponents: JSONValue = try .parse(
+      """
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "basic",
+          "components": []
+        }
+      }
+      """
+    )
+    #expect(throws: A2UIValidationError.self) {
+      _ = try adapter.extractOperations(from: emptyCreateComponents)
+    }
+
+    let emptyUpdateComponents: JSONValue = try .parse(
+      """
+      {
+        "version": "v1.0",
+        "updateComponents": {
+          "surfaceId": "s1",
+          "components": []
+        }
+      }
+      """
+    )
+    #expect(throws: A2UIValidationError.self) {
+      _ = try adapter.extractOperations(from: emptyUpdateComponents)
+    }
   }
 }
