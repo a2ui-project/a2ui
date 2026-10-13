@@ -225,7 +225,7 @@ export class ExpressDecompiler {
     name: string,
     itemCatalogId: unknown,
     surfaceCatalogId: string | undefined,
-  ): [CatalogSchemaHelper, string | undefined] {
+  ): {helper: CatalogSchemaHelper; catalogId?: string} {
     const label = kind === 'component' ? 'Component' : 'Function';
     const actual =
       (typeof itemCatalogId === 'string' && itemCatalogId ? itemCatalogId : undefined) ??
@@ -244,13 +244,13 @@ export class ExpressDecompiler {
       throw new ExpressValidationError(`${label} '${name}' is not defined in catalog '${actual}'.`);
     }
     if (this.soleCatalogId !== undefined) {
-      return [helper, undefined];
+      return {helper};
     }
     const defining = catalogsDefining(this.helpers, kind, name);
     if (defining.length === 1 && defining[0] === actual) {
-      return [helper, undefined];
+      return {helper};
     }
-    return [helper, actual];
+    return {helper, catalogId: actual};
   }
 
   /**
@@ -614,7 +614,7 @@ export class ExpressDecompiler {
       throw new ExpressInvalidIdentifierError(compId);
     }
 
-    const [helper, emitCatalogId] = this.resolveSymbol(
+    const {helper, catalogId: emitCatalogId} = this.resolveSymbol(
       'component',
       compName,
       comp.catalogId,
@@ -714,12 +714,12 @@ export class ExpressDecompiler {
     let chkHelper: CatalogSchemaHelper | undefined;
     let emitCatalogId: string | undefined;
     if (funcName !== 'None') {
-      [chkHelper, emitCatalogId] = this.resolveSymbol(
+      ({helper: chkHelper, catalogId: emitCatalogId} = this.resolveSymbol(
         'function',
         funcName,
         condition.catalogId,
         surfaceCatalogId,
-      );
+      ));
     }
 
     const checkProps = chkHelper ? chkHelper.getFunctionProperties(funcName) : [];
@@ -790,7 +790,7 @@ export class ExpressDecompiler {
     const funcName = typeof rawCall === 'string' ? rawCall : '';
     const args = optionalObjectField(funcCall.args, `Function call '${funcName}'`, 'args');
 
-    const [helper, emitCatalogId] = this.resolveSymbol(
+    const {helper, catalogId: emitCatalogId} = this.resolveSymbol(
       'function',
       funcName,
       funcCall.catalogId,
