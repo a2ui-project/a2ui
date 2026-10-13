@@ -69,13 +69,12 @@ void main() {
       expect(error.code, 'VALIDATION_FAILED');
       expect(error.path, isNull);
       expect(error.errors, isEmpty);
-      expect(error.details, isNull);
       expect(error.cause, isNull);
       expect(error.toString(),
           'A2uiValidationError [VALIDATION_FAILED]: Invalid payload');
     });
 
-    test('stores code, path, errors, details, and cause', () {
+    test('stores code, path, errors, and cause', () {
       const cause = FormatException('bad json');
       const detail = A2uiErrorDetail(
         path: '/components/0/child',
@@ -87,7 +86,6 @@ void main() {
         code: 'UNALLOWED_CHILD',
         path: '/components/0/child',
         errors: const [detail],
-        details: const {'raw': true},
         cause: cause,
       );
 
@@ -96,7 +94,6 @@ void main() {
       expect(error.path, '/components/0/child');
       expect(error.errors, [detail]);
       expect(() => error.errors.add(detail), throwsUnsupportedError);
-      expect(error.details, {'raw': true});
       expect(error.cause, same(cause));
       expect(error.toString(), contains('UNALLOWED_CHILD'));
       expect(error.toString(), contains('/components/0/child'));

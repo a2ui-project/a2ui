@@ -20,6 +20,8 @@ import 'package:json_schema_builder/json_schema_builder.dart'
     hide ValidationResult;
 import 'package:test/test.dart';
 
+import 'support/test_catalog.dart';
+
 /// A catalog function that hands its resolved arguments to [onExecute].
 class _SpyFunction extends FunctionImplementation {
   _SpyFunction(String name, this.onExecute)
@@ -70,7 +72,7 @@ void main() {
 
     test('resolves actions into callbacks', () async {
       String? actionName;
-      surface.onAction.addListener((action) {
+      surface.onAction.subscribe((action) {
         actionName = action.name;
       });
 
@@ -95,8 +97,8 @@ void main() {
     group('local function actions', () {
       final calls = <Map<String, dynamic>>[];
       late SurfaceModel spySurface;
-      final actions = <A2uiClientAction>[];
-      final errors = <A2uiClientError>[];
+      final actions = <A2uiRendererAction>[];
+      final errors = <A2uiRendererError>[];
 
       setUp(() {
         calls.clear();
@@ -124,8 +126,8 @@ void main() {
             ],
           ),
         );
-        spySurface.onAction.addListener(actions.add);
-        spySurface.onError.addListener(errors.add);
+        spySurface.onAction.subscribe(actions.add);
+        spySurface.onError.subscribe(errors.add);
         spySurface.dataModel.set('/items', [
           {'label': 'first'},
           {'label': 'second'},
@@ -218,8 +220,8 @@ void main() {
     });
 
     test('resolves each context entry as a separate dynamic value', () async {
-      A2uiClientAction? dispatchedAction;
-      surface.onAction.addListener((action) {
+      A2uiRendererAction? dispatchedAction;
+      surface.onAction.subscribe((action) {
         dispatchedAction = action;
       });
       surface.dataModel.set('/tab', 'general');
@@ -252,8 +254,8 @@ void main() {
     });
 
     test('resolves direct name action with userMessage and context', () async {
-      A2uiClientAction? dispatchedAction;
-      surface.onAction.addListener((action) {
+      A2uiRendererAction? dispatchedAction;
+      surface.onAction.subscribe((action) {
         dispatchedAction = action;
       });
 
@@ -570,8 +572,8 @@ void main() {
     });
 
     test('reports validation error for non-map rule entries in checks', () {
-      final errors = <A2uiClientError>[];
-      surface.onError.addListener(errors.add);
+      final errors = <A2uiRendererError>[];
+      surface.onError.subscribe(errors.add);
       surface.dataModel.set('/valid', false);
 
       final comp = ComponentModel('c1', 'TextField', {
@@ -655,9 +657,9 @@ void main() {
       );
     });
 
-    test('treats non-list checks as no rules, like web_core and Python', () {
-      final errors = <A2uiClientError>[];
-      surface.onError.addListener(errors.add);
+    test('treats non-list checks as no rules', () {
+      final errors = <A2uiRendererError>[];
+      surface.onError.subscribe(errors.add);
 
       final comp = ComponentModel('c1', 'TextField', {
         'label': 'Name',
@@ -676,8 +678,8 @@ void main() {
 
     test('handles non-map and untyped map entries in checks without TypeError',
         () async {
-      final errors = <A2uiClientError>[];
-      surface.onError.addListener(errors.add);
+      final errors = <A2uiRendererError>[];
+      surface.onError.subscribe(errors.add);
 
       final comp = ComponentModel('c1', 'TextField', {
         'label': 'Name',
@@ -760,8 +762,8 @@ void main() {
       'v1.0 local function actions execute @call and reject plain call',
       () async {
         final calls = <Map<String, dynamic>>[];
-        final actions = <A2uiClientAction>[];
-        final errors = <A2uiClientError>[];
+        final actions = <A2uiRendererAction>[];
+        final errors = <A2uiRendererError>[];
         final v1Surface = SurfaceModel<ComponentApi>(
           's-v1-fn',
           protocolVersion: 'v1.0',
@@ -782,8 +784,8 @@ void main() {
           ),
         );
         addTearDown(v1Surface.dispose);
-        v1Surface.onAction.addListener(actions.add);
-        v1Surface.onError.addListener(errors.add);
+        v1Surface.onAction.subscribe(actions.add);
+        v1Surface.onError.subscribe(errors.add);
         v1Surface.dataModel.set('/items/0/label', 'v1-item');
 
         Future<void> invokeV1Action(
@@ -890,10 +892,10 @@ void main() {
     test(
       'reports unrecognized action payloads via onError',
       () async {
-        final actions = <A2uiClientAction>[];
-        final errors = <A2uiClientError>[];
-        surface.onAction.addListener(actions.add);
-        surface.onError.addListener(errors.add);
+        final actions = <A2uiRendererAction>[];
+        final errors = <A2uiRendererError>[];
+        surface.onAction.subscribe(actions.add);
+        surface.onError.subscribe(errors.add);
 
         final comp = ComponentModel('c1', 'Button', {
           'child': 'c2',
@@ -916,10 +918,10 @@ void main() {
 
     test('resolves dynamic binding to an action payload before dispatching',
         () async {
-      final actions = <A2uiClientAction>[];
-      final errors = <A2uiClientError>[];
-      surface.onAction.addListener(actions.add);
-      surface.onError.addListener(errors.add);
+      final actions = <A2uiRendererAction>[];
+      final errors = <A2uiRendererError>[];
+      surface.onAction.subscribe(actions.add);
+      surface.onError.subscribe(errors.add);
       surface.dataModel.set('/boundAction', {
         'event': {
           'name': 'bound_submit',

@@ -17,6 +17,8 @@ import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
+import 'support/test_catalog.dart';
+
 void main() {
   group('GenericBinder lifecycle', () {
     late MinimalCatalog catalog;

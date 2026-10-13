@@ -131,11 +131,13 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
         (name, args, context) =>
             surface.resolveCatalog(null).invoke(name, args, context),
         '/',
-        protocolVersion: surface.protocolVersion,
+        protocolVersion: surface.protocolVersion == null
+            ? null
+            : A2uiProtocolVersion.tryParseSemVer(surface.protocolVersion!),
         invokerForCatalog: (catalogId) =>
             surface.resolveCatalog(catalogId).invoke,
       );
-      context.resolveSync({
+      context.resolveDynamicValue({
         '@call': functionName,
         if (functionCall['catalogId'] != null)
           'catalogId': functionCall['catalogId'],

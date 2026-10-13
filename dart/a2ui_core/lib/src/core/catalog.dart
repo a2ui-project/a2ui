@@ -394,13 +394,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final A2uiProtocolVersion? version =
         _parseProtocolVersion(json['protocolVersion'], rawId) ??
             protocolVersion;
-    final bool v1 = version?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
 
     // Local references are expanded here, once, so each component and function
     // schema stands alone afterwards. The document is then no longer needed,
     // and [catalogSchema] rebuilds it from the parts rather than caching it.
     final document = inlineLocalRefs(json, json)! as Map<String, Object?>;
-    if (v1) _checkIdentifiers(document, rawId);
+    if (version?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false) {
+      _checkIdentifiers(document, rawId);
+    }
 
     return CatalogApi(
       id: rawId,
@@ -894,7 +895,10 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                           )),
                 argumentSchema: Schema.fromMap(
                   _asSchemaMap(
-                      entry['parameters'] ?? const <String, Object?>{}),
+                    _normalizePropertyRefs(
+                      entry['parameters'] ?? const <String, Object?>{},
+                    ),
+                  ),
                 ),
                 returnType: A2uiReturnType.fromJson(
                   entry['returnType'] as String? ?? 'any',
@@ -959,7 +963,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           name: fnName,
           description: desc,
           argumentSchema: Schema.fromMap(
-            _asSchemaMap(args ?? const <String, Object?>{}),
+            _asSchemaMap(
+              _normalizePropertyRefs(args ?? const <String, Object?>{}),
+            ),
           ),
           returnType: A2uiReturnType.fromJson(returnTypeStr),
           allowedCallers: _parseAllowedCallers(
@@ -1049,15 +1055,21 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       _memoizedCatalogSchema ??= _buildCatalogSchema();
 
   Map<String, Object?> _buildCatalogSchema() {
-    final bool v1 =
-        protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
     final serializedComponents = <String, Object?>{
       for (final MapEntry<String, C> entry in components.entries)
-        entry.key: _serializeComponent(entry.key, entry.value, v1: v1),
+        entry.key: _serializeComponent(
+          entry.key,
+          entry.value,
+          protocolVersion: protocolVersion,
+        ),
     };
     final serializedFunctions = <String, Object?>{
       for (final MapEntry<String, F> entry in functions.entries)
-        entry.key: _serializeFunction(entry.key, entry.value, v1: v1),
+        entry.key: _serializeFunction(
+          entry.key,
+          entry.value,
+          protocolVersion: protocolVersion,
+        ),
     };
 
     final defs = <String, Object?>{
@@ -1069,7 +1081,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         ],
         'discriminator': {'propertyName': 'component'},
       },
-      if (functions.isNotEmpty || v1)
+      if (functions.isNotEmpty ||
+          (protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false))
         'anyFunction': {
           'oneOf': [
             for (final String name in functions.keys)
@@ -1077,7 +1090,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             // From v1.0 a call to a function the catalog does not declare
             // is forwarded to the agent, so it matches with its arguments
             // unchecked. `@index` is matched by `IndexSystemFunction`.
-            if (v1)
+            if (protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false)
               {
                 'type': 'object',
                 'properties': {
@@ -1137,15 +1150,17 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   static Map<String, Object?> _serializeFunction(
     String name,
     FunctionApi fn, {
-    required bool v1,
+    required A2uiProtocolVersion? protocolVersion,
   }) {
     final Object? argsValue = _deepCopyValue(fn.argumentSchema.value);
     _restoreRefs(argsValue);
-    final callKey = v1 ? '@call' : 'call';
+    final bool atLeastV1 =
+        protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
+    final callKey = atLeastV1 ? '@call' : 'call';
     return <String, Object?>{
       'type': 'object',
       if (fn.description != null) 'description': fn.description,
-      if (v1) 'returnType': fn.returnType.jsonValue,
+      if (atLeastV1) 'returnType': fn.returnType.jsonValue,
       // Emitted only when they differ from the schema defaults, so a
       // document that never declared them round-trips unchanged.
       if (fn.allowedCallers != AllowedCallers.rendererOnly)
@@ -1154,7 +1169,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       'properties': <String, Object?>{
         callKey: <String, Object?>{'const': name},
         'args': argsValue,
-        if (!v1)
+        if (!atLeastV1)
           'returnType': <String, Object?>{
             'const': fn.returnType.jsonValue,
           },
@@ -1165,7 +1180,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         callKey,
         if (_hasRequiredParameters(fn.argumentSchema)) 'args',
       ],
-      if (!v1) 'unevaluatedProperties': false,
+      if (!atLeastV1) 'unevaluatedProperties': false,
     };
   }
 
@@ -1194,10 +1209,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   static Map<String, Object?> _serializeComponent(
     String name,
     ComponentApi comp, {
-    required bool v1,
+    required A2uiProtocolVersion? protocolVersion,
   }) {
     final raw = _deepCopyValue(comp.schema.value) as Map<String, Object?>;
     _restoreRefs(raw);
+    final bool atLeastV1 =
+        protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false;
 
     final rawProps = <String, Object?>{};
     final rawReq = <String>[];
@@ -1227,7 +1244,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       ..remove('component');
 
     final innerProperties = <String, Object?>{
-      if (!v1)
+      if (!atLeastV1)
         'id': <String, Object?>{
           r'$ref': '#/\$defs/ComponentId',
         },
@@ -1236,7 +1253,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     };
 
     final innerRequired = <String>[
-      if (!v1) 'id',
+      if (!atLeastV1) 'id',
       for (final r in rawReq)
         if (r != 'id' && r != 'component') r,
       'component',
@@ -1279,7 +1296,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         return;
       }
       final Object? ref = map[r'$ref'];
-      if (ref is String && ref.startsWith('common_types.json#/\$defs/')) {
+      if (ref is String) {
         final String? fragment = _commonTypesFragment(ref);
         if (fragment != null) map[r'$ref'] = '#/\$defs/$fragment';
       }

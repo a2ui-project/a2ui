@@ -25,9 +25,6 @@ import 'conformance_harness.dart';
 /// Cases in `core/message_processor_v1_0.yaml` expected to fail, with the
 /// reason each is currently failing.
 const Map<String, String> _v10ExpectedFailures = {
-  'test_batch_atomic_rollback_on_candidate_topology_cycle':
-      'A cycle in the candidate topology raises `A2uiRecursionError`, where '
-          'the case expects an `IntegrityError`.',
   'test_batch_multi_stage_lifecycle_pipeline':
       'The v1.0 basic catalog requires `child` and `action` on `Button`, '
           "which the case's `btn1` omits.",
@@ -360,7 +357,7 @@ void _checkSurfaces(
   if (surfaces == null) return;
 
   surfaces.forEach((surfaceId, raw) {
-    final SurfaceModel<ComponentApi>? surface = processor.groupModel.getSurface(
+    final SurfaceModel<ComponentApi>? surface = processor.model.getSurface(
       surfaceId,
     );
     final expectations = raw! as Map<String, Object?>;

@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+- **Breaking:** Renamed `A2uiClientAction` and `A2uiClientError` to
+  `A2uiRendererAction` and `A2uiRendererError`.
+- **Breaking:** Renamed `MessageProcessor.groupModel` to
+  `MessageProcessor.model` and removed the `MessageProcessor.process` alias for
+  `processMessages`.
+- **Breaking:** Renamed `DataContext.resolveSync`, `resolveListenable`, and
+  `resolveListenableWithPending` to `resolveDynamicValue`, `resolveSignal`, and
+  `resolveSignalWithPending`. `DataContext.protocolVersion` is now an
+  `A2uiProtocolVersion?` instead of a `String?`, and `DataContext.isV10` is
+  replaced by `DataContext.usesDirectives`.
+- **Breaking:** Renamed `EventListenable<T>` to `EventSource<T>` and replaced
+  `addListener` / `removeListener` with `EventSource.subscribe`, returning a
+  `Subscription` with an idempotent `unsubscribe()` method. Added
+  `DataModel.subscribe<T>`, returning a `DataSubscription<T>` (which implements
+  `Subscription`).
+- **Breaking:** `PayloadValidator` derives its rules and `common_types.json`
+  document from `catalog.protocolVersion`; removed `protocolVersion`,
+  `commonTypesSchema`, `checkVersion`, and `PayloadValidator.forVersion`.
+  Removed `MessageProcessor.commonTypesSchema`, the `version` parameter of
+  `MessageProcessor.validatorFor(catalog)`, `A2uiValidationError.details`, and
+  `MinimalCatalog`.
+- **Behavior change:** Self-referential and cyclic component references now
+  throw `A2uiIntegrityError` (`INTEGRITY_ERROR`) instead of
+  `A2uiRecursionError` (`RECURSION_ERROR`), reserving `A2uiRecursionError` for
+  exceeding the maximum component traversal depth (`maxDepth`) or
+  function-call nesting depth (`maxFunctionCallDepth`).
+- `BasicCatalog.v0_9()` and `BasicCatalog.v1_0()` preserve function
+  `description` metadata and localize `common_types.json#/$defs/...`
+  references inside function argument schemas when building
+  `Catalog.catalogSchema`.
 - `BasicCatalog.v0_9()` and `BasicCatalog.v1_0()` now carry the basic
   catalog's 18 components (`Text`, `Image`, `Icon`, `Video`, `AudioPlayer`,
   `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`, `Button`,
@@ -43,11 +73,7 @@
 - `PayloadValidator` takes its rules from the catalog: `Catalog.protocolVersion`
   (parsed from the document's `protocolVersion`) selects the v1.0 rules for
   v1.0 and later and the v0.9 rules otherwise, and the embedded
-  `common_types.json` for that version. `protocolVersion` and
-  `commonTypesSchema` become optional overrides, and the validator gains a
-  `config`. `MessageProcessor` no longer forces its v0.9 common types onto
-  each catalog unless a `commonTypesSchema` is passed. Adds
-  `commonTypesForProtocolVersion(A2uiProtocolVersion?)`,
+  `common_types.json` for that version, and the validator gains a `config`. Adds
   `ValidationConfig.allowUnknownElements`, `A2uiValidationError.surfaceId`,
   and `ComponentApi.allowedParents` / `allowedChildren`.
 - **Breaking:** `Catalog.protocolVersion` is an `A2uiProtocolVersion?` rather
@@ -184,9 +210,9 @@
   `VersionAdapter` for the version it declares, so one processor holds v0.9,
   v0.9.1 and v1.0 surfaces side by side. The required `protocolVersion`
   parameter and field are replaced by an optional `defaultVersion`, and
-  `commonTypesSchema` is nullable: null uses the copy this package publishes
-  for each message's version. `validatorFor` takes a required `version`.
-- **Breaking:** `processMessages`, `process` and the new
+  `commonTypesSchema` is removed in favor of each catalog's
+  `commonTypesSchema`.
+- **Breaking:** `processMessages` and the new
   `processMessagesAsync` take `Object?`: raw decoded JSON (a lone envelope, a
   list of envelopes or the `{messages: [...]}` wrapper) or parsed messages
   (`AgentToRendererMessagePayload`, one `AgentToRendererMessage`, or a list of
@@ -194,7 +220,7 @@
 - **Behavior change:** `createSurface` raises `A2uiCatalogError` when its
   catalog declares a `protocolVersion` incompatible with the message's
   version. A catalog that declares none is pre-v1.0: accepted by a v0.9 or
-  v0.9.1 message and rejected by a v1.0 one. `MinimalCatalog` declares `v0.9`.
+  v0.9.1 message and rejected by a v1.0 one.
 - **Behavior change:** a v1.0 `createSurface` writes its inline `dataModel` as
   one root write, then applies its inline `components` (checked as one batch
   before the surface is added, so a batch that fails creates nothing).
@@ -202,7 +228,8 @@
   is no fallback to the processor's catalogs. A v0.9 `createSurface` without
   a `catalogId` is rejected, as the v0.9 schema requires one.
 - `SurfaceModel.protocolVersion` is the version of the message that created
-  the surface, so `DataContext.isV10` follows each surface's own version.
+  the surface, so `DataContext.usesDirectives` follows each surface's own
+  version.
 - New `InternalOperation` (`CreateSurfaceOp`, `UpdateComponentsOp`,
   `UpdateDataModelOp`, `DeleteSurfaceOp`, `CallRendererFunctionOp`,
   `AgentFunctionResponseOp`), `VersionAdapter`, `V0_9Adapter` (v0.9 and

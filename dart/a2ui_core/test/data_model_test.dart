@@ -320,5 +320,64 @@ void main() {
       expect(model.get('//foo//'), 'bar');
       expect(model.hasPath(''), isTrue);
     });
+
+    test('subscribe reads value, notifies on change, and stops on unsubscribe',
+        () {
+      final model = DataModel({
+        'user': {'name': 'Alice'}
+      });
+      addTearDown(model.dispose);
+
+      final changes = <String?>[];
+      final DataSubscription<String> sub = model.subscribe<String>(
+        '/user/name',
+        changes.add,
+      );
+      expect(sub, isA<Subscription>());
+      expect(sub.value, 'Alice');
+      expect(changes, isEmpty);
+
+      model.set('/user/name', 'Bob');
+      expect(sub.value, 'Bob');
+      expect(changes, ['Bob']);
+
+      sub.unsubscribe();
+      sub.unsubscribe();
+      model.set('/user/name', 'Charlie');
+      expect(changes, ['Bob']);
+    });
+
+    test('dispose unsubscribes active DataSubscriptions', () {
+      final model = DataModel({'count': 1});
+      final changes = <int?>[];
+      model.subscribe<int>('/count', changes.add);
+
+      model.set('/count', 2);
+      expect(changes, [2]);
+
+      model.dispose();
+      model.set('/count', 3);
+      expect(changes, [2]);
+    });
+
+    test('subscribe<T> coexists with watch<Object?> on the same path', () {
+      final model = DataModel({'greeting': 'hello'});
+      addTearDown(model.dispose);
+
+      final ReadonlySignal<Object?> untyped = model.watch<Object?>('/greeting');
+      final changes = <String?>[];
+      final DataSubscription<String> sub = model.subscribe<String>(
+        '/greeting',
+        changes.add,
+      );
+
+      expect(untyped.value, 'hello');
+      expect(sub.value, 'hello');
+
+      model.set('/greeting', 'world');
+      expect(untyped.value, 'world');
+      expect(sub.value, 'world');
+      expect(changes, ['world']);
+    });
   });
 }

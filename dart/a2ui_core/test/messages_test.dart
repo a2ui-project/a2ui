@@ -386,7 +386,7 @@ void main() {
       });
 
       expect(msg, isA<ActionMessage>());
-      final A2uiClientAction action = (msg as ActionMessage).action;
+      final A2uiRendererAction action = (msg as ActionMessage).action;
       expect(action.name, 'submit');
       expect(action.surfaceId, 's1');
       expect(action.sourceComponentId, 'button');
@@ -408,7 +408,7 @@ void main() {
       });
 
       expect(msg, isA<ActionMessage>());
-      final A2uiClientAction action = (msg as ActionMessage).action;
+      final A2uiRendererAction action = (msg as ActionMessage).action;
       expect(action.userMessage, 'Submitting feedback');
       expect(action.toJson()['userMessage'], 'Submitting feedback');
     });
@@ -430,9 +430,9 @@ void main() {
       );
     });
 
-    test('serializes A2uiClientAction timestamp in UTC with trailing Z', () {
+    test('serializes A2uiRendererAction timestamp in UTC with trailing Z', () {
       final localTime = DateTime(2026, 9, 16, 10, 30);
-      final action = A2uiClientAction(
+      final action = A2uiRendererAction(
         name: 'submit',
         surfaceId: 's1',
         sourceComponentId: 'button',
@@ -457,7 +457,7 @@ void main() {
       });
 
       expect(msg, isA<ErrorMessage>());
-      final A2uiClientError error = (msg as ErrorMessage).error;
+      final A2uiRendererError error = (msg as ErrorMessage).error;
       expect(error.code, 'VALIDATION_FAILED');
       expect(error.surfaceId, 's1');
       expect(error.message, 'no such component');
@@ -495,10 +495,10 @@ void main() {
       );
     });
 
-    test('A2uiClientError rejects VALIDATION_FAILED without non-empty path',
+    test('A2uiRendererError rejects VALIDATION_FAILED without non-empty path',
         () {
       expect(
-        () => A2uiClientError(
+        () => A2uiRendererError(
           code: 'VALIDATION_FAILED',
           surfaceId: 's1',
           message: 'no such component',
@@ -506,7 +506,7 @@ void main() {
         throwsA(isA<A2uiValidationError>()),
       );
       expect(
-        () => A2uiClientError(
+        () => A2uiRendererError(
           code: 'VALIDATION_FAILED',
           surfaceId: 's1',
           message: 'no such component',
@@ -531,7 +531,7 @@ void main() {
       // trip; nothing else in the body names the field that failed.
       final original = ErrorMessage(
         version: 'v0.9',
-        error: A2uiClientError(
+        error: A2uiRendererError(
           code: 'VALIDATION_FAILED',
           surfaceId: 's1',
           message: 'no such component',
@@ -653,7 +653,7 @@ void main() {
     test('roundtrips through toJson/fromJson', () {
       final original = ActionMessage(
         version: 'v0.9',
-        action: A2uiClientAction(
+        action: A2uiRendererAction(
           name: 'submit',
           surfaceId: 's1',
           sourceComponentId: 'button',
@@ -710,7 +710,7 @@ void main() {
       final payload = RendererToAgentMessagePayload.of(
         ErrorMessage(
           version: 'v0.9',
-          error: A2uiClientError(code: 'A', surfaceId: 's1', message: 'boom'),
+          error: A2uiRendererError(code: 'A', surfaceId: 's1', message: 'boom'),
         ),
       );
 
@@ -727,7 +727,8 @@ void main() {
         () => payload.messages.add(
           ErrorMessage(
             version: 'v0.9',
-            error: A2uiClientError(code: 'B', surfaceId: 's1', message: 'boom'),
+            error:
+                A2uiRendererError(code: 'B', surfaceId: 's1', message: 'boom'),
           ),
         ),
         throwsUnsupportedError,

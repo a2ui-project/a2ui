@@ -24,6 +24,7 @@ import 'package:json_schema_builder/json_schema_builder.dart'
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
+import 'support/test_catalog.dart';
 
 /// The published basic catalog, which agent-side tests are measured against.
 const String basicCatalogPath =
@@ -434,6 +435,48 @@ void main() {
       );
       expect((schema['properties']! as Map).containsKey('call'), isFalse);
       expect(schema['required'], ['@call', 'args']);
+    });
+
+    test('localizes full-URI common_types refs in function args', () {
+      final fn = FunctionApi(
+        name: 'customFn',
+        description: 'Custom function with full URI common_types ref',
+        returnType: A2uiReturnType.string,
+        argumentSchema: Schema.fromMap({
+          'type': 'object',
+          'properties': {
+            'label': {
+              r'$ref':
+                  r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString',
+            },
+          },
+          'required': ['label'],
+        }),
+      );
+      final catalog = Catalog<ComponentApi, FunctionApi>(
+        id: 'custom-cat',
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        components: const [],
+        functions: [fn],
+      );
+      final Map<String, Object?> schema = catalog.catalogSchema;
+      final functions = schema['functions']! as Map<String, Object?>;
+      final fnSchema = functions['customFn']! as Map<String, Object?>;
+      expect(
+        fnSchema['description'],
+        'Custom function with full URI common_types ref',
+      );
+      final args =
+          (fnSchema['properties']! as Map<String, Object?>)['args']! as Map;
+      final props = args['properties']! as Map;
+      expect(
+        (props['label']! as Map)[r'$ref'],
+        r'#/$defs/DynamicString',
+      );
+      expect(
+        (schema[r'$defs']! as Map).containsKey('DynamicString'),
+        isTrue,
+      );
     });
 
     test('is call before protocol 1.0 or without a version', () {

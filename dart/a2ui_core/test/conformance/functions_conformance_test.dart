@@ -59,7 +59,8 @@ Object? _evaluate(Map<String, Object?> testCase) {
     dataModel,
     catalog.invoke,
     '/',
-    protocolVersion: version == null ? null : 'v$version',
+    protocolVersion:
+        version == null ? null : A2uiProtocolVersion.tryParseSemVer(version),
   );
   final args = Map<String, dynamic>.from(
     testCase['args'] as Map<String, Object?>? ?? const {},

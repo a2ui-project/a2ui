@@ -151,7 +151,6 @@ void _runCase(Map<String, Object?> testCase) {
       allPayloads,
       version,
     ),
-    commonTypesSchema: _commonTypesFor(testCase),
     // The validator cases are about what a renderer rejects, so the graph
     // checks are on, as in the other SDKs' harnesses.
     validationConfig: ValidationConfig.strict,
@@ -222,17 +221,6 @@ String _versionOf(
     if (envelope['version'] case final String version) return version;
   }
   return caseVersion(testCase) ?? 'v0.9';
-}
-
-/// The shared common-types document a case declares, or null to use the copy
-/// this package publishes for the protocol version.
-Map<String, Object?>? _commonTypesFor(Map<String, Object?> testCase) {
-  if (testCase['catalog'] case final Map<String, Object?> catalog) {
-    if (catalog.containsKey('common_types_schema')) {
-      return _document(catalog['common_types_schema']);
-    }
-  }
-  return null;
 }
 
 /// The steps a case runs, whether it declares one payload or several.

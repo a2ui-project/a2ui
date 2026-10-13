@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Forward `FunctionApi.description` when constructing the signature-only
+  `Catalog` in `validatePayloads`, and align `MessageProcessor.model` and
+  `PayloadValidator` usage with `a2ui_core`.
 - Payload validation builds its `MessageProcessor` with `defaultVersion`.
 - Validation forwards `catalog.protocolVersion` when constructing its
   signature-only `Catalog` for `MessageProcessor`.

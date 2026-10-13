@@ -23,6 +23,7 @@ import '../core/contexts.dart';
 import '../core/messages.dart';
 import '../core/validation_result.dart';
 import '../primitives/errors.dart';
+import '../primitives/event_notifier.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
 import '../resolution/resolved_binding.dart';
@@ -83,6 +84,7 @@ class GenericBinder {
 
   late final Signal<Map<String, dynamic>> _resolvedProps;
   final List<void Function()> _subscriptions = [];
+  Subscription? _componentUpdatedSub;
   bool _isConnected = false;
   bool _disposed = false;
 
@@ -119,7 +121,9 @@ class GenericBinder {
   void connect() {
     if (_isConnected || _disposed) return;
     _isConnected = true;
-    context.componentModel.onUpdated.addListener(_onComponentUpdated);
+    _componentUpdatedSub = context.componentModel.onUpdated.subscribe(
+      _onComponentUpdated,
+    );
     _rebuildAllBindings();
   }
 
@@ -189,18 +193,18 @@ class GenericBinder {
 
     switch (behavior.type) {
       case Behavior.dynamic:
-        final bool isV10 = context.dataContext.isV10;
+        final bool usesDirectives = context.dataContext.usesDirectives;
         final ReadonlySignal<Object?> sig =
-            context.dataContext.resolveListenable(value);
+            context.dataContext.resolveSignal(value);
         // When the protocol's binding key is present (without `componentId` in
         // pre-v1.0), cast its value to `String` so a malformed non-string path
         // (such as `{'path': 42}`) throws `TypeError` during materialization.
         final String? boundPath = value is Map &&
-                (isV10
+                (usesDirectives
                     ? value.containsKey('@path')
                     : (value.containsKey('path') &&
                         !value.containsKey('componentId')))
-            ? (value[isV10 ? '@path' : 'path'] as String)
+            ? (value[usesDirectives ? '@path' : 'path'] as String)
             : null;
         ResolvedBinding<Object?> wrap(Object? current) {
           final Object? snapshot = _snapshotBindingValue(current);
@@ -250,7 +254,7 @@ class GenericBinder {
             await context.dispatchAction(Map<String, dynamic>.from(resolved));
           } else {
             await context.surface.dispatchError(
-              A2uiClientError(
+              A2uiRendererError(
                 code: 'INVALID_ACTION',
                 surfaceId: context.surface.id,
                 message: 'Invalid action payload in component '
@@ -273,7 +277,7 @@ class GenericBinder {
             Map<String, dynamic>.from(value),
           );
           final ReadonlySignal<Object?> sig = context.dataContext
-              .resolveListenable(context.dataContext.bindingFor(tpl.path));
+              .resolveSignal(context.dataContext.bindingFor(tpl.path));
 
           List<ChildNode> resolveChildren(Object? val) {
             final List<Object?> list = val is List ? val.cast<Object?>() : [];
@@ -350,7 +354,7 @@ class GenericBinder {
           final Object? rawRule = rules[i];
           if (rawRule is! Map || rawRule.keys.any((k) => k is! String)) {
             context.surface.dispatchError(
-              A2uiClientError(
+              A2uiRendererError(
                 code: 'VALIDATION_FAILED',
                 surfaceId: context.surface.id,
                 path: '/${[...path, i.toString()].join('/')}',
@@ -381,11 +385,11 @@ class GenericBinder {
 
           final Object? initial = isSync
               ? (
-                  value: context.dataContext.resolveSync(condition),
+                  value: context.dataContext.resolveDynamicValue(condition),
                   pending: context.dataContext.isPendingAgentCall(condition),
                 )
               : _subscribe(
-                  context.dataContext.resolveListenableWithPending(condition),
+                  context.dataContext.resolveSignalWithPending(condition),
                   (newValue) {
                     ruleResults[slot] =
                         resultOf(newValue! as DynamicValueState);
@@ -557,11 +561,11 @@ class GenericBinder {
     );
     if (hasEvent || hasFunctionCall) return BehaviorNode(Behavior.action);
 
-    final bool isV10 = context.dataContext.isV10;
+    final bool usesDirectives = context.dataContext.usesDirectives;
     bool hasPath = schemasToInspect.any(
       (s) =>
           s['properties'] != null &&
-          (isV10
+          (usesDirectives
               ? (s['properties'] as Map)['@path'] != null
               : (s['properties'] as Map)['path'] != null) &&
           (s['properties'] as Map)['componentId'] == null,
@@ -642,7 +646,7 @@ class GenericBinder {
       final String? functionCallId =
           e is A2uiRpcError ? e.functionCallId : null;
       await context.surface.dispatchError(
-        A2uiClientError(
+        A2uiRendererError(
           code: 'EXECUTION_ERROR',
           surfaceId: functionCallId == null ? context.surface.id : null,
           functionCallId: functionCallId,
@@ -657,7 +661,7 @@ class GenericBinder {
     final Map<String, dynamic>? direct = dataContext.resolveAction(value);
     if (direct != null) return direct;
     if (dataContext.isDataBinding(value)) {
-      return dataContext.resolveAction(dataContext.resolveSync(value));
+      return dataContext.resolveAction(dataContext.resolveDynamicValue(value));
     }
     return null;
   }
@@ -667,7 +671,8 @@ class GenericBinder {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    context.componentModel.onUpdated.removeListener(_onComponentUpdated);
+    _componentUpdatedSub?.unsubscribe();
+    _componentUpdatedSub = null;
     _disposeSubscriptions();
   }
 }

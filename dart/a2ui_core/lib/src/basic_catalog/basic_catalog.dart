@@ -110,6 +110,7 @@ abstract final class BasicCatalog {
         for (final FunctionApi signature in published.functions.values)
           BasicFunction(
             name: signature.name,
+            description: signature.description,
             argumentSchema: signature.argumentSchema,
             returnType: signature.returnType,
             allowedCallers: signature.allowedCallers,

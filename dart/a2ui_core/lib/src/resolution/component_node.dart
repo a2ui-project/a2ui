@@ -114,7 +114,7 @@ abstract interface class ComponentNode<T extends ComponentApi> {
   /// Fires exactly once, when this node is disposed. Listener failures are
   /// logged individually and do not interrupt the remaining teardown.
   /// Listeners added during or after destruction notification are not called.
-  EventListenable<void> get onDestroyed;
+  EventSource<void> get onDestroyed;
 
   bool get disposed;
 
@@ -166,7 +166,7 @@ final class MutableComponentNode<T extends ComponentApi>
   final _onDestroyed = _DestructionListeners();
 
   @override
-  EventListenable<void> get onDestroyed => _onDestroyed;
+  EventSource<void> get onDestroyed => _onDestroyed;
 
   @override
   ComponentContext? context;
@@ -256,17 +256,31 @@ final class MutableComponentNode<T extends ComponentApi>
   }
 }
 
+class _DestructionSubscription implements Subscription {
+  final _DestructionListeners _notifier;
+  void Function(void)? _listener;
+
+  _DestructionSubscription(this._notifier, this._listener);
+
+  @override
+  void unsubscribe() {
+    final void Function(void)? listener = _listener;
+    if (listener == null) return;
+    _listener = null;
+    _notifier._listeners.remove(listener);
+  }
+}
+
 // Destruction must attempt every listener, so a failure is logged instead of
 // propagated.
-class _DestructionListeners implements EventListenable<void> {
+class _DestructionListeners implements EventSource<void> {
   final List<void Function(void)> _listeners = [];
 
   @override
-  void addListener(void Function(void) listener) => _listeners.add(listener);
-
-  @override
-  void removeListener(void Function(void) listener) =>
-      _listeners.remove(listener);
+  Subscription subscribe(void Function(void) listener) {
+    _listeners.add(listener);
+    return _DestructionSubscription(this, listener);
+  }
 
   void notify(String instanceId) {
     final List<void Function(void)> listeners = List.of(_listeners);

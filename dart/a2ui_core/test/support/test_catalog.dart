@@ -12,13 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
-
-import '../primitives/cancellation.dart';
-import '../primitives/protocol_version.dart';
-import 'catalog.dart';
-import 'common_schemas.dart';
-import 'contexts.dart';
 
 class MinimalTextApi extends ComponentApi {
   MinimalTextApi()

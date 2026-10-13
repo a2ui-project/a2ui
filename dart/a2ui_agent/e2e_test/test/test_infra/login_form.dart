@@ -42,11 +42,11 @@ void expectLoginForm(
     catalogs: [rendererCatalog(catalog)],
     defaultVersion: A2uiProtocolVersion.v0_9,
   );
-  addTearDown(renderer.groupModel.dispose);
+  addTearDown(renderer.model.dispose);
   renderer.processMessages(AgentToRendererMessagePayload(messages));
 
   expectLoginFormSurface(
-    renderer.groupModel.getSurface(createSurface.surfaceId)!,
+    renderer.model.getSurface(createSurface.surfaceId)!,
     llmOutput: llmOutput,
   );
 }

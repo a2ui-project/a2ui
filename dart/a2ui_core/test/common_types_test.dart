@@ -75,10 +75,6 @@ void main() {
         catalog.commonTypesSchema[r'$id'],
         'https://a2ui.org/specification/v0_9/common_types.json',
       );
-      expect(
-        PayloadValidator(catalog: catalog).commonTypesSchema[r'$id'],
-        'https://a2ui.org/specification/v0_9/common_types.json',
-      );
     });
 
     test('parses to the v0.9 document', () {
@@ -118,38 +114,15 @@ void main() {
       );
     });
 
-    test('is what a validator resolves against by default', () {
+    test('is what a catalog resolves against by default', () {
+      final Catalog<ComponentApi, FunctionImplementation> catalog =
+          BasicCatalog.v0_9();
       expect(
-        PayloadValidator<ComponentApi, FunctionApi>(
-          catalog: MinimalCatalog(),
-          protocolVersion: A2uiProtocolVersion.v0_9,
-        ).commonTypesSchema,
+        catalog.commonTypesSchema,
         PayloadValidator.commonTypesFor(A2uiProtocolVersion.v0_9),
       );
-    });
-
-    test('is what a processor resolves against by default', () {
-      final catalog = MinimalCatalog();
-      final MessageProcessor<ComponentApi> processor =
-          MessageProcessor(catalogs: [catalog]);
-      expect(processor.commonTypesSchema, isNull);
-      expect(
-        processor
-            .validatorFor(catalog, version: A2uiProtocolVersion.v0_9)
-            .commonTypesSchema,
-        PayloadValidator.commonTypesFor(A2uiProtocolVersion.v0_9),
-      );
-    });
-
-    test('an empty document leaves the shared types unchecked', () {
-      expect(
-        PayloadValidator<ComponentApi, FunctionApi>(
-          catalog: MinimalCatalog(),
-          protocolVersion: A2uiProtocolVersion.v0_9,
-          commonTypesSchema: const {},
-        ).commonTypesSchema,
-        isEmpty,
-      );
+      final processor = MessageProcessor<ComponentApi>(catalogs: [catalog]);
+      expect(processor.validatorFor(catalog).catalog, same(catalog));
     });
   });
 

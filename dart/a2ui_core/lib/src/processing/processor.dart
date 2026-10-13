@@ -89,7 +89,7 @@ typedef _CheckedBatch = ({
 /// one graph. Without a config the graph is not checked, so a surface may
 /// arrive across several messages in any order; see [ValidationConfig].
 class MessageProcessor<T extends ComponentApi> {
-  final SurfaceGroupModel<T> groupModel;
+  final SurfaceGroupModel<T> model;
   final List<Catalog<T, FunctionImplementation>> catalogs;
 
   /// The protocol version this processor targets by default, or null for
@@ -106,13 +106,6 @@ class MessageProcessor<T extends ComponentApi> {
   /// Defaults to [VersionAdapterRegistry.standard].
   final VersionAdapterRegistry adapterRegistry;
 
-  /// The shared `common_types.json` definitions the validators resolve
-  /// against, for every protocol version, or null to use the copy this package
-  /// publishes for each message's version.
-  ///
-  /// Pass an empty map to leave the shared types unchecked.
-  final Map<String, Object?>? commonTypesSchema;
-
   /// Which checks each message must pass, or null, the default, for none of
   /// the graph checks.
   ///
@@ -124,9 +117,9 @@ class MessageProcessor<T extends ComponentApi> {
   /// batch and the schemas of declared component types are still checked.
   final ValidationConfig? validationConfig;
 
-  /// One validator per catalog and protocol version, built on first use.
-  final Map<(String, A2uiProtocolVersion),
-      PayloadValidator<T, FunctionImplementation>> _validators = {};
+  /// One validator per catalog, built on first use.
+  final Map<String, PayloadValidator<T, FunctionImplementation>> _validators =
+      {};
 
   /// Each catalog's child-reference fields, by catalog id, built on first use.
   final Map<String, Map<String, ComponentRefFields>> _refFields = {};
@@ -151,13 +144,12 @@ class MessageProcessor<T extends ComponentApi> {
     required this.catalogs,
     this.defaultVersion,
     this.validationConfig,
-    this.commonTypesSchema,
     VersionAdapterRegistry? adapterRegistry,
-    void Function(A2uiClientAction)? onAction,
+    void Function(A2uiRendererAction)? onAction,
     OutboundMessageListener? outboundListener,
     Duration defaultTimeout = const Duration(seconds: 30),
   })  : adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
-        groupModel = SurfaceGroupModel<T>(),
+        model = SurfaceGroupModel<T>(),
         _outboundListener = outboundListener,
         _defaultTimeout = defaultTimeout {
     final A2uiProtocolVersion? target = validationConfig?.targetVersion;
@@ -169,11 +161,11 @@ class MessageProcessor<T extends ComponentApi> {
       );
     }
     if (onAction != null) {
-      groupModel.onAction.addListener(onAction);
+      model.onAction.subscribe(onAction);
     }
   }
 
-  /// The validator for [catalog] under protocol [version].
+  /// The validator for [catalog].
   ///
   /// A component belongs to exactly one catalog, so a validator is scoped to
   /// one rather than handed the whole supported set. The processor is what
@@ -181,22 +173,16 @@ class MessageProcessor<T extends ComponentApi> {
   /// catalog from passing on a surface whose default is another, and what lets
   /// a v1.0 surface mix catalogs.
   ///
-  /// Built once per catalog and version and reused. The validator caches
-  /// resolved component schemas, which a fresh instance per batch would
-  /// rebuild on every message.
-  ///
-  /// Throws [A2uiValidationError] when this package publishes no
-  /// `common_types.json` for [version] and [commonTypesSchema] is null.
+  /// Built once per catalog and reused. The validator caches resolved
+  /// component schemas, which a fresh instance per batch would rebuild on
+  /// every message.
   PayloadValidator<T, FunctionImplementation> validatorFor(
-    Catalog<T, FunctionImplementation> catalog, {
-    required A2uiProtocolVersion version,
-  }) =>
+    Catalog<T, FunctionImplementation> catalog,
+  ) =>
       _validators.putIfAbsent(
-        (catalog.id, version),
+        catalog.id,
         () => PayloadValidator<T, FunctionImplementation>(
           catalog: catalog,
-          commonTypesSchema: commonTypesSchema,
-          protocolVersion: version,
           // Without a config nothing is being validated against the graph,
           // and an undeclared type is tolerated too.
           config: validationConfig ??
@@ -300,11 +286,8 @@ class MessageProcessor<T extends ComponentApi> {
   /// Disposes the RPC layer, failing its pending calls, and every surface.
   void dispose() {
     rpc.dispose();
-    groupModel.dispose();
+    model.dispose();
   }
-
-  /// Alias for [processMessages] for cross-SDK ergonomics.
-  void process(Object? payload) => processMessages(payload);
 
   /// The items [payload] carries, each a raw envelope or a parsed message.
   static List<Object?> _itemsOf(Object? payload) => switch (payload) {
@@ -318,7 +301,6 @@ class MessageProcessor<T extends ComponentApi> {
             final List<Object?> list => list,
             _ => throw A2uiValidationError(
                 "Payload field 'messages' must be a list of envelopes.",
-                details: wrapper,
               ),
           },
         final Map<Object?, Object?> envelope => [envelope],
@@ -349,7 +331,6 @@ class MessageProcessor<T extends ComponentApi> {
         throw A2uiValidationError(
           'Each message must be a JSON object with string keys; got '
           '${item.runtimeType}.',
-          details: item,
         );
     }
   }
@@ -395,7 +376,7 @@ class MessageProcessor<T extends ComponentApi> {
       case DeleteSurfaceOp():
         // An unknown surface id is a no-op, matching the conformance suite
         // and the TypeScript and Python SDKs.
-        groupModel.deleteSurface(operation.surfaceId);
+        model.deleteSurface(operation.surfaceId);
       case CallRendererFunctionOp():
         return _callRendererFunction(operation, isUserActivated);
       case AgentFunctionResponseOp():
@@ -420,7 +401,7 @@ class MessageProcessor<T extends ComponentApi> {
     final Object? catalogId = operation.callFunction['catalogId'];
     SurfaceModel<T>? target;
     if (catalogId is String) {
-      for (final SurfaceModel<T> surface in groupModel.allSurfaces) {
+      for (final SurfaceModel<T> surface in model.allSurfaces) {
         if (surface.defaultCatalog?.id == catalogId) {
           target = surface;
           break;
@@ -428,7 +409,7 @@ class MessageProcessor<T extends ComponentApi> {
       }
     }
     if (target == null) {
-      for (final SurfaceModel<T> surface in groupModel.allSurfaces) {
+      for (final SurfaceModel<T> surface in model.allSurfaces) {
         target ??= surface;
         if (catalogId is String &&
             surface.availableCatalogs.containsKey(catalogId)) {
@@ -468,7 +449,7 @@ class MessageProcessor<T extends ComponentApi> {
     );
     if (catalog != null) _checkCatalogVersion(catalog, operation);
 
-    if (groupModel.getSurface(operation.surfaceId) != null) {
+    if (model.getSurface(operation.surfaceId) != null) {
       throw A2uiIntegrityError(
           'Surface ${operation.surfaceId} already exists.');
     }
@@ -477,8 +458,7 @@ class MessageProcessor<T extends ComponentApi> {
     // than on every later message. v1.0 has no theme.
     if (catalog != null &&
         !operation.version.isAtLeast(A2uiProtocolVersion.v1_0)) {
-      validatorFor(catalog, version: operation.version)
-          .validateTheme(operation.theme);
+      validatorFor(catalog).validateTheme(operation.theme);
     }
 
     final surface = SurfaceModel<T>(
@@ -512,7 +492,7 @@ class MessageProcessor<T extends ComponentApi> {
       }
     }
 
-    groupModel.addSurface(surface);
+    model.addSurface(surface);
     try {
       if (operation.dataModel case final Map<String, Object?> dataModel) {
         surface.dataModel.set('/', dataModel);
@@ -520,7 +500,7 @@ class MessageProcessor<T extends ComponentApi> {
       if (batch != null) _applyComponents(surface, batch);
     } catch (_) {
       // Do not leave a half-initialized surface registered.
-      groupModel.deleteSurface(operation.surfaceId);
+      model.deleteSurface(operation.surfaceId);
       rethrow;
     }
   }
@@ -631,7 +611,7 @@ class MessageProcessor<T extends ComponentApi> {
   }
 
   SurfaceModel<T> _surfaceFor(String surfaceId) {
-    final SurfaceModel<T>? surface = groupModel.getSurface(surfaceId);
+    final SurfaceModel<T>? surface = model.getSurface(surfaceId);
     if (surface == null) {
       throw A2uiIntegrityError('Surface not found for message: $surfaceId');
     }
@@ -756,7 +736,7 @@ class MessageProcessor<T extends ComponentApi> {
   ) {
     final Object? id = entry['id'];
     if (id is! String) {
-      throw A2uiValidationError("Component missing an 'id'.", details: entry);
+      throw A2uiValidationError("Component missing an 'id'.");
     }
     final Object? rawType = entry['component'];
     final Object? rawCatalog = entry['catalogId'];
@@ -764,13 +744,11 @@ class MessageProcessor<T extends ComponentApi> {
     if (rawType != null && rawType is! String) {
       throw A2uiValidationError(
         "Component '$id' has a 'component' type that is not a string.",
-        details: entry,
       );
     }
     if (rawCatalog != null && rawCatalog is! String) {
       throw A2uiValidationError(
         "Component '$id' has a 'catalogId' that is not a string.",
-        details: entry,
       );
     }
     if (rawMetadata != null &&
@@ -780,7 +758,6 @@ class MessageProcessor<T extends ComponentApi> {
       throw A2uiValidationError(
         "Component '$id' has 'metadata' that is not an object with string "
         'keys.',
-        details: entry,
       );
     }
 
@@ -790,7 +767,6 @@ class MessageProcessor<T extends ComponentApi> {
     if (type == null) {
       throw A2uiValidationError(
         "Cannot create component $id without a 'component' type.",
-        details: entry,
       );
     }
     final String? catalogId =
@@ -807,7 +783,7 @@ class MessageProcessor<T extends ComponentApi> {
 
     final Catalog<T, FunctionImplementation> catalog =
         surface.resolveCatalog(catalogId);
-    validatorFor(catalog, version: version).validateComponent(full);
+    validatorFor(catalog).validateComponent(full);
     return full;
   }
 
@@ -860,7 +836,7 @@ class MessageProcessor<T extends ComponentApi> {
   /// [version] is omitted and the surfaces record different versions.
   Map<String, Object?>? getRendererDataModel({A2uiProtocolVersion? version}) {
     final List<SurfaceModel<T>> enabled = [
-      for (final SurfaceModel<T> surface in groupModel.allSurfaces)
+      for (final SurfaceModel<T> surface in model.allSurfaces)
         if (surface.sendDataModel) surface,
     ];
     if (enabled.isEmpty) return null;

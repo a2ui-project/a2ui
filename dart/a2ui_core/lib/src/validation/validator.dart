@@ -19,7 +19,6 @@ import '../core/catalog.dart';
 import '../primitives/common_types_documents.dart' as documents;
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
-import '../primitives/semver.dart';
 import '../primitives/uax31.dart';
 import 'component_graph.dart' show maxFunctionCallArgs;
 import 'component_refs.dart';
@@ -73,8 +72,7 @@ const Set<String> _reservedDirectives = {'@path', '@call'};
 /// Checks one component, one function call, or one theme against one catalog.
 ///
 /// Lives in `a2ui_core` because renderers and agents check that same payload
-/// against the same catalogs. Envelopes are v0.9 only: [checkVersion] rejects
-/// any other version, or none. The rules for the items themselves follow
+/// against the same catalogs. The rules for the items themselves follow
 /// [Catalog.protocolVersion]: a catalog declaring v1.0 or later is checked
 /// with the v1.0 rules (`@path` and `@call`, UAX #31 identifiers, reserved
 /// `@` keys, unknown functions forwarded to the agent), and any other catalog
@@ -107,19 +105,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// own catalog is the caller's job; see the class comment.
   final Catalog<C, F> catalog;
 
-  /// The protocol version whose envelopes [checkVersion] accepts.
-  final A2uiProtocolVersion protocolVersion;
-
-  /// The shared `common_types.json` definitions this validator resolves
-  /// against.
-  ///
-  /// Catalogs state their component properties in terms of these shared types
-  /// rather than restating them. Defaults to this package's copy of the
-  /// document for [Catalog.protocolVersion] (see [commonTypesFor]); pass a
-  /// different document to override it, or an empty map to leave the shared
-  /// types unchecked.
-  final Map<String, Object?> commonTypesSchema;
-
   /// Which unknown items pass rather than fail.
   ///
   /// Only [ValidationConfig.allowUnknownElements] applies here; the graph
@@ -129,9 +114,13 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// Whether [catalog] declares v1.0 or later, selecting the v1.0 rules.
   final bool _v1;
 
+  /// The shared `common_types.json` definitions for [catalog]'s protocol
+  /// version.
+  final Map<String, Object?> _commonTypesSchema;
+
   /// The other protocol version's `common_types.json`, consulted for a type
-  /// [commonTypesSchema] lacks; null when the caller overrode the document.
-  final Map<String, Object?>? _fallbackCommonTypes;
+  /// [_commonTypesSchema] lacks.
+  final Map<String, Object?> _fallbackCommonTypes;
 
   /// [catalog]'s component schemas with their `$ref`s inlined, on first use.
   Map<String, Schema>? _resolvedComponents;
@@ -144,25 +133,15 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   Map<String, Schema>? _resolvedEnvelope;
 
   /// Creates a validator for [catalog].
-  ///
-  /// [protocolVersion] and [commonTypesSchema] override the defaults derived
-  /// from [catalog]; most callers pass neither.
   PayloadValidator({
     required this.catalog,
-    A2uiProtocolVersion? protocolVersion,
-    Map<String, Object?>? commonTypesSchema,
     this.config = ValidationConfig.strict,
-  })  : protocolVersion = protocolVersion ?? A2uiProtocolVersion.v0_9,
-        _v1 = _isV1(catalog),
-        _fallbackCommonTypes = commonTypesSchema == null
-            ? commonTypesFor(
-                _isV1(catalog)
-                    ? A2uiProtocolVersion.v0_9
-                    : A2uiProtocolVersion.v1_0,
-              )
-            : null,
-        commonTypesSchema = commonTypesSchema ??
-            documents.commonTypesForProtocolVersion(catalog.protocolVersion);
+  })  : _v1 = _isV1(catalog),
+        _commonTypesSchema =
+            documents.commonTypesForProtocolVersion(catalog.protocolVersion),
+        _fallbackCommonTypes = commonTypesFor(
+          _isV1(catalog) ? A2uiProtocolVersion.v0_9 : A2uiProtocolVersion.v1_0,
+        );
 
   /// Whether [catalog] declares v1.0 or later.
   static bool _isV1(Catalog<Object?, Object?> catalog) =>
@@ -181,48 +160,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// readers resolve shared types against the same document.
   static Map<String, Object?> commonTypesFor(A2uiProtocolVersion version) =>
       documents.commonTypesForProtocolVersion(version);
-
-  /// Creates a validator for [version].
-  ///
-  /// Throws [A2uiValidationError] for any version this SDK does not
-  /// implement.
-  factory PayloadValidator.forVersion(
-    Object? version, {
-    required Catalog<C, F> catalog,
-    Map<String, Object?>? commonTypesSchema,
-  }) =>
-      PayloadValidator<C, F>(
-        catalog: catalog,
-        commonTypesSchema: commonTypesSchema,
-        protocolVersion: A2uiProtocolVersion.fromJson(version),
-      );
-
-  /// Checks the `version` field of one payload envelope.
-  ///
-  /// A version compatible with [protocolVersion] (see
-  /// [isCatalogVersionCompatible]) is accepted, so a v0.9 validator accepts
-  /// v0.9.1 envelopes. Returns [protocolVersion], the version whose rules
-  /// this validator applies.
-  ///
-  /// Throws [A2uiValidationError] if the version is missing or is not
-  /// compatible with the version this validator accepts.
-  A2uiProtocolVersion checkVersion(Map<String, Object?> envelope) {
-    final A2uiProtocolVersion version = A2uiProtocolVersion.fromJson(
-      envelope['version'],
-      details: envelope,
-    );
-    if (!isCatalogVersionCompatible(
-      version.jsonValue,
-      protocolVersion.jsonValue,
-    )) {
-      throw A2uiValidationError(
-        "Payload declares version '${version.jsonValue}' but this validator "
-        "accepts only versions compatible with '${protocolVersion.jsonValue}'.",
-        details: envelope,
-      );
-    }
-    return protocolVersion;
-  }
 
   /// Checks one component against [catalog]'s schema for its type.
   ///
@@ -251,7 +188,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       throw A2uiValidationError(
         "Component id '$id' must be a valid UAX #31 identifier",
         path: '/id',
-        details: component,
       );
     }
     final Object? type = component['component'];
@@ -259,7 +195,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       throw A2uiValidationError(
         "Component '$id' does not name a component type.",
         path: '/component',
-        details: component,
       );
     }
     final Schema? schema = _resolvedComponentSchemas[type];
@@ -268,7 +203,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       throw A2uiValidationError(
         "Catalog '${catalog.id}' declares no component named '$type'.",
         path: '/component',
-        details: component,
       );
     }
 
@@ -292,7 +226,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       ).validateSync(target),
       "Component '$id' does not match the '$type' schema in catalog "
       "'${catalog.id}'",
-      component,
     );
 
     if (!_v1) return;
@@ -307,7 +240,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       _throwOnErrors(
         _resolvedEnvelopeSchemas[key]!.validateSync(value),
         "Component '$id' has an invalid '$key'",
-        component,
         path: '/$key',
       );
     }
@@ -321,7 +253,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
             "Component '$id' has a metadata extension key '$name' that is "
             'not a valid UAX #31 identifier',
             path: '/metadata/extensions/${_escape('$name')}',
-            details: component,
           );
         }
       }
@@ -357,7 +288,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       throw A2uiValidationError(
         "Catalog '${catalog.id}' declares no function named '$name'.",
         path: path,
-        details: args,
       );
     }
 
@@ -365,7 +295,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       schema.validateSync(args),
       "Call to '$name' does not match the argument schema in catalog "
       "'${catalog.id}'",
-      args,
       path: path,
     );
   }
@@ -384,7 +313,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     _throwOnErrors(
       schema.validateSync(theme),
       "Theme does not match the theme schema in catalog '${catalog.id}'",
-      theme,
     );
   }
 
@@ -495,8 +423,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// Pointer below [path].
   static void _throwOnErrors(
     List<ValidationError> errors,
-    String message,
-    Object? details, {
+    String message, {
     String path = '',
   }) {
     if (errors.isEmpty) return;
@@ -511,7 +438,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
             message: error.toErrorString(),
           ),
       ],
-      details: details,
     );
   }
 
@@ -627,7 +553,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         resolveSchemaRefs(
           schema,
           catalog.catalogSchema,
-          commonTypes: commonTypesSchema,
+          commonTypes: _commonTypesSchema,
           fallbackCommonTypes: _fallbackCommonTypes,
         ),
       );

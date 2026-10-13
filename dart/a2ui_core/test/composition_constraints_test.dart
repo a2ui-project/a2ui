@@ -325,7 +325,7 @@ void main() {
         ),
       );
       expect(
-        p.groupModel.getSurface('s1')?.componentsModel.get('root'),
+        p.model.getSurface('s1')?.componentsModel.get('root'),
         isNull,
       );
     });
@@ -378,7 +378,7 @@ void main() {
         ),
       );
       expect(
-        p.groupModel.getSurface('s1')?.componentsModel.get('v1'),
+        p.model.getSurface('s1')?.componentsModel.get('v1'),
         isNull,
       );
     });

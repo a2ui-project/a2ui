@@ -603,7 +603,7 @@ void main() {
         // about the validator and the resolver reading one reference map.
         validationConfig: ValidationConfig.strict,
       );
-      addTearDown(processor.groupModel.dispose);
+      addTearDown(processor.model.dispose);
       return processor;
     }
 
@@ -639,7 +639,7 @@ void main() {
       final MessageProcessor<ComponentApi> processor = processorFor(catalog);
       processor.processMessages(createAndUpdate(catalog.id, components));
       final resolver = NodeResolver<ComponentApi>(
-        processor.groupModel.getSurface('s')!,
+        processor.model.getSurface('s')!,
       );
       addTearDown(resolver.dispose);
       return resolver.rootNode.peek()!.props.peek();
@@ -818,11 +818,11 @@ void main() {
             ),
           );
           final SurfaceModel<ComponentApi> surface =
-              processor.groupModel.getSurface('s')!;
+              processor.model.getSurface('s')!;
           final resolver = NodeResolver<ComponentApi>(surface);
           addTearDown(() {
             resolver.dispose();
-            processor.groupModel.dispose();
+            processor.model.dispose();
           });
           void process(List<Map<String, Object?>> components) {
             processor.processMessages(
@@ -886,11 +886,11 @@ void main() {
         ),
       );
       final SurfaceModel<ComponentApi> surface =
-          processor.groupModel.getSurface('s')!;
+          processor.model.getSurface('s')!;
       final resolver = NodeResolver<ComponentApi>(surface);
       addTearDown(() {
         resolver.dispose();
-        processor.groupModel.dispose();
+        processor.model.dispose();
       });
       void process(List<Map<String, Object?>> components) {
         processor.processMessages(

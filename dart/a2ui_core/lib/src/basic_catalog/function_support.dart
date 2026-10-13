@@ -14,8 +14,6 @@
 
 /// Behaviour shared by the v0.9 and v1.0 basic catalog functions: value
 /// coercion, the validation rules, logic, `formatString` and `openUrl`.
-///
-/// Semantics follow the TypeScript engine (`basic_functions.ts`).
 library;
 
 import 'dart:async';
@@ -51,6 +49,7 @@ class BasicFunction extends FunctionImplementation {
     required super.argumentSchema,
     required super.returnType,
     required BasicFunctionBody body,
+    super.description,
     super.allowedCallers,
     super.requiresUserActivation,
   }) : _body = body;
@@ -264,7 +263,7 @@ Object? formatTemplate(Object? template, DataContext context) {
   final List<Object?> sources = [
     for (final Object? part in parts)
       if (part is Map)
-        context.resolveListenable(context.adaptExpressionPart(part))
+        context.resolveSignal(context.adaptExpressionPart(part))
       else
         part,
   ];

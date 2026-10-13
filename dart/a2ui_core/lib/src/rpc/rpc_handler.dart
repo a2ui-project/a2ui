@@ -433,7 +433,12 @@ class RpcHandler {
         (name, args, context) =>
             surface.resolveCatalog(null).invoke(name, args, context),
         '/',
-        protocolVersion: surface.protocolVersion,
+        protocolVersion: (surface.protocolVersion == null
+                ? null
+                : A2uiProtocolVersion.tryParseSemVer(
+                    surface.protocolVersion!,
+                  )) ??
+            A2uiProtocolVersion.v1_0,
         invokerForCatalog: (catalogId) =>
             surface.resolveCatalog(catalogId).invoke,
         isUserActivated: execution.isUserActivated,
@@ -444,7 +449,8 @@ class RpcHandler {
       DataModel(),
       catalog.invoke,
       '/',
-      protocolVersion: version,
+      protocolVersion: A2uiProtocolVersion.tryParseSemVer(version) ??
+          A2uiProtocolVersion.v1_0,
       invokerForCatalog: (catalogId) {
         if (catalogId == catalog.id) return catalog.invoke;
         throw A2uiCatalogResolutionError(

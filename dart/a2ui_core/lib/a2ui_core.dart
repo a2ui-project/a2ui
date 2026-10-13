@@ -30,7 +30,6 @@ export 'src/core/contexts.dart';
 // State management.
 export 'src/core/data_model.dart';
 export 'src/core/messages.dart';
-export 'src/core/minimal_catalog.dart';
 export 'src/core/renderer_capabilities.dart';
 export 'src/core/surface_group_model.dart';
 export 'src/core/surface_model.dart';

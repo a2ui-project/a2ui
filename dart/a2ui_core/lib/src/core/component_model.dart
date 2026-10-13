@@ -47,7 +47,7 @@ class ComponentModel {
   final _onUpdated = EventNotifier<ComponentModel>();
 
   /// Fires whenever the component's properties are updated.
-  EventListenable<ComponentModel> get onUpdated => _onUpdated;
+  EventSource<ComponentModel> get onUpdated => _onUpdated;
 
   ComponentModel(
     this.id,
@@ -115,11 +115,11 @@ class SurfaceComponentsModel {
   set refFields(Map<String, ComponentRefFields> value) => _refFields = value;
 
   /// Fires when a new component is added to the model.
-  EventListenable<ComponentModel> get onCreated => _onCreated;
+  EventSource<ComponentModel> get onCreated => _onCreated;
 
   /// Fires when a component is removed, providing the ID of the deleted
   /// component.
-  EventListenable<String> get onDeleted => _onDeleted;
+  EventSource<String> get onDeleted => _onDeleted;
 
   /// Retrieves a component by its ID.
   ComponentModel? get(String id) => _components[id];
@@ -189,7 +189,8 @@ class SurfaceComponentsModel {
   /// When [allowMissingRoot] is true every component is a starting point and
   /// every id is returned. [maxDepth] defaults to 50.
   ///
-  /// Throws [A2uiRecursionError] when a check fails.
+  /// Throws [A2uiIntegrityError] for a self-reference or a cycle, and
+  /// [A2uiRecursionError] for an over-deep chain.
   Set<String> detectCycles({
     String rootId = 'root',
     int? maxDepth,
@@ -208,9 +209,9 @@ class SurfaceComponentsModel {
   /// The root is [ValidationConfig.rootId], or `root` when that is null. An
   /// empty model passes.
   ///
-  /// Throws [A2uiIntegrityError] for a missing root, a dangling reference or
-  /// an unreachable component, and [A2uiRecursionError] for a
-  /// self-reference, a cycle or an over-deep chain.
+  /// Throws [A2uiIntegrityError] for a missing root, a dangling reference,
+  /// a self-reference, a cycle or an unreachable component, and
+  /// [A2uiRecursionError] for an over-deep chain.
   void validateTopology([ValidationConfig config = ValidationConfig.strict]) =>
       checkComponentGraph(_components.keys.toSet(), _referencesOf, config);
 
@@ -268,7 +269,6 @@ class SurfaceComponentsModel {
       if (id is! String) {
         throw A2uiValidationError(
           "Component missing an 'id'.",
-          details: component,
         );
       }
       final Object? type = component['component'];
@@ -280,7 +280,6 @@ class SurfaceComponentsModel {
       } else {
         throw A2uiValidationError(
           "Cannot create component $id without a 'component' type.",
-          details: component,
         );
       }
     }

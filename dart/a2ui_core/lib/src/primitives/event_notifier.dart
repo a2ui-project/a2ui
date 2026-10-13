@@ -16,22 +16,45 @@ import 'package:logging/logging.dart';
 
 final Logger _logger = Logger('a2ui.EventNotifier');
 
-abstract interface class EventListenable<T> {
-  /// Registers [listener] to be called whenever an event is emitted.
-  void addListener(void Function(T event) listener);
+/// A handle for cancelling an active subscription.
+abstract interface class Subscription {
+  /// Unregisters the listener. Calling [unsubscribe] more than once is a no-op.
+  void unsubscribe();
+}
 
-  /// Removes a previously registered [listener].
-  void removeListener(void Function(T event) listener);
+/// An interface for subscribing to events of type [T].
+abstract interface class EventSource<T> {
+  /// Subscribes [listener] to receive events emitted by this source.
+  ///
+  /// Returns a [Subscription] whose [Subscription.unsubscribe] method removes
+  /// [listener].
+  Subscription subscribe(void Function(T event) listener);
+}
+
+class _CallbackSubscription<T> implements Subscription {
+  final EventNotifier<T> _notifier;
+  void Function(T event)? _listener;
+
+  _CallbackSubscription(this._notifier, this._listener);
+
+  @override
+  void unsubscribe() {
+    final void Function(T event)? listener = _listener;
+    if (listener == null) return;
+    _listener = null;
+    _notifier._listeners.remove(listener);
+  }
 }
 
 /// A synchronous, typed event emitter for discrete events.
-class EventNotifier<T> implements EventListenable<T> {
+class EventNotifier<T> implements EventSource<T> {
   final List<void Function(T event)> _listeners = [];
+  bool _isDisposed = false;
 
-  /// Emits an event to all registered listeners.
+  /// Emits an event to all subscribed listeners.
   void emit(T event) {
     if (_listeners.isEmpty) return;
-    // Iterate over a copy to allow listeners to remove themselves.
+    // Iterate over a copy to allow listeners to unsubscribe themselves.
     for (final void Function(T event) listener in List.of(_listeners)) {
       try {
         listener(event);
@@ -42,17 +65,15 @@ class EventNotifier<T> implements EventListenable<T> {
   }
 
   @override
-  void addListener(void Function(T event) listener) {
+  Subscription subscribe(void Function(T event) listener) {
+    if (_isDisposed) return _CallbackSubscription<T>(this, null);
     _listeners.add(listener);
-  }
-
-  @override
-  void removeListener(void Function(T event) listener) {
-    _listeners.remove(listener);
+    return _CallbackSubscription<T>(this, listener);
   }
 
   /// Removes all listeners.
   void dispose() {
+    _isDisposed = true;
     _listeners.clear();
   }
 }
