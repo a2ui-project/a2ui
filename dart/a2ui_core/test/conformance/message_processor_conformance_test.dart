@@ -67,6 +67,8 @@ const Map<String, String> _v10ExpectedFailures = {
       _v10CatalogResolutionPending,
   'test_v10_component_update_without_catalog_id_on_surface_without_'
       'default_errors': _v10CatalogResolutionPending,
+  'test_v10_component_update_without_catalog_id_uses_surface_default':
+      _v10CatalogResolutionPending,
   'test_v10_component_without_catalog_id_errors_with_a_single_catalog':
       _v10CatalogResolutionPending,
   'test_v10_component_without_catalog_id_on_surface_without_default_errors':

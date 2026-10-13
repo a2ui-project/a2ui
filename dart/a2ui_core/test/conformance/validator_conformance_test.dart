@@ -32,15 +32,6 @@ const Map<String, String> _reservedKeysExpectedFailures = {
   'test_escaped_doubled_at_unescaping':
       "The case's `createSurface` names no `catalogId`, so from v1.0 the "
           'surface has no default catalog to resolve its items against.',
-  'test_reserved_at_call_index':
-      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
-          'surface has no default catalog to resolve its items against.',
-  'test_reserved_at_call_valid':
-      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
-          'surface has no default catalog to resolve its items against.',
-  'test_reserved_at_path_valid':
-      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
-          'surface has no default catalog to resolve its items against.',
 };
 
 /// Cases in `core/composition_constraints.yaml` expected to fail.
