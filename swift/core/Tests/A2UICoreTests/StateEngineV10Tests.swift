@@ -489,6 +489,7 @@ struct StateEngineV10Tests {
     let resolver = NodeResolver(
       surfaceID: "s1",
       catalogs: [catalog],
+      defaultCatalogID: catalog.id,
       componentsModel: componentsModel,
       dataModel: dataModel,
       protocolVersion: .v10

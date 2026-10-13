@@ -20,10 +20,32 @@ import OrderedCollections
 import OrderedJSON
 import Testing
 
+private final class ConformanceActionCaptureHandler: ActionHandling,
+  @unchecked Sendable
+{
+  var capturedErrors: [RendererError] = []
+
+  func handle(action: ResolvedAction, from surfaceID: String) {}
+
+  func handle(error: RendererError, from surfaceID: String) {
+    capturedErrors.append(error)
+  }
+}
+
 /// Runs the shared `conformance/core/message_processor_v0_9.yaml` and
 /// `conformance/core/message_processor_v1_0.yaml` suites.
 @MainActor
 struct MessageProcessorConformanceTests {
+  /// `process_messages` cases whose payload is accepted but reports an error when it renders.
+  ///
+  /// The processor accepts these payloads by design, and the error comes from evaluating them:
+  /// - `test_v10_call_to_undeclared_function_without_strict_mode_accepted` calls `notAFunction`,
+  ///   which the surface default catalog does not declare. Default processing accepts it so a
+  ///   renderer can forward it to the agent, so local evaluation reports a missing function.
+  private static let casesWithExpectedRuntimeErrors: Set<String> = [
+    "test_v10_call_to_undeclared_function_without_strict_mode_accepted"
+  ]
+
   @Test func messageProcessorV09Conformance() throws {
     try runMessageProcessorSuite(
       filename: "core/message_processor_v0_9.yaml",
@@ -99,8 +121,14 @@ struct MessageProcessorConformanceTests {
     }
     if !catalogPaths.isEmpty {
       catalogs = try catalogPaths.map { path in
+        let catalogSchema = try ConformanceTestHelper.loadRepositoryJSON(path: path)
+        // A published catalog states its protocol version; fall back to the path for any
+        // catalog that does not.
         let pathVersion: String?
-        if path.contains("v0_9_1") {
+        if let declaredVersion = catalogSchema["protocolVersion"]?.stringValue {
+          pathVersion =
+            A2UIProtocolVersion(lenientRawValue: declaredVersion)?.rawValue ?? declaredVersion
+        } else if path.contains("v0_9_1") {
           pathVersion = "v0.9.1"
         } else if path.contains("v0_9") {
           pathVersion = "v0.9"
@@ -112,7 +140,7 @@ struct MessageProcessorConformanceTests {
             forProtocolVersion: pathVersion ?? pVer
           )) ?? commonTypes
         return ConformanceTestHelper.buildCatalog(
-          catalogSchema: try ConformanceTestHelper.loadRepositoryJSON(path: path),
+          catalogSchema: catalogSchema,
           commonTypes: pathCommonTypes,
           protocolVersion: pathVersion
         )
@@ -292,16 +320,6 @@ struct MessageProcessorConformanceTests {
     return []
   }
 
-  private func decodeMessages(from rawMessages: [[String: Any]]) throws -> [AgentToRendererMessage]
-  {
-    let parser = MessageParser()
-    return try rawMessages.map { dict in
-      let jsonVal = ConformanceTestHelper.toJSONValue(dict)
-      let data = try JSONEncoder().encode(jsonVal)
-      return try parser.decode(jsonData: data)
-    }
-  }
-
   private func runProcessMessagesCase(
     _ testCase: [String: Any],
     name: String,
@@ -309,15 +327,13 @@ struct MessageProcessorConformanceTests {
   ) throws {
     let catalogs = try buildProcessorCatalogs(from: testCase, defaultVersion: defaultVersion)
     let strictMode = testCase["strictMode"] as? Bool ?? false
-    let version = testCase["protocolVersion"] as? String ?? defaultVersion
-    var config: ValidationConfig = strictMode ? .strict : .relaxed
-    if !strictMode && version == "v1.0" {
-      config.allowUnknownElements = true
-    }
+    let handler = ConformanceActionCaptureHandler()
     let processor = MessageProcessor(
       catalogs: catalogs,
-      validationConfig: config
+      actionHandler: handler,
+      validationConfig: strictMode ? .strict : .relaxed
     )
+    let expectsRuntimeErrors = Self.casesWithExpectedRuntimeErrors.contains(name)
 
     let steps: [[String: Any]]
     if let stepList = testCase["steps"] as? [[String: Any]] {
@@ -357,7 +373,19 @@ struct MessageProcessorConformanceTests {
       }
 
       let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
+      handler.capturedErrors.removeAll()
       try processor.processMessages(payload)
+      if expectsRuntimeErrors {
+        #expect(
+          !handler.capturedErrors.isEmpty,
+          "[\(name)] Expected a runtime error from rendering the accepted payload"
+        )
+      } else {
+        #expect(
+          handler.capturedErrors.isEmpty,
+          "[\(name)] Unexpected errors: \(handler.capturedErrors)"
+        )
+      }
 
       let expectedDict = (step["expect"] as? [String: Any]) ?? [:]
       let expectedSurfaces =
