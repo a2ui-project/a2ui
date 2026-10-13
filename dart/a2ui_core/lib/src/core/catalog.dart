@@ -1315,26 +1315,22 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                 },
               },
             });
-          } else if (ref.startsWith('#/') &&
-              _resolveJsonPointer(rootDoc, ref) is Map) {
-            if (visited.add(ref)) {
-              final target = _resolveJsonPointer(rootDoc, ref)! as Map;
-              if (target.keys.any((k) => k is! String)) {
-                throw A2uiCatalogError(
-                  'Target keys must be strings.',
+          } else if (ref.startsWith('#/')) {
+            final Object? target = _resolveJsonPointer(rootDoc, ref);
+            if (target is Map) {
+              if (visited.add(ref)) {
+                _collectComponentSubSchemas(
+                  target.cast<String, Object?>(),
+                  rootDoc,
+                  keyOrder ? inlineSubs : localRefSubs,
+                  visited,
+                  atLeastV1: atLeastV1,
+                  keyOrder: keyOrder,
+                  unmerged: unmerged,
                 );
               }
-              _collectComponentSubSchemas(
-                target is Map<String, Object?>
-                    ? target
-                    : target.cast<String, Object?>(),
-                rootDoc,
-                keyOrder ? inlineSubs : localRefSubs,
-                visited,
-                atLeastV1: atLeastV1,
-                keyOrder: keyOrder,
-                unmerged: unmerged,
-              );
+            } else {
+              unmerged?.add(subMap);
             }
           } else {
             // A reference this catalog cannot follow, such as one into the
