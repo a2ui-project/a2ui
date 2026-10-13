@@ -24,29 +24,25 @@ import {defineConfig} from 'vitest/config';
 const MCP_PROXY_URL = process.env['A2UI_MCP_URL'] ?? 'http://127.0.0.1:8787';
 
 /**
- * Source alias for `@a2ui/catalog-mcp`.
+ * Monorepo builds of the `@a2ui/*` packages this sample imports.
  *
- * TODO(https://github.com/a2ui-project/a2ui/issues/1698): Replace this alias
- * with a standard package dependency once `@a2ui/catalog-mcp` is published to npm.
+ * TODO(https://github.com/a2ui-project/a2ui/issues/1698): drop these aliases
+ * and declare `@a2ui/catalog-mcp` as a normal dependency once it is published
+ * to npm. `samples/community/` is a self-contained Yarn root that consumes the
+ * published `@a2ui/*` packages rather than the monorepo workspace, so it
+ * cannot reference the catalog as `workspace:*`. Until the package ships, it
+ * resolves to the monorepo `dist/` (built by `yarn workspace @a2ui/catalog-mcp
+ * run build` at the repository root), and so do `@a2ui/lit` and
+ * `@a2ui/web_core`, which the catalog imports from there, so the bundle holds
+ * one copy of `@a2ui/web_core`.
  */
-const a2uiMcpCatalogEntry = fileURLToPath(
-  new URL('../../../../../typescript/catalogs/mcp/src/index.ts', import.meta.url),
-);
-
-/**
- * Resolves dependencies imported by `@a2ui/catalog-mcp` against this sample's
- * `node_modules` so Vite bundles a single shared copy of each package.
- */
-const a2uiMcpCatalogDependencies = [
-  '@a2ui/web_core/v0_9',
-  '@modelcontextprotocol/sdk/client/index.js',
-  '@modelcontextprotocol/sdk/types.js',
-  'jmespath',
-  're2js',
-  'zod',
-].map(specifier => ({
+const monorepoAliases = Object.entries({
+  '@a2ui/catalog-mcp': 'typescript/catalogs/mcp/dist/index.js',
+  '@a2ui/lit/v0_9': 'renderers/lit/dist/src/v0_9/index.js',
+  '@a2ui/web_core/v0_9': 'typescript/web_core/dist/src/v0_9/index.js',
+}).map(([specifier, path]) => ({
   find: exactly(specifier),
-  replacement: fileURLToPath(import.meta.resolve(specifier)),
+  replacement: fileURLToPath(new URL(`../../../../../${path}`, import.meta.url)),
 }));
 
 /** Creates an exact-match regular expression for a module specifier so subpath imports are not affected. */
@@ -56,11 +52,8 @@ function exactly(specifier: string): RegExp {
 
 export default defineConfig({
   resolve: {
-    dedupe: ['lit'],
-    alias: [
-      {find: exactly('@a2ui/catalog-mcp'), replacement: a2uiMcpCatalogEntry},
-      ...a2uiMcpCatalogDependencies,
-    ],
+    dedupe: ['lit', '@lit/context', '@lit-labs/signals'],
+    alias: monorepoAliases,
   },
   build: {
     target: 'esnext',
@@ -69,7 +62,7 @@ export default defineConfig({
     port: 5174,
     strictPort: true,
     proxy: {'/mcp': {target: MCP_PROXY_URL, changeOrigin: false}},
-    fs: {allow: [fileURLToPath(new URL('..', import.meta.url))]},
+    fs: {allow: [fileURLToPath(new URL('../../../../..', import.meta.url))]},
   },
   test: {
     environment: 'jsdom',

@@ -14,7 +14,10 @@
 
 # CI for the unmaintained samples under samples/community. The folder is
 # self-contained: its samples depend on the published @a2ui/* (npm) and
-# a2ui-agent-sdk (PyPI) packages rather than on the monorepo workspace.
+# a2ui-agent-sdk (PyPI) packages rather than on the monorepo workspace. The
+# one exception is @a2ui/catalog-mcp, which is not published yet: the MCP
+# samples alias it, with the @a2ui/lit and @a2ui/web_core builds it depends
+# on, to the monorepo dist/ directories built below.
 
 name: Community Code CI
 
@@ -23,10 +26,16 @@ on:
     branches: [main]
     paths:
       - "samples/community/**"
+      - "typescript/catalogs/**"
+      - "typescript/web_core/**"
+      - "renderers/lit/**"
       - ".github/workflows/community_code.yml"
   pull_request:
     paths:
       - "samples/community/**"
+      - "typescript/catalogs/**"
+      - "typescript/web_core/**"
+      - "renderers/lit/**"
       - ".github/workflows/community_code.yml"
 
 concurrency:
@@ -54,7 +63,17 @@ jobs:
         with:
           node-version: "22"
           cache: "yarn"
-          cache-dependency-path: samples/community/yarn.lock
+          cache-dependency-path: |
+            yarn.lock
+            samples/community/yarn.lock
+      - name: Build @a2ui/catalog-mcp and @a2ui/lit from the monorepo workspace
+        # TODO(https://github.com/a2ui-project/a2ui/issues/1698): remove once
+        # @a2ui/catalog-mcp is published and the MCP samples install it from npm.
+        working-directory: .
+        run: |
+          yarn install --immutable
+          yarn workspace @a2ui/catalog-mcp run build
+          yarn workspace @a2ui/lit run build
       - name: Install dependencies
         run: yarn install --immutable
       - name: Build web samples (Angular a2a-chat-canvas + orchestrator, Lit mcp-apps + personalized_learning)
