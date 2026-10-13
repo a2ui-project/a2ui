@@ -335,7 +335,7 @@ export class ExpressCompiler {
     name: string,
     explicitCatalogId: unknown,
     targetMajorMinor: [number, number],
-  ): [CatalogSchemaHelper, string | undefined] {
+  ): {helper: CatalogSchemaHelper; catalogId?: string} {
     const label = kind === 'component' ? 'Component' : 'Function';
     if (explicitCatalogId !== undefined) {
       if (targetMajorMinor[0] < 1) {
@@ -366,7 +366,7 @@ export class ExpressCompiler {
           `${label} '${name}' is not in catalog '${explicitCatalogId}'.${hint}`,
         );
       }
-      return [helper, explicitCatalogId];
+      return {helper, catalogId: explicitCatalogId};
     }
 
     const matches = catalogsDefining(this.helpers, kind, name);
@@ -383,7 +383,10 @@ export class ExpressCompiler {
       throw new ExpressUnknownFunctionError(name);
     }
     const cid = matches[0];
-    return [this.helpers.get(cid)!, this.catalogs.length > 1 ? cid : undefined];
+    return {
+      helper: this.helpers.get(cid)!,
+      catalogId: this.catalogs.length > 1 ? cid : undefined,
+    };
   }
 
   /**
@@ -889,7 +892,7 @@ export class ExpressCompiler {
       }
     }
 
-    const [compHelper, resolvedCatalogId] = this.resolveSymbol(
+    const {helper: compHelper, catalogId: resolvedCatalogId} = this.resolveSymbol(
       'component',
       compName,
       explicitCatalogId,
@@ -1117,7 +1120,7 @@ export class ExpressCompiler {
       checkCatalogId = rcKwargs.catalogId;
     }
 
-    const [checkHelper] = this.resolveSymbol(
+    const {helper: checkHelper} = this.resolveSymbol(
       'function',
       checkName,
       checkCatalogId,
@@ -1236,7 +1239,7 @@ export class ExpressCompiler {
       explicitCallId = rawCallId;
     }
 
-    const [fnHelper, resolvedCatalogId] = this.resolveSymbol(
+    const {helper: fnHelper, catalogId: resolvedCatalogId} = this.resolveSymbol(
       'function',
       fnName,
       explicitCatalogId,
