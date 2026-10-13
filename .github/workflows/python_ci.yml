@@ -171,7 +171,7 @@ jobs:
 
   # Default python-ci stays on a2a-sdk 0.3: workspace members (samples) still
   # pin <0.4, so `uv sync --all-packages` cannot resolve 1.x. This sibling job
-  # installs a2ui-a2a with a2a-sdk 1.x in an isolated venv.
+  # installs a2ui-a2a and a2ui-adk with a2a-sdk 1.x in an isolated venv.
   python-ci-a2a-sdk-1x:
     name: Python CI (a2a-sdk 1.x)
     runs-on: ubuntu-latest
@@ -180,25 +180,35 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-python
-      - name: Install a2ui-a2a with a2a-sdk 1.x
+      - name: Install a2ui-a2a and a2ui-adk with a2a-sdk 1.x
         run: |
           uv venv .venv-a2a-sdk-1x
           venv="$PWD/.venv-a2a-sdk-1x"
           core="$PWD/python/a2ui_core"
           agent="$PWD/python/a2ui_agent"
           a2a_ext="$PWD/python/a2ui_a2a"
+          adk="$PWD/python/a2ui_adk"
           # uv pip install from the workspace root applies constraint-dependencies
           # (a2a-sdk<0.4). Run from /tmp so only a2ui-a2a's pin (<2) applies.
+          # google-adk 2.3's a2a extra cannot resolve a2a-sdk 1.x. 2.14.0 is the
+          # release whose A2A executor speaks 1.x task states.
           cd /tmp
           uv pip install --python "$venv" \
             -e "$core" \
             -e "$agent" \
             -e "$a2a_ext" \
+            -e "$adk[a2a]" \
             "a2a-sdk>=1.0.0,<2" \
-            pytest
+            "google-adk[a2a]==2.14.0" \
+            pytest \
+            pytest-asyncio
       - name: Show a2a-sdk version
         run: |
-          .venv-a2a-sdk-1x/bin/python -c "import importlib.metadata as m; print('a2a-sdk', m.version('a2a-sdk'))"
-      - name: Run a2ui-a2a tests on a2a-sdk 1.x
+          .venv-a2a-sdk-1x/bin/python -c "import importlib.metadata as m; print('a2a-sdk', m.version('a2a-sdk')); print('google-adk', m.version('google-adk'))"
+      - name: Run a2ui tests on a2a-sdk 1.x
         run: |
-          .venv-a2a-sdk-1x/bin/pytest python/a2ui_a2a/tests -q
+          .venv-a2a-sdk-1x/bin/pytest \
+            python/a2ui_a2a/tests \
+            python/a2ui_adk/tests \
+            python/a2ui_agent/tests \
+            -q

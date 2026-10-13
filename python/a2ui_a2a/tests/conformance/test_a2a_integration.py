@@ -21,7 +21,6 @@ from typing import Any
 from unittest.mock import MagicMock
 
 from a2a.server.agent_execution import RequestContext
-from a2a.types import DataPart, Part
 import pytest
 
 from a2ui.a2a import (
@@ -32,6 +31,22 @@ from a2ui.a2a import (
     is_a2ui_part,
     try_activate_a2ui_extension,
 )
+from a2ui.a2a._compat import make_data_part
+
+
+def _params_dict(params: object) -> dict:
+    """Reads AgentExtension params as a plain dict on 0.3 and 1.x."""
+    if not params:
+        return {}
+    from google.protobuf.message import Message
+
+    if isinstance(params, Message):
+        from google.protobuf.json_format import MessageToDict
+
+        return MessageToDict(params)
+    return dict(params)
+
+
 from a2ui.a2a.extension import _select_newest_a2ui_extension
 from a2ui.core.common import to_protocol_version
 from .conformance_helpers import load_conformance_yaml
@@ -141,7 +156,7 @@ def _run_is_a2ui_part(test_case: dict[str, Any]) -> None:
     expect = test_case["expect"]
     assert isinstance(expect, bool)
 
-    part = Part(root=DataPart(data={}, metadata={"mimeType": args["mimeType"]}))
+    part = make_data_part({}, metadata={"mimeType": args["mimeType"]})
     assert is_a2ui_part(part) == expect
 
 
@@ -188,9 +203,10 @@ def _run_get_extension(test_case: dict[str, Any]) -> None:
     ext = get_a2ui_agent_extension(args["version"], **kwargs)
     assert ext.uri == expect["uri"]
     if expect["params"] is None:
-        assert ext.params is None
+        # a2a-sdk 0.3 leaves params as None; on 1.x it is an empty Struct.
+        assert not ext.params
     else:
-        assert ext.params == expect["params"]
+        assert _params_dict(ext.params) == expect["params"]
 
 
 def _run_try_activate(test_case: dict[str, Any]) -> None:

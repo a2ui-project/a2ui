@@ -31,7 +31,22 @@ from a2ui.a2a import (
     get_a2ui_extension_uri,
     try_activate_a2ui_extension,
 )
+from a2ui.a2a._compat import part_metadata
 from a2ui.core.schema import ProtocolVersion
+
+
+def _params_dict(params: object) -> dict:
+    """Reads AgentExtension params as a plain dict on 0.3 and 1.x."""
+    if not params:
+        return {}
+    from google.protobuf.message import Message
+
+    if isinstance(params, Message):
+        from google.protobuf.json_format import MessageToDict
+
+        return MessageToDict(params)
+    return dict(params)
+
 
 # Each protocol version, and the version its extension URI ends in.
 VERSIONS = [
@@ -70,11 +85,14 @@ def test_extension_uri_keeps_versions_this_sdk_does_not_define():
 def test_part_mime_type_is_the_same_for_every_form(member, bare, mime_type):
     for version in _forms(member, bare):
         part = create_a2ui_part({}, version=version)
-        assert part.root.metadata == {"mimeType": mime_type}
+        assert part_metadata(part) == {"mimeType": mime_type}
 
 
 def _activate(requested: list[str], advertised: list[str]):
     context = MagicMock(spec=RequestContext)
+    # 1.x RequestContext has no add_activated_extension. Attach one so both
+    # generations record activation through the 0.3 method.
+    context.add_activated_extension = MagicMock()
     context.requested_extensions = requested
     context.message = None
     card = MagicMock()
@@ -137,7 +155,7 @@ def test_v1_0_params_match_agent_capabilities_schema(
         accepts_inline_catalogs=accepts_inline_catalogs,
         supported_catalog_ids=supported_catalog_ids,
     )
-    jsonschema.Draft202012Validator(v1_0_schema).validate(ext.params or {})
+    jsonschema.Draft202012Validator(v1_0_schema).validate(_params_dict(ext.params))
 
 
 @pytest.mark.parametrize(
@@ -158,4 +176,4 @@ def test_v1_0_params_are_not_version_keyed(
         accepts_inline_catalogs=accepts_inline_catalogs,
         supported_catalog_ids=supported_catalog_ids,
     )
-    assert "1.0" not in (ext.params or {})
+    assert "1.0" not in _params_dict(ext.params)

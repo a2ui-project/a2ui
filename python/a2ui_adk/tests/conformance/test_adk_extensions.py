@@ -29,6 +29,7 @@ from google.genai import types as genai_types
 import pytest
 
 from a2ui.a2a import create_a2ui_part
+from a2ui.a2a._compat import part_text
 from a2ui.adk import (
     A2uiEventConverter,
     A2uiSubagentMap,
@@ -280,6 +281,8 @@ def _run_converter_event(test_case: dict[str, Any]) -> None:
 
     invocation_context = MagicMock()
     invocation_context.invocation_id = "inv-1"
+    invocation_context.app_name = "app"
+    invocation_context.user_id = "user"
     invocation_context.session.id = "session-1"
     invocation_context.session.state = {}
 
@@ -298,9 +301,18 @@ def _run_converter_event(test_case: dict[str, Any]) -> None:
     assert len(events) == 1
     actual: Any = events[0]
     assert type(actual).__name__ == expect["type"]
-    assert actual.status.state.value.upper() == expect["state"]
+    state = actual.status.state
+    if hasattr(state, "value") and isinstance(state.value, str):
+        actual_state = state.value.upper()
+    elif isinstance(getattr(state, "name", None), str):
+        actual_state = state.name.removeprefix("TASK_STATE_")
+    else:
+        from a2a.types import TaskState
+
+        actual_state = TaskState.Name(int(state)).removeprefix("TASK_STATE_")
+    assert actual_state == expect["state"]
     assert actual.status.message is not None
-    assert actual.status.message.parts[0].root.text == expect["message"]
+    assert part_text(actual.status.message.parts[0]) == expect["message"]
 
 
 def _run_convert_event(test_case: dict[str, Any]) -> None:
