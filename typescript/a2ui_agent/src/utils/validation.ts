@@ -56,6 +56,13 @@ export function checkParserCatalogs(catalogs: CatalogApi[]): string {
     );
   }
 
+  const [releaseLine] = releaseLines;
+  if (catalogs.length > 1 && releaseLine !== 'v1.0') {
+    throw new A2uiCatalogError(
+      `Several catalogs need A2UI v1.0 or later, where components and function calls carry their own catalogId, but got '${releaseLine}'.`,
+    );
+  }
+
   return toWireProtocolVersion(catalogs[0].protocolVersion || 'v1.0');
 }
 

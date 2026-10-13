@@ -109,6 +109,7 @@ describe('DirectJsonParser', () => {
   describe('validation', () => {
     it('throws A2uiCatalogError on empty catalog list', () => {
       expect(() => new DirectJsonParser([])).toThrow(A2uiCatalogError);
+      expect(() => new DirectJsonFormatFactory().createFormat([])).toThrow(A2uiCatalogError);
     });
 
     it('throws A2uiCatalogError on duplicate catalogs', () => {
@@ -124,6 +125,16 @@ describe('DirectJsonParser', () => {
       expect(() => new DirectJsonParser([basicCatalogV10, loadBasicCatalog('v0.9')])).toThrow(
         A2uiCatalogError,
       );
+    });
+
+    it('throws A2uiCatalogError on multiple v0.9 catalogs', () => {
+      const customCatalogV09 = new Catalog('https://a2ui.org/catalogs/custom_v09', 'v0.9', [], []);
+      expect(() => new DirectJsonParser([loadBasicCatalog('v0.9'), customCatalogV09])).toThrow(
+        A2uiCatalogError,
+      );
+      expect(() =>
+        new DirectJsonFormatFactory().createFormat([loadBasicCatalog('v0.9'), customCatalogV09]),
+      ).toThrow(A2uiCatalogError);
     });
 
     it('throws A2uiValidationError on missing version', () => {
