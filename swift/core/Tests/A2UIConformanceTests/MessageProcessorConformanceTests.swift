@@ -321,11 +321,16 @@ struct MessageProcessorConformanceTests {
   ) throws {
     let catalogs = try buildProcessorCatalogs(from: testCase, defaultVersion: defaultVersion)
     let strictMode = testCase["strictMode"] as? Bool ?? false
+    let version = testCase["protocolVersion"] as? String ?? defaultVersion
+    var config: ValidationConfig = strictMode ? .strict : .relaxed
+    if !strictMode && version == "v1.0" {
+      config.allowUnknownElements = true
+    }
     let handler = ConformanceActionCaptureHandler()
     let processor = MessageProcessor(
       catalogs: catalogs,
       actionHandler: handler,
-      validationConfig: strictMode ? .strict : .relaxed
+      validationConfig: config
     )
 
     let steps: [[String: Any]]

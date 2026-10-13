@@ -178,14 +178,13 @@ public final class PayloadValidator: Sendable {
       )
     }
 
-    let schemaJSON = componentAPI.schema.jsonValue
-    let envelopeKeys: [String] =
-      enforceIdentifiers
-      ? ["id", "component", "catalogId", "metadata"]
-      : ["id", "component"]
     var schemaTargetDict = component
-    for key in envelopeKeys where !schemaHasProperty(key, in: schemaJSON) {
-      schemaTargetDict.removeValue(forKey: key)
+    if enforceIdentifiers {
+      let schemaJSON = componentAPI.schema.jsonValue
+      for key in ["id", "component", "catalogId", "metadata"]
+      where !schemaHasProperty(key, in: schemaJSON) {
+        schemaTargetDict.removeValue(forKey: key)
+      }
     }
 
     let instance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: schemaTargetDict))
@@ -602,6 +601,9 @@ public final class PayloadValidator: Sendable {
 
   private func schemaHasProperty(_ key: String, in schemaJSON: JSONValue) -> Bool {
     if schemaJSON["properties"]?.objectValue?[key] != nil {
+      return true
+    }
+    if let ref = schemaJSON["$ref"]?.stringValue, ref.hasSuffix("/ComponentCommon") {
       return true
     }
     for combiner in ["allOf", "anyOf", "oneOf"] {
