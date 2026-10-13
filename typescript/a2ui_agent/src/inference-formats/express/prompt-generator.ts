@@ -21,11 +21,12 @@
  * signatures and instruction blocks.
  */
 
-import {PromptGenerator} from '../../prompt/generator.js';
 import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
+import {PromptGenerator} from '../../prompt/generator.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
-import {CatalogSchemaHelper, commonDefName} from './schema-helper.js';
+import {buildSchemaHelpers, catalogsDefining, resolveExpressVersion} from './catalogs.js';
 import {ExpressDecompiler, RawNumber} from './decompiler.js';
+import {CatalogSchemaHelper, commonDefName} from './schema-helper.js';
 
 export const EXPRESS_RULES = `# A2UI Express DSL Output Contract
 
@@ -134,9 +135,12 @@ function getSchemaEnum(propSchema: unknown): string[] | undefined {
 }
 
 export class ExpressPromptGenerator extends PromptGenerator {
-  private readonly examples?: Record<string, AgentToRendererMessage[] | string>;
-  private readonly helpers = new Map<string, CatalogSchemaHelper>();
-  private readonly decompilers = new Map<string, ExpressDecompiler>();
+  private readonly examples?: Record<
+    string,
+    AgentToRendererMessage[] | AgentToRendererMessage[][] | string
+  >;
+  private readonly version: string;
+  private readonly helpers: Map<string, CatalogSchemaHelper>;
 
   /**
    * @param catalogs Active catalogs to render instructions for.
@@ -144,14 +148,18 @@ export class ExpressPromptGenerator extends PromptGenerator {
    * @param allowedMessages Optional allowlist of message names (`createSurface`,
    *     `updateComponents`, `updateDataModel`, `deleteSurface`). The base rules drop the
    *     instructions for messages outside it.
+   * @param version Optional wire protocol version override.
    */
   constructor(
     catalogs: CatalogApi[],
-    examples?: Record<string, AgentToRendererMessage[] | string>,
+    examples?: Record<string, AgentToRendererMessage[] | AgentToRendererMessage[][] | string>,
     private readonly allowedMessages?: readonly string[],
+    version?: string,
   ) {
     super(catalogs);
+    this.version = resolveExpressVersion(this.catalogs, version);
     this.examples = examples;
+    this.helpers = buildSchemaHelpers(this.catalogs, this.version);
   }
 
   private getHelper(catalog: CatalogApi): CatalogSchemaHelper {
@@ -164,14 +172,67 @@ export class ExpressPromptGenerator extends PromptGenerator {
     return helper;
   }
 
-  private getDecompiler(catalog: CatalogApi): ExpressDecompiler {
-    let decompiler = this.decompilers.get(catalog.id);
-    if (!decompiler) {
-      const version = toWireProtocolVersion(catalog.protocolVersion);
-      decompiler = new ExpressDecompiler([catalog], version);
-      this.decompilers.set(catalog.id, decompiler);
+  private multiCatalogRules(): string {
+    const catalogList = this.catalogs.map(c => `- \`${c.id}\``).join('\n');
+    const sharedLines: string[] = [];
+
+    const activeHelpers = new Map<string, CatalogSchemaHelper>();
+    for (const c of this.catalogs) {
+      const h = this.helpers.get(c.id);
+      if (h) {
+        activeHelpers.set(c.id, h);
+      }
     }
-    return decompiler;
+
+    const seenComponents = new Set<string>();
+    for (const helper of activeHelpers.values()) {
+      for (const name of helper.components.keys()) {
+        if (seenComponents.has(name)) continue;
+        seenComponents.add(name);
+        const defining = catalogsDefining(activeHelpers, 'component', name);
+        if (defining.length > 1) {
+          const ids = defining.map(c => `\`${c}\``).join(', ');
+          sharedLines.push(`- Component \`${name}\`: ${ids}`);
+        }
+      }
+    }
+
+    const seenFunctions = new Set<string>();
+    for (const helper of activeHelpers.values()) {
+      for (const name of helper.functions.keys()) {
+        if (seenFunctions.has(name)) continue;
+        seenFunctions.add(name);
+        const defining = catalogsDefining(activeHelpers, 'function', name);
+        if (defining.length > 1) {
+          const ids = defining.map(c => `\`${c}\``).join(', ');
+          sharedLines.push(`- Function \`${name}\`: ${ids}`);
+        }
+      }
+    }
+
+    const lines = [
+      '',
+      '## Multiple Catalogs',
+      '',
+      'Active catalogs for this request:',
+      catalogList,
+      '',
+      '16. **No Catalog on `surface`**: Write `surface("surface_id")` with no catalog argument. Components from any active catalog may be used in the same surface.',
+      '17. **Catalog Resolution**: A component or function whose name is in only one active catalog needs no `catalogId`. When a name is in more than one active catalog, pass `catalogId="<catalog_id>"` on the component or function call (or `{catalogId: "<catalog_id>"}` on a `?check(...)` call) to choose one.',
+    ];
+    if (sharedLines.length > 0) {
+      lines.push(
+        '',
+        'Names defined in more than one active catalog (`catalogId` required):',
+        ...sharedLines,
+      );
+    } else {
+      lines.push(
+        '',
+        'No component or function names are shared across the active catalogs; omit `catalogId` on every call.',
+      );
+    }
+    return lines.join('\n');
   }
 
   /**
@@ -183,44 +244,49 @@ export class ExpressPromptGenerator extends PromptGenerator {
    */
   generateBaseRules(): string {
     const allowedMessages = this.allowedMessages;
-    if (!allowedMessages) {
-      return EXPRESS_RULES;
-    }
-
     let rules = EXPRESS_RULES;
+    let wantsComponentsOrData = true;
 
-    // Filter rule 12 if deleteSurface is disallowed
-    if (!allowedMessages.includes('deleteSurface')) {
-      rules = rules.replace(
-        /\n\n12\. To delete a user interface surface, output the standalone `deleteSurface\(surfaceId\)` command \(no variable assignment\):\n {4}deleteSurface\("dashboard-surface-1"\)/,
-        '',
-      );
-    }
-
-    // Filter rule 10 if updateDataModel is disallowed
-    if (!allowedMessages.includes('updateDataModel')) {
-      rules = rules.replace(
-        /\n\n10\. Data model population: Assign a value directly to an absolute data path \(e\.g\. \$\/path\/to\/key = "value"\) to populate or initialize values inside the shared dataModel\. The value can be a primitive, array, or map\./,
-        '',
-      );
-    }
-
-    // Rule 15 teaches `surface(...)`, which component and data statements both need to
-    // target a surface. Its `root = ...` line applies only to components, and the rule
-    // goes when neither kind of statement is allowed.
-    const writesComponents =
-      allowedMessages.includes('createSurface') || allowedMessages.includes('updateComponents');
-    if (!writesComponents) {
-      rules = rules.replace(/\n {4}root = ComponentA\(\.\.\.\)$/, '');
-      if (!allowedMessages.includes('updateDataModel')) {
+    if (allowedMessages) {
+      // Filter rule 12 if deleteSurface is disallowed
+      if (!allowedMessages.includes('deleteSurface')) {
         rules = rules.replace(
-          /\n\n15\. Surface targeting: Output `surface\(surfaceId\)` to specify or target a user interface surface:\n {4}surface\("dashboard-surface-1"\)$/,
+          /\n\n12\. To delete a user interface surface, output the standalone `deleteSurface\(surfaceId\)` command \(no variable assignment\):\n {4}deleteSurface\("dashboard-surface-1"\)/,
           '',
         );
       }
+
+      // Filter rule 10 if updateDataModel is disallowed
+      if (!allowedMessages.includes('updateDataModel')) {
+        rules = rules.replace(
+          /\n\n10\. Data model population: Assign a value directly to an absolute data path \(e\.g\. \$\/path\/to\/key = "value"\) to populate or initialize values inside the shared dataModel\. The value can be a primitive, array, or map\./,
+          '',
+        );
+      }
+
+      // Rule 15 teaches `surface(...)`, which component and data statements both need to
+      // target a surface. Its `root = ...` line applies only to components, and the rule
+      // goes when neither kind of statement is allowed.
+      const writesComponents =
+        allowedMessages.includes('createSurface') || allowedMessages.includes('updateComponents');
+      const writesData = allowedMessages.includes('updateDataModel');
+      wantsComponentsOrData = writesComponents || writesData;
+      if (!writesComponents) {
+        rules = rules.replace(/\n {4}root = ComponentA\(\.\.\.\)$/, '');
+        if (!writesData) {
+          rules = rules.replace(
+            /\n\n15\. Surface targeting: Output `surface\(surfaceId\)` to specify or target a user interface surface:\n {4}surface\("dashboard-surface-1"\)$/,
+            '',
+          );
+        }
+      }
     }
 
-    return rules;
+    const lines = [rules];
+    if (this.catalogs.length > 1 && wantsComponentsOrData) {
+      lines.push(this.multiCatalogRules());
+    }
+    return lines.join('\n');
   }
 
   protected renderCatalogInstructions(catalog: CatalogApi): string {
@@ -234,7 +300,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
     if (catalogInstructions) {
       const pattern = /```json\s*\n([\s\S]*?)\n```/g;
       catalogInstructions = catalogInstructions.replace(pattern, (match, jsonContent) =>
-        this.replaceJsonBlockInInstructions(match, jsonContent, catalog),
+        this.replaceJsonBlockInInstructions(match, jsonContent),
       );
     }
 
@@ -259,11 +325,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
     );
   }
 
-  private replaceJsonBlockInInstructions(
-    match: string,
-    jsonContent: string,
-    catalog: CatalogApi,
-  ): string {
+  private replaceJsonBlockInInstructions(match: string, jsonContent: string): string {
     try {
       // Python's json.loads keeps `1500.00` as the float 1500.0, which the decompiler
       // writes as `1500.0`. JS numbers lose that distinction, so integral values written
@@ -296,7 +358,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
         return match;
       }
 
-      const fullDsl = this.decompileMessages(messages as AgentToRendererMessage[], catalog);
+      const fullDsl = this.decompileMessages(messages as AgentToRendererMessage[]);
       return `\`\`\`\n${fullDsl}\n\`\`\``;
     } catch {
       // Mirrors prompt_generator.py:446 (except Exception:)
@@ -472,14 +534,14 @@ export class ExpressPromptGenerator extends PromptGenerator {
     return signatures.join('\n');
   }
 
-  transformExamples(rawExamplesMarkdown: string, catalog: CatalogApi): string {
+  transformExamples(rawExamplesMarkdown: string, _catalog?: CatalogApi): string {
     const pattern = /```json\s*\n([\s\S]*?)\n```/g;
     return rawExamplesMarkdown.replace(pattern, (match, jsonContent) =>
-      this.replaceJsonBlock(match, jsonContent, catalog),
+      this.replaceJsonBlock(match, jsonContent),
     );
   }
 
-  private replaceJsonBlock(match: string, jsonContent: string, catalog: CatalogApi): string {
+  private replaceJsonBlock(match: string, jsonContent: string): string {
     try {
       const parsed = JSON.parse(jsonContent.trim());
       const messages: unknown[] = Array.isArray(parsed)
@@ -494,7 +556,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
         return match;
       }
 
-      return this.decompileMessages(messages as AgentToRendererMessage[], catalog);
+      return this.decompileMessages(messages as AgentToRendererMessage[]);
     } catch {
       // Mirrors prompt_generator.py:477 (except Exception:)
       return match;
@@ -510,10 +572,9 @@ export class ExpressPromptGenerator extends PromptGenerator {
    * `surface(...)` scope per message, which fails to compile.
    *
    * @param messages The messages of one example.
-   * @param catalog The catalog the example belongs to.
    */
-  private decompileMessages(messages: AgentToRendererMessage[], catalog: CatalogApi): string {
-    const decompiler = this.getDecompiler(catalog);
+  private decompileMessages(messages: AgentToRendererMessage[]): string {
+    const decompiler = new ExpressDecompiler(this.catalogs, this.version);
     return decompiler.wrapDecompiledBlocks([decompiler.decompile(messages)]);
   }
 
@@ -522,11 +583,26 @@ export class ExpressPromptGenerator extends PromptGenerator {
       return '';
     }
 
-    const ex = this.examples[catalog.id];
-    if (typeof ex === 'string') {
-      return this.transformExamples(ex, catalog);
+    const exampleMessages = this.examples[catalog.id];
+    if (typeof exampleMessages === 'string') {
+      return this.transformExamples(exampleMessages, catalog);
     }
 
-    return this.decompileMessages(ex, catalog);
+    if (Array.isArray(exampleMessages) && exampleMessages.length > 0) {
+      if (Array.isArray(exampleMessages[0])) {
+        const decompiler = new ExpressDecompiler(this.catalogs, this.version);
+        const blocks: string[] = [];
+        for (const turn of exampleMessages as AgentToRendererMessage[][]) {
+          const dsl = decompiler.decompile(turn);
+          if (dsl) {
+            blocks.push(decompiler.wrapDecompiledBlocks([dsl]));
+          }
+        }
+        return blocks.join('\n\n');
+      }
+      return this.decompileMessages(exampleMessages as AgentToRendererMessage[]);
+    }
+
+    return '';
   }
 }

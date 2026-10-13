@@ -432,11 +432,105 @@ describe('ExpressPromptGenerator', () => {
   });
 
   it('prompt lists both catalogs', () => {
-    const c1 = basicCatalogV10;
-    const c2 = basicCatalogV09;
+    const c1 = loadConformanceCatalog('simplified_catalog_v1_0.json');
+    const c2 = loadConformanceCatalog('custom_catalog_v1_0.json');
     const generator = new ExpressPromptGenerator([c1, c2]);
     const instructions = generator.generateCatalogInstructions();
     expect(instructions).toContain(`# Catalog: ${c1.id}`);
     expect(instructions).toContain(`# Catalog: ${c2.id}`);
+  });
+
+  describe('4. Multi-catalog validation, rules, and examples', () => {
+    it('rejects duplicate catalog IDs with A2uiCatalogError', () => {
+      const c1 = loadConformanceCatalog('simplified_catalog_v1_0.json');
+      expect(() => new ExpressPromptGenerator([c1, c1])).toThrow(A2uiCatalogError);
+    });
+
+    it('rejects multiple v0.9 catalogs with A2uiCatalogError', () => {
+      const schema1 = JSON.parse(
+        fs.readFileSync(
+          path.join(__dirname, '../../../../../../specification/v0_9/catalogs/basic/catalog.json'),
+          'utf8',
+        ),
+      );
+      const schema2 = {...schema1, catalogId: 'custom/v09-second'};
+      const c1 = catalogFromTestDocument(schema1);
+      const c2 = catalogFromTestDocument(schema2);
+      expect(() => new ExpressPromptGenerator([c1, c2])).toThrow(A2uiCatalogError);
+    });
+
+    it('generates Multiple Catalogs rules when 2 disjoint v1.0 catalogs are active', () => {
+      const c1 = loadConformanceCatalog('simplified_catalog_v1_0.json');
+      const c2 = loadConformanceCatalog('custom_catalog_v1_0.json');
+      const generator = new ExpressPromptGenerator([c1, c2]);
+      const rules = generator.generateBaseRules();
+
+      expect(rules).toContain('## Multiple Catalogs');
+      expect(rules).toContain(`- \`${c1.id}\``);
+      expect(rules).toContain(`- \`${c2.id}\``);
+      expect(rules).toContain(
+        'No component or function names are shared across the active catalogs; omit `catalogId` on every call.',
+      );
+    });
+
+    it('generates Multiple Catalogs rules when 2 overlapping v1.0 catalogs are active', () => {
+      const c1 = loadConformanceCatalog('simplified_catalog_v1_0.json');
+      const c2 = loadConformanceCatalog('forms_catalog_v1_0.json');
+      const generator = new ExpressPromptGenerator([c1, c2]);
+      const rules = generator.generateBaseRules();
+
+      expect(rules).toContain('## Multiple Catalogs');
+      expect(rules).toContain(
+        'Names defined in more than one active catalog (`catalogId` required):',
+      );
+      expect(rules).toContain(
+        '- Function `required`: `conformance/simplified`, `conformance/forms`',
+      );
+    });
+
+    it('renders multi-catalog and multi-turn examples across active catalogs', () => {
+      const c1 = loadConformanceCatalog('simplified_catalog_v1_0.json');
+      const c2 = loadConformanceCatalog('custom_catalog_v1_0.json');
+      const turn1: AgentToRendererMessage[] = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'conformance/simplified',
+          },
+        } as AgentToRendererMessage,
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Text', text: 'Hello'}],
+          },
+        } as AgentToRendererMessage,
+      ];
+      const turn2: AgentToRendererMessage[] = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'conformance/custom',
+          },
+        } as AgentToRendererMessage,
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Chart', values: [1, 2, 3]}],
+          },
+        } as AgentToRendererMessage,
+      ];
+      const generator = new ExpressPromptGenerator([c1, c2], {
+        [c1.id]: [turn1, turn2],
+      });
+      const snippet = generator.generate();
+
+      expect(snippet).toContain('surface("s1")');
+      expect(snippet).toContain('root = Text("Hello")');
+      expect(snippet).toContain('root = Chart([1, 2, 3])');
+    });
   });
 });

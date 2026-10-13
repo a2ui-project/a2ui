@@ -326,16 +326,21 @@ describe('Express Conformance Suite', () => {
           loadedCatalogs.push(catalog);
         }
 
-        let examples: Record<string, AgentToRendererMessage[]> | undefined;
+        let examples: Record<string, AgentToRendererMessage[][]> | undefined;
         if (Array.isArray(args.examples) && args.examples.length > 0) {
           examples = {};
           for (const exPath of args.examples as string[]) {
             const fullExPath = path.resolve(CONFORMANCE_ROOT, exPath);
             const exContent = JSON.parse(fs.readFileSync(fullExPath, 'utf8'));
-            const messages = Array.isArray(exContent) ? exContent : [exContent];
+            const messages: AgentToRendererMessage[] = Array.isArray(exContent)
+              ? exContent
+              : [exContent];
             const catId = messages[0]?.createSurface?.catalogId || loadedCatalogs[0]?.id;
             if (catId) {
-              examples[catId] = messages;
+              if (!examples[catId]) {
+                examples[catId] = [];
+              }
+              examples[catId].push(messages);
             }
           }
         }
