@@ -74,8 +74,14 @@ public final class SurfaceViewModel: ObservableObject {
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
-    let resolvedDefaultCatalogID =
-      defaultCatalogID ?? (catalogs.count == 1 ? catalogs.keys.first : nil)
+    let resolvedDefaultCatalogID: String?
+    if let defaultCatalogID {
+      resolvedDefaultCatalogID = defaultCatalogID
+    } else if !(protocolVersion?.isAtLeastV10 ?? false), catalogs.count == 1 {
+      resolvedDefaultCatalogID = catalogs.keys.first
+    } else {
+      resolvedDefaultCatalogID = nil
+    }
     self.defaultCatalogID = resolvedDefaultCatalogID
     self.theme = theme
     self.metadata = metadata

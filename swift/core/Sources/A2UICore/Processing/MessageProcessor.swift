@@ -111,9 +111,13 @@ public final class MessageProcessor: ObservableObject {
     if let version {
       var surfacesDict: OrderedDictionary<String, JSONValue> = [:]
       for (surfaceID, vm) in enabledEntries {
-        if areVersionsCompatible(vm.protocolVersion, version)
-          && isCatalogCompatible(vm.catalog, with: version)
-        {
+        let catalogCompatible: Bool
+        if let defaultCatID = vm.defaultCatalogID, let defaultCat = vm.catalogs[defaultCatID] {
+          catalogCompatible = isCatalogCompatible(defaultCat, with: version)
+        } else {
+          catalogCompatible = true
+        }
+        if areVersionsCompatible(vm.protocolVersion, version) && catalogCompatible {
           surfacesDict[surfaceID] = vm.dataModel.data
         }
       }
@@ -582,7 +586,7 @@ public final class MessageProcessor: ObservableObject {
         )
       }
       targetCatalog = cat
-    } else if registeredCatalogs.count == 1 {
+    } else if !(op.version ?? .v091).isAtLeastV10 && registeredCatalogs.count == 1 {
       targetCatalog = registeredCatalogs.first
     }
 
@@ -815,7 +819,7 @@ public final class MessageProcessor: ObservableObject {
         )
       }
 
-      guard componentDict["id"]?.stringValue != nil else {
+      guard let id = componentDict["id"]?.stringValue else {
         throw A2UIValidationError(
           "Missing required key 'id'",
           details: [
@@ -828,8 +832,45 @@ public final class MessageProcessor: ObservableObject {
         )
       }
 
-      let componentCatalogID =
-        componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
+      let componentCatalogID: String?
+      if surface.protocolVersion.isAtLeastV10 {
+        if let rawCatID = componentDict["catalogId"] {
+          guard let catIDStr = rawCatID.stringValue else {
+            throw A2UIValidationError(
+              "Field 'catalogId' must be a string",
+              details: [
+                A2UIErrorDetail(
+                  path: "catalogId",
+                  code: "type_mismatch",
+                  message: "Field 'catalogId' must be a string"
+                )
+              ]
+            )
+          }
+          componentCatalogID = catIDStr
+        } else {
+          guard let defaultCatID = surface.defaultCatalogID else {
+            let msg =
+              "Component '\(id)' names no catalogId and surface "
+              + "'\(surface.surfaceID)' has no default catalogId."
+            throw A2UICatalogError(
+              msg,
+              details: [
+                A2UIErrorDetail(
+                  path: "/catalogId",
+                  code: "CATALOG_NOT_FOUND",
+                  message: msg
+                )
+              ]
+            )
+          }
+          componentCatalogID = defaultCatID
+        }
+      } else {
+        componentCatalogID =
+          componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
+      }
+
       let resolvedCatalogID = componentCatalogID ?? "default"
       guard let targetCatalog = surface.getCatalog(id: componentCatalogID) else {
         throw A2UICatalogError(
@@ -847,7 +888,8 @@ public final class MessageProcessor: ObservableObject {
       guard isCatalogCompatible(targetCatalog, with: surface.protocolVersion) else {
         let catVerStr = targetCatalog.protocolVersion ?? "v0.9"
         let msg =
-          "Catalog '\(resolvedCatalogID)' (version \(catVerStr)) is incompatible with surface version \(surface.protocolVersion.rawValue)."
+          "Catalog '\(resolvedCatalogID)' (version \(catVerStr)) is incompatible with "
+          + "surface version \(surface.protocolVersion.rawValue)."
         throw A2UICatalogError(
           msg,
           details: [
@@ -862,6 +904,15 @@ public final class MessageProcessor: ObservableObject {
 
       let validator = payloadValidator(for: targetCatalog, config: effectiveConfig)
       try validator.validateComponent(componentDict)
+
+      if surface.protocolVersion.isAtLeastV10 {
+        try validateNestedFunctionCalls(
+          in: componentDict,
+          componentID: id,
+          on: surface,
+          config: effectiveConfig
+        )
+      }
     }
 
     if !components.isEmpty {
@@ -897,6 +948,143 @@ public final class MessageProcessor: ObservableObject {
         catalogs: surface.catalogs,
         defaultCatalogID: surface.defaultCatalogID
       )
+    }
+  }
+
+  private func validateNestedFunctionCalls(
+    in componentDict: [String: JSONValue],
+    componentID: String,
+    on surface: SurfaceViewModel,
+    config: ValidationConfig
+  ) throws {
+    for (key, value) in componentDict
+    where key != "id" && key != "component" && key != "catalogId" && key != "metadata" {
+      try validateNestedFunctionCallsInValue(
+        value,
+        componentID: componentID,
+        on: surface,
+        config: config
+      )
+    }
+  }
+
+  private func validateNestedFunctionCallsInValue(
+    _ value: JSONValue,
+    componentID: String,
+    on surface: SurfaceViewModel,
+    config: ValidationConfig
+  ) throws {
+    switch value {
+    case .array(let items):
+      for item in items {
+        try validateNestedFunctionCallsInValue(
+          item,
+          componentID: componentID,
+          on: surface,
+          config: config
+        )
+      }
+
+    case .object(let dict):
+      if let rawCall = dict["@call"] {
+        let callName = rawCall.stringValue ?? ""
+        if !callName.hasPrefix("@") {
+          let callCatalogID: String
+          if let rawCatID = dict["catalogId"] {
+            guard let catIDStr = rawCatID.stringValue else {
+              throw A2UIValidationError(
+                "Field 'catalogId' must be a string",
+                details: [
+                  A2UIErrorDetail(
+                    path: "catalogId",
+                    code: "type_mismatch",
+                    message: "Field 'catalogId' must be a string"
+                  )
+                ]
+              )
+            }
+            callCatalogID = catIDStr
+          } else {
+            guard let defaultCatID = surface.defaultCatalogID else {
+              let msg =
+                "Function call '\(callName)' in component '\(componentID)' names no catalogId "
+                + "and surface '\(surface.surfaceID)' has no default catalogId."
+              throw A2UICatalogError(
+                msg,
+                details: [
+                  A2UIErrorDetail(
+                    path: "/catalogId",
+                    code: "CATALOG_NOT_FOUND",
+                    message: msg
+                  )
+                ]
+              )
+            }
+            callCatalogID = defaultCatID
+          }
+
+          guard let callCatalog = surface.catalogs[callCatalogID] else {
+            throw A2UICatalogError(
+              "Catalog not found: \(callCatalogID)",
+              details: [
+                A2UIErrorDetail(
+                  path: "/catalogId",
+                  code: "CATALOG_NOT_FOUND",
+                  message: "Catalog not found: \(callCatalogID)"
+                )
+              ]
+            )
+          }
+
+          guard isCatalogCompatible(callCatalog, with: surface.protocolVersion) else {
+            let catVerStr = callCatalog.protocolVersion ?? "v0.9"
+            let msg =
+              "Catalog '\(callCatalogID)' (version \(catVerStr)) is incompatible with "
+              + "surface version \(surface.protocolVersion.rawValue)."
+            throw A2UICatalogError(
+              msg,
+              details: [
+                A2UIErrorDetail(
+                  path: "/catalogId",
+                  code: "INCOMPATIBLE_CATALOG_VERSION",
+                  message: msg
+                )
+              ]
+            )
+          }
+
+          let callValidator = payloadValidator(for: callCatalog, config: config)
+          if let rawArgs = dict["args"], rawArgs != .null, rawArgs.objectValue == nil {
+            throw A2UIValidationError(
+              "Function arguments for '\(callName)' must be an object",
+              details: [
+                A2UIErrorDetail(
+                  path: "functions.\(callName).args",
+                  code: "type_mismatch",
+                  message: "Function arguments for '\(callName)' must be an object"
+                )
+              ]
+            )
+          }
+          try callValidator.validateFunctionInternal(
+            name: callName,
+            args: dict["args"]?.dictionaryValue,
+            allowDynamicArgValues: true
+          )
+        }
+      }
+
+      for (_, childValue) in dict {
+        try validateNestedFunctionCallsInValue(
+          childValue,
+          componentID: componentID,
+          on: surface,
+          config: config
+        )
+      }
+
+    default:
+      break
     }
   }
 

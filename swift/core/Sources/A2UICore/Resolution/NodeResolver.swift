@@ -67,8 +67,13 @@ public final class NodeResolver: Sendable {
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
-    self.defaultCatalogID =
-      defaultCatalogID ?? (catalogs.count == 1 ? catalogs.keys.first : nil)
+    if let defaultCatalogID {
+      self.defaultCatalogID = defaultCatalogID
+    } else if !(protocolVersion?.isAtLeastV10 ?? false), catalogs.count == 1 {
+      self.defaultCatalogID = catalogs.keys.first
+    } else {
+      self.defaultCatalogID = nil
+    }
     self.componentsModel = componentsModel ?? SurfaceComponentsModel()
     self.dataModel = dataModel ?? DataModel()
     self.actionHandler = actionHandler
@@ -121,7 +126,7 @@ public final class NodeResolver: Sendable {
     if let targetCatalogID {
       return catalogs[targetCatalogID]
     }
-    if id == nil && catalogs.count == 1 {
+    if id == nil && !isV10 && catalogs.count == 1 {
       return catalogs.values.first
     }
     return nil

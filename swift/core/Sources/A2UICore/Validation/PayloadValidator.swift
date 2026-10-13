@@ -137,8 +137,29 @@ public final class PayloadValidator: Sendable {
       )
     }
 
+    if enforceIdentifiers, let rawCatID = component["catalogId"], rawCatID.stringValue == nil {
+      throw A2UIValidationError(
+        "Field 'catalogId' must be a string",
+        details: [
+          A2UIErrorDetail(
+            path: "catalogId",
+            code: "type_mismatch",
+            message: "Field 'catalogId' must be a string"
+          )
+        ]
+      )
+    }
+
+    let componentNamesCatalog = component["catalogId"] != nil
+
     guard let componentAPI = catalog.components[type] else {
-      guard !config.allowUnknownElements else { return }
+      if config.allowUnknownElements {
+        try validateNestedFunctions(
+          in: .object(OrderedDictionary(uniqueKeysWithValues: component)),
+          componentNamesCatalog: componentNamesCatalog
+        )
+        return
+      }
       let msg = "Unknown component type '\(type)' in catalog '\(catalog.id)'"
       throw A2UIValidationError(
         msg,
@@ -157,7 +178,17 @@ public final class PayloadValidator: Sendable {
       )
     }
 
-    let instance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: component))
+    let schemaJSON = componentAPI.schema.jsonValue
+    let envelopeKeys: [String] =
+      enforceIdentifiers
+      ? ["id", "component", "catalogId", "metadata"]
+      : ["id", "component"]
+    var schemaTargetDict = component
+    for key in envelopeKeys where !schemaHasProperty(key, in: schemaJSON) {
+      schemaTargetDict.removeValue(forKey: key)
+    }
+
+    let instance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: schemaTargetDict))
     let validationResult = componentAPI.schema.validate(instance)
     if !validationResult.isValid {
       var leafErrors: [JSONSchema.ValidationError] = []
@@ -205,7 +236,10 @@ public final class PayloadValidator: Sendable {
       )
     }
 
-    try validateNestedFunctions(in: .object(OrderedDictionary(uniqueKeysWithValues: component)))
+    try validateNestedFunctions(
+      in: .object(OrderedDictionary(uniqueKeysWithValues: component)),
+      componentNamesCatalog: componentNamesCatalog
+    )
   }
 
   // MARK: - Function Validation
@@ -282,16 +316,19 @@ public final class PayloadValidator: Sendable {
     try validateFunctionInternal(name: name, args: args, allowDynamicArgValues: false)
   }
 
-  private func validateFunctionInternal(
+  internal func validateFunctionInternal(
     name: String,
     args: [String: JSONValue]?,
     allowDynamicArgValues: Bool
   ) throws {
     try assertFunctionIdentifiers(name: name, args: args)
 
-    let fn: (any FunctionImplementation)? =
-      catalog.functions[name]
-      ?? (enforceIdentifiers && name == "@index" ? IndexFunction() : nil)
+    let fn: (any FunctionImplementation)?
+    if enforceIdentifiers && name.hasPrefix("@") {
+      fn = name == "@index" ? IndexFunction() : nil
+    } else {
+      fn = catalog.functions[name]
+    }
 
     guard let fn else {
       guard !config.allowUnknownElements else { return }
@@ -339,19 +376,24 @@ public final class PayloadValidator: Sendable {
           leafErrors.append(contentsOf: extractLeafErrors(from: schemaError))
         }
       }
-      let leafMessages = leafErrors.map(\.message)
-      let errorMessage =
-        leafMessages.isEmpty
-        ? (result.errors?.first?.message ?? "Validation failed for function '\(name)'")
-        : leafMessages.joined(separator: "; ")
+      var leafMessages: [String] = []
       var details: [A2UIErrorDetail] = []
       for leaf in leafErrors {
         let pointer = leaf.instanceLocation.jsonPointerString
         let trimmed = pointer.hasPrefix("/") ? String(pointer.dropFirst()) : pointer
         let path = trimmed.isEmpty ? "functions.\(name)" : "functions.\(name).\(trimmed)"
         let code = leaf.keyword == "required" ? "missing_field" : "invalid_value"
-        details.append(A2UIErrorDetail(path: path, code: code, message: leaf.message))
+        let msg =
+          trimmed.isEmpty || leaf.message.contains(trimmed)
+          ? leaf.message
+          : "\(trimmed): \(leaf.message)"
+        leafMessages.append(msg)
+        details.append(A2UIErrorDetail(path: path, code: code, message: msg))
       }
+      let errorMessage =
+        leafMessages.isEmpty
+        ? (result.errors?.first?.message ?? "Validation failed for function '\(name)'")
+        : leafMessages.joined(separator: "; ")
       if details.isEmpty {
         details.append(
           A2UIErrorDetail(
@@ -365,22 +407,54 @@ public final class PayloadValidator: Sendable {
     }
   }
 
-  private func assertFunctionIdentifiers(
+  internal func assertFunctionIdentifiers(
     name: String,
     args: [String: JSONValue]?
   ) throws {
-    guard UnicodeIdentifierValidator.isValidFunctionIdentifier(name) else {
-      let msg = "Invalid function identifier: '\(name)'"
-      throw A2UIValidationError(
-        msg,
-        details: [
-          A2UIErrorDetail(
-            path: "functions.\(name)",
-            code: "invalid_identifier",
-            message: msg
+    if enforceIdentifiers {
+      if name.hasPrefix("@") {
+        guard name == "@index" else {
+          let msg = "Unrecognized system function '\(name)'"
+          throw A2UIValidationError(
+            msg,
+            details: [
+              A2UIErrorDetail(
+                path: "functions.\(name)",
+                code: "invalid_identifier",
+                message: msg
+              )
+            ]
           )
-        ]
-      )
+        }
+      } else {
+        guard UnicodeIdentifierValidator.isValidIdentifier(name) else {
+          let msg = "Function name '\(name)' must be a valid UAX #31 identifier"
+          throw A2UIValidationError(
+            msg,
+            details: [
+              A2UIErrorDetail(
+                path: "functions.\(name)",
+                code: "invalid_identifier",
+                message: msg
+              )
+            ]
+          )
+        }
+      }
+    } else {
+      guard UnicodeIdentifierValidator.isValidFunctionIdentifier(name) else {
+        let msg = "Invalid function identifier: '\(name)'"
+        throw A2UIValidationError(
+          msg,
+          details: [
+            A2UIErrorDetail(
+              path: "functions.\(name)",
+              code: "invalid_identifier",
+              message: msg
+            )
+          ]
+        )
+      }
     }
 
     guard let args else { return }
@@ -419,11 +493,14 @@ public final class PayloadValidator: Sendable {
     }
   }
 
-  private func validateNestedFunctions(in value: JSONValue) throws {
+  private func validateNestedFunctions(
+    in value: JSONValue,
+    componentNamesCatalog: Bool = false
+  ) throws {
     switch value {
     case .array(let items):
       for item in items {
-        try validateNestedFunctions(in: item)
+        try validateNestedFunctions(in: item, componentNamesCatalog: componentNamesCatalog)
       }
 
     case .object(let dict):
@@ -432,35 +509,109 @@ public final class PayloadValidator: Sendable {
       }
       let callValue = enforceIdentifiers ? dict["@call"] : (dict["call"] ?? dict["function"])
       if let rawName = callValue?.stringValue,
-        !rawName.isEmpty
+        enforceIdentifiers || !rawName.isEmpty
       {
+        if enforceIdentifiers, let rawCatID = dict["catalogId"], rawCatID.stringValue == nil {
+          throw A2UIValidationError(
+            "Field 'catalogId' must be a string",
+            details: [
+              A2UIErrorDetail(
+                path: "catalogId",
+                code: "type_mismatch",
+                message: "Field 'catalogId' must be a string"
+              )
+            ]
+          )
+        }
+        if enforceIdentifiers, let rawArgs = dict["args"], rawArgs != .null,
+          rawArgs.objectValue == nil
+        {
+          throw A2UIValidationError(
+            "Function arguments for '\(rawName)' must be an object",
+            details: [
+              A2UIErrorDetail(
+                path: "functions.\(rawName).args",
+                code: "type_mismatch",
+                message: "Function arguments for '\(rawName)' must be an object"
+              )
+            ]
+          )
+        }
         let rawArgs = dict["args"]?.dictionaryValue
-        let callCatalogID = dict["catalogId"]?.stringValue
-        let targetsThisCatalog =
-          callCatalogID == nil
-          || callCatalogID?.isEmpty == true
-          || callCatalogID == catalog.id
 
-        if !targetsThisCatalog {
+        if enforceIdentifiers && rawName.hasPrefix("@") {
           try assertFunctionIdentifiers(name: rawName, args: rawArgs)
-        } else if !catalog.functions.isEmpty {
+          if dict["catalogId"] != nil {
+            let msg =
+              "System function '\(rawName)' belongs to no catalog and must not specify a catalogId"
+            throw A2UIValidationError(
+              msg,
+              details: [
+                A2UIErrorDetail(
+                  path: "functions.\(rawName).catalogId",
+                  code: "invalid_value",
+                  message: msg
+                )
+              ]
+            )
+          }
           try validateFunctionInternal(
             name: rawName,
             args: rawArgs,
             allowDynamicArgValues: true
           )
         } else {
-          try assertFunctionIdentifiers(name: rawName, args: rawArgs)
+          let targetsThisCatalog = nestedCallRunsInCatalog(
+            callDict: dict,
+            componentNamesCatalog: componentNamesCatalog
+          )
+          if targetsThisCatalog {
+            try validateFunctionInternal(
+              name: rawName,
+              args: rawArgs,
+              allowDynamicArgValues: true
+            )
+          } else {
+            try assertFunctionIdentifiers(name: rawName, args: rawArgs)
+          }
         }
       }
 
       for (key, propValue) in dict where key != "id" && key != "component" {
-        try validateNestedFunctions(in: propValue)
+        try validateNestedFunctions(in: propValue, componentNamesCatalog: componentNamesCatalog)
       }
 
     default:
       break
     }
+  }
+
+  private func nestedCallRunsInCatalog(
+    callDict: OrderedDictionary<String, JSONValue>,
+    componentNamesCatalog: Bool
+  ) -> Bool {
+    if enforceIdentifiers {
+      if let rawCallCatID = callDict["catalogId"] {
+        return rawCallCatID.stringValue == catalog.id
+      }
+      return !componentNamesCatalog
+    }
+    let callCatalogID = callDict["catalogId"]?.stringValue
+    return callCatalogID == nil || callCatalogID?.isEmpty == true || callCatalogID == catalog.id
+  }
+
+  private func schemaHasProperty(_ key: String, in schemaJSON: JSONValue) -> Bool {
+    if schemaJSON["properties"]?.objectValue?[key] != nil {
+      return true
+    }
+    for combiner in ["allOf", "anyOf", "oneOf"] {
+      if let subSchemas = schemaJSON[combiner]?.arrayValue,
+        subSchemas.contains(where: { schemaHasProperty(key, in: $0) })
+      {
+        return true
+      }
+    }
+    return false
   }
 
   private func containsDynamicExpression(in args: [String: JSONValue]) -> Bool {
