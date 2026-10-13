@@ -106,6 +106,13 @@ describe('BASIC_FUNCTIONS', () => {
       assert.throws(() => invoke('numeric', {}, context), A2uiExpressionError);
     });
 
+    it('numeric parses the string a number TextField writes', () => {
+      assert.strictEqual(invoke('numeric', {value: '30', min: 18, max: 99}, context), true);
+      assert.strictEqual(invoke('numeric', {value: '5', min: 18}, context), false);
+      assert.strictEqual(invoke('numeric', {value: '', min: 0}, context), false);
+      assert.strictEqual(invoke('numeric', {value: 'abc', min: 0}, context), false);
+    });
+
     it('email', () => {
       assert.strictEqual(invoke('email', {value: 'test@example.com'}, context), true);
       assert.strictEqual(invoke('email', {value: 'test.name@example.com'}, context), true);

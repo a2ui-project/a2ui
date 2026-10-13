@@ -50,6 +50,7 @@ import {
   validateLength,
   validateNumeric,
   validateEmail,
+  withStringValue,
 } from '../../../common/basic_functions.js';
 
 export {isSafeRegex, type SafeRegexOptions} from './safe_regex.js';
@@ -76,7 +77,7 @@ export const LengthImplementation = createFunctionImplementation(
 );
 
 export const NumericImplementation = createFunctionImplementation(
-  NumericApi,
+  withStringValue(NumericApi),
   args => validateNumeric(args.value, args.min, args.max).valid,
 );
 
