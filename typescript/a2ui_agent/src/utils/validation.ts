@@ -15,15 +15,16 @@
  */
 
 import {
-  CatalogApi,
-  MessageProcessor,
-  STRICT_VALIDATION,
-  A2uiValidationError,
   A2uiCatalogError,
   A2uiError,
+  A2uiValidationError,
+  CatalogApi,
+  compareSemVer,
+  MessageProcessor,
+  STRICT_VALIDATION,
 } from '../internal/web-core.js';
-import {toWireProtocolVersion} from './protocol-version.js';
 import {validateEnvelope} from './envelope-validation.js';
+import {toWireProtocolVersion} from './protocol-version.js';
 
 /**
  * Checks that catalogs target the same release line and returns it.
@@ -57,7 +58,7 @@ export function checkParserCatalogs(catalogs: CatalogApi[]): string {
   }
 
   const [releaseLine] = releaseLines;
-  if (catalogs.length > 1 && releaseLine !== 'v1.0') {
+  if (catalogs.length > 1 && compareSemVer(releaseLine, '1.0.0') < 0) {
     throw new A2uiCatalogError(
       `Several catalogs need A2UI v1.0 or later, where components and function calls carry their own catalogId, but got '${releaseLine}'.`,
     );
