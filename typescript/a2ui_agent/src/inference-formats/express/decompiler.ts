@@ -606,6 +606,72 @@ export class ExpressDecompiler {
     return dslLines.length > 0 ? dslLines.join('\n') : undefined;
   }
 
+  private trimTrailingPlaceholders(argsReprs: string[]): void {
+    while (argsReprs.length > 0 && argsReprs[argsReprs.length - 1] === '_') {
+      argsReprs.pop();
+    }
+  }
+
+  private formatCheckPropertyArg(
+    propName: string,
+    checksVal: unknown,
+    comp: Record<string, unknown>,
+    compIds: Set<string>,
+    surfaceCatalogId: string | undefined,
+    useKeywordArgs: boolean,
+  ): string | undefined {
+    if (!Array.isArray(checksVal) || checksVal.length === 0) {
+      return useKeywordArgs ? undefined : '_';
+    }
+
+    const compiledChecksList: string[] = [];
+    for (const rc of checksVal) {
+      const ruleRecord = asRecord(rc);
+      if (ruleRecord) {
+        compiledChecksList.push(this.formatCheckRule(ruleRecord, comp, compIds, surfaceCatalogId));
+      }
+    }
+
+    const checksRepr =
+      compiledChecksList.length === 1
+        ? compiledChecksList[0]
+        : `[${compiledChecksList.join(', ')}]`;
+    return useKeywordArgs ? `${propName}=${checksRepr}` : checksRepr;
+  }
+
+  private formatRegularPropertyArg(
+    comp: Record<string, unknown>,
+    compName: string,
+    propName: string,
+    properties: string[],
+    checkProp: string | undefined,
+    compIds: Set<string>,
+    helper: CatalogSchemaHelper,
+    surfaceCatalogId: string | undefined,
+    useKeywordArgs: boolean,
+  ): string | undefined {
+    if (propName in comp) {
+      const pSchema = helper.getPropertySchema(compName, propName);
+      const isPropRef = isComponentReferenceProperty(pSchema);
+      const valStr = this.decompileValue(
+        comp[propName],
+        compIds,
+        isPropRef,
+        helper,
+        surfaceCatalogId,
+      );
+      return useKeywordArgs ? `${propName}=${valStr}` : valStr;
+    }
+
+    if (useKeywordArgs) {
+      return undefined;
+    }
+
+    const idx = properties.indexOf(propName);
+    const hasSubsequentVal = properties.slice(idx + 1).some(p => p !== checkProp && p in comp);
+    return hasSubsequentVal ? '_' : undefined;
+  }
+
   /**
    * Formats a single component definition into an Express assignment line.
    */
@@ -629,70 +695,37 @@ export class ExpressDecompiler {
     );
 
     const properties = helper.getComponentProperties(compName);
-    const argsReprs: string[] = [];
     const checkProp = helper.getCheckRuleProperty(compName);
+    const argsReprs: string[] = [];
 
     for (const propName of properties) {
-      if (checkProp && propName === checkProp) {
-        const checksVal = comp[checkProp];
-        if (!Array.isArray(checksVal) || checksVal.length === 0) {
-          if (!useKeywordArgs) {
-            argsReprs.push('_');
-          }
-          continue;
-        }
-
-        const compiledChecksList: string[] = [];
-        for (const rc of checksVal) {
-          const ruleRecord = asRecord(rc);
-          if (ruleRecord) {
-            compiledChecksList.push(
-              this.formatCheckRule(ruleRecord, comp, compIds, surfaceCatalogId),
+      const arg =
+        checkProp && propName === checkProp
+          ? this.formatCheckPropertyArg(
+              propName,
+              comp[checkProp],
+              comp,
+              compIds,
+              surfaceCatalogId,
+              useKeywordArgs,
+            )
+          : this.formatRegularPropertyArg(
+              comp,
+              compName,
+              propName,
+              properties,
+              checkProp,
+              compIds,
+              helper,
+              surfaceCatalogId,
+              useKeywordArgs,
             );
-          }
-        }
-
-        const checksRepr =
-          compiledChecksList.length === 1
-            ? compiledChecksList[0]
-            : `[${compiledChecksList.join(', ')}]`;
-        if (useKeywordArgs) {
-          argsReprs.push(`${propName}=${checksRepr}`);
-        } else {
-          argsReprs.push(checksRepr);
-        }
-        continue;
-      }
-
-      if (propName in comp) {
-        const val = comp[propName];
-        const pSchema = helper.getPropertySchema(compName, propName);
-        const isPropRef = isComponentReferenceProperty(pSchema);
-        const valStr = this.decompileValue(val, compIds, isPropRef, helper, surfaceCatalogId);
-        if (useKeywordArgs) {
-          argsReprs.push(`${propName}=${valStr}`);
-        } else {
-          argsReprs.push(valStr);
-        }
-      } else if (!useKeywordArgs) {
-        const idx = properties.indexOf(propName);
-        let hasSubsequentVal = false;
-        for (let i = idx + 1; i < properties.length; i++) {
-          const p = properties[i];
-          if (p !== checkProp && p in comp) {
-            hasSubsequentVal = true;
-            break;
-          }
-        }
-        if (hasSubsequentVal) {
-          argsReprs.push('_');
-        }
+      if (arg !== undefined) {
+        argsReprs.push(arg);
       }
     }
 
-    while (argsReprs.length > 0 && argsReprs[argsReprs.length - 1] === '_') {
-      argsReprs.pop();
-    }
+    this.trimTrailingPlaceholders(argsReprs);
 
     if (emitCatalogId !== undefined) {
       argsReprs.push(`catalogId=${decompileString(emitCatalogId)}`);
@@ -766,12 +799,7 @@ export class ExpressDecompiler {
     if (funcName !== 'None' && message && message !== `${capName} check failed`) {
       explicitArgsReprs.push(decompileString(message));
     } else {
-      while (
-        explicitArgsReprs.length > 0 &&
-        explicitArgsReprs[explicitArgsReprs.length - 1] === '_'
-      ) {
-        explicitArgsReprs.pop();
-      }
+      this.trimTrailingPlaceholders(explicitArgsReprs);
     }
 
     if (emitCatalogId !== undefined) {
@@ -813,9 +841,7 @@ export class ExpressDecompiler {
         argsReprs.push('_');
       }
     }
-    while (argsReprs.length > 0 && argsReprs[argsReprs.length - 1] === '_') {
-      argsReprs.pop();
-    }
+    this.trimTrailingPlaceholders(argsReprs);
 
     if (emitCatalogId !== undefined) {
       argsReprs.push(`catalogId=${decompileString(emitCatalogId)}`);
