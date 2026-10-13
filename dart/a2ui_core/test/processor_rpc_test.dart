@@ -47,6 +47,7 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(String id) =>
       components: [MinimalTextApi()],
       functions: [
         _Fn('whereAmI', (_, context) => context.dataModel.get('/name')),
+        _Fn('versionOf', (_, context) => context.protocolVersion?.name),
         _Fn('slow', (_, __) async {
           await Future<void>.delayed(const Duration(milliseconds: 5));
           return 'late';
@@ -213,6 +214,20 @@ void main() {
         outbound.functionCallId,
       )),
     );
+  });
+
+  test('preserves null protocolVersion on an unversioned surface', () async {
+    processor.model.addSurface(
+      SurfaceModel<ComponentApi>(
+        'unversioned-surface',
+        defaultCatalog: _catalog('alpha'),
+      ),
+    );
+    await processor.processMessagesAsync(
+      _callRendererFunction('c-unversioned', 'versionOf', catalogId: 'alpha'),
+    );
+    expect(responses().single.response.error, isNull);
+    expect(responses().single.response.value, isNull);
   });
 }
 

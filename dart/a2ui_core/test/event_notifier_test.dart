@@ -85,6 +85,28 @@ void main() {
       expect(received, ['second:2', 'addedDuringEmit:2']);
     });
 
+    test(
+        'skips a subsequent listener that was unsubscribed by an earlier '
+        'listener during emit', () {
+      final notifier = EventNotifier<int>();
+      final received = <String>[];
+
+      late Subscription secondSub;
+      notifier.subscribe((event) {
+        received.add('first:$event');
+        secondSub.unsubscribe();
+      });
+      secondSub = notifier.subscribe((event) {
+        received.add('second:$event');
+      });
+      notifier.subscribe((event) {
+        received.add('third:$event');
+      });
+
+      notifier.emit(1);
+      expect(received, ['first:1', 'third:1']);
+    });
+
     test('Subscription.unsubscribe stops notifications and is idempotent', () {
       final notifier = EventNotifier<int>();
       final received = <int>[];

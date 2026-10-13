@@ -433,12 +433,12 @@ class RpcHandler {
         (name, args, context) =>
             surface.resolveCatalog(null).invoke(name, args, context),
         '/',
-        protocolVersion: (surface.protocolVersion == null
-                ? null
-                : A2uiProtocolVersion.tryParseSemVer(
-                    surface.protocolVersion!,
-                  )) ??
-            A2uiProtocolVersion.v1_0,
+        protocolVersion: surface.protocolVersion == null
+            ? null
+            : (A2uiProtocolVersion.tryParseSemVer(
+                  surface.protocolVersion!,
+                ) ??
+                A2uiProtocolVersion.v1_0),
         invokerForCatalog: (catalogId) =>
             surface.resolveCatalog(catalogId).invoke,
         isUserActivated: execution.isUserActivated,

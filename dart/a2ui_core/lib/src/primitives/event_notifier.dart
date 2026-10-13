@@ -57,7 +57,9 @@ class EventNotifier<T> implements EventSource<T> {
     // Iterate over a copy to allow listeners to unsubscribe themselves.
     for (final void Function(T event) listener in List.of(_listeners)) {
       try {
-        listener(event);
+        if (_listeners.contains(listener)) {
+          listener(event);
+        }
       } catch (e, st) {
         _logger.severe('Error in EventNotifier listener', e, st);
       }
