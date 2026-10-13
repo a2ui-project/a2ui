@@ -59,7 +59,7 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     private readonly allowedMessages?: readonly string[],
   ) {
     super(catalogs);
-    const versions = new Set(catalogs.map(c => normalizeVersionString(c.protocolVersion)));
+    const versions = new Set(catalogs.map(c => normalizeVersionString(c.protocolVersion ?? '0.9')));
     if (versions.size > 1) {
       throw new A2uiCatalogError(
         `The schema prompt's catalogs target different protocol versions: ${[...versions].sort().join(', ')}.`,
@@ -80,14 +80,14 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     if (targets.length === 0) {
       throw new A2uiCatalogError('The schema prompt needs at least one catalog.');
     }
-    const versions = new Set(targets.map(c => normalizeVersionString(c.protocolVersion)));
+    const versions = new Set(targets.map(c => normalizeVersionString(c.protocolVersion ?? '0.9')));
     if (versions.size > 1) {
       throw new A2uiCatalogError(
         `The schema prompt's catalogs target different protocol versions: ${[...versions].sort().join(', ')}.`,
       );
     }
 
-    const version = targets[0].protocolVersion;
+    const version = targets[0].protocolVersion ?? '0.9';
     let a2rSchema = loadAgentToRendererSchema(version);
     if (this.allowedMessages !== undefined) {
       a2rSchema = pruneMessagesSchema(a2rSchema, version, this.allowedMessages);

@@ -132,11 +132,12 @@ Map<String, Object?> _exampleMessageJson(AgentToRendererMessage message) {
   final Map<String, Object?> json = message.toJson();
   if (message is CreateSurfaceMessage && !message.sendDataModel) {
     final Object? create = json['createSurface'];
-    if (create is Map<String, Object?>) {
+    if (create is Map) {
       return <String, Object?>{
         ...json,
         'createSurface': <String, Object?>{
-          for (final MapEntry<String, Object?> e in create.entries)
+          for (final MapEntry<String, Object?> e
+              in create.cast<String, Object?>().entries)
             if (e.key != 'sendDataModel') e.key: e.value,
         },
       };
@@ -152,11 +153,11 @@ Map<String, Object?> _loadAgentToRendererSchema(A2uiProtocolVersion version) {
     case A2uiProtocolVersion.v0_9_1:
       final schema = jsonDecode(serverToClientV0_9Json) as Map<String, Object?>;
       final Object? defs = schema[r'$defs'];
-      if (defs is Map<String, Object?>) {
+      if (defs is Map) {
         for (final Object? defSchema in defs.values) {
-          if (defSchema is Map<String, Object?>) {
+          if (defSchema is Map) {
             final Object? props = defSchema['properties'];
-            if (props is Map<String, Object?> && props.containsKey('version')) {
+            if (props is Map && props.containsKey('version')) {
               props['version'] = {
                 'enum': ['v0.9', 'v0.9.1'],
               };
@@ -262,7 +263,7 @@ Map<String, Object?> _pruneCommonTypesSchema(
   List<Map<String, Object?>> referencingSchemas,
 ) {
   final Object? defs = commonTypesSchema[r'$defs'];
-  if (defs is! Map<String, Object?>) return commonTypesSchema;
+  if (defs is! Map) return commonTypesSchema;
   final roots = <String>{};
   for (final Map<String, Object?> schema in referencingSchemas) {
     for (final String ref in _collectRefs(schema)) {
@@ -274,6 +275,6 @@ Map<String, Object?> _pruneCommonTypesSchema(
   }
   return <String, Object?>{
     ...commonTypesSchema,
-    r'$defs': _reachableDefs(defs, roots),
+    r'$defs': _reachableDefs(defs.cast<String, Object?>(), roots),
   };
 }
