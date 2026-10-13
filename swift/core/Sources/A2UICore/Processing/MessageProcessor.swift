@@ -986,8 +986,7 @@ public final class MessageProcessor: ObservableObject {
       }
 
     case .object(let dict):
-      if let rawCall = dict["@call"] {
-        let callName = rawCall.stringValue ?? ""
+      if let rawCall = dict["@call"], let callName = rawCall.stringValue {
         if !callName.hasPrefix("@") {
           let callCatalogID: String
           if let rawCatID = dict["catalogId"] {
