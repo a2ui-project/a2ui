@@ -34,8 +34,16 @@ import {LitElement, css, html} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 
 import surfaceMessages from '../a2ui_filesystem.json';
+import {JmespathImplementation} from './functions/jmespath.js';
+import {RegexCaptureImplementation} from './functions/regexCapture.js';
+import {RegexReplaceImplementation} from './functions/regexReplace.js';
+import {SplitImplementation} from './functions/split.js';
+import {UpdateDataModelImplementation} from './functions/updateDataModel.js';
 
-/** Catalog ID combining basic A2UI components with MCP catalog functions. */
+/**
+ * Catalog ID combining basic A2UI components, `callMcpTool` and the sample's data
+ * transformation functions.
+ */
 export const CATALOG_ID =
   'https://a2ui.org/specification/v0_9/catalogs/basic_with_mcp/catalog.json';
 
@@ -64,6 +72,11 @@ export class A2uiFilesystemApp extends LitElement {
       new Catalog<any>(CATALOG_ID, Array.from(basicCatalog.components.values()), [
         ...Array.from(basicCatalog.functions.values()),
         ...createMcpCatalogFunctions(() => this.mcpClient, this.processor),
+        JmespathImplementation,
+        SplitImplementation,
+        RegexCaptureImplementation,
+        RegexReplaceImplementation,
+        UpdateDataModelImplementation,
       ]),
     );
 

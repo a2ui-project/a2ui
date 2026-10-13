@@ -35,7 +35,7 @@ For `updateDataModel`, keys starting with `/` are absolute paths, while relative
 
 ## v1 catalog (protocol v1.0)
 
-The v1 catalog, [v1/catalog.json](v1/catalog.json), targets A2UI protocol v1.0. Its catalog ID is `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`. It declares the same `callMcpTool` and data functions as above, with argument and return types taken from the v1.0 `common_types.json`, and adds the `McpApp` component. The five data functions are not MCP specific and are slated to move to a separate transformations catalog ([#3153](https://github.com/a2ui-project/a2ui/issues/3153)).
+The v1 catalog, [v1/catalog.json](v1/catalog.json), targets A2UI protocol v1.0. Its catalog ID is `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`. It declares `callMcpTool`, with argument and return types taken from the v1.0 `common_types.json`, and the `McpApp` component. The v0.9 data functions are not part of the v1 catalog; they live with the [filesystem sample](../../samples/community/mcp/a2ui-over-mcp-filesystem/).
 
 ### McpApp component
 
