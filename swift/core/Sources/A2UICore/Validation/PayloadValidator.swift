@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import A2UIJSON
 import Foundation
 import JSONSchema
 import OrderedCollections
@@ -213,13 +214,25 @@ public final class PayloadValidator: Sendable {
 
     let instance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: schemaTargetDict))
     let validationResult = componentAPI.schema.validate(instance)
-    if !validationResult.isValid {
-      var leafErrors: [JSONSchema.ValidationError] = []
-      if let schemaErrors = validationResult.errors {
-        for schemaError in schemaErrors {
-          leafErrors.append(contentsOf: extractLeafErrors(from: schemaError))
-        }
+    let schemaErrors = validationResult.errors ?? []
+    var leafErrors: [JSONSchema.ValidationError] = []
+    for schemaError in schemaErrors {
+      if config.allowUnknownElements {
+        leafErrors.append(
+          contentsOf: Self.leafErrorsIgnoringUnknownProperties(
+            from: schemaError,
+            componentSchema: componentAPI.schema.jsonValue
+          )
+        )
+      } else {
+        leafErrors.append(contentsOf: extractLeafErrors(from: schemaError))
       }
+    }
+    // With allowUnknownElements, a component whose only schema errors name unknown properties
+    // is accepted.
+    let onlyUnknownProperties =
+      config.allowUnknownElements && !schemaErrors.isEmpty && leafErrors.isEmpty
+    if !validationResult.isValid && !onlyUnknownProperties {
       let leafMessages = leafErrors.map(\.message)
       let errorMessage =
         leafMessages.isEmpty
@@ -356,8 +369,7 @@ public final class PayloadValidator: Sendable {
     guard let function else {
       // An unknown reserved `@` name is never accepted: v1.0 defines its system functions.
       let isSystemName = enforceIdentifiers && name.hasPrefix("@")
-      guard isSystemName || !(config.allowUnknownElements || config.allowUnknownFunctions)
-      else { return }
+      guard isSystemName || !config.allowUnknownElements else { return }
       let msg = "Unrecognized function '\(name)'"
       throw A2UIValidationError(
         msg,
@@ -693,6 +705,74 @@ public final class PayloadValidator: Sendable {
       }
     }
     return current
+  }
+
+  /// Returns the leaf errors of a schema error, leaving out the errors that name unknown
+  /// component properties.
+  private static func leafErrorsIgnoringUnknownProperties(
+    from error: JSONSchema.ValidationError,
+    componentSchema: JSONValue
+  ) -> [JSONSchema.ValidationError] {
+    if isUnknownPropertyError(error, componentSchema: componentSchema) {
+      return []
+    }
+    if let nested = error.errors, !nested.isEmpty {
+      return nested.flatMap {
+        leafErrorsIgnoringUnknownProperties(from: $0, componentSchema: componentSchema)
+      }
+    }
+    return [error]
+  }
+
+  /// Returns whether a schema error reports a property that the schema doesn't declare.
+  ///
+  /// That is an `additionalProperties` or `unevaluatedProperties` failure whose subschema is
+  /// `false`: a non-boolean subschema reports a bad value instead. A key rejected by a schema
+  /// that also has `patternProperties` breaks a key format (for example a v1.0 `Extensions` key
+  /// that is not a UAX #31 identifier), so it is not an unknown property. When the schema that
+  /// holds the keyword can't be found, the error is not treated as an unknown property.
+  private static func isUnknownPropertyError(
+    _ error: JSONSchema.ValidationError,
+    componentSchema: JSONValue
+  ) -> Bool {
+    guard error.keyword == "additionalProperties" || error.keyword == "unevaluatedProperties"
+    else {
+      return false
+    }
+    // swift-json-schema reports a failing `false` subschema with the `boolean` keyword.
+    guard let nested = error.errors, !nested.isEmpty,
+      nested.allSatisfy({ $0.keyword == "boolean" }),
+      let owner = schemaHoldingKeyword(of: error, componentSchema: componentSchema)
+    else {
+      return false
+    }
+    return owner["patternProperties"] == nil
+  }
+
+  /// Finds the schema object that holds the failing keyword of a schema error, from the
+  /// error's absolute keyword location.
+  ///
+  /// The location's document is one of the shared A2UI schema documents, or else the component
+  /// schema itself.
+  private static func schemaHoldingKeyword(
+    of error: JSONSchema.ValidationError,
+    componentSchema: JSONValue
+  ) -> JSONValue? {
+    guard let location = error.absoluteKeywordLocation,
+      var components = URLComponents(url: location, resolvingAgainstBaseURL: false),
+      let pointer = components.fragment
+    else {
+      return nil
+    }
+    components.fragment = nil
+    let documentURI = components.url?.absoluteString ?? ""
+    let document = A2UICommonSchema.allSchemas[documentURI] ?? componentSchema
+    var tokens = pointer.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+    guard tokens.last == error.keyword else {
+      return nil
+    }
+    tokens.removeLast()
+    return resolveLocalRef("#" + tokens.joined(separator: "/"), in: document)
   }
 
   private func containsDynamicExpression(in args: [String: JSONValue]) -> Bool {

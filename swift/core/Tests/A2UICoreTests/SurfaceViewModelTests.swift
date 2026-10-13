@@ -250,8 +250,32 @@ struct SurfaceViewModelTests {
     }
   }
 
-  @Test func updateComponentsRejectsUnknownType() throws {
-    let (processor, _, handler) = try makeProcessor()
+  @Test func updateComponentsAcceptsUnknownTypeByDefault() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateComponents(
+      surfaceID: "test-surface",
+      components: [
+        ["id": "root", "component": "unknown_type"]
+      ]
+    )
+    #expect(handler.capturedErrors.isEmpty)
+    #expect(surface.componentsModel.get("root")?.type == "unknown_type")
+  }
+
+  @Test func updateComponentsRejectsUnknownTypeInStrictMode() throws {
+    let handler = TestActionHandler()
+    let catalog = try makeTestCatalog()
+    let processor = MessageProcessor(
+      catalogs: [catalog],
+      actionHandler: handler,
+      validationConfig: .strict
+    )
+    let surface = SurfaceViewModel(
+      surfaceID: "test-surface",
+      catalog: catalog,
+      actionHandler: handler
+    )
+    processor.surfaceGroupModel.addSurface(surface)
     processor.updateComponents(
       surfaceID: "test-surface",
       components: [
