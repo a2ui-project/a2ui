@@ -17,6 +17,10 @@
 a2a-sdk 0.3 uses pydantic ``Part(root=DataPart|TextPart)``. a2a-sdk 1.x uses a
 flat protobuf ``Part`` with a ``content`` oneof. ADK 2.x's ``[a2a]`` extra
 accepts both generations; these helpers let A2UI do the same.
+
+The installed generation decides which attributes ``a2a.types`` has, so the
+version-specific code goes through ``_types`` and ``Any``: a static checker only
+ever sees one of the two generations.
 """
 
 from __future__ import annotations
@@ -24,23 +28,20 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any, Optional
 
+import a2a.types as _a2a_types
 from a2a.types import AgentExtension, Part
 
-try:
-    from a2a.types import StreamResponse as _StreamResponse  # noqa: F401
+_types: Any = _a2a_types
 
-    IS_A2A_V1 = True
-except ImportError:
-    IS_A2A_V1 = False
+# ``StreamResponse`` only exists in the protobuf-based 1.x types.
+IS_A2A_V1 = hasattr(_types, "StreamResponse")
 
 
 def make_text_part(text: str) -> Part:
     """Builds a text Part for the installed a2a-sdk generation."""
     if IS_A2A_V1:
-        return Part(text=text)
-    from a2a.types import TextPart  # type: ignore[attr-defined]
-
-    return Part(root=TextPart(text=text))
+        return _types.Part(text=text)  # type: ignore[no-any-return]
+    return _types.Part(root=_types.TextPart(text=text))  # type: ignore[no-any-return]
 
 
 def make_data_part(
@@ -48,21 +49,19 @@ def make_data_part(
 ) -> Part:
     """Builds a structured-data Part for the installed a2a-sdk generation."""
     if IS_A2A_V1:
-        from google.protobuf import json_format
-        from google.protobuf import struct_pb2
+        from google.protobuf import json_format  # type: ignore[import-untyped,unused-ignore]
+        from google.protobuf import struct_pb2  # type: ignore[import-untyped,unused-ignore]
 
         value = struct_pb2.Value()
         json_format.ParseDict(data, value)
-        part = Part(data=value)
+        part: Any = _types.Part(data=value)
         if metadata:
             part.metadata.update({k: str(v) for k, v in metadata.items()})
             mime = metadata.get("mimeType")
             if isinstance(mime, str) and mime:
                 part.media_type = mime
-        return part
-    from a2a.types import DataPart  # type: ignore[attr-defined]
-
-    return Part(root=DataPart(data=data, metadata=metadata))
+        return part  # type: ignore[no-any-return]
+    return _types.Part(root=_types.DataPart(data=data, metadata=metadata))  # type: ignore[no-any-return]
 
 
 def is_data_part(part: Part) -> bool:
@@ -70,10 +69,9 @@ def is_data_part(part: Part) -> bool:
     if part is None:
         return False
     if IS_A2A_V1:
-        return part.WhichOneof("content") == "data"
-    from a2a.types import DataPart  # type: ignore[attr-defined]
-
-    return isinstance(getattr(part, "root", None), DataPart)
+        p: Any = part
+        return bool(p.WhichOneof("content") == "data")
+    return isinstance(getattr(part, "root", None), _types.DataPart)
 
 
 def is_text_part(part: Part) -> bool:
@@ -81,19 +79,18 @@ def is_text_part(part: Part) -> bool:
     if part is None:
         return False
     if IS_A2A_V1:
-        return part.WhichOneof("content") == "text"
-    from a2a.types import TextPart  # type: ignore[attr-defined]
-
-    return isinstance(getattr(part, "root", None), TextPart)
+        p: Any = part
+        return bool(p.WhichOneof("content") == "text")
+    return isinstance(getattr(part, "root", None), _types.TextPart)
 
 
 def part_text(part: Part) -> str:
     """Reads the text of a text Part, or an empty string if there is none."""
     if part is None:
         return ""
-    if IS_A2A_V1:
-        return part.text
-    return part.root.text
+    p: Any = part
+    text = p.text if IS_A2A_V1 else p.root.text
+    return str(text)
 
 
 def part_metadata(part: Part) -> dict[str, Any]:
@@ -107,9 +104,10 @@ def part_metadata(part: Part) -> dict[str, Any]:
         # a2a-sdk 1.x types it as a protobuf ``Struct``, which has a DESCRIPTOR;
         # fall back to ``dict`` for a plain map so either shape reads the same.
         if hasattr(metadata, "DESCRIPTOR"):
-            from google.protobuf.json_format import MessageToDict
+            from google.protobuf.json_format import MessageToDict  # type: ignore[import-untyped,unused-ignore]
 
-            return MessageToDict(metadata)
+            result: dict[str, Any] = MessageToDict(metadata)
+            return result
         return dict(metadata)
     return getattr(getattr(part, "root", None), "metadata", None) or {}
 
@@ -118,22 +116,22 @@ def data_part_dict(part: Part) -> Optional[dict[str, Any]]:
     """Returns structured data as a dict, or None if the Part is not data."""
     if not is_data_part(part):
         return None
+    p: Any = part
     if IS_A2A_V1:
-        from google.protobuf.json_format import MessageToDict
+        from google.protobuf.json_format import MessageToDict  # type: ignore[import-untyped,unused-ignore]
 
-        data = MessageToDict(part.data)
-        return data if isinstance(data, dict) else None
-    data = part.root.data
+        data = MessageToDict(p.data)
+    else:
+        data = p.root.data
     return data if isinstance(data, dict) else None
 
 
 def part_media_type(part: Part) -> Optional[str]:
     """Returns the Part media type, if the installed SDK exposes one."""
-    if part is None:
+    if part is None or not IS_A2A_V1:
         return None
-    if IS_A2A_V1:
-        return part.media_type or None
-    return None
+    p: Any = part
+    return str(p.media_type) if p.media_type else None
 
 
 def make_agent_extension(
@@ -144,10 +142,10 @@ def make_agent_extension(
 ) -> AgentExtension:
     """Builds an AgentExtension. 1.x ``params`` is a protobuf Struct."""
     if IS_A2A_V1:
-        ext = AgentExtension(uri=uri, description=description)
+        ext: Any = AgentExtension(uri=uri, description=description)
         if params:
             ext.params.update(params)
-        return ext
+        return ext  # type: ignore[no-any-return]
     return AgentExtension(
         uri=uri,
         description=description,
@@ -195,4 +193,5 @@ def data_part_view(part: Part) -> Optional[Any]:
             data=data_part_dict(part) or {},
             metadata=part_metadata(part),
         )
-    return part.root
+    p: Any = part
+    return p.root
