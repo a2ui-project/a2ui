@@ -1175,9 +1175,23 @@ void v1RulesTests() {
       );
     });
 
-    test('accepts an unknown nested function in a v1.0 catalog', () {
+    test(
+        'rejects an unknown nested function in a v1.0 catalog unless '
+        'allowUnknownElements is true', () {
       expect(
         () => _versionedValidator('v1.0').validateComponent(
+          _box({
+            '@call': 'nope',
+            'args': {'anything': 1},
+          }),
+        ),
+        throwsA(_validationError(message: contains("'nope'"))),
+      );
+      expect(
+        () => _versionedValidator(
+          'v1.0',
+          config: const ValidationConfig(allowUnknownElements: true),
+        ).validateComponent(
           _box({
             '@call': 'nope',
             'args': {'anything': 1},
@@ -1193,7 +1207,10 @@ void v1RulesTests() {
             'args': {for (var i = 0; i < count; i++) 'a$i': i},
           };
       final PayloadValidator<ComponentApi, FunctionApi> validator =
-          _versionedValidator('v1.0');
+          _versionedValidator(
+        'v1.0',
+        config: const ValidationConfig(allowUnknownElements: true),
+      );
 
       expect(maxFunctionCallArgs, 1000);
       expect(

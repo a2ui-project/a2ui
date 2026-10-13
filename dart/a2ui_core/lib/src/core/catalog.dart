@@ -708,6 +708,19 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
     }
 
+    // The names of a function's parameters, whether declared under a JSON
+    // Schema's `properties`/`allOf` or directly as a shorthand parameter map.
+    Iterable<String> parameterNames(Object? schema) sync* {
+      if (schema is! Map) return;
+      if (schema.containsKey('properties') || schema.containsKey('allOf')) {
+        yield* propertyNames(schema);
+        return;
+      }
+      if (schema['type'] is! String && !schema.containsKey(r'$ref')) {
+        yield* schema.keys.whereType<String>();
+      }
+    }
+
     if (json['components'] case final Map<Object?, Object?> components) {
       for (final MapEntry<Object?, Object?> entry in components.entries) {
         final name = entry.key! as String;
@@ -739,7 +752,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     };
     for (final (String name, Object? args) in definitions) {
       check(name, "function identifier '$name'", allowLeadingAt: true);
-      for (final String arg in propertyNames(args)) {
+      for (final String arg in parameterNames(args)) {
         check(
           arg,
           "argument identifier '$arg' in function '$name'",
@@ -985,14 +998,20 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   /// The argument schema [raw], a part of a frozen definition, or an empty
   /// schema when the definition gives none.
-  static Schema _argumentSchema(Object? raw) => Schema.fromMap(
-        _markRead(
-          raw is Map<String, Object?>
-              ? raw
-              : _frozenCopy(_asSchemaMap(raw ?? const <String, Object?>{}))!
-                  as Map<String, Object?>,
-        ),
-      );
+  static Schema _argumentSchema(Object? raw) {
+    final Map<String, Object?> map = raw is Map<String, Object?>
+        ? raw
+        : _frozenCopy(_asSchemaMap(raw ?? const <String, Object?>{}))!
+            as Map<String, Object?>;
+    final normalized = map.isNotEmpty &&
+            !map.containsKey('properties') &&
+            map['type'] is! String &&
+            !map.containsKey(r'$ref') &&
+            !map.containsKey('allOf')
+        ? <String, Object?>{'type': 'object', 'properties': map}
+        : map;
+    return Schema.fromMap(_markRead(normalized));
+  }
 
   /// Reads a function's `allowedCallers`, or null when it declares none.
   static AllowedCallers? _parseAllowedCallers(

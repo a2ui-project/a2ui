@@ -132,6 +132,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// The v1.0 envelope schemas with their `$ref`s inlined, on first use.
   Map<String, Schema>? _resolvedEnvelope;
 
+  /// The v1.0 `@index` argument schema with its `$ref`s inlined, on first use.
+  Schema? _resolvedIndexArgs;
+
   /// Creates a validator for [catalog].
   PayloadValidator({
     required this.catalog,
@@ -269,9 +272,9 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// A call may pass at most [maxFunctionCallArgs] arguments. From v1.0 the
   /// name and argument names must be UAX #31 identifiers (the name may start
   /// with one `@`, as system functions such as `@index` do), and a function
-  /// the catalog does not declare passes with its arguments unchecked,
-  /// because a renderer forwards it to the agent. Below v1.0 an unknown
-  /// function is rejected unless [ValidationConfig.allowUnknownElements].
+  /// the catalog does not declare passes with its arguments unchecked when
+  /// [ValidationConfig.allowUnknownElements] is true, because a renderer
+  /// forwards it to the agent. Otherwise an unknown function is rejected.
   ///
   /// Throws [A2uiValidationError] if the call breaks any of those rules or the
   /// arguments do not match the function's schema.
@@ -284,7 +287,15 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
 
     final Schema? schema = _resolvedFunctionSchemas[name];
     if (schema == null) {
-      if (_v1 || config.allowUnknownElements) return;
+      if (_v1 && name == '@index') {
+        _throwOnErrors(
+          _resolvedIndexArgsSchema.validateSync(args),
+          "Invalid arguments for '@index'",
+          path: '$path/args',
+        );
+        return;
+      }
+      if (config.allowUnknownElements) return;
       throw A2uiValidationError(
         "Catalog '${catalog.id}' declares no function named '$name'.",
         path: path,
@@ -550,20 +561,55 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           entry.key: _resolve(entry.value),
       };
 
+  Schema get _resolvedIndexArgsSchema => _resolvedIndexArgs ??= _resolve(
+        (((_commonTypesSchema[r'$defs']! as Map)['IndexSystemFunction']!
+            as Map)['properties']! as Map)['args']! as Map<String, Object?>,
+      );
+
   /// The document local references resolve against: the catalog's
   /// [Catalog.validationSchema], except that from v1.0 its function union
-  /// also matches a call to a function the catalog does not declare. Such a
-  /// call is forwarded to the agent, so its arguments go unchecked; `@index`
-  /// is matched by `IndexSystemFunction`.
+  /// also matches a call to another catalog (carrying a `catalogId` other than
+  /// [Catalog.id]) or, when [ValidationConfig.allowUnknownElements] is true,
+  /// any function the catalog does not declare (which is forwarded to the
+  /// agent, so its arguments go unchecked; `@index` is matched by
+  /// `IndexSystemFunction`).
   late final Map<String, Object?> _resolutionDocument = () {
     final Map<String, Object?> document = catalog.validationSchema;
     final Object? rawDefs = document[r'$defs'];
-    if (!_v1 || rawDefs is! Map) return document;
+    if (!_v1 || rawDefs is! Map) {
+      return document;
+    }
     final Map<String, Object?> defs = rawDefs.cast<String, Object?>();
     final List<Object?> declared = switch (defs['anyFunction']) {
       {'oneOf': final List<Object?> entries} => entries,
       _ => const <Object?>[],
     };
+    final Map<String, Object?> passthrough = config.allowUnknownElements
+        ? {
+            'type': 'object',
+            'properties': {
+              '@call': {
+                'not': {
+                  'enum': [...catalog.functions.keys, '@index'],
+                },
+              },
+              'args': {'type': 'object'},
+            },
+            'required': ['@call'],
+          }
+        : {
+            'type': 'object',
+            'properties': {
+              '@call': {'type': 'string'},
+              'catalogId': {
+                'type': 'string',
+                'minLength': 1,
+                'not': {'const': catalog.id},
+              },
+              'args': {'type': 'object'},
+            },
+            'required': ['@call', 'catalogId'],
+          };
     return {
       ...document,
       r'$defs': {
@@ -571,18 +617,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         'anyFunction': {
           'oneOf': [
             ...declared,
-            {
-              'type': 'object',
-              'properties': {
-                '@call': {
-                  'not': {
-                    'enum': [...catalog.functions.keys, '@index'],
-                  },
-                },
-                'args': {'type': 'object'},
-              },
-              'required': ['@call'],
-            },
+            passthrough,
           ],
         },
       },
