@@ -477,7 +477,7 @@ struct MessageProcessorTests {
         {
           "type": "object",
           "properties": {
-            "text": { "type": "string" }
+            "text": { "type": ["string", "null"] }
           }
         }
         """
@@ -591,7 +591,7 @@ struct MessageProcessorTests {
               "@call": "echo",
               "catalogId": "default",
               "args": {
-                "text": "hello"
+                "text": { "@path": "/user/name" }
               }
             }
           }
@@ -602,9 +602,84 @@ struct MessageProcessorTests {
     #expect(capturedOutbound.count == 3)
     if case .rendererFunctionResponse(let resp3) = capturedOutbound.last {
       #expect(resp3.functionCallID == "rpc-3")
-      #expect(resp3.value?.stringValue == "hello")
+      #expect(resp3.value == .null)
+      #expect(resp3.error == nil)
     } else {
-      Issue.record("Expected .rendererFunctionResponse with value")
+      Issue.record("Expected .rendererFunctionResponse with null value")
+    }
+
+    // Calling with @call: "@index" at root context returns EXECUTION_ERROR
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v1.0",
+          "callRendererFunction": {
+            "functionCallId": "rpc-4",
+            "callFunction": {
+              "@call": "echo",
+              "catalogId": "default",
+              "args": {
+                "text": { "@call": "@index" }
+              }
+            }
+          }
+        }
+        """))
+
+    try await Task.sleep(nanoseconds: 20_000_000)
+    #expect(capturedOutbound.count == 4)
+    if case .rendererFunctionResponse(let resp4) = capturedOutbound.last {
+      #expect(resp4.functionCallID == "rpc-4")
+      #expect(resp4.error?.code == FunctionErrorPayload.Code.executionError.rawValue)
+    } else {
+      Issue.record("Expected .rendererFunctionResponse with executionError")
+    }
+
+    // "surfaceId": null is rejected by V10VersionAdapter as type_mismatch
+    #expect(throws: A2UIValidationError.self) {
+      try parse(
+        """
+        {
+          "version": "v1.0",
+          "callRendererFunction": {
+            "surfaceId": null,
+            "functionCallId": "rpc-5",
+            "callFunction": {
+              "@call": "echo",
+              "catalogId": "default",
+              "args": {}
+            }
+          }
+        }
+        """)
+    }
+
+    // "surfaceId": "" passes envelope parsing and fails in RPCHandler with INVALID_FUNCTION_CALL
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v1.0",
+          "callRendererFunction": {
+            "surfaceId": "",
+            "functionCallId": "rpc-6",
+            "callFunction": {
+              "@call": "echo",
+              "catalogId": "default",
+              "args": {}
+            }
+          }
+        }
+        """))
+
+    try await Task.sleep(nanoseconds: 20_000_000)
+    #expect(capturedOutbound.count == 5)
+    if case .rendererFunctionResponse(let resp6) = capturedOutbound.last {
+      #expect(resp6.functionCallID == "rpc-6")
+      #expect(resp6.error?.code == FunctionErrorPayload.Code.invalidFunctionCall.rawValue)
+    } else {
+      Issue.record("Expected .rendererFunctionResponse with invalidFunctionCall")
     }
   }
 

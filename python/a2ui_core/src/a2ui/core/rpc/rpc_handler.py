@@ -307,6 +307,91 @@ class RpcHandler:
         except (ValueError, TypeError):
             return True, False
 
+    def _ensure_data_context(
+        self,
+        context: DataContext | None,
+        matched_catalog: Any,
+        call_id: str,
+    ) -> DataContext | None:
+        """Ensures a DataContext is available for dynamic argument resolution."""
+        if context is not None and hasattr(context, "resolve_dynamic_value"):
+            return context
+        if matched_catalog is None:
+            return context
+        try:
+            from ..state.surface_model import SurfaceModel
+
+            fallback_surface = SurfaceModel(
+                surface_id=f"_rpc_fallback_{call_id or 'default'}",
+                default_catalog=matched_catalog,
+                available_catalogs=dict(self.catalogs),
+            )
+            return DataContext(surface=fallback_surface, path="/")
+        except Exception:
+            return context
+
+    def _resolve_dynamic_arguments(
+        self,
+        args: Any,
+        context: DataContext | None,
+        call_id: str,
+        version: str,
+    ) -> tuple[Any, RendererFunctionResponseMessage | None]:
+        """Resolves dynamic values in args against context, returning an error response on evaluation failure."""
+        if (
+            context is None
+            or not hasattr(context, "resolve_dynamic_value")
+            or not isinstance(args, dict)
+        ):
+            return args, None
+
+        expression_error: str | None = None
+        error_sub = None
+        surface = getattr(context, "surface", None)
+        on_error = getattr(surface, "on_error", None)
+        if on_error is not None and hasattr(on_error, "subscribe"):
+
+            def _on_expr_err(err: Any) -> None:
+                nonlocal expression_error
+                if (
+                    expression_error is None
+                    and isinstance(err, dict)
+                    and err.get("code") == "EXPRESSION_ERROR"
+                ):
+                    expression_error = str(
+                        err.get("message")
+                        or "An error occurred during function execution."
+                    )
+
+            error_sub = on_error.subscribe(_on_expr_err)
+
+        resolved_args = args
+        try:
+            resolved_args = {
+                k: context.resolve_dynamic_value(v) for k, v in args.items()
+            }
+        except Exception as e:
+            expression_error = str(e) or "An error occurred during function execution."
+        finally:
+            if error_sub is not None and hasattr(error_sub, "unsubscribe"):
+                error_sub.unsubscribe()
+
+        if expression_error is not None:
+            err_resp = self._create_response_error(
+                call_id,
+                RpcErrorCode.EXECUTION_ERROR,
+                expression_error,
+                version=version,
+            )
+            self._emit_outbound_response(
+                err_resp.model_dump(
+                    by_alias=True, exclude_none=True, exclude_unset=True
+                )
+            )
+            return args, err_resp
+
+        return resolved_args, None
+
     def _prepare_target_function(
         self,
         matched_catalog: Any,
@@ -315,13 +400,20 @@ class RpcHandler:
         fn: Any,
         call_id: str,
         version: str,
+        context: DataContext | None = None,
     ) -> _TargetFnOrError:
         """Validates payload schema and resolves target callable."""
-        validated_args = args
+        resolved_args, expr_err_resp = self._resolve_dynamic_arguments(
+            args, context, call_id, version
+        )
+        if expr_err_resp is not None:
+            return _TargetFnOrError(error_response=expr_err_resp)
+
+        validated_args = resolved_args
         if matched_catalog:
             try:
                 res = PayloadValidator(catalog=matched_catalog).validate_function(
-                    call_name, args
+                    call_name, resolved_args
                 )
                 if isinstance(res, dict):
                     validated_args = res
@@ -385,8 +477,15 @@ class RpcHandler:
         matched_catalog: Any = None,
     ) -> RendererFunctionResponseMessage:
         """Safely executes a function implementation synchronously, returning response model."""
+        effective_context = self._ensure_data_context(context, matched_catalog, call_id)
         prepared = self._prepare_target_function(
-            matched_catalog, call_name, args, fn, call_id, version
+            matched_catalog,
+            call_name,
+            args,
+            fn,
+            call_id,
+            version,
+            context=effective_context,
         )
         if prepared.error_response is not None:
             return prepared.error_response
@@ -399,10 +498,10 @@ class RpcHandler:
             )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
             raw_res = (
-                target_fn(fn_args, context)
+                target_fn(fn_args, effective_context)
                 if has_pos_context
                 else (
-                    target_fn(fn_args, context=context)
+                    target_fn(fn_args, context=effective_context)
                     if has_kw_context
                     else target_fn(fn_args)
                 )
@@ -449,8 +548,15 @@ class RpcHandler:
         matched_catalog: Any = None,
     ) -> RendererFunctionResponseMessage:
         """Safely executes a function implementation asynchronously, returning response model."""
+        effective_context = self._ensure_data_context(context, matched_catalog, call_id)
         prepared = self._prepare_target_function(
-            matched_catalog, call_name, args, fn, call_id, version
+            matched_catalog,
+            call_name,
+            args,
+            fn,
+            call_id,
+            version,
+            context=effective_context,
         )
         if prepared.error_response is not None:
             return prepared.error_response
@@ -463,10 +569,10 @@ class RpcHandler:
             )
             has_pos_context, has_kw_context = self._inspect_call_signature(target_fn)
             raw_res = (
-                target_fn(fn_args, context)
+                target_fn(fn_args, effective_context)
                 if has_pos_context
                 else (
-                    target_fn(fn_args, context=context)
+                    target_fn(fn_args, context=effective_context)
                     if has_kw_context
                     else target_fn(fn_args)
                 )

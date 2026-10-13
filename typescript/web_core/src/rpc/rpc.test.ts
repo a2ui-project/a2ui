@@ -437,7 +437,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
           callFunction: {
             call: 'customRpc',
             args: {text: 'hi'},
-          },
+          } as any,
         },
       },
       emptyContext,

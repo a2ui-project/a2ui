@@ -366,8 +366,31 @@ class RpcHandler {
         RpcErrorCode.invalidFunctionCall,
       );
     }
-    final Map<String, dynamic> args = call.args;
-    final List<ValidationError> errors = catalog.argumentErrors(fn, args);
+    final DataContext dataContext = _dataContextFor(
+      surface,
+      catalog,
+      message.version,
+      execution,
+    );
+    final Map<String, dynamic> resolvedArgs;
+    try {
+      resolvedArgs = {
+        for (final MapEntry<String, dynamic> entry in call.args.entries)
+          entry.key: dataContext.resolveSync(entry.value),
+      };
+    } catch (error) {
+      final String errorMessage =
+          error is A2uiError ? error.message : error.toString();
+      throw A2uiRpcError(
+        errorMessage.isEmpty
+            ? 'An error occurred during function execution.'
+            : errorMessage,
+        RpcErrorCode.executionError,
+        cause: error,
+      );
+    }
+    final List<ValidationError> errors =
+        catalog.argumentErrors(fn, resolvedArgs);
     if (errors.isNotEmpty) {
       throw A2uiRpcError(
         "Invalid function arguments for '$name': "
@@ -376,14 +399,8 @@ class RpcHandler {
       );
     }
 
-    final DataContext dataContext = _dataContextFor(
-      surface,
-      catalog,
-      message.version,
-      execution,
-    );
     try {
-      Object? result = fn.execute(args, dataContext);
+      Object? result = fn.execute(resolvedArgs, dataContext);
       if (result is Future) result = await result;
       if (result is ReadonlySignal) result = result.value;
       return A2uiFunctionResponse.value(functionCallId, result);

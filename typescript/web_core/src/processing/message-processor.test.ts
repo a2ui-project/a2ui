@@ -555,12 +555,13 @@ describe('MessageProcessor', () => {
       const readModelApi = {
         name: 'readUserName',
         returnType: 'string' as const,
-        schema: z.object({}),
+        schema: z.object({text: z.string().optional()}),
         allowedCallers: 'rendererOrAgent' as const,
       };
       const readModelImpl = createFunctionImplementation(
         readModelApi,
-        (_args: any, ctx: any) => ctx?.surface?.dataModel?.get('/user/name') ?? 'empty',
+        (args: any, ctx: any) =>
+          args?.text ?? ctx?.surface?.dataModel?.get('/user/name') ?? 'empty',
       );
       const cat = new Catalog('rpc-model-cat', '1.0', [], [readModelImpl]);
       const proc = new MessageProcessor([cat]);
@@ -584,7 +585,7 @@ describe('MessageProcessor', () => {
         },
       ]);
 
-      // 1. With surfaceId: 's2' -> resolves against s2's data model ('Bob')
+      // 1. With surfaceId: 's2' and @path arg -> resolves against s2's data model ('Bob')
       const resWithSurface = await proc.processMessagesAsync({
         version: 'v1.0',
         callRendererFunction: {
@@ -593,14 +594,14 @@ describe('MessageProcessor', () => {
           callFunction: {
             call: 'readUserName',
             catalogId: 'rpc-model-cat',
-            args: {},
+            args: {text: {'@path': '/user/name'}},
           },
         },
       });
       assert.strictEqual(resWithSurface.length, 1);
       assert.strictEqual(resWithSurface[0].rendererFunctionResponse.value, 'Bob');
 
-      // 2. Without surfaceId -> resolves against isolated empty root model ('empty')
+      // 2. Without surfaceId and @path arg -> resolves against isolated empty root model ('empty')
       const resIsolated = await proc.processMessagesAsync({
         version: 'v1.0',
         callRendererFunction: {
@@ -608,7 +609,7 @@ describe('MessageProcessor', () => {
           callFunction: {
             call: 'readUserName',
             catalogId: 'rpc-model-cat',
-            args: {},
+            args: {text: {'@path': '/user/name'}},
           },
         },
       });
@@ -636,6 +637,39 @@ describe('MessageProcessor', () => {
       assert.match(
         resMissing[0].rendererFunctionResponse.error?.message ?? '',
         /Surface not found: non_existent_surface/,
+      );
+
+      // 4. With @call: '@index' in args -> returns EXECUTION_ERROR
+      const resIndexErr = await proc.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-surf-4',
+          callFunction: {
+            call: 'readUserName',
+            catalogId: 'rpc-model-cat',
+            args: {text: {'@call': '@index'}},
+          },
+        },
+      });
+      assert.strictEqual(resIndexErr.length, 1);
+      assert.strictEqual(
+        resIndexErr[0].rendererFunctionResponse.error?.code,
+        RpcErrorCode.EXECUTION_ERROR,
+      );
+
+      // 5. Wire message missing callFunction.catalogId -> throws A2uiValidationError
+      await assert.rejects(
+        proc.processMessagesAsync({
+          version: 'v1.0',
+          callRendererFunction: {
+            functionCallId: 'rpc-surf-5',
+            callFunction: {
+              call: 'readUserName',
+              args: {},
+            },
+          },
+        } as any),
+        A2uiValidationError,
       );
     });
 

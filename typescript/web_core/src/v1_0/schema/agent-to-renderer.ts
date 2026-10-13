@@ -147,7 +147,10 @@ export const CallRendererFunctionMessageSchema = z
           )
           .optional(),
         'functionCallId': CallIdSchema,
-        'callFunction': z.intersection(FunctionCallSchema, z.any()),
+        'callFunction': z.intersection(
+          FunctionCallSchema,
+          z.object({'catalogId': z.string()}).passthrough(),
+        ),
       })
       .strict()
       .describe('Signals the renderer to execute a function locally on behalf of the agent.'),

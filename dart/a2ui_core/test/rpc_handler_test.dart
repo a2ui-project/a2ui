@@ -658,5 +658,39 @@ void main() {
           await run(h, _inbound('read', catalogId: 'reading'));
       expect(r.value, 3);
     });
+
+    test('resolves dynamic @path and @call expressions in arguments', () async {
+      surface.dataModel.set('/user/name', 'Alice');
+      final A2uiFunctionResponse withSurface = await run(
+        handler(),
+        _inbound('echo', catalogId: 'basic', args: {
+          'value': {'@path': '/user/name'},
+        }),
+      );
+      expect(withSurface.value, 'Alice');
+
+      final A2uiFunctionResponse headless = await run(
+        handler(),
+        _inbound('echo', catalogId: 'basic', args: {
+          'value': {'@path': '/user/name'},
+        }),
+        withSurface: false,
+      );
+      expect(headless.value, isNull);
+      expect(headless.error, isNull);
+
+      final A2uiFunctionResponse indexErr = await run(
+        handler(),
+        _inbound('echo', catalogId: 'basic', args: {
+          'value': {'@call': '@index'},
+        }),
+        withSurface: false,
+      );
+      expectError(
+        indexErr,
+        RpcErrorCode.executionError,
+        '@index function can only be evaluated inside a collection template',
+      );
+    });
   });
 }

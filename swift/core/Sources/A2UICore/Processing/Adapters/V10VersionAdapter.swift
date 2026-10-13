@@ -234,15 +234,15 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
         allowed: ["surfaceId", "functionCallId", "callFunction"]
       )
       var surfaceID: String?
-      if let rawSurfaceID = actionObject["surfaceId"], rawSurfaceID != .null {
-        guard let str = rawSurfaceID.stringValue, !str.isEmpty else {
+      if let rawSurfaceID = actionObject["surfaceId"] {
+        guard let str = rawSurfaceID.stringValue else {
           throw A2UIValidationError(
-            "Invalid v1.0 message: callRendererFunction.surfaceId must be a non-empty string",
+            "Invalid v1.0 message: callRendererFunction.surfaceId must be a string",
             details: [
               A2UIErrorDetail(
                 path: "messages.0.callRendererFunction.surfaceId",
-                code: rawSurfaceID.stringValue == nil ? "type_mismatch" : "invalid_value",
-                message: "Field 'surfaceId' must be a non-empty string"
+                code: "type_mismatch",
+                message: "Field 'surfaceId' must be a string"
               )
             ]
           )
@@ -278,21 +278,23 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
           ]
         )
       }
-      var catalogID: String?
-      if let rawCatalogID = callFunctionObj["catalogId"], rawCatalogID != .null {
-        guard let str = rawCatalogID.stringValue, !str.isEmpty else {
-          throw A2UIValidationError(
-            "Invalid v1.0 message: callRendererFunction.callFunction.catalogId must be a string",
-            details: [
-              A2UIErrorDetail(
-                path: "messages.0.callRendererFunction.callFunction.catalogId",
-                code: rawCatalogID.stringValue == nil ? "type_mismatch" : "invalid_value",
-                message: "Field 'catalogId' must be a non-empty string"
-              )
-            ]
-          )
-        }
-        catalogID = str
+      guard let rawCatalogID = callFunctionObj["catalogId"],
+        let catalogID = rawCatalogID.stringValue,
+        !catalogID.isEmpty
+      else {
+        throw A2UIValidationError(
+          "Invalid v1.0 message: callRendererFunction.callFunction.catalogId is required",
+          details: [
+            A2UIErrorDetail(
+              path: "messages.0.callRendererFunction.callFunction.catalogId",
+              code: callFunctionObj["catalogId"] == nil
+                ? "missing_field"
+                : (callFunctionObj["catalogId"]?.stringValue == nil
+                  ? "type_mismatch" : "invalid_value"),
+              message: "Field 'catalogId' must be a non-empty string"
+            )
+          ]
+        )
       }
       let args: [String: JSONValue]? = callFunctionObj["args"]?.objectValue.map {
         Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })

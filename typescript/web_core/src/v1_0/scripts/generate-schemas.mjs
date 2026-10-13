@@ -120,7 +120,7 @@ export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;`;
     if (recursiveSchemas.has(name)) {
       if (name === 'FunctionCall') {
         code =
-          `export interface FunctionCall {\n  call?: string;\n  '@call'?: string;\n  args?: Record<string, unknown>;\n  returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';\n}\n` +
+          `export interface FunctionCall {\n  call?: string;\n  '@call'?: string;\n  catalogId?: string;\n  args?: Record<string, unknown>;\n  returnType?: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'any' | 'void';\n}\n` +
           code;
         code = code.replace(
           'export const FunctionCallSchema =',
@@ -283,7 +283,13 @@ function generateIncomingMessageSchemas({pureCommonNames, helperNames}) {
 
   for (const msgName of a2rMsgNames) {
     const rawDef = a2rJson.$defs[msgName];
-    const code = compileDefToZod(rawDef, msgName);
+    let code = compileDefToZod(rawDef, msgName);
+    if (msgName === 'CallRendererFunctionMessage') {
+      code = code.replace(
+        'z.intersection(FunctionCallSchema, z.any())',
+        "z.intersection(FunctionCallSchema, z.object({'catalogId': z.string()}).passthrough())",
+      );
+    }
     bodyCode += code + '\n\n';
   }
 

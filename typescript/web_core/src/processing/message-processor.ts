@@ -592,22 +592,21 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Resolves the DataContext for an inbound RPC callRendererFunction operation.
    *
    * @param op Operation containing optional surface, catalog, and function call identifiers.
-   * @returns A DataContext attached to the requested surface or an isolated fallback surface.
+   * @returns A DataContext attached to the requested surface, an isolated fallback surface when surfaceId is omitted, or undefined if surfaceId is not found.
    */
   private resolveRpcDataContext(op: {
     surfaceId?: string;
     catalogId?: string;
     functionCallId?: string;
-  }): DataContext {
+  }): DataContext | undefined {
     if (op.surfaceId !== undefined) {
       const surface = this.model.surfacesMap.get(op.surfaceId);
-      if (surface) {
-        return new DataContext(surface, '/');
-      }
+      return surface ? new DataContext(surface, '/') : undefined;
     }
-    const targetCatalog =
-      (op.catalogId ? this.catalogs.find(c => c.id === op.catalogId) : undefined) ??
-      this.catalogs[0];
+    const targetCatalog = op.catalogId ? this.catalogs.find(c => c.id === op.catalogId) : undefined;
+    if (!targetCatalog) {
+      return undefined;
+    }
     const fallbackSurfaceId = `_rpc_fallback_${op.functionCallId || 'default'}`;
     const availableCatalogs = new Map<string, Catalog<T>>();
     for (const cat of this.catalogs) {
