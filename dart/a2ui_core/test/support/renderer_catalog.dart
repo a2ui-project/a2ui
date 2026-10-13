@@ -48,6 +48,7 @@ class _UncallableFunction extends FunctionImplementation {
           name: api.name,
           argumentSchema: api.argumentSchema,
           returnType: api.returnType,
+          definition: api.definition,
         );
 
   @override

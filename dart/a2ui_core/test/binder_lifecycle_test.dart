@@ -158,7 +158,8 @@ void main() {
       () {
         var calls = 0;
         late GenericBinder binder;
-        final trackingCatalog = _TrackingCatalog(
+        final Catalog<ComponentApi, FunctionImplementation> trackingCatalog =
+            _trackingCatalog(
           onExecute: () {
             calls++;
             if (calls == 2) binder.dispose();
@@ -232,7 +233,8 @@ void main() {
         'rebuilding bindings disposes old ComputedNotifiers '
         'from function calls', () {
       var callCount = 0;
-      final trackingCatalog = _TrackingCatalog(onExecute: () => callCount++);
+      final Catalog<ComponentApi, FunctionImplementation> trackingCatalog =
+          _trackingCatalog(onExecute: () => callCount++);
       final trackingSurface = SurfaceModel<ComponentApi>(
         's1',
         defaultCatalog: trackingCatalog,
@@ -281,7 +283,8 @@ void main() {
     });
     test('construction resolves function-call properties exactly once', () {
       var callCount = 0;
-      final trackingCatalog = _TrackingCatalog(onExecute: () => callCount++);
+      final Catalog<ComponentApi, FunctionImplementation> trackingCatalog =
+          _trackingCatalog(onExecute: () => callCount++);
       final trackingSurface = SurfaceModel<ComponentApi>(
         's1',
         defaultCatalog: trackingCatalog,
@@ -316,7 +319,8 @@ void main() {
       'change without writing to stale resolvedProps during rebuild',
       () {
         var checkCallCount = 0;
-        final trackingCatalog = _TrackingCatalog(
+        final Catalog<ComponentApi, FunctionImplementation> trackingCatalog =
+            _trackingCatalog(
           onExecute: () => checkCallCount++,
         );
         final trackingSurface = SurfaceModel<ComponentApi>(
@@ -413,13 +417,18 @@ void main() {
   });
 }
 
-class _TrackingCatalog extends MinimalCatalog {
-  _TrackingCatalog({required this.onExecute}) {
-    functions['trackingFn'] = _TrackingFunction(onExecute);
-    functions['trackingCheckFn'] = _TrackingCheckFunction(onExecute);
-  }
-
-  final void Function() onExecute;
+/// [MinimalCatalog] with two functions that call [onExecute] when run.
+Catalog<ComponentApi, FunctionImplementation> _trackingCatalog({
+  required void Function() onExecute,
+}) {
+  final catalog = MinimalCatalog();
+  return catalog.copyWith(
+    functions: [
+      ...catalog.functions.values,
+      _TrackingFunction(onExecute),
+      _TrackingCheckFunction(onExecute),
+    ],
+  );
 }
 
 class _TrackingCheckFunction extends FunctionImplementation {

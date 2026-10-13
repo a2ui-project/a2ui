@@ -155,11 +155,25 @@ class FunctionApi {
   /// declares none.
   final bool? declaredRequiresUserActivation;
 
+  /// The definition as the catalog document wrote it, or null for a function
+  /// defined in code.
+  ///
+  /// For a function read by [Catalog.fromJson], this is the value under the
+  /// function's name in a `functions` map, or its item in a `functions`
+  /// list, in whichever shape the document used, and [Catalog.toJson] writes
+  /// it back unchanged. The other fields are read from it. A function
+  /// without one is written in the shape of the catalog's protocol version,
+  /// from its other fields.
+  final Map<String, Object?>? definition;
+
   /// Creates a function signature.
   ///
   /// [allowedCallers] and [requiresUserActivation] are written to
   /// [Catalog.toJson] only when given, even when given their default value,
-  /// so a definition that states a default keeps stating it.
+  /// so a definition that states a default keeps stating it. [definition],
+  /// when given, is written instead of the other fields, so it must describe
+  /// the same function; pass it on when wrapping a function read by
+  /// [Catalog.fromJson].
   const FunctionApi({
     required this.name,
     required this.argumentSchema,
@@ -167,6 +181,7 @@ class FunctionApi {
     this.description,
     AllowedCallers? allowedCallers,
     bool? requiresUserActivation,
+    this.definition,
   })  : declaredAllowedCallers = allowedCallers,
         declaredRequiresUserActivation = requiresUserActivation;
 
@@ -189,6 +204,7 @@ abstract class FunctionImplementation extends FunctionApi {
     super.description,
     super.allowedCallers,
     super.requiresUserActivation,
+    super.definition,
   });
 
   /// Executes the function. Can return a static value or a [ReadonlySignal].
@@ -407,7 +423,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
       _addUnique(byName, catalogId, 'component', item.name, item);
     }
-    return byName;
+    return Map.unmodifiable(byName);
   }
 
   static Map<String, T> _indexFunctions<T extends FunctionApi>(
@@ -437,7 +453,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
       _addUnique(byName, catalogId, 'function', item.name, item);
     }
-    return byName;
+    return Map.unmodifiable(byName);
   }
 
   static void _addUnique<T>(
@@ -577,7 +593,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       themeSchema: theme == null
           ? null
           : Schema.fromMap(
-              _deepCopyValue(_asSchemaMap(theme))! as Map<String, Object?>,
+              _markRead(
+                _frozenCopy(_asSchemaMap(theme))! as Map<String, Object?>,
+              ),
             ),
       schemaDialect: _optionalString(json, r'$schema', rawId),
       schemaId: _optionalString(json, r'$id', rawId),
@@ -806,9 +824,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           catalogId: catalogId,
         );
       }
-      final schema = _deepCopyValue(compVal)! as Map<String, Object?>;
-      final Object? parents = schema.remove('allowedParents');
-      final Object? children = schema.remove('allowedChildren');
+      final Object? parents = compVal['allowedParents'];
+      final Object? children = compVal['allowedChildren'];
+      final Map<String, Object?> schema = _markRead(_frozenCopy({
+        for (final MapEntry<Object?, Object?> property in compVal.entries)
+          if (property.key != 'allowedParents' &&
+              property.key != 'allowedChildren')
+            property.key: property.value,
+      })! as Map<String, Object?>);
       components.add(
         ComponentApi(
           name: compName,
@@ -831,6 +854,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     return components;
   }
 
+  /// The functions of a document's `functions`, each keeping its definition
+  /// as written in [FunctionApi.definition], from which the other fields are
+  /// read.
   static List<FunctionApi> _parseFunctions(
     Object? raw,
     String catalogId, [
@@ -840,45 +866,52 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
     // Inline form: {name, parameters, returnType} definitions.
     if (raw is List) {
-      return [
-        for (final Object? entry in raw)
-          if (entry is Map)
-            if (allowed == null ||
-                (entry['name'] is String &&
-                    allowed.contains(entry['name'] as String)))
-              FunctionApi(
-                name: (entry['name'] is String &&
-                        (entry['name'] as String).isNotEmpty)
-                    ? entry['name'] as String
-                    : throw A2uiCatalogError(
-                        "Function definition missing 'name' string.",
-                        catalogId: catalogId,
-                      ),
-                description: entry['description'] is String
-                    ? entry['description'] as String
-                    : (entry['description'] == null
-                        ? null
-                        : throw A2uiCatalogError(
-                            "Function definition 'description' must be a "
-                            'string.',
-                            catalogId: catalogId,
-                          )),
-                argumentSchema: _argumentSchema(entry['parameters']),
-                returnType: A2uiReturnType.fromJson(
-                  entry['returnType'] as String? ?? 'any',
-                ),
-                allowedCallers: _parseAllowedCallers(
-                  entry['allowedCallers'],
-                  entry['name'] as String,
-                  catalogId,
-                ),
-                requiresUserActivation: _parseRequiresUserActivation(
-                  entry['requiresUserActivation'],
-                  entry['name'] as String,
-                  catalogId,
-                ),
-              ),
-      ];
+      final functions = <FunctionApi>[];
+      for (final Object? entry in raw) {
+        if (entry is! Map) continue;
+        final Object? rawName = entry['name'];
+        if (allowed != null &&
+            !(rawName is String && allowed.contains(rawName))) {
+          continue;
+        }
+        if (rawName is! String || rawName.isEmpty) {
+          throw A2uiCatalogError(
+            "Function definition missing 'name' string.",
+            catalogId: catalogId,
+          );
+        }
+        final Object? rawDesc = entry['description'];
+        if (rawDesc != null && rawDesc is! String) {
+          throw A2uiCatalogError(
+            "Function definition 'description' must be a string.",
+            catalogId: catalogId,
+          );
+        }
+        final definition =
+            _frozenCopy(_asSchemaMap(entry))! as Map<String, Object?>;
+        functions.add(
+          FunctionApi(
+            name: rawName,
+            description: rawDesc as String?,
+            argumentSchema: _argumentSchema(definition['parameters']),
+            returnType: A2uiReturnType.fromJson(
+              definition['returnType'] as String? ?? 'any',
+            ),
+            allowedCallers: _parseAllowedCallers(
+              definition['allowedCallers'],
+              rawName,
+              catalogId,
+            ),
+            requiresUserActivation: _parseRequiresUserActivation(
+              definition['requiresUserActivation'],
+              rawName,
+              catalogId,
+            ),
+            definition: definition,
+          ),
+        );
+      }
+      return functions;
     }
 
     // Document form: name to JSON schema, with arguments under
@@ -895,7 +928,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     for (final MapEntry<Object?, Object?> entry in raw.entries) {
       final fnName = entry.key! as String;
       if (allowed != null && !allowed.contains(fnName)) continue;
-      final Map<String, Object?> schema = _asSchemaMap(entry.value);
+      final schema =
+          _frozenCopy(_asSchemaMap(entry.value))! as Map<String, Object?>;
       final Object? rawProperties = schema['properties'];
       final Map<String, Object?> properties = switch (rawProperties) {
         null => const <String, Object?>{},
@@ -937,17 +971,22 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             fnName,
             catalogId,
           ),
+          definition: schema,
         ),
       );
     }
     return functions;
   }
 
-  /// A copy of the authored argument schema [raw], or an empty schema when
-  /// the definition gives none.
+  /// The argument schema [raw], a part of a frozen definition, or an empty
+  /// schema when the definition gives none.
   static Schema _argumentSchema(Object? raw) => Schema.fromMap(
-        _deepCopyValue(_asSchemaMap(raw ?? const <String, Object?>{}))!
-            as Map<String, Object?>,
+        _markRead(
+          raw is Map<String, Object?>
+              ? raw
+              : _frozenCopy(_asSchemaMap(raw ?? const <String, Object?>{}))!
+                  as Map<String, Object?>,
+        ),
       );
 
   /// Reads a function's `allowedCallers`, or null when it declares none.
@@ -1498,14 +1537,16 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   ///
   /// The document is assembled from the model: each component's
   /// [ComponentApi.schema] with its `allowedParents` and `allowedChildren`;
-  /// each function's signature in the shape of [protocolVersion] (`@call`
-  /// and a top-level `returnType` from v1.0, `call` and a `returnType`
-  /// property before), or as a `functions` list item when the catalog was
-  /// read from a list; [themeSchema]; [definitions] with the computed
-  /// `anyComponent` and `anyFunction` unions; and the document metadata.
-  /// References stay as the schemas write them, and no standard definitions
-  /// are copied in. A schema defined in code that marks a common type with
-  /// `commonTypesRef` is written as a `common_types.json` reference.
+  /// each function's [FunctionApi.definition], or, for a function defined in
+  /// code, its signature in the shape of [protocolVersion] (`@call` and a
+  /// top-level `returnType` from v1.0, `call` and a `returnType` property
+  /// before), or as a `functions` list item when the catalog was read from a
+  /// list; [themeSchema]; [definitions] with the computed `anyComponent` and
+  /// `anyFunction` unions; and the document metadata. References stay as the
+  /// schemas write them, and no standard definitions are copied in. In a
+  /// catalog defined in code, a schema that marks a common type with
+  /// `commonTypesRef` is written as a `common_types.json` reference; a
+  /// document read by [Catalog.fromJson] is written as it was read.
   ///
   /// So a catalog read by [Catalog.fromJson] writes back the document it was
   /// read from: `Catalog.fromJson(json).toJson()` equals `json`, up to the
@@ -1529,7 +1570,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     final _DocumentLayout layout = _layout;
     final bool themeInDefs = layout.themeInDefs ?? true;
     final Object? theme =
-        themeSchema == null ? null : _unbundleMarkers(themeSchema!.value);
+        themeSchema == null ? null : _asWritten(themeSchema!.value);
     final defs = <String, Object?>{
       for (final MapEntry<String, Object?> entry in definitions.entries)
         entry.key: _deepCopyValue(entry.value),
@@ -1589,19 +1630,23 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   };
 
   /// The catalog document definition of [component].
-  static Map<String, Object?> _componentDocument(ComponentApi component) =>
+  Map<String, Object?> _componentDocument(ComponentApi component) =>
       <String, Object?>{
-        ...(_unbundleMarkers(component.schema.value)! as Map<String, Object?>),
+        ...(_asWritten(component.schema.value)! as Map<String, Object?>),
         if (component.allowedParents case final List<String> parents)
           'allowedParents': [...parents],
         if (component.allowedChildren case final List<String> children)
           'allowedChildren': [...children],
       };
 
-  /// The catalog document definition of [function], in the shape of
-  /// [protocolVersion].
+  /// The catalog document definition of [function]: its
+  /// [FunctionApi.definition] when it has one, and otherwise its signature
+  /// in the shape of [protocolVersion].
   Map<String, Object?> _functionDocument(String name, FunctionApi function) {
-    final Object? args = _unbundleMarkers(function.argumentSchema.value);
+    if (function.definition case final Map<String, Object?> definition) {
+      return _deepCopyValue(definition)! as Map<String, Object?>;
+    }
+    final Object? args = _asWritten(function.argumentSchema.value);
     final String callKey = _callKey;
     final required = <String>[
       callKey,
@@ -1634,18 +1679,39 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     };
   }
 
-  /// The `functions` list item for [function].
-  static Map<String, Object?> _functionListItem(
-    String name,
-    FunctionApi function,
-  ) =>
-      <String, Object?>{
-        'name': name,
-        if (function.description != null) 'description': function.description,
-        'returnType': function.returnType.jsonValue,
-        ..._callerMetadata(function),
-        'parameters': _unbundleMarkers(function.argumentSchema.value),
-      };
+  /// The `functions` list item for [function]: its [FunctionApi.definition]
+  /// when it has one, and otherwise one built from its signature.
+  Map<String, Object?> _functionListItem(String name, FunctionApi function) {
+    if (function.definition case final Map<String, Object?> definition) {
+      return _deepCopyValue(definition)! as Map<String, Object?>;
+    }
+    return <String, Object?>{
+      'name': name,
+      if (function.description != null) 'description': function.description,
+      'returnType': function.returnType.jsonValue,
+      ..._callerMetadata(function),
+      'parameters': _asWritten(function.argumentSchema.value),
+    };
+  }
+
+  /// A copy of the schema [node] as the catalog document writes it: as it
+  /// is when [Catalog.fromJson] read it, whatever keys it holds, and with
+  /// [_unbundleMarkers] applied when it was defined in code.
+  static Object? _asWritten(Object? node) =>
+      node is Map && (_readSchemas[node] ?? false)
+          ? _deepCopyValue(node)
+          : _unbundleMarkers(node);
+
+  /// Marks the schemas [Catalog.fromJson] read from a document, which
+  /// [toJson] writes back as they are even after [copyWith] moves them into
+  /// another catalog.
+  static final Expando<bool> _readSchemas = Expando('read schemas');
+
+  /// [schema], a frozen schema read from a document, marked as read.
+  static Map<String, Object?> _markRead(Map<String, Object?> schema) {
+    _readSchemas[schema] = true;
+    return schema;
+  }
 
   /// [node] as a catalog document writes it: a copy in which each schema
   /// marked with a `commonTypesRef`, as a catalog defined in code writes a
@@ -2126,7 +2192,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           for (final ComponentApi component in components)
             component.schema.value,
           for (final FunctionApi function in functions)
-            function.argumentSchema.value,
+            function.definition ?? function.argumentSchema.value,
           theme?.value,
         ]);
     final Set<String> before = referencedBy(

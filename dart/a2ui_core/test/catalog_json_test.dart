@@ -933,6 +933,186 @@ void main() {
         equals(source),
       );
     });
+
+    group('writes each function definition back as written', () {
+      final Map<String, Map<String, Object?>> documents = {
+        'in the shorthand map form': {
+          'catalogId': 'shorthand',
+          'components': <String, Object?>{},
+          'functions': {
+            'shout': {
+              'returnType': 'string',
+              'parameters': {
+                'type': 'object',
+                'properties': {
+                  'text': {'type': 'string'},
+                },
+              },
+            },
+          },
+        },
+        'from v0.9 without unevaluatedProperties': {
+          'catalogId': 'open',
+          'components': <String, Object?>{},
+          'functions': {
+            'shout': {
+              'type': 'object',
+              'properties': {
+                'call': {'const': 'shout'},
+                'args': {'type': 'object'},
+                'returnType': {'const': 'string'},
+              },
+              'required': ['call'],
+            },
+          },
+        },
+        'from v1.0 with a title and unevaluatedProperties': {
+          'catalogId': 'titled',
+          'protocolVersion': '1.0',
+          'components': <String, Object?>{},
+          'functions': {
+            'shout': {
+              'type': 'object',
+              'title': 'Shout',
+              'returnType': 'string',
+              'properties': {
+                '@call': {'const': 'shout'},
+                'args': {'type': 'object'},
+              },
+              'required': ['@call'],
+              'unevaluatedProperties': false,
+            },
+          },
+        },
+        'from v1.0 without args': {
+          'catalogId': 'no-args',
+          'protocolVersion': '1.0',
+          'components': <String, Object?>{},
+          'functions': {
+            'now': {
+              'type': 'object',
+              'returnType': 'number',
+              'properties': {
+                '@call': {'const': 'now'},
+              },
+              'required': ['@call'],
+            },
+          },
+        },
+        'as a list item without returnType': {
+          'catalogId': 'untyped',
+          'components': <String, Object?>{},
+          'functions': [
+            {
+              'name': 'log',
+              'parameters': {'type': 'object'},
+            },
+          ],
+        },
+      };
+      for (final MapEntry<String, Map<String, Object?>> entry
+          in documents.entries) {
+        test(entry.key, () {
+          expect(Catalog.fromJson(entry.value).toJson(), equals(entry.value));
+        });
+      }
+
+      test('and keeps it through withFunctions', () {
+        final Map<String, Object?> source =
+            documents['in the shorthand map form']!;
+        final CatalogApi catalog = Catalog.fromJson(source);
+        final FunctionApi shout = catalog.functions['shout']!;
+
+        expect(shout.definition, (source['functions']! as Map)['shout']);
+        expect(shout.returnType, A2uiReturnType.string);
+        expect(
+          catalog.withFunctions([
+            FunctionApi(
+              name: shout.name,
+              argumentSchema: shout.argumentSchema,
+              returnType: shout.returnType,
+              definition: shout.definition,
+            ),
+          ]).toJson(),
+          equals(source),
+        );
+      });
+    });
+
+    test('keeps an authored commonTypesRef key', () {
+      final source = <String, Object?>{
+        'catalogId': 'marker',
+        'components': {
+          'Label': {
+            'type': 'object',
+            'properties': {
+              'text': {
+                r'$ref': r'common_types.json#/$defs/DynamicString',
+                'commonTypesRef': 'x',
+                'minLength': 2,
+              },
+            },
+          },
+        },
+        'functions': {
+          'shout': {
+            'returnType': 'string',
+            'parameters': {
+              'type': 'object',
+              'properties': {
+                'text': {
+                  r'$ref': r'common_types.json#/$defs/DynamicString',
+                  'commonTypesRef': 'x',
+                },
+              },
+            },
+          },
+        },
+      };
+      final CatalogApi catalog = Catalog.fromJson(source);
+
+      expect(catalog.toJson(), equals(source));
+      expect(
+        catalog
+            .copyWith(components: catalog.components.values.toList())
+            .toJson(),
+        equals(source),
+      );
+    });
+
+    test('cannot be changed after it is read', () {
+      final CatalogApi catalog = Catalog.fromJson(_v10Document());
+      final Map<String, Object?> before = catalog.toJson();
+
+      expect(
+        () => catalog.components['Extra'] = catalog.components['Spacer']!,
+        throwsUnsupportedError,
+      );
+      expect(() => catalog.functions.remove('launch'), throwsUnsupportedError);
+      expect(
+        () => catalog.components['Spacer']!.schema.value['title'] = 't',
+        throwsUnsupportedError,
+      );
+      expect(
+        () => catalog.functions['launch']!.argumentSchema.value['title'] = 't',
+        throwsUnsupportedError,
+      );
+      expect(
+        () => catalog.functions['launch']!.definition!['title'] = 't',
+        throwsUnsupportedError,
+      );
+      expect(catalog.toJson(), equals(before));
+      expect(before, equals(_v10Document()));
+    });
+
+    test('has an unmodifiable theme', () {
+      final CatalogApi catalog = Catalog.fromJson(_themedDocument());
+
+      expect(
+        () => catalog.themeSchema!.value['title'] = 't',
+        throwsUnsupportedError,
+      );
+    });
   });
 
   group('Catalog model', () {

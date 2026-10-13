@@ -208,19 +208,33 @@
   `ComponentApi.schema` (with `allOf` mixins, local `#/$defs/...` and
   `common_types.json` references, descriptions and closure keywords intact;
   `allowedParents` and `allowedChildren` move to their fields) and each
-  function's `args` schema as written in `FunctionApi.argumentSchema`, and
-  reads the rest of the document into fields: `schemaDialect` (`$schema`),
+  function's definition as written in the new `FunctionApi.definition`
+  (`FunctionImplementation` takes and forwards it too), from which
+  `argumentSchema`, `returnType` and the other fields are read, and reads
+  the rest of the document into fields: `schemaDialect` (`$schema`),
   `schemaId`, `title`, `description`, `protocolVersion`, `instructions`,
   `themeSchema`, and `definitions` (the shared `$defs`). Keys it does not
   model, the form of `functions` (map or list) and where the theme lives are
   kept too.
+- **Breaking:** `ComponentApi.schema` of a component read by
+  `Catalog.fromJson` is now the definition as written, with its `allOf`
+  mixins, references and envelope properties kept, rather than the
+  flattened schema. Read `Catalog.resolvedComponentSchema(name)` or
+  `Catalog.resolvedComponentSchemas` for the flattened schema renderers and
+  validators used before.
+- **Behavior change:** `Catalog.components` and `Catalog.functions` are
+  unmodifiable, and so are the component, function and theme schemas of a
+  catalog read by `Catalog.fromJson`, so the cached `toJson`,
+  `validationSchema` and `resolvedComponentSchemas` cannot go stale. Use
+  `copyWith` or `withFunctions` for a changed catalog.
 - `Catalog` adds `toJson`, which assembles the catalog document from the
   model, so `Catalog.fromJson(document).toJson()` equals `document` up to key
   order. The `anyComponent` and `anyFunction` unions are computed from the
   components and functions; references are left as written. It writes the
   `protocolVersion` as the document declared it, and `catalogId` only when
   the document declared one. A catalog built in code is written in the
-  shape of its `protocolVersion`, with each component schema as defined.
+  shape of its `protocolVersion`, with each component schema as defined,
+  and so is a function without a `definition`.
   The document is built once per catalog and each call returns a copy.
 - `Catalog` adds `resolvedComponentSchemas` and `resolvedComponentSchema`,
   each component's schema with its mixins merged, local references inlined

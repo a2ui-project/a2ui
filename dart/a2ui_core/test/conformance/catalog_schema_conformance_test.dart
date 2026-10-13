@@ -38,13 +38,18 @@ void main() {
         name,
         () => _runCase(testCase),
         skip: _knownDivergences[name] ??
-            (testCase['protocolVersion'] == 'v0.8' ? _noV08 : null),
+            (testCase['protocolVersion'] == 'v0.8' &&
+                    testCase['action'] != 'round_trip'
+                ? _noV08
+                : null),
       );
     }
   });
 }
 
-/// Why every case naming protocol version v0.8 is skipped.
+/// Why a case naming protocol version v0.8 is skipped, unless it is a
+/// `round_trip`, which reads and writes the document without a v0.8 basic
+/// catalog or v0.8 validation rules.
 const String _noV08 = 'Targets v0.8, which a2ui_core does not implement.';
 
 /// Cases whose expected outcome Dart does not produce, with the reason.
