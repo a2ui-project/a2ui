@@ -763,6 +763,16 @@
 # Catalog resolution (spec section "Catalog resolution"): a component or
 # function call uses the catalog it names, else the surface default catalog;
 # if neither exists, resolution fails.
+#
+# In cases with strictMode: true (ValidationConfig(allow_unknown_elements=False),
+# used in the prompt-generate-validate loop), every function call must also be
+# declared in the catalog it resolves to, matching the wire schema
+# common_types.json#/$defs/FunctionCall -> catalog.json#/$defs/anyFunction.
+# With strictMode: false (default renderer processing), catalog resolution still
+# runs and rejects an unresolvable catalogId, while a call to a function the
+# resolved local catalog does not declare is accepted at processing time so a
+# renderer can forward it to the agent via callAgentFunction (spec section
+# "Function Location Resolution & Fallback Routing").
 
 - name: test_v10_component_without_catalog_id_on_surface_without_default_errors
   description: >-
@@ -924,7 +934,7 @@
 
 - name: test_v10_function_call_naming_catalog_without_that_function_errors
   description: >-
-    A function call that names a catalogId is validated against that catalog, which does not declare formatString.
+    Under strictMode: true (allow_unknown_elements=False), a function call that names a catalogId is validated against that catalog's function schema, which does not declare formatString. With strictMode: false, the call is accepted at processing time so a renderer can route it via callAgentFunction.
   action: process_messages
   protocolVersion: "v1.0"
   strictMode: true
@@ -1254,7 +1264,7 @@
 
 - name: test_v10_function_call_without_catalog_id_to_unknown_function_errors
   description: >-
-    A function call that names no catalogId is validated against the surface default catalog, which does not declare notAFunction.
+    Under strictMode: true (allow_unknown_elements=False), a function call that names no catalogId is validated against the surface default catalog's function schema, which does not declare notAFunction. With strictMode: false, the call is accepted at processing time so a renderer can route it via callAgentFunction.
   action: process_messages
   protocolVersion: "v1.0"
   strictMode: true
@@ -1489,7 +1499,7 @@
 
 - name: test_v10_nested_call_in_args_resolves_its_own_catalog
   description: >-
-    A call nested in the args of another call resolves its catalog on its own and does not inherit the catalog of the call around it. The outer wrap names custom-v10; the inner shout names no catalogId, so it resolves to the surface default (the basic catalog), which declares no shout.
+    A call nested in the args of another call resolves its catalog on its own and does not inherit the catalog of the call around it. The outer wrap names custom-v10; the inner shout names no catalogId, so it resolves to the surface default (the basic catalog), which under strictMode: true rejects shout because the basic catalog does not declare it.
   action: process_messages
   protocolVersion: "v1.0"
   strictMode: true
@@ -1728,7 +1738,7 @@
 
 - name: test_v10_call_in_index_args_is_checked
   description: >-
-    @index needs no catalog, but a call in its args is still resolved and checked. Here the offset calls notAFunction, which the surface default (the basic catalog) does not declare.
+    @index needs no catalog, but a call in its args is still resolved and checked. Here the offset calls notAFunction, which under strictMode: true is rejected because the surface default (the basic catalog) does not declare it.
   action: process_messages
   protocolVersion: "v1.0"
   strictMode: true
@@ -1977,7 +1987,7 @@
 
 - name: test_v10_call_in_list_without_catalog_id_uses_surface_default
   description: >-
-    A call inside an object nested in a list property is resolved like any other call: it names no catalogId, so it resolves to the surface default (the basic catalog), which declares no shout, even though the component and the list's first call use custom-v10.
+    A call inside an object nested in a list property is resolved like any other call: it names no catalogId, so it resolves to the surface default (the basic catalog), which under strictMode: true rejects shout because the basic catalog does not declare it, even though the component and the list's first call use custom-v10.
   action: process_messages
   protocolVersion: "v1.0"
   strictMode: true
@@ -2382,6 +2392,33 @@
   expectError:
     category: "CatalogError"
     message: "Catalog not found: missing-catalog"
+
+- name: test_v10_call_to_undeclared_function_without_strict_mode_accepted
+  description: >-
+    With strictMode off (default renderer processing), a function call whose catalog resolves is accepted even when that local catalog does not declare the function, so the renderer can forward it to the agent via callAgentFunction.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: false
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s"
+        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    - version: "v1.0"
+      updateComponents:
+        surfaceId: "s"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "notAFunction"
+              args: {}
+  expect:
+    surfaces:
+      s:
+        exists: true
 
 - name: test_v10_call_naming_catalog_of_other_protocol_version_errors
   description: >-
