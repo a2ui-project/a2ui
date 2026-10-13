@@ -366,172 +366,153 @@ export class ExpressPromptGenerator extends PromptGenerator {
     }
   }
 
-  generateComponentSignatures(helper: CatalogSchemaHelper): string {
-    const signatures: string[] = [];
-    const compNames = Array.from(helper.components.keys()).sort();
+  private formatSignatureEntry(
+    name: string,
+    orderedArgs: string[],
+    description: string | undefined,
+    propDetails: string[],
+  ): string {
+    let sig = `• ${name}(${orderedArgs.join(', ')})`;
+    if (description) {
+      const descIndented = description.replaceAll('\n', '\n    ');
+      sig += `\n  - Description: ${descIndented}`;
+    }
+    if (propDetails.length > 0) {
+      sig += '\n' + propDetails.join('\n');
+    }
+    return sig;
+  }
 
-    for (const name of compNames) {
-      const props = helper.getComponentProperties(name);
-      const reqs = helper.getComponentRequired(name);
-      const compDesc = helper.getComponentDescription(name);
+  private formatComponentArgLabel(
+    propName: string,
+    isRequired: boolean,
+    pSchema: Record<string, unknown> | undefined,
+    helper: CatalogSchemaHelper,
+  ): string {
+    let argLabel = `${propName}${isRequired ? '' : '?'}`;
+    const ref =
+      pSchema && typeof pSchema === 'object' && typeof pSchema.$ref === 'string'
+        ? pSchema.$ref
+        : undefined;
+    if (ref && commonDefName(ref) === 'ComponentId') {
+      argLabel += ' (component ID)';
+    } else if (!helper.admitsPath(pSchema)) {
+      argLabel += ' (static)';
+    }
+    return argLabel;
+  }
 
-      const orderedArgs: string[] = [];
-      const propDetails: string[] = [];
+  private formatSubKeyLines(properties: Record<string, unknown>): string {
+    return Object.entries(properties)
+      .map(([subK, subV]) => {
+        const desc =
+          subV &&
+          typeof subV === 'object' &&
+          typeof (subV as Record<string, unknown>).description === 'string'
+            ? (subV as Record<string, unknown>).description
+            : '';
+        return `    * ${subK}${desc ? ` - ${desc}` : ''}`;
+      })
+      .join('\n');
+  }
 
-      for (const p of props) {
-        const isReq = reqs.includes(p);
-        const optSuffix = isReq ? '' : '?';
-
-        const pSchema = helper.getPropertySchema(name, p);
-        let argLabel = `${p}${optSuffix}`;
-
-        let isComponentId = false;
-        if (
-          pSchema &&
-          typeof pSchema === 'object' &&
-          typeof (pSchema as Record<string, unknown>).$ref === 'string'
-        ) {
-          if (commonDefName((pSchema as Record<string, unknown>).$ref) === 'ComponentId') {
-            isComponentId = true;
-          }
-        }
-
-        if (isComponentId) {
-          argLabel += ' (component ID)';
-        } else if (!helper.admitsPath(pSchema)) {
-          argLabel += ' (static)';
-        }
-
-        orderedArgs.push(argLabel);
-
-        const pDesc =
-          pSchema && typeof pSchema === 'object' && typeof pSchema.description === 'string'
-            ? pSchema.description
-            : undefined;
-        const enumVals = getSchemaEnum(pSchema);
-
-        if (pDesc || enumVals) {
-          const pLineParts: string[] = [];
-          if (pDesc) {
-            pLineParts.push(pDesc);
-          }
-          if (enumVals) {
-            const enumValsStr = enumVals.map(v => `'${v}'`).join(', ');
-            pLineParts.push(`Must be one of: ${enumValsStr}`);
-          }
-          propDetails.push(`  - ${p}: ${pLineParts.join(' ')}`);
-        }
-
-        // Fetch property schema and check if it has nested object structure
-        if (pSchema && typeof pSchema === 'object') {
-          const s = pSchema as Record<string, unknown>;
-          if (s.type === 'object' && s.properties && typeof s.properties === 'object') {
-            const subKeys: string[] = [];
-            for (const [subK, subV] of Object.entries(s.properties as Record<string, unknown>)) {
-              const desc =
-                subV &&
-                typeof subV === 'object' &&
-                typeof (subV as Record<string, unknown>).description === 'string'
-                  ? (subV as Record<string, unknown>).description
-                  : '';
-              const descSuffix = desc ? ` - ${desc}` : '';
-              subKeys.push(`    * ${subK}${descSuffix}`);
-            }
-
-            if (
-              propDetails.length > 0 &&
-              propDetails[propDetails.length - 1].startsWith(`  - ${p}:`)
-            ) {
-              propDetails[propDetails.length - 1] += '\n    Map keys:\n' + subKeys.join('\n');
-            } else {
-              propDetails.push(`  - ${p}: Map with keys:\n` + subKeys.join('\n'));
-            }
-          } else if (s.type === 'array' && s.items && typeof s.items === 'object') {
-            const itemsSchema = s.items as Record<string, unknown>;
-            if (
-              itemsSchema.type === 'object' &&
-              itemsSchema.properties &&
-              typeof itemsSchema.properties === 'object'
-            ) {
-              const subKeys: string[] = [];
-              for (const [subK, subV] of Object.entries(
-                itemsSchema.properties as Record<string, unknown>,
-              )) {
-                const desc =
-                  subV &&
-                  typeof subV === 'object' &&
-                  typeof (subV as Record<string, unknown>).description === 'string'
-                    ? (subV as Record<string, unknown>).description
-                    : '';
-                const descSuffix = desc ? ` - ${desc}` : '';
-                subKeys.push(`    * ${subK}${descSuffix}`);
-              }
-
-              if (
-                propDetails.length > 0 &&
-                propDetails[propDetails.length - 1].startsWith(`  - ${p}:`)
-              ) {
-                propDetails[propDetails.length - 1] +=
-                  '\n    List of maps keys:\n' + subKeys.join('\n');
-              } else {
-                propDetails.push(`  - ${p}: List of maps with keys:\n` + subKeys.join('\n'));
-              }
-            }
-          }
-        }
-      }
-
-      let sig = `• ${name}(${orderedArgs.join(', ')})`;
-      if (compDesc) {
-        const descIndented = compDesc.replaceAll('\n', '\n    ');
-        sig += `\n  - Description: ${descIndented}`;
-      }
-      if (propDetails.length > 0) {
-        sig += '\n' + propDetails.join('\n');
-      }
-      signatures.push(sig);
+  private formatComponentPropertyDetail(
+    propName: string,
+    pSchema: Record<string, unknown> | undefined,
+  ): string | undefined {
+    if (!pSchema || typeof pSchema !== 'object') {
+      return undefined;
     }
 
-    return signatures.join('\n');
+    const pDesc = typeof pSchema.description === 'string' ? pSchema.description : undefined;
+    const enumVals = getSchemaEnum(pSchema);
+    const lineParts: string[] = [];
+    if (pDesc) {
+      lineParts.push(pDesc);
+    }
+    if (enumVals) {
+      lineParts.push(`Must be one of: ${enumVals.map(v => `'${v}'`).join(', ')}`);
+    }
+
+    let detail = lineParts.length > 0 ? `  - ${propName}: ${lineParts.join(' ')}` : undefined;
+
+    if (pSchema.type === 'object' && pSchema.properties && typeof pSchema.properties === 'object') {
+      const subKeys = this.formatSubKeyLines(pSchema.properties as Record<string, unknown>);
+      detail = detail
+        ? `${detail}\n    Map keys:\n${subKeys}`
+        : `  - ${propName}: Map with keys:\n${subKeys}`;
+    } else if (pSchema.type === 'array' && pSchema.items && typeof pSchema.items === 'object') {
+      const itemsSchema = pSchema.items as Record<string, unknown>;
+      if (
+        itemsSchema.type === 'object' &&
+        itemsSchema.properties &&
+        typeof itemsSchema.properties === 'object'
+      ) {
+        const subKeys = this.formatSubKeyLines(itemsSchema.properties as Record<string, unknown>);
+        detail = detail
+          ? `${detail}\n    List of maps keys:\n${subKeys}`
+          : `  - ${propName}: List of maps with keys:\n${subKeys}`;
+      }
+    }
+
+    return detail;
+  }
+
+  generateComponentSignatures(helper: CatalogSchemaHelper): string {
+    const compNames = Array.from(helper.components.keys()).sort();
+    return compNames
+      .map(name => {
+        const props = helper.getComponentProperties(name);
+        const reqs = helper.getComponentRequired(name);
+        const orderedArgs: string[] = [];
+        const propDetails: string[] = [];
+
+        for (const p of props) {
+          const pSchema = helper.getPropertySchema(name, p);
+          orderedArgs.push(this.formatComponentArgLabel(p, reqs.includes(p), pSchema, helper));
+          const detail = this.formatComponentPropertyDetail(p, pSchema);
+          if (detail) {
+            propDetails.push(detail);
+          }
+        }
+
+        return this.formatSignatureEntry(
+          name,
+          orderedArgs,
+          helper.getComponentDescription(name),
+          propDetails,
+        );
+      })
+      .join('\n');
   }
 
   generateFunctionSignatures(helper: CatalogSchemaHelper): string {
-    const signatures: string[] = [];
     const fnNames = Array.from(helper.functions.keys()).sort();
+    return fnNames
+      .map(name => {
+        const props = helper.getFunctionProperties(name);
+        const reqs = helper.getFunctionRequired(name);
+        const orderedArgs: string[] = [];
+        const propDetails: string[] = [];
 
-    for (const name of fnNames) {
-      const props = helper.getFunctionProperties(name);
-      const reqs = helper.getFunctionRequired(name);
-      const fDesc = helper.getFunctionDescription(name);
-
-      const orderedArgs: string[] = [];
-      const propDetails: string[] = [];
-
-      for (const p of props) {
-        const isReq = reqs.includes(p);
-        const optSuffix = isReq ? '' : '?';
-        orderedArgs.push(`${p}${optSuffix}`);
-
-        const pSchema = helper.getFunctionPropertySchema(name, p);
-        const pDesc =
-          pSchema && typeof pSchema.description === 'string' ? pSchema.description : undefined;
-        if (pDesc) {
-          propDetails.push(`  - ${p}: ${pDesc}`);
+        for (const p of props) {
+          orderedArgs.push(`${p}${reqs.includes(p) ? '' : '?'}`);
+          const pSchema = helper.getFunctionPropertySchema(name, p);
+          const pDesc =
+            pSchema && typeof pSchema.description === 'string' ? pSchema.description : undefined;
+          if (pDesc) {
+            propDetails.push(`  - ${p}: ${pDesc}`);
+          }
         }
-      }
 
-      let sig = `• ${name}(${orderedArgs.join(', ')})`;
-      if (fDesc) {
-        const descIndented = fDesc.replaceAll('\n', '\n    ');
-        sig += `\n  - Description: ${descIndented}`;
-      }
-      if (propDetails.length > 0) {
-        sig += '\n' + propDetails.join('\n');
-      }
-      signatures.push(sig);
-    }
-
-    return signatures.join('\n');
+        return this.formatSignatureEntry(
+          name,
+          orderedArgs,
+          helper.getFunctionDescription(name),
+          propDetails,
+        );
+      })
+      .join('\n');
   }
 
   transformExamples(rawExamplesMarkdown: string, _catalog?: CatalogApi): string {
