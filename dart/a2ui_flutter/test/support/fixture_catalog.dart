@@ -58,7 +58,12 @@ CatalogImplementation fixtureCatalog([
     ComponentWidgetBuilder builder,
   ) => ComponentImplementation(
     name: name,
-    schema: Schema.object(properties: properties),
+    schema: Schema.object(
+      properties: {
+        ...properties,
+        'accessibility': CommonSchemas.accessibilityAttributes,
+      },
+    ),
     builder: (context, node, props, buildChild) {
       log?.builds.add(node.componentId);
       log?.nodes[node.instanceId] = node;
