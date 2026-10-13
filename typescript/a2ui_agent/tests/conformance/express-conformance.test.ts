@@ -335,7 +335,11 @@ describe('Express Conformance Suite', () => {
             const messages: AgentToRendererMessage[] = Array.isArray(exContent)
               ? exContent
               : [exContent];
-            const catId = messages[0]?.createSurface?.catalogId || loadedCatalogs[0]?.id;
+            const firstMsg = messages[0];
+            const catId =
+              (firstMsg && 'createSurface' in firstMsg
+                ? firstMsg.createSurface.catalogId
+                : undefined) || loadedCatalogs[0]?.id;
             if (catId) {
               if (!examples[catId]) {
                 examples[catId] = [];
