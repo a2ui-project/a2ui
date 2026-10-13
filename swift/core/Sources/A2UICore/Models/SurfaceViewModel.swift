@@ -32,16 +32,16 @@ public final class SurfaceViewModel: ObservableObject {
   public let catalogs: [String: AnyCatalog]
   public let defaultCatalogID: String?
 
-  /// The primary default catalog associated with this surface, if available.
+  /// The default catalog of this surface, or an empty catalog when it has none.
   ///
-  /// When there is no default catalog this falls back to an arbitrary available catalog, or an
-  /// empty one, so it must not be used to resolve what a component or function call runs in:
-  /// from v1.0 a surface may have no default catalog. Use ``getCatalog(id:)`` instead.
+  /// A surface without a default catalog (allowed from v1.0) never falls back to one of its
+  /// other catalogs, because components and function calls must name the catalog they run in.
+  /// To resolve that catalog, use ``getCatalog(id:)``.
   public var catalog: AnyCatalog {
     if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
       return catalog
     }
-    return catalogs.values.first ?? Catalog(id: "empty", components: [])
+    return Catalog(id: "empty", components: [])
   }
   public let theme: [String: JSONValue]?
   public let metadata: [String: JSONValue]?

@@ -53,16 +53,13 @@ public final class NodeResolver: Sendable {
     return !catalogs.isEmpty && catalogs.values.allSatisfy(\.isAtLeastV10)
   }
 
-  /// The primary default catalog associated with this resolver.
+  /// The default catalog of this resolver, or an empty catalog when it has none.
   ///
-  /// When there is no default catalog this falls back to an arbitrary available catalog, or an
-  /// empty one, so it must not be used to resolve what a component or function call runs in:
-  /// from v1.0 a surface may have no default catalog. Use ``getCatalog(id:)`` instead.
+  /// A resolver without a default catalog (allowed from v1.0) never falls back to one of its
+  /// other catalogs, because components and function calls must name the catalog they run in.
+  /// To resolve that catalog, use ``getCatalog(id:)``.
   public var catalog: AnyCatalog {
-    if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
-      return catalog
-    }
-    return catalogs.values.first ?? Catalog(id: "empty", components: [])
+    defaultCatalog ?? Catalog(id: "empty", components: [])
   }
 
   /// The default catalog, if this resolver has one and it is available.

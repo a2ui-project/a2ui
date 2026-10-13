@@ -85,6 +85,51 @@ struct CatalogResolutionV10Tests {
     #expect(resolver.getCatalog()?.id == "a")
   }
 
+  // MARK: - Default catalog accessor
+
+  @Test func catalogIsEmptyWithoutADefaultCatalog() throws {
+    let a = try makeCatalog(id: "a")
+    let b = try makeCatalog(id: "b")
+
+    // Never one of the other catalogs, whether there is one or several.
+    let single = SurfaceViewModel(surfaceID: "s", catalogs: [a], protocolVersion: .v10)
+    #expect(single.catalog.id == "empty")
+    #expect(single.nodeResolver.catalog.id == "empty")
+
+    let several = SurfaceViewModel(surfaceID: "s", catalogs: [a, b], protocolVersion: .v10)
+    #expect(several.catalog.id == "empty")
+
+    let resolver = NodeResolver(surfaceID: "s", catalogs: [a, b], protocolVersion: .v10)
+    #expect(resolver.catalog.id == "empty")
+  }
+
+  @Test func catalogIsTheDefaultCatalogWhenThereIsOne() throws {
+    let a = try makeCatalog(id: "a")
+    let b = try makeCatalog(id: "b")
+
+    let surface = SurfaceViewModel(
+      surfaceID: "s",
+      catalogs: [a, b],
+      defaultCatalogID: "b",
+      protocolVersion: .v10
+    )
+    #expect(surface.catalog.id == "b")
+
+    let resolver = NodeResolver(
+      surfaceID: "s",
+      catalogs: [a, b],
+      defaultCatalogID: "b",
+      protocolVersion: .v10
+    )
+    #expect(resolver.catalog.id == "b")
+
+    // Before v1.0 a single catalog is the default.
+    let legacy = try makeCatalog(id: "a", protocolVersion: .v091)
+    #expect(
+      SurfaceViewModel(surfaceID: "s", catalogs: [legacy], protocolVersion: .v091).catalog.id == "a"
+    )
+  }
+
   @Test func createSurfaceWithoutCatalogIDHasNoDefaultOnV10() throws {
     let processor = MessageProcessor(catalogs: [try makeCatalog(id: "a")])
     try processor.processMessages(
