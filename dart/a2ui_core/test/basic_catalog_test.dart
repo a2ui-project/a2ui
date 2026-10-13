@@ -18,6 +18,7 @@ import 'dart:io';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
+import '../tool/generate_basic_catalogs.dart' as codegen;
 import 'conformance/conformance_harness.dart';
 
 typedef _RendererCatalog = Catalog<ComponentApi, FunctionImplementation>;
@@ -110,17 +111,27 @@ void main() {
           (c.functions[name]!.argumentSchema.value['properties']!
                   as Map<String, Object?>)
               .cast<String, Object?>();
-      expect(
-          props(v10, 'formatNumber').keys, ['value', 'decimals', 'grouping']);
-      expect(
-        props(v10, 'formatCurrency').keys,
-        ['value', 'currency', 'decimals', 'grouping'],
-      );
+      expect(props(v10, 'formatNumber').keys, [
+        'value',
+        'decimals',
+        'grouping',
+      ]);
+      expect(props(v10, 'formatCurrency').keys, [
+        'value',
+        'currency',
+        'decimals',
+        'grouping',
+      ]);
       expect(props(v10, 'formatDate').keys, ['value', 'format']);
-      expect(
-        props(v10, 'pluralize').keys,
-        ['value', 'zero', 'one', 'two', 'few', 'many', 'other'],
-      );
+      expect(props(v10, 'pluralize').keys, [
+        'value',
+        'zero',
+        'one',
+        'two',
+        'few',
+        'many',
+        'other',
+      ]);
       expect(props(v09, 'length').keys, ['value', 'min', 'max']);
       expect(props(v09, 'regex').keys, ['value', 'pattern']);
       expect(props(v09, 'openUrl').keys, ['url']);
@@ -134,16 +145,18 @@ void main() {
         jsonDecode(File(resolveConformancePath('../$path')).readAsStringSync())
             as Map<String, Object?>;
 
-    test('the generated definitions are up to date', () {
-      final ProcessResult result = Process.runSync(
-        Platform.resolvedExecutable,
-        ['run', 'tool/generate_basic_catalogs.dart', '--check'],
-      );
-      expect(
-        result.exitCode,
-        0,
-        reason: '${result.stdout}${result.stderr}',
-      );
+    test('the generated definitions are up to date', () async {
+      for (final codegen.BasicCatalogSource entry in codegen.sources) {
+        final String generated = await codegen.format(
+          codegen.render(entry, published(entry.source)),
+        );
+        expect(
+          File(entry.output).readAsStringSync(),
+          equals(generated),
+          reason: '${entry.output} is out of date with ${entry.source}. '
+              'Run `dart run tool/generate_basic_catalogs.dart`.',
+        );
+      }
     });
 
     for (final (String label, _RendererCatalog catalog, String path) in [
@@ -371,10 +384,11 @@ void main() {
 
       test('v0.9 treats a {valid} map as a plain, truthy object', () {
         expect(
-            _call(v09, 'not', {
-              'value': {'valid': false}
-            }),
-            isFalse);
+          _call(v09, 'not', {
+            'value': {'valid': false},
+          }),
+          isFalse,
+        );
         expect(
           _call(v09, 'and', {
             'values': [
@@ -441,14 +455,13 @@ void main() {
       );
       expect(
         _call(
-          v10,
-          'formatString',
-          {
-            'value': r"${/name}: ${pluralize(value: /count, one: 'one', "
-                r"other: 'many')} ${not(value: false)}",
-          },
-          context: context,
-        ),
+            v10,
+            'formatString',
+            {
+              'value': r"${/name}: ${pluralize(value: /count, one: 'one', "
+                  r"other: 'many')} ${not(value: false)}",
+            },
+            context: context),
         'Ada: many true',
       );
     });
@@ -495,7 +508,9 @@ void main() {
       expect(
         _call(v10, 'required', {'value': ''}),
         const ValidationResult(
-            valid: false, message: 'This field is required.'),
+          valid: false,
+          message: 'This field is required.',
+        ),
       );
       expect(
         _call(v10, 'required', {'value': <String, Object?>{}}),
@@ -657,22 +672,28 @@ void main() {
       );
       expect(format('2026-09-04T14:05:09Z', 'E MMM yy ss'), 'Fri Sep 26 09');
       expect(
-          format('2026-01-02T00:07:00Z', 'M/d hh:mm HH H'), '1/2 12:07 00 0');
+        format('2026-01-02T00:07:00Z', 'M/d hh:mm HH H'),
+        '1/2 12:07 00 0',
+      );
     });
 
     test('keeps the wall-clock time of an offset timestamp', () {
       expect(format('2026-09-04T23:30:00-05:00', 'yyyy-MM-dd'), '2026-09-04');
       expect(format('2026-09-04T23:30:00-05:00', 'HH:mm'), '23:30');
       expect(format('2026-09-04T23:30:00-0530', 'HH:mm'), '23:30');
-      expect(format('2026-09-04T23:30:00+05', 'yyyy-MM-dd HH:mm'),
-          '2026-09-04 23:30');
+      expect(
+        format('2026-09-04T23:30:00+05', 'yyyy-MM-dd HH:mm'),
+        '2026-09-04 23:30',
+      );
       expect(format('2026-09-04T23:30+05', 'ISO'), '2026-09-04T18:30:00.000Z');
       expect(format('2026-09-04T23:30:00.5z', 'HH:mm'), '23:30');
     });
 
     test('treats a timestamp without an offset as UTC', () {
-      expect(format('2026-09-04T23:30:00', 'yyyy-MM-dd HH:mm'),
-          '2026-09-04 23:30');
+      expect(
+        format('2026-09-04T23:30:00', 'yyyy-MM-dd HH:mm'),
+        '2026-09-04 23:30',
+      );
       expect(format('2026-09-04', 'MMM d'), 'Sep 4');
     });
 
@@ -702,8 +723,10 @@ void main() {
       expect(format('2026-01-01T25:00:00Z', 'HH'), '');
       // Leap days and month ends that exist are unaffected.
       expect(format('2024-02-29', 'yyyy-MM-dd'), '2024-02-29');
-      expect(format('2026-01-31T23:59:59Z', 'yyyy-MM-dd HH:mm:ss'),
-          '2026-01-31 23:59:59');
+      expect(
+        format('2026-01-31T23:59:59Z', 'yyyy-MM-dd HH:mm:ss'),
+        '2026-01-31 23:59:59',
+      );
     });
   });
 
@@ -751,7 +774,9 @@ void main() {
       final opened = <Uri>[];
       final _RendererCatalog catalog = BasicCatalog.v1_0(openUrl: opened.add);
       expect(
-          _call(catalog, 'openUrl', {'url': 'https://example.com/a'}), isNull);
+        _call(catalog, 'openUrl', {'url': 'https://example.com/a'}),
+        isNull,
+      );
       expect(opened, [Uri.parse('https://example.com/a')]);
     });
 

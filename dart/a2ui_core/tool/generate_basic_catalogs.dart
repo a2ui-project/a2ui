@@ -108,6 +108,14 @@ String readSource(String source) {
   }
 }
 
+/// The `dart` CLI executable (`Platform.resolvedExecutable` when running under
+/// `dart`, or `dart` on `PATH` when running under `flutter_tester`).
+String get dartExecutable {
+  final String exe = Platform.resolvedExecutable;
+  final String name = exe.split(Platform.pathSeparator).last;
+  return (name == 'dart' || name == 'dart.exe') ? exe : 'dart';
+}
+
 /// [source] formatted by `dart format` as a library of this package.
 ///
 /// The source is formatted in a scratch file under `.dart_tool`, so the
@@ -118,10 +126,10 @@ Future<String> format(String source) async {
   scratch.createSync(recursive: true);
   final file = File('${scratch.path}/catalog.g.dart');
   file.writeAsStringSync(source);
-  final ProcessResult result = await Process.run(
-    Platform.resolvedExecutable,
-    ['format', file.path],
-  );
+  final ProcessResult result = await Process.run(dartExecutable, [
+    'format',
+    file.path,
+  ]);
   if (result.exitCode != 0) {
     throw StateError('dart format failed:\n${result.stdout}${result.stderr}');
   }
@@ -146,9 +154,7 @@ String render(BasicCatalogSource entry, Map<String, Object?> document) {
     ..writeln()
     ..writeln('// ignore_for_file: lines_longer_than_80_chars')
     ..writeln()
-    ..writeln(
-      "import 'package:json_schema_builder/json_schema_builder.dart';",
-    )
+    ..writeln("import 'package:json_schema_builder/json_schema_builder.dart';")
     ..writeln()
     ..writeln("import '../../core/catalog.dart';")
     ..writeln("import '../../primitives/protocol_version.dart';")
@@ -196,8 +202,10 @@ String render(BasicCatalogSource entry, Map<String, Object?> document) {
     ..writeln()
     ..writeln('/// The $label basic catalog, with [functions] implementing')
     ..writeln('/// [basicFunctionSignatures$suffix].')
-    ..writeln('Catalog<ComponentApi, F> basicCatalog$suffix'
-        '<F extends FunctionApi>(')
+    ..writeln(
+      'Catalog<ComponentApi, F> basicCatalog$suffix'
+      '<F extends FunctionApi>(',
+    )
     ..writeln('  List<F> functions,')
     ..writeln(') =>')
     ..writeln('    Catalog<ComponentApi, F>(')
@@ -246,12 +254,14 @@ String _literal(Object? value) => switch (value) {
           : '<Object?>[${list.map(_literal).join(', ')},]',
       final Map<Object?, Object?> map => map.isEmpty
           ? '<String, Object?>{}'
-          : '<String, Object?>{${[
-              for (final MapEntry<Object?, Object?> entry in map.entries)
-                '${_string(entry.key! as String)}: ${_literal(entry.value)}',
-            ].join(', ')},}',
+          : '<String, Object?>{${_mapEntries(map)},}',
       _ => throw ArgumentError.value(value, 'value', 'is not JSON'),
     };
+
+String _mapEntries(Map<Object?, Object?> map) => [
+      for (final MapEntry<Object?, Object?> entry in map.entries)
+        '${_string(entry.key! as String)}: ${_literal(entry.value)}',
+    ].join(', ');
 
 /// [value] as a Dart string literal: single-quoted, or double-quoted when it
 /// holds a single quote and no double quote, and raw when that spares
