@@ -120,15 +120,42 @@ RELEASE_ORDER = (CORE, AGENT, A2A, ADK)
 
 PACKAGES = {p.pypi_name: p for p in RELEASE_ORDER}
 
-# Selections that release several packages in one run, besides a single package
-# name. `both` predates the agent framework integrations and keeps its meaning.
-GROUPS: dict[str, tuple[Package, ...]] = {
-    "both": (CORE, AGENT),
-    "integrations": (A2A, ADK),
-    "all": RELEASE_ORDER,
-}
+# Selects every package. Any other selection is a comma-separated list of
+# package names, such as "a2ui-core,a2ui-agent-sdk".
+ALL = "all"
 
-SELECTIONS = (*sorted(PACKAGES), *GROUPS)
+
+def parse_selection(selection: str) -> list[Package]:
+    """Returns the packages a selection names, in `RELEASE_ORDER`.
+
+    Args:
+      selection: `all`, or a comma-separated list of package names, for example
+        "a2ui-a2a" or "a2ui-a2a,a2ui-adk". Whitespace around names is ignored.
+
+    Raises:
+      ValueError: If the selection is empty or names an unknown package.
+    """
+    if selection.strip() == ALL:
+        return list(RELEASE_ORDER)
+    names = [name.strip() for name in selection.split(",") if name.strip()]
+    if not names:
+        raise ValueError("no package selected")
+    unknown = [name for name in names if name not in PACKAGES]
+    if unknown:
+        raise ValueError(
+            f"unknown package(s) {', '.join(unknown)}. Choose from"
+            f" {', '.join(PACKAGES)}, or {ALL}."
+        )
+    return [package for package in RELEASE_ORDER if package.pypi_name in names]
+
+
+def _selection(value: str) -> str:
+    """argparse type that validates a selection and returns it unchanged."""
+    try:
+        parse_selection(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from None
+    return value
 
 
 def parse_version(version: str) -> tuple[int, int, int]:
@@ -413,8 +440,8 @@ def check_dependencies_released(
                 problems.append(
                     f"{package.pypi_name} depends on {dependency.pypi_name}, which has"
                     " not been released yet. Action needed: release"
-                    f" {dependency.pypi_name} first, or in the same run (a group such"
-                    " as all)."
+                    f" {dependency.pypi_name} first, or in the same run (add it to the"
+                    " package list, or use all)."
                 )
             elif not satisfies(version, specifier):
                 problems.append(
@@ -422,7 +449,7 @@ def check_dependencies_released(
                     f" {dependency.pypi_name}{specifier}, but the latest release of"
                     f" {dependency.pypi_name} is {version}. Action needed: release"
                     f" a matching {dependency.pypi_name} first, or in the same run"
-                    " (a group such as all)."
+                    " (add it to the package list, or use all)."
                 )
     return problems
 
@@ -725,7 +752,7 @@ def target_versions(
     depend on the version of an earlier one going out in the same run, so the
     earlier artifact has to be staged and published first.
     """
-    selected = list(GROUPS[selection]) if selection in GROUPS else [PACKAGES[selection]]
+    selected = parse_selection(selection)
     return [
         (package, bump_version(current_version(package, repo_root), bump))
         for package in selected
@@ -811,7 +838,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     check = subparsers.add_parser(
         "check", help="Run release preflight checks", parents=[common]
     )
-    check.add_argument("--package", required=True, choices=SELECTIONS)
+    check.add_argument(
+        "--package",
+        required=True,
+        type=_selection,
+        help=f"Package name, comma-separated package names, or {ALL}",
+    )
     check.add_argument("--version", default=None, help="Explicit version to check")
     check.add_argument(
         "--plan",
@@ -840,7 +872,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan = subparsers.add_parser(
         "plan", help="Emit the release plan as JSON", parents=[common]
     )
-    plan.add_argument("--package", required=True, choices=SELECTIONS)
+    plan.add_argument(
+        "--package",
+        required=True,
+        type=_selection,
+        help=f"Package name, comma-separated package names, or {ALL}",
+    )
     plan.add_argument("--bump", required=True, choices=VALID_BUMPS)
     plan.add_argument("--output", default=None)
 
@@ -869,9 +906,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "check":
         # Usage errors come first, so a typo is reported without waiting on
         # the network calls the environment checks make.
-        if args.package in GROUPS and args.version:
+        selected = parse_selection(args.package)
+        if len(selected) > 1 and args.version:
             print(
-                f"error: --version cannot be used with --package {args.package},"
+                "error: --version cannot be used with more than one package,"
                 " because each package has its own version. Use --bump instead.",
                 file=sys.stderr,
             )
@@ -904,7 +942,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.bump:
             packages_to_check = target_versions(args.package, args.bump, repo_root)
         else:
-            packages_to_check = [(PACKAGES[args.package], args.version)]
+            packages_to_check = [(selected[0], args.version)]
 
         co_released = {pkg.pypi_name for pkg, _ in packages_to_check}
         if args.plan:

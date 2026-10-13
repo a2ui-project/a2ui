@@ -398,6 +398,35 @@ class RealIntegrationPinsTest(unittest.TestCase):
                     )
 
 
+class ParseSelectionTest(unittest.TestCase):
+
+    def test_all_selects_every_package_in_dependency_order(self):
+        self.assertEqual(rv.parse_selection("all"), list(rv.RELEASE_ORDER))
+
+    def test_single_package(self):
+        self.assertEqual(rv.parse_selection("a2ui-a2a"), [rv.A2A])
+
+    def test_list_is_ordered_by_dependency_and_deduplicated(self):
+        self.assertEqual(
+            rv.parse_selection(" a2ui-adk , a2ui-core,a2ui-adk"), [rv.CORE, rv.ADK]
+        )
+
+    def test_unknown_package_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "unknown package.*a2ui-nope"):
+            rv.parse_selection("a2ui-core,a2ui-nope")
+
+    def test_empty_selection_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "no package selected"):
+            rv.parse_selection(" , ")
+
+    def test_command_line_rejects_unknown_package(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as exit_:
+            rv.main(["plan", "--package", "both", "--bump", "patch"])
+        self.assertEqual(exit_.exception.code, 2)
+        self.assertIn("unknown package(s) both", err.getvalue())
+
+
 class PlanTest(unittest.TestCase):
 
     def setUp(self):
@@ -409,9 +438,9 @@ class PlanTest(unittest.TestCase):
             check=True,
         ).stdout.strip()
 
-    def test_both_puts_core_first(self):
+    def test_listed_packages_are_put_in_dependency_order(self):
         """a2ui-agent-sdk depends on a2ui-core, so core must publish first."""
-        plan = rv.build_plan("both", "patch", self.repo_root)
+        plan = rv.build_plan("a2ui-agent-sdk,a2ui-core", "patch", self.repo_root)
         self.assertEqual(
             [entry["pypi_name"] for entry in plan],
             ["a2ui-core", "a2ui-agent-sdk"],
@@ -424,8 +453,8 @@ class PlanTest(unittest.TestCase):
             ["a2ui-core", "a2ui-agent-sdk", "a2ui-a2a", "a2ui-adk"],
         )
 
-    def test_integrations_puts_a2a_before_adk(self):
-        plan = rv.build_plan("integrations", "minor", self.repo_root)
+    def test_a2a_is_put_before_adk(self):
+        plan = rv.build_plan("a2ui-adk, a2ui-a2a", "minor", self.repo_root)
         self.assertEqual(
             [entry["pypi_name"] for entry in plan], ["a2ui-a2a", "a2ui-adk"]
         )
@@ -584,20 +613,24 @@ class CheckCommandTest(unittest.TestCase):
         self.assertIn("Preflight checks passed for a2ui-core 0.2.1", out)
 
     def test_both_packages_with_patch_bump_success(self):
-        code, out, _ = self._run(["--package", "both", "--bump", "patch"])
+        code, out, _ = self._run(
+            ["--package", "a2ui-core,a2ui-agent-sdk", "--bump", "patch"]
+        )
         self.assertEqual(code, 0)
         self.assertIn("Preflight checks passed for a2ui-core 0.2.1", out)
         self.assertIn("Preflight checks passed for a2ui-agent-sdk 0.7.1", out)
 
     def test_both_packages_without_bump_errors(self):
-        code, _, err = self._run(["--package", "both"])
+        code, _, err = self._run(["--package", "a2ui-core,a2ui-agent-sdk"])
         self.assertEqual(code, 2)
         self.assertIn("either --version or --bump is required", err)
 
     def test_both_packages_with_version_errors(self):
-        code, _, err = self._run(["--package", "both", "--version", "0.2.1"])
+        code, _, err = self._run(
+            ["--package", "a2ui-core,a2ui-agent-sdk", "--version", "0.2.1"]
+        )
         self.assertEqual(code, 2)
-        self.assertIn("--version cannot be used with --package both", err)
+        self.assertIn("--version cannot be used with more than one package", err)
 
     def test_version_and_bump_together_errors(self):
         code, _, err = self._run(
@@ -646,7 +679,9 @@ class CheckCommandTest(unittest.TestCase):
         env_check.assert_not_called()
 
     def test_both_packages_with_minor_bump_catches_pin_violation(self):
-        code, out, err = self._run(["--package", "both", "--bump", "minor"])
+        code, out, err = self._run(
+            ["--package", "a2ui-core,a2ui-agent-sdk", "--bump", "minor"]
+        )
         self.assertEqual(code, 1)
         self.assertIn("falls outside the a2ui-core>=0.2.0,<0.3.0 range", err)
         self.assertIn("error: 1 problem(s) found, see above.", err)
@@ -655,7 +690,7 @@ class CheckCommandTest(unittest.TestCase):
     def test_all_with_version_errors(self):
         code, _, err = self._run(["--package", "all", "--version", "0.2.1"])
         self.assertEqual(code, 2)
-        self.assertIn("--version cannot be used with --package all", err)
+        self.assertIn("--version cannot be used with more than one package", err)
 
     def test_all_packages_with_patch_bump_success(self):
         self._tag("python/a2ui-a2a/v0.1.0")
@@ -678,7 +713,9 @@ class CheckCommandTest(unittest.TestCase):
 
     def test_first_integrations_release_after_the_agent_sdk(self):
         self._tag("python/a2ui-agent-sdk/v0.8.0")
-        code, out, err = self._run(["--package", "integrations", "--bump", "minor"])
+        code, out, err = self._run(
+            ["--package", "a2ui-a2a,a2ui-adk", "--bump", "minor"]
+        )
         self.assertEqual(code, 0, err)
         self.assertIn("Preflight checks passed for a2ui-a2a 0.1.0", out)
         self.assertIn("Preflight checks passed for a2ui-adk 0.1.0", out)
@@ -928,7 +965,7 @@ class CheckCommandEnvironmentTest(unittest.TestCase):
             code, out, err = self._main([
                 "check",
                 "--package",
-                "both",
+                "a2ui-core,a2ui-agent-sdk",
                 "--bump",
                 "patch",
                 "--repo-root",
@@ -942,9 +979,15 @@ class CheckCommandEnvironmentTest(unittest.TestCase):
     def test_other_repository_stops_before_package_checks(self):
         with tempfile.TemporaryDirectory() as other:
             subprocess.run(["git", "init"], cwd=other, check=True, capture_output=True)
-            code, out, err = self._main(
-                ["check", "--package", "both", "--bump", "patch", "--repo-root", other]
-            )
+            code, out, err = self._main([
+                "check",
+                "--package",
+                "a2ui-core,a2ui-agent-sdk",
+                "--bump",
+                "patch",
+                "--repo-root",
+                other,
+            ])
         self.assertEqual(code, 1)
         self.assertIn("is not an a2ui checkout", err)
         self.assertEqual(out, "")

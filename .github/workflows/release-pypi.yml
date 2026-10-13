@@ -53,21 +53,14 @@ name: Release Python SDKs
 on:
   workflow_dispatch:
     inputs:
+      # Validated by release_version.py in the plan step. Several packages are
+      # published in dependency order, whatever order they are listed in.
       package:
-        description: Package to release
+        description: >-
+          Packages to release: all, or comma-separated names from a2ui-core,
+          a2ui-agent-sdk, a2ui-a2a, a2ui-adk (for example a2ui-a2a,a2ui-adk)
         required: true
-        type: choice
-        # `both` is a2ui-core and a2ui-agent-sdk, `integrations` is a2ui-a2a
-        # and a2ui-adk, and `all` is all four. Multi-package runs publish in
-        # dependency order.
-        options:
-          - a2ui-core
-          - a2ui-agent-sdk
-          - a2ui-a2a
-          - a2ui-adk
-          - both
-          - integrations
-          - all
+        type: string
       bump:
         description: Version bump
         required: true
@@ -96,8 +89,8 @@ permissions:
 # Releases must not overlap. Two runs staging different versions of the same
 # package would race on the Artifact Registry and the manifest bucket.
 #
-# The group is deliberately not keyed by the `package` input: `both` (or `all`)
-# and `a2ui-core` would then land in different groups and be free to run at the same
+# The group is deliberately not keyed by the `package` input:
+# `a2ui-core,a2ui-agent-sdk` and `a2ui-core` would then land in different groups and be free to run at the same
 # time, which is exactly the collision this is meant to prevent. Releases are
 # manual and infrequent, so serialising all of them costs nothing.
 concurrency:

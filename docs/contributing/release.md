@@ -64,10 +64,10 @@ See [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md).
 The Python packages are `a2ui-core`, `a2ui-agent-sdk`, and the agent framework integrations `a2ui-a2a` and `a2ui-adk`. Releasing one or more of them is performed by providing a prompt to an AI assistant within the `a2ui` project directory.
 
 ```text
-Release <a2ui-core|a2ui-agent-sdk|a2ui-a2a|a2ui-adk|both|integrations|all> with a <major|minor|patch> bump
+Release <package names, or all> with a <major|minor|patch> bump
 ```
 
-`both` releases `a2ui-core` and `a2ui-agent-sdk`, `integrations` releases `a2ui-a2a` and `a2ui-adk`, and `all` releases all four packages.
+Name the packages to release, for example `a2ui-agent-sdk` or `a2ui-a2a and a2ui-adk`, or ask for `all` to release all four.
 
 The assistant uses the [`a2ui-release-python`](../../.agents/skills/a2ui-release-python/SKILL.md) skill to inspect changelogs, run local preflight checks, execute a dry run, confirm with you, trigger publishing via the GitHub Actions workflow, and open the changelog pull request. Once publication finishes, you only need to find a reviewer to approve and merge the pull request to update the changelog. Released packages appear on PyPI ([a2ui-core](https://pypi.org/project/a2ui-core/), [a2ui-agent-sdk](https://pypi.org/project/a2ui-agent-sdk/), [a2ui-a2a](https://pypi.org/project/a2ui-a2a/) and [a2ui-adk](https://pypi.org/project/a2ui-adk/)) as well as under corresponding [Git tags](https://github.com/a2ui-project/a2ui/tags) and [GitHub releases](https://github.com/a2ui-project/a2ui/releases) that link to them.
 
@@ -139,8 +139,8 @@ widened in a pull request that is merged to `main` before the release is
 dispatched. The workflow releases `main` as it is and cannot change the pin
 during the run.
 
-A dependency can be released in the same run: a multi-package release (`both`,
-`integrations` or `all`) publishes in dependency order, `a2ui-core`, `a2ui-agent-sdk`,
+A dependency can be released in the same run: a release of several packages
+publishes them in dependency order, `a2ui-core`, `a2ui-agent-sdk`,
 `a2ui-a2a`, `a2ui-adk`, so each package's new dependencies are on PyPI first.
 Releasing `a2ui-a2a` or `a2ui-adk` on its own requires a released version of
 each dependency that satisfies its pins.
@@ -148,8 +148,10 @@ each dependency that satisfies its pins.
 `a2ui-a2a` and `a2ui-adk` start from `0.0.0`, so their first release uses a
 `minor` bump to publish `0.1.0`. Both require an `a2ui-agent-sdk` release newer
 than `0.8.0`, the last one that shipped `a2ui.a2a` and `a2ui.adk` itself. For
-their first release, release `a2ui-agent-sdk` first (or use `all`), merge its
-changelog pull request, then release `integrations` with a `minor` bump.
+their first release, release `a2ui-agent-sdk`, `a2ui-a2a` and `a2ui-adk`
+together with a `minor` bump, or release `a2ui-agent-sdk` first, merge its
+changelog pull request, then release `a2ui-a2a` and `a2ui-adk` with a `minor`
+bump.
 
 #### If authentication fails
 
