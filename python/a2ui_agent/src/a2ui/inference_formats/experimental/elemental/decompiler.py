@@ -32,7 +32,7 @@ from a2ui.inference_formats._shared import (
     check_mixed_catalogs,
     coalesce_surface_messages,
 )
-from a2ui.inference_formats.express.constants import SurfaceOperation
+from a2ui.inference_formats.express import SurfaceOperation
 from a2ui.schema.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 
 from .compiler import TAG_PREFIX, UPDATE_ATTR

@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING**: Move `a2ui.inference_formats.experimental.express` to
+  `a2ui.inference_formats.express`.
 - **BREAKING**: The agent SDK no longer depends on an agent framework. `a2ui.a2a`
   moves to the new `a2ui-a2a` package and `a2ui.adk` to the new `a2ui-adk`
   package, and `a2a-sdk`, `google-adk`, `google-genai` and `nest-asyncio` are no
