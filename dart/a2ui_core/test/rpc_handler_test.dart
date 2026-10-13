@@ -535,9 +535,7 @@ void main() {
       );
     });
 
-    test(
-        'reports no catalog when catalogId is omitted (headless or with surface)',
-        () async {
+    test('reports no catalog when catalogId is omitted', () async {
       final A2uiFunctionResponse rHeadless = await run(
         handler(),
         _inbound('echo', catalogId: null),
