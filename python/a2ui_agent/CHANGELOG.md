@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Add a2a-sdk 0.3 / 1.x dual-compat Part and AgentExtension helpers so ADK 2.x
+  can use either A2A generation. Widen `a2a-sdk` to `>=0.3.0,<2`.
 - `DirectJsonParser.parse_chunk` raises `A2uiValidationError` on the chunk that
   closes an invalid v1.0 component. Previously the error was swallowed until the
   block ended, and every component after it was held back.
