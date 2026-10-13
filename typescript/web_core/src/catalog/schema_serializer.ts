@@ -21,7 +21,12 @@ import {zodToJsonSchema} from 'zod-to-json-schema';
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {loadedDefinition} from './json_entries.js';
 import {getSpecAnnotation, type JsonSchemaObject} from './spec_annotations.js';
-import {isSpecComponentSchema, isSpecFunctionSchema, SpecShaper} from './spec_shape.js';
+import {
+  DEFAULT_COMMON_TYPES_URI,
+  isSpecComponentSchema,
+  isSpecFunctionSchema,
+  SpecShaper,
+} from './spec_shape.js';
 import type {CatalogUnions, ComponentApi, FunctionApi} from './types.js';
 
 /** Names of the union definitions a catalog computes from its entries. */
@@ -216,14 +221,19 @@ export function retainedDefs(
 /**
  * Rewrites `REF:<ref>|<description>` markers left by the loader and by
  * code-defined schemas into `$ref` nodes, keeping common types references
- * external (`common_types.json#/$defs/<name>`).
+ * external (`<commonTypesUri>#/$defs/<name>`).
  *
  * @param node Schema node to rewrite in place.
  * @param localDefs Names of authored definitions that stay local references.
+ * @param commonTypesUri The URI of the common types document.
  */
-function rewriteRefMarkers(node: unknown, localDefs: ReadonlySet<string>): void {
+function rewriteRefMarkers(
+  node: unknown,
+  localDefs: ReadonlySet<string>,
+  commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
+): void {
   if (Array.isArray(node)) {
-    for (const item of node) rewriteRefMarkers(item, localDefs);
+    for (const item of node) rewriteRefMarkers(item, localDefs, commonTypesUri);
     return;
   }
   if (!isObject(node)) return;
@@ -244,7 +254,7 @@ function rewriteRefMarkers(node: unknown, localDefs: ReadonlySet<string>): void 
         ? ref
         : ref.startsWith('#') && localDefs.has(defName)
           ? ref
-          : `common_types.json#/$defs/${pointer}`;
+          : `${commonTypesUri}#/$defs/${pointer}`;
     if (savedDefault !== undefined) node.default = savedDefault;
     if (desc) node.description = desc;
     return;
@@ -259,7 +269,7 @@ function rewriteRefMarkers(node: unknown, localDefs: ReadonlySet<string>): void 
     if (isObject(value) && Object.keys(value).length === 0) node[key] = true;
   }
   delete node.$schema;
-  for (const value of Object.values(node)) rewriteRefMarkers(value, localDefs);
+  for (const value of Object.values(node)) rewriteRefMarkers(value, localDefs, commonTypesUri);
 }
 
 /**
@@ -268,6 +278,7 @@ function rewriteRefMarkers(node: unknown, localDefs: ReadonlySet<string>): void 
 function zodToUnbundledJson(
   schema: z.ZodTypeAny | undefined,
   localDefs: ReadonlySet<string>,
+  commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
 ): JsonObject {
   if (!schema || typeof schema !== 'object' || !('safeParse' in schema)) {
     return {type: 'object', properties: {}};
@@ -278,7 +289,7 @@ function zodToUnbundledJson(
   }) as JsonObject;
   delete json.definitions;
   delete json.$defs;
-  rewriteRefMarkers(json, localDefs);
+  rewriteRefMarkers(json, localDefs, commonTypesUri);
   return json;
 }
 
@@ -301,8 +312,9 @@ function serializeComponentModel(
   name: string,
   comp: ComponentApi,
   localDefs: ReadonlySet<string>,
+  commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
 ): JsonObject {
-  const json = zodToUnbundledJson(comp.schema, localDefs);
+  const json = zodToUnbundledJson(comp.schema, localDefs, commonTypesUri);
   const {
     component: _component,
     id: _id,
@@ -337,8 +349,9 @@ function serializeFunctionModel(
   localDefs: ReadonlySet<string>,
   isAtLeastV10: boolean,
   asListItem: boolean,
+  commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
 ): JsonObject {
-  const args = zodToUnbundledJson(fn.schema, localDefs);
+  const args = zodToUnbundledJson(fn.schema, localDefs, commonTypesUri);
   if (asListItem) {
     return {
       name,
@@ -380,8 +393,12 @@ function serializeFunctionModel(
 /**
  * Serializes a theme Zod schema into a `$defs.theme` object schema.
  */
-function serializeThemeModel(theme: z.ZodTypeAny, localDefs: ReadonlySet<string>): JsonObject {
-  const json = zodToUnbundledJson(theme, localDefs);
+function serializeThemeModel(
+  theme: z.ZodTypeAny,
+  localDefs: ReadonlySet<string>,
+  commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
+): JsonObject {
+  const json = zodToUnbundledJson(theme, localDefs, commonTypesUri);
   return {
     type: 'object',
     properties: isObject(json.properties) ? json.properties : {},
@@ -549,13 +566,14 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
 
   // Components, unless the document has no `components` key and the catalog
   // has none.
+  const commonTypesUri = catalog.commonTypesUri ?? DEFAULT_COMMON_TYPES_URI;
   if (catalog.declaresComponents !== false || catalog.components.size > 0) {
     const components: JsonObject = {};
     for (const [name, comp] of catalog.components) {
       const definition = model.components.get(name);
       components[name] = definition
         ? deepCopyJson(definition)
-        : serializeComponentModel(name, comp, localDefs);
+        : serializeComponentModel(name, comp, localDefs, commonTypesUri);
     }
     doc.components = components;
   }
@@ -572,7 +590,7 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
       const definition = model.functions.get(name);
       return definition && isFunctionListItem(definition)
         ? deepCopyJson(definition)
-        : serializeFunctionModel(name, fn, localDefs, isAtLeastV10, true);
+        : serializeFunctionModel(name, fn, localDefs, isAtLeastV10, true, commonTypesUri);
     });
   } else if (catalog.functionsLayout === 'map' || functionEntries.length > 0) {
     const functions: JsonObject = {};
@@ -581,7 +599,7 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
       functions[name] =
         definition && !isFunctionListItem(definition)
           ? deepCopyJson(definition)
-          : serializeFunctionModel(name, fn, localDefs, isAtLeastV10, false);
+          : serializeFunctionModel(name, fn, localDefs, isAtLeastV10, false, commonTypesUri);
     }
     doc.functions = functions;
   }
@@ -601,14 +619,17 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
       ? new SpecShaper(catalog.protocolVersion, catalog.commonTypesUri).defSchema(
           catalog.themeSchema,
         )
-      : serializeThemeModel(catalog.themeSchema, localDefs);
+      : serializeThemeModel(catalog.themeSchema, localDefs, commonTypesUri);
   }
   const unions = catalog.unions ?? {
     anyComponent: isAtLeastV10 || catalog.components.size > 0,
     anyFunction: isAtLeastV10 || functionNames.length > 0,
   };
   if (unions.anyComponent && !('anyComponent' in defs)) {
+    const savedAnyFunction = defs.anyFunction;
+    if (savedAnyFunction !== undefined) delete defs.anyFunction;
     defs.anyComponent = buildComponentUnion(catalog.components.keys());
+    if (savedAnyFunction !== undefined) defs.anyFunction = savedAnyFunction;
   }
   if (unions.anyFunction && !('anyFunction' in defs)) {
     defs.anyFunction = buildFunctionUnion(functionNames);

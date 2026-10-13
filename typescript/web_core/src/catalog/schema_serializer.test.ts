@@ -797,6 +797,82 @@ describe('specification annotations', () => {
     assert.ok(Badge.schema.safeParse({label: 'x', tone: 'info'}).success);
     assert.ok(!Badge.schema.safeParse({label: 'x', tone: 'other'}).success);
   });
+
+  it('recomputes an out-of-order authored union when withEntries changes entries', () => {
+    const reordered = Catalog.fromJson({
+      catalogId: 'https://example.com/reordered',
+      components: {
+        Card: {type: 'object', properties: {component: {const: 'Card'}}},
+        Label: {type: 'object', properties: {component: {const: 'Label'}}},
+      },
+      $defs: {
+        anyComponent: {
+          oneOf: [{$ref: '#/components/Label'}, {$ref: '#/components/Card'}],
+          discriminator: {propertyName: 'component'},
+        },
+      },
+    });
+    const prunedReordered = reordered
+      .withEntries([reordered.components.get('Label')!], [])
+      .toJson();
+    assert.deepStrictEqual((prunedReordered.$defs as Record<string, unknown>).anyComponent, {
+      oneOf: [{$ref: '#/components/Label'}],
+      discriminator: {propertyName: 'component'},
+    });
+  });
+
+  it('uses commonTypesUri when serializing unannotated Zod REF markers', () => {
+    const uri = 'https://a2ui.org/specification/v0_9/common_types.json';
+    const comp: ComponentApi = {
+      name: 'Label',
+      schema: z.object({text: z.string().describe('REF:#/$defs/DynamicString')}),
+    };
+    const out = new Catalog('https://example.com/custom-uri', '0.9', [comp], [], {
+      commonTypesUri: uri,
+    }).toJson();
+    assert.strictEqual(
+      ((out.components as Record<string, any>).Label.properties.text as Record<string, unknown>)
+        .$ref,
+      `${uri}#/$defs/DynamicString`,
+    );
+  });
+
+  it('preserves required keys omitted from a spec() required ordering hint', () => {
+    const comp: ComponentApi = {
+      name: 'Form',
+      schema: spec(z.object({a: z.string(), b: z.string(), c: z.string()}).strict(), {
+        mixins: [],
+        required: ['b', 'a'],
+      }),
+    };
+    const out = new Catalog('https://example.com/form', '1.0', [comp]).toJson();
+    assert.deepStrictEqual((out.components as Record<string, any>).Form.required, [
+      'component',
+      'b',
+      'a',
+      'c',
+    ]);
+  });
+
+  it('omits args from required on a spec()-annotated function without required arguments', () => {
+    const fn = createFunctionImplementation(
+      {
+        name: 'now',
+        returnType: 'string',
+        schema: spec(z.object({format: z.string().optional()}).strict(), {
+          closure: 'unevaluatedProperties',
+        }),
+      },
+      () => '',
+    );
+    for (const version of ['0.9', '1.0']) {
+      const cat = new Catalog(`https://example.com/spec-now/${version}`, version, [], [fn]);
+      const docFn = (cat.toJson().functions as Record<string, any>).now;
+      const valFn = (cat.validationSchema.functions as Record<string, any>).now;
+      assert.ok(!docFn.required.includes('args'), `toJson omits args in ${version}`);
+      assert.deepStrictEqual(docFn.required, valFn.required);
+    }
+  });
 });
 
 describe('built-in basic catalogs', () => {

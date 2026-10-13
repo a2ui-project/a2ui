@@ -531,8 +531,10 @@ export class Catalog<
    * is generated from its Zod schema. Common types references are written
    * against `commonTypesUri`. The `anyComponent` and `anyFunction` unions are
    * computed from the entries. So for a catalog loaded with `fromJson`, the
-   * result equals the loaded document, and for a built-in basic catalog, the
-   * published document.
+   * result equals the loaded document (minus any entries that the document's
+   * `anyComponent.oneOf` or `anyFunction.oneOf` unions omit, which `fromJson`
+   * filters out on load), and for a built-in basic catalog, the published
+   * document.
    *
    * @returns A fresh document that the caller may modify.
    */
@@ -556,6 +558,25 @@ export class Catalog<
    * @returns A new catalog.
    */
   withEntries(components: T[], functions: F[]): Catalog<T, F> {
+    const componentsChanged =
+      components.length !== this.components.size ||
+      components.some(c => this.components.get(c.name) !== c);
+    const functionsChanged =
+      functions.length !== this.functions.size ||
+      functions.some(f => this.functions.get(f.name) !== f);
+    let baseDefs = this.defs;
+    if (baseDefs && (componentsChanged || functionsChanged)) {
+      const copy = {...baseDefs};
+      if (componentsChanged) delete copy['anyComponent'];
+      if (functionsChanged) delete copy['anyFunction'];
+      baseDefs = copy;
+    }
+    const unions = this.unions
+      ? {
+          anyComponent: this.unions.anyComponent || componentsChanged,
+          anyFunction: this.unions.anyFunction || functionsChanged,
+        }
+      : undefined;
     return new Catalog<T, F>(this.id, this.protocolVersion, components, functions, {
       themeSchema: this.themeSchema,
       instructions: this.instructions,
@@ -567,9 +588,9 @@ export class Catalog<
       declaresCatalogId: this.declaresCatalogId,
       declaresComponents: this.declaresComponents,
       functionsLayout: this.functionsLayout,
-      unions: this.unions,
+      unions,
       defs: retainedDefs(
-        this.defs,
+        baseDefs,
         [...this.components.values(), ...this.functions.values()],
         [...components, ...functions],
         this.extensionFields,

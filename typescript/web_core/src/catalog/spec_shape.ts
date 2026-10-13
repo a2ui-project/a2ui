@@ -260,6 +260,7 @@ export class SpecShaper {
     },
   ): JsonObject {
     const args = this.toJson(fn.schema);
+    const argsRequired = Array.isArray(args['required']) && args['required'].length > 0;
     const result: JsonObject = {type: 'object'};
     if (fn.description) result['description'] = fn.description;
     if (this.isV10) {
@@ -267,13 +268,13 @@ export class SpecShaper {
       if (fn.allowedCallers) result['allowedCallers'] = fn.allowedCallers;
       if (fn.requiresUserActivation) result['requiresUserActivation'] = true;
       result['properties'] = {'@call': {const: name}, args};
-      result['required'] = ['@call', 'args'];
+      result['required'] = argsRequired ? ['@call', 'args'] : ['@call'];
       return result;
     }
     if (fn.allowedCallers) result['allowedCallers'] = fn.allowedCallers;
     if (fn.requiresUserActivation) result['requiresUserActivation'] = true;
     result['properties'] = {call: {const: name}, args, returnType: {const: fn.returnType}};
-    result['required'] = ['call', 'args'];
+    result['required'] = argsRequired ? ['call', 'args'] : ['call'];
     result['unevaluatedProperties'] = false;
     return result;
   }
@@ -432,7 +433,8 @@ export class SpecShaper {
     }
     const result: JsonObject = {type: 'object', properties};
     const order = annotation.required?.filter(key => required.includes(key));
-    if (required.length > 0) result['required'] = order ?? required;
+    const unordered = required.filter(key => !order?.includes(key));
+    if (required.length > 0) result['required'] = order ? [...order, ...unordered] : required;
     const unknownKeys = def['unknownKeys'];
     const catchall = def['catchall'] as z.ZodTypeAny | undefined;
     const keyword =
