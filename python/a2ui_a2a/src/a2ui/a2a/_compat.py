@@ -88,7 +88,9 @@ def is_text_part(part: Part) -> bool:
 
 
 def part_text(part: Part) -> str:
-    """Reads the text of a text Part."""
+    """Reads the text of a text Part, or an empty string if there is none."""
+    if part is None:
+        return ""
     if IS_A2A_V1:
         return part.text
     return part.root.text
@@ -96,10 +98,19 @@ def part_text(part: Part) -> str:
 
 def part_metadata(part: Part) -> dict[str, Any]:
     """Reads a Part's metadata as a plain dict."""
+    if part is None:
+        return {}
     if IS_A2A_V1:
-        from google.protobuf.json_format import MessageToDict
+        metadata = getattr(part, "metadata", None)
+        if metadata is None:
+            return {}
+        # a2a-sdk 1.x types it as a protobuf ``Struct``, which has a DESCRIPTOR;
+        # fall back to ``dict`` for a plain map so either shape reads the same.
+        if hasattr(metadata, "DESCRIPTOR"):
+            from google.protobuf.json_format import MessageToDict
 
-        return MessageToDict(part.metadata)
+            return MessageToDict(metadata)
+        return dict(metadata)
     return getattr(getattr(part, "root", None), "metadata", None) or {}
 
 
@@ -118,6 +129,8 @@ def data_part_dict(part: Part) -> Optional[dict[str, Any]]:
 
 def part_media_type(part: Part) -> Optional[str]:
     """Returns the Part media type, if the installed SDK exposes one."""
+    if part is None:
+        return None
     if IS_A2A_V1:
         return part.media_type or None
     return None
@@ -159,9 +172,12 @@ def add_activated_extension(context: Any, uri: str) -> None:
     state = getattr(call_context, "state", None)
     if state is None:
         return
-    activated = state.setdefault("activated_extensions", set())
+    activated = state.get("activated_extensions")
     if isinstance(activated, set):
         activated.add(uri)
+    elif isinstance(activated, list):
+        if uri not in activated:
+            activated.append(uri)
     else:
         state["activated_extensions"] = {uri}
 
