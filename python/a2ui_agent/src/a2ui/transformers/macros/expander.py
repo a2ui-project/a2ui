@@ -88,8 +88,10 @@ class MacroExpander:
         """
         schema_copy: dict[str, Any] = base_catalog.to_json()
         comps_map: dict[str, Any] = dict(schema_copy.get(CATALOG_COMPONENTS_KEY, {}))
-        defs_map: dict[str, Any] = schema_copy.get("$defs", {})
-        any_comp: Any = defs_map.get("anyComponent")
+        defs_map = schema_copy.get("$defs")
+        any_comp: Any = (
+            defs_map.get("anyComponent") if isinstance(defs_map, dict) else None
+        )
         # A document whose component union is not a `oneOf` list, or that has
         # none, admits all its components; writing a union of only the macros
         # would drop the others.
