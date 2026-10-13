@@ -21,14 +21,15 @@ import 'package:logging/logging.dart';
 
 import '../core/catalog.dart';
 import '../core/component_model.dart';
-import '../core/contexts.dart';
 import '../core/messages.dart';
 import '../core/surface_model.dart';
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
 import '../primitives/reactivity.dart';
-import '../rendering/binder.dart';
+import 'component_context.dart';
 import 'component_node.dart';
+import 'data_context.dart';
+import 'generic_binder.dart';
 import 'ref_fields.dart';
 
 final _log = Logger('a2ui_core.resolution');

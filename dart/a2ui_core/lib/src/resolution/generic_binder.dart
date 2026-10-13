@@ -19,14 +19,15 @@ import 'package:json_schema_builder/json_schema_builder.dart'
 import '../core/catalog.dart';
 import '../core/common.dart';
 import '../core/component_model.dart';
-import '../core/contexts.dart';
 import '../core/messages.dart';
 import '../core/validation_result.dart';
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
-import '../resolution/resolved_binding.dart';
+import 'component_context.dart';
+import 'data_context.dart';
+import 'resolved_binding.dart';
 
 /// Represents the intended runtime behavior of a property parsed from
 /// its schema.

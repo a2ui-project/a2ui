@@ -15,10 +15,10 @@
 import 'package:logging/logging.dart';
 
 import '../core/catalog.dart';
-import '../core/contexts.dart' show ComponentContext;
 import '../primitives/event_notifier.dart';
 import '../primitives/reactivity.dart';
-import '../rendering/binder.dart' show ChildNode;
+import 'component_context.dart' show ComponentContext;
+import 'generic_binder.dart' show ChildNode;
 import 'resolved_binding.dart';
 
 final _log = Logger('a2ui_core.resolution');

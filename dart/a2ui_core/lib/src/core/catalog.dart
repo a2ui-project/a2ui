@@ -22,8 +22,8 @@ import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/reference_schema.dart';
 import '../primitives/uax31.dart';
+import '../resolution/data_context.dart';
 import '../validation/schema_resolution.dart';
-import 'contexts.dart';
 import 'legacy_inline_catalog.dart';
 
 /// A definition of a UI component's API.

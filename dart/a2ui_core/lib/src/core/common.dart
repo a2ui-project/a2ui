@@ -53,8 +53,8 @@ class DataBinding {
 
   /// Serializes this binding to a JSON map.
   ///
-  /// Uses `@path` when [reservedKeys] (or [this.reservedKeys] if omitted) is
-  /// `true`, and `path` otherwise.
+  /// Uses `@path` when [reservedKeys] (or [DataBinding.reservedKeys] if
+  /// omitted) is `true`, and `path` otherwise.
   Map<String, dynamic> toJson({bool? reservedKeys}) {
     final bool useReserved = reservedKeys ?? this.reservedKeys;
     return {useReserved ? '@path' : 'path': path};
@@ -154,9 +154,9 @@ class FunctionCall {
 
   /// Serializes this function call to a JSON map.
   ///
-  /// Uses `@call` when [reservedKeys] (or [this.reservedKeys] if omitted) is
-  /// `true`, and `call` otherwise. `returnType` is only emitted with the
-  /// legacy `call` key: the v1.0 `FunctionCall` schema declares no
+  /// Uses `@call` when [reservedKeys] (or [FunctionCall.reservedKeys] if
+  /// omitted) is `true`, and `call` otherwise. `returnType` is only emitted
+  /// with the legacy `call` key: the v1.0 `FunctionCall` schema declares no
   /// `returnType` property (the return type is declared by the catalog) and
   /// sets `unevaluatedProperties: false`. Likewise `catalogId` is only
   /// emitted with `@call`: the v0.9 `call` shape has no `catalogId`.

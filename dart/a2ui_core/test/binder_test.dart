@@ -15,7 +15,6 @@
 import 'dart:async';
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_core/src/rendering/binder.dart';
 import 'package:json_schema_builder/json_schema_builder.dart'
     hide ValidationResult;
 import 'package:test/test.dart';
