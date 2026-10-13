@@ -130,21 +130,26 @@ public final class DataContext {
     name callName: String,
     dict: OrderedDictionary<String, JSONValue>
   ) -> JSONValue {
-    let catalogID = dict["catalogId"]?.stringValue
-    if callName == "@index" && catalogID != nil {
-      functionHandler?.handleFunctionError(
-        FunctionError.invalidArgumentType(
-          expected: "no catalogId on system function @index",
-          actual: catalogID ?? ""
-        ),
-        functionName: callName
-      )
-      return .null
-    }
-    guard
-      let function = functionHandler?.function(named: callName, catalogID: catalogID)
+    let function: (any FunctionImplementation)?
+    if isV10 {
+      guard let resolved = resolveV10Function(name: callName, dict: dict) else {
+        return .null
+      }
+      function = resolved
+    } else {
+      let catalogID = dict["catalogId"]?.stringValue
+      if callName == "@index", let catalogID {
+        functionHandler?.handleFunctionError(
+          Self.systemFunctionNamesCatalogError(callName, catalogID: catalogID),
+          functionName: callName
+        )
+        return .null
+      }
+      function =
+        functionHandler?.function(named: callName, catalogID: catalogID)
         ?? (callName == "@index" ? IndexFunction() : nil)
-    else {
+    }
+    guard let function else {
       functionHandler?.handleFunctionError(
         FunctionError.functionNotFound(callName),
         functionName: callName
@@ -165,6 +170,77 @@ public final class DataContext {
       functionHandler?.handleFunctionError(error, functionName: callName)
       return .null
     }
+  }
+
+  /// Looks up the function a v1.0 call runs, reporting any failure to the function handler.
+  ///
+  /// A reserved `@` system function belongs to no catalog: a call to one that carries a
+  /// `catalogId` key, whatever its value, is a malformed expression. Any other call runs in the
+  /// catalog it names, else in the default catalog; a non-string `catalogId` or a catalog that
+  /// can't be resolved is reported as a catalog error, not looked up in the default catalog.
+  ///
+  /// - Returns: The function, or `nil` after reporting an error. A function missing from its
+  ///   resolved catalog is reported as `FunctionError.functionNotFound`.
+  private func resolveV10Function(
+    name callName: String,
+    dict: OrderedDictionary<String, JSONValue>
+  ) -> (any FunctionImplementation)? {
+    let rawCatalogID = dict["catalogId"]
+    let catalogIDPath = CatalogResolutionErrors.callCatalogIDPath(functionName: callName)
+    let failure: any Error
+    if callName.hasPrefix("@") {
+      if let rawCatalogID {
+        failure = Self.systemFunctionNamesCatalogError(
+          callName,
+          catalogID: rawCatalogID.stringValue ?? Self.jsonText(rawCatalogID)
+        )
+      } else if callName == "@index" {
+        return functionHandler?.function(named: callName, catalogID: nil) ?? IndexFunction()
+      } else {
+        failure = FunctionError.functionNotFound(callName)
+      }
+    } else if let rawCatalogID, rawCatalogID.stringValue == nil {
+      failure = CatalogResolutionErrors.catalogNotFound(
+        Self.jsonText(rawCatalogID),
+        path: catalogIDPath,
+        code: CatalogResolutionErrors.runtimeCatalogErrorCode
+      )
+    } else {
+      let catalogID = rawCatalogID?.stringValue
+      do {
+        try functionHandler?.validateFunctionCatalog(id: catalogID, functionName: callName)
+      } catch {
+        functionHandler?.handleFunctionError(error, functionName: callName)
+        return nil
+      }
+      if let function = functionHandler?.function(named: callName, catalogID: catalogID) {
+        return function
+      }
+      failure = FunctionError.functionNotFound(callName)
+    }
+    functionHandler?.handleFunctionError(failure, functionName: callName)
+    return nil
+  }
+
+  /// The error reported for a call to a reserved `@` system function that names a catalog.
+  private static func systemFunctionNamesCatalogError(
+    _ callName: String,
+    catalogID: String
+  ) -> FunctionError {
+    FunctionError.invalidArgumentType(
+      expected: "no catalogId on system function \(callName)",
+      actual: catalogID
+    )
+  }
+
+  /// Returns the JSON text of a value, for error messages.
+  private static func jsonText(_ value: JSONValue) -> String {
+    guard let data = try? JSONEncoder().encode(value),
+      let text = String(data: data, encoding: .utf8)
+    else {
+      return String(describing: value)
+    }
+    return text
   }
 
   /// Resolves an action payload by evaluating dynamic values in its context and userMessage.

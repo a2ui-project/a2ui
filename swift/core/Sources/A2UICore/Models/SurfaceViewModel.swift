@@ -33,6 +33,10 @@ public final class SurfaceViewModel: ObservableObject {
   public let defaultCatalogID: String?
 
   /// The primary default catalog associated with this surface, if available.
+  ///
+  /// When there is no default catalog this falls back to an arbitrary available catalog, or an
+  /// empty one, so it must not be used to resolve what a component or function call runs in:
+  /// from v1.0 a surface may have no default catalog. Use ``getCatalog(id:)`` instead.
   public var catalog: AnyCatalog {
     if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
       return catalog
@@ -131,7 +135,7 @@ public final class SurfaceViewModel: ObservableObject {
     self.init(
       surfaceID: surfaceID,
       catalogs: dict,
-      defaultCatalogID: defaultCatalogID ?? (catalogs.count == 1 ? catalogs.first?.id : nil),
+      defaultCatalogID: defaultCatalogID,
       theme: theme,
       metadata: metadata,
       actionHandler: actionHandler,
@@ -193,5 +197,9 @@ extension SurfaceViewModel: FunctionHandler {
 
   public func handleFunctionError(_ error: any Error, functionName: String) {
     nodeResolver.handleFunctionError(error, functionName: functionName)
+  }
+
+  public func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {
+    try nodeResolver.validateFunctionCatalog(id: catalogID, functionName: functionName)
   }
 }
