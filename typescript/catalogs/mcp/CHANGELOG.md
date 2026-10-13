@@ -1,3 +1,4 @@
 ## Unreleased
 
+- Target A2UI v1.0: the entry point exports `MCP_CATALOG_ID` for `catalogs/mcp/v1/catalog.json`, `CallMcpToolImplementation` and `configureMcpCatalog` (MCP client resolver, message processor, `defaultVersion`, `onMcpAppResource`, sandbox location), replacing `createMcpCatalogFunctions` and `createCallMcpToolImplementation(getMcpClientForTool, processor)`. `callMcpTool` extracts `ui://` MCP App resources into `McpAppResourcePayload`, and accepts a function call as `arguments`. [#2799](https://github.com/a2ui-project/a2ui/pull/2799)
 - Remove the five data transformation functions (`jmespath`, `split`, `regexCapture`, `regexReplace`, `updateDataModel`) from the package and from the v1 catalog schema; they now live with the [filesystem sample](../../../samples/community/mcp/a2ui-over-mcp-filesystem/client/functions/). `createMcpCatalogFunctions` returns `callMcpTool` only. [#3171](https://github.com/a2ui-project/a2ui/pull/3171)
