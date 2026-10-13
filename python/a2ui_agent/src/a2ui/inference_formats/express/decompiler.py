@@ -428,7 +428,9 @@ class ExpressDecompiler:
         Components without a `catalogId` belong to the surface's catalog when
         the payload created the surface (or there is a single catalog).
         """
-        op = item.operation or ""
+        op = item.operation
+        if op is None:
+            raise KeyError("Expected a surface update operation key in message.")
         body = item.message[op]
         surface_id = body.get("surfaceId", "") or _DEFAULT_SURFACE_ID
         catalog_id = self._surface_catalog(item.surface_catalog_id)
