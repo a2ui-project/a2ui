@@ -384,7 +384,7 @@ describe('ExpressPromptGenerator', () => {
       const transformed = generator.transformExamples(rawMarkdown, cat);
       expect(transformed).not.toContain('```json');
       expect(transformed).toContain('<a2ui>');
-      expect(transformed).toContain('surface("s1")');
+      expect(transformed).toContain('surface("s1", update=true)');
       expect(transformed).toContain('root = Text("Hello")');
       expect(transformed).toContain('</a2ui>');
     });

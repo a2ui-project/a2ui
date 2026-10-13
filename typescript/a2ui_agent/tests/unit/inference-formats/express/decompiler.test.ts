@@ -16,6 +16,7 @@
 
 import {describe, expect, it} from 'vitest';
 
+import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressDecompiler} from '../../../../src/inference-formats/express/decompiler.js';
 import {
   ExpressInvalidIdentifierError,
@@ -24,7 +25,10 @@ import {
 import {ExpressParser} from '../../../../src/inference-formats/express/parser.js';
 import {AgentToRendererMessage, CatalogApi} from '../../../../src/internal/web-core.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
-import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
+import {
+  catalogFromTestDocument,
+  loadConformanceCatalog,
+} from '../../../helpers/conformance-catalogs.js';
 
 const catalogInfo: Record<string, {catalog: CatalogApi; version: string}> = {
   basic_v0_9: {catalog: loadBasicCatalog('v0.9'), version: 'v0.9'},
@@ -55,7 +59,7 @@ describe('ExpressDecompiler', () => {
         },
       ] as unknown as AgentToRendererMessage[];
       expect(new ExpressDecompiler([catalog], version).decompile(messages)).toBe(
-        'surface("default")\n$/title = "Found Restaurants"\n$/items = [{name: "Xi\'an Famous Foods", rating: 4.5}]',
+        'surface("default")\n$/title = "Found Restaurants"\nsurface("default")\n$/items = [{name: "Xi\'an Famous Foods", rating: 4.5}]',
       );
     });
 
@@ -74,7 +78,7 @@ describe('ExpressDecompiler', () => {
       ] as unknown as AgentToRendererMessage[];
       const decompiler = new ExpressDecompiler([catalog], version);
       expect(decompiler.decompile(messages)).toBe(
-        'surface("default")\n$/empty = ""\n$/zero = 0\n$/off = false\n$/none = []',
+        'surface("default")\n$/empty = ""\nsurface("default")\n$/zero = 0\nsurface("default")\n$/off = false\nsurface("default")\n$/none = []\nsurface("default")',
       );
       expect(decompiler.decompile(messages[1])).toBe('surface("default")\n$/zero = 0');
       expect(decompiler.decompile(messages[4])).toBe('surface("default")');
@@ -358,6 +362,367 @@ describe('ExpressDecompiler', () => {
         recompiled[0] as unknown as {createSurface: {components: Array<Record<string, unknown>>}}
       ).createSurface.components;
       expect(components.find(c => c.id === 'root')?.action).toEqual(action);
+    });
+  });
+
+  describe('Surface message coalescing', () => {
+    it('coalesces createSurface + updateComponents + root updateDataModel into one block', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: catalog.id,
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Text', text: 'Hello'}],
+          },
+        },
+        {
+          version: 'v1.0',
+          updateDataModel: {
+            surfaceId: 's1',
+            path: '/',
+            value: {greeting: 'World'},
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+
+      expect(decompiler.decompile(messages)).toBe(
+        'surface("s1")\nroot = Text("Hello")\n$/greeting = "World"',
+      );
+    });
+
+    it('does not coalesce non-root updateDataModel (e.g. path: "/count")', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: catalog.id,
+            components: [{id: 'root', component: 'Text', text: 'Count'}],
+          },
+        },
+        {
+          version: 'v1.0',
+          updateDataModel: {
+            surfaceId: 's1',
+            path: '/count',
+            value: 1,
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+
+      expect(decompiler.decompile(messages)).toBe(
+        'surface("s1")\nroot = Text("Count")\nsurface("s1")\n$/count = 1',
+      );
+    });
+  });
+
+  describe('Multi-catalog resolution', () => {
+    const primaryCatalog = catalogFromTestDocument({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      catalogId: 'test/primary',
+      protocolVersion: 'v1.0',
+      components: {
+        Column: {
+          properties: {
+            children: {$ref: 'common_types.json#/$defs/ChildList'},
+          },
+        },
+        Text: {
+          properties: {
+            text: {$ref: 'common_types.json#/$defs/DynamicString'},
+          },
+        },
+        SharedWidget: {
+          allOf: [
+            {$ref: 'common_types.json#/$defs/Checkable'},
+            {
+              properties: {
+                primaryArg: {type: 'string'},
+                action: {$ref: 'common_types.json#/$defs/Action'},
+              },
+            },
+          ],
+        },
+      },
+      functions: {
+        primaryCheck: {
+          returnType: 'boolean',
+          properties: {
+            args: {
+              type: 'object',
+              properties: {target: {type: 'string'}},
+              required: ['target'],
+            },
+          },
+        },
+        sharedFn: {
+          returnType: 'boolean',
+          properties: {
+            args: {
+              type: 'object',
+              properties: {
+                firstPrimary: {type: 'string'},
+                secondPrimary: {type: 'string'},
+              },
+              required: ['firstPrimary'],
+            },
+          },
+        },
+      },
+    });
+
+    const secondaryCatalog = catalogFromTestDocument({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      catalogId: 'test/secondary',
+      protocolVersion: 'v1.0',
+      components: {
+        SecondaryCard: {
+          properties: {
+            headline: {type: 'string'},
+            subtitle: {type: 'string'},
+          },
+        },
+        SharedWidget: {
+          allOf: [
+            {$ref: 'common_types.json#/$defs/Checkable'},
+            {
+              properties: {
+                secondaryArg: {type: 'string'},
+                action: {$ref: 'common_types.json#/$defs/Action'},
+              },
+            },
+          ],
+        },
+      },
+      functions: {
+        secondaryCheck: {
+          returnType: 'boolean',
+          properties: {
+            args: {
+              type: 'object',
+              properties: {threshold: {type: 'number'}},
+              required: ['threshold'],
+            },
+          },
+        },
+        sharedFn: {
+          returnType: 'boolean',
+          properties: {
+            args: {
+              type: 'object',
+              properties: {
+                firstSecondary: {type: 'string'},
+                secondSecondary: {type: 'string'},
+              },
+              required: ['firstSecondary'],
+            },
+          },
+        },
+      },
+    });
+
+    it('omits catalogId for unique names, emits catalogId for shared names, and never emits catalogId on surface(...)', () => {
+      const decompiler = new ExpressDecompiler([primaryCatalog, secondaryCatalog], 'v1.0');
+      const messages = [
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'main',
+            catalogId: 'test/primary',
+            components: [
+              {
+                id: 'w1',
+                component: 'SharedWidget',
+                catalogId: 'test/primary',
+                primaryArg: 'from-primary',
+                checks: [
+                  {
+                    condition: {
+                      '@call': 'primaryCheck',
+                      catalogId: 'test/primary',
+                      args: {target: 'ok'},
+                    },
+                    message: 'Bad primary',
+                  },
+                  {
+                    condition: {
+                      '@call': 'secondaryCheck',
+                      catalogId: 'test/secondary',
+                      args: {threshold: 42},
+                    },
+                    message: 'Bad secondary',
+                  },
+                ],
+              },
+              {
+                id: 'w2',
+                component: 'SharedWidget',
+                catalogId: 'test/secondary',
+                secondaryArg: 'from-secondary',
+                checks: [
+                  {
+                    condition: {
+                      '@call': 'sharedFn',
+                      catalogId: 'test/secondary',
+                      args: {firstSecondary: 'sec-1', secondSecondary: 'sec-2'},
+                    },
+                    message: 'Check sec',
+                  },
+                ],
+                action: {
+                  functionCall: {
+                    '@call': 'sharedFn',
+                    catalogId: 'test/primary',
+                    args: {firstPrimary: 'act-1', secondPrimary: 'act-2'},
+                  },
+                },
+              },
+              {
+                id: 'c1',
+                component: 'SecondaryCard',
+                catalogId: 'test/secondary',
+                headline: 'Title',
+                subtitle: 'Sub',
+              },
+              {
+                id: 'root',
+                component: 'Column',
+                catalogId: 'test/primary',
+                children: ['w1', 'w2', 'c1'],
+              },
+            ],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+
+      const dsl = decompiler.decompile(messages);
+      expect(dsl.split('\n')[0]).toBe('surface("main")');
+      expect(dsl).not.toContain('surface("main", catalogId=');
+      expect(dsl).toContain('c1 = SecondaryCard("Title", "Sub")');
+      expect(dsl).toContain('root = Column([w1, w2, c1])');
+      expect(dsl).toContain('?primaryCheck("ok", "Bad primary")');
+      expect(dsl).toContain('?secondaryCheck(42, "Bad secondary")');
+      expect(dsl).toContain('catalogId="test/primary"');
+      expect(dsl).toContain('catalogId="test/secondary"');
+      expect(dsl).toContain('{catalogId: "test/secondary"}');
+      expect(dsl).toContain('sharedFn("act-1", "act-2", catalogId="test/primary")');
+    });
+
+    it('throws A2uiCatalogError when createSurface names an inactive catalogId', () => {
+      const decompiler = new ExpressDecompiler([primaryCatalog], 'v1.0');
+      const msg = {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: 'test/unknown',
+          components: [{id: 'root', component: 'Text', text: 'Hi'}],
+        },
+      } as unknown as AgentToRendererMessage;
+
+      expect(() => decompiler.decompile(msg)).toThrow(A2uiCatalogError);
+    });
+  });
+
+  describe('Surface options, functionCallId, and bare check rules', () => {
+    it('emits sendDataModel=true on createSurface', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      const msg = {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          sendDataModel: true,
+          components: [{id: 'root', component: 'Text', text: 'Hello'}],
+        },
+      } as unknown as AgentToRendererMessage;
+
+      expect(decompiler.decompile(msg)).toBe(
+        'surface("s1", sendDataModel=true)\nroot = Text("Hello")',
+      );
+    });
+
+    it('emits update=true on updateComponents when components contain root', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      const msg = {
+        version: 'v1.0',
+        updateComponents: {
+          surfaceId: 's1',
+          components: [{id: 'root', component: 'Text', text: 'Updated'}],
+        },
+      } as unknown as AgentToRendererMessage;
+
+      expect(decompiler.decompile(msg)).toBe('surface("s1", update=true)\nroot = Text("Updated")');
+    });
+
+    it('emits functionCallId on callRendererFunction when it is not the default call_<index>', () => {
+      const {catalog, version} = getCatalogInfo('simplified');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      const messages = [
+        {
+          version: 'v1.0',
+          callRendererFunction: {
+            functionCallId: 'call_1',
+            callFunction: {
+              catalogId: catalog.id,
+              '@call': 'openUrl',
+              args: {url: 'https://example.com/1'},
+            },
+          },
+        },
+        {
+          version: 'v1.0',
+          callRendererFunction: {
+            functionCallId: 'custom_id_99',
+            callFunction: {
+              catalogId: catalog.id,
+              '@call': 'openUrl',
+              args: {url: 'https://example.com/2'},
+            },
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+
+      expect(decompiler.decompile(messages)).toBe(
+        'openUrl("https://example.com/1")\nopenUrl("https://example.com/2", functionCallId="custom_id_99")',
+      );
+    });
+
+    it('decompiles a bare check rule without a condition wrapper', () => {
+      const {catalog, version} = getCatalogInfo('forms');
+      const decompiler = new ExpressDecompiler([catalog], version);
+      const msg = {
+        version: 'v1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          components: [
+            {
+              id: 'root',
+              component: 'TextField',
+              label: 'Name',
+              value: {'@path': '/name'},
+              checks: [{'@call': 'required'}],
+            },
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+
+      expect(decompiler.decompile(msg)).toBe(
+        'surface("s1")\nroot = TextField("Name", $/name, ?required)',
+      );
     });
   });
 });
