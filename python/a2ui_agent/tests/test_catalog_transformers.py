@@ -24,6 +24,7 @@ import json
 import os
 from typing import Any
 
+import jsonschema
 import pytest
 
 from a2ui.catalog_transformers import (
@@ -224,6 +225,63 @@ def test_pruning_a_loaded_catalog_carries_its_source_forward():
     }
     assert _refs(out["$defs"]["anyFunction"]) == {"#/functions/email"}
     assert Catalog.from_json(out).to_json() == out
+
+
+def test_pruning_a_loaded_catalog_keeps_its_defs_as_written():
+    source = {
+        "catalogId": "https://a2ui.org/x/catalog.json",
+        "components": {
+            "A": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "A"},
+                    "x": {"$ref": "https://a2ui.org/x/catalog.json#/$defs/X"},
+                    "label": {"$ref": "#/$defs/Label"},
+                },
+            },
+            "B": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "B"},
+                    "o": {"$ref": "#/$defs/Orphaned"},
+                },
+            },
+        },
+        "$defs": {
+            "X": {"type": "object", "properties": {"n": {"type": "number"}}},
+            # A local ref to a common type that the document doesn't define.
+            "Label": {
+                "type": "object",
+                "properties": {"text": {"$ref": "#/$defs/DynamicString"}},
+            },
+            "Orphaned": {"type": "string"},
+            "Unreferenced": {"type": "string"},
+        },
+    }
+    catalog = Catalog.from_json(source)
+
+    pruned = ComponentPruningTransformer(["A"]).transform(catalog)
+    out = pruned.to_json()
+
+    assert out["components"] == {"A": source["components"]["A"]}
+    expected_defs = {
+        name: schema for name, schema in source["$defs"].items() if name != "Orphaned"
+    }
+    assert {
+        name: schema
+        for name, schema in out["$defs"].items()
+        if name not in ("anyComponent", "anyFunction")
+    } == expected_defs
+    assert Catalog.from_json(out).to_json() == out
+
+    schema = pruned.validation_schema
+    assert "Orphaned" not in schema["$defs"]
+    a_schema = schema["components"]["A"]
+    assert a_schema["properties"]["x"] == source["$defs"]["X"]
+    validator = jsonschema.Draft202012Validator({"$defs": schema["$defs"], **a_schema})
+    validator.validate({"component": "A", "x": {"n": 1}, "label": {"text": "hi"}})
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate({"component": "A", "x": {"n": "one"}})
 
 
 class _RecordingTransformer(CatalogTransformer):
