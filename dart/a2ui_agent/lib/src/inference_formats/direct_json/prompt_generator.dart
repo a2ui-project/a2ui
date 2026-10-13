@@ -105,7 +105,7 @@ class DirectJsonPromptGenerator extends PromptGenerator {
         '### Common Types Schema:\n${jsonEncode(commonTypesSchema)}',
       );
     }
-    for (final Map<String, Object?> catalogDoc in catalogDocs) {
+    for (final catalogDoc in catalogDocs) {
       schemaSections.add('### Catalog Schema:\n${jsonEncode(catalogDoc)}');
     }
     schemaSections.add(_schemaBlockEnd);
@@ -119,7 +119,7 @@ class DirectJsonPromptGenerator extends PromptGenerator {
       final List<String> blocks = [
         for (final List<AgentToRendererMessage> turn in examples)
           '<a2ui-json>\n'
-              '${encoder.convert([for (final m in turn) _exampleMessageJson(m)])}\n'
+              '${encoder.convert(turn.map(_exampleMessageJson).toList())}\n'
               '</a2ui-json>',
       ];
       parts.add('### Examples:\n${blocks.join('\n\n')}');
@@ -225,7 +225,7 @@ Map<String, Object?> _pruneMessagesSchema(
       }
     }
   }
-  for (final String name in allowedMessages) {
+  for (final name in allowedMessages) {
     if (!validMessageTypes.contains(name)) {
       throw ArgumentError.value(
         allowedMessages,
@@ -265,7 +265,7 @@ Map<String, Object?> _pruneCommonTypesSchema(
   final Object? defs = commonTypesSchema[r'$defs'];
   if (defs is! Map) return commonTypesSchema;
   final roots = <String>{};
-  for (final Map<String, Object?> schema in referencingSchemas) {
+  for (final schema in referencingSchemas) {
     for (final String ref in _collectRefs(schema)) {
       if (ref.contains(r'common_types.json#/$defs/') ||
           ref.startsWith(_defsRefPrefix)) {
