@@ -665,6 +665,11 @@ def run_format_case(test_case, tmp_path):
             return
         fmt = make_format(args, tmp_path=tmp_path)
         snippet = generate(fmt)
+        if "expect_file" in test_case:
+            with open(
+                get_conformance_path(test_case["expect_file"]), encoding="utf-8"
+            ) as f:
+                assert snippet == f.read()
         _expect_snippet(
             snippet,
             test_case.get("expect_contains", []),

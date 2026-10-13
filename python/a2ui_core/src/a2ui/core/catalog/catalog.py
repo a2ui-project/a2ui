@@ -1911,6 +1911,7 @@ class Catalog(Generic[TComponent, TFunction]):
             doc["$schema"] = self.schema_dialect
         for key, value in (
             ("$id", self.schema_id),
+            ("protocolVersion", self.declared_protocol_version),
             ("title", self.title),
             ("description", self.description),
         ):
@@ -1918,8 +1919,6 @@ class Catalog(Generic[TComponent, TFunction]):
                 doc[key] = value
         if self.declares_catalog_id:
             doc["catalogId"] = self.catalog_id
-        if self.declared_protocol_version is not None:
-            doc["protocolVersion"] = self.declared_protocol_version
         if self.instructions is not None:
             doc["instructions"] = self.instructions
         doc.update(copy.deepcopy(self.extras))

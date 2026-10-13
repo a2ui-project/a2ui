@@ -1049,7 +1049,7 @@
     },
     "GeneratePromptSnippetTest": {
       "type": "object",
-      "description": "Rendering the system prompt snippet for a format and a set of active catalogs. Assertions are substrings rather than whole texts, because the wording around the catalog is an implementation's own.",
+      "description": "Rendering the system prompt snippet for a format and a set of active catalogs.",
       "properties": {
         "action": {"const": "generate_prompt_snippet"},
         "args": {
@@ -1073,6 +1073,10 @@
           },
           "required": ["format", "catalogs"],
           "additionalProperties": false
+        },
+        "expect_file": {
+          "type": "string",
+          "description": "Path relative to `conformance/` to a text file containing the exact expected prompt snippet."
         },
         "expect_contains": {"type": "array", "items": {"type": "string"}},
         "expect_absent": {

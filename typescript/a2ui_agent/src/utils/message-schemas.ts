@@ -16,8 +16,19 @@
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
 
-import {normalizeVersionString} from '../internal/web-core.js';
+import {A2uiCatalogError} from '../errors.js';
+import {
+  normalizeVersionString,
+  V08Schemas,
+  V09Schemas,
+  V09_STANDARD_DEFS,
+  V10Schemas,
+  V10_STANDARD_DEFS,
+} from '../internal/web-core.js';
 import {envelopeSchemasFor} from './envelope-validation.js';
+
+const DEFS_REF_PREFIX = '#/$defs/';
+const PROPERTIES_REF_PREFIX = '#/properties/';
 
 const jsonSchemasByVersion = new Map<string, Record<string, Record<string, unknown>>>();
 
@@ -78,4 +89,195 @@ export function messageJsonSchemas(
     jsonSchemasByVersion.set(key, schemas);
   }
   return schemas;
+}
+
+function collectRefs(node: unknown, out = new Set<string>()): Set<string> {
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      collectRefs(item, out);
+    }
+    return out;
+  }
+  if (typeof node === 'object' && node !== null) {
+    for (const [key, value] of Object.entries(node)) {
+      if (key === '$ref' && typeof value === 'string') {
+        out.add(value);
+      } else {
+        collectRefs(value, out);
+      }
+    }
+  }
+  return out;
+}
+
+function reachableDefs(
+  defs: Record<string, unknown>,
+  roots: Iterable<string>,
+  refPrefix = DEFS_REF_PREFIX,
+): Record<string, unknown> {
+  const reachable = new Set<string>();
+  const queue = [...roots];
+  while (queue.length > 0) {
+    const name = queue.shift()!;
+    if (name in defs && !reachable.has(name)) {
+      reachable.add(name);
+      for (const ref of collectRefs(defs[name])) {
+        if (ref.startsWith(refPrefix)) {
+          queue.push(ref.slice(refPrefix.length));
+        }
+      }
+    }
+  }
+  const result: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(defs)) {
+    if (reachable.has(name)) {
+      result[name] = value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Returns the agent-to-renderer (server-to-client) JSON schema for a protocol version.
+ */
+export function loadAgentToRendererSchema(protocolVersion: string): Record<string, unknown> {
+  const normalized = normalizeVersionString(protocolVersion);
+  if (normalized === '0.8' || normalized.startsWith('0.8.')) {
+    return structuredClone(V08Schemas.A2uiMessageSchemaRaw) as Record<string, unknown>;
+  }
+  if (normalized === '0.9') {
+    return structuredClone(V09Schemas.A2uiMessageSchemaRaw) as Record<string, unknown>;
+  }
+  if (normalized.startsWith('0.9.')) {
+    const schema = structuredClone(V09Schemas.A2uiMessageSchemaRaw) as Record<string, unknown>;
+    const defs = schema.$defs as Record<string, Record<string, unknown>> | undefined;
+    if (defs) {
+      for (const defSchema of Object.values(defs)) {
+        const props = defSchema.properties as Record<string, unknown> | undefined;
+        if (props && 'version' in props) {
+          props.version = {enum: ['v0.9', 'v0.9.1']};
+        }
+      }
+    }
+    return schema;
+  }
+  if (normalized === '1.0' || normalized.startsWith('1.0.')) {
+    return structuredClone(V10Schemas.A2uiMessageSchemaRaw) as Record<string, unknown>;
+  }
+  throw new A2uiCatalogError(
+    `No agent-to-renderer schema for protocol version '${protocolVersion}'.`,
+  );
+}
+
+/**
+ * Returns the common types JSON schema for a protocol version, or an empty object for v0.8.
+ */
+export function loadCommonTypesSchema(protocolVersion: string): Record<string, unknown> {
+  const normalized = normalizeVersionString(protocolVersion);
+  if (normalized === '0.8' || normalized.startsWith('0.8.')) {
+    return {};
+  }
+  if (normalized === '0.9' || normalized.startsWith('0.9.')) {
+    return {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $id: 'https://a2ui.org/specification/v0_9/common_types.json',
+      title: 'A2UI Common Types',
+      description: 'Common type definitions used across A2UI schemas.',
+      $defs: structuredClone(V09_STANDARD_DEFS),
+    };
+  }
+  if (normalized === '1.0' || normalized.startsWith('1.0.')) {
+    return {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $id: 'https://a2ui.org/specification/v1_0/common_types.json',
+      title: 'A2UI Common Types',
+      description: 'Common type definitions used across A2UI schemas.',
+      $defs: structuredClone(V10_STANDARD_DEFS),
+    };
+  }
+  throw new A2uiCatalogError(`No common types schema for protocol version '${protocolVersion}'.`);
+}
+
+/**
+ * Returns a copy of an agent-to-renderer schema that admits only the allowed messages.
+ */
+export function pruneMessagesSchema(
+  a2rSchema: Record<string, unknown>,
+  protocolVersion: string,
+  allowedMessages: readonly string[],
+): Record<string, unknown> {
+  const pruned = structuredClone(a2rSchema);
+  const normalized = normalizeVersionString(protocolVersion);
+  if (normalized === '0.8' || normalized.startsWith('0.8.')) {
+    const properties = pruned.properties;
+    if (typeof properties === 'object' && properties !== null && !Array.isArray(properties)) {
+      pruned.properties = reachableDefs(
+        properties as Record<string, unknown>,
+        allowedMessages,
+        PROPERTIES_REF_PREFIX,
+      );
+    }
+    return pruned;
+  }
+
+  const defs = pruned.$defs as Record<string, unknown> | undefined;
+  const allowedDefs = new Set(allowedMessages);
+  if (defs && typeof defs === 'object') {
+    for (const [defName, defVal] of Object.entries(defs)) {
+      if (typeof defVal === 'object' && defVal !== null) {
+        const props = (defVal as Record<string, unknown>).properties;
+        if (typeof props === 'object' && props !== null) {
+          if (Object.keys(props).some(k => allowedDefs.has(k))) {
+            allowedDefs.add(defName);
+          }
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(pruned.oneOf)) {
+    pruned.oneOf = pruned.oneOf.filter(item => {
+      if (typeof item !== 'object' || item === null) return false;
+      const ref = (item as Record<string, unknown>).$ref;
+      return (
+        typeof ref === 'string' &&
+        ref.startsWith(DEFS_REF_PREFIX) &&
+        allowedDefs.has(ref.slice(DEFS_REF_PREFIX.length))
+      );
+    });
+  }
+  if (defs && typeof defs === 'object') {
+    pruned.$defs = reachableDefs(defs, allowedDefs, DEFS_REF_PREFIX);
+  }
+  return pruned;
+}
+
+/**
+ * Returns a copy of the common types schema with only the definitions referenced by
+ * `referencingSchemas` (directly or transitively).
+ */
+export function pruneCommonTypesSchema(
+  commonTypesSchema: Record<string, unknown>,
+  ...referencingSchemas: Record<string, unknown>[]
+): Record<string, unknown> {
+  if (Object.keys(commonTypesSchema).length === 0) {
+    return {};
+  }
+  const pruned = structuredClone(commonTypesSchema);
+  const defs = pruned.$defs;
+  if (typeof defs !== 'object' || defs === null || Array.isArray(defs)) {
+    return pruned;
+  }
+
+  const roots = new Set<string>();
+  for (const schema of referencingSchemas) {
+    for (const ref of collectRefs(schema)) {
+      if (ref.includes('common_types.json#/$defs/') || ref.startsWith(DEFS_REF_PREFIX)) {
+        const parts = ref.split(DEFS_REF_PREFIX);
+        roots.add(parts[parts.length - 1]);
+      }
+    }
+  }
+  pruned.$defs = reachableDefs(defs as Record<string, unknown>, roots, DEFS_REF_PREFIX);
+  return pruned;
 }

@@ -578,11 +578,13 @@ void main() {
       expect(
         text,
         contains(
-          jsonEncode(PayloadValidator.commonTypesFor(A2uiProtocolVersion.v0_9)),
+          '### Common Types Schema:\n'
+          '{"\$schema":"https://json-schema.org/draft/2020-12/schema",'
+          '"\$id":"https://a2ui.org/specification/v0_9/common_types.json"',
         ),
       );
-      expect(text, contains(jsonEncode(basic.validationSchema)));
-      expect(text, contains('"version": "v0.9"'));
+      expect(text, contains(jsonEncode(basic.toJson())));
+      expect(text, contains('"version":{"const":"v0.9"}'));
     });
 
     test('prunes the message schema to the allowed messages', () {
@@ -595,7 +597,6 @@ void main() {
         'CreateSurfaceMessage',
         'UpdateComponentsMessage',
         'DeleteSurfaceMessage',
-        '`createSurface`',
       ]) {
         expect(text, isNot(contains(pruned)));
       }
@@ -616,7 +617,7 @@ void main() {
       );
       final String text = snippet(examples: [example]);
       final List<ResponsePart> parts = parser().parseResponse(
-        text.substring(text.indexOf('## Examples')),
+        text.substring(text.indexOf('### Examples:')),
       );
       expect(
         parts.whereType<A2uiPart>().single.a2ui.map((m) => m.toJson()),

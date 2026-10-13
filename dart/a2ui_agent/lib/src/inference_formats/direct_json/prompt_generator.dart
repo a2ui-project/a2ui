@@ -12,14 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:a2ui_core/a2ui_core.dart';
 
-import '../../prompt/allowed_messages.dart';
 import '../../prompt/generator.dart';
-import 'parser.dart';
 import 'server_to_client.g.dart';
+
+const String _defaultWorkflowRules = '''
+
+The generated response MUST follow these rules:
+- The response can contain one or more A2UI JSON blocks.
+- Each A2UI JSON block MUST be wrapped in `<a2ui-json>` and `</a2ui-json>` tags.
+- Between or around these blocks, you can provide conversational text.
+- The JSON part MUST be a single, raw JSON object (usually a list of A2UI messages) and MUST validate against the provided A2UI JSON SCHEMA.
+- Top-Down Component Ordering: Within the `components` list of a message:
+    - The 'root' component MUST be the FIRST element.
+    - Parent components MUST appear before their child components.
+    This specific ordering allows the streaming parser to yield and render the UI incrementally as it arrives.
+''';
+
+const String _schemaBlockStart = '---BEGIN A2UI JSON SCHEMA---';
+const String _schemaBlockEnd = '---END A2UI JSON SCHEMA---';
+const String _defsRefPrefix = r'#/$defs/';
 
 /// Renders the system prompt snippet teaching a model to write A2UI messages
 /// as JSON inside `<a2ui-json>` tags.
@@ -42,12 +58,12 @@ class DirectJsonPromptGenerator extends PromptGenerator {
   final List<String>? allowedMessages;
 
   /// Renders the output rules and the JSON schemas of the messages, the
-  /// components and the functions [catalogs] declare, pruned to
+  /// common types, and the catalogs [catalogs] declare, pruned to
   /// [allowedMessages], followed by [examples] as JSON payloads.
   ///
-  /// Throws [A2uiCatalogError] if [catalogs] is empty, since there would be
-  /// nothing the model could be told to write, and [ArgumentError] if
-  /// [allowedMessages] names a message type v0.9 does not have.
+  /// Throws [A2uiCatalogError] if [catalogs] is empty or mixes protocol
+  /// versions, and [ArgumentError] if [allowedMessages] names an unknown
+  /// message type.
   @override
   String generate() {
     if (catalogs.isEmpty) {
@@ -55,121 +71,209 @@ class DirectJsonPromptGenerator extends PromptGenerator {
         'A direct JSON prompt needs at least one catalog.',
       );
     }
-    final List<String> allowed = resolveAllowedMessages(allowedMessages);
-    final buffer = StringBuffer(_rules(allowed))
-      ..write('\n\n## Message schema\n\n')
-      ..write(
-        'Each message matches this schema. In it, `catalog.json` stands for '
-        'the catalog the surface names.\n\n',
-      )
-      ..write(_schemaBlock(_messageSchema(allowed)))
-      ..write('\n\n## Common types\n\n')
-      ..write(
-        'The message and catalog schemas refer to these definitions as '
-        '`common_types.json`.\n\n',
-      )
-      ..write(
-        _schemaBlock(PayloadValidator.commonTypesFor(A2uiProtocolVersion.v0_9)),
-      );
-    if (catalogs.length > 1) {
-      buffer.write(
-        '\n\n## Catalogs\n\n'
-        'A surface uses the catalog its createSurface names. The catalogs, '
-        'in order of preference: '
-        '${catalogs.map((c) => '`${c.id}`').join(', ')}.',
+    final Set<A2uiProtocolVersion> versions = {
+      for (final CatalogApi c in catalogs)
+        c.protocolVersion ?? A2uiProtocolVersion.v0_9,
+    };
+    if (versions.length > 1) {
+      throw A2uiCatalogError(
+        "The schema prompt's catalogs target different protocol versions: "
+        '${versions.map((v) => v.semverValue).toList()..sort()}.',
       );
     }
-    for (final CatalogApi catalog in catalogs) {
-      buffer
-        ..write('\n\n## Catalog `${catalog.id}`\n\n')
-        ..write(_schemaBlock(catalog.validationSchema));
+    final A2uiProtocolVersion version = versions.single;
+    Map<String, Object?> a2rSchema = _loadAgentToRendererSchema(version);
+    if (allowedMessages != null) {
+      a2rSchema = _pruneMessagesSchema(a2rSchema, allowedMessages!);
     }
+
+    final List<Map<String, Object?>> catalogDocs = [
+      for (final CatalogApi c in catalogs) c.toJson(),
+    ];
+    final Map<String, Object?> commonTypesSchema = _pruneCommonTypesSchema(
+      PayloadValidator.commonTypesFor(version),
+      [...catalogDocs, a2rSchema],
+    );
+
+    final schemaSections = <String>[
+      _schemaBlockStart,
+      '### Agent to Renderer Schema:\n${jsonEncode(a2rSchema)}',
+    ];
+    final Object? commonDefs = commonTypesSchema[r'$defs'];
+    if (commonDefs is Map && commonDefs.isNotEmpty) {
+      schemaSections.add(
+        '### Common Types Schema:\n${jsonEncode(commonTypesSchema)}',
+      );
+    }
+    for (final Map<String, Object?> catalogDoc in catalogDocs) {
+      schemaSections.add('### Catalog Schema:\n${jsonEncode(catalogDoc)}');
+    }
+    schemaSections.add(_schemaBlockEnd);
+
+    final parts = <String>[
+      '## Workflow Description:\n$_defaultWorkflowRules',
+      schemaSections.join('\n\n'),
+    ];
     if (examples.isNotEmpty) {
-      final parser = DirectJsonParser(catalogs);
-      buffer.write(
-        '\n\n## Examples\n\n'
-        'Each example is one complete payload.',
-      );
-      for (final List<AgentToRendererMessage> example in examples) {
-        buffer.write(
-          '\n\n<a2ui-json>\n${parser.decompile(example)}\n</a2ui-json>',
-        );
+      const encoder = JsonEncoder.withIndent('  ');
+      final List<String> blocks = [
+        for (final List<AgentToRendererMessage> turn in examples)
+          '<a2ui-json>\n'
+              '${encoder.convert([for (final m in turn) _exampleMessageJson(m)])}\n'
+              '</a2ui-json>',
+      ];
+      parts.add('### Examples:\n${blocks.join('\n\n')}');
+    }
+    return parts.join('\n\n');
+  }
+}
+
+Map<String, Object?> _exampleMessageJson(AgentToRendererMessage message) {
+  final Map<String, Object?> json = message.toJson();
+  if (message is CreateSurfaceMessage && !message.sendDataModel) {
+    final Object? create = json['createSurface'];
+    if (create is Map<String, Object?>) {
+      return <String, Object?>{
+        ...json,
+        'createSurface': <String, Object?>{
+          for (final MapEntry<String, Object?> e in create.entries)
+            if (e.key != 'sendDataModel') e.key: e.value,
+        },
+      };
+    }
+  }
+  return json;
+}
+
+Map<String, Object?> _loadAgentToRendererSchema(A2uiProtocolVersion version) {
+  switch (version) {
+    case A2uiProtocolVersion.v0_9:
+      return jsonDecode(serverToClientV0_9Json) as Map<String, Object?>;
+    case A2uiProtocolVersion.v0_9_1:
+      final schema = jsonDecode(serverToClientV0_9Json) as Map<String, Object?>;
+      final Object? defs = schema[r'$defs'];
+      if (defs is Map<String, Object?>) {
+        for (final Object? defSchema in defs.values) {
+          if (defSchema is Map<String, Object?>) {
+            final Object? props = defSchema['properties'];
+            if (props is Map<String, Object?> && props.containsKey('version')) {
+              props['version'] = {
+                'enum': ['v0.9', 'v0.9.1'],
+              };
+            }
+          }
+        }
+      }
+      return schema;
+    case A2uiProtocolVersion.v1_0:
+      return jsonDecode(agentToRendererV1_0Json) as Map<String, Object?>;
+  }
+}
+
+Set<String> _collectRefs(Object? node) {
+  final refs = <String>{};
+  if (node is Map) {
+    for (final MapEntry<Object?, Object?> entry in node.entries) {
+      if (entry.key == r'$ref' && entry.value is String) {
+        refs.add(entry.value! as String);
+      } else {
+        refs.addAll(_collectRefs(entry.value));
       }
     }
-    return buffer.toString();
-  }
-}
-
-/// The v0.9 message schema, describing only the [allowed] message types.
-Map<String, Object?> _messageSchema(List<String> allowed) {
-  final schema = jsonDecode(serverToClientV0_9Json) as Map<String, Object?>;
-  final defs = schema[r'$defs']! as Map<String, Object?>;
-  final removed = <String>{
-    for (final MapEntry<String, Object?> def in defs.entries)
-      if (_messageType(def.value) case final String type
-          when !allowed.contains(type))
-        def.key,
-  };
-  defs.removeWhere((String name, _) => removed.contains(name));
-  schema['oneOf'] = [
-    for (final Object? option in schema['oneOf']! as List<Object?>)
-      if (option case {
-        r'$ref': final String ref,
-      } when !removed.contains(ref.substring(ref.lastIndexOf('/') + 1)))
-        option,
-  ];
-  return schema;
-}
-
-/// The message type a definition of the message schema describes, or null.
-String? _messageType(Object? definition) {
-  if (definition case {'properties': final Map<Object?, Object?> properties}) {
-    for (final Object? key in properties.keys) {
-      if (messageTypes.contains(key)) return key! as String;
+  } else if (node is List) {
+    for (final Object? item in node) {
+      refs.addAll(_collectRefs(item));
     }
   }
-  return null;
+  return refs;
 }
 
-String _schemaBlock(Map<String, Object?> schema) =>
-    '<a2ui_schema>\n${jsonEncode(schema)}\n</a2ui_schema>';
+Map<String, Object?> _reachableDefs(
+  Map<String, Object?> defs,
+  Iterable<String> roots,
+) {
+  final reachable = <String>{};
+  final queue = Queue<String>.of(roots);
+  while (queue.isNotEmpty) {
+    final String name = queue.removeFirst();
+    if (defs.containsKey(name) && reachable.add(name)) {
+      for (final String ref in _collectRefs(defs[name])) {
+        if (ref.startsWith(_defsRefPrefix)) {
+          queue.add(ref.substring(_defsRefPrefix.length));
+        }
+      }
+    }
+  }
+  return <String, Object?>{
+    for (final MapEntry<String, Object?> entry in defs.entries)
+      if (reachable.contains(entry.key)) entry.key: entry.value,
+  };
+}
 
-String _rules(List<String> allowed) {
-  final String types = allowed.map((t) => '`$t`').join(', ');
-  final descriptions = [
-    if (allowed.contains('createSurface'))
-      '`createSurface` starts a surface and names the catalog its components '
-          'come from.',
-    if (allowed.contains('updateComponents'))
-      '`updateComponents` adds components to a surface, or replaces them by '
-          'id, as a flat list. One component has the id `root`, and every '
-          'other component is reached from it. A component refers to another '
-          'by its id.',
-    if (allowed.contains('updateDataModel'))
-      '`updateDataModel` sets the value at a JSON Pointer `path` in the data '
-          'model of a surface. Without a path it replaces the whole data '
-          'model.',
-    if (allowed.contains('deleteSurface')) '`deleteSurface` removes a surface.',
-  ];
-  return '''
-# A2UI JSON Output Contract
+Map<String, Object?> _pruneMessagesSchema(
+  Map<String, Object?> a2rSchema,
+  List<String> allowedMessages,
+) {
+  final defs = a2rSchema[r'$defs']! as Map<String, Object?>;
+  final validMessageTypes = <String>{};
+  for (final MapEntry<String, Object?> entry in defs.entries) {
+    validMessageTypes.add(entry.key);
+    if (entry.value case {'properties': final Map<Object?, Object?> props}) {
+      for (final Object? key in props.keys) {
+        if (key != 'version' && key is String) validMessageTypes.add(key);
+      }
+    }
+  }
+  for (final String name in allowedMessages) {
+    if (!validMessageTypes.contains(name)) {
+      throw ArgumentError.value(
+        allowedMessages,
+        'allowedMessages',
+        "'$name' is not a supported message type.",
+      );
+    }
+  }
 
-You must output the user interface as A2UI messages written in JSON.
+  final allowedDefs = <String>{...allowedMessages};
+  for (final MapEntry<String, Object?> entry in defs.entries) {
+    if (entry.value case {'properties': final Map<Object?, Object?> props}) {
+      if (props.keys.any(allowedDefs.contains)) {
+        allowedDefs.add(entry.key);
+      }
+    }
+  }
 
-IMPORTANT: You MUST always surround each JSON payload with the sentinel tags `<a2ui-json>` and `</a2ui-json>`. Text outside the tags is shown to the user as conversation.
+  return <String, Object?>{
+    ...a2rSchema,
+    if (a2rSchema['oneOf'] case final List<Object?> oneOf)
+      'oneOf': <Object?>[
+        for (final Object? item in oneOf)
+          if (item case {r'$ref': final String ref}
+              when ref.startsWith(_defsRefPrefix) &&
+                  allowedDefs.contains(ref.substring(_defsRefPrefix.length)))
+            item,
+      ],
+    r'$defs': _reachableDefs(defs, allowedDefs),
+  };
+}
 
-## Rules
-
-1. A payload is a JSON array of messages, which the renderer applies in order.
-
-2. Each message is an object with `"version": "v0.9"` and exactly one of these keys: $types.
-${[for (final String d in descriptions) '   $d'].join('\n')}
-
-3. Use only the components and functions of the catalogs below, with only the properties their schemas declare.
-
-4. Bind a value to the data model with `{"path": "/absolute/path"}`. Inside a template, a path without a leading slash is relative to the current item.
-
-5. Call a catalog function with `{"call": "functionName", "args": {...}}`.
-
-6. Write plain JSON: double quotes, no comments and no trailing commas.''';
+Map<String, Object?> _pruneCommonTypesSchema(
+  Map<String, Object?> commonTypesSchema,
+  List<Map<String, Object?>> referencingSchemas,
+) {
+  final Object? defs = commonTypesSchema[r'$defs'];
+  if (defs is! Map<String, Object?>) return commonTypesSchema;
+  final roots = <String>{};
+  for (final Map<String, Object?> schema in referencingSchemas) {
+    for (final String ref in _collectRefs(schema)) {
+      if (ref.contains(r'common_types.json#/$defs/') ||
+          ref.startsWith(_defsRefPrefix)) {
+        roots.add(ref.split(_defsRefPrefix).last);
+      }
+    }
+  }
+  return <String, Object?>{
+    ...commonTypesSchema,
+    r'$defs': _reachableDefs(defs, roots),
+  };
 }

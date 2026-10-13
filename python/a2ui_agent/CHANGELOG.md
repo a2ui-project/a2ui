@@ -58,6 +58,9 @@
   file serializes with `to_json()` as that file minus the pruned entries, with
   the unions rebuilt. The macro expander builds the expanded catalog from
   `to_json()`, keeping common type references and metadata (#3053).
+- `DirectJsonPromptGenerator` (`schema_to_prompt`) embeds each active catalog's
+  `Catalog.to_json()` document alongside the pruned `common_types` schema,
+  avoiding duplicate inlined common type definitions across multiple catalogs.
 - The SDK reads `Catalog.validation_schema` instead of the deprecated
   `catalog_schema` (#3053).
 - A generated skill no longer falls back to the catalog's `description` when

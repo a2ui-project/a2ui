@@ -28,7 +28,9 @@ export type {A2uiMessage} from './schema/server-to-client.js';
 export * from './standard_defs.js';
 
 import A2UIClientEventMessage from './schemas/server_to_client_with_standard_catalog.json' with {type: 'json'};
+import A2uiMessageSchemaRaw from './schemas/server_to_client.json' with {type: 'json'};
 
 export const Schemas = {
   A2UIClientEventMessage,
+  A2uiMessageSchemaRaw,
 };

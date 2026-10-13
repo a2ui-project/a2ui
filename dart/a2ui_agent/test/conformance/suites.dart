@@ -76,28 +76,32 @@ Matcher throwsCategory(Object? expectError) {
 /// The catalog a suite names by [entry]: a path relative to `conformance/`,
 /// or a map with the path under `catalog` and the transformers registered
 /// with it under `transformers`.
-CatalogConfig catalogConfig(Object? entry) => switch (entry) {
-  final String path => CatalogConfig(loadCatalog(path)),
-  {'catalog': final String path} => CatalogConfig(
-    loadCatalog(path),
-    transformers: [
-      for (final Object? transformer
-          in (entry as Map)['transformers'] as List<Object?>? ?? const [])
-        _transformer(transformer),
-    ],
-  ),
-  _ => throw ArgumentError.value(entry, 'entry', 'Not a catalog entry'),
-};
+CatalogConfig catalogConfig(Object? entry, {bool lower = true}) =>
+    switch (entry) {
+      final String path => CatalogConfig(
+        lower ? loadCatalog(path) : loadCatalogUnlowered(path),
+      ),
+      {'catalog': final String path} => CatalogConfig(
+        lower ? loadCatalog(path) : loadCatalogUnlowered(path),
+        transformers: [
+          for (final Object? transformer
+              in (entry as Map)['transformers'] as List<Object?>? ?? const [])
+            _transformer(transformer),
+        ],
+      ),
+      _ => throw ArgumentError.value(entry, 'entry', 'Not a catalog entry'),
+    };
 
 /// The catalogs a case names in `args`, each after the transformers
 /// registered with it.
-List<CatalogApi> caseCatalogs(Map<String, Object?> args) => [
-  if (args['catalog'] case final Object catalog)
-    catalogConfig(catalog).transformedCatalog,
-  if (args['catalogs'] case final List<Object?> entries)
-    for (final Object? entry in entries)
-      catalogConfig(entry).transformedCatalog,
-];
+List<CatalogApi> caseCatalogs(Map<String, Object?> args, {bool lower = true}) =>
+    [
+      if (args['catalog'] case final Object catalog)
+        catalogConfig(catalog, lower: lower).transformedCatalog,
+      if (args['catalogs'] case final List<Object?> entries)
+        for (final Object? entry in entries)
+          catalogConfig(entry, lower: lower).transformedCatalog,
+    ];
 
 bool _isVersionAtLeast1_0(Object? versionStr) =>
     versionStr is String && compareVersions(versionStr, '1.0') >= 0;
@@ -139,6 +143,7 @@ CatalogTransformer _transformer(Object? spec) => switch (spec) {
 };
 
 final Map<String, CatalogApi> _catalogCache = {};
+final Map<String, CatalogApi> _unloweredCatalogCache = {};
 
 /// The catalog document at [path], lowered to v0.9 and loaded by a
 /// provider.
@@ -156,6 +161,19 @@ CatalogApi loadCatalog(String path) => _catalogCache.putIfAbsent(path, () {
     catalogId: document.containsKey('catalogId') ? null : path,
   ).load();
 });
+
+/// The catalog document at [path], loaded as written without lowering to v0.9.
+CatalogApi loadCatalogUnlowered(String path) =>
+    _unloweredCatalogCache.putIfAbsent(path, () {
+      final document =
+          jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
+              as Map<String, Object?>;
+      return Catalog.fromJson(
+        document,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        catalogId: document.containsKey('catalogId') ? null : path,
+      );
+    });
 
 /// [document] with a `protocolVersion` of `1.0` or later stated as `0.9`, and
 /// any `validationResult` function return type stated as `boolean`.
@@ -289,6 +307,16 @@ List<AgentToRendererMessage> loadExample(String path) => lowerMessages(
   jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
       as List<Object?>,
 );
+
+/// The prompt example at [path], relative to `conformance/`, loaded as written
+/// without lowering to v0.9.
+List<AgentToRendererMessage> loadExampleUnlowered(String path) =>
+    AgentToRendererMessage.parseAll([
+      for (final Object? item
+          in jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
+              as List<Object?>)
+        Map<String, Object?>.from(item! as Map),
+    ], protocolVersion: A2uiProtocolVersion.v1_0).messages;
 
 /// [messages] as JSON in the v1.0 shape the suites are written in.
 ///
@@ -433,9 +461,12 @@ void expectCatalog(CatalogApi catalog, Map<String, Object?> expected) {
   }
 }
 
-/// Checks a prompt snippet against `expect_contains` and `expect_absent`,
-/// or the `prompt_snippet_` forms of them, in [expected].
+/// Checks a prompt snippet against `expect_file`, `expect_contains` and
+/// `expect_absent`, or the `prompt_snippet_` forms of them, in [expected].
 void expectSnippet(String snippet, Map<String, Object?> expected) {
+  if (expected['expect_file'] case final String path) {
+    expect(snippet, File('$conformanceRoot/$path').readAsStringSync());
+  }
   for (final key in ['expect_contains', 'prompt_snippet_contains']) {
     for (final Object? text in expected[key] as List<Object?>? ?? const []) {
       expect(snippet, contains(text));

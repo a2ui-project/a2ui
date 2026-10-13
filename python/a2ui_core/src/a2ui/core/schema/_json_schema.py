@@ -434,3 +434,151 @@ def is_identifier_key(key: str) -> bool:
     describes; Python's `re` module cannot compile `\\p{...}` classes.
     """
     return key.isidentifier()
+
+
+_ROOT_KEY_ORDER: Final[tuple[str, ...]] = (
+    "$schema",
+    "$id",
+    "protocolVersion",
+    "title",
+    "description",
+    "catalogId",
+    "instructions",
+    "type",
+    "allowedParents",
+    "allowedChildren",
+    "properties",
+    "patternProperties",
+    "required",
+    "enum",
+    "const",
+    "default",
+    "minItems",
+    "maxItems",
+    "items",
+    "allOf",
+    "oneOf",
+    "anyOf",
+    "propertyNames",
+    "not",
+    "$ref",
+    "discriminator",
+    "additionalProperties",
+    "unevaluatedProperties",
+    "components",
+    "functions",
+    "theme",
+    "$defs",
+)
+_SUBSCHEMA_KEY_ORDER: Final[tuple[str, ...]] = (
+    "title",
+    "type",
+    "$ref",
+    "description",
+    "allowedParents",
+    "allowedChildren",
+    "properties",
+    "patternProperties",
+    "required",
+    "enum",
+    "const",
+    "default",
+    "minItems",
+    "maxItems",
+    "items",
+    "allOf",
+    "oneOf",
+    "anyOf",
+    "propertyNames",
+    "not",
+    "discriminator",
+    "additionalProperties",
+    "unevaluatedProperties",
+    "$defs",
+)
+_V08_SUBSCHEMA_KEY_ORDER: Final[tuple[str, ...]] = (
+    "title",
+    "type",
+    "$ref",
+    "description",
+    "additionalProperties",
+    "minItems",
+    "maxItems",
+    "items",
+    "properties",
+    "required",
+    "enum",
+    "const",
+    "default",
+)
+_ROOT_ORDER_MAP: Final[dict[str, int]] = {k: i for i, k in enumerate(_ROOT_KEY_ORDER)}
+_SUBSCHEMA_ORDER_MAP: Final[dict[str, int]] = {
+    k: i for i, k in enumerate(_SUBSCHEMA_KEY_ORDER)
+}
+_V08_SUBSCHEMA_ORDER_MAP: Final[dict[str, int]] = {
+    k: i for i, k in enumerate(_V08_SUBSCHEMA_KEY_ORDER)
+}
+_SPEC_PATH_KEY_OVERRIDES: Final[dict[str, tuple[str, ...]]] = {
+    "$.$defs.CreateSurfaceMessage.properties.createSurface.properties.catalogId": (
+        "description",
+        "type",
+    ),
+    "$.$defs.ChildList.oneOf[0]": ("type", "items", "description"),
+    "$.$defs.Checkable": ("description", "type", "properties"),
+    "$.$defs.AccessibilityAttributes.properties.live": (
+        "type",
+        "enum",
+        "default",
+        "description",
+    ),
+    "$.$defs.CheckRule.properties.condition": ("oneOf", "description"),
+    "$.properties.dataModelUpdate.properties.contents.items.properties.valueMap": (
+        "description",
+        "type",
+        "items",
+    ),
+}
+
+
+def order_spec_schema_keys(
+    node: Any,
+    path: str = "$",
+    is_map: bool = False,
+    is_v08: bool | None = None,
+) -> Any:
+    """Orders dictionary keys to match the published specification JSON schemas."""
+    if is_v08 is None:
+        is_v08 = isinstance(node, dict) and "$schema" not in node
+    if isinstance(node, list):
+        return [
+            order_spec_schema_keys(item, f"{path}[{i}]", False, is_v08)
+            for i, item in enumerate(node)
+        ]
+    if isinstance(node, dict):
+        items = [
+            (
+                k,
+                order_spec_schema_keys(
+                    v,
+                    f"{path}.{k}",
+                    k in ("properties", "patternProperties", "$defs")
+                    or (path == "$" and k in ("components", "functions")),
+                    is_v08,
+                ),
+            )
+            for k, v in node.items()
+        ]
+        if not is_map:
+            if path in _SPEC_PATH_KEY_OVERRIDES:
+                override = {k: i for i, k in enumerate(_SPEC_PATH_KEY_OVERRIDES[path])}
+                items.sort(key=lambda kv: (override.get(kv[0], 999), kv[0]))
+            elif is_v08:
+                items.sort(
+                    key=lambda kv: (_V08_SUBSCHEMA_ORDER_MAP.get(kv[0], 999), kv[0])
+                )
+            elif path == "$" or "title" in node:
+                items.sort(key=lambda kv: (_ROOT_ORDER_MAP.get(kv[0], 999), kv[0]))
+            else:
+                items.sort(key=lambda kv: (_SUBSCHEMA_ORDER_MAP.get(kv[0], 999), kv[0]))
+        return dict(items)
+    return node

@@ -612,7 +612,12 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
   // Definitions: the catalog's own and those computed from its models, a
   // theme generated from Zod for a catalog defined in code, and the computed
   // unions.
-  const defs: JsonObject = deepCopyJson({...model.defs});
+  const {
+    anyComponent: authoredAnyComponent,
+    anyFunction: authoredAnyFunction,
+    ...nonUnionDefs
+  } = model.defs;
+  const defs: JsonObject = deepCopyJson(nonUnionDefs);
   const themeLocation = catalog.themeLocation ?? (isAtLeastV10 ? undefined : 'defs');
   if (themeLocation === 'defs' && catalog.themeSchema && !hasAuthoredTheme(model)) {
     defs.theme = getSpecAnnotation(catalog.themeSchema)
@@ -631,7 +636,9 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
     defs.anyComponent = buildComponentUnion(catalog.components.keys());
     if (savedAnyFunction !== undefined) defs.anyFunction = savedAnyFunction;
   }
-  if (unions.anyFunction && !('anyFunction' in defs)) {
+  if (authoredAnyFunction !== undefined) {
+    defs.anyFunction = deepCopyJson(authoredAnyFunction);
+  } else if (unions.anyFunction) {
     defs.anyFunction = buildFunctionUnion(functionNames);
   }
   if (catalog.defs !== undefined || Object.keys(defs).length > 0) {

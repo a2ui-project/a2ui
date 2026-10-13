@@ -1609,6 +1609,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       for (final MapEntry<String, Object?> entry in definitions.entries)
         if (entry.key != 'anyFunction') entry.key: _deepCopyValue(entry.value),
       if (theme != null && themeInDefs) 'theme': theme,
+      if (definitions.containsKey('anyComponent'))
+        'anyComponent': _deepCopyValue(definitions['anyComponent']),
       if (layout.writesComponentUnion)
         'anyComponent': _componentUnionOf(components.keys),
       if (definitions.containsKey('anyFunction'))
