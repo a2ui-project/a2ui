@@ -794,7 +794,17 @@ function parseFunctionDefinitions(
   if (Array.isArray(rawFunctions)) {
     for (const fn of rawFunctions) {
       if (fn && typeof fn === 'object' && typeof fn.name === 'string') {
-        assertFunctionIdentifiers(fn.name, fn.parameters);
+        const rawParams =
+          fn.parameters && typeof fn.parameters === 'object'
+            ? (fn.parameters as Record<string, unknown>)
+            : undefined;
+        const paramProps =
+          rawParams && typeof rawParams.properties === 'object'
+            ? rawParams.properties
+            : rawParams && typeof rawParams.type !== 'string'
+              ? rawParams
+              : undefined;
+        assertFunctionIdentifiers(fn.name, paramProps);
         if (permittedNames && !permittedNames.has(fn.name)) {
           continue;
         }
@@ -817,11 +827,12 @@ function parseFunctionDefinitions(
   if (typeof rawFunctions === 'object' && rawFunctions !== null) {
     for (const [name, defn] of Object.entries(rawFunctions)) {
       const rawDefn = defn && typeof defn === 'object' ? (defn as Record<string, unknown>) : {};
+      const argsSchema = functionArgsSchema(rawDefn);
       assertFunctionIdentifiers(
         name,
-        rawDefn.properties && typeof rawDefn.properties === 'object'
-          ? rawDefn.properties
-          : rawDefn.parameters,
+        argsSchema && typeof argsSchema.properties === 'object'
+          ? argsSchema.properties
+          : undefined,
       );
       if (permittedNames && !permittedNames.has(name)) {
         continue;

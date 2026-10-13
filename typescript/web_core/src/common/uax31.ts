@@ -34,20 +34,21 @@ const UAX31_IDENTIFIER = /^[\p{XID_Start}_][\p{XID_Continue}]*$/u;
 /**
  * Checks whether a name is a valid A2UI identifier.
  *
- * A single leading `@` is permitted and ignored, accommodating the reserved
- * system-function prefix such as `@index`. Only one is allowed, so `@@index` is
- * rejected, as is a bare `@`.
+ * When `allowLeadingAt` is true, a single leading `@` is permitted and ignored,
+ * accommodating the reserved system-function prefix such as `@index` in
+ * payload function call validation. Catalog declarations disallow `@`-prefixed
+ * names (`allowLeadingAt = false`).
  *
  * Mirrors `is_valid_uax31_identifier` in
- * `python/a2ui_core/src/a2ui/core/catalog/catalog.py`.
+ * `python/a2ui_core/src/a2ui/core/common/uax31.py`.
  *
  * @param name Identifier to test.
- * @returns Whether `name` satisfies UAX #31 after stripping one optional
- *   leading `@`.
+ * @param allowLeadingAt Whether to allow a single leading `@`.
+ * @returns Whether `name` satisfies UAX #31.
  */
-export function isValidUax31Identifier(name: string): boolean {
+export function isValidUax31Identifier(name: string, allowLeadingAt = false): boolean {
   if (!name) return false;
-  const testName = name.startsWith('@') ? name.slice(1) : name;
+  const testName = allowLeadingAt && name.startsWith('@') ? name.slice(1) : name;
   return UAX31_IDENTIFIER.test(testName);
 }
 
@@ -58,10 +59,11 @@ export function isValidUax31Identifier(name: string): boolean {
  *
  * @param name Identifier to check.
  * @param context Description of what the identifier names, used in the error message.
+ * @param allowLeadingAt Whether to allow a single leading `@`.
  * @throws {A2uiCatalogError} If `name` is not a valid UAX #31 identifier.
  */
-export function assertUax31Identifier(name: string, context: string): void {
-  if (!isValidUax31Identifier(name)) {
+export function assertUax31Identifier(name: string, context: string, allowLeadingAt = false): void {
+  if (!isValidUax31Identifier(name, allowLeadingAt)) {
     throw new A2uiCatalogError(`Invalid UAX #31 ${context}`);
   }
 }

@@ -1047,9 +1047,18 @@ class Catalog(Generic[TComponent, TFunction]):
                 )
             self.components[c.name] = c
 
+        system_impls = (
+            tuple(system_functions_for(protocol_version).values())
+            if validate_identifiers
+            else ()
+        )
         self.functions: dict[str, TFunction] = {}
         for fn in functions or []:
-            if validate_identifiers and not is_valid_uax31_identifier(fn.name):
+            if (
+                validate_identifiers
+                and fn not in system_impls
+                and not is_valid_uax31_identifier(fn.name)
+            ):
                 raise A2uiCatalogError(
                     f"Invalid UAX #31 function identifier: '{fn.name}'"
                 )
@@ -2310,13 +2319,38 @@ class Catalog(Generic[TComponent, TFunction]):
         for name, spec in _function_entries(document.get("functions"), catalog_id):
             if validate_identifiers and not is_valid_uax31_identifier(name):
                 raise A2uiCatalogError(f"Invalid UAX #31 function identifier: '{name}'")
-            props = (
-                spec.get("properties")
-                if isinstance(spec.get("properties"), dict)
-                else spec.get("parameters")
-                if isinstance(spec.get("parameters"), dict)
+            spec_dict = spec
+            raw_props = (
+                spec_dict.get("properties")
+                if isinstance(spec_dict.get("properties"), dict)
                 else None
             )
+            args_schema = (
+                raw_props.get("args")
+                if raw_props is not None and isinstance(raw_props.get("args"), dict)
+                else spec_dict.get("args")
+                if isinstance(spec_dict.get("args"), dict)
+                else spec_dict.get("parameters")
+                if isinstance(spec_dict.get("parameters"), dict)
+                else None
+            )
+            if isinstance(args_schema, dict):
+                props = (
+                    args_schema.get("properties")
+                    if isinstance(args_schema.get("properties"), dict)
+                    else args_schema
+                    if not isinstance(args_schema.get("type"), str)
+                    else None
+                )
+            elif (
+                raw_props is not None
+                and "call" not in raw_props
+                and "@call" not in raw_props
+                and "function" not in raw_props
+            ):
+                props = raw_props
+            else:
+                props = None
             if validate_identifiers and isinstance(props, dict):
                 for arg_name in props:
                     if not is_valid_uax31_identifier(arg_name):

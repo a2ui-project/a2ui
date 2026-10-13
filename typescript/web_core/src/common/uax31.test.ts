@@ -28,11 +28,13 @@ describe('uax31 identifier validation', () => {
     assert.strictEqual(isValidUax31Identifier('class'), true);
   });
 
-  it('accepts a single leading @ for reserved system functions', () => {
-    assert.strictEqual(isValidUax31Identifier('@index'), true);
-    assert.strictEqual(isValidUax31Identifier('@_sys'), true);
-    assert.strictEqual(isValidUax31Identifier('@'), false);
-    assert.strictEqual(isValidUax31Identifier('@@index'), false);
+  it('rejects a leading @ by default and accepts a single leading @ when allowLeadingAt is true', () => {
+    assert.strictEqual(isValidUax31Identifier('@index'), false);
+    assert.strictEqual(isValidUax31Identifier('@_sys'), false);
+    assert.strictEqual(isValidUax31Identifier('@index', true), true);
+    assert.strictEqual(isValidUax31Identifier('@_sys', true), true);
+    assert.strictEqual(isValidUax31Identifier('@', true), false);
+    assert.strictEqual(isValidUax31Identifier('@@index', true), false);
   });
 
   it('accepts valid non-ASCII XID identifiers', () => {

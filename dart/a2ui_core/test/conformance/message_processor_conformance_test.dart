@@ -21,20 +21,7 @@ import 'conformance_harness.dart';
 
 /// Cases in `core/message_processor_v1_0.yaml` expected to fail, with the
 /// reason each is currently failing.
-const Map<String, String> _v10ExpectedFailures = {
-  'test_batch_multi_stage_lifecycle_pipeline':
-      'The v1.0 basic catalog requires `child` and `action` on `Button`, '
-          "which the case's `btn1` omits.",
-  'test_composition_constraints_preserved_on_partial_parent_update':
-      'The v1.0 basic catalog requires `child` and `action` on `Button`, '
-          "which the case's `btn_child` omits.",
-  'test_permissive_mode_allows_orphan_components':
-      'The v1.0 basic catalog requires `child` and `action` on `Button`, '
-          "which the case's `orphan_comp` omits.",
-  'test_v10_create_surface_inline_initialization':
-      'The v1.0 basic catalog requires `child` and `action` on `Button`, '
-          "which the case's `btn1` omits.",
-};
+const Map<String, String> _v10ExpectedFailures = {};
 
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to
 /// fail, with the reason each is currently failing.

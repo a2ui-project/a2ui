@@ -759,11 +759,16 @@ def test_uax31_identifier_helpers():
     from a2ui.core.exceptions import A2uiCatalogError
 
     assert is_valid_uax31_identifier("validName_1") is True
-    assert is_valid_uax31_identifier("@index") is True
+    assert is_valid_uax31_identifier("@index") is False
+    assert is_valid_uax31_identifier("@index", allow_leading_at=True) is True
+    assert is_valid_uax31_identifier("@@index", allow_leading_at=True) is False
     assert is_valid_uax31_identifier("123invalid") is False
     assert is_valid_uax31_identifier("invalid-name") is False
     assert is_valid_uax31_identifier("") is False
 
     assert_uax31_identifier("validName_1", "component identifier")
+    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
+        assert_uax31_identifier("@index", "function identifier")
+    assert_uax31_identifier("@index", "function identifier", allow_leading_at=True)
     with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
         assert_uax31_identifier("bad-fn!", "function identifier")
