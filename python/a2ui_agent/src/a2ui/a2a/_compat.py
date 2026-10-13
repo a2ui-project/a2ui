@@ -89,8 +89,10 @@ def part_text(part: Part) -> str:
     if part is None:
         return ""
     p: Any = part
-    text = p.text if IS_A2A_V1 else p.root.text
-    return str(text)
+    # 1.x keeps ``text`` on the Part itself, 0.3 on its ``root``. A Part that is
+    # not a text part has no text: "" on 1.x, no attribute at all on 0.3.
+    holder = p if IS_A2A_V1 else getattr(p, "root", None)
+    return str(getattr(holder, "text", "") or "")
 
 
 def part_metadata(part: Part) -> dict[str, Any]:
@@ -101,9 +103,12 @@ def part_metadata(part: Part) -> dict[str, Any]:
         metadata = getattr(part, "metadata", None)
         if metadata is None:
             return {}
-        # a2a-sdk 1.x types it as a protobuf ``Struct``, which has a DESCRIPTOR;
-        # fall back to ``dict`` for a plain map so either shape reads the same.
-        if hasattr(metadata, "DESCRIPTOR"):
+        # a2a-sdk 1.x types it as a protobuf ``Struct``; fall back to ``dict``
+        # for a plain map so either shape reads the same. ``isinstance`` rather
+        # than ``hasattr(..., "DESCRIPTOR")``, which a mock also satisfies.
+        from google.protobuf.message import Message  # type: ignore[import-untyped,unused-ignore]
+
+        if isinstance(metadata, Message):
             from google.protobuf.json_format import MessageToDict  # type: ignore[import-untyped,unused-ignore]
 
             result: dict[str, Any] = MessageToDict(metadata)

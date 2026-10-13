@@ -37,6 +37,15 @@ def test_helpers_accept_none(helper, empty):
     assert helper(None) == empty
 
 
+def test_part_text_reads_a_text_part():
+    assert _compat.part_text(_compat.make_text_part("hello")) == "hello"
+
+
+def test_part_text_of_a_data_part_is_empty():
+    """On 0.3 a data part's ``root`` has no ``text`` attribute at all."""
+    assert _compat.part_text(_compat.make_data_part({"a": 1})) == ""
+
+
 def test_part_metadata_reads_what_make_data_part_wrote():
     part = _compat.make_data_part(
         {"a": 1}, metadata={"mimeType": "application/a2ui+json"}
