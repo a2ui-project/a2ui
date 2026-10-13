@@ -941,33 +941,6 @@ class Catalog(Generic[TComponent, TFunction]):
         new_functions: list[FunctionApi] = list(
             self.functions.values() if functions is None else functions
         )
-        if defs is None:
-            # A def that the old entries referenced and the new ones no longer
-            # do goes with the entries that used it. Defs that no old entry
-            # referenced stay, so they count as roots too: a def they
-            # reference stays with them.
-            old_reachable = _reachable_defs(self._document_roots(), self.defs)
-            orphans = [
-                schema
-                for name, schema in self.defs.items()
-                if name not in old_reachable
-            ]
-            new_roots = [
-                *(getattr(c, "schema", None) for c in new_components),
-                *(getattr(f, "schema", None) for f in new_functions),
-                self.theme_schema,
-                *self.extras.values(),
-                *orphans,
-            ]
-            new_reachable = _reachable_defs(new_roots, self.defs)
-            new_defs = {
-                name: schema
-                for name, schema in self.defs.items()
-                if name not in old_reachable or name in new_reachable
-            }
-        else:
-            new_defs = dict(defs)
-
         union_defs = self.union_defs
         null_unions = set(self.null_unions)
         if union_defs is not None:
@@ -987,6 +960,39 @@ class Catalog(Generic[TComponent, TFunction]):
                     # the copy's entries, so it is listed from them.
                     union_defs[name] = None
                     null_unions.discard(name)
+
+        if defs is None:
+            # A def that the old entries referenced and the new ones no longer
+            # do goes with the entries that used it. Defs that no old entry
+            # referenced stay, so they count as roots too: a def they
+            # reference stays with them.
+            old_reachable = _reachable_defs(self._document_roots(), self.defs)
+            orphans = [
+                schema
+                for name, schema in self.defs.items()
+                if name not in old_reachable
+            ]
+            new_roots = [
+                *(getattr(c, "schema", None) for c in new_components),
+                *(getattr(f, "schema", None) for f in new_functions),
+                self.theme_schema,
+                *self.extras.values(),
+                # Unions the copy keeps as authored still reference defs.
+                *(
+                    schema
+                    for schema in (union_defs or {}).values()
+                    if schema is not None
+                ),
+                *orphans,
+            ]
+            new_reachable = _reachable_defs(new_roots, self.defs)
+            new_defs = {
+                name: schema
+                for name, schema in self.defs.items()
+                if name not in old_reachable or name in new_reachable
+            }
+        else:
+            new_defs = dict(defs)
 
         return CatalogApi(
             catalog_id=self.catalog_id,
@@ -1023,6 +1029,11 @@ class Catalog(Generic[TComponent, TFunction]):
             *(getattr(f, "schema", None) for f in self.functions.values()),
             self.theme_schema,
             *self.extras.values(),
+            *(
+                schema
+                for schema in (self.union_defs or {}).values()
+                if schema is not None
+            ),
         ]
 
     # ==========================================================================

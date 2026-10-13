@@ -322,6 +322,77 @@ def test_pruning_keeps_defs_that_a_kept_unreferenced_def_references():
         validator.validate({"d": 1})
 
 
+def _union_sharing_catalog_source(kept_union: str) -> dict[str, Any]:
+    """A catalog whose authored `kept_union` shares a def with a dropped entry."""
+    union_refs = {
+        "anyFunction": [{"$ref": "#/functions/f"}, {"$ref": "#/$defs/X"}],
+        "anyComponent": [{"$ref": "#/components/A"}, {"$ref": "#/$defs/X"}],
+    }
+    return {
+        "catalogId": "https://a2ui.org/x/catalog.json",
+        "components": {
+            "A": {"type": "object", "properties": {"component": {"const": "A"}}},
+            "B": {
+                "type": "object",
+                "properties": {
+                    "component": {"const": "B"},
+                    "x": {"$ref": "#/$defs/X"},
+                },
+            },
+        },
+        "functions": {
+            "f": {
+                "type": "object",
+                "properties": {
+                    "call": {"const": "f"},
+                    "returnType": {"const": "string"},
+                },
+            },
+            "g": {
+                "type": "object",
+                "properties": {
+                    "call": {"const": "g"},
+                    "args": {"$ref": "#/$defs/X"},
+                    "returnType": {"const": "string"},
+                },
+            },
+        },
+        "$defs": {
+            "X": {"type": "string"},
+            kept_union: {"allOf": union_refs[kept_union]},
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("kept_union", "transformer"),
+    [
+        ("anyFunction", ComponentPruningTransformer(["A"])),
+        ("anyComponent", FunctionPruningTransformer(["f"])),
+    ],
+)
+def test_pruning_keeps_defs_that_a_kept_authored_union_references(
+    kept_union, transformer
+):
+    source = _union_sharing_catalog_source(kept_union)
+    catalog = Catalog.from_json(source)
+    assert catalog.to_json() == source
+
+    pruned = transformer.transform(catalog)
+    out = pruned.to_json()
+
+    assert out["$defs"][kept_union] == source["$defs"][kept_union]
+    assert out["$defs"]["X"] == source["$defs"]["X"]
+    assert Catalog.from_json(out).to_json() == out
+
+    defs = pruned.validation_schema["$defs"]
+    assert defs["X"] == source["$defs"]["X"]
+    validator = jsonschema.Draft202012Validator({"$defs": defs, "$ref": "#/$defs/X"})
+    validator.validate("text")
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(1)
+
+
 class _RecordingTransformer(CatalogTransformer):
     """Records the components of each catalog it sees."""
 
