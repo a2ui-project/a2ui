@@ -41,7 +41,7 @@ sys.path.insert(
     ),
 )
 from a2ui.core import Catalog
-from a2ui.inference_formats.experimental.express import ExpressPromptGenerator
+from a2ui.inference_formats.express import ExpressFormat, ExpressPromptGenerator
 
 
 def generate_prompt_text(catalog_path: str) -> str:
@@ -62,8 +62,6 @@ def generate_prompt_text(catalog_path: str) -> str:
     with open(catalog_path, "r", encoding="utf-8") as f:
         catalog_dict = json.load(f)
     catalog = Catalog.from_json(catalog_dict)
-
-    from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
     express_format = ExpressFormat([catalog])
     role_description = (

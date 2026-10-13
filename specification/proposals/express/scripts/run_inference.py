@@ -52,8 +52,9 @@ sys.path.insert(
 
 # pylint: disable=import-error, wrong-import-position
 from a2ui.core import Catalog
-from a2ui.inference_formats.experimental.express import (
+from a2ui.inference_formats.express import (
     ExpressCompiler,
+    ExpressFormat,
     ExpressPromptGenerator,
 )
 # pylint: enable=import-error, wrong-import-position
@@ -118,8 +119,6 @@ def run_inference_and_validate(
         )
 
     # 2. Generate prompt contract instructions
-    from a2ui.inference_formats.experimental.express.format import ExpressFormat
-
     express_format = ExpressFormat([catalog])
     role_description = (
         "You are a helpful UI assistant that outputs interfaces using A2UI Express DSL."

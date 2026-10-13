@@ -44,8 +44,9 @@ sys.path.insert(
 
 from a2ui.core import Catalog
 from a2ui.inference_formats import to_message_dicts
-from a2ui.inference_formats.experimental.express import (
+from a2ui.inference_formats.express import (
     ExpressCompiler,
+    ExpressFormat,
     ExpressPromptGenerator,
 )
 
@@ -98,7 +99,6 @@ def main():
     with open(catalog_path, "r", encoding="utf-8") as f:
         catalog_dict = json.load(f)
     catalog = Catalog.from_json(catalog_dict)
-    from a2ui.inference_formats.experimental.express.format import ExpressFormat
 
     express_format = ExpressFormat([catalog])
     role_description = (

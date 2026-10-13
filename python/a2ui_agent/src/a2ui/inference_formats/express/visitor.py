@@ -16,8 +16,10 @@
 
 import re
 from typing import Any
-from antlr4 import *
+
+from antlr4 import Lexer
 from antlr4.error.ErrorListener import ErrorListener
+
 from .generated.express_parser import ExpressParser
 from .generated.express_visitor import ExpressVisitor
 
@@ -28,7 +30,7 @@ def _unescape_string(val: str) -> str:
     Any other escape sequences are treated as literal characters.
     """
 
-    def repl(m):
+    def repl(m: re.Match[str]) -> str:
         seq = m.group(0)
         char = m.group(1)
         if char == "n":
@@ -46,14 +48,14 @@ def _unescape_string(val: str) -> str:
     return re.sub(r"\\([\s\S])", repl, val)
 
 
-class ExpressAstVisitor(ExpressVisitor):
+class ExpressAstVisitor(ExpressVisitor):  # type: ignore[misc]
     """Traverses the ANTLR parse tree to construct the expected AST nodes."""
 
     def __init__(self, first_error_line: int | None = None):
         super().__init__()
         self.first_error_line = first_error_line
 
-    def visitProgram(self, ctx: ExpressParser.ProgramContext) -> list:
+    def visitProgram(self, ctx: ExpressParser.ProgramContext) -> list[Any]:
         # program : statement* EOF ;
         statements = []
         for stmt_ctx in ctx.statement():
@@ -70,7 +72,7 @@ class ExpressAstVisitor(ExpressVisitor):
                 pass
         return statements
 
-    def visitStatement(self, ctx: ExpressParser.StatementContext):
+    def visitStatement(self, ctx: ExpressParser.StatementContext) -> Any:
         # statement : assignment | expression ;
         if ctx.assignment():
             return self.visit(ctx.assignment())
@@ -78,7 +80,9 @@ class ExpressAstVisitor(ExpressVisitor):
             return ("EXPR", self.visit(ctx.expression()))
         return None
 
-    def visitAssignment(self, ctx: ExpressParser.AssignmentContext):
+    def visitAssignment(
+        self, ctx: ExpressParser.AssignmentContext
+    ) -> tuple[str, str, Any]:
         # assignment : (identifier | path) '=' expression ;
         if ctx.identifier():
             target = ctx.identifier().getText()
@@ -88,15 +92,15 @@ class ExpressAstVisitor(ExpressVisitor):
         value = self.visit(ctx.expression())
         return ("ASSIGN", target, value)
 
-    def visitExpression(self, ctx: ExpressParser.ExpressionContext):
+    def visitExpression(self, ctx: ExpressParser.ExpressionContext) -> Any:
         # expression has exactly one child rule
         return self.visit(ctx.getChild(0))
 
-    def visitArray(self, ctx: ExpressParser.ArrayContext) -> list:
+    def visitArray(self, ctx: ExpressParser.ArrayContext) -> list[Any]:
         # array : '[' (expression (',' expression)*)? ','? ']' ;
         return [self.visit(expr) for expr in ctx.expression()]
 
-    def visitMap(self, ctx: ExpressParser.MapContext) -> dict:
+    def visitMap(self, ctx: ExpressParser.MapContext) -> dict[str, Any]:
         # map : '{' (map_entry (',' map_entry)*)? ','? '}' ;
         res = {}
         for entry in ctx.map_entry():
@@ -114,12 +118,12 @@ class ExpressAstVisitor(ExpressVisitor):
         v = self.visit(ctx.expression())
         return k, v
 
-    def visitPath(self, ctx: ExpressParser.PathContext) -> dict:
+    def visitPath(self, ctx: ExpressParser.PathContext) -> dict[str, Any]:
         # path : PATH ;
         text = ctx.PATH().getText()
         return {"path": text[1:]}
 
-    def visitCheck(self, ctx: ExpressParser.CheckContext) -> dict:
+    def visitCheck(self, ctx: ExpressParser.CheckContext) -> dict[str, Any]:
         # check : CHECK ('(' (expression (',' expression)*)? ','? ')')? ;
         name = ctx.CHECK().getText()[1:]  # strip ?
         args = []
@@ -127,7 +131,7 @@ class ExpressAstVisitor(ExpressVisitor):
             args.append(self.visit(expr))
         return {"check": name, "args": args}
 
-    def visitArg(self, ctx: ExpressParser.ArgContext) -> dict:
+    def visitArg(self, ctx: ExpressParser.ArgContext) -> dict[str, Any]:
         # arg : named_arg | expression ;
         if ctx.named_arg():
             k, v = self.visit(ctx.named_arg())
@@ -140,7 +144,7 @@ class ExpressAstVisitor(ExpressVisitor):
         v = self.visit(ctx.expression())
         return k, v
 
-    def visitCall(self, ctx: ExpressParser.CallContext) -> dict:
+    def visitCall(self, ctx: ExpressParser.CallContext) -> dict[str, Any]:
         # call : identifier '(' (arg (',' arg)*)? ','? ')' ;
         name = ctx.identifier().getText()
         args = []
@@ -158,7 +162,7 @@ class ExpressAstVisitor(ExpressVisitor):
             node["kwargs"] = kwargs
         return node
 
-    def visitVariable(self, ctx: ExpressParser.VariableContext) -> dict:
+    def visitVariable(self, ctx: ExpressParser.VariableContext) -> dict[str, Any]:
         # variable : '_' | identifier ;
         if ctx.identifier():
             name = ctx.identifier().getText()
@@ -179,14 +183,14 @@ class ExpressAstVisitor(ExpressVisitor):
 
     def visitIdentifier(self, ctx: ExpressParser.IdentifierContext) -> str:
         # identifier : IDENTIFIER ;
-        return ctx.IDENTIFIER().getText()
+        return str(ctx.IDENTIFIER().getText())
 
     def visitString(self, ctx: ExpressParser.StringContext) -> str:
         # string : RAW_TRIPLE_STRING | TRIPLE_STRING | RAW_STRING | STANDARD_STRING ;
         child = ctx.getChild(0)
         symbol = child.getSymbol()
         token_type = symbol.type
-        val = symbol.text
+        val: str = symbol.text
 
         if token_type == ExpressParser.RAW_TRIPLE_STRING:
             # val starts with r""" or R""" and ends with """
@@ -204,13 +208,21 @@ class ExpressAstVisitor(ExpressVisitor):
         return val
 
 
-class ExpressErrorListener(ErrorListener):
+class ExpressErrorListener(ErrorListener):  # type: ignore[misc]
     """Custom ANTLR error listener that collects syntax errors."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.errors = []
+        self.errors: list[tuple[int, int, str, bool]] = []
 
-    def syntaxError(self, recognizer, offendingSymbol, line, column, msg, e):
+    def syntaxError(
+        self,
+        recognizer: Any,
+        offendingSymbol: Any,
+        line: int,
+        column: int,
+        msg: str,
+        e: Any,
+    ) -> None:
         is_lexer = isinstance(recognizer, Lexer)
         self.errors.append((line, column, msg, is_lexer))

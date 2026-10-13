@@ -91,11 +91,11 @@ def _decompile_reference(component_id: Any, var_names: dict[str, str]) -> str:
     return _decompile_string(component_id)
 
 
-def _flatten_data_model(data_dict: dict) -> list[tuple[str, Any]]:
+def _flatten_data_model(data_dict: dict[str, Any]) -> list[tuple[str, Any]]:
     """Flattens a nested dictionary dataModel structure into JSON Pointer path segments."""
     results = []
 
-    def recurse(current: Any, path: str):
+    def recurse(current: Any, path: str) -> None:
         if isinstance(current, dict) and current:
             for k, v in current.items():
                 recurse(v, f"{path}/{k}")
@@ -172,7 +172,7 @@ def _decompile_path(path_str: str) -> str:
     return f"${path_str}"
 
 
-def _has_reserved_key(val: dict, name: str) -> bool:
+def _has_reserved_key(val: dict[str, Any], name: str) -> bool:
     """Checks for a reserved key under its v1.0 `@` name or its v0.9 plain name.
 
     v1.0 writes data bindings and function calls as `@path` and `@call`. Reading
@@ -181,7 +181,7 @@ def _has_reserved_key(val: dict, name: str) -> bool:
     return f"@{name}" in val or name in val
 
 
-def _reserved_value(val: dict, name: str) -> Any:
+def _reserved_value(val: dict[str, Any], name: str) -> Any:
     """Returns a reserved key's value, preferring its v1.0 `@` name."""
     return val.get(f"@{name}", val.get(name))
 
@@ -428,7 +428,7 @@ class ExpressDecompiler:
         Components without a `catalogId` belong to the surface's catalog when
         the payload created the surface (or there is a single catalog).
         """
-        op = item.operation
+        op = item.operation or ""
         body = item.message[op]
         surface_id = body.get("surfaceId", "") or _DEFAULT_SURFACE_ID
         catalog_id = self._surface_catalog(item.surface_catalog_id)

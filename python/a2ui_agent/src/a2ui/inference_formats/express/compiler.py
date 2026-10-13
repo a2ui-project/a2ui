@@ -106,7 +106,7 @@ def _to_json_pointer(path_str: str) -> str:
     return "/" + _strip_path_prefix(path_str)
 
 
-def _set_nested_path(d: dict, path_str: str, val: Any) -> None:
+def _set_nested_path(d: dict[str, Any], path_str: str, val: Any) -> None:
     """Populates a nested dictionary path from a JSON pointer-like string.
 
     Args:
@@ -167,8 +167,9 @@ def _binding_path(v: Any) -> str | None:
     if not isinstance(v, dict) or "componentId" in v:
         return None
     for key in ("@path", "path"):
-        if isinstance(v.get(key), str):
-            return v[key]
+        val = v.get(key)
+        if isinstance(val, str):
+            return val
     return None
 
 
@@ -231,7 +232,7 @@ def _is_check_expression(val: Any) -> bool:
     return False
 
 
-def _call_arg(node: dict, index: int, key: str) -> Any:
+def _call_arg(node: dict[str, Any], index: int, key: str) -> Any:
     """Returns a call's argument given by keyword `key` or at position `index`."""
     kwargs = node.get("kwargs", {})
     if isinstance(kwargs, dict) and key in kwargs:
@@ -242,7 +243,9 @@ def _call_arg(node: dict, index: int, key: str) -> Any:
     return None
 
 
-def _string_call_arg(node: dict, index: int, key: str, statement: str) -> str | None:
+def _string_call_arg(
+    node: dict[str, Any], index: int, key: str, statement: str
+) -> str | None:
     """Returns a string argument of a reserved statement, or None when absent.
 
     Raises:
@@ -267,10 +270,10 @@ class _CompileContext:
         # v1.0 spells data bindings and function calls with reserved `@` keys.
         self.path_key = "@path" if self.at_least_v10 else "path"
         self.call_key = "@call" if self.at_least_v10 else "call"
-        self.extra_components: list[dict] = []
+        self.extra_components: list[dict[str, Any]] = []
         self.inline_counter: int = 0
         self.call_counter: int = 0
-        self.active_value_path: dict | None = None
+        self.active_value_path: dict[str, Any] | None = None
 
     def check_catalog_override(self, target: str) -> None:
         """Rejects a per-component or per-function catalogId below v1.0.
@@ -313,7 +316,7 @@ class _DeleteSurface:
 
 @dataclass
 class _StandaloneCall:
-    node: dict
+    node: dict[str, Any]
     scope: _SurfaceScope | None
 
 
@@ -466,7 +469,7 @@ class ExpressCompiler:
             resolved_id if self._is_multi_catalog else None,
         )
 
-    def _parse_statements(self, dsl_text: str, is_final: bool) -> list:
+    def _parse_statements(self, dsl_text: str, is_final: bool) -> list[Any]:
         """Strips sentinel tags and parses the DSL body into statements."""
         has_sentinels = "<a2ui>" in dsl_text
         lines = []
@@ -502,11 +505,11 @@ class ExpressCompiler:
         try:
             tree = parser.program()
             if is_final and error_listener.errors:
-                line, col, msg, is_lexer = error_listener.errors[0]
-                err = SyntaxError(f"Syntax error at line {line}:{col}: {msg}")
-                err.lineno = line
+                err_line, col, msg, is_lexer = error_listener.errors[0]
+                err = SyntaxError(f"Syntax error at line {err_line}:{col}: {msg}")
+                err.lineno = err_line
                 err.offset = col
-                err._is_lexer = is_lexer
+                setattr(err, "_is_lexer", is_lexer)
                 raise err
 
             visitor = ExpressAstVisitor(
@@ -514,7 +517,7 @@ class ExpressCompiler:
                 if error_listener.errors
                 else None
             )
-            return visitor.visit(tree)
+            return list(visitor.visit(tree))
         except Exception as e:
             if not is_final:
                 return []
@@ -633,7 +636,7 @@ class ExpressCompiler:
 
     def _open_scope(
         self,
-        node: dict,
+        node: dict[str, Any],
         *,
         default_surface_id: str,
     ) -> _SurfaceScope:
@@ -673,7 +676,7 @@ class ExpressCompiler:
 
     def _compile_components(
         self, scope: _SurfaceScope, ctx: _CompileContext
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         compiled_components = []
         for var_name, ast in scope.raw_symbols.items():
             comp_dict = self._compile_ast_node(var_name, ast, scope.raw_symbols, ctx)
@@ -690,7 +693,7 @@ class ExpressCompiler:
 
     def _compile_create_scope(
         self, scope: _SurfaceScope, ctx: _CompileContext
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Compiles a `surface(...)` scope, or the implicit default scope."""
         data_model: dict[str, Any] = {}
         for path_name, ast_val in scope.data_path_assignments.items():
@@ -783,7 +786,7 @@ class ExpressCompiler:
         self,
         unit: _StandaloneCall,
         ctx: _CompileContext,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Compiles a standalone function call into a `callRendererFunction`.
 
         The function is looked up by name across the catalogs unless the call
@@ -838,9 +841,9 @@ class ExpressCompiler:
         self,
         var_name: str,
         ast: Any,
-        raw_symbols: dict,
+        raw_symbols: dict[str, Any],
         ctx: _CompileContext,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Compiles a single variable's AST node into standard component format.
 
         Args:
@@ -976,11 +979,11 @@ class ExpressCompiler:
 
     def _compile_check(
         self,
-        rc: dict,
-        raw_symbols: dict,
+        rc: dict[str, Any],
+        raw_symbols: dict[str, Any],
         ctx: _CompileContext,
         is_action: bool = False,
-    ) -> tuple[dict, str]:
+    ) -> tuple[dict[str, Any], str]:
         """Compiles a `?check(...)` expression into a condition and a message.
 
         The check function is looked up by name across the catalogs unless an
@@ -1062,7 +1065,7 @@ class ExpressCompiler:
     def _compile_value(
         self,
         val: Any,
-        raw_symbols: dict,
+        raw_symbols: dict[str, Any],
         ctx: _CompileContext,
         is_action: bool = False,
         parent_id: str | None = None,
@@ -1143,8 +1146,8 @@ class ExpressCompiler:
 
     def _compile_call(
         self,
-        val: dict,
-        raw_symbols: dict,
+        val: dict[str, Any],
+        raw_symbols: dict[str, Any],
         ctx: _CompileContext,
         is_action: bool,
         parent_id: str | None,

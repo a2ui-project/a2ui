@@ -23,7 +23,7 @@ from typing import Any
 from a2ui.core import Catalog
 from a2ui.inference_formats import to_message_dicts, to_message_models
 from a2ui.inference_formats._shared import CatalogSchemaHelper
-from a2ui.inference_formats.experimental.express import ExpressCompiler, ExpressParser
+from a2ui.inference_formats.express import ExpressCompiler, ExpressParser
 from a2ui.schema.utils import (
     find_repo_root,
     get_spec_dir,

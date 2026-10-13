@@ -46,7 +46,7 @@ from a2ui.inference_formats._shared import (
     surface_catalog_id,
     to_message_models,
 )
-from a2ui.inference_formats.experimental.express.constants import SurfaceOperation
+from a2ui.inference_formats.express.constants import SurfaceOperation
 
 from .expression_parser import ElementalExpressionParser
 
