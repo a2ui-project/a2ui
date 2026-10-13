@@ -28,11 +28,18 @@ extension View {
   /// label or error text. ``ComponentNodeView`` then leaves the label and hint off the root, so
   /// they reach the element that assistive technologies focus. `hidden` and `live` still apply to
   /// the whole component.
-  public func a2uiAccessibilityControl(for node: Node) -> some View {
+  ///
+  /// - Parameters:
+  ///   - node: The component's node.
+  ///   - defaultLabel: The label the control uses when the agent set no explicit one, usually the
+  ///     component's visible title. Hide that title from assistive technologies so the field is
+  ///     not announced twice.
+  public func a2uiAccessibilityControl(for node: Node, defaultLabel: String? = nil) -> some View {
     let modifier = A2UIAccessibilityModifier(node: node)
+    let fallback = defaultLabel.flatMap { $0.isEmpty ? nil : $0 }
     return
       self
-      .a2uiOptionalAccessibilityLabel(modifier.label)
+      .a2uiOptionalAccessibilityLabel(modifier.label ?? fallback)
       .a2uiOptionalAccessibilityHint(modifier.hint)
       .preference(key: A2UIAccessibilityControlKey.self, value: true)
   }

@@ -80,8 +80,8 @@ so custom components get them without extra work:
 - `label`: `accessibilityLabel`
 - `description`: `accessibilityHint`
 - `hidden`: `accessibilityHidden` for the whole subtree
-- `live` (`polite` / `assertive`) announces the component's visible text, preceded by the explicit
-  label, whenever that text changes
+- `live` (`polite` / `assertive`) announces the explicit `label` whenever it changes, for
+  example when it is bound to the data model
 
 Only values the agent sets are applied, so SwiftUI keeps inferring labels from visible text.
 
@@ -89,14 +89,17 @@ SwiftUI applies a label set on a stack to every element inside it. If your compo
 stack:
 
 - with one focusable control (like a text field with a title and an error line), call
-  `.a2uiAccessibilityControl(for: node)` on the control, so the label and hint reach the element
-  that VoiceOver focuses;
+  `.a2uiAccessibilityControl(for: node, defaultLabel: title)` on the control, so the label and
+  hint reach the element that VoiceOver focuses, and hide the visible title with
+  `.accessibilityHidden(true)` so the field is not read twice;
 - otherwise, call `.a2uiAccessibilityElement(for: node, children: .contain)` on the root (or
-  `.combine` for read-only content), so the label describes the component as a whole.
+  `.combine` for read-only content), so the label describes the component as a whole. The basic
+  catalog's `Row`, `Column`, `List` and `Card` do this.
 
 Limitations: SwiftUI drops an accessibility hint on a group, so `description` has no effect on
-layout containers or other `.contain` groups (for example `ChoicePicker`). A `live` component
-without visible text of its own, such as a `Column`, announces nothing.
+layout containers or other `.contain` groups (for example `ChoicePicker`). Announcing changes to
+a live component's visible text, rather than its label, is tracked in
+[#3147](https://github.com/a2ui-project/a2ui/issues/3147).
 
 ---
 

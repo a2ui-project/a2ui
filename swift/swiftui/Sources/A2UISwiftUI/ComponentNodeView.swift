@@ -38,39 +38,24 @@ public struct ComponentNodeView: View {
     if let renderedView = Surface.render(
       node: node, using: catalogs, defaultCatalogID: defaultCatalogID)
     {
-      Group {
-        if isLayoutContainer {
-          renderedView
-            .a2uiAccessibilityElement(for: node, children: .contain)
-        } else {
-          renderedView
-        }
-      }
-      .modifier(
-        A2UIAccessibilityModifier(node: node, appliesLabelAndHint: !controlCarriesLabel)
-      )
-      .onPreferenceChange(A2UIAccessibilityControlKey.self) { carriesLabel in
-        // SwiftUI delivers preference changes on the main thread. Updating synchronously avoids
-        // a frame where both the root and the control carry the label.
-        MainActor.assumeIsolated {
-          if controlCarriesLabel != carriesLabel {
-            controlCarriesLabel = carriesLabel
+      renderedView
+        .modifier(
+          A2UIAccessibilityModifier(node: node, appliesLabelAndHint: !controlCarriesLabel)
+        )
+        .onPreferenceChange(A2UIAccessibilityControlKey.self) { carriesLabel in
+          // SwiftUI delivers preference changes on the main thread. Updating synchronously avoids
+          // a frame where both the root and the control carry the label.
+          MainActor.assumeIsolated {
+            if controlCarriesLabel != carriesLabel {
+              controlCarriesLabel = carriesLabel
+            }
           }
         }
-      }
-      // A nested component's control must not affect its ancestors.
-      .transformPreference(A2UIAccessibilityControlKey.self) { $0 = false }
+        // A nested component's control must not affect its ancestors.
+        .transformPreference(A2UIAccessibilityControlKey.self) { $0 = false }
     } else {
       fallbackView
     }
-  }
-
-  /// A node with child components and no action is laid out as a stack, which needs its own
-  /// accessibility element before it can carry a label. Interactive nodes such as buttons
-  /// already are an element.
-  private var isLayoutContainer: Bool {
-    !node.allChildNodes.isEmpty
-      && !node.properties.values.contains { $0 is ResolvedAction }
   }
 
   private var fallbackView: some View {

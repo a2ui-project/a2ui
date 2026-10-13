@@ -29,9 +29,9 @@ import SwiftUI
 /// - `description` becomes `accessibilityHint`. SwiftUI only keeps a hint on a single
 ///   accessibility element, so it is dropped on layout containers and other groups.
 /// - `hidden` becomes `accessibilityHidden` for the whole subtree.
-/// - `live` (`polite` or `assertive`) posts an announcement whenever the component's visible
-///   text changes. The announcement is the visible text, preceded by the explicit label when
-///   there is one. Components without visible text, such as layout containers, announce nothing.
+/// - `live` (`polite` or `assertive`) posts an announcement of the explicit label whenever it
+///   changes, for example when it is bound to the data model. Announcing changes to a component's
+///   visible text is tracked in https://github.com/a2ui-project/a2ui/issues/3147.
 ///
 /// SwiftUI applies a label set on a stack to every element inside it. A component whose root is
 /// a stack should call ``SwiftUI/View/a2uiAccessibilityControl(for:)`` on its focusable control,
@@ -81,16 +81,11 @@ public struct A2UIAccessibilityModifier: ViewModifier {
     attributes?.live == "assertive"
   }
 
-  /// The text announced when a live component's visible text changes: the visible text,
-  /// preceded by the explicit label when there is one. `nil` when nothing is announced.
+  /// The text announced when it changes: the explicit label of a live component. `nil` when
+  /// nothing is announced.
   public var announcementText: String? {
     guard isLiveRegion, !isHidden else { return nil }
-    let content = [node.string(for: "text"), node.string(for: "title"), node.string(for: "label")]
-      .compactMap { $0 }
-      .first { !$0.isEmpty }
-    guard let content else { return nil }
-    guard let label, label != content else { return content }
-    return "\(label), \(content)"
+    return label
   }
 
   public func body(content: Content) -> some View {
@@ -99,10 +94,7 @@ public struct A2UIAccessibilityModifier: ViewModifier {
         .a2uiOptionalAccessibilityLabel(appliesLabelAndHint ? label : nil)
         .a2uiOptionalAccessibilityHint(appliesLabelAndHint ? hint : nil)
     )
-    .onChange(of: announcementText) { newText in
-      guard let newText else { return }
-      Self.announce(newText, assertive: isAssertive)
-    }
+    .modifier(AnnouncementTrigger(text: announcementText, assertive: isAssertive))
   }
 
   @ViewBuilder
@@ -115,7 +107,7 @@ public struct A2UIAccessibilityModifier: ViewModifier {
   }
 
   @MainActor
-  private static func announce(_ text: String, assertive: Bool) {
+  static func announce(_ text: String, assertive: Bool) {
     if #available(iOS 17.0, macOS 14.0, *) {
       var announcement = AttributedString(text)
       announcement.accessibilitySpeechAnnouncementPriority = assertive ? .high : .default

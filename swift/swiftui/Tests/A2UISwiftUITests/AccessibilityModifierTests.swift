@@ -166,7 +166,7 @@ struct AccessibilityModifierTests {
 
   // MARK: - Live regions
 
-  @Test func politeLiveRegionAnnouncesItsText() async throws {
+  @Test func liveRegionWithoutLabelAnnouncesNothing() async throws {
     let (_, surface) = try await makeSurface(components: [
       [
         "id": "root", "component": "Text", "text": "Status: Active",
@@ -177,10 +177,11 @@ struct AccessibilityModifierTests {
     let modifier = A2UIAccessibilityModifier(node: try node("root", in: surface))
     #expect(modifier.isLiveRegion)
     #expect(!modifier.isAssertive)
-    #expect(modifier.announcementText == "Status: Active")
+    // Announcing visible text without reading catalog properties is tracked in #3147.
+    #expect(modifier.announcementText == nil)
   }
 
-  @Test func assertiveLiveRegionAnnouncesLabelAndContent() async throws {
+  @Test func assertiveLiveRegionAnnouncesItsLabel() async throws {
     let (_, surface) = try await makeSurface(components: [
       ["id": "root", "component": "Column", "children": ["alert_box"]],
       [
@@ -191,18 +192,19 @@ struct AccessibilityModifierTests {
 
     let modifier = A2UIAccessibilityModifier(node: try node("alert_box", in: surface))
     #expect(modifier.isAssertive)
-    #expect(modifier.announcementText == "Critical Alert, Connection Lost!")
+    #expect(modifier.announcementText == "Critical Alert")
   }
 
-  @Test func liveRegionWithFixedLabelAnnouncesContentChanges() async throws {
+  @Test func liveRegionAnnouncesBoundLabelChanges() async throws {
     let (processor, surface) = try await makeSurface(
       components: [
         [
-          "id": "root", "component": "Text", "text": ["@path": "/status"],
-          "accessibility": ["label": "Critical Alert", "live": "assertive"],
-        ]
+          "id": "root", "component": "Column", "children": ["status_text"],
+          "accessibility": ["label": ["@path": "/status"], "live": "polite"],
+        ],
+        ["id": "status_text", "component": "Text", "text": "Sync"],
       ],
-      dataModel: ["status": "Connection Lost!"]
+      dataModel: ["status": "Connecting"]
     )
     let before = A2UIAccessibilityModifier(node: try node("root", in: surface))
 
@@ -210,7 +212,7 @@ struct AccessibilityModifierTests {
       [
         [
           "version": "v1.0",
-          "updateDataModel": ["surfaceId": "a11y", "path": "/status", "value": "Reconnected"],
+          "updateDataModel": ["surfaceId": "a11y", "path": "/status", "value": "Connected"],
         ]
       ],
       with: processor
@@ -218,10 +220,9 @@ struct AccessibilityModifierTests {
     await Task.yield()
     let after = A2UIAccessibilityModifier(node: try node("root", in: surface))
 
-    // The announcement is the change trigger, so it must differ when only the content changes.
-    #expect(before.label == after.label)
-    #expect(before.announcementText == "Critical Alert, Connection Lost!")
-    #expect(after.announcementText == "Critical Alert, Reconnected")
+    // The announcement is the change trigger, so a container's bound label announces updates.
+    #expect(before.announcementText == "Connecting")
+    #expect(after.announcementText == "Connected")
   }
 
   @Test func liveOffAndHiddenRegionsDoNotAnnounce() {
@@ -273,5 +274,58 @@ struct AccessibilityModifierTests {
     _ = A2UIText(node: try node("title", in: surface)).body
     _ = A2UITextField(node: try node("name", in: surface)).body
     _ = A2UICheckBox(node: try node("agree", in: surface)).body
+  }
+
+  @Test func labeledContainersAndMediaRender() async throws {
+    let (_, surface) = try await makeSurface(
+      components: [
+        ["id": "root", "component": "Column", "children": ["empty_row", "card", "list"]],
+        [
+          "id": "empty_row", "component": "Row", "children": [],
+          "accessibility": ["label": "Empty row"],
+        ],
+        [
+          "id": "card", "component": "Card", "child": "card_column",
+          "accessibility": ["label": "Order summary"],
+        ],
+        [
+          "id": "card_column", "component": "Column",
+          "children": ["photo", "star", "volume", "when"],
+        ],
+        [
+          "id": "photo", "component": "Image", "url": "https://example.com/a.png",
+          "accessibility": ["label": "Product photo"],
+        ],
+        [
+          "id": "star", "component": "Icon", "name": "star",
+          "accessibility": ["label": "Favorite"],
+        ],
+        [
+          "id": "volume", "component": "Slider", "label": "Volume", "min": 0, "max": 10,
+          "value": ["@path": "/volume"],
+        ],
+        [
+          "id": "when", "component": "DateTimeInput", "label": "When", "value": ["@path": "/when"],
+          "enableDate": true, "accessibility": ["label": "Delivery date"],
+        ],
+        [
+          "id": "list", "component": "List", "children": ["item"],
+          "accessibility": ["label": "Items"],
+        ],
+        ["id": "item", "component": "Text", "text": "One"],
+      ],
+      dataModel: ["volume": 3, "when": "2026-10-13T10:00:00Z"]
+    )
+
+    let root = try #require(surface.rootNode)
+    _ = Surface(viewModel: surface, catalogs: BasicCatalogImplementation.allCatalogs).body
+    _ = ComponentNodeView(node: root).body
+    _ = A2UIRow(node: try node("empty_row", in: surface)).body
+    _ = A2UICard(node: try node("card", in: surface)).body
+    _ = A2UIList(node: try node("list", in: surface)).body
+    _ = A2UIImage(node: try node("photo", in: surface)).body
+    _ = A2UIIcon(node: try node("star", in: surface)).body
+    _ = A2UISlider(node: try node("volume", in: surface)).body
+    _ = A2UIDateTimeInput(node: try node("when", in: surface)).body
   }
 }
