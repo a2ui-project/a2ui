@@ -737,8 +737,14 @@ public final class MessageProcessor: ObservableObject {
     for catalog: AnyCatalog,
     config: ValidationConfig
   ) -> PayloadValidator {
-    let cacheKey =
-      "\(catalog.id)|\(config.allowOrphanComponents)|\(config.allowDanglingReferences)|\(config.allowMissingRoot)|\(config.allowUnknownElements)|\(config.targetVersion ?? "")"
+    let flags = [
+      config.allowOrphanComponents,
+      config.allowDanglingReferences,
+      config.allowMissingRoot,
+      config.allowUnknownElements,
+      config.allowUnknownFunctions,
+    ].map { $0 ? "1" : "0" }.joined()
+    let cacheKey = "\(catalog.id)|\(flags)|\(config.targetVersion ?? "")"
     if let cached = payloadValidators[cacheKey] {
       return cached
     }

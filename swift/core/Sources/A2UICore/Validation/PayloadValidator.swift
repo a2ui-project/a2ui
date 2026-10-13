@@ -356,7 +356,8 @@ public final class PayloadValidator: Sendable {
     guard let function else {
       // An unknown reserved `@` name is never accepted: v1.0 defines its system functions.
       let isSystemName = enforceIdentifiers && name.hasPrefix("@")
-      guard isSystemName || !config.allowUnknownElements else { return }
+      guard isSystemName || !(config.allowUnknownElements || config.allowUnknownFunctions)
+      else { return }
       let msg = "Unrecognized function '\(name)'"
       throw A2UIValidationError(
         msg,
