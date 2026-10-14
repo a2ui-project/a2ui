@@ -445,6 +445,28 @@ struct DataBindingTests {
   }
 }
 
+struct ResolvedActionTests {
+
+  private let identity = ResolvedAction.Identity.event(
+    name: "delete",
+    context: ["id": .object(["path": .string("id")])]
+  )
+
+  @Test func resolvedActionsEqualByIdentityAndDataContextPath() {
+    let a = ResolvedAction(identity: identity, dataContextPath: "/items/0", trigger: {})
+    let b = ResolvedAction(identity: identity, dataContextPath: "/items/0", trigger: {})
+    #expect(a == b)
+  }
+
+  @Test func resolvedActionsNotEqualByDifferentDataContextPath() {
+    let a = ResolvedAction(identity: identity, dataContextPath: "/inbox/0", trigger: {})
+    let b = ResolvedAction(identity: identity, dataContextPath: "/archive/0", trigger: {})
+    let root = ResolvedAction(identity: identity, trigger: {})
+    #expect(a != b)
+    #expect(a != root)
+  }
+}
+
 struct ComponentPropertiesTests {
 
   @Test func componentPropertiesInitializesCorrectly() throws {
