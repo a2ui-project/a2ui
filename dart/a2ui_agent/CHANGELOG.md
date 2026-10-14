@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The Direct JSON prompt lists `description` after `type` in the
+  agent-to-renderer and `common_types` schemas it embeds, following the
+  reordered specification files.
 - Align `MessageProcessor.model` and `PayloadValidator` usage with `a2ui_core`.
 - `DirectJsonPromptGenerator` embeds the agent-to-renderer schema, the pruned
   `common_types` schema, and each active catalog's `Catalog.toJson()` document

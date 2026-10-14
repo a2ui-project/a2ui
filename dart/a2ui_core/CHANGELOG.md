@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `Catalog.commonTypesSchema` and the bundled `common_types` schemas list
+  `description` after `type`, following the reordered specification files.
 - Updated documentation comments referencing `typescript/core/web_core`.
 - **Breaking:** Renamed `A2uiClientAction` and `A2uiClientError` to
   `A2uiRendererAction` and `A2uiRendererError`.
