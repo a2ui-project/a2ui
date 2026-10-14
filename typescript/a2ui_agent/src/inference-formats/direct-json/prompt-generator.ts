@@ -23,6 +23,7 @@ import {
 import {PromptGenerator} from '../../prompt/generator.js';
 import {messageJsonSchemas} from '../../utils/message-schemas.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
+import {checkParserCatalogs} from '../../utils/validation.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 
 /**
@@ -46,6 +47,7 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     private readonly allowedMessages?: readonly string[],
   ) {
     super(catalogs);
+    checkParserCatalogs(catalogs);
   }
 
   generateBaseRules(): string {

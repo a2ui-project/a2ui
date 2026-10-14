@@ -19,7 +19,6 @@ import {
   A2uiError,
   A2uiValidationError,
   CatalogApi,
-  compareSemVer,
   MessageProcessor,
   STRICT_VALIDATION,
 } from '../internal/web-core.js';
@@ -54,13 +53,6 @@ export function checkParserCatalogs(catalogs: CatalogApi[]): string {
   if (releaseLines.size > 1) {
     throw new A2uiCatalogError(
       `The catalogs target incompatible protocol versions: ${Array.from(releaseLines).sort().join(', ')}.`,
-    );
-  }
-
-  const [releaseLine] = releaseLines;
-  if (catalogs.length > 1 && compareSemVer(releaseLine, '1.0.0') < 0) {
-    throw new A2uiCatalogError(
-      `Several catalogs need A2UI v1.0 or later, where components and function calls carry their own catalogId, but got '${releaseLine}'.`,
     );
   }
 

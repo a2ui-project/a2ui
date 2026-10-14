@@ -1,4 +1,3 @@
-import {AgentToRendererMessage} from '../../../../src/internal/web-core.js';
 /**
  * @license
  * Copyright 2024 Google LLC
@@ -16,8 +15,14 @@ import {AgentToRendererMessage} from '../../../../src/internal/web-core.js';
  * limitations under the License.
  */
 
-import {describe, it, expect} from 'vitest';
+import {describe, expect, it} from 'vitest';
+
 import {DirectJsonPromptGenerator} from '../../../../src/inference-formats/direct-json/prompt-generator.js';
+import {
+  A2uiCatalogError,
+  AgentToRendererMessage,
+  Catalog,
+} from '../../../../src/internal/web-core.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 
 const basicCatalogV10 = loadBasicCatalog('v1.0');
@@ -48,9 +53,19 @@ describe('DirectJsonPromptGenerator', () => {
   });
 
   it('describes each protocol version once, however many catalogs use it', () => {
-    const twoCatalogs = new DirectJsonPromptGenerator([catalog, catalog]);
+    const customCatalog = new Catalog('https://a2ui.org/catalogs/custom_v10', 'v1.0', [], []);
+    const twoCatalogs = new DirectJsonPromptGenerator([catalog, customCatalog]);
     const instructions = twoCatalogs.generateCatalogInstructions();
     expect(instructions.split('### Messages (').length).toBe(2);
+    expect(instructions).toContain(`### Catalog ${catalog.id}:`);
+    expect(instructions).toContain(`### Catalog ${customCatalog.id}:`);
+  });
+
+  it('rejects duplicate catalog IDs and incompatible protocol versions', () => {
+    expect(() => new DirectJsonPromptGenerator([catalog, catalog])).toThrow(A2uiCatalogError);
+    expect(() => new DirectJsonPromptGenerator([catalog, loadBasicCatalog('v0.9')])).toThrow(
+      A2uiCatalogError,
+    );
   });
 
   it('describes only the allowed envelopes', () => {
