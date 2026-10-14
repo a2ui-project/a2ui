@@ -14,9 +14,9 @@ This document is the authoritative guide for AI agents working within the A2UI r
 - **For working with Spec-Driven Development (SDD) or repository blueprints:** Read [blueprints/README.md](blueprints/README.md)
 - **For implementing new SDKs in a client language:** Read [.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md](.agents/skills/a2ui-implement-new-sdks-for-client-language/SKILL.md)
 - **For developing in the TypeScript & Web codebases (`typescript/`, `renderers/`, `samples/client/`, `tools/`):** Read [.agents/skills/coding-principles/subskills/typescript/INDEX.md](.agents/skills/coding-principles/subskills/typescript/INDEX.md)
-- **For developing Python code anywhere in the repository (libraries, agents, tools, scripts, best practices):** Read [.agents/skills/a2ui-python-development/SKILL.md](.agents/skills/a2ui-python-development/SKILL.md)
-- **For developing in the Swift codebase (core, SwiftUI, sample):** Read [.agents/skills/a2ui-swift-development/SKILL.md](.agents/skills/a2ui-swift-development/SKILL.md)
-- **For recording a change in the CHANGELOG of a Dart package under `dart/`, or releasing one:** Read [.agents/skills/a2ui-dart-versioning/SKILL.md](.agents/skills/a2ui-dart-versioning/SKILL.md)
+- **For developing Python code anywhere in the repository (libraries, agents, tools, scripts, best practices):** Read [.agents/skills/coding-principles/subskills/python/INDEX.md](.agents/skills/coding-principles/subskills/python/INDEX.md)
+- **For developing in the Swift codebase (core, SwiftUI, sample):** Read [.agents/skills/coding-principles/subskills/swift/INDEX.md](.agents/skills/coding-principles/subskills/swift/INDEX.md)
+- **For developing in the Dart & Flutter codebases (`dart/`, `samples/client/flutter/`) or versioning Dart packages:** Read [.agents/skills/coding-principles/subskills/dart/INDEX.md](.agents/skills/coding-principles/subskills/dart/INDEX.md)
 
 ---
 
