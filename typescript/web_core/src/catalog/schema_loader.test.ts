@@ -608,4 +608,35 @@ describe('Catalog.fromJson & schema_loader', () => {
       size: 2,
     });
   });
+
+  it('validates parameter names in object-based functions with shorthand parameter maps', () => {
+    assert.throws(
+      () =>
+        Catalog.fromJson({
+          catalogId: 'https://example.com/test.json',
+          protocolVersion: 'v1.0',
+          functions: {
+            customFunc: {
+              parameters: {
+                'invalid-param': {type: 'string'},
+              },
+            },
+          },
+        }),
+      /UAX #?31/,
+    );
+
+    const catalog = Catalog.fromJson({
+      catalogId: 'https://example.com/test.json',
+      protocolVersion: 'v1.0',
+      functions: {
+        customFunc: {
+          parameters: {
+            valid_param: {type: 'string'},
+          },
+        },
+      },
+    });
+    assert.ok(catalog.functions.has('customFunc'));
+  });
 });

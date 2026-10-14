@@ -828,10 +828,13 @@ function parseFunctionDefinitions(
     for (const [name, defn] of Object.entries(rawFunctions)) {
       const rawDefn = defn && typeof defn === 'object' ? (defn as Record<string, unknown>) : {};
       const argsSchema = functionArgsSchema(rawDefn);
-      assertFunctionIdentifiers(
-        name,
-        argsSchema && typeof argsSchema.properties === 'object' ? argsSchema.properties : undefined,
-      );
+      const paramProps =
+        argsSchema && typeof argsSchema.properties === 'object'
+          ? argsSchema.properties
+          : argsSchema && typeof argsSchema.type !== 'string'
+            ? argsSchema
+            : undefined;
+      assertFunctionIdentifiers(name, paramProps);
       if (permittedNames && !permittedNames.has(name)) {
         continue;
       }

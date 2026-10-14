@@ -278,11 +278,7 @@ export class PayloadValidator {
    *   not a valid UAX #31 identifier, or `args` is not an object.
    */
   private assertFunctionIdentifiers(name: string, args: unknown): void {
-    this.assertIdentifier(
-      name,
-      `Function name '${name}' must be a valid UAX #31 identifier`,
-      true,
-    );
+    this.assertIdentifier(name, `Function name '${name}' must be a valid UAX #31 identifier`, true);
     // The call envelope types `args` as an object, whatever catalog the call
     // runs in.
     if (
