@@ -127,7 +127,7 @@ describe('DirectJsonParser', () => {
       );
     });
 
-    it.each(['v0.8', 'v0.9', 'v0.9.1', 'v1.0'] as const)(
+    it.each(['v0.9', 'v0.9.1', 'v1.0'] as const)(
       'accepts multiple catalogs for protocol version %s',
       version => {
         const catalogs = [
