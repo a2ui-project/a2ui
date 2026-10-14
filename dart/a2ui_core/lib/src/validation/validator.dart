@@ -75,7 +75,8 @@ const Set<String> _reservedDirectives = {'@path', '@call'};
 /// against the same catalogs. The rules for the items themselves follow
 /// [Catalog.protocolVersion]: a catalog declaring v1.0 or later is checked
 /// with the v1.0 rules (`@path` and `@call`, UAX #31 identifiers, reserved
-/// `@` keys, unknown functions forwarded to the agent), and any other catalog
+/// `@` keys, and undeclared functions forwarded when allowUnknownElements is
+/// enabled or when targeting a foreign catalog), and any other catalog
 /// with the v0.9 rules.
 ///
 /// A validator is scoped to a single [catalog], and validates a single item

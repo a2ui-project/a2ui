@@ -700,6 +700,38 @@ void main() {
       expect(catalog.copyWith().protocolVersion, A2uiProtocolVersion.v1_0);
     });
 
+    test(
+        'does not misclassify top-level combinators in function args as '
+        'parameters', () {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'https://example.com/combinator.json',
+        'functions': {
+          'flexibleFunc': {
+            'parameters': {
+              'oneOf': [
+                {
+                  'type': 'object',
+                  'properties': {
+                    'text': {'type': 'string'},
+                  },
+                },
+                {
+                  'type': 'object',
+                  'properties': {
+                    'count': {'type': 'number'},
+                  },
+                },
+              ],
+            },
+          },
+        },
+      });
+
+      final FunctionApi fn = catalog.functions['flexibleFunc']!;
+      expect(fn.argumentSchema.value.containsKey('properties'), isFalse);
+      expect(fn.argumentSchema.value.containsKey('oneOf'), isTrue);
+    });
+
     test('requires args in validationSchema only for required parameters', () {
       final CatalogApi catalog = CatalogApi(
         id: 'c',

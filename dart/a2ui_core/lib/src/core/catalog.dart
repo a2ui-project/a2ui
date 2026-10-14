@@ -716,7 +716,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         yield* propertyNames(schema);
         return;
       }
-      if (schema['type'] is! String && !schema.containsKey(r'$ref')) {
+      if (schema['type'] is! String &&
+          !schema.containsKey(r'$ref') &&
+          !schema.containsKey('oneOf') &&
+          !schema.containsKey('anyOf') &&
+          !schema.containsKey('not') &&
+          schema.values.every((v) => v is Map || v is bool)) {
         yield* schema.keys.whereType<String>();
       }
     }
@@ -1007,7 +1012,11 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             !map.containsKey('properties') &&
             map['type'] is! String &&
             !map.containsKey(r'$ref') &&
-            !map.containsKey('allOf')
+            !map.containsKey('allOf') &&
+            !map.containsKey('oneOf') &&
+            !map.containsKey('anyOf') &&
+            !map.containsKey('not') &&
+            map.values.every((v) => v is Map || v is bool)
         ? <String, Object?>{'type': 'object', 'properties': map}
         : map;
     return Schema.fromMap(_markRead(normalized));

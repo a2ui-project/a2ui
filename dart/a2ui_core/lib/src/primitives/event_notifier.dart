@@ -39,25 +39,25 @@ class _CallbackSubscription<T> implements Subscription {
 
   @override
   void unsubscribe() {
-    final void Function(T event)? listener = _listener;
-    if (listener == null) return;
+    if (_listener == null) return;
     _listener = null;
-    _notifier._listeners.remove(listener);
+    _notifier._subscriptions.remove(this);
   }
 }
 
 /// A synchronous, typed event emitter for discrete events.
 class EventNotifier<T> implements EventSource<T> {
-  final List<void Function(T event)> _listeners = [];
+  final List<_CallbackSubscription<T>> _subscriptions = [];
   bool _isDisposed = false;
 
   /// Emits an event to all subscribed listeners.
   void emit(T event) {
-    if (_listeners.isEmpty) return;
+    if (_subscriptions.isEmpty) return;
     // Iterate over a copy to allow listeners to unsubscribe themselves.
-    for (final void Function(T event) listener in List.of(_listeners)) {
+    for (final _CallbackSubscription<T> sub in List.of(_subscriptions)) {
       try {
-        if (_listeners.contains(listener)) {
+        final void Function(T event)? listener = sub._listener;
+        if (listener != null) {
           listener(event);
         }
       } catch (e, st) {
@@ -69,13 +69,17 @@ class EventNotifier<T> implements EventSource<T> {
   @override
   Subscription subscribe(void Function(T event) listener) {
     if (_isDisposed) return _CallbackSubscription<T>(this, null);
-    _listeners.add(listener);
-    return _CallbackSubscription<T>(this, listener);
+    final sub = _CallbackSubscription<T>(this, listener);
+    _subscriptions.add(sub);
+    return sub;
   }
 
   /// Removes all listeners.
   void dispose() {
     _isDisposed = true;
-    _listeners.clear();
+    for (final _CallbackSubscription<T> sub in _subscriptions) {
+      sub._listener = null;
+    }
+    _subscriptions.clear();
   }
 }

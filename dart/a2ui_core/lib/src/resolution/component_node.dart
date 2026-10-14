@@ -264,39 +264,42 @@ class _DestructionSubscription implements Subscription {
 
   @override
   void unsubscribe() {
-    final void Function(void)? listener = _listener;
-    if (listener == null) return;
+    if (_listener == null) return;
     _listener = null;
-    _notifier._listeners.remove(listener);
+    _notifier._subscriptions.remove(this);
   }
 }
 
 // Destruction must attempt every listener, so a failure is logged instead of
 // propagated.
 class _DestructionListeners implements EventSource<void> {
-  final List<void Function(void)> _listeners = [];
+  final List<_DestructionSubscription> _subscriptions = [];
 
   @override
   Subscription subscribe(void Function(void) listener) {
-    _listeners.add(listener);
-    return _DestructionSubscription(this, listener);
+    final sub = _DestructionSubscription(this, listener);
+    _subscriptions.add(sub);
+    return sub;
   }
 
   void notify(String instanceId) {
-    final List<void Function(void)> listeners = List.of(_listeners);
-    _listeners.clear();
-    for (final listener in listeners) {
-      try {
-        listener(null);
-      } catch (error, stackTrace) {
-        _log.severe(
-          'ComponentNode destruction listener error ($instanceId)',
-          error,
-          stackTrace,
-        );
+    final subscriptions = List<_DestructionSubscription>.of(_subscriptions);
+    _subscriptions.clear();
+    for (final sub in subscriptions) {
+      final void Function(void)? listener = sub._listener;
+      if (listener != null) {
+        sub._listener = null;
+        try {
+          listener(null);
+        } catch (error, stackTrace) {
+          _log.severe(
+            'ComponentNode destruction listener error ($instanceId)',
+            error,
+            stackTrace,
+          );
+        }
       }
     }
-    _listeners.clear();
   }
 }
 

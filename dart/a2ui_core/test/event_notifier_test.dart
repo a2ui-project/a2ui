@@ -121,6 +121,31 @@ void main() {
       expect(received, [1]);
     });
 
+    test('supports duplicate subscriptions of the same function independently',
+        () {
+      final notifier = EventNotifier<int>();
+      final received = <int>[];
+      void handler(int value) => received.add(value);
+
+      final Subscription sub1 = notifier.subscribe(handler);
+      final Subscription sub2 = notifier.subscribe(handler);
+
+      notifier.emit(1);
+      expect(received, [1, 1]);
+
+      sub1.unsubscribe();
+      received.clear();
+
+      notifier.emit(2);
+      expect(received, [2]);
+
+      sub2.unsubscribe();
+      received.clear();
+
+      notifier.emit(3);
+      expect(received, isEmpty);
+    });
+
     test('dispose clears all listeners and makes subsequent subscribe a no-op',
         () {
       final notifier = EventNotifier<int>();
