@@ -7,6 +7,10 @@
   `common_types` schema, and each active catalog's `Catalog.toJson()` document
   instead of the deprecated `catalogSchema`, avoiding duplicate inlined common
   type definitions when multiple catalogs are active.
+- `allowedMessages` of the Direct JSON format accepts only messages: the
+  definitions the agent-to-renderer schema lists in `oneOf` and their envelope
+  keys. Other definitions, such as v1.0's `Component` and `ComponentsList`,
+  throw `ArgumentError`.
 - Payload validation builds its `MessageProcessor` with `defaultVersion`.
 - Payload validation gives `MessageProcessor` the catalog through
   `Catalog.withFunctions`, so a catalog read by `Catalog.fromJson` keeps its

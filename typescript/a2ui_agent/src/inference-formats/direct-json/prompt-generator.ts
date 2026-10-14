@@ -132,29 +132,43 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     return Array.isArray(examples);
   }
 
+  /**
+   * Renders the examples.
+   *
+   * Examples keyed by catalog id are filtered to `catalog` when it is given. An ordered
+   * list of turns is not tied to a catalog, so every turn is rendered either way, as in
+   * Python's `DirectJsonPromptGenerator.generate_examples`.
+   */
   override generateExamples(catalog?: CatalogApi): string {
     if (!this.examples) {
       return '';
     }
-    if (catalog) {
+    if (catalog && !this.isTurnArray(this.examples)) {
       return this.renderExamples(catalog);
     }
     const turns = this.isTurnArray(this.examples) ? this.examples : Object.values(this.examples);
-    return turns
-      .map(turn => this.renderExampleTurn(turn))
-      .filter(s => s.length > 0)
-      .join('\n\n');
+    return this.renderTurns(turns);
   }
 
   protected renderExamples(catalog: CatalogApi): string {
-    if (!this.examples || this.isTurnArray(this.examples)) {
+    if (!this.examples) {
       return '';
+    }
+    if (this.isTurnArray(this.examples)) {
+      return this.renderTurns(this.examples);
     }
     const exampleMessages = this.examples[catalog.id];
     if (!exampleMessages) {
       return '';
     }
     return this.renderExampleTurn(exampleMessages);
+  }
+
+  private renderTurns(turns: ReadonlyArray<AgentToRendererMessage[] | string>): string {
+    return turns
+      .map(turn => this.renderExampleTurn(turn))
+      .filter(s => s.length > 0)
+      .join('\n\n');
   }
 
   private renderExampleTurn(exampleMessages: AgentToRendererMessage[] | string): string {

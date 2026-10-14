@@ -74,6 +74,32 @@ describe('DirectJsonPromptGenerator', () => {
     expect(exampleStr).toContain('</a2ui-json>');
   });
 
+  it('renders every turn of a turn list, with or without a catalog', () => {
+    const turns = [
+      [
+        {version: '1.0', createSurface: {surfaceId: 'first'}},
+      ] as unknown as AgentToRendererMessage[],
+      [
+        {version: '1.0', deleteSurface: {surfaceId: 'second'}},
+      ] as unknown as AgentToRendererMessage[],
+    ];
+    const turnGenerator = new DirectJsonPromptGenerator([catalog], turns);
+    const all = turnGenerator.generateExamples();
+    expect(all).toContain('"first"');
+    expect(all).toContain('"second"');
+    expect(turnGenerator.generateExamples(catalog)).toBe(all);
+  });
+
+  it('filters examples keyed by catalog id to the given catalog', () => {
+    const keyed = new DirectJsonPromptGenerator([catalog], {
+      ...examples,
+      'https://example.com/other.json': '<a2ui-json>other</a2ui-json>',
+    });
+    const forCatalog = keyed.generateExamples(catalog);
+    expect(forCatalog).toContain('"example"');
+    expect(forCatalog).not.toContain('other');
+  });
+
   it('generates the snippet with rules, schemas and examples', () => {
     const prompt = generator.generate();
     expect(prompt).toContain('## Workflow Description:');

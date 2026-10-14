@@ -216,10 +216,20 @@ Map<String, Object?> _pruneMessagesSchema(
   List<String> allowedMessages,
 ) {
   final defs = a2rSchema[r'$defs']! as Map<String, Object?>;
+  // Only the definitions that `oneOf` lists are messages. Other definitions,
+  // such as v1.0's `Component` and `ComponentsList`, are helpers.
+  final messageDefNames = <String>{
+    if (a2rSchema['oneOf'] case final List<Object?> oneOf)
+      for (final Object? item in oneOf)
+        if (item case {
+          r'$ref': final String ref,
+        } when ref.startsWith(_defsRefPrefix))
+          ref.substring(_defsRefPrefix.length),
+  };
   final validMessageTypes = <String>{};
-  for (final MapEntry<String, Object?> entry in defs.entries) {
-    validMessageTypes.add(entry.key);
-    if (entry.value case {'properties': final Map<Object?, Object?> props}) {
+  for (final defName in messageDefNames) {
+    validMessageTypes.add(defName);
+    if (defs[defName] case {'properties': final Map<Object?, Object?> props}) {
       for (final Object? key in props.keys) {
         if (key != 'version' && key is String) validMessageTypes.add(key);
       }
@@ -236,10 +246,10 @@ Map<String, Object?> _pruneMessagesSchema(
   }
 
   final allowedDefs = <String>{...allowedMessages};
-  for (final MapEntry<String, Object?> entry in defs.entries) {
-    if (entry.value case {'properties': final Map<Object?, Object?> props}) {
+  for (final defName in messageDefNames) {
+    if (defs[defName] case {'properties': final Map<Object?, Object?> props}) {
       if (props.keys.any(allowedDefs.contains)) {
-        allowedDefs.add(entry.key);
+        allowedDefs.add(defName);
       }
     }
   }

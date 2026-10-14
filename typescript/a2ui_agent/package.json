@@ -92,7 +92,6 @@
   },
   "dependencies": {
     "@a2ui/web_core": "workspace:*",
-    "antlr4ng": "3.0.16",
-    "zod-to-json-schema": "^3.25.2"
+    "antlr4ng": "3.0.16"
   }
 }
