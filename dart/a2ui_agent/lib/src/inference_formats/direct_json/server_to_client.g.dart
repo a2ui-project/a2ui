@@ -46,8 +46,8 @@ const String serverToClientV0_9Json = r'''
               "description": "The unique identifier for the UI surface to be rendered."
             },
             "catalogId": {
-              "description": "A string that uniquely identifies this catalog. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. mycompany.com:somecatalog'.",
-              "type": "string"
+              "type": "string",
+              "description": "A string that uniquely identifies this catalog. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. mycompany.com:somecatalog'."
             },
             "theme": {
               "$ref": "catalog.json#/$defs/theme",
@@ -184,8 +184,8 @@ const String agentToRendererV1_0Json = r'''
               "description": "The unique identifier for the UI surface to be rendered. It must be globally unique for the renderer's lifetime."
             },
             "catalogId": {
-              "description": "A string that uniquely identifies the default catalog for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. 'mycompany.com:somecatalog'. Components and function calls that do not explicitly specify a catalogId will use this surface-level default catalogId.",
-              "type": "string"
+              "type": "string",
+              "description": "A string that uniquely identifies the default catalog for this surface. It is recommended to prefix this with an internet domain that you own, to avoid conflicts e.g. 'mycompany.com:somecatalog'. Components and function calls that do not explicitly specify a catalogId will use this surface-level default catalogId."
             },
             "sendDataModel": {
               "type": "boolean",

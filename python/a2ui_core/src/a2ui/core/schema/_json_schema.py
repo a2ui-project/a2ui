@@ -518,26 +518,6 @@ _SUBSCHEMA_ORDER_MAP: Final[dict[str, int]] = {
 _V08_SUBSCHEMA_ORDER_MAP: Final[dict[str, int]] = {
     k: i for i, k in enumerate(_V08_SUBSCHEMA_KEY_ORDER)
 }
-_SPEC_PATH_KEY_OVERRIDES: Final[dict[str, tuple[str, ...]]] = {
-    "$.$defs.CreateSurfaceMessage.properties.createSurface.properties.catalogId": (
-        "description",
-        "type",
-    ),
-    "$.$defs.ChildList.oneOf[0]": ("type", "items", "description"),
-    "$.$defs.Checkable": ("description", "type", "properties"),
-    "$.$defs.AccessibilityAttributes.properties.live": (
-        "type",
-        "enum",
-        "default",
-        "description",
-    ),
-    "$.$defs.CheckRule.properties.condition": ("oneOf", "description"),
-    "$.properties.dataModelUpdate.properties.contents.items.properties.valueMap": (
-        "description",
-        "type",
-        "items",
-    ),
-}
 
 
 def order_spec_schema_keys(
@@ -569,10 +549,7 @@ def order_spec_schema_keys(
             for k, v in node.items()
         ]
         if not is_map:
-            if path in _SPEC_PATH_KEY_OVERRIDES:
-                override = {k: i for i, k in enumerate(_SPEC_PATH_KEY_OVERRIDES[path])}
-                items.sort(key=lambda kv: (override.get(kv[0], 999), kv[0]))
-            elif is_v08:
+            if is_v08:
                 items.sort(
                     key=lambda kv: (_V08_SUBSCHEMA_ORDER_MAP.get(kv[0], 999), kv[0])
                 )
