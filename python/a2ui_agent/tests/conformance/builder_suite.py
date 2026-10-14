@@ -23,7 +23,6 @@ from typing import Any, Optional
 
 import yaml
 
-from a2ui.constants import VERSION_0_9_1
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
@@ -46,6 +45,7 @@ from a2ui.core.schema.v0_9 import (
     UpdateDataModelMessage,
 )
 from a2ui.core import Catalog, CatalogApi, ValidationConfig
+from a2ui.core.schema import ProtocolVersion
 
 from ..repo_paths import find_repo_root
 
@@ -54,7 +54,7 @@ CONFORMANCE_DIR = os.path.join(REPO_ROOT, "conformance", "agent", "builder")
 GOLDEN_DIR = os.path.join(CONFORMANCE_DIR, "golden")
 SUITE_PATH = os.path.join(CONFORMANCE_DIR, "builder.yaml")
 
-PROTOCOL_VERSION = VERSION_0_9_1
+PROTOCOL_VERSION = ProtocolVersion.V0_9_1
 
 # =============================================================================
 # Suite definition

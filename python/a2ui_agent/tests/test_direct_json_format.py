@@ -14,9 +14,10 @@
 
 import pytest
 
-from a2ui.constants import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0
+from a2ui.constants import VERSION_0_8, VERSION_0_9
 from a2ui.core import A2uiCatalogError
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
 
 
@@ -39,7 +40,7 @@ def test_direct_json_format_with_mixed_versions_is_an_error():
 
 
 @pytest.mark.parametrize(
-    "version", [VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0]
+    "version", [VERSION_0_8, VERSION_0_9, ProtocolVersion.V0_9_1, ProtocolVersion.V1_0]
 )
 def test_direct_json_format_supports_each_version(version):
     catalog = BasicCatalog(version)

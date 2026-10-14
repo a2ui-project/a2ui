@@ -9,7 +9,9 @@
   - `find_repo_root`, `get_spec_dir`, `get_basic_catalog_path`,
     `get_basic_examples_dir`, `wrap_as_json_array` and `deep_update` are
     removed. The path helpers only worked in a repository checkout.
-  - The `SPECIFICATION_DIR` constant is removed.
+  - The `SPECIFICATION_DIR`, `VERSION_0_9_1` and `VERSION_1_0` constants are
+    removed. Use `ProtocolVersion.V0_9_1` and `ProtocolVersion.V1_0` from
+    `a2ui.core.schema` instead.
 - **BREAKING**: Move `a2ui.inference_formats.experimental.express` to
   `a2ui.inference_formats.express`.
 - **BREAKING**: The agent SDK no longer depends on an agent framework. `a2ui.a2a`

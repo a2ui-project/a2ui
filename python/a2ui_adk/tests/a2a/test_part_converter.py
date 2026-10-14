@@ -23,9 +23,10 @@ from google.genai import types as genai_types
 from a2ui.a2a import create_a2ui_part
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.adk.a2a import A2uiPartConverter
-from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8, VERSION_0_9_1
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8
 from a2ui.core import Catalog
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 
 
 def test_converter_class_convert_valid_tool_response():
@@ -54,7 +55,7 @@ def test_converter_class_convert_valid_tool_response_v0_9_1():
     catalog_mock = MagicMock(
         spec=Catalog, catalog_id="test_catalog", protocol_version="0.9"
     )
-    converter = A2uiPartConverter([catalog_mock], version=VERSION_0_9_1)
+    converter = A2uiPartConverter([catalog_mock], version=ProtocolVersion.V0_9_1)
 
     valid_a2ui = {"type": "Text", "text": "Hello"}
     function_response = genai_types.FunctionResponse(
@@ -69,7 +70,7 @@ def test_converter_class_convert_valid_tool_response_v0_9_1():
 
     a2a_parts = converter.convert(part)
     assert len(a2a_parts) == 1
-    assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=VERSION_0_9_1)
+    assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=ProtocolVersion.V0_9_1)
 
 
 def test_converter_class_convert_tool_error_response():
@@ -150,7 +151,9 @@ def test_converter_class_convert_text_with_a2ui():
 
 
 def test_converter_class_convert_text_with_a2ui_v0_9_1():
-    converter = A2uiPartConverter([BasicCatalog(VERSION_0_9_1)], version=VERSION_0_9_1)
+    converter = A2uiPartConverter(
+        [BasicCatalog(ProtocolVersion.V0_9_1)], version=ProtocolVersion.V0_9_1
+    )
     valid_a2ui = [{
         "version": "v0.9.1",
         "updateComponents": {
@@ -167,7 +170,9 @@ def test_converter_class_convert_text_with_a2ui_v0_9_1():
     # Expect 2 parts: TextPart and A2UI DataPart
     assert len(a2a_parts) == 2
     assert a2a_parts[0].root.text == "Here is the UI:"
-    assert a2a_parts[1] == create_a2ui_part(valid_a2ui[0], version=VERSION_0_9_1)
+    assert a2a_parts[1] == create_a2ui_part(
+        valid_a2ui[0], version=ProtocolVersion.V0_9_1
+    )
 
 
 def test_converter_class_convert_text_empty_leading():

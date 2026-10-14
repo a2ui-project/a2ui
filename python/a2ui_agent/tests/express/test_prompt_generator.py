@@ -19,8 +19,8 @@ import os
 import tempfile
 import unittest
 
-from a2ui.constants import VERSION_1_0
 from a2ui.core import Catalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.express import ExpressFormat
 
 
@@ -29,7 +29,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
 
     def setUp(self):
         self.catalog = Catalog.from_json(
-            protocol_version=VERSION_1_0,
+            protocol_version=ProtocolVersion.V1_0,
             catalog_id="https://a2ui.org/test_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/test_catalog",
@@ -163,7 +163,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
     def test_express_signatures_with_object_properties(self):
         """Test component signatures generation for object properties with map keys."""
         cat_map_obj = Catalog.from_json(
-            protocol_version=VERSION_1_0,
+            protocol_version=ProtocolVersion.V1_0,
             catalog_id="https://a2ui.org/map_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/map_catalog",
@@ -195,7 +195,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
         )
 
         cat = Catalog.from_json(
-            protocol_version=VERSION_1_0,
+            protocol_version=ProtocolVersion.V1_0,
             catalog_id="test",
             catalog_schema={
                 "catalogId": "test",

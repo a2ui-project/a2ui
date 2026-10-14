@@ -20,9 +20,10 @@ from typing import Any
 import pytest
 
 from a2ui import constants
-from a2ui.constants import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0
+from a2ui.constants import VERSION_0_8, VERSION_0_9
 from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import schema_to_prompt
 from a2ui.utils import load_common_types_schema
 
@@ -99,7 +100,7 @@ def test_schema_to_prompt_includes_the_catalog_schema():
     assert sections[_CATALOG] == catalog.to_json()
 
 
-@pytest.mark.parametrize("version", [VERSION_0_9, VERSION_0_9_1])
+@pytest.mark.parametrize("version", [VERSION_0_9, ProtocolVersion.V0_9_1])
 def test_schema_to_prompt_uses_the_published_v0_9_schemas(version):
     sections = _sections(schema_to_prompt([BasicCatalog(version)]))
 
@@ -108,7 +109,7 @@ def test_schema_to_prompt_uses_the_published_v0_9_schemas(version):
 
 
 def test_schema_to_prompt_uses_the_published_v1_0_schemas():
-    sections = _sections(schema_to_prompt([BasicCatalog(VERSION_1_0)]))
+    sections = _sections(schema_to_prompt([BasicCatalog(ProtocolVersion.V1_0)]))
 
     assert "CallRendererFunctionMessage" in _message_refs(sections[_A2R])
     assert sections[_COMMON_TYPES]["$defs"]
@@ -234,4 +235,6 @@ def test_schema_to_prompt_rejects_no_catalogs():
 
 def test_schema_to_prompt_rejects_catalogs_of_different_versions():
     with pytest.raises(A2uiCatalogError):
-        schema_to_prompt([BasicCatalog(VERSION_0_9), BasicCatalog(VERSION_1_0)])
+        schema_to_prompt(
+            [BasicCatalog(VERSION_0_9), BasicCatalog(ProtocolVersion.V1_0)]
+        )

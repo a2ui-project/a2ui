@@ -58,8 +58,6 @@ A2UI_MESSAGE_KEY = "message"
 
 VERSION_0_8 = "0.8"
 VERSION_0_9 = "0.9"
-VERSION_0_9_1 = "0.9.1"
-VERSION_1_0 = "1.0"
 
 ENCODING = "utf-8"
 

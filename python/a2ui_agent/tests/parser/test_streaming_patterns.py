@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
@@ -27,12 +28,15 @@ from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.processor import CatalogConfig
 from a2ui.utils import load_common_types_schema
 
-from ..repo_paths import get_basic_catalog_path
+from ..repo_paths import find_repo_root
 
 
 @pytest.fixture(scope="module")
 def basic_catalog() -> CatalogApi:
-    config = CatalogConfig.from_path(get_basic_catalog_path("1.0"))
+    catalog_path = os.path.join(
+        find_repo_root() or "", "catalogs", "basic", "v1", "catalog.json"
+    )
+    config = CatalogConfig.from_path(catalog_path)
     return config.transformed_catalog
 
 

@@ -45,10 +45,9 @@ from a2ui.inference_formats.express import (
     ExpressUnknownPropertyError,
 )
 
-from ..repo_paths import find_repo_root, get_spec_dir
+from ..repo_paths import find_repo_root
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
-SPEC_DIR = get_spec_dir("v1_0")
 CATALOGS_DIR = os.path.join(REPO_ROOT, "catalogs", "basic")
 CATALOG_PATH = os.path.join(CATALOGS_DIR, "v1", "catalog.json")
 
