@@ -160,7 +160,7 @@ public final class RPCHandler {
       ?? DataContext(
         dataModel: argResolutionContext.dataModel,
         path: "",
-        functionHandler: fallbackHandler,
+        functionHandler: argHandler,
         protocolVersion: message.version
       )
 
@@ -335,7 +335,7 @@ public final class RPCHandler {
 }
 
 private final class RPCArgumentFunctionHandler: FunctionHandler {
-  private weak var delegate: FunctionHandler?
+  private let delegate: FunctionHandler?
   private let fallback: DummyContextFunctionHandler
   private(set) var capturedError: Error?
 

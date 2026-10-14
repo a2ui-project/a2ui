@@ -326,8 +326,34 @@ struct CatalogResolutionV10Tests {
   }
 
   @Test func rpcArgumentResolutionValidatesNestedCallCatalog() async throws {
-    let a = try makeCatalog(id: "a", functions: [ConcatFunction()])
-    let b = try makeCatalog(id: "b", functions: [ConcatFunction()])
+    struct AgentConcatFunction: FunctionImplementation {
+      let api = FunctionAPI(
+        name: "concat",
+        returnType: .string,
+        schema: try! Schema(
+          instance: """
+            {
+              "type": "object",
+              "properties": {
+                "a": { "type": "string" },
+                "b": { "type": "string" }
+              }
+            }
+            """
+        ),
+        allowedCallers: .rendererOrAgent
+      )
+
+      @MainActor
+      func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+        let first = arguments["a"]?.stringValue ?? ""
+        let second = arguments["b"]?.stringValue ?? ""
+        return .string(first + second)
+      }
+    }
+
+    let a = try makeCatalog(id: "a", functions: [AgentConcatFunction()])
+    let b = try makeCatalog(id: "b", functions: [AgentConcatFunction()])
     let rpc = RPCHandler()
 
     // Without a surface, a nested call in args must name its catalog rather than inheriting
