@@ -50,13 +50,12 @@ class CatalogSchemaHelper:
             raise TypeError(f"Unsupported catalog type: {type(catalog)}")
         self.catalog_model = catalog
 
-        # A catalog built from models refers to its own definitions, such as
-        # `CatalogComponentCommon`, while the `validation_schema` of a loaded
-        # catalog writes its own `$defs` inline (through
-        # `Catalog.resolved_component_schema`). Inlining them lets the crawler
-        # read both kinds of catalog the same way, while references to common
-        # types, such as `Checkable`, stay.
-        catalog_schema = dict(catalog.validation_schema or {})
+        # Both model-backed and loaded catalogs keep their local `$defs` (such
+        # as `CatalogComponentCommon`) in `to_json()`, while `validation_schema`
+        # flattens `allOf` mixins. Inlining local refs on `to_json()` lets the
+        # crawler read both kinds of catalog the same way while references to
+        # common types, such as `Checkable`, stay intact.
+        catalog_schema = dict(catalog.to_json() or {})
         self.catalog = inline_local_refs(catalog_schema, catalog_schema)
         self.components = dict(self.catalog.get("components", {}))
         self.functions = dict(self.catalog.get("functions", {}))

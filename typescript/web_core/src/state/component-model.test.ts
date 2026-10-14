@@ -76,7 +76,12 @@ describe('ComponentModel', () => {
   });
 
   it('keeps a property named type apart from the component type in the tree', () => {
-    const chart = new ComponentModel('chart1', 'Chart', {type: 'pie', title: 'Sales'});
+    const chart = new ComponentModel(
+      'chart1',
+      'Chart',
+      {type: 'pie', title: 'Sales'},
+      defaultCatalog,
+    );
     assert.deepStrictEqual(chart.componentTree, {
       id: 'chart1',
       component: 'Chart',
@@ -90,7 +95,7 @@ describe('ComponentModel', () => {
       'chart1',
       'Chart',
       {metadata: 'prop', title: 'Sales'},
-      undefined,
+      defaultCatalog,
       {owner: 'agent'},
     );
     assert.deepStrictEqual(chart.componentTree, {
@@ -109,13 +114,5 @@ describe('ComponentModel', () => {
     const customComp = new ComponentModel('c2', 'Card', {title: 'Hello'}, testCatalog);
     assert.strictEqual(customComp.catalog, testCatalog);
     assert.strictEqual(customComp.catalog.id, 'custom-cat');
-  });
-
-  it('allows instantiation without catalog for backwards compatibility', () => {
-    const legacyComp = new ComponentModel('c3', 'Text', {text: 'Legacy'});
-    assert.strictEqual(legacyComp.id, 'c3');
-    assert.strictEqual(legacyComp.type, 'Text');
-    assert.deepStrictEqual(legacyComp.properties, {text: 'Legacy'});
-    assert.strictEqual(legacyComp.catalog, undefined);
   });
 });

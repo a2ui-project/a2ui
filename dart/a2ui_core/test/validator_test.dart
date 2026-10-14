@@ -1176,16 +1176,17 @@ void v1RulesTests() {
     });
 
     test(
-        'rejects an unknown nested function in a v1.0 catalog unless '
-        'allowUnknownElements is true', () {
+        'accepts an unknown nested function naming another catalog in a v1.0 '
+        'catalog', () {
       expect(
         () => _versionedValidator('v1.0').validateComponent(
           _box({
             '@call': 'nope',
+            'catalogId': 'other',
             'args': {'anything': 1},
           }),
         ),
-        throwsA(_validationError(message: contains("'nope'"))),
+        returnsNormally,
       );
       expect(
         () => _versionedValidator(
@@ -1201,9 +1202,24 @@ void v1RulesTests() {
       );
     });
 
+    test(
+        'rejects an unknown nested function that runs in this catalog in a '
+        'v1.0 catalog', () {
+      expect(
+        () => _versionedValidator('v1.0').validateComponent(
+          _box({
+            '@call': 'nope',
+            'args': {'anything': 1},
+          }),
+        ),
+        throwsA(_validationError(message: contains("'nope'"))),
+      );
+    });
+
     test('rejects a call with more than maxFunctionCallArgs arguments', () {
       Map<String, Object?> call(int count) => {
             '@call': 'nope',
+            'catalogId': 'other',
             'args': {for (var i = 0; i < count; i++) 'a$i': i},
           };
       final PayloadValidator<ComponentApi, FunctionApi> validator =

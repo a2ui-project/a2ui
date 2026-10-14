@@ -193,18 +193,18 @@ class GenericBinder {
 
     switch (behavior.type) {
       case Behavior.dynamic:
-        final bool usesDirectives = context.dataContext.usesDirectives;
+        final bool atLeastV10 = context.dataContext.atLeastV10;
         final ReadonlySignal<Object?> sig =
             context.dataContext.resolveSignal(value);
         // When the protocol's binding key is present (without `componentId` in
         // pre-v1.0), cast its value to `String` so a malformed non-string path
         // (such as `{'path': 42}`) throws `TypeError` during materialization.
         final String? boundPath = value is Map &&
-                (usesDirectives
+                (atLeastV10
                     ? value.containsKey('@path')
                     : (value.containsKey('path') &&
                         !value.containsKey('componentId')))
-            ? (value[usesDirectives ? '@path' : 'path'] as String)
+            ? (value[atLeastV10 ? '@path' : 'path'] as String)
             : null;
         ResolvedBinding<Object?> wrap(Object? current) {
           final Object? snapshot = _snapshotBindingValue(current);
@@ -561,11 +561,11 @@ class GenericBinder {
     );
     if (hasEvent || hasFunctionCall) return BehaviorNode(Behavior.action);
 
-    final bool usesDirectives = context.dataContext.usesDirectives;
+    final bool atLeastV10 = context.dataContext.atLeastV10;
     bool hasPath = schemasToInspect.any(
       (s) =>
           s['properties'] != null &&
-          (usesDirectives
+          (atLeastV10
               ? (s['properties'] as Map)['@path'] != null
               : (s['properties'] as Map)['path'] != null) &&
           (s['properties'] as Map)['componentId'] == null,

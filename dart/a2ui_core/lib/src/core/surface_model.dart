@@ -181,22 +181,28 @@ class SurfaceModel<T extends ComponentApi> {
   /// [catalogId] is the id the item names for itself. The order is the one
   /// v1.0 specifies: the named catalog, which must be in
   /// [availableCatalogs]; otherwise [defaultCatalog]. There is no fallback to
-  /// a sole available catalog.
+  /// a sole available catalog. An empty [catalogId] names a catalog too.
+  /// [subject] names the item in the error, such as `"Component 'root'"`.
   ///
   /// Throws [A2uiCatalogResolutionError] when [catalogId] is not in
   /// [availableCatalogs], or when it is null and the surface has no default.
-  Catalog<T, FunctionImplementation> resolveCatalog(String? catalogId) {
+  Catalog<T, FunctionImplementation> resolveCatalog(
+    String? catalogId, {
+    String subject = 'Item',
+  }) {
     if (catalogId != null) {
       return availableCatalogs[catalogId] ??
           (throw A2uiCatalogResolutionError(
-            "Catalog '$catalogId' is not supported by surface '$id'.",
+            'Catalog not found: $catalogId. $subject names a catalog surface '
+            "'$id' does not have. "
+            "Available: ${availableCatalogs.keys.join(', ')}.",
             catalogId: catalogId,
           ));
     }
     return defaultCatalog ??
         (throw A2uiCatalogResolutionError(
-          "Surface '$id' has no default catalog, so an item that names no "
-          'catalogId cannot be resolved.',
+          "$subject names no catalogId and surface '$id' has no default "
+          'catalogId.',
         ));
   }
 

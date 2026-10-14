@@ -231,7 +231,8 @@ def test_v10_loaded_catalog_validation_schema_bundles_common_types() -> None:
     assert schema["catalogId"] == "https://a2ui.org/catalogs/v10/bundled"
     assert "DynamicString" in schema["$defs"]
     assert schema["components"]["Label"]["properties"]["text"] == {
-        "$ref": "#/$defs/DynamicString"
+        "$ref": "#/$defs/DynamicString",
+        "description": "Represents a string",
     }
 
 
@@ -890,3 +891,51 @@ def test_from_json_reads_v08_styles_as_the_theme() -> None:
 
     assert catalog.theme_schema == {"type": "object", "properties": styles}
     assert catalog.to_json() == {"components": {}, "styles": styles}
+
+
+def test_validation_schema_flattens_mixins_and_preserves_extra_keywords() -> None:
+    document = {
+        "catalogId": "https://example.com/catalogs/extra",
+        "protocolVersion": "1.0",
+        "$defs": {
+            "Weighted": {
+                "type": "object",
+                "properties": {
+                    "weight": {"type": "number"},
+                    "label": {"type": "number"},
+                },
+            }
+        },
+        "components": {
+            "Box": {
+                "type": "object",
+                "anyOf": [{"required": ["a"]}, {"required": ["b"]}],
+                "allOf": [
+                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {"$ref": "#/$defs/Weighted"},
+                    {"oneOf": [{"required": ["a"]}, {"required": ["b"]}]},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "Box"},
+                            "label": {"type": "string"},
+                            "a": {"type": "string"},
+                            "b": {"type": "string"},
+                        },
+                        "required": ["component", "label"],
+                    },
+                ],
+            }
+        },
+    }
+    catalog = Catalog.from_json(document)
+    box = catalog.validation_schema["components"]["Box"]
+
+    assert box["properties"]["label"] == {"type": "string"}
+    assert "weight" in box["properties"]
+    assert "accessibility" in box["properties"]
+    assert box["required"] == ["id", "label", "component"]
+    assert box["anyOf"] == [{"required": ["a"]}, {"required": ["b"]}]
+    assert box["allOf"] == [{"oneOf": [{"required": ["a"]}, {"required": ["b"]}]}]
+    assert "Weighted" not in catalog.validation_schema["$defs"]
+    assert catalog.to_json() == document

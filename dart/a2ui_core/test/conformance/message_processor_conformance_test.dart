@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
@@ -41,11 +38,7 @@ const Map<String, String> _v10ExpectedFailures = {
 
 /// The `process_messages` cases in `core/reserved_keys.yaml` expected to
 /// fail, with the reason each is currently failing.
-const Map<String, String> _reservedKeysExpectedFailures = {
-  'test_escaped_doubled_at_unescaping':
-      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
-          'surface has no default catalog to resolve its items against.',
-};
+const Map<String, String> _reservedKeysExpectedFailures = {};
 
 /// The `validate` cases in `core/functions.yaml` expected to fail, with the
 /// reason each is currently failing.
@@ -187,6 +180,8 @@ void _runSteps(
   );
 }
 
+/// Runs a data model request, after the case's `messages` or, one batch per
+/// step, its `steps`. `args.version` is the version requested.
 void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final processor = MessageProcessor<ComponentApi>(
@@ -194,7 +189,13 @@ void _runGetRendererDataModelCase(Map<String, Object?> testCase) {
     defaultVersion: A2uiProtocolVersion.v0_9,
     validationConfig: ValidationConfig.relaxed,
   );
-  _process(processor, testCase);
+  if (testCase['steps'] case final List<Object?> steps) {
+    for (final step in steps) {
+      _process(processor, step! as Map<String, Object?>);
+    }
+  } else {
+    _process(processor, testCase);
+  }
 
   final Map<String, Object?> args =
       (testCase['args'] as Map<String, Object?>?) ?? const {};
@@ -245,51 +246,37 @@ void _runResolvePathCase(Map<String, Object?> testCase) {
   expect(context.resolvePath(path), equals(testCase['expect']), reason: name);
 }
 
+/// The catalogs a case registers.
+///
+/// A case targeting v1.0 or later registers the documents its
+/// `catalogPaths` name together with its inline `catalogs`. A document that
+/// declares no `protocolVersion` is pre-v1.0, as `Catalog` reads it; an
+/// inline catalog that declares none targets the case's version. A case
+/// declaring one document and no inline catalog names it by whichever id
+/// its messages use, as the validator harness does.
+///
+/// v0.9 cases run over inline `catalogs` or a single inline `catalog`, else
+/// over the basic catalog of their version rather than the documents they
+/// name: they test processing, and the schema checks have their own suite.
+/// For a case naming documents, the basic catalog's schema checks are relaxed
+/// (see [_permissive]), as several of them send a `Button` with only a
+/// `label`, which the v0.9 `Button` schema rejects.
 List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
   Map<String, Object?> testCase,
 ) {
   final String version = _versionOf(testCase);
-  if (testCase['catalogs'] case final List<Object?> rawCatalogs) {
-    final includeBasic = _actionOf(testCase) != 'get_renderer_capabilities';
-    final List<Catalog<ComponentApi, FunctionImplementation>> built = [
+  final List<Map<String, Object?>> inline = [
+    if (testCase['catalogs'] case final List<Object?> rawCatalogs)
       for (final Object? item in rawCatalogs)
-        if (item is Map<String, Object?>)
-          if (includeBasic &&
-              !item.containsKey('components') &&
-              !item.containsKey('functions') &&
-              !item.containsKey('theme'))
-            basicCatalogFor(
-              (item['protocolVersion'] as String?) ?? version,
-              asCatalogId: item['catalogId'] as String?,
-            )
-          else
-            rendererCatalog(item, protocolVersion: version),
-    ];
-    if (includeBasic && !built.any((c) => c.id == 'basic')) {
-      built.add(basicCatalogFor(version, asCatalogId: 'basic'));
-    }
-    return built;
-  }
-  // v0.9 cases naming documents run over the basic catalog with its schema
-  // checks relaxed (see [_permissive]): they test processing, the schema
-  // checks have their own suite, and several of them send a `Button` with
-  // only a `label`, which the v0.9 `Button` schema rejects.
-  if (testCase['catalogPaths'] case final List<Object?> paths
-      when compareVersions(version, 'v1.0') >= 0) {
-    final List<Map<String, Object?>> documents = [
+        if (item is Map<String, Object?>) item,
+  ];
+  final List<Map<String, Object?>> documents = [
+    if (testCase['catalogPaths'] case final List<Object?> paths
+        when compareVersions(version, 'v1.0') >= 0)
       for (final Object? path in paths)
-        if (path is String)
-          jsonDecode(File(resolveConformancePath(path)).readAsStringSync())
-              as Map<String, Object?>,
-    ];
-    if (documents.length > 1) {
-      return [
-        for (final document in documents)
-          rendererCatalog(document, protocolVersion: version),
-      ];
-    }
-    // A case declaring one document names it by whichever id its messages
-    // use, as the validator harness does.
+        if (path is String) readConformanceJson(path),
+  ];
+  if (documents.length == 1 && inline.isEmpty) {
     final Set<String> ids = _catalogIdsOf(testCase);
     if (ids.isEmpty) ids.add(documents.single['catalogId']! as String);
     return [
@@ -300,6 +287,18 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
           protocolVersion: version,
         ),
     ];
+  }
+  if (documents.isNotEmpty || inline.isNotEmpty) {
+    final includeBasic = _actionOf(testCase) != 'get_renderer_capabilities';
+    final List<Catalog<ComponentApi, FunctionImplementation>> built = [
+      for (final document in documents) rendererCatalog(document),
+      for (final document in inline)
+        rendererCatalog(document, protocolVersion: version),
+    ];
+    if (includeBasic && !built.any((c) => c.id == 'basic')) {
+      built.add(basicCatalogFor(version, asCatalogId: 'basic'));
+    }
+    return built;
   }
   if (testCase['catalog'] case final Map<String, Object?> document
       when document.containsKey('components') ||
@@ -502,8 +501,8 @@ List<Map<String, Object?>> _normalizeExpectedComponents(Object? raw) {
 /// Properties are compared on the resolved node tree, as the reference
 /// harness does: each [ResolvedBinding] is read once for its value and each
 /// child node stands for its component id. A component no node renders, such
-/// as one unreachable from the root, falls back to its raw
-/// [ComponentModel.properties].
+/// as one unreachable from the root, and one whose type no catalog declares
+/// fall back to its raw [ComponentModel.properties].
 void _checkComponents(
   SurfaceModel<ComponentApi> surface,
   List<Map<String, Object?>> expected,
@@ -557,11 +556,14 @@ void _checkComponents(
             reason: '$reason: $id type');
         return;
       }
-      final Object? actual = node == null || node.isPlaceholder
-          ? component!.properties[key]
-          : _plain(node.props.peek()[key]);
+      final Object? propVal =
+          node == null || node.state == NodeState.unknownType
+              ? component!.properties[key]
+              : _plain(node.props.peek()[key]);
+      final Object? actual =
+          propVal is num && value is String ? propVal.toString() : propVal;
       expect(
-        actual is num && value is String ? actual.toString() : actual,
+        actual,
         equals(value),
         reason: '$reason: $id.$key',
       );
@@ -617,6 +619,10 @@ Matcher _matchesError(Map<String, Object?> expectError) {
 String _align(String pattern) {
   if (pattern.contains('Catalog not found:')) {
     return '($pattern|is not supported by this processor)';
+  }
+  if (RegExp(r"Unrecognized function '([^']*)'").firstMatch(pattern)
+      case final RegExpMatch match) {
+    return "($pattern|declares no function named '${match[1]}')";
   }
   if (pattern.contains('without a type')) {
     return "($pattern|without a 'component' type)";

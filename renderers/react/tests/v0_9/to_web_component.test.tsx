@@ -113,7 +113,7 @@ function nodeOf(
   surface: SurfaceModel<ReactComponentImplementation>,
   id: string,
 ): ComponentNode<ReactComponentImplementation> {
-  const resolver = new NodeResolver(surface, surface.defaultCatalog);
+  const resolver = new NodeResolver(surface, surface.defaultCatalog!);
   resolvers.push(resolver);
   const visit = (value: unknown): ComponentNode<ReactComponentImplementation> | undefined => {
     if (isComponentNode(value)) {

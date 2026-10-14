@@ -1118,15 +1118,15 @@ void main() {
           processor.model.getSurface('new')!;
       expect(old.protocolVersion, 'v0.9');
       expect(fresh.protocolVersion, 'v1.0');
-      bool usesDirectives(SurfaceModel<ComponentApi> s) => DataContext(
+      bool atLeastV10(SurfaceModel<ComponentApi> s) => DataContext(
             s.dataModel,
             (_, __, ___) => null,
             '/',
             protocolVersion:
                 A2uiProtocolVersion.tryParseSemVer(s.protocolVersion!),
-          ).usesDirectives;
-      expect(usesDirectives(old), isFalse);
-      expect(usesDirectives(fresh), isTrue);
+          ).atLeastV10;
+      expect(atLeastV10(old), isFalse);
+      expect(atLeastV10(fresh), isTrue);
     });
 
     test('accepts a lone raw envelope, a raw list and the wrapper', () {

@@ -384,12 +384,13 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"'
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hello"'
       expect:
         - a2ui:
             - version: "v1.0"
               createSurface:
                 surfaceId: "s1"
+                catalogId: "conformance/simplified"
     - input: "}]}}]</a2ui-json>"
       expect:
         - a2ui:
@@ -521,12 +522,13 @@
   steps:
     - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "contact'
       expect: []
-    - input: '-card"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "contact-card", "components": [{"id": "ro'
+    - input: '-card", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "contact-card", "components": [{"id": "ro'
       expect:
         - a2ui:
             - version: "v1.0"
               createSurface:
                 surfaceId: "contact-card"
+                catalogId: "conformance/simplified"
     - input: 'ot", "component": "Text", "text": "hi"}]}}]</a2ui-json>'
       expect:
         - a2ui:
@@ -677,12 +679,13 @@
       expect: []
     - input: "["
       expect: []
-    - input: '{"version": "v1.0", "createSurface": {"surfaceId": "s1"}}'
+    - input: '{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}'
       expect:
         - a2ui:
             - version: "v1.0"
               createSurface:
                 surfaceId: "s1"
+                catalogId: "conformance/simplified"
     - input: ', {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": ['
       expect: []
     - input: '{"id": "root", "compon'
@@ -805,18 +808,20 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: []
   steps:
-    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "left"}}'
+    - input: '<a2ui-json>[{"version": "v1.0", "createSurface": {"surfaceId": "left", "catalogId": "conformance/simplified"}}'
       expect:
         - a2ui:
             - version: "v1.0"
               createSurface:
                 surfaceId: "left"
-    - input: ', {"version": "v1.0", "createSurface": {"surfaceId": "right"}}'
+                catalogId: "conformance/simplified"
+    - input: ', {"version": "v1.0", "createSurface": {"surfaceId": "right", "catalogId": "conformance/simplified"}}'
       expect:
         - a2ui:
             - version: "v1.0"
               createSurface:
                 surfaceId: "right"
+                catalogId: "conformance/simplified"
     - input: ', {"version": "v1.0", "updateComponents": {"surfaceId": "left", "components": [{"id": "root", "component": "Text", "text": "Left"}]}}'
       expect:
         - a2ui:
