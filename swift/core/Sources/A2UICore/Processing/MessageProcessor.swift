@@ -878,11 +878,10 @@ public final class MessageProcessor: ObservableObject {
         // The validator takes a component that names no catalogId to be in the surface default
         // catalog, so it names one only when the component's catalog isn't the default.
         let componentInDefault = targetCatalog.id == surface.defaultCatalogID
-        var validatorDict = componentDict
-        if componentInDefault {
-          validatorDict.removeValue(forKey: "catalogId")
-        }
-        try validator.validateComponent(validatorDict)
+        try validator.validateComponent(
+          componentDict,
+          componentNamesCatalog: !componentInDefault
+        )
         try validateNestedFunctionCalls(
           in: componentDict,
           componentID: id,

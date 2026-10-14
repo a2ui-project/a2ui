@@ -78,10 +78,13 @@ public final class SurfaceViewModel: ObservableObject {
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
+    let allCatalogsAtLeastV10 =
+      !catalogs.isEmpty && catalogs.values.allSatisfy(\.isAtLeastV10)
+    let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
     let resolvedDefaultCatalogID: String?
     if let defaultCatalogID {
       resolvedDefaultCatalogID = defaultCatalogID
-    } else if !(protocolVersion?.isAtLeastV10 ?? false), catalogs.count == 1 {
+    } else if !isAtLeastV10, catalogs.count == 1 {
       resolvedDefaultCatalogID = catalogs.keys.first
     } else {
       resolvedDefaultCatalogID = nil
@@ -99,8 +102,10 @@ public final class SurfaceViewModel: ObservableObject {
       let catVer = defaultCat.a2uiProtocolVersion
     {
       explicitVersion = catVer
-    } else if let firstCatVer = catalogs.values.first?.a2uiProtocolVersion {
-      explicitVersion = firstCatVer
+    } else if allCatalogsAtLeastV10 {
+      explicitVersion = .v10
+    } else if catalogs.count == 1, let onlyCatVer = catalogs.values.first?.a2uiProtocolVersion {
+      explicitVersion = onlyCatVer
     } else {
       explicitVersion = nil
     }

@@ -236,4 +236,30 @@ struct PayloadValidatorCatalogScopeTests {
       )
     }
   }
+
+  @Test func nestedCallUnderIdOrComponentArgumentKeyIsChecked() throws {
+    let validator = try makeValidator()
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent(
+        self.textComponent(
+          text: self.call(
+            "mystery",
+            catalogID: "other",
+            args: .object(["id": self.call("@unknownSystem", args: .object([:]))])
+          )
+        )
+      )
+    }
+    #expect(throws: A2UIValidationError.self) {
+      try validator.validateComponent(
+        self.textComponent(
+          text: self.call(
+            "mystery",
+            catalogID: "other",
+            args: .object(["component": self.call("1bad", catalogID: "other")])
+          )
+        )
+      )
+    }
+  }
 }

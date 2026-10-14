@@ -123,6 +123,7 @@ struct StateEngineV10Tests {
     let resolver = NodeResolver(
       surfaceID: "surf1",
       catalogs: [catalog.eraseToAnyCatalog()],
+      defaultCatalogID: catalog.id,
       componentsModel: componentsModel,
       dataModel: dataModel
     )
@@ -198,6 +199,7 @@ struct StateEngineV10Tests {
     let resolver = NodeResolver(
       surfaceID: "surf1",
       catalogs: [catalog.eraseToAnyCatalog()],
+      defaultCatalogID: catalog.id,
       componentsModel: componentsModel,
       dataModel: dataModel
     )

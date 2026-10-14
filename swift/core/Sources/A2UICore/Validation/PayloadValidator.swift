@@ -102,6 +102,15 @@ public final class PayloadValidator: Sendable {
   /// - Throws: `A2UIValidationError` if the component identifier, type, schema, or any nested
   ///   function call fails validation.
   public func validateComponent(_ component: [String: JSONValue]) throws {
+    // Called directly, the validator takes a component that names no catalogId to be in the
+    // surface default catalog, and one that names a catalogId to possibly be in another.
+    try validateComponent(component, componentNamesCatalog: component["catalogId"] != nil)
+  }
+
+  internal func validateComponent(
+    _ component: [String: JSONValue],
+    componentNamesCatalog: Bool
+  ) throws {
     guard let id = component["id"]?.stringValue, !id.isEmpty else {
       throw A2UIValidationError(
         "Field 'id' is required",
@@ -165,14 +174,10 @@ public final class PayloadValidator: Sendable {
       )
     }
 
-    // Called directly, the validator takes a component that names no catalogId to be in the
-    // surface default catalog, and one that names a catalogId to possibly be in another.
-    let componentNamesCatalog = component["catalogId"] != nil
-
     guard let componentAPI = catalog.components[type] else {
       if config.allowUnknownElements {
-        try validateNestedFunctions(
-          in: .object(OrderedDictionary(uniqueKeysWithValues: component)),
+        try validateComponentNestedFunctions(
+          in: component,
           componentNamesCatalog: componentNamesCatalog
         )
         return
@@ -252,8 +257,8 @@ public final class PayloadValidator: Sendable {
       )
     }
 
-    try validateNestedFunctions(
-      in: .object(OrderedDictionary(uniqueKeysWithValues: component)),
+    try validateComponentNestedFunctions(
+      in: component,
       componentNamesCatalog: componentNamesCatalog
     )
   }
@@ -513,6 +518,22 @@ public final class PayloadValidator: Sendable {
     }
   }
 
+  private func validateComponentNestedFunctions(
+    in component: [String: JSONValue],
+    componentNamesCatalog: Bool
+  ) throws {
+    if enforceIdentifiers {
+      try DataContext.validateReservedDirectives(component.keys)
+    }
+    let skippedKeys: Set<String> =
+      enforceIdentifiers
+      ? ["id", "component", "catalogId", "metadata"]
+      : ["id", "component"]
+    for (key, propValue) in component where !skippedKeys.contains(key) {
+      try validateNestedFunctions(in: propValue, componentNamesCatalog: componentNamesCatalog)
+    }
+  }
+
   private func validateNestedFunctions(
     in value: JSONValue,
     componentNamesCatalog: Bool = false
@@ -581,7 +602,7 @@ public final class PayloadValidator: Sendable {
         }
       }
 
-      for (key, propValue) in dict where key != "id" && key != "component" {
+      for (_, propValue) in dict {
         try validateNestedFunctions(in: propValue, componentNamesCatalog: componentNamesCatalog)
       }
 

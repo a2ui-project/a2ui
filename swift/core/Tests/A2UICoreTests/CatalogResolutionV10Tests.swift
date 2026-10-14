@@ -53,6 +53,11 @@ struct CatalogResolutionV10Tests {
     #expect(surface.defaultCatalogID == nil)
     #expect(surface.getCatalog() == nil)
     #expect(surface.getCatalog(id: "a")?.id == "a")
+
+    let inferred = SurfaceViewModel(surfaceID: "s", catalogs: [catalog])
+    #expect(inferred.protocolVersion == .v10)
+    #expect(inferred.defaultCatalogID == nil)
+    #expect(inferred.getCatalog() == nil)
   }
 
   @Test func surfaceViewModelKeepsSingleCatalogFallbackOnV09() throws {
@@ -68,6 +73,11 @@ struct CatalogResolutionV10Tests {
     #expect(fromArray.defaultCatalogID == nil)
     #expect(fromArray.getCatalog() == nil)
     #expect(fromArray.atLeastV10)
+
+    let inferred = NodeResolver(surfaceID: "s", catalogs: [catalog])
+    #expect(inferred.defaultCatalogID == nil)
+    #expect(inferred.getCatalog() == nil)
+    #expect(inferred.atLeastV10)
 
     let fromDictionary = NodeResolver(
       surfaceID: "s",
@@ -276,5 +286,88 @@ struct CatalogResolutionV10Tests {
     let result = context.resolveDynamicValue(.object(["@call": .string("@index")]))
     #expect(result == .integer(2))
     #expect(handler.capturedErrors.isEmpty)
+  }
+
+  @Test func processorPreservesDeclaredCatalogIDInDefaultCatalog() throws {
+    let schemaWithRequiredCatalogID = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "catalogId": { "const": "a" }
+          },
+          "required": ["catalogId"]
+        }
+        """
+    )
+    let catalog = Catalog(
+      id: "a",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Text", schema: schemaWithRequiredCatalogID)]
+    ).eraseToAnyCatalog()
+    let processor = MessageProcessor(catalogs: [catalog])
+    try processor.processMessages(
+      try JSONValue.parse(
+        """
+        [
+          { "version": "v1.0", "createSurface": { "surfaceId": "s", "catalogId": "a" } },
+          {
+            "version": "v1.0",
+            "updateComponents": {
+              "surfaceId": "s",
+              "components": [{ "id": "root", "component": "Text", "catalogId": "a" }]
+            }
+          }
+        ]
+        """
+      )
+    )
+    #expect(processor.surfaceGroupModel["s"]?.componentsModel.get("root")?.catalogID == "a")
+  }
+
+  @Test func rpcArgumentResolutionValidatesNestedCallCatalog() async throws {
+    let a = try makeCatalog(id: "a", functions: [ConcatFunction()])
+    let b = try makeCatalog(id: "b", functions: [ConcatFunction()])
+    let rpc = RPCHandler()
+
+    // Without a surface, a nested call in args must name its catalog rather than inheriting
+    // the outer RPC call's catalog.
+    let missingCatCall = CallRendererFunctionMessage(
+      functionCallID: "c1",
+      callFunction: CallFunctionPayload(
+        call: "concat",
+        catalogID: "a",
+        args: [
+          "a": .object([
+            "@call": .string("concat"),
+            "args": .object(["a": .string("x"), "b": .string("y")]),
+          ]),
+          "b": .string("z"),
+        ]
+      ),
+      version: .v10
+    )
+    let resp1 = await rpc.handleIncomingCall(missingCatCall, catalogs: ["a": a, "b": b])
+    #expect(resp1.error?.code == "EXECUTION_ERROR")
+
+    // Naming a valid catalog succeeds.
+    let namedCatCall = CallRendererFunctionMessage(
+      functionCallID: "c2",
+      callFunction: CallFunctionPayload(
+        call: "concat",
+        catalogID: "a",
+        args: [
+          "a": .object([
+            "@call": .string("concat"),
+            "catalogId": .string("b"),
+            "args": .object(["a": .string("x"), "b": .string("y")]),
+          ]),
+          "b": .string("z"),
+        ]
+      ),
+      version: .v10
+    )
+    let resp2 = await rpc.handleIncomingCall(namedCatCall, catalogs: ["a": a, "b": b])
+    #expect(resp2.value == .string("xyz"))
   }
 }

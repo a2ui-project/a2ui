@@ -86,9 +86,12 @@ public final class NodeResolver: Sendable {
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
+    let allCatalogsAtLeastV10 =
+      !catalogs.isEmpty && catalogs.values.allSatisfy(\.isAtLeastV10)
+    let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
     if let defaultCatalogID {
       self.defaultCatalogID = defaultCatalogID
-    } else if !(protocolVersion?.isAtLeastV10 ?? false), catalogs.count == 1 {
+    } else if !isAtLeastV10, catalogs.count == 1 {
       self.defaultCatalogID = catalogs.keys.first
     } else {
       self.defaultCatalogID = nil
