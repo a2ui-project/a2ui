@@ -31,8 +31,14 @@ export interface ReactHostElement extends A2uiWebComponentElement {
   node?: ComponentNode<ReactComponentImplementation>;
 }
 
+// Importing this module must not need a DOM, so it can load during server-side rendering and in
+// plain Node. Without `HTMLElement` the base is an empty class. Nothing can define or create the
+// element there, because `customElements` is missing too.
+const ElementBase: typeof HTMLElement =
+  typeof HTMLElement === 'undefined' ? (class {} as unknown as typeof HTMLElement) : HTMLElement;
+
 /** The behaviour every host shares; `toWebComponent` derives one subclass per tag name. */
-export class ReactWcHost extends HTMLElement implements ReactHostElement {
+export class ReactWcHost extends ElementBase implements ReactHostElement {
   context?: ComponentContext;
   private _node?: ComponentNode<ReactComponentImplementation>;
   private registry?: HostRegistry;
