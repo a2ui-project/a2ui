@@ -126,7 +126,7 @@ struct StateEngineV10Tests {
       componentsModel: componentsModel,
       dataModel: dataModel
     )
-    #expect(resolver.isV10 == true)
+    #expect(resolver.atLeastV10 == true)
 
     let rootNode = try #require(resolver.resolveTree())
     let children = rootNode.children(for: "children")
@@ -201,7 +201,7 @@ struct StateEngineV10Tests {
       componentsModel: componentsModel,
       dataModel: dataModel
     )
-    #expect(resolver.isV10 == true)
+    #expect(resolver.atLeastV10 == true)
 
     let rootNode = resolver.resolveTree()
     #expect(rootNode?.isValid == false)

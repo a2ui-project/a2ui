@@ -42,7 +42,7 @@ public final class DataContext {
     self.index = index
   }
 
-  public var isV10: Bool {
+  public var atLeastV10: Bool {
     protocolVersion?.isAtLeastV10 ?? false
   }
 
@@ -98,7 +98,7 @@ public final class DataContext {
       return .array(arr.map { resolveDynamicValue($0) })
     case .object(let dict):
       let allowAtPrefix = protocolVersion?.isAtLeastV10 ?? true
-      let allowLegacyDirectives = !isV10
+      let allowLegacyDirectives = !atLeastV10
 
       if allowAtPrefix, let pathStr = dict["@path"]?.stringValue {
         let absPath = JSONValue.absolutePath(for: pathStr, in: self.path)
@@ -131,7 +131,7 @@ public final class DataContext {
     dict: OrderedDictionary<String, JSONValue>
   ) -> JSONValue {
     let function: (any FunctionImplementation)?
-    if isV10 {
+    if atLeastV10 {
       guard let resolved = resolveV10Function(name: callName, dict: dict) else {
         return .null
       }

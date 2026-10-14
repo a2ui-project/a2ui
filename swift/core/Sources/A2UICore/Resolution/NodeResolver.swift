@@ -43,7 +43,7 @@ public final class NodeResolver: Sendable {
   ///
   /// Uses `protocolVersion` when set. Otherwise it is taken from the default catalog, or, with
   /// no default, it holds when every catalog is at least v1.0.
-  public var isV10: Bool {
+  public var atLeastV10: Bool {
     if let protocolVersion {
       return protocolVersion.isAtLeastV10
     }
@@ -70,7 +70,7 @@ public final class NodeResolver: Sendable {
   /// The protocol version used for evaluation and error envelopes: `protocolVersion` when set,
   /// else the default catalog's version, else v1.0 when every catalog is at least v1.0.
   private var effectiveProtocolVersion: A2UIProtocolVersion? {
-    protocolVersion ?? defaultCatalog?.a2uiProtocolVersion ?? (isV10 ? .v10 : nil)
+    protocolVersion ?? defaultCatalog?.a2uiProtocolVersion ?? (atLeastV10 ? .v10 : nil)
   }
 
   // MARK: - Initialization
@@ -145,7 +145,7 @@ public final class NodeResolver: Sendable {
     if let targetCatalogID {
       return catalogs[targetCatalogID]
     }
-    if id == nil && !isV10 && catalogs.count == 1 {
+    if id == nil && !atLeastV10 && catalogs.count == 1 {
       return catalogs.values.first
     }
     return nil
@@ -517,7 +517,7 @@ public final class NodeResolver: Sendable {
             let nestedPropSchema = objProps[k] ?? .boolean(true)
             let classified = classifySchema(nestedPropSchema)
             let nestedPropType: PropertyType
-            let bindingKey = isV10 ? "@path" : "path"
+            let bindingKey = atLeastV10 ? "@path" : "path"
             if classified == .standard,
               v.objectValue?[bindingKey] != nil
             {
@@ -607,7 +607,7 @@ public final class NodeResolver: Sendable {
     index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<Bool> {
-    let bindingKey = isV10 ? "@path" : "path"
+    let bindingKey = atLeastV10 ? "@path" : "path"
     if let dict = value.dictionaryValue,
       let pathStr = dict[bindingKey]?.stringValue
     {
@@ -635,7 +635,7 @@ public final class NodeResolver: Sendable {
     index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<String> {
-    let bindingKey = isV10 ? "@path" : "path"
+    let bindingKey = atLeastV10 ? "@path" : "path"
     if let dict = value.dictionaryValue,
       let pathStr = dict[bindingKey]?.stringValue
     {
@@ -664,7 +664,7 @@ public final class NodeResolver: Sendable {
     index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<Double> {
-    let bindingKey = isV10 ? "@path" : "path"
+    let bindingKey = atLeastV10 ? "@path" : "path"
     if let dict = value.dictionaryValue,
       let pathStr = dict[bindingKey]?.stringValue
     {
@@ -692,7 +692,7 @@ public final class NodeResolver: Sendable {
     index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<JSONValue> {
-    let bindingKey = isV10 ? "@path" : "path"
+    let bindingKey = atLeastV10 ? "@path" : "path"
     if let dict = value.dictionaryValue,
       let pathStr = dict[bindingKey]?.stringValue
     {
@@ -720,7 +720,7 @@ public final class NodeResolver: Sendable {
     index: Int? = nil,
     data: JSONValue
   ) -> DataBinding<[String]> {
-    let bindingKey = isV10 ? "@path" : "path"
+    let bindingKey = atLeastV10 ? "@path" : "path"
     if let dict = value.dictionaryValue,
       let pathStr = dict[bindingKey]?.stringValue
     {
@@ -759,7 +759,7 @@ public final class NodeResolver: Sendable {
       let conditionJSON = ruleDict?["condition"] ?? ruleJSON
       let fallbackMessage = ruleDict?["message"]?.stringValue ?? "Validation failed"
 
-      let bindingKey = self.isV10 ? "@path" : "path"
+      let bindingKey = self.atLeastV10 ? "@path" : "path"
       if let dict = conditionJSON.dictionaryValue, let pathStr = dict[bindingKey]?.stringValue {
         let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
         let rawVal = data[absPath]
@@ -866,7 +866,7 @@ public final class NodeResolver: Sendable {
       eventObj = nil
     }
 
-    let callKey = isV10 ? "@call" : "call"
+    let callKey = atLeastV10 ? "@call" : "call"
     let funcCallVal: JSONValue?
     if let wrapped = value["functionCall"], wrapped.dictionaryValue != nil {
       funcCallVal = wrapped

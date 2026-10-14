@@ -67,7 +67,7 @@ struct CatalogResolutionV10Tests {
     let fromArray = NodeResolver(surfaceID: "s", catalogs: [catalog], protocolVersion: .v10)
     #expect(fromArray.defaultCatalogID == nil)
     #expect(fromArray.getCatalog() == nil)
-    #expect(fromArray.isV10)
+    #expect(fromArray.atLeastV10)
 
     let fromDictionary = NodeResolver(
       surfaceID: "s",
