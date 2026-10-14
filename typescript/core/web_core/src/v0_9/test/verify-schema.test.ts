@@ -27,9 +27,21 @@ import {
   DeleteSurfaceMessageSchema,
 } from '../schema/server-to-client.js';
 
+function findRepoRoot(dir: string): string {
+  let cur = dir;
+  while (cur !== resolve(cur, '..')) {
+    if (existsSync(join(cur, 'package.json')) && existsSync(join(cur, 'specification'))) {
+      return cur;
+    }
+    cur = resolve(cur, '..');
+  }
+  return resolve(dir, '../../../../../..');
+}
+
 const currentDir = typeof __dirname !== 'undefined' ? __dirname : resolve('src/v0_9/test');
+const repoRoot = findRepoRoot(currentDir);
 const specPathCandidate1 = resolve(currentDir, '../../../../../../specification/v0_9/json');
-const specPathCandidate2 = resolve(currentDir, '../../../../../../specification/v0_9/json');
+const specPathCandidate2 = resolve(repoRoot, 'specification/v0_9/json');
 const SPEC_DIR_V0_9 = existsSync(specPathCandidate1) ? specPathCandidate1 : specPathCandidate2;
 
 // Parse both so we can do structural comparison rather than formatting
