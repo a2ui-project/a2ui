@@ -719,50 +719,11 @@ function convertComponentJsonSchemaToZod(
 }
 
 /**
- * Converts a function argument JSON schema definition into a Zod object schema.
- *
- * Maps function argument schemas to object properties, requiring fields listed in
- * `required` and applying strictness or passthrough based on `additionalProperties`.
- *
- * @param rawSchema Raw function arguments schema.
- * @param rootDoc Optional root schema document for reference resolution.
- * @param defCache Cache mapping reference strings to resolved Zod schemas.
- * @returns Zod object schema validating function arguments.
- */
-function convertFunctionArgsJsonSchemaToZod(
-  rawSchema: Record<string, unknown>,
-  rootDoc?: Record<string, unknown>,
-  defCache = new Map<string, z.ZodTypeAny>(),
-): z.ZodObject<z.ZodRawShape> {
-  const requiredSet = new Set<string>(
-    Array.isArray(rawSchema.required)
-      ? rawSchema.required.filter((r): r is string => typeof r === 'string')
-      : [],
-  );
-  const shape = convertPropertiesToShape(
-    (rawSchema.properties as Record<string, unknown>) || {},
-    requiredSet,
-    false,
-    rootDoc,
-    undefined,
-    defCache,
-  );
-  const obj = z.object(shape);
-  const allowExtra =
-    rawSchema.unevaluatedProperties === true ||
-    (typeof rawSchema.unevaluatedProperties === 'object' &&
-      rawSchema.unevaluatedProperties !== null) ||
-    rawSchema.additionalProperties === true ||
-    (typeof rawSchema.additionalProperties === 'object' && rawSchema.additionalProperties !== null);
-  return allowExtra ? obj.passthrough() : obj.strict();
-}
-
-/**
  * Checks whether an object schema represents a shorthand parameter map (a map
  * of parameter names to subschemas), rather than a full JSON Schema object or
  * reference combinator.
  */
-function isShorthandParameterMap(schema: unknown): schema is Record<string, unknown> {
+function isShorthandParameterMap(schema: unknown): boolean {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
     return false;
   }
@@ -781,18 +742,171 @@ function isShorthandParameterMap(schema: unknown): schema is Record<string, unkn
 }
 
 /**
+ * Checks whether an object schema explicitly permits additional or unevaluated properties.
+ */
+function isExplicitlyOpen(schema: Record<string, unknown>): boolean {
+  return (
+    schema.unevaluatedProperties === true ||
+    (typeof schema.unevaluatedProperties === 'object' && schema.unevaluatedProperties !== null) ||
+    schema.additionalProperties === true ||
+    (typeof schema.additionalProperties === 'object' && schema.additionalProperties !== null)
+  );
+}
+
+/**
+ * Collects sub-schemas and references for function argument definitions.
+ *
+ * Resolves local document pointers (`#/`), recurses into `allOf` compositions,
+ * and detects unresolvable references or open combiners (`oneOf`, `anyOf`).
+ */
+function collectArgSubSchemas(
+  schema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visited = new Set<string>(),
+): {schemas: Record<string, unknown>[]; hasUnresolvable: boolean} {
+  const result: {schemas: Record<string, unknown>[]; hasUnresolvable: boolean} = {
+    schemas: [],
+    hasUnresolvable: false,
+  };
+
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+    return result;
+  }
+
+  if (isShorthandParameterMap(schema)) {
+    result.schemas.push({
+      type: 'object',
+      properties: schema,
+    });
+    return result;
+  }
+
+  if (typeof schema.$ref === 'string') {
+    const ref = schema.$ref;
+    if (ref.startsWith('#/')) {
+      if (!rootDoc) {
+        result.hasUnresolvable = true;
+      } else if (!visited.has(ref)) {
+        visited.add(ref);
+        const target = resolveJsonPointer(rootDoc, ref);
+        if (target) {
+          const sub = collectArgSubSchemas(target, rootDoc, visited);
+          result.schemas.push(...sub.schemas);
+          if (sub.hasUnresolvable) {
+            result.hasUnresolvable = true;
+          }
+        } else {
+          result.hasUnresolvable = true;
+        }
+      }
+    } else {
+      result.hasUnresolvable = true;
+    }
+  }
+
+  if (Array.isArray(schema.allOf)) {
+    for (const sub of schema.allOf) {
+      if (sub && typeof sub === 'object' && !Array.isArray(sub)) {
+        const subResult = collectArgSubSchemas(sub as Record<string, unknown>, rootDoc, visited);
+        result.schemas.push(...subResult.schemas);
+        if (subResult.hasUnresolvable) {
+          result.hasUnresolvable = true;
+        }
+      }
+    }
+  }
+
+  if (Array.isArray(schema.anyOf) || Array.isArray(schema.oneOf)) {
+    result.hasUnresolvable = true;
+  }
+
+  if (
+    schema.properties ||
+    schema.required ||
+    schema.additionalProperties !== undefined ||
+    schema.unevaluatedProperties !== undefined
+  ) {
+    result.schemas.push(schema);
+  }
+
+  return result;
+}
+
+/**
+ * Converts a function argument JSON schema definition into a Zod object schema.
+ *
+ * Maps function argument schemas to object properties, requiring fields listed in
+ * `required` and applying strictness or passthrough based on `additionalProperties`
+ * and reference resolution.
+ *
+ * @param rawSchema Raw function arguments schema.
+ * @param rootDoc Optional root schema document for reference resolution.
+ * @param defCache Cache mapping reference strings to resolved Zod schemas.
+ * @returns Zod object schema validating function arguments.
+ */
+function convertFunctionArgsJsonSchemaToZod(
+  rawSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  defCache = new Map<string, z.ZodTypeAny>(),
+): z.ZodObject<z.ZodRawShape> {
+  const collected = collectArgSubSchemas(rawSchema, rootDoc);
+  const requiredSet = new Set<string>();
+  for (const s of collected.schemas) {
+    if (Array.isArray(s.required)) {
+      for (const r of s.required) {
+        if (typeof r === 'string') {
+          requiredSet.add(r);
+        }
+      }
+    }
+  }
+
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const s of collected.schemas) {
+    if (s.properties && typeof s.properties === 'object' && !Array.isArray(s.properties)) {
+      const propShape = convertPropertiesToShape(
+        s.properties as Record<string, unknown>,
+        requiredSet,
+        false,
+        rootDoc,
+        undefined,
+        defCache,
+      );
+      Object.assign(shape, propShape);
+    }
+  }
+
+  const obj = z.object(shape);
+  const allowExtra =
+    collected.hasUnresolvable ||
+    collected.schemas.some(isExplicitlyOpen) ||
+    isExplicitlyOpen(rawSchema);
+  return allowExtra ? obj.passthrough() : obj.strict();
+}
+
+/**
  * Extracts declared parameter names from a function's argument schema.
  */
-function functionParameterNames(schema: unknown): string[] {
+function functionParameterNames(schema: unknown, rootDoc?: Record<string, unknown>): string[] {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
     return [];
   }
   const s = schema as Record<string, unknown>;
   const names: string[] = [];
+  const visited = new Set<string>();
 
   const extractProperties = (node: unknown): void => {
     if (!node || typeof node !== 'object' || Array.isArray(node)) return;
     const n = node as Record<string, unknown>;
+    if (typeof n.$ref === 'string' && rootDoc && n.$ref.startsWith('#/')) {
+      if (!visited.has(n.$ref)) {
+        visited.add(n.$ref);
+        const target = resolveJsonPointer(rootDoc, n.$ref);
+        if (target) {
+          extractProperties(target);
+        }
+      }
+    }
     if (
       n.properties &&
       typeof n.properties === 'object' &&
@@ -813,7 +927,8 @@ function functionParameterNames(schema: unknown): string[] {
       typeof s.properties === 'object' &&
       s.properties !== null &&
       !Array.isArray(s.properties)) ||
-    Array.isArray(s.allOf)
+    Array.isArray(s.allOf) ||
+    typeof s.$ref === 'string'
   ) {
     extractProperties(s);
     return names;
@@ -861,7 +976,7 @@ function parseFunctionDefinitions(
   if (Array.isArray(rawFunctions)) {
     for (const fn of rawFunctions) {
       if (fn && typeof fn === 'object' && typeof fn.name === 'string') {
-        const paramNames = functionParameterNames(fn.parameters);
+        const paramNames = functionParameterNames(fn.parameters, rootDoc);
         assertFunctionIdentifiers(fn.name, paramNames);
         if (permittedNames && !permittedNames.has(fn.name)) {
           continue;
@@ -886,7 +1001,7 @@ function parseFunctionDefinitions(
     for (const [name, defn] of Object.entries(rawFunctions)) {
       const rawDefn = defn && typeof defn === 'object' ? (defn as Record<string, unknown>) : {};
       const argsSchema = functionArgsSchema(rawDefn);
-      const paramNames = functionParameterNames(argsSchema);
+      const paramNames = functionParameterNames(argsSchema, rootDoc);
       assertFunctionIdentifiers(name, paramNames);
       if (permittedNames && !permittedNames.has(name)) {
         continue;
@@ -930,7 +1045,7 @@ function functionArgsSchema(
   } else if (isShorthandParameterMap(argsSchema)) {
     argsSchema = {
       type: 'object',
-      properties: argsSchema,
+      properties: argsSchema as Record<string, unknown>,
       required: d.required,
       additionalProperties: d.additionalProperties,
     };
