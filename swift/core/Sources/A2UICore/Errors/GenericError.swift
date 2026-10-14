@@ -15,12 +15,28 @@
 /// Represents a generic processing or runtime error.
 public struct GenericError: Error, Equatable, Codable, Sendable, ProtocolVersioned {
   public let code: String
-  public let surfaceID: String?
-  public let functionCallID: String?
+  /// Stored as a sum type so a value with both or neither ID cannot be represented.
+  private let target: Target
   public let message: String
   /// The expression that failed, e.g. the function name of an `EXPRESSION_ERROR`.
   public let expression: String?
   public var version: A2UIProtocolVersion
+
+  public var surfaceID: String? {
+    if case .surface(let id) = target { return id }
+    return nil
+  }
+
+  public var functionCallID: String? {
+    if case .functionCall(let id) = target { return id }
+    return nil
+  }
+
+  /// The entity this error refers to: exactly one surface or one function call.
+  private enum Target: Equatable, Sendable {
+    case surface(String)
+    case functionCall(String)
+  }
 
   private enum CodingKeys: String, CodingKey {
     case code
@@ -38,8 +54,7 @@ public struct GenericError: Error, Equatable, Codable, Sendable, ProtocolVersion
     version: A2UIProtocolVersion
   ) {
     self.code = code
-    self.surfaceID = surfaceID
-    self.functionCallID = nil
+    self.target = .surface(surfaceID)
     self.message = message
     self.expression = expression
     self.version = version
@@ -53,24 +68,7 @@ public struct GenericError: Error, Equatable, Codable, Sendable, ProtocolVersion
     version: A2UIProtocolVersion
   ) {
     self.code = code
-    self.surfaceID = nil
-    self.functionCallID = functionCallID
-    self.message = message
-    self.expression = expression
-    self.version = version
-  }
-
-  public init(
-    code: String,
-    surfaceID: String? = nil,
-    functionCallID: String? = nil,
-    message: String,
-    expression: String? = nil,
-    version: A2UIProtocolVersion
-  ) {
-    self.code = code
-    self.surfaceID = surfaceID
-    self.functionCallID = functionCallID
+    self.target = .functionCall(functionCallID)
     self.message = message
     self.expression = expression
     self.version = version
@@ -79,15 +77,18 @@ public struct GenericError: Error, Equatable, Codable, Sendable, ProtocolVersion
   public init(from decoder: Decoder, version: A2UIProtocolVersion) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     code = try container.decode(String.self, forKey: .code)
-    surfaceID = try container.decodeIfPresent(String.self, forKey: .surfaceID)
-    functionCallID = try container.decodeIfPresent(String.self, forKey: .functionCallID)
+    let surfaceID = try container.decodeIfPresent(String.self, forKey: .surfaceID)
+    let functionCallID = try container.decodeIfPresent(String.self, forKey: .functionCallID)
     message = try container.decode(String.self, forKey: .message)
     expression = try container.decodeIfPresent(String.self, forKey: .expression)
     self.version = version
 
-    let hasSurface = surfaceID != nil
-    let hasFunctionCall = functionCallID != nil
-    if (!hasSurface && !hasFunctionCall) || (hasSurface && hasFunctionCall) {
+    switch (surfaceID, functionCallID) {
+    case (let surfaceID?, nil):
+      target = .surface(surfaceID)
+    case (nil, let functionCallID?):
+      target = .functionCall(functionCallID)
+    default:
       throw DecodingError.dataCorrupted(
         DecodingError.Context(
           codingPath: decoder.codingPath,
@@ -101,8 +102,12 @@ public struct GenericError: Error, Equatable, Codable, Sendable, ProtocolVersion
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(code, forKey: .code)
-    try container.encodeIfPresent(surfaceID, forKey: .surfaceID)
-    try container.encodeIfPresent(functionCallID, forKey: .functionCallID)
+    switch target {
+    case .surface(let surfaceID):
+      try container.encode(surfaceID, forKey: .surfaceID)
+    case .functionCall(let functionCallID):
+      try container.encode(functionCallID, forKey: .functionCallID)
+    }
     try container.encode(message, forKey: .message)
     try container.encodeIfPresent(expression, forKey: .expression)
   }
