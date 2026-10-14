@@ -1481,3 +1481,46 @@ def test_v10_catalog_rejects_at_prefixed_function_names():
             "protocolVersion": "v1.0",
             "functions": {"@index": {"returnType": "number"}},
         })
+
+
+def test_v10_catalog_accepts_ref_and_combiner_parameters():
+    """Parameters defined with $ref or combiners are not treated as shorthand maps."""
+    cat = Catalog.from_json({
+        "catalogId": "https://a2ui.org/v10-ref-fn",
+        "protocolVersion": "v1.0",
+        "functions": {
+            "refFunc": {
+                "parameters": {"$ref": "#/$defs/MyArgs"},
+                "returnType": "string",
+            },
+            "oneOfFunc": {
+                "parameters": {"oneOf": [{"type": "string"}, {"type": "number"}]},
+                "returnType": "string",
+            },
+            "allOfFunc": {
+                "parameters": {
+                    "allOf": [
+                        {"properties": {"validArg": {"type": "string"}}},
+                    ]
+                },
+                "returnType": "string",
+            },
+        },
+    })
+    assert "refFunc" in cat.functions
+    assert "oneOfFunc" in cat.functions
+    assert "allOfFunc" in cat.functions
+
+    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 argument identifier"):
+        Catalog.from_json({
+            "catalogId": "https://a2ui.org/v10-invalid-param",
+            "protocolVersion": "v1.0",
+            "functions": {
+                "badFunc": {
+                    "parameters": {
+                        "allOf": [{"properties": {"123bad": {"type": "string"}}}]
+                    },
+                    "returnType": "string",
+                },
+            },
+        })

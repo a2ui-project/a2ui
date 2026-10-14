@@ -31,8 +31,8 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["btn1"]
-          - id: "btn1"
+            children: ["text1"]
+          - id: "text1"
             component: "Text"
             text: "Inline Text"
         dataModel:
@@ -45,8 +45,8 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["btn1"]
-          - id: "btn1"
+            children: ["text1"]
+          - id: "text1"
             component: "Text"
             text: "Inline Text"
         dataModel:
@@ -337,8 +337,8 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["btn1"]
-          - id: "btn1"
+            children: ["text1"]
+          - id: "text1"
             component: "Text"
             text: "Initial"
     - version: "v1.0"
@@ -350,7 +350,7 @@
       updateComponents:
         surfaceId: "s_pipeline"
         components:
-          - id: "btn1"
+          - id: "text1"
             component: "Text"
             text: "Updated"
   expect:
@@ -362,7 +362,7 @@
         components:
           - id: "root"
             component: "Column"
-          - id: "btn1"
+          - id: "text1"
             component: "Text"
 
 - name: test_batch_duplicate_component_ids_in_same_message_error
@@ -560,15 +560,15 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["btn_child"]
-          - id: "btn_child"
+            children: ["text_child"]
+          - id: "text_child"
             component: "Text"
             text: "Child Text"
     - version: "v1.0"
       updateComponents:
         surfaceId: "s_partial_parent"
         components:
-          - id: "btn_child"
+          - id: "text_child"
             component: "Text"
             text: "Updated Child Text"
   expect:
@@ -578,7 +578,7 @@
         components:
           - id: "root"
             component: "Column"
-          - id: "btn_child"
+          - id: "text_child"
             component: "Text"
 
 - name: test_global_recursion_depth_limit_exceeded_error

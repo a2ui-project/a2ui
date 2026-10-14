@@ -639,4 +639,46 @@ describe('Catalog.fromJson & schema_loader', () => {
     });
     assert.ok(catalog.functions.has('customFunc'));
   });
+
+  it('accepts parameters defined with $ref or combiners without treating them as shorthand maps', () => {
+    const catalog = Catalog.fromJson({
+      catalogId: 'https://example.com/test-ref.json',
+      protocolVersion: 'v1.0',
+      functions: {
+        refFunc: {
+          parameters: {$ref: '#/$defs/MyArgs'},
+          returnType: 'string',
+        },
+        oneOfFunc: {
+          parameters: {oneOf: [{type: 'string'}, {type: 'number'}]},
+          returnType: 'string',
+        },
+        allOfFunc: {
+          parameters: {
+            allOf: [{properties: {valid_arg: {type: 'string'}}}],
+          },
+          returnType: 'string',
+        },
+      },
+    });
+    assert.ok(catalog.functions.has('refFunc'));
+    assert.ok(catalog.functions.has('oneOfFunc'));
+    assert.ok(catalog.functions.has('allOfFunc'));
+
+    assert.throws(
+      () =>
+        Catalog.fromJson({
+          catalogId: 'https://example.com/test-bad-allof.json',
+          protocolVersion: 'v1.0',
+          functions: {
+            badFunc: {
+              parameters: {
+                allOf: [{properties: {'123bad': {type: 'string'}}}],
+              },
+            },
+          },
+        }),
+      /UAX #?31/,
+    );
+  });
 });

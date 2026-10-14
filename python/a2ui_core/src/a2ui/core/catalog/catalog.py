@@ -890,6 +890,46 @@ class _ResolvedSchemas:
     theme: dict[str, Any]
 
 
+def _parameter_names(schema: Any) -> list[str]:
+    """Extracts declared parameter names from a function argument schema."""
+    if not isinstance(schema, dict):
+        return []
+    names: list[str] = []
+
+    def _extract_properties(node: Any) -> None:
+        if not isinstance(node, dict):
+            return
+        props = node.get("properties")
+        if isinstance(props, dict):
+            names.extend(str(k) for k in props.keys())
+        all_of = node.get("allOf")
+        if isinstance(all_of, list):
+            for member in all_of:
+                _extract_properties(member)
+
+    if isinstance(schema.get("properties"), dict) or isinstance(
+        schema.get("allOf"), list
+    ):
+        _extract_properties(schema)
+        return names
+
+    # Shorthand parameter map: an object whose values are property subschemas
+    # (dicts or bools), excluding JSON Schema keywords like $ref, allOf, oneOf, anyOf, not, type.
+    if (
+        schema
+        and not isinstance(schema.get("type"), str)
+        and "$ref" not in schema
+        and "allOf" not in schema
+        and "oneOf" not in schema
+        and "anyOf" not in schema
+        and "not" not in schema
+        and all(isinstance(v, (dict, bool)) for v in schema.values())
+    ):
+        return [str(k) for k in schema.keys()]
+
+    return []
+
+
 class Catalog(Generic[TComponent, TFunction]):
     """A versioned set of component and function API definitions.
 
@@ -2335,24 +2375,18 @@ class Catalog(Generic[TComponent, TFunction]):
                 else None
             )
             if isinstance(args_schema, dict):
-                props = (
-                    args_schema.get("properties")
-                    if isinstance(args_schema.get("properties"), dict)
-                    else args_schema
-                    if not isinstance(args_schema.get("type"), str)
-                    else None
-                )
+                param_names = _parameter_names(args_schema)
             elif (
                 raw_props is not None
                 and "call" not in raw_props
                 and "@call" not in raw_props
                 and "function" not in raw_props
             ):
-                props = raw_props
+                param_names = _parameter_names(spec_dict)
             else:
-                props = None
-            if validate_identifiers and isinstance(props, dict):
-                for arg_name in props:
+                param_names = []
+            if validate_identifiers:
+                for arg_name in param_names:
                     if not is_valid_uax31_identifier(arg_name):
                         raise A2uiCatalogError(
                             f"Invalid UAX #31 argument identifier: '{arg_name}' in"

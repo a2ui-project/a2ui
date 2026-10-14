@@ -758,6 +758,75 @@ function convertFunctionArgsJsonSchemaToZod(
 }
 
 /**
+ * Checks whether an object schema represents a shorthand parameter map (a map
+ * of parameter names to subschemas), rather than a full JSON Schema object or
+ * reference combinator.
+ */
+function isShorthandParameterMap(schema: unknown): schema is Record<string, unknown> {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+    return false;
+  }
+  const s = schema as Record<string, unknown>;
+  return (
+    Object.keys(s).length > 0 &&
+    s.properties === undefined &&
+    typeof s.type !== 'string' &&
+    !('$ref' in s) &&
+    !('allOf' in s) &&
+    !('oneOf' in s) &&
+    !('anyOf' in s) &&
+    !('not' in s) &&
+    Object.values(s).every(v => v !== null && (typeof v === 'object' || typeof v === 'boolean'))
+  );
+}
+
+/**
+ * Extracts declared parameter names from a function's argument schema.
+ */
+function functionParameterNames(schema: unknown): string[] {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+    return [];
+  }
+  const s = schema as Record<string, unknown>;
+  const names: string[] = [];
+
+  const extractProperties = (node: unknown): void => {
+    if (!node || typeof node !== 'object' || Array.isArray(node)) return;
+    const n = node as Record<string, unknown>;
+    if (
+      n.properties &&
+      typeof n.properties === 'object' &&
+      n.properties !== null &&
+      !Array.isArray(n.properties)
+    ) {
+      names.push(...Object.keys(n.properties as Record<string, unknown>));
+    }
+    if (Array.isArray(n.allOf)) {
+      for (const member of n.allOf) {
+        extractProperties(member);
+      }
+    }
+  };
+
+  if (
+    (s.properties &&
+      typeof s.properties === 'object' &&
+      s.properties !== null &&
+      !Array.isArray(s.properties)) ||
+    Array.isArray(s.allOf)
+  ) {
+    extractProperties(s);
+    return names;
+  }
+
+  if (isShorthandParameterMap(s)) {
+    return Object.keys(s);
+  }
+
+  return [];
+}
+
+/**
  * Parses raw catalog function definitions into typed FunctionApi objects.
  *
  * Validates UAX #31 identifier requirements when targeting protocol v1.0 or higher,
@@ -781,30 +850,19 @@ function parseFunctionDefinitions(
   const defCache = new Map<string, z.ZodTypeAny>();
 
   /** Validates a function's own name and its declared argument names. */
-  const assertFunctionIdentifiers = (name: string, args: unknown): void => {
+  const assertFunctionIdentifiers = (name: string, paramNames: string[]): void => {
     if (!atLeastV10) return;
     assertUax31Identifier(name, `function identifier: '${name}'`);
-    if (args && typeof args === 'object') {
-      for (const argName of Object.keys(args as Record<string, unknown>)) {
-        assertUax31Identifier(argName, `argument identifier: '${argName}' in function '${name}'`);
-      }
+    for (const argName of paramNames) {
+      assertUax31Identifier(argName, `argument identifier: '${argName}' in function '${name}'`);
     }
   };
 
   if (Array.isArray(rawFunctions)) {
     for (const fn of rawFunctions) {
       if (fn && typeof fn === 'object' && typeof fn.name === 'string') {
-        const rawParams =
-          fn.parameters && typeof fn.parameters === 'object'
-            ? (fn.parameters as Record<string, unknown>)
-            : undefined;
-        const paramProps =
-          rawParams && typeof rawParams.properties === 'object'
-            ? rawParams.properties
-            : rawParams && typeof rawParams.type !== 'string'
-              ? rawParams
-              : undefined;
-        assertFunctionIdentifiers(fn.name, paramProps);
+        const paramNames = functionParameterNames(fn.parameters);
+        assertFunctionIdentifiers(fn.name, paramNames);
         if (permittedNames && !permittedNames.has(fn.name)) {
           continue;
         }
@@ -828,13 +886,8 @@ function parseFunctionDefinitions(
     for (const [name, defn] of Object.entries(rawFunctions)) {
       const rawDefn = defn && typeof defn === 'object' ? (defn as Record<string, unknown>) : {};
       const argsSchema = functionArgsSchema(rawDefn);
-      const paramProps =
-        argsSchema && typeof argsSchema.properties === 'object'
-          ? argsSchema.properties
-          : argsSchema && typeof argsSchema.type !== 'string'
-            ? argsSchema
-            : undefined;
-      assertFunctionIdentifiers(name, paramProps);
+      const paramNames = functionParameterNames(argsSchema);
+      assertFunctionIdentifiers(name, paramNames);
       if (permittedNames && !permittedNames.has(name)) {
         continue;
       }
@@ -864,16 +917,17 @@ function parseFunctionDefinitions(
 function functionArgsSchema(
   d: Readonly<Record<string, unknown>>,
 ): Record<string, unknown> | undefined {
-  const props = d.properties as Record<string, unknown> | undefined;
+  const props =
+    d.properties &&
+    typeof d.properties === 'object' &&
+    d.properties !== null &&
+    !Array.isArray(d.properties)
+      ? (d.properties as Record<string, unknown>)
+      : undefined;
   let argsSchema = props?.args ?? d.args ?? d.parameters;
   if (!argsSchema && props && !('call' in props) && !('@call' in props) && !('function' in props)) {
     argsSchema = d;
-  } else if (
-    argsSchema &&
-    typeof argsSchema === 'object' &&
-    !('properties' in argsSchema) &&
-    !('type' in argsSchema)
-  ) {
+  } else if (isShorthandParameterMap(argsSchema)) {
     argsSchema = {
       type: 'object',
       properties: argsSchema,
@@ -881,7 +935,7 @@ function functionArgsSchema(
       additionalProperties: d.additionalProperties,
     };
   }
-  return argsSchema && typeof argsSchema === 'object'
+  return argsSchema && typeof argsSchema === 'object' && !Array.isArray(argsSchema)
     ? (argsSchema as Record<string, unknown>)
     : undefined;
 }

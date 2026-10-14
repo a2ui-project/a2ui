@@ -78,14 +78,14 @@ void main() {
 
   processor.processMessages([
     {
-      'version': '1.0',
+      'version': 'v1.0',
       'createSurface': {
         'surfaceId': 'main',
         'catalogId': BasicCatalog.v1_0Id,
       },
     },
     {
-      'version': '1.0',
+      'version': 'v1.0',
       'updateDataModel': {
         'surfaceId': 'main',
         'path': '/user/name',
@@ -106,16 +106,17 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 void bindSurface(SurfaceModel<ComponentApi> surface) {
   final resolver = NodeResolver(surface);
-  final Subscription sub = resolver.root.subscribe((ComponentNode? root) {
+  final void Function() disposeSub =
+      resolver.rootNode.subscribe((ComponentNode<ComponentApi>? root) {
     if (root == null) return;
-    final Object? textProp = root.props['text'];
+    final Object? textProp = root.props.value['text'];
     if (textProp is ResolvedBinding) {
-      print('Resolved text: ${textProp.value}');
+      print('Resolved text: ${textProp.value.value}');
     }
   });
 
   // Dispose when finished:
-  sub.unsubscribe();
+  disposeSub();
   resolver.dispose();
 }
 ```
