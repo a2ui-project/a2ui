@@ -32,7 +32,7 @@
     "build:tsc": {
       "command": "tsc -b --pretty",
       "dependencies": [
-        "../web_core:build"
+        "../core/web_core:build"
       ],
       "files": [
         "src/**/*.ts",

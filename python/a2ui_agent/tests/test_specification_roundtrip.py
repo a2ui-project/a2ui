@@ -24,7 +24,7 @@ from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats import to_message_dicts, to_message_models
 from a2ui.inference_formats.experimental.atom import AtomFormat
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
-from a2ui.inference_formats.experimental.express import ExpressFormat
+from a2ui.inference_formats.express import ExpressFormat
 
 
 def _find_specification_example_files():

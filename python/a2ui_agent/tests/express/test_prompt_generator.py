@@ -20,7 +20,7 @@ import tempfile
 import unittest
 
 from a2ui.core import Catalog
-from a2ui.inference_formats.experimental.express import ExpressFormat
+from a2ui.inference_formats.express import ExpressFormat
 from a2ui.schema import VERSION_1_0
 
 

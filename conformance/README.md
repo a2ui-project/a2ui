@@ -83,7 +83,7 @@ Refer to the test harnesses across SDKs for worked examples of running conforman
 
 - Python: `python/a2ui_agent/tests/conformance/test_conformance.py`
 - Dart: `dart/a2ui_core/test/conformance/expressions_conformance_test.dart`
-- TypeScript: `typescript/web_core/src/expressions/expression_parser.conformance.test.ts`
+- TypeScript: `typescript/core/web_core/src/expressions/expression_parser.conformance.test.ts`
 
 Both Dart and TypeScript locate the suite by walking up from the test file, so they need no configured path.
 

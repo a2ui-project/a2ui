@@ -27,7 +27,7 @@ from a2ui.core import Catalog, CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.experimental.atom import AtomFormat
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
-from a2ui.inference_formats.experimental.express import ExpressCompiler, ExpressFormat
+from a2ui.inference_formats.express import ExpressCompiler, ExpressFormat
 
 _FORMATS: dict[str, Callable[[CatalogApi], Any]] = {
     "atom": lambda catalog: AtomFormat([catalog]),

@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING**: Move `a2ui.inference_formats.experimental.express` to
+  `a2ui.inference_formats.express`.
 - **BREAKING**: The agent SDK no longer depends on an agent framework. `a2ui.a2a`
   moves to the new `a2ui-a2a` package and `a2ui.adk` to the new `a2ui-adk`
   package, and `a2a-sdk`, `google-adk`, `google-genai` and `nest-asyncio` are no
@@ -13,8 +15,8 @@
   `(bytes, mime_type)` tuples, and `as_tool_decorator` injects them into
   `resolved_files` instead of `genai_parts`. To keep the old behavior, use
   `GenAIFileResolver` from `a2ui-adk`.
-- The experimental Express, Elemental and Atom formats warn through an A2UI
-  decorator instead of ADK's. Set `A2UI_SUPPRESS_EXPERIMENTAL_FEATURE_WARNINGS`
+- The experimental Elemental and Atom formats warn through an A2UI decorator
+  instead of ADK's. Set `A2UI_SUPPRESS_EXPERIMENTAL_FEATURE_WARNINGS`
   instead of `ADK_SUPPRESS_EXPERIMENTAL_FEATURE_WARNINGS` to silence the
   warnings.
 - `DirectJsonParser.parse_chunk` raises `A2uiValidationError` on the chunk that

@@ -115,10 +115,10 @@ def prepare_build_context(demo_dir: Path) -> Path:
 
     # demo_dir is samples/community/client/lit/personalized_learning.
     repo_root = demo_dir.resolve().parents[4]
-    adapters_dir = repo_root / "typescript" / "adapters"
+    renderers_dir = repo_root / "typescript" / "renderers"
 
     # Copy web_core first (lit depends on it)
-    web_core_source = repo_root / "typescript" / "web_core"
+    web_core_source = repo_root / "typescript" / "core" / "web_core"
     web_core_dest = demo_dir / "a2ui-web-core"
 
     if not web_core_source.exists():
@@ -137,7 +137,7 @@ def prepare_build_context(demo_dir: Path) -> Path:
     )
 
     # Copy lit (the main web-lib)
-    a2ui_source = adapters_dir / "lit"
+    a2ui_source = renderers_dir / "lit"
     a2ui_dest = demo_dir / "a2ui-web-lib"
 
     if not a2ui_source.exists():

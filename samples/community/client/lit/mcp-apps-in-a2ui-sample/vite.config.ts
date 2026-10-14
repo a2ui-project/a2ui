@@ -73,7 +73,7 @@ export default defineConfig({
         resolve(__dirname, '.'),
         resolve(__dirname, '../node_modules'),
         resolve(__dirname, '../../shared'),
-        resolve(__dirname, '../../../../../typescript/adapters/lit'),
+        resolve(__dirname, '../../../../../typescript/renderers/lit'),
       ],
     },
   },
