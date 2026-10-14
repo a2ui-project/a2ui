@@ -23,7 +23,7 @@ from google.genai import types as genai_types
 from a2ui.a2a import create_a2ui_part
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.adk.a2a import A2uiPartConverter
-from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core import Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
@@ -48,7 +48,7 @@ def test_converter_class_convert_valid_tool_response():
 
     a2a_parts = converter.convert(part)
     assert len(a2a_parts) == 1
-    assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=VERSION_0_8)
+    assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=ProtocolVersion.V0_8)
 
 
 def test_converter_class_convert_valid_tool_response_v0_9_1():
@@ -128,7 +128,7 @@ def test_converter_class_convert_function_call_ignores():
 
 
 def test_converter_class_convert_text_with_a2ui():
-    converter = A2uiPartConverter([BasicCatalog(VERSION_0_8)])
+    converter = A2uiPartConverter([BasicCatalog(ProtocolVersion.V0_8)])
     valid_a2ui = [{
         "surfaceUpdate": {
             "surfaceId": "main",
@@ -147,7 +147,7 @@ def test_converter_class_convert_text_with_a2ui():
     # Expect 2 parts: TextPart and A2UI DataPart
     assert len(a2a_parts) == 2
     assert a2a_parts[0].root.text == "Here is the UI:"
-    assert a2a_parts[1] == create_a2ui_part(valid_a2ui[0], version=VERSION_0_8)
+    assert a2a_parts[1] == create_a2ui_part(valid_a2ui[0], version=ProtocolVersion.V0_8)
 
 
 def test_converter_class_convert_text_with_a2ui_v0_9_1():
@@ -176,7 +176,7 @@ def test_converter_class_convert_text_with_a2ui_v0_9_1():
 
 
 def test_converter_class_convert_text_empty_leading():
-    converter = A2uiPartConverter([BasicCatalog(VERSION_0_8)])
+    converter = A2uiPartConverter([BasicCatalog(ProtocolVersion.V0_8)])
     ui = [{
         "surfaceUpdate": {
             "surfaceId": "main",
@@ -191,11 +191,11 @@ def test_converter_class_convert_text_empty_leading():
     a2a_parts = converter.convert(part)
 
     assert len(a2a_parts) == 1
-    assert a2a_parts[0] == create_a2ui_part(ui[0], version=VERSION_0_8)
+    assert a2a_parts[0] == create_a2ui_part(ui[0], version=ProtocolVersion.V0_8)
 
 
 def test_converter_class_convert_text_markdown_wrapped():
-    converter = A2uiPartConverter([BasicCatalog(VERSION_0_8)])
+    converter = A2uiPartConverter([BasicCatalog(ProtocolVersion.V0_8)])
     ui = [{
         "surfaceUpdate": {
             "surfaceId": "main",
@@ -211,7 +211,7 @@ def test_converter_class_convert_text_markdown_wrapped():
 
     assert len(a2a_parts) == 2
     assert a2a_parts[0].root.text == "Behold:"
-    assert a2a_parts[1] == create_a2ui_part(ui[0], version=VERSION_0_8)
+    assert a2a_parts[1] == create_a2ui_part(ui[0], version=ProtocolVersion.V0_8)
 
 
 def test_converter_class_convert_text_with_invalid_a2ui():
@@ -230,7 +230,7 @@ def test_converter_class_convert_text_with_invalid_a2ui():
 def test_converter_class_convert_text_with_a2ui_that_fails_validation():
     custom_fallback = "Could not build interface."
     converter = A2uiPartConverter(
-        [BasicCatalog(VERSION_0_8)], fallback_text=custom_fallback
+        [BasicCatalog(ProtocolVersion.V0_8)], fallback_text=custom_fallback
     )
     ui = [{
         "surfaceUpdate": {
@@ -269,7 +269,7 @@ def test_converter_class_convert_other_part():
 
 
 def test_converter_class_convert_tool_response_with_result_containing_a2ui():
-    converter = A2uiPartConverter([BasicCatalog(VERSION_0_8)])
+    converter = A2uiPartConverter([BasicCatalog(ProtocolVersion.V0_8)])
     valid_a2ui = [{
         "surfaceUpdate": {
             "surfaceId": "main",
@@ -293,7 +293,7 @@ def test_converter_class_convert_tool_response_with_result_containing_a2ui():
     # Expect 2 parts: TextPart and A2UI DataPart
     assert len(a2a_parts) == 2
     assert a2a_parts[0].root.text == "Here is the result:"
-    assert a2a_parts[1] == create_a2ui_part(valid_a2ui[0], version=VERSION_0_8)
+    assert a2a_parts[1] == create_a2ui_part(valid_a2ui[0], version=ProtocolVersion.V0_8)
 
 
 def test_converter_class_convert_text_with_invalid_a2ui_and_custom_fallback():

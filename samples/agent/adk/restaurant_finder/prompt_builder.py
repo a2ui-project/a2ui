@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from a2ui.constants import VERSION_0_9
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiRequestProcessor, CatalogConfig
+from a2ui.utils import to_version_number
 
 ROLE_DESCRIPTION = (
     "You are a helpful restaurant finding assistant. Your final output MUST be an A2UI"
@@ -57,11 +58,13 @@ if __name__ == "__main__":
 
     # Example of how to use A2uiRequestProcessor to generate a system prompt
     # In your actual application, you would call this from your main agent logic.
-    version = VERSION_0_9
+    version = ProtocolVersion.V0_9
     catalog = CatalogConfig(BasicCatalog(version)).transformed_catalog
     processor = A2uiRequestProcessor([catalog])
     examples = load_examples(
-        processor.active_catalogs, f"examples/{version}", validate=True
+        processor.active_catalogs,
+        f"examples/{to_version_number(version)}",
+        validate=True,
     )
     prompt_parts = [
         ROLE_DESCRIPTION,

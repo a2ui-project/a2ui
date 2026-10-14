@@ -56,9 +56,6 @@ A2UI_VERSION_KEY = "version"
 A2UI_CODE_KEY = "code"
 A2UI_MESSAGE_KEY = "message"
 
-VERSION_0_8 = "0.8"
-VERSION_0_9 = "0.9"
-
 ENCODING = "utf-8"
 
 A2UI_OPEN_TAG = "<a2ui-json>"

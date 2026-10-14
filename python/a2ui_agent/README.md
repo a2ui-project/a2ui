@@ -16,8 +16,9 @@ The following directories contain the base protocol logic, parsing, and schema o
 
 ### Constants (`src/a2ui/constants.py`)
 
-- Protocol and SDK string constants such as `VERSION_0_9`,
-  `A2UI_OPEN_TAG`, `A2UI_CLOSE_TAG` and `A2UI_CLIENT_CAPABILITIES_KEY`. The
+- Protocol and SDK string constants such as `A2UI_OPEN_TAG`,
+  `A2UI_CLOSE_TAG` and `A2UI_CLIENT_CAPABILITIES_KEY`. Protocol versions are
+  `a2ui.core.schema.ProtocolVersion` members. The
   module has no dependencies, so callers that only need a constant can import
   `a2ui.constants` without loading the rest of the SDK.
 
@@ -36,6 +37,9 @@ The following directories contain the base protocol logic, parsing, and schema o
   or glob pattern and can validate them against the active catalogs.
 - **`schemas.py`**: `load_agent_to_renderer_schema` and
   `load_common_types_schema` return the protocol JSON schemas for a version.
+- **`versions.py`**: `to_version_number` returns a protocol version without
+  its leading "v" (`ProtocolVersion.V0_9` gives `"0.9"`), the form that A2A
+  extension URIs and many file layouts use.
 - **`schema_pruning.py`**: `prune_messages_schema` and
   `prune_common_types_schema` reduce the protocol schemas to the allowed
   messages and the common types that are referenced.

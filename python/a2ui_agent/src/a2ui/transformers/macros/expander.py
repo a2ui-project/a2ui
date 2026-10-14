@@ -24,6 +24,7 @@ from a2ui.core import A2uiCatalogError, A2uiRecursionError, Catalog, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
 from a2ui.transformers.macros.macro import _MacroMetadata
 from a2ui.transformers.macros.processor import _MacroProcessor
+from a2ui.utils import to_version_number
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +144,7 @@ class MacroExpander:
             A Catalog instance ready to be used by inference formats and prompt generators.
         """
         # catalog_definition.json writes the version without the leading "v".
-        version = ProtocolVersion.V0_9_1.value.removeprefix("v")
+        version = to_version_number(ProtocolVersion.V0_9_1)
         catalog_id = "https://a2ui.org/catalogs/macros"
 
         components = {m.name: m.to_json_schema() for m in self.macros}
