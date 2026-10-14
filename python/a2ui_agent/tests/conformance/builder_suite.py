@@ -23,6 +23,7 @@ from typing import Any, Optional
 
 import yaml
 
+from a2ui.constants import VERSION_0_9_1
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
@@ -45,8 +46,8 @@ from a2ui.core.schema.v0_9 import (
     UpdateDataModelMessage,
 )
 from a2ui.core import Catalog, CatalogApi, ValidationConfig
-from a2ui.schema.constants import VERSION_0_9_1
-from a2ui.schema.utils import find_repo_root
+
+from ..repo_paths import find_repo_root
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 CONFORMANCE_DIR = os.path.join(REPO_ROOT, "conformance", "agent", "builder")

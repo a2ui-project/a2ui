@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from a2ui.constants import VERSION_0_9
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.processor import A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import VERSION_0_9
 
 ROLE_DESCRIPTION = (
     "You are a helpful restaurant finding assistant. Your final output MUST be an A2UI"
@@ -53,7 +53,7 @@ def get_text_prompt() -> str:
 
 
 if __name__ == "__main__":
-    from a2ui.schema import load_examples
+    from a2ui.utils import load_examples
 
     # Example of how to use A2uiRequestProcessor to generate a system prompt
     # In your actual application, you would call this from your main agent logic.

@@ -19,9 +19,9 @@ import os
 import tempfile
 import unittest
 
+from a2ui.constants import VERSION_1_0
 from a2ui.core import Catalog
 from a2ui.inference_formats.express import ExpressFormat
-from a2ui.schema import VERSION_1_0
 
 
 class TestExpressPromptGenerator(unittest.TestCase):
@@ -112,7 +112,7 @@ class TestExpressPromptGenerator(unittest.TestCase):
 
     def test_express_examples_validation(self):
         from a2ui.inference_formats import to_message_models
-        from a2ui.schema import load_examples
+        from a2ui.utils import load_examples
 
         # Write a valid standard A2UI JSON example file
         example_payload = {

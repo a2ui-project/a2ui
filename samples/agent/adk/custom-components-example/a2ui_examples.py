@@ -16,7 +16,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from a2ui.schema.constants import VERSION_0_8, VERSION_0_9
+from a2ui.constants import VERSION_0_8, VERSION_0_9
 
 import jsonschema
 

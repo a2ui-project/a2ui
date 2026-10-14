@@ -479,7 +479,7 @@ pip install a2ui-agent-sdk
 ```python
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import VERSION_0_9
+from a2ui.constants import VERSION_0_9
 from a2ui.utils import validate_payload
 
 # Initialize the inference format with the basic catalog

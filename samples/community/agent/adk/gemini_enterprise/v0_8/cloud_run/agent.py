@@ -29,14 +29,10 @@ from a2ui.a2a import (
     get_a2ui_agent_extension,
     parse_response_to_parts,
 )
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    VERSION_0_8,
-)
 import dotenv
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
@@ -166,7 +162,7 @@ class ContactAgent:
         examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
-        from a2ui.schema import load_examples
+        from a2ui.utils import load_examples
 
         if processor:
             prompt_parts = [

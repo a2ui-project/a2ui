@@ -23,9 +23,9 @@ from google.genai import types as genai_types
 from a2ui.a2a import create_a2ui_part
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.adk.a2a import A2uiPartConverter
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8, VERSION_0_9_1
 from a2ui.core import Catalog
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.schema import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8, VERSION_0_9_1
 
 
 def test_converter_class_convert_valid_tool_response():

@@ -18,9 +18,9 @@ from pathlib import Path
 
 import pytest
 
+from a2ui.constants import VERSION_0_9
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.processor import CatalogConfig
-from a2ui.schema import VERSION_0_9
 from a2ui.utils import validate_payload
 
 

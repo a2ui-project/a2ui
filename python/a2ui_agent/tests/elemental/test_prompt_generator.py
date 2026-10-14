@@ -19,9 +19,9 @@ import os
 import tempfile
 import unittest
 
+from a2ui.constants import VERSION_1_0
 from a2ui.core import Catalog
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
-from a2ui.schema import VERSION_1_0
 
 
 class TestElementalPromptGenerator(unittest.TestCase):
@@ -303,7 +303,7 @@ class TestElementalPromptGenerator(unittest.TestCase):
 
     def test_elemental_examples_validation(self):
         from a2ui.inference_formats import to_message_models
-        from a2ui.schema import load_examples
+        from a2ui.utils import load_examples
 
         example_payload = {
             "version": "v1.0",

@@ -18,7 +18,7 @@ import logging
 import os
 import shutil
 from agent import RestaurantAgent
-from a2ui.schema.constants import VERSION_0_8
+from a2ui.constants import VERSION_0_8
 
 logging.basicConfig(level=logging.INFO)
 

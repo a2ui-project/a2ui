@@ -14,8 +14,8 @@
 
 
 import pytest
+from a2ui.constants import VERSION_0_9
 from a2ui.core import A2uiValidationError, Catalog
-from a2ui.schema import VERSION_0_9
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import (
     DEFAULT_PROGRESSIVE_KEYS,

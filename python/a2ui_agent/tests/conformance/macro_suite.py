@@ -23,6 +23,7 @@ from typing import Any, Literal, Optional, Sequence
 
 import yaml
 
+from a2ui.constants import VERSION_0_9_1
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.builder.v0_9 import (
     AccessibilityAttributes,
@@ -50,7 +51,6 @@ from a2ui.transformers.macros import (
 )
 from a2ui.core import A2uiValidationError, Catalog, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.schema.constants import VERSION_0_9_1
 from pydantic import TypeAdapter
 
 _message_adapter: TypeAdapter[AgentToRendererMessage] = TypeAdapter(

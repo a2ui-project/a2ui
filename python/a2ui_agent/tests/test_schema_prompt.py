@@ -19,11 +19,12 @@ from typing import Any
 
 import pytest
 
+from a2ui import constants
+from a2ui.constants import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0
 from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import schema_to_prompt
-from a2ui.schema import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0, constants
-from a2ui.schema.utils import load_common_types_schema
+from a2ui.utils import load_common_types_schema
 
 _A2R = "Agent to Renderer Schema"
 _COMMON_TYPES = "Common Types Schema"

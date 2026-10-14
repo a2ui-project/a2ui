@@ -19,9 +19,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Optional, Sequence, Union
 
+from a2ui.constants import CATALOG_COMPONENTS_KEY
 from a2ui.core import A2uiCatalogError, A2uiRecursionError, Catalog, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
-from a2ui.schema.constants import CATALOG_COMPONENTS_KEY
 from a2ui.transformers.macros.macro import _MacroMetadata
 from a2ui.transformers.macros.processor import _MacroProcessor
 
@@ -142,7 +142,7 @@ class MacroExpander:
         Returns:
             A Catalog instance ready to be used by inference formats and prompt generators.
         """
-        from a2ui.schema.constants import VERSION_0_9_1
+        from a2ui.constants import VERSION_0_9_1
 
         version = VERSION_0_9_1
         catalog_id = "https://a2ui.org/catalogs/macros"

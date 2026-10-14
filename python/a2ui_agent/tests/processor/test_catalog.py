@@ -20,6 +20,7 @@ from a2ui.catalog_transformers import (
     ComponentPruningTransformer,
     FunctionPruningTransformer,
 )
+from a2ui.constants import VERSION_0_8, VERSION_0_9
 from a2ui.core import A2uiCatalogError
 from a2ui.core.basic_catalog import BasicCatalog, v0_8, v0_9, v1_0
 from a2ui.processor import (
@@ -28,11 +29,7 @@ from a2ui.processor import (
     FileSystemCatalogProvider,
     InMemoryCatalogProvider,
 )
-from a2ui.schema import (
-    VERSION_0_8,
-    VERSION_0_9,
-    resolve_examples_path,
-)
+from a2ui.utils import resolve_examples_path
 
 
 def test_catalog_provider_is_abstract():

@@ -42,16 +42,11 @@ from a2ui.a2a import (
     parse_response_to_parts,
     stream_response_to_parts,
 )
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_8, VERSION_0_9
 from a2ui.core import CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.parser import A2uiPart, Parser
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    VERSION_0_8,
-    VERSION_0_9,
-)
 from a2ui_examples import load_floor_plan_example
 from prompt_builder import ROLE_DESCRIPTION, UI_DESCRIPTION, WORKFLOW_DESCRIPTION, get_text_prompt
 from tools import get_contact_info
@@ -238,7 +233,7 @@ class ContactAgent:
         examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
-        from a2ui.schema import load_examples
+        from a2ui.utils import load_examples
 
         LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.6-flash")
 

@@ -12,13 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_9
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.processor import A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    VERSION_0_9,
-)
 
 ROLE_DESCRIPTION = (
     "You are a helpful contact lookup assistant. Your final output MUST be a a2ui UI"
@@ -72,7 +68,7 @@ def get_ui_prompt(
     validate_examples: bool = False,
 ) -> str:
     """Constructs the full system prompt for the UI agent."""
-    from a2ui.schema import load_examples
+    from a2ui.utils import load_examples
 
     prompt_parts = [ROLE_DESCRIPTION]
     if WORKFLOW_DESCRIPTION:
@@ -89,7 +85,7 @@ def get_ui_prompt(
 
 
 if __name__ == "__main__":
-    from a2ui.schema import load_examples
+    from a2ui.utils import load_examples
 
     # Example of how to use A2uiRequestProcessor to generate a system prompt
     my_base_url = "http://localhost:8000"

@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 # wire-protocol version string. It is the `version` value in a message shaped
 # like `{"version": "v0.9", "action": {...}}` per the A2UI v0.9 client-to-server
 # spec. Note this wire value ("v0.9") intentionally differs from the a2ui SDK's
-# version constant a2ui.schema.constants.VERSION_0_9 ("0.9").
+# version constant a2ui.constants.VERSION_0_9 ("0.9").
 A2UI_CLIENT_MESSAGE_VERSION = "v0.9"
 
 

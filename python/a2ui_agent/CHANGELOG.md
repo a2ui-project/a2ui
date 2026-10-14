@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **BREAKING**: Remove the `a2ui.schema` package.
+  - The constants move to `a2ui.constants`. For example,
+    `from a2ui.schema import VERSION_0_9` becomes
+    `from a2ui.constants import VERSION_0_9`.
+  - `load_examples`, `resolve_examples_path`, `load_agent_to_renderer_schema`
+    and `load_common_types_schema` move to `a2ui.utils`.
+  - `find_repo_root`, `get_spec_dir`, `get_basic_catalog_path`,
+    `get_basic_examples_dir`, `wrap_as_json_array` and `deep_update` are
+    removed. The path helpers only worked in a repository checkout.
+  - The `SPECIFICATION_DIR` constant is removed.
 - **BREAKING**: Move `a2ui.inference_formats.experimental.express` to
   `a2ui.inference_formats.express`.
 - **BREAKING**: The agent SDK no longer depends on an agent framework. `a2ui.a2a`

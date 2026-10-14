@@ -107,7 +107,7 @@ In your agent file (e.g., `agent.py`), import the necessary classes:
 ```python
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema import VERSION_0_8, VERSION_0_9
+from a2ui.constants import VERSION_0_8, VERSION_0_9
 ```
 
 Then, you can use `DirectJsonFormat` to generate the system prompt. This ensures that the schema and examples are correctly formatted and up to date.

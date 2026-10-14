@@ -18,11 +18,11 @@ import re
 
 import pytest
 
+from a2ui.constants import VERSION_0_9
 from a2ui.core import Catalog
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.experimental.atom import AtomCompiler, AtomFormat
 from a2ui.inference_formats.express import ExpressCompiler, ExpressFormat
-from a2ui.schema import VERSION_0_9
 
 
 def _extract_a2ui_examples(rules_text: str) -> list[str]:

@@ -14,15 +14,10 @@
 
 import pytest
 
+from a2ui.constants import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0
 from a2ui.core import A2uiCatalogError
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonFormat, DirectJsonParser
-from a2ui.schema import (
-    VERSION_0_8,
-    VERSION_0_9,
-    VERSION_0_9_1,
-    VERSION_1_0,
-)
 
 
 def test_direct_json_format_holds_its_catalogs():

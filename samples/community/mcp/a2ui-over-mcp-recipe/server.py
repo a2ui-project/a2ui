@@ -19,8 +19,8 @@ from typing import Any
 import anyio
 import click
 import mcp.types as types
+from a2ui.constants import VERSION_0_9
 from a2ui.processor import CatalogConfig
-from a2ui.schema import VERSION_0_9
 from a2ui.utils import validate_payload
 from mcp.server.lowlevel import Server
 from mcp.server.lowlevel.helper_types import ReadResourceContents

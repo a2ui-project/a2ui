@@ -19,9 +19,9 @@ from typing import Any, ClassVar
 
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a import get_a2ui_agent_extension
+from a2ui.constants import VERSION_0_8, VERSION_0_9
 from a2ui.core import CatalogApi
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import VERSION_0_8, VERSION_0_9
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService

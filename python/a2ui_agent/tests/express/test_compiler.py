@@ -44,7 +44,8 @@ from a2ui.inference_formats.express import (
     ExpressUndefinedRootError,
     ExpressUnknownPropertyError,
 )
-from a2ui.schema.utils import find_repo_root, get_spec_dir
+
+from ..repo_paths import find_repo_root, get_spec_dir
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_DIR = get_spec_dir("v1_0")

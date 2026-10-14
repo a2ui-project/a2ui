@@ -30,7 +30,8 @@ from a2ui.inference_formats import (
     to_message_dicts,
 )
 
-from a2ui.schema.utils import find_repo_root, get_spec_dir
+from ..repo_paths import find_repo_root, get_spec_dir
+
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_DIR = get_spec_dir("v1_0")

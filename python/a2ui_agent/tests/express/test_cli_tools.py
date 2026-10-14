@@ -22,7 +22,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 import urllib.error
 
-from a2ui.schema.utils import (
+from ..repo_paths import (
     find_repo_root,
     get_basic_catalog_path,
     get_basic_examples_dir,

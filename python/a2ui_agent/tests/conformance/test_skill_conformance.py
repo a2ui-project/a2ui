@@ -23,8 +23,9 @@ from a2ui.inference_formats.experimental.atom import AtomFormat
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.express import ExpressFormat
 from a2ui.processor import CatalogConfig
-from a2ui.schema.utils import find_repo_root
 from a2ui.skill import SkillGenerator
+
+from ..repo_paths import find_repo_root
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 SPEC_YAML_PATH = os.path.join(REPO_ROOT, "conformance", "agent", "skill.yaml")

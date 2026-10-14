@@ -35,7 +35,7 @@ The first step in any A2UI-enabled agent is loading your catalogs into an
 ```python
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import VERSION_0_9
+from a2ui.constants import VERSION_0_9
 
 # Define your catalogs (basic or bring your own)
 catalog_configs = [
@@ -88,7 +88,7 @@ snippet, and combine it with your agent's role/workflow instructions and
 optional few-shot examples loaded via `load_examples`.
 
 ```python
-from a2ui.schema import load_examples
+from a2ui.utils import load_examples
 
 examples = load_examples(
     processor.active_catalogs,
@@ -312,7 +312,7 @@ at runtime (e.g., during session preparation) to negotiate the active catalogs
 and store the selected catalog in the session state.
 
 ```python
-from a2ui.schema import load_examples
+from a2ui.utils import load_examples
 
 # In your AgentExecutor subclass
 async def _prepare_session(self, context, run_request, runner):
@@ -462,7 +462,7 @@ When an orchestrator receives an A2A request from a client, it captures the clie
 
 ```python
 from a2a.types import Message as A2AMessage
-from a2ui.schema import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from google.adk.a2a.agent.config import A2aRemoteAgentConfig, ParametersConfig, RequestInterceptor
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
@@ -501,7 +501,7 @@ When acting as a proxy connecting a non-A2A frontend (such as Orcas UI) to a rem
 
 ```python
 from a2a.types import Message as A2AMessage
-from a2ui.schema import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from google.adk.a2a.agent.config import A2aRemoteAgentConfig, ParametersConfig, RequestInterceptor
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent

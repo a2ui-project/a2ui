@@ -15,9 +15,10 @@
 """Prompt builder for the rizzcharts agent."""
 
 # pylint: disable=g-importing-member, line-too-long
+from a2ui.constants import VERSION_0_9
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.processor import A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import VERSION_0_9, load_examples
+from a2ui.utils import load_examples
 from agent import ROLE_DESCRIPTION, WORKFLOW_DESCRIPTION, UI_DESCRIPTION
 
 

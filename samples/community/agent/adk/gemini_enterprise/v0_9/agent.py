@@ -28,13 +28,9 @@ from a2a.types import (
 )
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.a2a import parse_response_to_parts, stream_response_to_parts
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG, VERSION_0_9
 from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    VERSION_0_9,
-)
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
@@ -190,7 +186,7 @@ class A2uiDemoAgent:
         examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the A2UI demo agent."""
-        from a2ui.schema import load_examples
+        from a2ui.utils import load_examples
 
         model_env = os.getenv("MODEL") or "gemini-2.5-flash"
         model_name = model_env.split("/")[-1]

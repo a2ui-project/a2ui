@@ -16,10 +16,10 @@
 
 import unittest
 
+from a2ui.constants import VERSION_0_9
 from a2ui.core import Catalog
 from a2ui.inference_formats.experimental.elemental import ElementalParser
 from a2ui.parser import A2uiCompilationError
-from a2ui.schema import VERSION_0_9
 
 
 class TestElementalIntegration(unittest.TestCase):
