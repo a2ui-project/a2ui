@@ -20,11 +20,17 @@
  * Reconstructs standard A2UI envelopes back into A2UI Express DSL code.
  */
 
-import {A2uiCatalogError} from '../../errors.js';
 import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
 import {A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG} from '../../parser/constants.js';
 import {RawResponsePart} from '../../parser/response-part.js';
-import {buildSchemaHelpers, catalogsDefining, toCatalogList} from './catalogs.js';
+import {
+  buildSchemaHelpers,
+  catalogsDefining,
+  checkMixedCatalogs,
+  toCatalogList,
+  unknownCatalogError,
+  unknownSymbolError,
+} from './catalogs.js';
 import {ExpressInvalidIdentifierError, ExpressValidationError} from './errors.js';
 import {isExpressIdentifier} from './identifier.js';
 import {CatalogSchemaHelper, commonDefName} from './schema-helper.js';
@@ -211,6 +217,7 @@ export class ExpressDecompiler {
    */
   constructor(catalogs: CatalogApi | CatalogApi[], protocolVersion: string) {
     this.catalogs = toCatalogList(catalogs);
+    checkMixedCatalogs(this.catalogs);
     this.protocolVersion = protocolVersion;
     this.helpers = buildSchemaHelpers(this.catalogs, protocolVersion);
     this.soleCatalogId = this.catalogs.length === 1 ? this.catalogs[0].id : undefined;
@@ -237,11 +244,11 @@ export class ExpressDecompiler {
     }
     const helper = this.helpers.get(actual);
     if (!helper) {
-      throw new ExpressValidationError(`${label} '${name}' targets unknown catalog '${actual}'.`);
+      throw unknownCatalogError(`${label} '${name}'`, actual, this.catalogs);
     }
     const defs = kind === 'component' ? helper.components : helper.functions;
     if (!defs.has(name)) {
-      throw new ExpressValidationError(`${label} '${name}' is not defined in catalog '${actual}'.`);
+      throw unknownSymbolError(kind, name, actual, this.helpers);
     }
     if (this.soleCatalogId !== undefined) {
       return {helper};
@@ -272,7 +279,8 @@ export class ExpressDecompiler {
 
       const cs = asRecord(msg.createSurface);
       if (cs) {
-        const sid = typeof cs.surfaceId === 'string' ? cs.surfaceId : 'default_surface';
+        const sid =
+          typeof cs.surfaceId === 'string' && cs.surfaceId ? cs.surfaceId : 'default_surface';
         const copy: Record<string, unknown> = {...msg, createSurface: {...cs}};
         openBySurface.set(sid, result.length);
         result.push(copy);
@@ -281,7 +289,8 @@ export class ExpressDecompiler {
 
       const ds = asRecord(msg.deleteSurface);
       if (ds) {
-        const sid = typeof ds.surfaceId === 'string' ? ds.surfaceId : 'default_surface';
+        const sid =
+          typeof ds.surfaceId === 'string' && ds.surfaceId ? ds.surfaceId : 'default_surface';
         openBySurface.delete(sid);
         result.push(msg);
         continue;
@@ -295,7 +304,8 @@ export class ExpressDecompiler {
 
       const uc = asRecord(msg.updateComponents);
       if (uc) {
-        const sid = typeof uc.surfaceId === 'string' ? uc.surfaceId : 'default_surface';
+        const sid =
+          typeof uc.surfaceId === 'string' && uc.surfaceId ? uc.surfaceId : 'default_surface';
         if (openBySurface.has(sid)) {
           const openCs = result[openBySurface.get(sid)!].createSurface as Record<string, unknown>;
           if (!openCs.components) {
@@ -310,15 +320,15 @@ export class ExpressDecompiler {
 
       const udm = asRecord(msg.updateDataModel);
       if (udm) {
-        const sid = typeof udm.surfaceId === 'string' ? udm.surfaceId : 'default_surface';
+        const sid =
+          typeof udm.surfaceId === 'string' && udm.surfaceId ? udm.surfaceId : 'default_surface';
         if (openBySurface.has(sid)) {
           const openCs = result[openBySurface.get(sid)!].createSurface as Record<string, unknown>;
           const isRootPath =
             udm.path === undefined || udm.path === null || udm.path === '' || udm.path === '/';
           const valObj = asRecord(udm.value);
           if (isRootPath && valObj) {
-            const existing = asRecord(openCs._coalesced_data_model) ?? {};
-            openCs._coalesced_data_model = {...existing, ...valObj};
+            openCs.dataModel = {...valObj};
             continue;
           }
           openBySurface.delete(sid);
@@ -399,6 +409,7 @@ export class ExpressDecompiler {
     let callIndex = 0;
 
     for (const envelope of coalesced) {
+      const isFirst = blocks.length === 0;
       const ds = asRecord(envelope.deleteSurface);
       if (ds) {
         blocks.push(this.decompileDeleteSurface(ds, surfaceCatalogs));
@@ -419,21 +430,21 @@ export class ExpressDecompiler {
 
       const udm = asRecord(envelope.updateDataModel);
       if (udm) {
-        const block = this.decompileUpdateDataModel(udm, surfaceCatalogs);
+        const block = this.decompileUpdateDataModel(udm, surfaceCatalogs, isFirst);
         if (block) blocks.push(block);
         continue;
       }
 
       const cs = asRecord(envelope.createSurface);
       if (cs) {
-        const block = this.decompileCreateSurface(cs, surfaceCatalogs, useKeywordArgs);
+        const block = this.decompileCreateSurface(cs, surfaceCatalogs, useKeywordArgs, isFirst);
         if (block) blocks.push(block);
         continue;
       }
 
       const uc = asRecord(envelope.updateComponents);
       if (uc) {
-        const block = this.decompileUpdateComponents(uc, surfaceCatalogs, useKeywordArgs);
+        const block = this.decompileUpdateComponents(uc, surfaceCatalogs, useKeywordArgs, isFirst);
         if (block) blocks.push(block);
         continue;
       }
@@ -470,7 +481,7 @@ export class ExpressDecompiler {
     helper: CatalogSchemaHelper,
     surfaceCatalogId: string | undefined,
   ): string[] {
-    if (!hasDataToWrite(dataVal)) {
+    if (!basePath && !hasDataToWrite(dataVal)) {
       return [];
     }
     const flattened = flattenDataModel(dataVal);
@@ -487,7 +498,7 @@ export class ExpressDecompiler {
     surfaceCatalogs: Map<string, string>,
   ): string {
     const surfaceId = typeof surfOp.surfaceId === 'string' ? surfOp.surfaceId : '';
-    surfaceCatalogs.delete(surfaceId);
+    surfaceCatalogs.delete(surfaceId || 'default_surface');
     return `deleteSurface(${decompileString(surfaceId)})`;
   }
 
@@ -506,45 +517,55 @@ export class ExpressDecompiler {
   private decompileUpdateDataModel(
     valOp: Record<string, unknown>,
     surfaceCatalogs: ReadonlyMap<string, string>,
+    isFirst: boolean,
   ): string | undefined {
-    const surfaceId = typeof valOp.surfaceId === 'string' ? valOp.surfaceId : '';
+    const surfaceId =
+      typeof valOp.surfaceId === 'string' && valOp.surfaceId ? valOp.surfaceId : 'default_surface';
     const {surfaceCatalogId, helper} = this.resolveSurfaceContext(surfaceId, surfaceCatalogs);
-    const rawPath = typeof valOp.path === 'string' ? valOp.path : '';
+    const rawPath = typeof valOp.path === 'string' && valOp.path ? valOp.path : '/';
     const basePath = rawPath.replace(/\/+$/, '');
-    const dataVal = valOp.value ?? {};
-    const dslLines: string[] = [];
+    const dataVal = basePath ? (valOp.value ?? null) : (valOp.value ?? {});
+    const dataLines = this.formatDataModelLines(
+      dataVal,
+      basePath,
+      new Set(),
+      helper,
+      surfaceCatalogId,
+    );
+    if (dataLines.length === 0) {
+      return undefined;
+    }
 
-    if (surfaceId && surfaceId !== 'default_surface') {
+    const dslLines: string[] = [];
+    if (!(isFirst && surfaceId === 'default_surface')) {
       dslLines.push(this.formatSurfaceHeader(surfaceId));
     }
-    dslLines.push(
-      ...this.formatDataModelLines(dataVal, basePath, new Set(), helper, surfaceCatalogId),
-    );
-    return dslLines.length > 0 ? dslLines.join('\n') : undefined;
+    dslLines.push(...dataLines);
+    return dslLines.join('\n');
   }
 
   private decompileCreateSurface(
     cs: Record<string, unknown>,
     surfaceCatalogs: Map<string, string>,
     useKeywordArgs: boolean,
+    isFirst: boolean,
   ): string | undefined {
-    const surfaceId = typeof cs.surfaceId === 'string' ? cs.surfaceId : '';
+    const surfaceId =
+      typeof cs.surfaceId === 'string' && cs.surfaceId ? cs.surfaceId : 'default_surface';
     if (typeof cs.catalogId === 'string' && cs.catalogId) {
       if (this.helpers.size > 0 && !this.helpers.has(cs.catalogId)) {
-        throw new A2uiCatalogError(
-          `Message for surface '${surfaceId}' names catalog '${cs.catalogId}', which is not among the active catalogs (${[...this.helpers.keys()].join(', ')}).`,
-        );
+        throw unknownCatalogError(`Surface '${surfaceId}'`, cs.catalogId, this.catalogs);
       }
       surfaceCatalogs.set(surfaceId, cs.catalogId);
-    } else if (surfaceId) {
+    } else {
       surfaceCatalogs.delete(surfaceId);
     }
     const {surfaceCatalogId, helper} = this.resolveSurfaceContext(surfaceId, surfaceCatalogs);
 
     const sendDataModel = typeof cs.sendDataModel === 'boolean' ? cs.sendDataModel : undefined;
     const dslLines: string[] = [];
-    if ((surfaceId && surfaceId !== 'default_surface') || sendDataModel !== undefined) {
-      dslLines.push(this.formatSurfaceHeader(surfaceId || 'default_surface', {sendDataModel}));
+    if (!(isFirst && surfaceId === 'default_surface' && sendDataModel === undefined)) {
+      dslLines.push(this.formatSurfaceHeader(surfaceId, {sendDataModel}));
     }
 
     const components = Array.isArray(cs.components)
@@ -562,18 +583,6 @@ export class ExpressDecompiler {
       dslLines.push(this.formatComponent(c, compIds, surfaceCatalogId, useKeywordArgs));
     }
 
-    if (asRecord(cs._coalesced_data_model)) {
-      dslLines.push(
-        ...this.formatDataModelLines(
-          cs._coalesced_data_model,
-          '',
-          compIds,
-          helper,
-          surfaceCatalogId,
-        ),
-      );
-    }
-
     return dslLines.length > 0 ? dslLines.join('\n') : undefined;
   }
 
@@ -581,8 +590,10 @@ export class ExpressDecompiler {
     uc: Record<string, unknown>,
     surfaceCatalogs: ReadonlyMap<string, string>,
     useKeywordArgs: boolean,
+    isFirst: boolean,
   ): string | undefined {
-    const surfaceId = typeof uc.surfaceId === 'string' ? uc.surfaceId : '';
+    const surfaceId =
+      typeof uc.surfaceId === 'string' && uc.surfaceId ? uc.surfaceId : 'default_surface';
     const {surfaceCatalogId} = this.resolveSurfaceContext(surfaceId, surfaceCatalogs);
     const components = Array.isArray(uc.components)
       ? (uc.components as Array<Record<string, unknown>>)
@@ -590,9 +601,9 @@ export class ExpressDecompiler {
     const hasRoot = components.some(c => asRecord(c)?.id === 'root');
 
     const dslLines: string[] = [];
-    if ((surfaceId && surfaceId !== 'default_surface') || hasRoot) {
+    if (hasRoot || !(isFirst && surfaceId === 'default_surface')) {
       dslLines.push(
-        this.formatSurfaceHeader(surfaceId || 'default_surface', {
+        this.formatSurfaceHeader(surfaceId, {
           update: hasRoot ? true : undefined,
         }),
       );
@@ -823,7 +834,11 @@ export class ExpressDecompiler {
   ): string {
     const rawCall = funcCall['@call'] ?? funcCall['call'];
     const funcName = typeof rawCall === 'string' ? rawCall : '';
-    const args = optionalObjectField(funcCall.args, `Function call '${funcName}'`, 'args');
+    const rawArgs = funcCall.args;
+    const isListArgs = Array.isArray(rawArgs);
+    const dictArgs = isListArgs
+      ? {}
+      : optionalObjectField(rawArgs, `Function call '${funcName}'`, 'args');
 
     const {helper, catalogId: emitCatalogId} = this.resolveSymbol(
       'function',
@@ -834,9 +849,12 @@ export class ExpressDecompiler {
 
     const fnProps = helper.getFunctionProperties(funcName);
     const argsReprs: string[] = [];
-    for (const p of fnProps) {
-      if (p in args) {
-        argsReprs.push(this.decompileValue(args[p], compIds, false, helper, surfaceCatalogId));
+    for (let idx = 0; idx < fnProps.length; idx++) {
+      const p = fnProps[idx];
+      const present = isListArgs ? idx < rawArgs.length : p in dictArgs;
+      if (present) {
+        const argVal = isListArgs ? rawArgs[idx] : dictArgs[p];
+        argsReprs.push(this.decompileValue(argVal, compIds, false, helper, surfaceCatalogId));
       } else {
         argsReprs.push('_');
       }
