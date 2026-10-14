@@ -279,9 +279,11 @@ def test_pruning_a_loaded_catalog_keeps_its_defs_as_written():
     a_schema = schema["components"]["A"]
     assert a_schema["properties"]["x"] == source["$defs"]["X"]
     validator = jsonschema.Draft202012Validator({"$defs": schema["$defs"], **a_schema})
-    validator.validate({"component": "A", "x": {"n": 1}, "label": {"text": "hi"}})
+    validator.validate(
+        {"id": "a1", "component": "A", "x": {"n": 1}, "label": {"text": "hi"}}
+    )
     with pytest.raises(jsonschema.ValidationError):
-        validator.validate({"component": "A", "x": {"n": "one"}})
+        validator.validate({"id": "a1", "component": "A", "x": {"n": "one"}})
 
 
 def test_pruning_keeps_defs_that_a_kept_unreferenced_def_references():

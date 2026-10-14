@@ -440,12 +440,15 @@ export function executeFormatString(
 
   if (parts.length === 0) return '';
 
-  const isV10 = isAtLeastVersion(context.surface?.defaultCatalog?.protocolVersion, '1.0');
+  const atLeastV10 = isAtLeastVersion(
+    context.surface?.protocolVersion ?? context.surface?.defaultCatalog?.protocolVersion,
+    '1.0',
+  );
   const dynamicParts = parts.map(part => {
     if (typeof part !== 'object' || part === null || Array.isArray(part)) {
       return part;
     }
-    const adapted = isV10 ? adaptAstPartForV10(part) : part;
+    const adapted = atLeastV10 ? adaptAstPartForV10(part) : part;
     return context.resolveSignal(adapted);
   });
 

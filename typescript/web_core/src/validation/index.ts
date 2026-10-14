@@ -21,4 +21,4 @@
  */
 
 export * from './integrity-checker.js';
-export * from './payload-validator.js';
+export {PayloadValidator} from './payload-validator.js';

@@ -17,6 +17,7 @@ Test suites are organized by functional domain:
 - `core/message_processor.yaml`: Contains test cases for the message processor's state machine. Written in the case vocabulary of the `v1_0` branch, whose suite of the same name is the primary one, so the two converge rather than conflict.
 - `core/node_resolution.yaml`: Contains node-tree, scoped-binding, notification, identity, action, and destruction scenarios. See [the case format](core/node_resolution.md).
 - `core/expressions.yaml`: Contains test cases for the client-side expression parser behind `formatString`, covering literals, data bindings, function calls, nested interpolation, escaped markers and parse errors.
+- `core/functions.yaml`: Contains test cases for the basic catalog functions, and for the catalog a function call runs in on a surface. See [Writing cases for `evaluate_function`](#writing-cases-for-evaluate_function).
 
 ### Agent (`agent/`)
 
@@ -108,6 +109,14 @@ In addition to the declarative YAML conformance suites, SDKs implementing infere
 Harnesses join adjacent literal parts before comparing, and drop empty ones. A case therefore fixes what a template _means_, not how a given implementation splits the literal text around its values; implementations that split literal runs differently still conform as long as the values and the text agree.
 
 Errors are expressed with the suite's language-agnostic categories rather than an SDK's class names: `ParseError` maps to `A2uiExpressionError` in both the Dart and TypeScript clients, and `message` is matched as a regular expression against the error's text.
+
+### Writing cases for `evaluate_function`
+
+An `evaluate_function` case (`EvaluateFunctionTest` in `conformance_schema.json`) names a `function` and its `args`, and states the result in `expect` or the failure in `expectError`. Without a `surface` block, the harness invokes the function's implementation directly in the case's default catalog, which is how `core/functions.yaml` checks what each basic catalog function computes.
+
+A `surface` block makes the harness evaluate the function as a call on a surface instead, so the call goes through catalog resolution. The harness builds a surface for the case's `protocolVersion`. The catalogs from `catalogPaths` that are built for that version are the surface's available catalogs; a catalog built for another version is loaded but not available on the surface. `surface.catalogId` names the surface default catalog, which must be one of the available catalogs. A v1.0 case omits it to describe a surface without a default catalog. The case-level `catalogId` is the `catalogId` the call itself names. The harness then evaluates `{"@call": function, "catalogId": catalogId, "args": args}` (or `call` instead of `@call` before v1.0) through the surface's data context at the root path. `args` may hold nested calls, which are resolved the same way.
+
+From v1.0, a call runs in the catalog its own `catalogId` names, else in the surface default, else it fails with a `CatalogError`. Before v1.0, a call's `catalogId` is ignored and the call runs in the surface catalog. Some SDKs report an evaluation failure on the surface's error channel and return no value instead of raising. A harness treats the first error reported that way as raised, and fails a case that expects an error when the SDK neither raises nor reports one. `@index` has no `evaluate_function` case, because it is only defined inside a list template, which this action cannot describe.
 
 ### Writing cases for the agent SDK suites
 

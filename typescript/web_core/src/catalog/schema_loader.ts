@@ -766,7 +766,7 @@ function convertFunctionArgsJsonSchemaToZod(
  * @param rawFunctions Raw function definitions from the catalog schema (array or dictionary).
  * @param rootDoc Optional root schema document for reference resolution.
  * @param permittedNames Optional set of allowed function names from `anyFunction.oneOf`.
- * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
+ * @param atLeastV10 Whether the catalog targets protocol v1.0 or higher.
  * @returns Array of parsed FunctionApi objects.
  * @throws {A2uiCatalogError} If a function or argument identifier fails UAX #31 validation in v1.0+.
  */
@@ -774,7 +774,7 @@ function parseFunctionDefinitions(
   rawFunctions: unknown,
   rootDoc?: Record<string, unknown>,
   permittedNames?: Set<string>,
-  isAtLeastV10 = false,
+  atLeastV10 = false,
 ): FunctionApi[] {
   const result: FunctionApi[] = [];
   if (!rawFunctions) return result;
@@ -782,7 +782,7 @@ function parseFunctionDefinitions(
 
   /** Validates a function's own name and its declared argument names. */
   const assertFunctionIdentifiers = (name: string, args: unknown): void => {
-    if (!isAtLeastV10) return;
+    if (!atLeastV10) return;
     assertUax31Identifier(name, `function identifier: '${name}'`);
     if (args && typeof args === 'object') {
       for (const argName of Object.keys(args as Record<string, unknown>)) {
@@ -905,7 +905,7 @@ function extractPermittedNames(oneOf: unknown, prefix: string): Set<string> | un
  *
  * @param componentsMap Mapping of component name to raw component schema definition.
  * @param catalogSchema Enclosing raw catalog schema for resolving local references.
- * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
+ * @param atLeastV10 Whether the catalog targets protocol v1.0 or higher.
  * @param permittedNames Optional set of allowed component names from anyComponent.oneOf.
  * @returns Array of parsed ComponentApi objects with validation schemas and hierarchy constraints.
  * @throws {A2uiCatalogError} If a component or property identifier fails UAX #31 validation in v1.0+.
@@ -913,7 +913,7 @@ function extractPermittedNames(oneOf: unknown, prefix: string): Set<string> | un
 function parseCatalogComponents(
   componentsMap: Record<string, unknown>,
   catalogSchema: Record<string, unknown>,
-  isAtLeastV10: boolean,
+  atLeastV10: boolean,
   permittedNames?: Set<string>,
 ): ComponentApi[] {
   const components: ComponentApi[] = [];
@@ -921,7 +921,7 @@ function parseCatalogComponents(
 
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
     const rawComp = (rawCompSchema as Record<string, unknown>) || {};
-    if (isAtLeastV10) {
+    if (atLeastV10) {
       assertUax31Identifier(name, `component identifier: '${name}'`);
       const props = rawComp.properties;
       if (props && typeof props === 'object') {
@@ -943,7 +943,7 @@ function parseCatalogComponents(
           catalogSchema,
           true,
           defCache,
-          isAtLeastV10,
+          atLeastV10,
         ),
       ),
     );
@@ -1028,13 +1028,13 @@ export function parseCatalogSchema(
     protocolVersion ??
     (catalogSchema.protocolVersion as string | undefined) ??
     DEFAULT_PROTOCOL_VERSION;
-  const isAtLeastV10 = isAtLeastVersion(resolvedVersion, '1.0');
+  const atLeastV10 = isAtLeastVersion(resolvedVersion, '1.0');
 
   const componentsMap = (catalogSchema.components as Record<string, unknown>) ?? {};
   const components = parseCatalogComponents(
     componentsMap,
     catalogSchema,
-    isAtLeastV10,
+    atLeastV10,
     permittedNames,
   );
 
@@ -1046,7 +1046,7 @@ export function parseCatalogSchema(
     catalogSchema.functions,
     catalogSchema,
     permittedFunctionNames,
-    isAtLeastV10,
+    atLeastV10,
   );
 
   const themeSchema = parseThemeSchema(catalogSchema, defs);

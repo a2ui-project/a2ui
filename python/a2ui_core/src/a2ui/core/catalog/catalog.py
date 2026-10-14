@@ -382,14 +382,14 @@ def _is_function_definition(schema: Any) -> bool:
 
     A function defined in code may give the schema of its arguments instead,
     which `to_json` wraps in the call shape of its protocol version. An entry
-    is a call schema (`properties` has `call` or `@call`) or declares a
+    is a call schema (`properties` has `call`, `@call` or `args`) or declares a
     keyword only entries write, such as `returnType`.
     """
     if not isinstance(schema, Mapping):
         return False
     properties = schema.get("properties")
     if isinstance(properties, Mapping) and (
-        "call" in properties or "@call" in properties
+        "call" in properties or "@call" in properties or "args" in properties
     ):
         return True
     return any(key in schema for key in _FUNCTION_DEFINITION_KEYWORDS)
@@ -680,6 +680,187 @@ def _close_function_call(entry: Any, return_type: str) -> None:
             and "args" not in required
         ):
             required.append("args")
+
+
+_COMPONENT_ENVELOPE_KEYS = frozenset({"id", "component", "catalogId"})
+_STANDARD_MIXIN_DEFS = frozenset({"ComponentCommon", "Checkable"})
+
+
+def _normalize_function_args_closure(entry: Any) -> None:
+    """Normalizes a function call's `args` object closure to `unevaluatedProperties`."""
+    if not isinstance(entry, dict):
+        return
+    properties = entry.get("properties")
+    if not isinstance(properties, dict) or (
+        "call" not in properties and "@call" not in properties
+    ):
+        return
+    args = properties.get("args")
+    if isinstance(args, dict) and args.get("type") == "object" and "$ref" not in args:
+        additional = args.pop("additionalProperties", None)
+        if "unevaluatedProperties" not in args:
+            args["unevaluatedProperties"] = (
+                additional if additional is not None else False
+            )
+
+
+def _propagate_ref_descriptions(
+    node: Any,
+    standard_defs: Mapping[str, Any],
+) -> None:
+    """Propagates descriptions from `standard_defs` onto local `$ref` nodes without one."""
+    if isinstance(node, list):
+        for item in node:
+            _propagate_ref_descriptions(item, standard_defs)
+        return
+    if not isinstance(node, dict):
+        return
+    ref = node.get("$ref")
+    if isinstance(ref, str) and ref.startswith("#/$defs/"):
+        def_name = ref[len("#/$defs/") :].split("/")[0]
+        if "description" not in node and def_name in standard_defs:
+            target = standard_defs[def_name]
+            if isinstance(target, Mapping) and isinstance(
+                target.get("description"), str
+            ):
+                node["description"] = target["description"]
+    for value in node.values():
+        _propagate_ref_descriptions(value, standard_defs)
+
+
+def _collect_allof_local_mixin_refs(
+    node: Any,
+    local_defs: Mapping[str, Any],
+    found: set[str],
+) -> None:
+    """Collects local `$defs` names referenced directly inside an `allOf` list."""
+    if not isinstance(node, Mapping):
+        return
+    all_of = node.get("allOf")
+    if not isinstance(all_of, list):
+        return
+    for sub in all_of:
+        if not isinstance(sub, Mapping):
+            continue
+        def_name = _local_def_name(sub.get("$ref"))
+        if (
+            def_name is not None
+            and def_name not in _STANDARD_MIXIN_DEFS
+            and def_name not in found
+        ):
+            found.add(def_name)
+            target = local_defs.get(def_name)
+            if isinstance(target, Mapping):
+                _collect_allof_local_mixin_refs(target, local_defs, found)
+        else:
+            _collect_allof_local_mixin_refs(sub, local_defs, found)
+
+
+_MERGED_COMPONENT_KEYS = frozenset({
+    "type",
+    "description",
+    "allOf",
+    "properties",
+    "required",
+    "unevaluatedProperties",
+    "additionalProperties",
+    "allowedParents",
+    "allowedChildren",
+})
+
+
+def _collect_component_sub_schemas(
+    schema: Mapping[str, Any],
+    local_defs: Mapping[str, Any],
+    standard_defs: Mapping[str, Any],
+    visited: set[str],
+    used_local_mixins: set[str],
+    unmerged: list[dict[str, Any]] | None = None,
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    """Gathers `(mixins, local, common_inline, specific_inline)` sub-schemas of a component."""
+    mixins: list[dict[str, Any]] = []
+    local: list[dict[str, Any]] = []
+    common_inline: list[dict[str, Any]] = []
+    specific_inline: list[dict[str, Any]] = []
+    all_of = schema.get("allOf")
+    if isinstance(all_of, list):
+        for sub in all_of:
+            if not isinstance(sub, Mapping):
+                continue
+            ref = sub.get("$ref")
+            if not isinstance(ref, str):
+                sub_m, sub_l, sub_ci, sub_si = _collect_component_sub_schemas(
+                    sub,
+                    local_defs,
+                    standard_defs,
+                    visited,
+                    used_local_mixins,
+                    unmerged=unmerged,
+                )
+                mixins.extend(sub_m)
+                local.extend(sub_l)
+                common_inline.extend(sub_ci)
+                specific_inline.extend(sub_si)
+                if unmerged is not None:
+                    extra = {
+                        k: copy.deepcopy(v)
+                        for k, v in sub.items()
+                        if k not in _MERGED_COMPONENT_KEYS
+                    }
+                    if extra:
+                        unmerged.append(extra)
+                continue
+            def_name = _local_def_name(ref)
+            if def_name is None and "#/$defs/" in ref:
+                def_name = ref.split("#/$defs/")[-1].split("/")[0]
+            if (
+                def_name is not None
+                and def_name not in _STANDARD_MIXIN_DEFS
+                and def_name in local_defs
+            ):
+                used_local_mixins.add(def_name)
+                if ref not in visited:
+                    visited.add(ref)
+                    target = local_defs[def_name]
+                    if isinstance(target, Mapping):
+                        sub_m, sub_l, sub_ci, sub_si = _collect_component_sub_schemas(
+                            target,
+                            local_defs,
+                            standard_defs,
+                            visited,
+                            used_local_mixins,
+                            unmerged=unmerged,
+                        )
+                        mixins.extend(sub_m)
+                        local.extend(sub_l)
+                        local.extend(sub_ci)
+                        local.extend(sub_si)
+                continue
+            mixin = standard_defs.get(def_name) if def_name is not None else None
+            if isinstance(mixin, Mapping) and isinstance(
+                mixin.get("properties"), Mapping
+            ):
+                piece: dict[str, Any] = {
+                    "properties": copy.deepcopy(dict(mixin["properties"])),
+                }
+                if isinstance(mixin.get("required"), list):
+                    piece["required"] = list(mixin["required"])
+                mixins.append(piece)
+            elif unmerged is not None:
+                unmerged.append(copy.deepcopy(dict(sub)))
+    if "properties" in schema or "required" in schema or "description" in schema:
+        own_piece = dict(schema)
+        props = own_piece.get("properties")
+        if isinstance(props, Mapping) and "component" in props:
+            specific_inline.append(own_piece)
+        else:
+            common_inline.append(own_piece)
+    return mixins, local, common_inline, specific_inline
 
 
 TComponent = TypeVar("TComponent", bound=ComponentApi, default=Any, covariant=True)
@@ -1157,12 +1338,12 @@ class Catalog(Generic[TComponent, TFunction]):
         catalog document itself, with external references kept, use
         `to_json`.
 
-        From v0.9 on, components and functions defined by Pydantic models emit
-        the specification's shape: a component composes the defs of its base
-        models with `allOf`, and a function schema describes the whole call.
-        Other components and functions keep their schemas, with references
-        resolved (see `resolved_component_schema`). The common types defs
-        they reference, transitively, come from the published common types
+        Each component is flattened into a single object schema with its
+        `allOf` mixins (`ComponentCommon`, `Checkable`, and local `$defs`
+        mixins) merged into `properties` and `required` and the canonical
+        component envelope (`id` and `component`) applied. From v0.9 on, a
+        function schema describes the whole call. The common types defs the
+        catalog references, transitively, come from the published common types
         schema with local refs; a published def that would reference a def
         the catalog lacks (such as `FunctionCall` in a catalog without
         functions) takes its flat form. System functions, which the runtime
@@ -1180,13 +1361,170 @@ class Catalog(Generic[TComponent, TFunction]):
         cleaned_schema, referenced_dynamics, _, protocol_version = (
             self._assemble_schema()
         )
+        common_types_version = (
+            ProtocolVersion.V0_9
+            if protocol_version is ProtocolVersion.V0_8
+            else protocol_version
+        )
+        published_common_defs = _normalize_external_schema_refs(
+            get_common_types_schema_map(common_types_version)["$defs"]
+        )
+        standard_defs = {
+            **get_common_types_catalog_defs(common_types_version),
+            **published_common_defs,
+            **self.common_types_defs,
+        }
+        self._flatten_validation_components(
+            cleaned_schema, standard_defs, protocol_version
+        )
+        _propagate_ref_descriptions(cleaned_schema.get("components"), standard_defs)
+        _propagate_ref_descriptions(cleaned_schema.get("functions"), standard_defs)
+        _propagate_ref_descriptions(cleaned_schema.get("$defs"), standard_defs)
 
         self._bundle_common_types(
             cleaned_schema,
-            referenced_dynamics | _defs_refs(cleaned_schema),
+            (referenced_dynamics - _STANDARD_MIXIN_DEFS) | _defs_refs(cleaned_schema),
             protocol_version,
         )
         return self._finish_validation_schema(cleaned_schema, protocol_version)
+
+    def _flatten_validation_components(
+        self,
+        schema: dict[str, Any],
+        standard_defs: Mapping[str, Any],
+        protocol_version: ProtocolVersion,
+    ) -> None:
+        """Flattens component `allOf` mixins and applies the canonical component envelope."""
+        components = schema.get("components")
+        if not isinstance(components, dict):
+            return
+        local_defs: dict[str, Any] = schema.get("$defs") or {}
+        used_local_mixins: set[str] = set()
+        v1 = is_at_least_version(protocol_version, ProtocolVersion.V1_0)
+
+        for name, comp_schema in list(components.items()):
+            if not isinstance(comp_schema, dict):
+                continue
+            comp_obj = self.components.get(name)
+            authored_schema = (
+                getattr(comp_obj, "schema", None) if comp_obj is not None else None
+            )
+            if isinstance(authored_schema, Mapping):
+                _collect_allof_local_mixin_refs(
+                    authored_schema, local_defs, used_local_mixins
+                )
+            unmerged: list[dict[str, Any]] = []
+            mixins, local, common_inline, specific_inline = (
+                _collect_component_sub_schemas(
+                    comp_schema,
+                    local_defs,
+                    standard_defs,
+                    set(),
+                    used_local_mixins,
+                    unmerged=unmerged,
+                )
+            )
+            pieces = [*mixins, *local, *common_inline, *specific_inline]
+            description: str | None = None
+            raw_props: dict[str, Any] = {}
+            req_set: set[str] = set()
+            comp_const = name
+
+            for piece in pieces:
+                piece_desc = piece.get("description")
+                if isinstance(piece_desc, str) and piece_desc:
+                    description = piece_desc
+                piece_props = piece.get("properties")
+                if isinstance(piece_props, Mapping):
+                    comp_prop = piece_props.get("component")
+                    if isinstance(comp_prop, Mapping) and isinstance(
+                        comp_prop.get("const"), str
+                    ):
+                        comp_const = comp_prop["const"]
+                    for prop_name, prop_schema in piece_props.items():
+                        if prop_name in _COMPONENT_ENVELOPE_KEYS:
+                            continue
+                        raw_props[prop_name] = copy.deepcopy(prop_schema)
+                piece_req = piece.get("required")
+                if isinstance(piece_req, list):
+                    for req_name in piece_req:
+                        if (
+                            isinstance(req_name, str)
+                            and req_name not in _COMPONENT_ENVELOPE_KEYS
+                        ):
+                            req_set.add(req_name)
+
+            ordered_props: dict[str, Any] = {}
+            for group in (specific_inline, local, common_inline, mixins):
+                for piece in group:
+                    piece_props = piece.get("properties")
+                    if isinstance(piece_props, Mapping):
+                        for prop_name in piece_props:
+                            if (
+                                prop_name in raw_props
+                                and prop_name not in ordered_props
+                            ):
+                                ordered_props[prop_name] = raw_props[prop_name]
+            for prop_name, prop_schema in raw_props.items():
+                ordered_props.setdefault(prop_name, prop_schema)
+
+            flattened: dict[str, Any] = {"type": "object"}
+            for key, val in comp_schema.items():
+                if key not in _MERGED_COMPONENT_KEYS:
+                    flattened[key] = copy.deepcopy(val)
+            if description is not None:
+                flattened["description"] = description
+            flattened["properties"] = {
+                "id": {"$ref": "#/$defs/ComponentId"},
+                **ordered_props,
+                "component": {"const": comp_const},
+            }
+            flattened["required"] = ["id", *sorted(req_set), "component"]
+            if unmerged:
+                flattened["allOf"] = unmerged
+
+            closure = (
+                comp_schema["unevaluatedProperties"]
+                if "unevaluatedProperties" in comp_schema
+                else comp_schema.get("additionalProperties")
+            )
+            if closure is None and not v1:
+                closure = False
+            if closure is not None:
+                flattened["unevaluatedProperties"] = closure
+
+            allowed_parents = comp_schema.get("allowedParents") or (
+                getattr(comp_obj, "allowed_parents", None)
+                if comp_obj is not None
+                else None
+            )
+            if isinstance(allowed_parents, list) and allowed_parents:
+                flattened["allowedParents"] = list(allowed_parents)
+            allowed_children = comp_schema.get("allowedChildren") or (
+                getattr(comp_obj, "allowed_children", None)
+                if comp_obj is not None
+                else None
+            )
+            if isinstance(allowed_children, list) and allowed_children:
+                flattened["allowedChildren"] = list(allowed_children)
+
+            components[name] = flattened
+
+        if local_defs and used_local_mixins:
+            roots = [
+                schema.get("components"),
+                schema.get("functions"),
+                local_defs.get("theme"),
+            ]
+            still_reachable = _reachable_defs(roots, local_defs)
+            for def_name in used_local_mixins:
+                if (
+                    def_name in local_defs
+                    and def_name not in still_reachable
+                    and def_name not in _UNION_DEFS
+                    and def_name != "theme"
+                ):
+                    del local_defs[def_name]
 
     def _finish_validation_schema(
         self, schema: dict[str, Any], protocol_version: ProtocolVersion
@@ -1205,11 +1543,13 @@ class Catalog(Generic[TComponent, TFunction]):
         declared = self.declared_protocol_version
         if isinstance(declared, str):
             schema["protocolVersion"] = _BARE_VERSION_PREFIX.sub("", declared.strip())
-        if not is_at_least_version(protocol_version, ProtocolVersion.V1_0):
-            for name, entry in (schema.get("functions") or {}).items():
+        v1 = is_at_least_version(protocol_version, ProtocolVersion.V1_0)
+        for name, entry in (schema.get("functions") or {}).items():
+            if not v1:
                 fn = self.functions.get(name)
                 if fn is not None:
                     _close_function_call(entry, fn.return_type)
+            _normalize_function_args_closure(entry)
         self._cached_catalog_schema = copy.deepcopy(schema)
         return schema
 
@@ -1469,6 +1809,8 @@ class Catalog(Generic[TComponent, TFunction]):
                     chosen[name] = published[name]
                 elif name in catalog_form:
                     chosen[name] = catalog_form[name]
+                elif name in _UNION_DEFS:
+                    chosen[name] = dict(_EMPTY_UNION)
                 else:
                     continue
                 queue.extend(sorted(_defs_refs(chosen[name])))

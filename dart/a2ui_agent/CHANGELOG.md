@@ -38,6 +38,10 @@
   `A2uiValidationError`. The check moved into the agent SDK now that
   `a2ui_core` makes the field optional for v1.0; previously `a2ui_core`
   rejected the message during parsing.
+- pub.dev now recognizes the license. The package `LICENSE` linked
+  `https://` where the Apache text has `http://`, which pana does not match,
+  and carried the root's notice for `eval/bin/transcrypt`, a file outside
+  this package. Also a longer `description`.
 
 ## 0.0.1-wip005
 

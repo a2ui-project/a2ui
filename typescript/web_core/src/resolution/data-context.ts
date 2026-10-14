@@ -32,13 +32,36 @@ import {A2uiCatalogError, A2uiExpressionError, A2uiValidationError} from '../err
 import {isAtLeastVersion} from '../common/semver.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
+import {resolveSurfaceCatalog} from '../state/resolve-surface-catalog.js';
 import {SurfaceModel} from '../state/surface-model.js';
 
 import {Catalog, CatalogInterface} from '../catalog/types.js';
 import {SpecVersion} from '../spec_versions.js';
-import {IndexApi} from '../v1_0/functions/system_functions.js';
+import {IndexApi, SYSTEM_FUNCTIONS} from '../v1_0/functions/system_functions.js';
 
 const schemaKeysCache = new WeakMap<z.ZodTypeAny, Set<string> | null>();
+
+/** Identifier of the built-in catalog holding the v1.0 system functions. */
+const SYSTEM_FUNCTION_CATALOG_ID = 'a2ui:system-functions';
+
+let systemFunctionCatalog: Catalog<any> | undefined;
+
+/**
+ * Returns the built-in catalog of reserved `@`-prefixed system functions.
+ *
+ * System functions such as `@index` belong to no catalog, so they are run
+ * from here rather than from a catalog resolved on the surface. Built lazily
+ * because `SYSTEM_FUNCTIONS` and this module import each other.
+ */
+function getSystemFunctionCatalog(): Catalog<any> {
+  systemFunctionCatalog ??= new Catalog(
+    SYSTEM_FUNCTION_CATALOG_ID,
+    SpecVersion.V1_0,
+    [],
+    SYSTEM_FUNCTIONS,
+  );
+  return systemFunctionCatalog;
+}
 
 /**
  * Extracts declared property keys from a Zod schema representing an object with fixed keys.
@@ -330,7 +353,13 @@ export class DataContext {
     } else {
       this.surface = surface;
       this.dataModel = surface.dataModel;
-      this.functionInvoker = surface.defaultCatalog?.invoker ?? (() => undefined);
+      this.functionInvoker =
+        surface.defaultCatalog?.invoker ??
+        ((name, ...rest) =>
+          resolveSurfaceCatalog(surface, undefined, `Function call '${name}'`).invoker(
+            name,
+            ...rest,
+          ));
     }
     this.explicitIndex = index;
     this.parent = parent;
@@ -377,13 +406,25 @@ export class DataContext {
     this.dataModel.set(absolutePath, value);
   }
 
+  /**
+   * Protocol version of the bound surface.
+   *
+   * Reads the surface's own version, which is set even when the surface has
+   * no default catalog, and falls back to the default catalog's version for
+   * surface-like objects that do not carry one.
+   */
+  private get surfaceProtocolVersion(): string | undefined {
+    return this.surface?.protocolVersion ?? this.surface?.defaultCatalog?.protocolVersion;
+  }
+
+  private _cachedAtLeastV10?: boolean;
+
   /** Whether this context targets A2UI protocol v1.0 or newer. */
-  private _cachedIsV10?: boolean;
-  public get isV10(): boolean {
-    if (this._cachedIsV10 === undefined) {
-      this._cachedIsV10 = isAtLeastVersion(this.surface?.defaultCatalog?.protocolVersion, '1.0');
+  public get atLeastV10(): boolean {
+    if (this._cachedAtLeastV10 === undefined) {
+      this._cachedAtLeastV10 = isAtLeastVersion(this.surfaceProtocolVersion, '1.0');
     }
-    return this._cachedIsV10;
+    return this._cachedAtLeastV10;
   }
 
   /**
@@ -395,7 +436,7 @@ export class DataContext {
    * @returns Whether the object represents a valid data binding for this context's protocol version.
    */
   private isDataBindingObject(val: Record<string, unknown>): boolean {
-    const hasPath = this.isV10
+    const hasPath = this.atLeastV10
       ? '@path' in val && typeof val['@path'] === 'string'
       : 'path' in val && typeof val.path === 'string';
     return hasPath && !('componentId' in val);
@@ -410,7 +451,7 @@ export class DataContext {
    * @returns Whether the object represents a valid function call for this context's protocol version.
    */
   private isFunctionCallObject(val: Record<string, unknown>): boolean {
-    return this.isV10
+    return this.atLeastV10
       ? '@call' in val && typeof val['@call'] === 'string'
       : 'call' in val && typeof val.call === 'string';
   }
@@ -433,7 +474,7 @@ export class DataContext {
     if (this.isDataBindingObject(rec) || this.isFunctionCallObject(rec)) {
       return true;
     }
-    if (this.isV10) {
+    if (this.atLeastV10) {
       for (const k of Object.keys(rec)) {
         if (k.startsWith('@')) {
           return true;
@@ -520,12 +561,14 @@ export class DataContext {
    * @returns The resolved function return value.
    */
   private resolveFunctionCallValue<V>(call: FunctionCall, depth = 0, userActivated = false): V {
-    let targetCatalog: Catalog<any>;
     const callName = (call['@call'] ?? call.call)!;
+    // Resolve before validating: the arguments must be checked against the
+    // catalog that will actually run the call, not the surface default.
+    const targetCatalog = this.resolveCallCatalog(callName, call);
+    if (!targetCatalog) {
+      return undefined as V;
+    }
     try {
-      // Resolve before validating: the arguments must be checked against the
-      // catalog that will actually run the call, not the surface default.
-      targetCatalog = this.resolveFunctionCatalog(call.catalogId);
       validateFunctionArgs(callName, call.args, targetCatalog);
     } catch (e: unknown) {
       this.dispatchExpressionError(e, callName);
@@ -544,9 +587,8 @@ export class DataContext {
       result = this.evaluateFunctionReactive<V>(
         callName,
         args,
-        abortController.signal,
-        call.catalogId,
         targetCatalog.invoker,
+        abortController.signal,
       );
     } finally {
       this._isUserActivated = prevActivated;
@@ -567,15 +609,15 @@ export class DataContext {
    * @returns A copy of the object with all nested dynamic values resolved.
    */
   private resolvePlainObjectValue<V>(rec: Record<string, unknown>, depth = 0): V {
-    if (this.isV10) {
-      validateReservedDirectives(Object.keys(rec), this.surface?.defaultCatalog?.protocolVersion);
+    if (this.atLeastV10) {
+      validateReservedDirectives(Object.keys(rec), this.surfaceProtocolVersion);
     }
     if (!this.containsDynamicValue(rec)) {
       return rec as unknown as V;
     }
     const resolved: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(rec)) {
-      const key = this.isV10 ? unescapeObjectKey(k) : k;
+      const key = this.atLeastV10 ? unescapeObjectKey(k) : k;
       resolved[key] = this.resolveDynamicValue(v, depth + 1);
     }
     return resolved as unknown as V;
@@ -682,11 +724,13 @@ export class DataContext {
     if (this.isFunctionCallObject(rec)) {
       const call = rec as unknown as FunctionCall;
       const callName = (call['@call'] ?? call.call)!;
-      let targetCatalog: Catalog<any>;
+      // Resolve before validating: the arguments must be checked against the
+      // catalog that will actually run the call, not the surface default.
+      const targetCatalog = this.resolveCallCatalog(callName, call);
+      if (!targetCatalog) {
+        return signal(undefined as unknown as V);
+      }
       try {
-        // Resolve before validating: the arguments must be checked against the
-        // catalog that will actually run the call, not the surface default.
-        targetCatalog = this.resolveFunctionCatalog(call.catalogId);
         validateFunctionArgs(callName, call.args, targetCatalog);
       } catch (e: unknown) {
         this.dispatchExpressionError(e, callName);
@@ -704,8 +748,7 @@ export class DataContext {
           name: callName,
           args: {},
           abortSignal: abortController.signal,
-          catalogId: call.catalogId,
-          resolvedInvoker: targetCatalog.invoker,
+          invoker: targetCatalog.invoker,
         });
         const sig = isSignal(result) ? result : signal(result as V);
         sig.unsubscribe = () => abortController.abort();
@@ -740,8 +783,7 @@ export class DataContext {
             name: callName,
             args,
             abortSignal: abortController.signal,
-            catalogId: call.catalogId,
-            resolvedInvoker: targetCatalog.invoker,
+            invoker: targetCatalog.invoker,
           });
 
           if (isSignal(res)) {
@@ -770,8 +812,8 @@ export class DataContext {
       return resultSig as unknown as Signal<V>;
     }
 
-    if (this.isV10) {
-      validateReservedDirectives(Object.keys(rec), this.surface?.defaultCatalog?.protocolVersion);
+    if (this.atLeastV10) {
+      validateReservedDirectives(Object.keys(rec), this.surfaceProtocolVersion);
     }
 
     if (!this.containsDynamicValue(rec)) {
@@ -779,7 +821,7 @@ export class DataContext {
     }
 
     const entrySignals = Object.entries(rec).map(([k, v]) => {
-      const key = this.isV10 ? unescapeObjectKey(k) : k;
+      const key = this.atLeastV10 ? unescapeObjectKey(k) : k;
       return [key, this.resolveSignal(v, depth + 1)] as const;
     });
     const objSig = computed(() => {
@@ -858,41 +900,93 @@ export class DataContext {
   /**
    * Resolves the catalog against which a function call executes.
    *
+   * From v1.0, reserved `@`-prefixed system functions such as `@index` belong
+   * to no catalog, so they resolve to the built-in system function set
+   * whatever the surface's catalogs are. Before v1.0 a call cannot select a
+   * catalog, so a `catalogId` on it is ignored and the call runs in the
+   * surface catalog.
+   *
+   * @param name Name of the function being called.
    * @param catalogId Identifier of the catalog named by the call, if specified.
+   * @param namesCatalog Whether the call carries a `catalogId` key, whatever
+   *   its value.
    * @returns The resolved Catalog instance, or the surface default catalog if omitted.
+   * @throws {A2uiExpressionError} If, from v1.0, a call to a reserved `@`
+   *   system function names a catalog: such a function belongs to no catalog,
+   *   so the call is a malformed expression.
    * @throws {A2uiCatalogError} If the call names a catalog ID that cannot be
-   *   resolved on this surface. This is reported as a catalog fault rather than
-   *   a missing function, since the function may exist in a catalog that is not
+   *   resolved on this surface, or names none on a surface without a default
+   *   catalog. This is reported as a catalog fault rather than a missing
+   *   function, since the function may exist in a catalog that is not
    *   available here.
    */
-  private resolveFunctionCatalog(catalogId?: string): Catalog<any> {
+  private resolveFunctionCatalog(
+    name: string,
+    catalogId: string | undefined,
+    namesCatalog: boolean,
+  ): Catalog<any> {
+    if (this.atLeastV10 && name.startsWith('@')) {
+      if (namesCatalog) {
+        throw new A2uiExpressionError(
+          `System function '${name}' belongs to no catalog and must not name a catalogId.`,
+          name,
+        );
+      }
+      return getSystemFunctionCatalog();
+    }
     if (!this.surface) {
       throw new A2uiCatalogError(
         `No surface available to resolve catalog: ${catalogId ?? 'default'}`,
       );
     }
-    if (catalogId === undefined) {
-      return this.surface.defaultCatalog;
+    return resolveSurfaceCatalog(
+      this.surface,
+      this.atLeastV10 ? catalogId : undefined,
+      `Function call '${name}'`,
+    );
+  }
+
+  /**
+   * Resolves the catalog a function call runs in, dispatching a
+   * `CATALOG_ERROR` to the surface when it cannot be resolved, and an
+   * `EXPRESSION_ERROR` for any other failure, such as a system function call
+   * that names a catalog.
+   *
+   * @param name Name of the function being called.
+   * @param call The function call, whose `catalogId` selects the catalog.
+   * @returns The resolved Catalog instance, or `undefined` if resolution failed.
+   */
+  private resolveCallCatalog(name: string, call: FunctionCall): Catalog<any> | undefined {
+    try {
+      return this.resolveFunctionCatalog(name, call.catalogId, 'catalogId' in call);
+    } catch (e: unknown) {
+      // A call whose catalog can't be resolved is a catalog fault, not a
+      // broken expression: the function may exist in a catalog this surface
+      // doesn't have.
+      if (e instanceof A2uiCatalogError && this.surface) {
+        this.surface.dispatchError({
+          code: 'CATALOG_ERROR',
+          message: e.message,
+          expression: name,
+        });
+      } else {
+        this.dispatchExpressionError(e, name);
+      }
+      return undefined;
     }
-    const target = this.surface.availableCatalogs?.get(catalogId);
-    if (!target) {
-      throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
-    }
-    return target;
   }
 
   private evaluateFunctionPassive<V>(options: {
     name: string;
     args: Record<string, unknown>;
+    invoker: FunctionInvoker;
     abortSignal?: AbortSignal;
-    catalogId?: string;
-    resolvedInvoker?: FunctionInvoker;
   }): Signal<V> | V {
-    const {name, args, abortSignal, catalogId, resolvedInvoker} = options;
+    const {name, args, invoker, abortSignal} = options;
     const prevPassive = this._isPassiveEvaluation;
     this._isPassiveEvaluation = true;
     try {
-      return this.evaluateFunctionReactive<V>(name, args, abortSignal, catalogId, resolvedInvoker);
+      return this.evaluateFunctionReactive<V>(name, args, invoker, abortSignal);
     } finally {
       this._isPassiveEvaluation = prevPassive;
     }
@@ -901,30 +995,23 @@ export class DataContext {
   /**
    * Evaluates a catalog function and returns its reactive Signal or static value.
    *
-   * Resolves the appropriate function invoker from the specified catalog or
-   * surface default, invokes the function with this context, and dispatches an
-   * expression error if execution throws.
+   * Invokes the function with this context through the invoker of the
+   * catalog the call resolved to, and dispatches an `EXPRESSION_ERROR` if
+   * execution throws.
    *
    * @template V Expected return type of the function evaluation.
    * @param name Name of the function to evaluate.
    * @param args Resolved arguments to pass to the function.
+   * @param invoker Invoker of the catalog the call resolved to.
    * @param abortSignal Optional abort signal to cancel asynchronous execution.
-   * @param catalogId Optional catalog ID override declaring the function.
-   * @param resolvedInvoker Optional pre-resolved function invoker to avoid redundant catalog lookup.
    * @returns The evaluated result as a reactive `Signal` or static value, or `undefined` on failure.
    */
   private evaluateFunctionReactive<V>(
     name: string,
     args: Record<string, unknown>,
+    invoker: FunctionInvoker,
     abortSignal?: AbortSignal,
-    catalogId?: string,
-    resolvedInvoker?: FunctionInvoker,
   ): Signal<V> | V {
-    const invoker =
-      resolvedInvoker ??
-      (catalogId === undefined
-        ? this.functionInvoker
-        : this.resolveFunctionCatalog(catalogId).invoker);
     try {
       return invoker(name, args, this, abortSignal) as Signal<V> | V;
     } catch (e: unknown) {
@@ -933,6 +1020,17 @@ export class DataContext {
     }
   }
 
+  /**
+   * Dispatches an evaluation failure to the surface as an `EXPRESSION_ERROR`.
+   *
+   * Every failure other than an unresolvable catalog uses this code, including
+   * a function missing from the catalog the call resolved to and an unknown
+   * system function. Unresolvable catalogs are reported by
+   * {@link resolveCallCatalog} as `CATALOG_ERROR`.
+   *
+   * @param e The error thrown while evaluating the call.
+   * @param name Name of the function being evaluated.
+   */
   private dispatchExpressionError(e: unknown, name: string): void {
     if (!this.surface) return;
     if (

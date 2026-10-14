@@ -34,12 +34,97 @@ import {validateReservedDirectives} from '../resolution/data-context.js';
 const COMPONENT_ENVELOPE_KEYS = ['id', 'component', 'catalogId', 'metadata'] as const;
 
 /**
+ * Looks up a reserved `@`-prefixed system function, which belongs to no
+ * catalog and is available on every v1.0 surface.
+ *
+ * A function rather than a module-level map, because `system_functions` and
+ * this module sit on an import cycle through `data-context`.
+ *
+ * @param name Function name, including its `@` prefix.
+ * @returns The system function's API, or `undefined` if none has that name.
+ */
+function getSystemFunctionApi(name: string): typeof IndexApi | undefined {
+  return name === IndexApi.name ? IndexApi : undefined;
+}
+
+/**
+ * Rejects a call to a reserved `@` system function that names a catalog.
+ *
+ * A system function belongs to no catalog, so a `catalogId` on its call can
+ * never be honored.
+ *
+ * @param name Function name, including its `@` prefix.
+ * @param call Raw function call object.
+ * @throws {A2uiValidationError} If the call carries a `catalogId`.
+ */
+function assertSystemCallNamesNoCatalog(name: string, call: Record<string, unknown>): void {
+  if (call['catalogId'] !== undefined) {
+    throw new A2uiValidationError(
+      `System function '${name}' belongs to no catalog and must not name a catalogId.`,
+    );
+  }
+}
+
+/**
+ * Builds the error message for a v1.0 function call whose `catalogId` is not
+ * a string.
+ *
+ * @param name Name of the function being called.
+ * @returns The error message.
+ */
+export function nonStringCatalogIdMessage(name: string): string {
+  return `Function call '${name}' has a non-string 'catalogId'.`;
+}
+
+/**
+ * Decides whether a v1.0 nested function call runs in its component's catalog.
+ *
+ * A call runs in the catalog it names, or else in the surface's default
+ * catalog. So a call that names no `catalogId` runs in the component's
+ * catalog only when that catalog is the surface default.
+ *
+ * @param callCatalogId The `catalogId` the call names, if any.
+ * @param catalogId ID of the component's catalog.
+ * @param options.catalogIsDefault Whether the component's catalog is the
+ *   surface's default catalog.
+ * @returns Whether the call runs in the component's catalog.
+ */
+export function nestedCallRunsInCatalog(
+  callCatalogId: string | undefined,
+  catalogId: string,
+  {catalogIsDefault}: {catalogIsDefault: boolean},
+): boolean {
+  if (callCatalogId === undefined) {
+    return catalogIsDefault;
+  }
+  return callCatalogId === catalogId;
+}
+
+/**
  * Validates A2UI payloads against the schemas of a single catalog.
  *
  * The validator is deliberately scoped to one catalog. Multi-catalog payloads
  * are resolved to a target catalog by the caller, which then constructs a
  * validator for it; that keeps catalog resolution and schema checking in
  * separate places and mirrors Python's `PayloadValidator`.
+ *
+ * From v1.0 `validateComponent` fully validates a nested function call that
+ * runs in this catalog (see `nestedCallRunsInCatalog`): a call that names
+ * this catalog, or names no `catalogId` in a component that names none
+ * either. Any other call runs in a catalog this validator can't see, so only
+ * its identifiers are checked; `MessageProcessor` resolves such a call's
+ * catalog and checks it there. Any string, the empty string included, names a
+ * catalog, and a non-string `catalogId` on a call is rejected. Reserved `@`
+ * system functions belong to no catalog: they are always validated fully, and
+ * a `catalogId` on one is rejected.
+ *
+ * A component that names no `catalogId` is taken to be in the surface's
+ * default catalog, where calls that name none run, so its catalogless calls
+ * are judged here. `MessageProcessor` knows the surface default and passes a
+ * component's `catalogId` only when its catalog is another one.
+ *
+ * Below v1.0 a call cannot select a catalog, so every nested call is
+ * validated against this catalog whatever `catalogId` it carries.
  *
  * Every method throws on failure rather than returning a list of problems.
  * Python's `validate_component` returns its errors instead, but TypeScript
@@ -106,6 +191,12 @@ export class PayloadValidator {
       throw new A2uiValidationError(`Cannot create component ${id} without a type.`);
     }
 
+    // Decides which nested calls run in this catalog; see
+    // `nestedCallRunsInCatalog`.
+    const rawCatalogId = comp['catalogId'];
+    const componentCatalogId = typeof rawCatalogId === 'string' ? rawCatalogId : undefined;
+    const properties = stripEnvelopeKeys(comp);
+
     const componentApi = this.catalog.components.get(componentType);
     if (!componentApi) {
       if (!this.allowUnknown) {
@@ -113,12 +204,16 @@ export class PayloadValidator {
           `Unknown component type '${componentType}' not found in catalog '${this.catalog.id}'.`,
         );
       }
+      // The component's properties can't be checked without its schema, but
+      // the function calls in them still run, so they are checked all the
+      // same. `MessageProcessor` relies on this for the calls it leaves to
+      // component validation.
+      this.validateNestedFunctions(properties, componentCatalogId);
       return;
     }
 
-    const properties = stripEnvelopeKeys(comp);
     const knownKeys = getKnownSchemaKeys(componentApi.schema);
-    this.validateCommonEnvelopeFields(properties, knownKeys, componentType, id);
+    this.validateCommonEnvelopeFields(properties, knownKeys, componentType, id, componentCatalogId);
 
     const result = componentApi.schema.safeParse(properties);
     if (!result.success) {
@@ -129,7 +224,7 @@ export class PayloadValidator {
       );
     }
 
-    this.validateNestedFunctions(properties);
+    this.validateNestedFunctions(properties, componentCatalogId);
   }
 
   /**
@@ -142,6 +237,7 @@ export class PayloadValidator {
     knownKeys: Set<string> | null | undefined,
     componentType: string,
     id: string,
+    componentCatalogId: string | undefined,
   ): void {
     if ('accessibility' in properties && !knownKeys?.has('accessibility')) {
       const accVal = properties['accessibility'];
@@ -154,7 +250,7 @@ export class PayloadValidator {
           accResult.error.issues,
         );
       }
-      this.validateNestedFunctions(accVal);
+      this.validateNestedFunctions(accVal, componentCatalogId);
     }
 
     if ('metadata' in properties && !knownKeys?.has('metadata')) {
@@ -172,14 +268,29 @@ export class PayloadValidator {
   }
 
   /**
-   * Asserts that a function name and all its argument keys satisfy UAX #31 identifier syntax.
+   * Asserts that a v1.0 call's envelope is well formed without consulting its
+   * catalog: the function name and all argument keys satisfy UAX #31
+   * identifier syntax, and `args`, when present, is an object.
    *
    * @param name Function name to check.
    * @param args Function arguments object whose keys are checked.
-   * @throws {A2uiValidationError} If the function name or any argument key is not a valid UAX #31 identifier.
+   * @throws {A2uiValidationError} If the function name or any argument key is
+   *   not a valid UAX #31 identifier, or `args` is not an object.
    */
   private assertFunctionIdentifiers(name: string, args: unknown): void {
     this.assertIdentifier(name, `Function name '${name}' must be a valid UAX #31 identifier`);
+    // The call envelope types `args` as an object, whatever catalog the call
+    // runs in.
+    if (
+      this.enforceIdentifiers &&
+      args !== undefined &&
+      args !== null &&
+      (typeof args !== 'object' || Array.isArray(args))
+    ) {
+      throw new A2uiValidationError(
+        `Validation failed for function '${name}': Expected object, received ${Array.isArray(args) ? 'array' : typeof args}`,
+      );
+    }
     if (args && typeof args === 'object' && !Array.isArray(args)) {
       const keys = Object.keys(args);
       if (keys.length > MAX_FUNCTION_CALL_ARGS) {
@@ -198,15 +309,23 @@ export class PayloadValidator {
 
   /**
    * Recursively walks a component's property values and validates any nested
-   * function call objects against their target catalog.
+   * function call objects.
+   *
+   * From v1.0 a call that runs in this catalog (see `nestedCallRunsInCatalog`)
+   * is validated against this catalog. Any other call runs in a catalog this
+   * validator cannot see, so only its envelope (name and argument
+   * identifiers) is checked; `MessageProcessor` validates it against the
+   * catalog it resolves to. A non-string `catalogId` is rejected. Reserved `@`
+   * system functions belong to no catalog and are validated fully.
    *
    * @param val Property value or subtree to inspect.
+   * @param componentCatalogId The `catalogId` the component names, if any.
    * @throws {A2uiValidationError} If any nested function call fails schema or identifier validation.
    */
-  private validateNestedFunctions(val: unknown): void {
+  private validateNestedFunctions(val: unknown, componentCatalogId: string | undefined): void {
     if (Array.isArray(val)) {
       for (const item of val) {
-        this.validateNestedFunctions(item);
+        this.validateNestedFunctions(item, componentCatalogId);
       }
       return;
     }
@@ -222,28 +341,45 @@ export class PayloadValidator {
     const rawName = this.enforceIdentifiers
       ? record['@call']
       : (record['call'] ?? record['function']);
-    if (typeof rawName === 'string' && rawName.length > 0) {
+    // From v1.0 any string name is checked, so an empty one is reported as an
+    // invalid identifier rather than skipped.
+    if (typeof rawName === 'string' && (this.enforceIdentifiers || rawName.length > 0)) {
       const rawArgs = record['args'];
       const argsDict = (rawArgs !== undefined ? rawArgs : {}) as Record<string, unknown>;
-      const callCatalogId =
-        typeof record['catalogId'] === 'string' && record['catalogId'].length > 0
-          ? record['catalogId']
-          : undefined;
 
-      if (callCatalogId && callCatalogId !== this.catalog.id) {
-        // Single-catalog validator: enforce UAX #31 syntax on the function name
-        // and argument keys, but leave schema validation to runtime resolution in
-        // DataContext against the target catalog.
-        this.assertFunctionIdentifiers(rawName, argsDict);
-      } else {
+      if (!this.enforceIdentifiers) {
+        // Below v1.0 a call cannot select a catalog: it runs in the surface
+        // catalog whatever `catalogId` it carries, so validate it here.
         this.validateFunction(rawName, argsDict);
+      } else if (rawName.startsWith('@')) {
+        // Reserved system functions such as `@index` belong to no catalog.
+        assertSystemCallNamesNoCatalog(rawName, record);
+        this.validateFunction(rawName, argsDict);
+      } else {
+        const callCatalogId = record['catalogId'];
+        if (callCatalogId !== undefined && typeof callCatalogId !== 'string') {
+          throw new A2uiValidationError(nonStringCatalogIdMessage(rawName));
+        }
+        // Any string, the empty string included, names a catalog. A component
+        // that names no catalogId is taken to be in the surface default.
+        if (
+          nestedCallRunsInCatalog(callCatalogId, this.catalog.id, {
+            catalogIsDefault: componentCatalogId === undefined,
+          })
+        ) {
+          this.validateFunction(rawName, argsDict);
+        } else {
+          // The call runs in a catalog this validator cannot see: check
+          // identifiers only.
+          this.assertFunctionIdentifiers(rawName, argsDict);
+        }
       }
     }
 
-    for (const [k, v] of Object.entries(record)) {
-      if (k !== 'id' && k !== 'component') {
-        this.validateNestedFunctions(v);
-      }
+    // Component envelope keys were stripped before this walk, so every key
+    // here, including a nested `id` or `component`, holds property data.
+    for (const v of Object.values(record)) {
+      this.validateNestedFunctions(v, componentCatalogId);
     }
   }
 
@@ -260,8 +396,9 @@ export class PayloadValidator {
     this.assertFunctionIdentifiers(name, args);
 
     const fn =
-      this.catalog.functions.get(name) ??
-      (this.enforceIdentifiers && name === '@index' ? IndexApi : undefined);
+      this.enforceIdentifiers && name.startsWith('@')
+        ? getSystemFunctionApi(name)
+        : this.catalog.functions.get(name);
     if (!fn) {
       if (!this.allowUnknown) {
         throw new A2uiValidationError(`Unrecognized function '${name}'`);

@@ -290,6 +290,38 @@ describe('ComponentHostComponent', () => {
       );
     });
 
+    it('should render a component from its own catalog on a surface with no default catalog', () => {
+      (mockSurface as {defaultCatalog: unknown}).defaultCatalog = undefined;
+
+      fixture.detectChanges();
+
+      const childDebugElement = fixture.debugElement.query(By.directive(TestChildComponent));
+      expect(childDebugElement).toBeTruthy();
+      expect((childDebugElement.componentInstance as TestChildComponent).props.text.value()).toBe(
+        'Hello',
+      );
+    });
+
+    it("should error naming the component's catalog when it lacks the type, even if the surface default has it", () => {
+      const consoleErrorSpy = spyOn(console, 'error');
+      mockSurface.componentsModel.removeComponent('comp1');
+      mockSurface.componentsModel.addComponent(
+        new ComponentModel(
+          'comp1',
+          'TestType',
+          {text: 'Hello'},
+          new AngularCatalog('empty', '0.9', []),
+        ),
+      );
+
+      fixture.detectChanges();
+
+      expect(fixture.debugElement.query(By.directive(TestChildComponent))).toBeFalsy();
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Component type "TestType" not found in catalog "empty"',
+      );
+    });
+
     it('should trigger destroyRef on destroy', () => {
       fixture.detectChanges(); // Trigger change detection
 
@@ -378,7 +410,7 @@ describe('ComponentHostComponent', () => {
 
       mockCatalog.components.set('WcType', mockWcImpl);
       mockSurface.componentsModel.addComponent(
-        new ComponentModel('wc1', 'WcType', {label: 'Click me'}),
+        new ComponentModel('wc1', 'WcType', {label: 'Click me'}, mockCatalog),
       );
       mockRendererConfig.useUniversalComponents = true;
 
@@ -404,7 +436,9 @@ describe('ComponentHostComponent', () => {
     it('should render the placeholder instead of the Web Component when useUniversalComponents is false', () => {
       const catalog = new AngularCatalog('test-catalog', '0.9', [mockWcImpl]);
       mockCatalog.components.set('WcType', catalog.components.get('WcType'));
-      mockSurface.componentsModel.addComponent(new ComponentModel('wc1', 'WcType', {}));
+      mockSurface.componentsModel.addComponent(
+        new ComponentModel('wc1', 'WcType', {}, mockCatalog),
+      );
 
       fixture.componentRef.setInput('componentKey', {id: 'wc1', basePath: '/'});
       fixture.detectChanges();

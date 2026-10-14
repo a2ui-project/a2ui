@@ -64,13 +64,14 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     assert.strictEqual(basicCatalog.components.size, 18);
   });
 
-  it('selects v1.0 basicCatalog by default when createSurface omits catalogId and preserves metadata', () => {
+  it('uses v1.0 basicCatalog as the surface default catalog and preserves metadata', () => {
     const processor = new MessageProcessor([basicCatalog]);
     processor.processMessages([
       {
         version: 'v1.0',
         createSurface: {
           surfaceId: 's-default',
+          catalogId: basicCatalog.id,
           metadata: {extensions: {vendor_ext: {enabled: true}}},
         },
       },
@@ -100,7 +101,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
 
     const surface = processor.model.getSurface('s-default')!;
     assert.notStrictEqual(surface, undefined);
-    assert.strictEqual(surface.defaultCatalog.id, basicCatalog.id);
+    assert.strictEqual(surface.defaultCatalog, basicCatalog);
     assert.deepStrictEqual(surface.metadata, {extensions: {vendor_ext: {enabled: true}}});
 
     const comp = surface.componentsModel.get('root')!;
