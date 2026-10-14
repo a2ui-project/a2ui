@@ -26,7 +26,7 @@
     "@a2ui/react": "workspace:*",
     "@lit/context": "^1.1.6",
     "lit": "^3.3.3",
-    "markdown-it": "^14.2.0",
+    "markdown-it": "^14.3.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
