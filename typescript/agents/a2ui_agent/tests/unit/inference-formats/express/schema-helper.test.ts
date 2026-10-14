@@ -36,7 +36,7 @@ const basicCatalogs = {'v1.0': basicCatalogV10, 'v0.9': basicCatalogV09};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const REPO_ROOT = path.resolve(__dirname, '../../../../../..');
+const REPO_ROOT = path.resolve(__dirname, '../../../../../../..');
 
 type Schema = Record<string, unknown>;
 
@@ -264,7 +264,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
     it('reproduces golden (static) labels for all 75 properties (51 static, 24 non-static)', () => {
       const instructionsPath = path.resolve(
         __dirname,
-        '../../../../../../conformance/test_data/skills/express_catalog_instructions.txt',
+        '../../../../../../../conformance/test_data/skills/express_catalog_instructions.txt',
       );
       const content = fs.readFileSync(instructionsPath, 'utf8');
 

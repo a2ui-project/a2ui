@@ -54,9 +54,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/agent@workspace:*, @a2ui/agent@workspace:typescript/a2ui_agent":
+"@a2ui/agent@workspace:*, @a2ui/agent@workspace:typescript/agents/a2ui_agent":
   version: 0.0.0-use.local
-  resolution: "@a2ui/agent@workspace:typescript/a2ui_agent"
+  resolution: "@a2ui/agent@workspace:typescript/agents/a2ui_agent"
   dependencies:
     "@a2ui/web_core": "workspace:*"
     "@types/js-yaml": "npm:^4.0.9"

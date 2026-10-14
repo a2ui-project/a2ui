@@ -68,4 +68,4 @@ yarn workspace @a2ui/agent lint
 yarn workspace @a2ui/agent format
 ```
 
-Architecture, design decisions, and parser regeneration instructions live in the [codebase blueprint](../../blueprints/codebases/typescript/a2ui_agent/codebase.blueprint.md).
+Architecture, design decisions, and parser regeneration instructions live in the [codebase blueprint](../../../blueprints/codebases/typescript/agents/a2ui_agent/codebase.blueprint.md).

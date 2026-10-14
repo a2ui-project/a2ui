@@ -6,6 +6,7 @@
     "catalogs/*",
     "typescript/*",
     "typescript/catalogs/*",
+    "typescript/agents/*",
     "typescript/core/*",
     "typescript/renderers/*",
     "typescript/renderers/angular/*",

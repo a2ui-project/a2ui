@@ -31,7 +31,7 @@ export interface CatalogDocument extends Record<string, unknown> {
   functions: Record<string, unknown>;
 }
 
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
 
 /** The directory holding the conformance suite's catalogs. */
 export const CONFORMANCE_CATALOGS_DIR = path.join(REPO_ROOT, 'conformance/test_data/catalogs');
