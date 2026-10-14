@@ -57,17 +57,21 @@ IGNORE_PATTERNS = [
 ]
 
 
-def should_ignore(rel_path: str) -> bool:
+def should_ignore(rel_path: str, patterns: list[str] | None = None) -> bool:
     """Determines if a given relative file path should be ignored.
 
     Args:
         rel_path: Relative path of the file from repository root.
+        patterns: Optional list of glob patterns to match against. Defaults to
+          IGNORE_PATTERNS.
 
     Returns:
-        True if the file matches any pattern in IGNORE_PATTERNS, False otherwise.
+        True if the file matches any pattern, False otherwise.
     """
+    if patterns is None:
+        patterns = IGNORE_PATTERNS
     normalized_path = rel_path.replace(os.sep, "/")
-    for pattern in IGNORE_PATTERNS:
+    for pattern in patterns:
         clean_pat = pattern.lstrip("/")
         if fnmatch.fnmatch(normalized_path, clean_pat):
             return True
@@ -359,7 +363,13 @@ def process_files(repo_root: str, check_mode: bool) -> list[str]:
                     f.write(new_content)
 
     # Handle all LICENSE files separately (SPDX/pana standard requires http:// in LICENSE files)
-    license_files = {f for f in files if os.path.basename(f) == "LICENSE"}
+    active_patterns = [p for p in IGNORE_PATTERNS if p != "LICENSE"]
+    license_files = {
+        f
+        for f in files
+        if os.path.basename(f) == "LICENSE"
+        and not should_ignore(os.path.relpath(f, repo_root), patterns=active_patterns)
+    }
     root_license = os.path.join(repo_root, "LICENSE")
     if os.path.exists(root_license):
         license_files.add(root_license)

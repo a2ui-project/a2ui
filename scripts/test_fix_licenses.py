@@ -45,6 +45,19 @@ class TestFixLicenses(unittest.TestCase):
         self.assertTrue(fix_licenses.should_ignore("third_party/lib/foo.c"))
         self.assertFalse(fix_licenses.should_ignore("src/main.py"))
 
+        active_patterns = [p for p in fix_licenses.IGNORE_PATTERNS if p != "LICENSE"]
+        self.assertFalse(
+            fix_licenses.should_ignore("LICENSE", patterns=active_patterns)
+        )
+        self.assertFalse(
+            fix_licenses.should_ignore("dart/pkg/LICENSE", patterns=active_patterns)
+        )
+        self.assertTrue(
+            fix_licenses.should_ignore(
+                "third_party/lib/LICENSE", patterns=active_patterns
+            )
+        )
+
     def test_is_generated_file(self):
         self.assertTrue(
             fix_licenses.is_generated_file(
@@ -196,9 +209,16 @@ class TestFixLicenses(unittest.TestCase):
         with open(nested_license, "w", encoding="utf-8") as f:
             f.write("https:" + "//www.apache.org/licenses\n")
 
+        third_party_license = os.path.join(
+            self.repo_root, "third_party", "pkg", "LICENSE"
+        )
+        os.makedirs(os.path.dirname(third_party_license), exist_ok=True)
+        with open(third_party_license, "w", encoding="utf-8") as f:
+            f.write("https:" + "//www.apache.org/licenses\n")
+
         with patch(
             "fix_licenses.get_tracked_files",
-            return_value=[license_path, nested_license],
+            return_value=[license_path, nested_license, third_party_license],
         ):
             errors = fix_licenses.process_files(self.repo_root, check_mode=True)
             self.assertEqual(len(errors), 1)
@@ -209,6 +229,11 @@ class TestFixLicenses(unittest.TestCase):
             with open(nested_license, "r", encoding="utf-8") as f:
                 content = f.read()
             self.assertEqual(content, "http:" + "//www.apache.org/licenses\n")
+            with open(third_party_license, "r", encoding="utf-8") as f:
+                third_party_content = f.read()
+            self.assertEqual(
+                third_party_content, "https:" + "//www.apache.org/licenses\n"
+            )
 
     def test_process_files_check_mode_years_prior_2010_and_ranges(self):
         file1 = os.path.join(self.repo_root, "file1.py")
