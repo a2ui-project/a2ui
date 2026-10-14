@@ -278,6 +278,65 @@ sharedFn("call-sec-1", "call-sec-2", catalogId="https://a2ui.org/catalogs/second
     )
 
 
+def _express_create_components(fmt: ExpressFormat, body: str) -> dict:
+    messages = to_message_dicts(
+        fmt.create_parser().parse_response(f"<a2ui>\n{body}\n</a2ui>")[0].a2ui
+    )
+    create_msg = next(m["createSurface"] for m in messages if "createSurface" in m)
+    return {c["id"]: c for c in create_msg["components"]}
+
+
+def test_express_variable_holding_function_call_with_catalog_id_is_inlined(
+    primary_catalog: Catalog, secondary_catalog: Catalog
+) -> None:
+    fmt = ExpressFormat(
+        catalogs=[primary_catalog, secondary_catalog],
+        surface_id="main",
+        version="v1.0",
+    )
+    secondary = "https://a2ui.org/catalogs/secondary"
+    primary = "https://a2ui.org/catalogs/primary"
+    widget = f'SharedWidget("x", catalogId="{primary}", action={{action}})'
+    call = f'sharedFn("a", "b", catalogId="{secondary}")'
+
+    inline = _express_create_components(
+        fmt,
+        f'surface("main")\nw = {widget.format(action=call)}\nroot = Column([w])',
+    )
+    through_variable = _express_create_components(
+        fmt,
+        'surface("main")\n'
+        f"act = {call}\n"
+        f"w = {widget.format(action='act')}\n"
+        "root = Column([w])",
+    )
+
+    assert "act" not in through_variable
+    assert through_variable == inline
+    assert through_variable["w"]["action"]["functionCall"]["catalogId"] == secondary
+
+
+def test_express_variable_holding_call_missing_from_named_catalog_errors(
+    primary_catalog: Catalog, secondary_catalog: Catalog
+) -> None:
+    fmt = ExpressFormat(
+        catalogs=[primary_catalog, secondary_catalog],
+        surface_id="main",
+        version="v1.0",
+    )
+    dsl = (
+        "<a2ui>\n"
+        'surface("main")\n'
+        'act = primaryCheck("x", catalogId="https://a2ui.org/catalogs/secondary")\n'
+        'w = SharedWidget("x", catalogId="https://a2ui.org/catalogs/primary",'
+        " action=act)\n"
+        "root = Column([w])\n"
+        "</a2ui>"
+    )
+    with pytest.raises(Exception, match="primaryCheck"):
+        fmt.create_parser().parse_response(dsl)
+
+
 def test_elemental_multi_catalog_per_component_and_function_override(
     primary_catalog: Catalog, secondary_catalog: Catalog
 ) -> None:

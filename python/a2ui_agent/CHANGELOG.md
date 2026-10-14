@@ -2,6 +2,10 @@
 
 - **BREAKING**: Move `a2ui.inference_formats.experimental.express` to
   `a2ui.inference_formats.express`.
+- `ExpressCompiler`: a variable holding a function call that names its
+  `catalogId` (`total = formatString("...", catalogId="...")`) is inlined
+  wherever it is used, like any other variable holding a function call.
+  Previously it was compiled as a component and failed with "Unknown component".
 - **BREAKING**: The agent SDK no longer depends on an agent framework. `a2ui.a2a`
   moves to the new `a2ui-a2a` package and `a2ui.adk` to the new `a2ui-adk`
   package, and `a2a-sdk`, `google-adk`, `google-genai` and `nest-asyncio` are no
