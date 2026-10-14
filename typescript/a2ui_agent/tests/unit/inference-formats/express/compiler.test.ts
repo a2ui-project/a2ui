@@ -328,7 +328,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       // When isFinal=false, syntax error in incomplete input is swallowed and statements becomes []
       // With no statements, scopes is [] which raises ExpressUndefinedRootError
-      expect(() => compiler.compile('root = Text(', 'default_surface', '', false)).toThrow(
+      expect(() => compiler.compile('root = Text(', 'default_surface', false)).toThrow(
         ExpressUndefinedRootError,
       );
     });
@@ -371,7 +371,6 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const messages = compiler.compile(
         '$/foo = 123\n$/bar = """unclosed string...\n',
         'default_surface',
-        '',
         false,
       );
       expect(messages).toEqual([
@@ -387,7 +386,6 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const messages = compiler.compile(
         'root = Column([title])\ntitle = Text("Hello")\nfooter = Text("unfin',
         'default_surface',
-        '',
         false,
       );
       expect(messages).toEqual([
@@ -431,7 +429,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
     it('accepts a per-call version on the same line', () => {
       const compiler = new ExpressCompiler(basicCatalogV09);
-      const messages = compiler.compile('root = Text("Hi")', 's', '', true, 'v0.9.1');
+      const messages = compiler.compile('root = Text("Hi")', 's', true, 'v0.9.1');
       expect(versionsOf(messages)).toEqual(['v0.9.1', 'v0.9.1']);
     });
 
@@ -441,7 +439,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
     it('rejects a per-call v1.0 version for a v0.9 catalog', () => {
       const compiler = new ExpressCompiler(basicCatalogV09);
-      expect(() => compiler.compile('root = Text("Hi")', 's', '', true, 'v1.0')).toThrow(
+      expect(() => compiler.compile('root = Text("Hi")', 's', true, 'v1.0')).toThrow(
         A2uiCatalogError,
       );
     });
@@ -677,6 +675,97 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
           },
         },
       ]);
+    });
+
+    it('determines createSurface vs updateComponents from compiled component id="root"', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog]);
+
+      expect(compiler.compile('x = Text("x", id="root")')).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: simplifiedCatalog.id,
+            components: [{id: 'root', component: 'Text', text: 'x'}],
+          },
+        },
+      ]);
+
+      expect(compiler.compile('root = Text("x", id="main")')).toEqual([
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'default_surface',
+            components: [{id: 'main', component: 'Text', text: 'x'}],
+          },
+        },
+      ]);
+
+      expect(compiler.compile('surface("s1")\nroot = Text("x", id="main")')).toEqual([
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'main', component: 'Text', text: 'x'}],
+          },
+        },
+      ]);
+    });
+
+    it('inlines a variable holding a function call with catalogId and rejects invalid catalogId overrides on variables', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog, customCatalog]);
+
+      expect(
+        compiler.compile(
+          'surface("s1")\n' +
+            'root = Chart([1, 2], total)\n' +
+            `total = formatString("Total: \${/total}", catalogId="${simplifiedCatalog.id}")`,
+        ),
+      ).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            components: [
+              {
+                id: 'root',
+                component: 'Chart',
+                catalogId: customCatalog.id,
+                values: [1, 2],
+                caption: {
+                  '@call': 'formatString',
+                  catalogId: simplifiedCatalog.id,
+                  args: {value: 'Total: ${/total}'},
+                },
+              },
+            ],
+          },
+        },
+      ]);
+
+      expect(() =>
+        compiler.compile(
+          'surface("s1")\n' +
+            'root = Chart([1, 2], total)\n' +
+            `total = percent(75, catalogId="${simplifiedCatalog.id}")`,
+        ),
+      ).toThrow(/percent/);
+
+      expect(() =>
+        compiler.compile(
+          'surface("s1")\n' +
+            'root = Chart([1, 2], "Total")\n' +
+            'total = formatString("Total", catalogId="conformance/missing")',
+        ),
+      ).toThrow(/conformance\/missing/);
+
+      expect(() =>
+        compiler.compile(
+          'surface("s1")\n' +
+            'root = Chart([1, 2], "Total")\n' +
+            `act = Event("click", catalogId="${simplifiedCatalog.id}")`,
+        ),
+      ).toThrow(/Event/);
     });
   });
 

@@ -277,15 +277,13 @@ class CompileContext {
  */
 class SurfaceScope {
   readonly surfaceId: string;
-  readonly catalogId?: string;
   readonly sendDataModel?: boolean;
   readonly update: boolean;
   readonly rawSymbols: Record<string, unknown> = {};
   readonly dataPathAssignments: Record<string, unknown> = {};
 
-  constructor(surfaceId: string, catalogId?: string, sendDataModel?: boolean, update = false) {
+  constructor(surfaceId: string, sendDataModel?: boolean, update = false) {
     this.surfaceId = surfaceId;
-    this.catalogId = catalogId;
     this.sendDataModel = sendDataModel;
     this.update = update;
   }
@@ -325,6 +323,19 @@ export class ExpressCompiler {
       return this.helpers.get(explicitCatalogId)!.components.has(name);
     }
     return catalogsDefining(this.helpers, 'component', name).length > 0;
+  }
+
+  /**
+   * Checks whether a call names a function across active catalogs or in the named catalog.
+   */
+  private definesFunction(name: string, explicitCatalogId: unknown): boolean {
+    if (explicitCatalogId !== undefined) {
+      return (
+        typeof explicitCatalogId === 'string' &&
+        (this.helpers.get(explicitCatalogId)?.functions.has(name) ?? false)
+      );
+    }
+    return catalogsDefining(this.helpers, 'function', name).length > 0;
   }
 
   /**
@@ -478,7 +489,6 @@ export class ExpressCompiler {
    *
    * @param dslText The source A2UI Express DSL text block.
    * @param surfaceId The unique identifier for the compiled surface.
-   * @param catalogId The URI/identifier of the schema catalog to reference.
    * @param isFinal Whether this is the final compilation pass.
    * @param version Target version override ("v0.9", "v0.9.1", or "v1.0").
    * @returns A list of standard A2UI wire JSON message dicts.
@@ -486,7 +496,6 @@ export class ExpressCompiler {
   compile(
     dslText: string,
     surfaceId = 'default_surface',
-    catalogId = '',
     isFinal = true,
     version?: string,
   ): AgentToRendererMessage[] {
@@ -591,12 +600,7 @@ export class ExpressCompiler {
           (parsedVal as ExpressCallValue).call === 'surface'
         ) {
           const parsed = this.parseSurfaceCall(parsedVal as ExpressCallValue);
-          currentScope = new SurfaceScope(
-            parsed.surfaceId,
-            parsed.catalogId || catalogId,
-            parsed.sendDataModel,
-            parsed.update,
-          );
+          currentScope = new SurfaceScope(parsed.surfaceId, parsed.sendDataModel, parsed.update);
           units.push({kind: 'scope', scope: currentScope});
         } else if (
           parsedVal &&
@@ -629,7 +633,7 @@ export class ExpressCompiler {
       } else if (stmtType === 'ASSIGN') {
         const [varName, parsedVal] = stmtArgs as [string, ExpressValue];
         if (currentScope === null) {
-          currentScope = new SurfaceScope(surfaceId, catalogId);
+          currentScope = new SurfaceScope(surfaceId);
           units.push({kind: 'scope', scope: currentScope});
         }
         if (varName.startsWith('$')) {
@@ -703,7 +707,7 @@ export class ExpressCompiler {
     targetMajorMinor: [number, number],
   ): AgentToRendererMessage[] {
     const scopeSurfId = scope.surfaceId;
-    const catalogId = scope.catalogId || surfaceCatalogId(this.catalogs);
+    const catalogId = surfaceCatalogId(this.catalogs);
 
     const compIds = new Map<string, string>();
     for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
@@ -757,45 +761,12 @@ export class ExpressCompiler {
     ctx.extraComponents = [];
 
     const resultMessages: AgentToRendererMessage[] = [];
+    const hasRootComponent = compiledComponents.some(c => c.id === 'root');
 
-    if ('root' in scope.rawSymbols && !scope.update) {
-      const createPayload: Record<string, unknown> = {
-        surfaceId: scopeSurfId,
-      };
-      if (catalogId !== undefined) {
-        createPayload.catalogId = catalogId;
-      }
-      if (scope.sendDataModel !== undefined) {
-        createPayload.sendDataModel = scope.sendDataModel;
-      }
-
-      if (isAtLeastVersion(targetVersion, 'v1.0')) {
-        createPayload.components = compiledComponents;
-        if (Object.keys(dataModel).length > 0) {
-          createPayload.dataModel = dataModel;
-        }
-        resultMessages.push(
-          asAgentToRendererMessage({
-            version: targetVersion,
-            [SurfaceOperation.CREATE]: createPayload,
-          }),
-        );
-      } else {
-        resultMessages.push(
-          asAgentToRendererMessage({
-            version: targetVersion,
-            [SurfaceOperation.CREATE]: createPayload,
-          }),
-          asAgentToRendererMessage({
-            version: targetVersion,
-            [SurfaceOperation.UPDATE_COMPONENTS]: {
-              surfaceId: scopeSurfId,
-              components: compiledComponents,
-            },
-          }),
-        );
-        if (Object.keys(dataModel).length > 0) {
-          resultMessages.push(
+    if (scope.update || !hasRootComponent) {
+      if (compiledComponents.length === 0) {
+        if (Object.keys(scope.dataPathAssignments).length > 0) {
+          return [
             asAgentToRendererMessage({
               version: targetVersion,
               [SurfaceOperation.UPDATE_DATA]: {
@@ -804,17 +775,10 @@ export class ExpressCompiler {
                 value: dataModel,
               },
             }),
-          );
+          ];
         }
+        throw new ExpressUndefinedRootError('root');
       }
-      return resultMessages;
-    }
-
-    if (compiledComponents.length === 0 && Object.keys(scope.dataPathAssignments).length === 0) {
-      throw new ExpressUndefinedRootError('root');
-    }
-
-    if (compiledComponents.length > 0) {
       resultMessages.push(
         asAgentToRendererMessage({
           version: targetVersion,
@@ -824,21 +788,69 @@ export class ExpressCompiler {
           },
         }),
       );
+      if (Object.keys(dataModel).length > 0) {
+        resultMessages.push(
+          asAgentToRendererMessage({
+            version: targetVersion,
+            [SurfaceOperation.UPDATE_DATA]: {
+              surfaceId: scopeSurfId,
+              path: '/',
+              value: dataModel,
+            },
+          }),
+        );
+      }
+      return resultMessages;
     }
 
-    if (Object.keys(dataModel).length > 0) {
+    const createPayload: Record<string, unknown> = {
+      surfaceId: scopeSurfId,
+    };
+    if (catalogId !== undefined) {
+      createPayload.catalogId = catalogId;
+    }
+    if (scope.sendDataModel !== undefined) {
+      createPayload.sendDataModel = scope.sendDataModel;
+    }
+
+    if (isAtLeastVersion(targetVersion, 'v1.0')) {
+      createPayload.components = compiledComponents;
+      if (Object.keys(dataModel).length > 0) {
+        createPayload.dataModel = dataModel;
+      }
       resultMessages.push(
         asAgentToRendererMessage({
           version: targetVersion,
-          [SurfaceOperation.UPDATE_DATA]: {
+          [SurfaceOperation.CREATE]: createPayload,
+        }),
+      );
+    } else {
+      resultMessages.push(
+        asAgentToRendererMessage({
+          version: targetVersion,
+          [SurfaceOperation.CREATE]: createPayload,
+        }),
+        asAgentToRendererMessage({
+          version: targetVersion,
+          [SurfaceOperation.UPDATE_COMPONENTS]: {
             surfaceId: scopeSurfId,
-            path: '/',
-            value: dataModel,
+            components: compiledComponents,
           },
         }),
       );
+      if (Object.keys(dataModel).length > 0) {
+        resultMessages.push(
+          asAgentToRendererMessage({
+            version: targetVersion,
+            [SurfaceOperation.UPDATE_DATA]: {
+              surfaceId: scopeSurfId,
+              path: '/',
+              value: dataModel,
+            },
+          }),
+        );
+      }
     }
-
     return resultMessages;
   }
 
@@ -880,16 +892,16 @@ export class ExpressCompiler {
       throw new ExpressValidationError(`id on component '${compName}' must be a non-empty string.`);
     }
 
-    if (explicitCatalogId === undefined && !this.definesComponent(compName, undefined)) {
-      if (
-        compName === 'Event' ||
-        compName === '_template' ||
-        compName === 'surface' ||
-        compName === 'deleteSurface' ||
-        catalogsDefining(this.helpers, 'function', compName).length > 0
-      ) {
-        return null;
-      }
+    if (
+      !this.definesComponent(compName, explicitCatalogId) &&
+      ((explicitCatalogId === undefined &&
+        (compName === 'Event' ||
+          compName === '_template' ||
+          compName === 'surface' ||
+          compName === 'deleteSurface')) ||
+        this.definesFunction(compName, explicitCatalogId))
+    ) {
+      return null;
     }
 
     const {helper: compHelper, catalogId: resolvedCatalogId} = this.resolveSymbol(
