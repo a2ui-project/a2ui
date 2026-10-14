@@ -787,7 +787,7 @@ class CheckEnvironmentTest(unittest.TestCase):
         self._git(self.repo_root, "init", "-b", "main")
         self._git(self.repo_root, "config", "user.name", "Test")
         self._git(self.repo_root, "config", "user.email", "test@test.local")
-        for pkg in (rv.CORE, rv.AGENT):
+        for pkg in rv.RELEASE_ORDER:
             self._write(pkg.pyproject_path, "[project]\n")
         self._git(self.repo_root, "add", ".")
         self._git(self.repo_root, "commit", "-m", "Initial")

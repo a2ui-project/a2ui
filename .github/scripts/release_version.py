@@ -578,7 +578,7 @@ def check_environment(
 
     missing = [
         pkg.pyproject_path
-        for pkg in (CORE, AGENT)
+        for pkg in RELEASE_ORDER
         if not os.path.isfile(os.path.join(repo_root, pkg.pyproject_path))
     ]
     if missing:

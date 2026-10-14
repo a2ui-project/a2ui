@@ -31,9 +31,14 @@ cases_a2a_integration = get_conformance_cases("extensions/a2a/a2a_integration.ya
     ids=[c[0] for c in cases_a2a_integration],
 )
 def test_a2a_integration_conformance(name, test_case):
-    from a2ui.a2a import create_a2ui_part, get_a2ui_datapart, is_a2ui_part
     from a2a.types import DataPart, Part
-    from a2ui.a2a import get_a2ui_agent_extension, try_activate_a2ui_extension
+    from a2ui.a2a import (
+        create_a2ui_part,
+        get_a2ui_agent_extension,
+        get_a2ui_datapart,
+        is_a2ui_part,
+        try_activate_a2ui_extension,
+    )
     from a2ui.a2a.extension import _select_newest_a2ui_extension
     from unittest.mock import MagicMock
     from a2a.server.agent_execution import RequestContext
