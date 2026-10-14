@@ -178,13 +178,37 @@ class TestFixLicenses(unittest.TestCase):
 
         license_path = os.path.join(self.repo_root, "LICENSE")
         with open(license_path, "w", encoding="utf-8") as f:
-            f.write("http:" + "//www.apache.org/licenses\n")
+            f.write("https:" + "//www.apache.org/licenses\n")
 
         with patch(
             "fix_licenses.get_tracked_files", return_value=[file1, license_path]
         ):
             errors = fix_licenses.process_files(self.repo_root, check_mode=True)
             self.assertEqual(len(errors), 3)
+
+    def test_process_files_license_http_enforcement(self):
+        license_path = os.path.join(self.repo_root, "LICENSE")
+        with open(license_path, "w", encoding="utf-8") as f:
+            f.write("http:" + "//www.apache.org/licenses\n")
+
+        nested_license = os.path.join(self.repo_root, "dart", "pkg", "LICENSE")
+        os.makedirs(os.path.dirname(nested_license), exist_ok=True)
+        with open(nested_license, "w", encoding="utf-8") as f:
+            f.write("https:" + "//www.apache.org/licenses\n")
+
+        with patch(
+            "fix_licenses.get_tracked_files",
+            return_value=[license_path, nested_license],
+        ):
+            errors = fix_licenses.process_files(self.repo_root, check_mode=True)
+            self.assertEqual(len(errors), 1)
+            self.assertIn("HTTPS Apache URL found in: dart/pkg/LICENSE", errors[0])
+
+            fix_errors = fix_licenses.process_files(self.repo_root, check_mode=False)
+            self.assertEqual(len(fix_errors), 0)
+            with open(nested_license, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertEqual(content, "http:" + "//www.apache.org/licenses\n")
 
     def test_process_files_check_mode_years_prior_2010_and_ranges(self):
         file1 = os.path.join(self.repo_root, "file1.py")
