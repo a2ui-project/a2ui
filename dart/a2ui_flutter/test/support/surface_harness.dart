@@ -101,7 +101,7 @@ class SurfaceHarness {
       ValueNotifier(const []);
 
   /// The codes of [errors].
-  List<String?> get errorCodes => [for (final e in errors) e.code];
+  List<String> get errorCodes => [for (final e in errors) e.code];
 
   /// The live surface with [surfaceId].
   SurfaceModel<ComponentImplementation> surface([
@@ -155,23 +155,16 @@ Future<SurfaceHarness> pumpSurface(
   );
   final SurfaceGroupModel<ComponentImplementation> group =
       harness.processor.model;
-  final subscriptions = <Subscription>[
-    group.onAction.subscribe(harness.actions.add),
-    group.onSurfaceCreated.subscribe((surface) {
-      surface.onError.subscribe(harness.errors.add);
-      harness._surfaces.value = [...harness._surfaces.value, surface];
-    }),
-    group.onSurfaceDeleted.subscribe((id) {
-      harness._surfaces.value = [
-        for (final s in harness._surfaces.value)
-          if (s.id != id) s,
-      ];
-    }),
-  ];
-  addTearDown(() {
-    for (final s in subscriptions) {
-      s.unsubscribe();
-    }
+  group.onAction.subscribe(harness.actions.add);
+  group.onSurfaceCreated.subscribe((surface) {
+    surface.onError.subscribe(harness.errors.add);
+    harness._surfaces.value = [...harness._surfaces.value, surface];
+  });
+  group.onSurfaceDeleted.subscribe((id) {
+    harness._surfaces.value = [
+      for (final s in harness._surfaces.value)
+        if (s.id != id) s,
+    ];
   });
   addTearDown(harness._surfaces.dispose);
   addTearDown(group.dispose);

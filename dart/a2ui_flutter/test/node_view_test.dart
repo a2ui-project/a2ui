@@ -23,7 +23,6 @@ void main() {
   late FixtureLog log;
   late SurfaceModel<ComponentImplementation> surface;
   late List<A2uiRendererError> errors;
-  Subscription? subscription;
 
   setUp(() {
     log = FixtureLog();
@@ -32,13 +31,10 @@ void main() {
       's',
       defaultCatalog: fixtureCatalog(log),
     );
-    subscription = surface.onError.subscribe(errors.add);
+    surface.onError.subscribe(errors.add);
   });
 
-  tearDown(() {
-    subscription?.unsubscribe();
-    surface.dispose();
-  });
+  tearDown(() => surface.dispose());
 
   void add(String id, String type, Map<String, Object?> properties) {
     surface.componentsModel.addComponent(ComponentModel(id, type, properties));

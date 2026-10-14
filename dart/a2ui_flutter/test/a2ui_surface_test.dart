@@ -166,7 +166,7 @@ class _ErrorCountingHost extends StatefulWidget {
 
 class _ErrorCountingHostState extends State<_ErrorCountingHost> {
   int _errors = 0;
-  Subscription? _subscription;
+  late final Subscription _subscription;
 
   void _onError(A2uiRendererError error) {
     SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -182,7 +182,7 @@ class _ErrorCountingHostState extends State<_ErrorCountingHost> {
 
   @override
   void dispose() {
-    _subscription?.unsubscribe();
+    _subscription.unsubscribe();
     super.dispose();
   }
 

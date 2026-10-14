@@ -49,19 +49,19 @@ final surfaces = ValueNotifier<List<SurfaceModel<ComponentImplementation>>>(
 
 void sendToAgent(RendererToAgentMessage message) => send(
   RendererToAgentMessagePayload.of(message).toJson(),
-  metadata: {'a2uiClientDataModel': ?processor.getClientDataModel()},
+  metadata: {'a2uiClientDataModel': ?processor.getRendererDataModel()},
 );
 
-processor.groupModel.onAction.addListener(
+processor.model.onAction.subscribe(
   (action) => sendToAgent(ActionMessage(version: version, action: action)),
 );
-processor.groupModel.onSurfaceCreated.addListener((surface) {
-  surface.onError.addListener(
+processor.model.onSurfaceCreated.subscribe((surface) {
+  surface.onError.subscribe(
     (error) => sendToAgent(ErrorMessage(version: version, error: error)),
   );
   surfaces.value = [...surfaces.value, surface];
 });
-processor.groupModel.onSurfaceDeleted.addListener((id) {
+processor.model.onSurfaceDeleted.subscribe((id) {
   surfaces.value = [
     for (final surface in surfaces.value)
       if (surface.id != id) surface,
@@ -93,10 +93,10 @@ ValueListenableBuilder(
 );
 
 // On shutdown:
-processor.groupModel.dispose();
+processor.model.dispose();
 ```
 
-- Send `processor.getClientDataModel()` as `a2uiClientDataModel` in the
+- Send `processor.getRendererDataModel()` as `a2uiClientDataModel` in the
   transport metadata of each message to the agent, when it is not null.
 - Key each surface's widget by `ObjectKey(surface)`, and remove it when the
   surface is deleted.
