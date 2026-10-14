@@ -57,10 +57,10 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
       },
       'live': {
         'type': 'string',
-        'enum': ['off', 'polite', 'assertive'],
-        'default': 'off',
         'description':
           "Controls screen reader announcements for dynamic updates (WAI-ARIA aria-live). 'polite' waits for user pause; 'assertive' interrupts immediately for alerts.",
+        'enum': ['off', 'polite', 'assertive'],
+        'default': 'off',
       },
       'hidden': {
         '$ref': '#/$defs/DynamicBoolean',
@@ -114,10 +114,10 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
     'oneOf': [
       {
         'type': 'array',
+        'description': 'A static list of child component IDs.',
         'items': {
           '$ref': '#/$defs/ComponentId',
         },
-        'description': 'A static list of child component IDs.',
       },
       {
         'type': 'object',
@@ -319,6 +319,8 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
       'A single validation check rule applied to an input component. The condition function or path evaluates to a structured validation result object or a boolean (which is coerced to a validation result object).',
     'properties': {
       'condition': {
+        'description':
+          'Path or function call evaluating to a structured validation result object or a boolean.',
         'oneOf': [
           {
             '$ref': '#/$defs/DataBinding',
@@ -327,8 +329,6 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
             '$ref': '#/$defs/FunctionCall',
           },
         ],
-        'description':
-          'Path or function call evaluating to a structured validation result object or a boolean.',
       },
       'message': {
         'type': 'string',
@@ -339,8 +339,8 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
     'additionalProperties': false,
   },
   'Checkable': {
-    'description': 'Properties for components that support renderer-side checks.',
     'type': 'object',
+    'description': 'Properties for components that support renderer-side checks.',
     'properties': {
       'checks': {
         'type': 'array',
