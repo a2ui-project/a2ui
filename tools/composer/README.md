@@ -30,22 +30,22 @@ Since the composer depends on shared renderers in this repository, you must buil
 
 ```bash
 # Build markdown-it renderer
-cd ../../renderers/markdown/markdown-it
+cd ../../typescript/markdown/markdown-it
 yarn install
 yarn build
 
-# Build web-core renderer (from renderers/markdown/markdown-it, go up 4 levels to the repo root)
-cd ../../../../typescript/web_core
+# Build web-core renderer
+cd ../../web_core
 yarn install
 yarn build
 
 # Build lit renderer
-cd ../../renderers/lit
+cd ../renderers/lit
 yarn install
 yarn build
 
 # Back to composer
-cd ../../tools/composer
+cd ../../../tools/composer
 ```
 
 Then, just install, build, and run!

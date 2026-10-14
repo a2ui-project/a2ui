@@ -115,7 +115,7 @@ def prepare_build_context(demo_dir: Path) -> Path:
 
     # demo_dir is samples/community/client/lit/personalized_learning.
     repo_root = demo_dir.resolve().parents[4]
-    renderers_dir = repo_root / "renderers"
+    renderers_dir = repo_root / "typescript" / "renderers"
 
     # Copy web_core first (lit depends on it)
     web_core_source = repo_root / "typescript" / "web_core"

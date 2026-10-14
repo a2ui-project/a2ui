@@ -72,9 +72,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/angular-explorer@workspace:renderers/angular/a2ui_explorer":
+"@a2ui/angular-explorer@workspace:typescript/renderers/angular/a2ui_explorer":
   version: 0.0.0-use.local
-  resolution: "@a2ui/angular-explorer@workspace:renderers/angular/a2ui_explorer"
+  resolution: "@a2ui/angular-explorer@workspace:typescript/renderers/angular/a2ui_explorer"
   dependencies:
     "@a2ui/angular": "workspace:*"
     "@a2ui/markdown-it": "npm:*"
@@ -113,9 +113,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/angular@workspace:*, @a2ui/angular@workspace:renderers/angular":
+"@a2ui/angular@workspace:*, @a2ui/angular@workspace:typescript/renderers/angular":
   version: 0.0.0-use.local
-  resolution: "@a2ui/angular@workspace:renderers/angular"
+  resolution: "@a2ui/angular@workspace:typescript/renderers/angular"
   dependencies:
     "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
@@ -218,9 +218,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/lit-explorer@workspace:renderers/lit/a2ui_explorer":
+"@a2ui/lit-explorer@workspace:typescript/renderers/lit/a2ui_explorer":
   version: 0.0.0-use.local
-  resolution: "@a2ui/lit-explorer@workspace:renderers/lit/a2ui_explorer"
+  resolution: "@a2ui/lit-explorer@workspace:typescript/renderers/lit/a2ui_explorer"
   dependencies:
     "@a2ui/lit": "workspace:*"
     "@a2ui/markdown-it": "workspace:*"
@@ -263,9 +263,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/lit@workspace:*, @a2ui/lit@workspace:renderers/lit":
+"@a2ui/lit@workspace:*, @a2ui/lit@workspace:typescript/renderers/lit":
   version: 0.0.0-use.local
-  resolution: "@a2ui/lit@workspace:renderers/lit"
+  resolution: "@a2ui/lit@workspace:typescript/renderers/lit"
   dependencies:
     "@a2ui/web_core": "workspace:*"
     "@lit-labs/signals": "npm:^0.3.0"
@@ -290,9 +290,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/markdown-it@workspace:*, @a2ui/markdown-it@workspace:renderers/markdown/markdown-it":
+"@a2ui/markdown-it@workspace:*, @a2ui/markdown-it@workspace:typescript/markdown/markdown-it":
   version: 0.0.0-use.local
-  resolution: "@a2ui/markdown-it@workspace:renderers/markdown/markdown-it"
+  resolution: "@a2ui/markdown-it@workspace:typescript/markdown/markdown-it"
   dependencies:
     "@a2ui/web_core": "workspace:*"
     "@types/dompurify": "npm:^3.2.0"
@@ -312,9 +312,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/react-explorer@workspace:renderers/react/a2ui_explorer":
+"@a2ui/react-explorer@workspace:typescript/renderers/react/a2ui_explorer":
   version: 0.0.0-use.local
-  resolution: "@a2ui/react-explorer@workspace:renderers/react/a2ui_explorer"
+  resolution: "@a2ui/react-explorer@workspace:typescript/renderers/react/a2ui_explorer"
   dependencies:
     "@a2ui/markdown-it": "workspace:*"
     "@a2ui/react": "workspace:*"
@@ -363,9 +363,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/react@workspace:*, @a2ui/react@workspace:renderers/react":
+"@a2ui/react@workspace:*, @a2ui/react@workspace:typescript/renderers/react":
   version: 0.0.0-use.local
-  resolution: "@a2ui/react@workspace:renderers/react"
+  resolution: "@a2ui/react@workspace:typescript/renderers/react"
   dependencies:
     "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
@@ -404,15 +404,6 @@ __metadata:
     react: ^18.0.0 || ^19.0.0
     react-dom: ^18.0.0 || ^19.0.0
     zod: ^3.25.76
-  languageName: unknown
-  linkType: soft
-
-"@a2ui/renderers-scripts@workspace:renderers/scripts":
-  version: 0.0.0-use.local
-  resolution: "@a2ui/renderers-scripts@workspace:renderers/scripts"
-  dependencies:
-    eslint: "npm:^10.4.1"
-    gts: "npm:^7.0.0"
   languageName: unknown
   linkType: soft
 
@@ -479,9 +470,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/visual-parity@workspace:renderers/react/visual-parity":
+"@a2ui/typescript-scripts@workspace:typescript/scripts":
   version: 0.0.0-use.local
-  resolution: "@a2ui/visual-parity@workspace:renderers/react/visual-parity"
+  resolution: "@a2ui/typescript-scripts@workspace:typescript/scripts"
+  dependencies:
+    eslint: "npm:^10.4.1"
+    gts: "npm:^7.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@a2ui/visual-parity@workspace:typescript/renderers/react/visual-parity":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/visual-parity@workspace:typescript/renderers/react/visual-parity"
   dependencies:
     "@a2ui/lit": "workspace:*"
     "@a2ui/markdown-it": "workspace:*"

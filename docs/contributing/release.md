@@ -57,7 +57,7 @@ then publish them from the latest `main` of that repository:
 
 ### NPM
 
-See [renderers/docs/web_publishing.md](../../renderers/docs/web_publishing.md).
+See [web_publishing.md](web_publishing.md).
 
 ### PyPI
 

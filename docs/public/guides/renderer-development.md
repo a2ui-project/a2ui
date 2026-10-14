@@ -47,7 +47,7 @@ Your renderer only needs to:
 2. **Subscribe to state changes** from `web_core` and re-render
 3. **Forward user actions** back through the `MessageProcessor`
 
-See the [React renderer](../../../renderers/react), [Lit renderer](../../../renderers/lit), and [Angular renderer](../../../renderers/angular) for working examples of this pattern.
+See the [React renderer](../../../typescript/renderers/react), [Lit renderer](../../../typescript/renderers/lit), and [Angular renderer](../../../typescript/renderers/angular) for working examples of this pattern.
 
 ### Version support
 

@@ -276,14 +276,14 @@ Agent and renderer functionality consists of layers that can be developed separa
     - JavaScript core and catalogs may be adapted to Angular, Electron, React and Lit frameworks.
     - Dart core and catalogs may be adapted to Flutter and Jaspr frameworks.
 
-    See the [Angular adapter](../../../renderers/angular/README.md).
+    See the [Angular adapter](../../../typescript/renderers/angular/README.md).
 
 - **Catalog implementation**:
 
     Implementation of the catalog schema for a framework.
 
     For example:
-    - See the [Angular implementation of the basic catalog](../../../renderers/angular/src/v0_9/catalog/basic)
+    - See the [Angular implementation of the basic catalog](../../../typescript/renderers/angular/src/v0_9/catalog/basic)
 
 ```mermaid
 flowchart TD;

@@ -76,7 +76,7 @@ testpaths = [
 norecursedirs = [
     ".*",
     "docs",
-    "renderers",
+    "typescript",
     "specification",
     "node_modules",
     ".venv",
