@@ -32,7 +32,6 @@ from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
 from a2ui.schema.constants import A2UI_INFERENCE_CLOSE_TAG
 from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG
-from a2ui.utils._experimental import experimental
 
 from .compiler import ExpressCompiler
 from .decompiler import ExpressDecompiler

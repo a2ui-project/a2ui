@@ -15,8 +15,8 @@
   `(bytes, mime_type)` tuples, and `as_tool_decorator` injects them into
   `resolved_files` instead of `genai_parts`. To keep the old behavior, use
   `GenAIFileResolver` from `a2ui-adk`.
-- The experimental Express, Elemental and Atom formats warn through an A2UI
-  decorator instead of ADK's. Set `A2UI_SUPPRESS_EXPERIMENTAL_FEATURE_WARNINGS`
+- The experimental Elemental and Atom formats warn through an A2UI decorator
+  instead of ADK's. Set `A2UI_SUPPRESS_EXPERIMENTAL_FEATURE_WARNINGS`
   instead of `ADK_SUPPRESS_EXPERIMENTAL_FEATURE_WARNINGS` to silence the
   warnings.
 - `DirectJsonParser.parse_chunk` raises `A2uiValidationError` on the chunk that
