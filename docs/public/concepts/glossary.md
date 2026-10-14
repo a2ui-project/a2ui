@@ -258,7 +258,7 @@ Agent and renderer functionality consists of layers that can be developed separa
 
     Set of primitives needed to describe a catalog and to interact with the agent.
 
-    For example, see the [JavaScript web core library](../../../typescript/web_core/README.md).
+    For example, see the [JavaScript web core library](../../../typescript/core/web_core/README.md).
 
 - **Catalog schema**:
 
@@ -276,14 +276,14 @@ Agent and renderer functionality consists of layers that can be developed separa
     - JavaScript core and catalogs may be adapted to Angular, Electron, React and Lit frameworks.
     - Dart core and catalogs may be adapted to Flutter and Jaspr frameworks.
 
-    See the [Angular adapter](../../../typescript/adapters/angular/README.md).
+    See the [Angular adapter](../../../typescript/renderers/angular/README.md).
 
 - **Catalog implementation**:
 
     Implementation of the catalog schema for a framework.
 
     For example:
-    - See the [Angular implementation of the basic catalog](../../../typescript/adapters/angular/src/v0_9/catalog/basic)
+    - See the [Angular implementation of the basic catalog](../../../typescript/renderers/angular/src/v0_9/catalog/basic)
 
 ```mermaid
 flowchart TD;

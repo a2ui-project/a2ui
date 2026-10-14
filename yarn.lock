@@ -72,9 +72,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/angular-explorer@workspace:typescript/adapters/angular/a2ui_explorer":
+"@a2ui/angular-explorer@workspace:typescript/renderers/angular/a2ui_explorer":
   version: 0.0.0-use.local
-  resolution: "@a2ui/angular-explorer@workspace:typescript/adapters/angular/a2ui_explorer"
+  resolution: "@a2ui/angular-explorer@workspace:typescript/renderers/angular/a2ui_explorer"
   dependencies:
     "@a2ui/angular": "workspace:*"
     "@a2ui/markdown-it": "npm:*"
@@ -113,9 +113,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/angular@workspace:*, @a2ui/angular@workspace:typescript/adapters/angular":
+"@a2ui/angular@workspace:*, @a2ui/angular@workspace:typescript/renderers/angular":
   version: 0.0.0-use.local
-  resolution: "@a2ui/angular@workspace:typescript/adapters/angular"
+  resolution: "@a2ui/angular@workspace:typescript/renderers/angular"
   dependencies:
     "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
@@ -215,9 +215,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/lit-explorer@workspace:typescript/adapters/lit/a2ui_explorer":
+"@a2ui/lit-explorer@workspace:typescript/renderers/lit/a2ui_explorer":
   version: 0.0.0-use.local
-  resolution: "@a2ui/lit-explorer@workspace:typescript/adapters/lit/a2ui_explorer"
+  resolution: "@a2ui/lit-explorer@workspace:typescript/renderers/lit/a2ui_explorer"
   dependencies:
     "@a2ui/lit": "workspace:*"
     "@a2ui/markdown-it": "workspace:*"
@@ -260,9 +260,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/lit@workspace:*, @a2ui/lit@workspace:typescript/adapters/lit":
+"@a2ui/lit@workspace:*, @a2ui/lit@workspace:typescript/renderers/lit":
   version: 0.0.0-use.local
-  resolution: "@a2ui/lit@workspace:typescript/adapters/lit"
+  resolution: "@a2ui/lit@workspace:typescript/renderers/lit"
   dependencies:
     "@a2ui/web_core": "workspace:*"
     "@lit-labs/signals": "npm:^0.3.0"
@@ -287,9 +287,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/markdown-it@workspace:*, @a2ui/markdown-it@workspace:typescript/markdown/markdown-it":
+"@a2ui/markdown-it@workspace:*, @a2ui/markdown-it@workspace:typescript/renderers/markdown-it":
   version: 0.0.0-use.local
-  resolution: "@a2ui/markdown-it@workspace:typescript/markdown/markdown-it"
+  resolution: "@a2ui/markdown-it@workspace:typescript/renderers/markdown-it"
   dependencies:
     "@a2ui/web_core": "workspace:*"
     "@types/dompurify": "npm:^3.2.0"
@@ -309,9 +309,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/react-explorer@workspace:typescript/adapters/react/a2ui_explorer":
+"@a2ui/react-explorer@workspace:typescript/renderers/react/a2ui_explorer":
   version: 0.0.0-use.local
-  resolution: "@a2ui/react-explorer@workspace:typescript/adapters/react/a2ui_explorer"
+  resolution: "@a2ui/react-explorer@workspace:typescript/renderers/react/a2ui_explorer"
   dependencies:
     "@a2ui/markdown-it": "workspace:*"
     "@a2ui/react": "workspace:*"
@@ -360,9 +360,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/react@workspace:*, @a2ui/react@workspace:typescript/adapters/react":
+"@a2ui/react@workspace:*, @a2ui/react@workspace:typescript/renderers/react":
   version: 0.0.0-use.local
-  resolution: "@a2ui/react@workspace:typescript/adapters/react"
+  resolution: "@a2ui/react@workspace:typescript/renderers/react"
   dependencies:
     "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
@@ -476,9 +476,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/visual-parity@workspace:typescript/adapters/react/visual-parity":
+"@a2ui/visual-parity@workspace:typescript/renderers/react/visual-parity":
   version: 0.0.0-use.local
-  resolution: "@a2ui/visual-parity@workspace:typescript/adapters/react/visual-parity"
+  resolution: "@a2ui/visual-parity@workspace:typescript/renderers/react/visual-parity"
   dependencies:
     "@a2ui/lit": "workspace:*"
     "@a2ui/markdown-it": "workspace:*"
@@ -504,9 +504,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/web_core@workspace:*, @a2ui/web_core@workspace:typescript/web_core":
+"@a2ui/web_core@workspace:*, @a2ui/web_core@workspace:typescript/core/web_core":
   version: 0.0.0-use.local
-  resolution: "@a2ui/web_core@workspace:typescript/web_core"
+  resolution: "@a2ui/web_core@workspace:typescript/core/web_core"
   dependencies:
     "@angular/core": "npm:^21.2.5"
     "@lit/context": "npm:^1.1.6"

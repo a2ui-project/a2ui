@@ -83,13 +83,13 @@
     "build": {
       "command": "ng build restaurant",
       "dependencies": [
-        "../../../typescript/adapters/angular:build"
+        "../../../typescript/renderers/angular:build"
       ]
     },
     "test": {
       "command": "ng test --watch=false --browsers=ChromeHeadless",
       "dependencies": [
-        "../../../typescript/adapters/angular:build"
+        "../../../typescript/renderers/angular:build"
       ],
       "files": [
         "src/**/*",

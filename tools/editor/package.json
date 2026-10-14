@@ -38,7 +38,7 @@
         "FORCE_COLOR": "1"
       },
       "dependencies": [
-        "../../typescript/adapters/lit:build"
+        "../../typescript/renderers/lit:build"
       ],
       "files": [
         "**/*.ts",

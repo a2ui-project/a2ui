@@ -161,8 +161,8 @@ function toWebComponent(
 
 - Framework adapter blueprint: [`a2ui_framework_adapter.blueprint.md`](../modules/a2ui_framework_adapter.blueprint.md)
 - Node resolution feature: [`node_resolution.blueprint.md`](node_resolution.blueprint.md)
-- Reference shared layer: [`typescript/web_core/src/universal`](../../typescript/web_core/src/universal) (`a2ui-lit-element.ts`, `a2ui-controller.ts`, `render-a2ui-node.ts`, `register_universal_element.ts`, `to_web_component_implementation.ts`, `basic_catalog/components/`)
-- Reference host adapters: React [`typescript/adapters/react/src/catalog`](../../typescript/adapters/react/src/catalog) and [`host_registry.ts`](../../typescript/adapters/react/src/host_registry.ts); Angular [`typescript/adapters/angular/src/catalog`](../../typescript/adapters/angular/src/catalog)
+- Reference shared layer: [`typescript/core/web_core/src/universal`](../../typescript/core/web_core/src/universal) (`a2ui-lit-element.ts`, `a2ui-controller.ts`, `render-a2ui-node.ts`, `register_universal_element.ts`, `to_web_component_implementation.ts`, `basic_catalog/components/`)
+- Reference host adapters: React [`typescript/renderers/react/src/catalog`](../../typescript/renderers/react/src/catalog) and [`host_registry.ts`](../../typescript/renderers/react/src/host_registry.ts); Angular [`typescript/renderers/angular/src/catalog`](../../typescript/renderers/angular/src/catalog)
 - Accessibility requirements: [protocol v1.0, Catalog-Agnostic Accessibility Requirements](../../specification/v1_0/docs/a2ui_protocol.md#catalog-agnostic-accessibility-requirements)
 
 ---
