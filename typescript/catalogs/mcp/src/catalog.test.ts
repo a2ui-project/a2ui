@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import scene3dExample from '../../../../catalogs/mcp/v1/examples/mcp-app-3d-geometry.json' with {type: 'json'};
+import orderSummaryExample from '../../../../catalogs/mcp/v1/examples/mcp-app-order-summary.json' with {type: 'json'};
+import sheetMusicExample from '../../../../catalogs/mcp/v1/examples/mcp-app-sheet-music.json' with {type: 'json'};
 import {
   isWebComponentImplementation,
   MessageProcessor,
@@ -158,5 +161,26 @@ describe('mcpCatalog', () => {
     expect(surface.componentsModel.get('name_field')?.type).toBe('TextField');
     expect(surface.dataModel.get('/player')).toEqual({name: 'Ada', score: 0});
     surface.dispose();
+  });
+
+  it('processes all showcase examples next to the basic catalog', () => {
+    const processor = new MessageProcessor<WebComponentImplementation>([...EXAMPLE_CATALOGS]);
+    const cases = [
+      {
+        example: orderSummaryExample,
+        surfaceId: 'gallery-mcp-app-order-summary',
+        appId: 'order_app',
+      },
+      {example: sheetMusicExample, surfaceId: 'gallery-mcp-app-sheet-music', appId: 'music_app'},
+      {example: scene3dExample, surfaceId: 'gallery-mcp-app-3d-geometry', appId: 'scene3d_app'},
+    ];
+
+    for (const {example, surfaceId, appId} of cases) {
+      processor.processMessages(parseExampleMessages(example));
+      const surface = processor.model.getSurface(surfaceId)!;
+      expect(surface).withContext(surfaceId).toBeDefined();
+      expect(surface.componentsModel.get(appId)?.type).withContext(appId).toBe('McpApp');
+      surface.dispose();
+    }
   });
 });

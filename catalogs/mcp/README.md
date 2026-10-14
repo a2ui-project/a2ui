@@ -53,6 +53,12 @@ The v1 catalog, [v1/catalog.json](v1/catalog.json), targets A2UI protocol v1.0. 
 
 Tool calls and function calls that are not listed are rejected with a JSON-RPC error. The bridge protocol, the sandbox layout and the security controls are defined in the [MCP App component specification](v1/mcp_app_specification.md).
 
+The [v1/examples](v1/examples/) directory holds A2UI message sequences that validate against the v1 catalog combined with the v1 basic catalog:
+
+- [mcp-app-order-summary.json](v1/examples/mcp-app-order-summary.json) renders an Order Summary `McpApp` showcasing startup `tools/call` (`get_order`), asynchronous `ui/notifications/tool-result` delivery, and two-way `data.paths` discount code binding; `tests/examples/mcp_app_order_summary.test.ts` of the TypeScript package runs it end to end.
+- [mcp-app-sheet-music.json](v1/examples/mcp-app-sheet-music.json) renders an ABC Sheet Music Engraver & Synth `McpApp` showcasing two-way `data.paths` notation sync with sandboxed SVG/Web Audio rendering, `ui/update-model-context` note context updates, and `tools/call` (`transpose_score`).
+- [mcp-app-3d-geometry.json](v1/examples/mcp-app-3d-geometry.json) renders a 3D Holographic Geometry Studio `McpApp` showcasing `ui/notifications/host-context-changed` (`containerDimensions`), 60fps canvas rendering, and `tools/call` (`capture_3d_snapshot`).
+
 ## Implementations
 
 | Language   | Package                                               |

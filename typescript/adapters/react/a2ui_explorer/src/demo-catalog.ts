@@ -20,11 +20,10 @@ import {customSliderComponent} from './custom-slider';
 import {customGridComponent} from './custom-grid';
 
 /**
- * A catalog specific to the React demo explorer, extending the basic catalog
- * with custom components.
+ * A catalog specific to the demo, extending the basic catalog with custom components.
  */
 export const demoCatalog = new Catalog(
-  basicCatalog.id,
+  'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
   '0.9',
   [...basicCatalog.components.values(), customSliderComponent, customGridComponent],
   BASIC_FUNCTIONS,

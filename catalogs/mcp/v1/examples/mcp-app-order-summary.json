@@ -1,0 +1,79 @@
+{
+  "name": "MCP App order summary",
+  "description": "An order summary MCP App that fetches order items through the get_order tool and computes the live total with a discount code from a sibling TextField. Showcases MCP tools/call on startup, asynchronous ui/notifications/tool-result delivery, and two-way A2UI data.paths binding.",
+  "messages": [
+    {
+      "version": "v1.0",
+      "createSurface": {
+        "surfaceId": "gallery-mcp-app-order-summary",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-mcp-app-order-summary",
+        "value": {
+          "order": {
+            "id": "A-1042",
+            "orderId": "A-1042",
+            "discountCode": "",
+            "total": 0
+          }
+        }
+      }
+    },
+    {
+      "version": "v1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-mcp-app-order-summary",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["heading", "order_app", "discount_field", "total_text"],
+            "align": "stretch"
+          },
+          {
+            "id": "heading",
+            "component": "Text",
+            "text": "### Order Summary (`tools/call` + two-way discount code sync)"
+          },
+          {
+            "id": "order_app",
+            "component": "McpApp",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+            "title": "Order summary",
+            "htmlContent": "<!doctype html>\n<html>\n  <head>\n    <meta charset=\"utf-8\" />\n    <style>\n      body { font-family: sans-serif; margin: 12px; color: #222; }\n      ul { list-style: none; padding: 0; margin: 0 0 8px; }\n      li { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #eee; }\n      .summary { font-weight: 600; margin-top: 8px; }\n    </style>\n  </head>\n  <body>\n    <div id=\"status\">Loading order...</div>\n    <ul id=\"items\"></ul>\n    <div id=\"summary\" class=\"summary\"></div>\n    <script>\n      let nextId = 1;\n      const pending = new Map();\n      let order = { orderId: '', items: [], discountCode: '' };\n\n      function post(message) {\n        window.parent.postMessage(message, '*');\n      }\n\n      function request(method, params) {\n        const id = nextId++;\n        post({ jsonrpc: '2.0', id, method, params });\n        return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));\n      }\n\n      function notify(method, params) {\n        post({ jsonrpc: '2.0', method, params });\n      }\n\n      function computeTotal(items, code) {\n        if (!Array.isArray(items) || items.length === 0) return null;\n        const subtotal = items.reduce(\n          (sum, item) => sum + Number(item.price || 0) * Number(item.qty || 1),\n          0,\n        );\n        const factor = String(code || '').trim().toUpperCase() === 'SAVE10' ? 0.9 : 1;\n        return Math.round(subtotal * factor * 100) / 100;\n      }\n\n      function render() {\n        const list = document.getElementById('items');\n        const status = document.getElementById('status');\n        const summary = document.getElementById('summary');\n        list.textContent = '';\n        const items = Array.isArray(order.items) ? order.items : [];\n        if (items.length === 0) {\n          status.textContent = 'Loading order...';\n          summary.textContent = '';\n          return;\n        }\n        status.textContent = 'Order ' + (order.orderId || '');\n        for (const item of items) {\n          const li = document.createElement('li');\n          const name = document.createElement('span');\n          name.textContent = item.name + ' × ' + item.qty;\n          const price = document.createElement('span');\n          price.textContent = '$' + (Number(item.price) * Number(item.qty)).toFixed(2);\n          li.append(name, price);\n          list.appendChild(li);\n        }\n        const total = computeTotal(items, order.discountCode);\n        summary.textContent = 'Total: $' + total.toFixed(2);\n        if (total !== order.total) {\n          order.total = total;\n          notify('ui/notifications/data-model-change', {\n            key: 'order',\n            subpath: '/total',\n            value: total,\n          });\n        }\n      }\n\n      function applyOrderUpdate(subpath, value) {\n        if (!subpath) {\n          order = Object.assign({ orderId: '', items: [], discountCode: '' }, value || {});\n        } else if (subpath === '/items') {\n          order.items = Array.isArray(value) ? value : [];\n        } else if (subpath === '/discountCode') {\n          order.discountCode = String(value || '');\n        } else if (subpath === '/orderId') {\n          order.orderId = String(value || '');\n        } else if (subpath === '/total') {\n          order.total = value;\n          return;\n        }\n        render();\n      }\n\n      let requestedOrder = false;\n      window.addEventListener('message', (event) => {\n        const msg = event.data;\n        if (!msg || msg.jsonrpc !== '2.0') return;\n        if (msg.method === 'ping' && msg.id !== undefined) {\n    post({ jsonrpc: '2.0', id: msg.id, result: {} });\n    return;\n  }\n  if (msg.id !== undefined && (msg.result !== undefined || msg.error !== undefined)) {\n          const entry = pending.get(msg.id);\n          if (entry) {\n            pending.delete(msg.id);\n            if (msg.error) entry.reject(msg.error);\n            else entry.resolve(msg.result);\n          }\n          return;\n        }\n        if (msg.method === 'ui/notifications/tool-result' && msg.params) {\n          const sc = msg.params.structuredContent;\n          const items = sc && Array.isArray(sc.items) ? sc.items : Array.isArray(sc) ? sc : null;\n          if (items) applyOrderUpdate('/items', items);\n        } else if (msg.method === 'ui/notifications/data-model-update' && msg.params) {\n          if (msg.params.key === 'order') {\n            applyOrderUpdate(msg.params.subpath, msg.params.value);\n            if (!requestedOrder && order.orderId) {\n              requestedOrder = true;\n              request('tools/call', {\n                name: 'get_order',\n                arguments: { orderId: order.orderId },\n              }).then((res) => {\n                const sc = res && res.structuredContent;\n                const items = sc && Array.isArray(sc.items) ? sc.items : Array.isArray(sc) ? sc : null;\n                if (items) applyOrderUpdate('/items', items);\n              }).catch(() => {});\n            }\n          } else if (msg.params.key === 'toolResult' && msg.params.value) {\n            const val = msg.params.value;\n            const items = Array.isArray(val.items) ? val.items : Array.isArray(val) ? val : null;\n            if (items) applyOrderUpdate('/items', items);\n          }\n        }\n      });\n\n      request('ui/initialize', {\n        appInfo: { name: 'Order summary', version: '1.0.0' },\n        appCapabilities: { availableDisplayModes: ['inline'] },\n        protocolVersion: '2026-01-26',\n      }).then(() => {\n        notify('ui/notifications/initialized', {});\n        notify('ui/notifications/size-changed', { height: 200 });\n      });\n    </script>\n  </body>\n</html>",
+            "allowedTools": ["get_order"],
+            "data": {
+              "paths": {
+                "order": "/order",
+                "toolResult": "/order/toolResult"
+              }
+            }
+          },
+          {
+            "id": "discount_field",
+            "component": "TextField",
+            "label": "Discount code",
+            "placeholder": "SAVE10",
+            "value": {
+              "@path": "/order/discountCode"
+            }
+          },
+          {
+            "id": "total_text",
+            "component": "Text",
+            "text": {
+              "@call": "formatString",
+              "args": {
+                "value": "Total due: ${formatCurrency(value: ${/order/total}, currency: 'USD')}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
