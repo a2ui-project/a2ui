@@ -585,40 +585,57 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       {'oneOf': final List<Object?> entries} => entries,
       _ => const <Object?>[],
     };
-    final Map<String, Object?> passthrough = config.allowUnknownElements
-        ? {
-            'type': 'object',
-            'properties': {
-              '@call': {
-                'not': {
-                  'enum': [...catalog.functions.keys, '@index'],
-                },
+    final Map<String, Object?> notForeignCatalog = {
+      'not': {
+        'required': ['catalogId'],
+        'properties': {
+          'catalogId': {
+            'not': {'const': catalog.id},
+          },
+        },
+      },
+    };
+    final Map<String, Object?> foreignCatalogPassthrough = {
+      'type': 'object',
+      'properties': {
+        '@call': {'type': 'string'},
+        'catalogId': {
+          'type': 'string',
+          'minLength': 1,
+          'not': {'const': catalog.id},
+        },
+        'args': {'type': 'object'},
+      },
+      'required': ['@call', 'catalogId'],
+    };
+    final List<Object?> localBranches = [
+      ...declared,
+      if (config.allowUnknownElements)
+        {
+          'type': 'object',
+          'properties': {
+            '@call': {
+              'not': {
+                'enum': [...catalog.functions.keys, '@index'],
               },
-              'args': {'type': 'object'},
             },
-            'required': ['@call'],
-          }
-        : {
-            'type': 'object',
-            'properties': {
-              '@call': {'type': 'string'},
-              'catalogId': {
-                'type': 'string',
-                'minLength': 1,
-                'not': {'const': catalog.id},
-              },
-              'args': {'type': 'object'},
-            },
-            'required': ['@call', 'catalogId'],
-          };
+            'args': {'type': 'object'},
+          },
+          'required': ['@call'],
+        },
+    ];
     return {
       ...document,
       r'$defs': {
         ...defs,
         'anyFunction': {
           'oneOf': [
-            ...declared,
-            passthrough,
+            if (localBranches.isNotEmpty)
+              {
+                ...notForeignCatalog,
+                'oneOf': localBranches,
+              },
+            foreignCatalogPassthrough,
           ],
         },
       },

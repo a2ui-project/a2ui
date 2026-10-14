@@ -53,14 +53,18 @@ typedef MissingDataReporter = void Function(String path);
 /// an [A2uiExpressionError] instead of exhausting the call stack.
 const int maxDynamicValueDepth = 1000;
 
-class _SignalDataSubscription implements DataSubscription<Object?> {
+class _SignalDataSubscription<T extends Object?>
+    implements DataSubscription<T> {
   final ReadonlySignal<Object?> _signal;
   void Function()? _dispose;
 
   _SignalDataSubscription(this._signal);
 
   @override
-  Object? get value => _signal.peek();
+  T? get value {
+    final Object? val = _signal.peek();
+    return val as T?;
+  }
 
   @override
   void unsubscribe() {
@@ -602,15 +606,15 @@ class DataContext {
   /// later value until [DataSubscription.unsubscribe]. The current value is
   /// available from [DataSubscription.value]; [onChange] is not called for
   /// it.
-  DataSubscription<Object?> subscribeDynamicValue(
+  DataSubscription<T> subscribeDynamicValue<T extends Object?>(
     Object? value,
-    void Function(Object? value) onChange,
+    void Function(T? value) onChange,
   ) {
     final ReadonlySignal<Object?> source = resolveSignal(value);
-    final subscription = _SignalDataSubscription(source);
+    final subscription = _SignalDataSubscription<T>(source);
     var initial = true;
     subscription._dispose = source.subscribe((next) {
-      if (!initial) onChange(next);
+      if (!initial) onChange(next as T?);
     });
     initial = false;
     return subscription;

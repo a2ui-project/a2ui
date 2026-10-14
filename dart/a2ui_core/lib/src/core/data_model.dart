@@ -63,6 +63,8 @@ class DataModel {
 
   Object? _data;
   final Map<String, WeakReference<Signal<Object?>>> _signals = {};
+  final Map<(String, Type), WeakReference<ReadonlySignal<Object?>>>
+      _typedSignals = {};
   final Set<DataSubscription<Object?>> _subscriptions = {};
 
   DataModel([Object? initialData])
@@ -326,20 +328,38 @@ class DataModel {
 
   /// Returns a [ReadonlySignal] for a specific path.
   /// Internally cached using a [WeakReference] to prevent leaks.
-  ReadonlySignal<T?> watch<T>(String path) {
+  ReadonlySignal<T?> watch<T extends Object?>(String path) {
     final String normalizedPath = _buildPointer(_parsePointer(path));
+    Signal<Object?>? sig;
     final WeakReference<Signal<Object?>>? ref = _signals[normalizedPath];
     if (ref != null) {
-      final Signal<Object?>? sig = ref.target;
-      if (sig != null) {
-        return sig as ReadonlySignal<T?>;
+      sig = ref.target;
+    }
+    if (sig == null) {
+      sig = signal<Object?>(get(normalizedPath));
+      _signals[normalizedPath] = WeakReference(sig);
+      _pruneSignals();
+    }
+
+    if (T == Object || T == dynamic || <Object?>[] is List<T>) {
+      return sig as ReadonlySignal<T?>;
+    }
+
+    final key = (normalizedPath, T);
+    final WeakReference<ReadonlySignal<Object?>>? typedRef = _typedSignals[key];
+    if (typedRef != null) {
+      final ReadonlySignal<Object?>? existing = typedRef.target;
+      if (existing != null) {
+        return existing as ReadonlySignal<T?>;
       }
     }
 
-    final Signal<T?> sig = signal<T?>(get(normalizedPath) as T?);
-    _signals[normalizedPath] = WeakReference(sig as Signal<Object?>);
-    _pruneSignals();
-    return sig;
+    final ReadonlySignal<T?> computedSig = computed<T?>(() {
+      final Object? val = sig!.value;
+      return val as T?;
+    });
+    _typedSignals[key] = WeakReference(computedSig as ReadonlySignal<Object?>);
+    return computedSig;
   }
 
   /// Subscribes [onChange] to changes at [path], including mutations to
@@ -405,6 +425,7 @@ class DataModel {
 
   void _pruneSignals() {
     _signals.removeWhere((key, ref) => ref.target == null);
+    _typedSignals.removeWhere((key, ref) => ref.target == null);
   }
 
   void dispose() {
@@ -415,5 +436,6 @@ class DataModel {
     }
     _subscriptions.clear();
     _signals.clear();
+    _typedSignals.clear();
   }
 }

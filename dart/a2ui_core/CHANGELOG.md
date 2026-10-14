@@ -38,7 +38,7 @@
   property from a mixin or local definition
   ([#3053](https://github.com/a2ui-project/a2ui/issues/3053)).
 - `DataContext` adds `parent`, `index`, `childContext(path, {index})`, and
-  `subscribeDynamicValue`, which returns a `DataSubscription`. `nested` now
+  `subscribeDynamicValue<T>`, which returns a `DataSubscription<T>`. `nested` now
   returns a child context linked to its parent. In v1.0 contexts, the
   `@index` system function returns the enclosing template item's index plus
   an optional `offset`, and throws `A2uiValidationError` outside a collection

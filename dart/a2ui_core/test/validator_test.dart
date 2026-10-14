@@ -1318,6 +1318,66 @@ void v1RulesTests() {
     });
   });
 
+  group('PayloadValidator cross-catalog function calls', () {
+    test(
+        'accepts foreign catalog call even when function name collides '
+        'with local function', () {
+      final PayloadValidator<ComponentApi, FunctionApi> validator =
+          _versionedValidator('v1.0');
+      // Local 'f' requires {'value': <string>}.
+      // A foreign call to 'f' on 'catB' taking different args must pass.
+      expect(
+        () => validator.validateComponent(_box({
+          '@call': 'f',
+          'catalogId': 'catB',
+          'args': {'other': 123},
+        })),
+        returnsNormally,
+      );
+
+      // Even if foreign call's args match local 'f' schema, it must not fail
+      // oneOf.
+      expect(
+        () => validator.validateComponent(_box({
+          '@call': 'f',
+          'catalogId': 'catB',
+          'args': {'value': 'ok'},
+        })),
+        returnsNormally,
+      );
+    });
+
+    test('accepts foreign catalog call under allowUnknownElements', () {
+      final PayloadValidator<ComponentApi, FunctionApi> validator =
+          _versionedValidator(
+        'v1.0',
+        config: ValidationConfig.relaxed,
+      );
+      expect(
+        () => validator.validateComponent(_box({
+          '@call': 'f',
+          'catalogId': 'catB',
+          'args': {'other': 123},
+        })),
+        returnsNormally,
+      );
+    });
+
+    test('rejects foreign-shaped call when catalogId matches local catalog.id',
+        () {
+      final PayloadValidator<ComponentApi, FunctionApi> validator =
+          _versionedValidator('v1.0');
+      expect(
+        () => validator.validateComponent(_box({
+          '@call': 'f',
+          'catalogId': 'versioned',
+          'args': {'other': 123},
+        })),
+        throwsA(isA<A2uiValidationError>()),
+      );
+    });
+  });
+
   group('PayloadValidator v1.0 reserved keys', () {
     test('rejects unknown single-@ directives', () {
       for (final Map<String, Object?> value in [

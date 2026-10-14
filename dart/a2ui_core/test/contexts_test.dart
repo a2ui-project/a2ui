@@ -917,6 +917,21 @@ void main() {
       subscription.unsubscribe();
     });
 
+    test('subscribeDynamicValue<T> returns typed DataSubscription<T>', () {
+      dataModel.set('/name', 'Alice');
+      final seen = <String?>[];
+      final DataSubscription<String> subscription =
+          v10Context().subscribeDynamicValue<String>(
+        {'@path': '/name'},
+        seen.add,
+      );
+      expect(subscription.value, 'Alice');
+      dataModel.set('/name', 'Bob');
+      expect(seen, ['Bob']);
+      expect(subscription.value, 'Bob');
+      subscription.unsubscribe();
+    });
+
     test('rejects dynamic values nested deeper than maxDynamicValueDepth', () {
       Object? nest(int depth) {
         Object? value = {'@path': '/x'};

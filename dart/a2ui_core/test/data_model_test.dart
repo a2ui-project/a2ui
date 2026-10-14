@@ -379,5 +379,40 @@ void main() {
       expect(sub.value, 'world');
       expect(changes, ['world']);
     });
+
+    test('subscribe<T> followed by watch<String> does not throw TypeError', () {
+      final model = DataModel({'name': 'Ada'});
+      addTearDown(model.dispose);
+
+      final DataSubscription<String> sub = model.subscribe<String>(
+        '/name',
+        (_) {},
+      );
+      expect(sub.value, 'Ada');
+
+      final ReadonlySignal<String?> typedWatcher = model.watch<String>('/name');
+      expect(typedWatcher.value, 'Ada');
+
+      final ReadonlySignal<String?> secondWatcher =
+          model.watch<String>('/name');
+      expect(identical(typedWatcher, secondWatcher), isTrue);
+
+      model.set('/name', 'Grace');
+      expect(typedWatcher.value, 'Grace');
+      expect(sub.value, 'Grace');
+    });
+
+    test('watch<String> followed by non-string set does not throw TypeError',
+        () {
+      final model = DataModel({'value': 'initial'});
+      addTearDown(model.dispose);
+
+      final ReadonlySignal<String?> watcher = model.watch<String>('/value');
+      expect(watcher.value, 'initial');
+
+      // Writing a non-string value (int) to the path must not throw.
+      expect(() => model.set('/value', 42), returnsNormally);
+      expect(model.get('/value'), 42);
+    });
   });
 }
