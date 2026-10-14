@@ -145,7 +145,7 @@ The server is the single source of truth—authorization is enforced via the `/a
 - **Single topics only**: Multi-topic requests may return wrong content
 - **Audio/video**: Pre-generated files only, not dynamic
 - **Sidebar**: Placeholder UI; only the chat is functional
-- **Deployment path**: `deploy_hosting.py` assumes `typescript/renderers/lit` is at `../../../../typescript/renderers/lit`; update if repo structure changes
+- **Deployment path**: `deploy_hosting.py` assumes `typescript/renderers/lit` is at `../../../../../typescript/renderers/lit`; update if repo structure changes
 
 ---
 
