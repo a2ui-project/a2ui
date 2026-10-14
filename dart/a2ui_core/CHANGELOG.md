@@ -315,9 +315,8 @@
 - **Breaking:** `SurfaceModel.catalog` is replaced by a nullable
   `defaultCatalog`, and the constructor's `catalog:` argument by
   `defaultCatalog:`. `SurfaceModel` adds `availableCatalogs`, `metadata`,
-  `onWarning`/`dispatchWarning` (with the new `A2uiWarning`),
-  `catalogForComponent`, which returns a component's `ComponentModel.catalog`
-  typed for the surface, and `resolveCatalog(catalogId, {subject})`, which
+  `onWarning`/`dispatchWarning` (with the new `A2uiWarning`), and
+  `resolveCatalog(catalogId, {subject})`, which
   resolves an item's own `catalogId`, then the default, and otherwise throws
   `A2uiCatalogError`: `Catalog not found: <id>. ...` for a catalog the surface
   doesn't have, or `... has no default catalogId.` when the item names none.
@@ -326,11 +325,12 @@
   surface's throws `A2uiCatalogError` at construction. A catalog without a
   `protocolVersion` is pre-v1.0: a v0.9 or v0.9.1 surface accepts it and a
   v1.0 or later surface rejects it.
-- **Behavior change:** `NodeResolver` and `GenericBinder` render each
-  component with its `ComponentModel.catalog`. From v1.0, `DataContext` runs a
-  function call naming a `catalogId` in that catalog, through the new
-  `invokerForCatalog`; before v1.0 a call's `catalogId` is ignored and the call
-  runs in the default catalog. `FunctionCall` adds `catalogId`.
+- **Behavior change:** `NodeResolver`, `GenericBinder` and `DataContext`
+  resolve components and function calls through `surface.resolveCatalog`, so a
+  component or function call naming another catalog's `catalogId` renders or
+  runs with that catalog. A call's `catalogId` counts only from v1.0; before
+  v1.0 every call runs in the default catalog. `FunctionCall` adds
+  `catalogId`, and `DataContext` adds `invokerForCatalog`.
 - **Behavior change:** `MessageProcessor` gives each surface the processor
   catalogs compatible with its protocol version as `availableCatalogs`, and
   `createSurface` without a `catalogId` creates a surface with no default
@@ -365,8 +365,6 @@
 - **Breaking** (v1.0): Every component in `updateComponents` must name its `component` type, as the specification requires; `MessageProcessor` no longer lets an update omit it and keep the previous type. An update that names no `catalogId` resolves to the surface's default catalog, like any other component, instead of keeping the catalog of the component it replaces. An update that changes a component's catalog, even with the same type, replaces its `ComponentModel` rather than updating the existing one in place.
 - `PayloadValidator` (v1.0): a nested function call is fully checked against the validator's catalog when it runs there: when it names that catalog, or names no `catalogId` while the component is in the surface default catalog, including calls nested in the arguments of a call that runs elsewhere. Called directly, the validator takes a component that names no `catalogId` to be in the surface default. These calls are checked before the component's own schema, so the error names the function and argument. Any other call runs in a catalog the validator can't see, so it is checked only for its names: function and argument names must be UAX #31 identifiers (so an empty function name is rejected rather than skipped), and the only `@`-prefixed name allowed is `@index`. An empty `catalogId` names a catalog too, and a non-string `catalogId` is rejected. `validateFunction` judges the calls in its arguments as in a component that names no `catalogId`. The calls are checked even in a component whose type the catalog doesn't declare, when `allowUnknownElements` lets that component through. A call that omits `args` is read as passing `{}`, so it is accepted when the function requires no argument. `MessageProcessor` decides whether a component is in the surface default from the catalog it resolves to, so a component that explicitly names the default catalog has its catalogless calls checked like one that names none. It resolves every nested call's catalog and checks the calls the component's validator leaves unjudged against the catalog they resolve to, and rejects a component whose `catalogId` is not a string with `A2uiValidationError` instead of resolving it to the default.
 - `PayloadValidator` normalizes untyped map and list literals (such as `{'args': {}}`) before schema validation, so they fail validation with `A2uiValidationError` instead of throwing a `TypeError`.
-- **Behavior change:** `MessageProcessor.getClientDataModel` and `getRendererDataModel` take an optional `version` and report that version, else the processor's `defaultVersion`, in the envelope instead of always `v0.9`. The envelope holds only the surfaces whose protocol version is compatible with it. With neither version set, every surface is reported under `v0.9`, as before.
-- **Breaking:** `ComponentModel` requires the catalog the component resolved to: `ComponentModel(id, type, properties, catalog: catalog)`, exposed as `ComponentModel.catalog`. `MessageProcessor` sets it to the catalog the component's `catalogId` names, else the surface default, so the node resolver and binder no longer re-derive it from the properties. An update that resolves to a different catalog replaces the model. `ComponentModel.toJson` is unchanged: it emits `catalogId` only when the payload named one.
 - **Breaking:** `DataContext.isV10` is renamed `DataContext.atLeastV10`, since it is true for v1.0 and every later version. No alias is kept.
 - **Breaking:** A function call whose catalog can't be resolved (it names a catalog the surface doesn't have, or names none on a surface without a default) is reported on the surface error channel with code `CATALOG_ERROR` instead of `EXPRESSION_ERROR`, by `ComponentContext` and `NodeResolver` alike; a `DataContext` error reporter receives an `A2uiExpressionError` whose `code` is `CATALOG_ERROR`. Every other evaluation failure, including a function missing from the catalog the call resolved to and an unknown system function, keeps `EXPRESSION_ERROR`.
 - The reserved `@index` system function (v1.0) belongs to no catalog: `MessageProcessor` validates it and `DataContext` evaluates it without resolving a catalog, and it takes only an `offset`. `@`-prefixed names other than `@index` are rejected by validation, and evaluating one fails with `A2uiExpressionError`. A system function call that names a `catalogId`, whatever its value, is rejected by validation, and evaluating it fails with code `EXPRESSION_ERROR` rather than with an `A2uiValidationError` from parsing the call.
@@ -433,18 +431,15 @@
   against the existing component's type and catalog schema, and keeps its
   `catalogId` and `metadata` when it omits those too; its properties still
   replace the existing ones.
-- `ComponentModel` adds `catalogId` (the `catalogId` the payload named, or
-  null) and `metadata`, and `properties` no longer holds `catalogId` or
-  `metadata`. A component whose type or resolved `ComponentModel.catalog`
-  changes is recreated (`onDeleted`, then `onCreated`).
+- `ComponentModel` adds `catalog` (the component's `catalogId`) and `metadata`,
+  and `properties` no longer holds `catalogId` or `metadata`. A component whose
+  type changes, or whose `catalogId` resolves to a different catalog, is
+  recreated (`onDeleted`, then `onCreated`).
 - `SurfaceModel` adds `rootId`, defaulting to `root` or to
   `ValidationConfig.rootId`, and `NodeResolver` roots the tree at it.
 - `SurfaceComponentsModel` adds `getAll()`, `has()`, `size`, `entries`, `keys`,
   `values`, `getChildIds()`, `validateTopology()`, `detectCycles()`,
-  `validateReferences()` and `validateComponentsUpdate()`. The graph queries
-  read each component's child references through its own
-  `ComponentModel.catalog`, so a surface that mixes catalogs or has no default
-  catalog is walked correctly.
+  `validateReferences()` and `validateComponentsUpdate()`.
 - Added `ValidationResult` and `A2uiReturnType.validationResult` for structured
   client-side validation outcomes (`valid`, `message`, `code`, `severity`), and
   exposed `validationResults` alongside `isValid` and `validationErrors` on

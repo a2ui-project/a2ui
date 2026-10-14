@@ -640,9 +640,10 @@ class MessageProcessor<T extends ComponentApi> {
   ///
   /// Every component in the batch is resolved to a full entry and to the
   /// catalog it belongs to, and checked, before any of them is applied, so a
-  /// batch that is rejected leaves the surface exactly as it was. The catalog
-  /// is kept for the models [_applyComponents] builds, so it is resolved
-  /// once. Then the surface this batch would leave behind is checked as one
+  /// batch that is rejected leaves the surface exactly as it was.
+  /// [_applyComponents] resolves each entry's catalog again when it builds
+  /// the models; the batch has already shown that it resolves. Then the
+  /// surface this batch would leave behind is checked as one
   /// graph: duplicate ids, then under a [validationConfig] the root,
   /// references that resolve, cycles, depth and reachability, as its flags
   /// require. Each component's references are read through the catalog it
