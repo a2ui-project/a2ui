@@ -404,10 +404,13 @@ class ExpressCompiler:
         Args:
             name: The called name.
             catalog_id: The `catalogId` written on the call, or None when it
-                has none, in which case every catalog is searched.
+                has none, in which case every catalog is searched. A
+                `catalogId` that names no active catalog defines nothing.
         """
-        if isinstance(catalog_id, str) and catalog_id in self.helpers:
-            return name in self.helpers[catalog_id].functions
+        if catalog_id is not None:
+            if isinstance(catalog_id, str) and catalog_id in self.helpers:
+                return name in self.helpers[catalog_id].functions
+            return False
         return bool(catalogs_defining(self.helpers, "function", name))
 
     def _resolve(
@@ -879,9 +882,11 @@ class ExpressCompiler:
         # A variable holding a function call, an Event or a template is inlined
         # wherever it is named rather than emitted as a component. A call that
         # names its catalog is a function call when that catalog defines it as
-        # a function and not as a component.
+        # a function and not as a component. Events and templates belong to no
+        # catalog, so one that names a catalogId is compiled as a component and
+        # rejected.
         if not self._defines_component(comp_name, comp_cat_id) and (
-            comp_name in ("Event", "_template")
+            (comp_name in ("Event", "_template") and comp_cat_id is None)
             or self._defines_function(comp_name, comp_cat_id)
         ):
             return None

@@ -316,24 +316,53 @@ def test_express_variable_holding_function_call_with_catalog_id_is_inlined(
     assert through_variable["w"]["action"]["functionCall"]["catalogId"] == secondary
 
 
-def test_express_variable_holding_call_missing_from_named_catalog_errors(
-    primary_catalog: Catalog, secondary_catalog: Catalog
+@pytest.mark.parametrize(
+    ("held", "uses_variable", "match"),
+    [
+        # The named catalog defines no `primaryCheck`.
+        (
+            'primaryCheck("x", catalogId="https://a2ui.org/catalogs/secondary")',
+            True,
+            "primaryCheck",
+        ),
+        # The named catalog is not active; this fails even when the variable is
+        # never used.
+        (
+            'sharedFn("a", "b", catalogId="https://a2ui.org/catalogs/missing")',
+            False,
+            "catalogs/missing",
+        ),
+        # Events belong to no catalog.
+        (
+            'Event("click", catalogId="https://a2ui.org/catalogs/primary")',
+            True,
+            "Event",
+        ),
+    ],
+)
+def test_express_variable_holding_call_with_bad_catalog_id_errors(
+    primary_catalog: Catalog,
+    secondary_catalog: Catalog,
+    held: str,
+    uses_variable: bool,
+    match: str,
 ) -> None:
     fmt = ExpressFormat(
         catalogs=[primary_catalog, secondary_catalog],
         surface_id="main",
         version="v1.0",
     )
+    action = ", action=act" if uses_variable else ""
     dsl = (
         "<a2ui>\n"
         'surface("main")\n'
-        'act = primaryCheck("x", catalogId="https://a2ui.org/catalogs/secondary")\n'
-        'w = SharedWidget("x", catalogId="https://a2ui.org/catalogs/primary",'
-        " action=act)\n"
+        f"act = {held}\n"
+        'w = SharedWidget("x",'
+        f' catalogId="https://a2ui.org/catalogs/primary"{action})\n'
         "root = Column([w])\n"
         "</a2ui>"
     )
-    with pytest.raises(Exception, match="primaryCheck"):
+    with pytest.raises(Exception, match=match):
         fmt.create_parser().parse_response(dsl)
 
 
