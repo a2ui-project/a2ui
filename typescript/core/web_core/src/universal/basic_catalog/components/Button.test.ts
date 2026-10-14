@@ -115,6 +115,7 @@ describe('Button Component', () => {
     const button = el.querySelector('button');
     assert.notStrictEqual(button, null);
     assert.strictEqual(button?.disabled, false);
+    assert.deepStrictEqual(Array.from(button!.classList), ['a2ui-button', 'a2ui-button-default']);
 
     const dispatched = {action: null as A2uiClientAction | null};
     subscription = surface.onAction.subscribe((action: A2uiClientAction) => {

@@ -119,7 +119,7 @@ export abstract class BasicCatalogA2uiLitElement<Api extends ComponentApi> exten
   protected renderValidationErrors(props?: CheckableResolvedProps) {
     if (props?.isValid === false && props.validationErrors?.length) {
       return props.validationErrors.map(
-        (msg: string) => html`<div class="error a2ui-error-message">${msg}</div>`,
+        (msg: string) => html`<div class="a2ui-error-message">${msg}</div>`,
       );
     }
     return nothing;

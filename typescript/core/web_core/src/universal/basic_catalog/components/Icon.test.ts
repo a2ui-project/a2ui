@@ -121,7 +121,7 @@ describe('Icon Component', () => {
     const svg = el.querySelector('svg');
     assert.notStrictEqual(svg, null);
     assert.strictEqual(svg?.classList.contains('a2ui-icon'), true);
-    assert.strictEqual(svg?.classList.contains('svg'), true);
+    assert.strictEqual(svg?.classList.contains('a2ui-icon-svg'), true);
     const path = svg?.querySelector('path');
     assert.notStrictEqual(path, null);
     assert.strictEqual(path?.getAttribute('d'), 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z');

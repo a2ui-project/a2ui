@@ -23,7 +23,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 import json
 import re
-from typing import Any
+from typing import Any, Literal
 
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
@@ -179,7 +179,11 @@ def _multi_catalog_rules(helpers: Mapping[str, CatalogSchemaHelper]) -> str:
         f'    ?checkName(..., {{catalogId: "{example_id}"}})',
     ]
     shared = []
-    for kind, label in (("component", "Component"), ("function", "Function")):
+    kinds: tuple[tuple[Literal["component", "function"], str], ...] = (
+        ("component", "Component"),
+        ("function", "Function"),
+    )
+    for kind, label in kinds:
         names = {
             name
             for helper in helpers.values()
@@ -224,7 +228,7 @@ def _get_schema_enum(prop_schema: Any) -> list[str] | None:
     if not isinstance(prop_schema, dict):
         return None
     if "enum" in prop_schema:
-        return prop_schema["enum"]
+        return [str(x) for x in prop_schema["enum"]]
     if "oneOf" in prop_schema or "anyOf" in prop_schema:
         subs = prop_schema.get("oneOf", []) + prop_schema.get("anyOf", [])
         for sub in subs:

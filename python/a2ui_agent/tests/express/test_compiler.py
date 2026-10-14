@@ -33,7 +33,7 @@ import unittest
 from a2ui.core import Catalog
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats._shared import CatalogSchemaHelper
-from a2ui.inference_formats.experimental.express import (
+from a2ui.inference_formats.express import (
     ExpressCompiler,
     ExpressDuplicateParamError,
     ExpressDuplicatePropertyError,
@@ -171,7 +171,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         self.assertIn("repField = TextField(", decompiled_dsl)
 
         # Prompt Generator
-        from a2ui.inference_formats.experimental.express import ExpressFormat
+        from a2ui.inference_formats.express import ExpressFormat
 
         fmt = ExpressFormat([core_catalog])
         prompt = fmt.prompt_generator.generate()

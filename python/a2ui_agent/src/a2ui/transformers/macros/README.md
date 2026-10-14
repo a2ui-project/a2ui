@@ -98,7 +98,7 @@ The decorator maps Python type hints to canonical A2UI JSON schema definitions:
 Until the full `TransformerPipeline` and `CatalogConfig` abstractions land in the shared core SDK, developers wire `MacroExpander` manually in two simple steps:
 
 ```python
-from a2ui.inference_formats.experimental.express import ExpressFormat
+from a2ui.inference_formats.express import ExpressFormat
 from a2ui.transformers.macros import MacroExpander, macro
 
 # 1. Initialize the expander with your macros

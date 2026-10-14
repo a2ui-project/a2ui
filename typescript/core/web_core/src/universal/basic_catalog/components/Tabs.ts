@@ -57,7 +57,7 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<TabsSupportedApis> {
       border-bottom: 2px solid transparent;
       margin-bottom: -2px;
     }
-    .a2ui-tab-button.active {
+    .a2ui-tab-button.a2ui-tab-button-active {
       background: var(--a2ui-tabs-header-background-active, transparent);
       color: var(--a2ui-tabs-header-color-active, var(--a2ui-color-primary, #007bff));
       border-bottom: 2px solid var(--a2ui-color-primary, #007bff);
@@ -89,7 +89,7 @@ export class A2uiLitTabs extends BasicCatalogA2uiLitElement<TabsSupportedApis> {
               <button
                 class=${classMap({
                   'a2ui-tab-button': true,
-                  active: i === this.activeIndex,
+                  'a2ui-tab-button-active': i === this.activeIndex,
                 })}
                 @click=${() => (this.activeIndex = i)}
               >

@@ -85,8 +85,7 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<TextSupport
     .a2ui-text p {
       line-height: var(--a2ui-line-height-body, 1.5);
     }
-    .a2ui-text.caption,
-    .a2ui-caption {
+    .a2ui-text.a2ui-text-caption {
       font-size: var(--a2ui-font-size-xs);
       color: var(--a2ui-text-caption-color, light-dark(#666, #aaa));
     }
@@ -130,10 +129,14 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<TextSupport
           content = html`<em>${text}</em>`;
           break;
       }
-      return html`<span class="a2ui-text ${variant}" style=${flexStyle}>${content}</span>`;
+      return html`<span class="a2ui-text a2ui-text-${variant}" style=${flexStyle}
+        >${content}</span
+      >`;
     }
 
     const renderedMarkdown = markdown(text, this.markdownRenderer);
-    return html`<span class="a2ui-text ${variant}" style=${flexStyle}>${renderedMarkdown}</span>`;
+    return html`<span class="a2ui-text a2ui-text-${variant}" style=${flexStyle}
+      >${renderedMarkdown}</span
+    >`;
   }
 }

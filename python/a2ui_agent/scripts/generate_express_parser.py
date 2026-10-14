@@ -15,7 +15,7 @@
 """Regenerates the Express parser from the canonical ANTLR grammar.
 
 The lexer, parser, and visitor in
-``src/a2ui/inference_formats/experimental/express/generated/`` are generated from
+``src/a2ui/inference_formats/express/generated/`` are generated from
 ``specification/inference_formats/express/Express.g4`` and committed. After
 changing the grammar, run this from ``python/a2ui_agent`` and commit the result::
 
@@ -52,13 +52,7 @@ _GRAMMAR = (
     / "Express.g4"
 )
 _GENERATED_DIR = (
-    _SDK_DIR
-    / "src"
-    / "a2ui"
-    / "inference_formats"
-    / "experimental"
-    / "express"
-    / "generated"
+    _SDK_DIR / "src" / "a2ui" / "inference_formats" / "express" / "generated"
 )
 
 # ANTLR names its output after the grammar; the package uses snake_case names.

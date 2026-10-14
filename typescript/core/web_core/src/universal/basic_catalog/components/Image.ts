@@ -50,22 +50,22 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<ImageSupportedA
       height: auto;
       border-radius: var(--a2ui-image-border-radius, 0);
     }
-    .a2ui-image.icon {
+    .a2ui-image.a2ui-image-icon {
       width: var(--a2ui-image-icon-size, 24px);
       height: var(--a2ui-image-icon-size, 24px);
     }
-    .a2ui-image.avatar {
+    .a2ui-image.a2ui-image-avatar {
       width: var(--a2ui-image-avatar-size, 40px);
       height: var(--a2ui-image-avatar-size, 40px);
       border-radius: 50%;
     }
-    .a2ui-image.smallFeature {
+    .a2ui-image.a2ui-image-smallFeature {
       max-width: var(--a2ui-image-small-feature-size, 100px);
     }
-    .a2ui-image.largeFeature {
+    .a2ui-image.a2ui-image-largeFeature {
       max-height: var(--a2ui-image-large-feature-size, 400px);
     }
-    .a2ui-image.header {
+    .a2ui-image.a2ui-image-header {
       height: var(--a2ui-image-header-size, 200px);
     }
   `;
@@ -82,7 +82,7 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<ImageSupportedA
       src=${props.url}
       alt=${props.description || ''}
       style=${styleMap({objectFit: fit})}
-      class="a2ui-image ${variant}"
+      class="a2ui-image a2ui-image-${variant}"
     />`;
   }
 }

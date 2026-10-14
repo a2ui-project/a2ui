@@ -152,7 +152,7 @@ describe('Example: Live Invitation Builder', () => {
   });
 
   it('should update preview when changing location', async () => {
-    const chips = Array.from(surface.querySelectorAll('.chip')) as HTMLElement[];
+    const chips = Array.from(surface.querySelectorAll('.a2ui-chip')) as HTMLElement[];
     expect(chips.length).toBeGreaterThanOrEqual(3);
 
     const ballroomChip = chips.find(el => el.textContent.trim() === 'Grand Ballroom');

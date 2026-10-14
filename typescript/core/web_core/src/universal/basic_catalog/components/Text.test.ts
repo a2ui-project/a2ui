@@ -153,7 +153,7 @@ describe('Text Component', () => {
       e.context = context;
     });
 
-    const captionSpan = el.querySelector('span.a2ui-text.caption');
+    const captionSpan = el.querySelector('span.a2ui-text.a2ui-text-caption');
     assert.notStrictEqual(captionSpan, null);
     const em = captionSpan?.querySelector('em');
     assert.notStrictEqual(em, null);

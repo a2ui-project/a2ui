@@ -89,7 +89,7 @@ uv build
 ```
 
 The build doesn't need Java. The Express lexer, parser, and visitor in
-`src/a2ui/inference_formats/experimental/express/generated/` are generated from
+`src/a2ui/inference_formats/express/generated/` are generated from
 `specification/inference_formats/express/Express.g4` and committed to the
 repository.
 

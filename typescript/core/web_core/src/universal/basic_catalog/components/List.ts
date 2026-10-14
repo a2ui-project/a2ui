@@ -45,11 +45,11 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
       padding-inline-start: var(--a2ui-list-padding, var(--a2ui-spacing-l, 24px));
       margin: 0;
     }
-    .a2ui-list.vertical {
+    .a2ui-list.a2ui-list-vertical {
       flex-direction: column;
       gap: var(--a2ui-list-gap, var(--a2ui-spacing-s, 8px));
     }
-    .a2ui-list.horizontal {
+    .a2ui-list.a2ui-list-horizontal {
       flex-direction: row;
       gap: var(--a2ui-list-gap, var(--a2ui-spacing-m, 16px));
       list-style-position: inside;
@@ -57,7 +57,7 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
     .a2ui-list-item-none {
       display: block;
     }
-    .horizontal .a2ui-list-item-none {
+    .a2ui-list-horizontal .a2ui-list-item-none {
       display: inline-block;
     }
   `;
@@ -74,7 +74,7 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
 
     if (listStyle === 'ordered') {
       return html`
-        <ol class="a2ui-list ${direction}" style=${listInlineStyle}>
+        <ol class="a2ui-list a2ui-list-${direction}" style=${listInlineStyle}>
           ${repeat(children, getChildKey, child => html`<li>${this.renderNode(child)}</li>`)}
         </ol>
       `;
@@ -82,14 +82,14 @@ export class A2uiListElement extends BasicCatalogA2uiLitElement<ListSupportedApi
 
     if (listStyle === 'unordered') {
       return html`
-        <ul class="a2ui-list ${direction}" style=${listInlineStyle}>
+        <ul class="a2ui-list a2ui-list-${direction}" style=${listInlineStyle}>
           ${repeat(children, getChildKey, child => html`<li>${this.renderNode(child)}</li>`)}
         </ul>
       `;
     }
 
     return html`
-      <div class="a2ui-list ${direction}" style=${listInlineStyle}>
+      <div class="a2ui-list a2ui-list-${direction}" style=${listInlineStyle}>
         ${repeat(
           children,
           getChildKey,

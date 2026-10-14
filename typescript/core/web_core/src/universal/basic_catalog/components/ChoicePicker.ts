@@ -46,7 +46,6 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
       gap: var(--a2ui-choicepicker-gap, var(--a2ui-spacing-xs, 0.25rem));
       padding: var(--a2ui-choicepicker-padding, 0);
     }
-    .options,
     .a2ui-options-group {
       display: flex;
       flex-direction: column;
@@ -69,7 +68,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
       );
       font-weight: var(--a2ui-choicepicker-label-font-weight, var(--a2ui-label-font-weight, bold));
     }
-    .filter-input {
+    .a2ui-filter-input {
       background-color: var(--a2ui-color-input, #fff);
       color: var(--a2ui-color-on-input, #333);
       border: var(
@@ -84,7 +83,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
       margin-bottom: var(--a2ui-choicepicker-filter-margin-bottom, var(--a2ui-spacing-s, 0.25rem));
       font-family: inherit;
     }
-    .filter-input:focus {
+    .a2ui-filter-input:focus {
       outline: none;
       border-color: var(--a2ui-textfield-color-border-focus, var(--a2ui-color-primary, #17e));
     }
@@ -92,14 +91,12 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
       width: var(--a2ui-choicepicker-checkbox-size, 1rem);
       height: var(--a2ui-choicepicker-checkbox-size, 1rem);
     }
-    .chips,
     .a2ui-chips-group {
       display: flex;
       flex-direction: row;
       flex-wrap: wrap;
       gap: var(--a2ui-choicepicker-gap, var(--a2ui-spacing-xs, 0.25rem));
     }
-    .chip,
     .a2ui-chip {
       padding: var(
         --a2ui-choicepicker-chip-padding,
@@ -115,10 +112,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
       font-weight: var(--a2ui-choicepicker-chip-font-weight, normal);
       transition: all 0.2s;
     }
-    .chip.selected,
-    .chip.active,
-    .a2ui-chip.selected,
-    .a2ui-chip.active {
+    .a2ui-chip.a2ui-chip-selected {
       background-color: var(
         --a2ui-choicepicker-chip-background-selected,
         var(--a2ui-color-primary, #007bff)
@@ -129,7 +123,6 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
         var(--a2ui-color-primary, #007bff)
       );
     }
-    .error,
     .a2ui-error-message {
       color: var(--a2ui-choicepicker-color-error, red);
       font-size: var(--a2ui-font-size-xs, 0.75rem);
@@ -188,7 +181,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
         ? html`
             <input
               type="text"
-              class="filter-input"
+              class="a2ui-filter-input"
               placeholder="Filter options..."
               aria-label="Filter options"
               .value=${this.filter}
@@ -199,9 +192,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
       <div
         class=${classMap({
           'a2ui-choice-picker': true,
-          options: true,
           'a2ui-options-group': !isChips,
-          chips: isChips,
           'a2ui-chips-group': isChips,
         })}
       >
@@ -212,9 +203,7 @@ export class A2uiChoicePickerElement extends BasicCatalogA2uiLitElement<ChoicePi
                   type="button"
                   class=${classMap({
                     'a2ui-chip': true,
-                    chip: true,
-                    active: selected.includes(opt.value),
-                    selected: selected.includes(opt.value),
+                    'a2ui-chip-selected': selected.includes(opt.value),
                   })}
                   aria-pressed=${selected.includes(opt.value)}
                   @click=${() => toggle(opt.value)}

@@ -65,16 +65,16 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<ButtonSup
     .a2ui-button:hover {
       background-color: var(--a2ui-color-secondary-hover, #ddd);
     }
-    .a2ui-button.primary {
+    .a2ui-button.a2ui-button-primary {
       background: var(--a2ui-color-primary, #17e);
       --_a2ui-text-color: var(--a2ui-color-on-primary, #fff);
       color: var(--_a2ui-text-color);
       border: none;
     }
-    .a2ui-button.primary:hover {
+    .a2ui-button.a2ui-button-primary:hover {
       background-color: var(--a2ui-color-primary-hover, #fbd);
     }
-    .a2ui-button.borderless {
+    .a2ui-button.a2ui-button-borderless {
       background: none;
       border: none;
       padding: 0;
@@ -95,7 +95,6 @@ export class A2uiBasicButtonElement extends BasicCatalogA2uiLitElement<ButtonSup
 
     const classes = {
       'a2ui-button': true,
-      [variant]: true,
       ['a2ui-button-' + variant]: true,
     };
 

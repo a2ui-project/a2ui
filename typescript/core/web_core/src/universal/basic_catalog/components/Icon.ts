@@ -69,7 +69,7 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<IconSupportedApi
       font-feature-settings: 'liga';
       vertical-align: middle;
     }
-    .a2ui-icon.svg {
+    .a2ui-icon.a2ui-icon-svg {
       fill: currentColor;
     }
   `;
@@ -84,7 +84,7 @@ export class A2uiIconElement extends BasicCatalogA2uiLitElement<IconSupportedApi
     if (isSvgPath) {
       const svgPath = (name as {svgPath: string}).svgPath;
       return html`
-        <svg class="a2ui-icon svg" viewBox="0 0 24 24">
+        <svg class="a2ui-icon a2ui-icon-svg" viewBox="0 0 24 24">
           <path d=${svgPath}></path>
         </svg>
       `;

@@ -23,13 +23,11 @@ from a2ui.inference_format import InferenceFormatFactory
 from a2ui.inference_formats._shared import catalogs_protocol_version
 from a2ui.inference_formats._shared import check_mixed_catalogs
 from a2ui.parser import Parser
-from a2ui.utils._experimental import experimental
 
 from .parser import ExpressParser
 from .prompt_generator import ExpressPromptGenerator
 
 
-@experimental
 class ExpressFormat(InferenceFormat):
     """Concrete strategy for Express DSL representation."""
 

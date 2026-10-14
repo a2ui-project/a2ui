@@ -95,6 +95,6 @@ describe('Divider Component', () => {
     const hr = el.querySelector('hr');
     assert.notStrictEqual(hr, null);
     assert.strictEqual(hr?.classList.contains('a2ui-divider'), true);
-    assert.strictEqual(hr?.classList.contains('horizontal'), true);
+    assert.strictEqual(hr?.classList.contains('a2ui-divider-horizontal'), true);
   });
 });

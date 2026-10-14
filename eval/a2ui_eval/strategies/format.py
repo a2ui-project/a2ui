@@ -62,7 +62,7 @@ def _get_strategy(
 
     formatted_version = f"v{version}" if not version.startswith("v") else version
     if format_name == "express":
-        from a2ui.inference_formats.experimental.express import ExpressFormat
+        from a2ui.inference_formats.express import ExpressFormat
 
         return ExpressFormat(
             [catalog], surface_id=surface_id, version=formatted_version
