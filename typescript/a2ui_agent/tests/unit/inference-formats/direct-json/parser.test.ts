@@ -139,6 +139,15 @@ describe('DirectJsonParser', () => {
       },
     );
 
+    it('accepts mixed v0.9 and v0.9.1 catalogs since they share a release line', () => {
+      const catalogs = [
+        new Catalog('https://a2ui.org/catalogs/basic', 'v0.9', [], []),
+        new Catalog('https://a2ui.org/catalogs/custom', 'v0.9.1', [], []),
+      ];
+      expect(new DirectJsonParser(catalogs).catalogs).toEqual(catalogs);
+      expect(new DirectJsonFormatFactory().createFormat(catalogs).catalogs).toEqual(catalogs);
+    });
+
     it('throws A2uiValidationError on missing version', () => {
       const parser = new DirectJsonParser([basicCatalogV10]);
       const payload = `[{"createSurface": {"surfaceId": "1", "catalogId": "${basicCatalogV10.id}"}}]`;

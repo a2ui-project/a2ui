@@ -60,6 +60,31 @@ describe('DirectJsonPromptGenerator', () => {
     expect(instructions).toContain(`### Catalog ${customCatalog.id}:`);
   });
 
+  it('describes multiple v0.9 catalogs and their examples in the prompt', () => {
+    const catalogs = ['a', 'b'].map(catalogId =>
+      Catalog.fromJson({catalogId, components: {}}, '0.9'),
+    );
+    const v09Examples = {
+      a: [
+        {version: 'v0.9', createSurface: {surfaceId: 'surface_a', catalogId: 'a'}},
+      ] as unknown as AgentToRendererMessage[],
+      b: [
+        {version: 'v0.9', createSurface: {surfaceId: 'surface_b', catalogId: 'b'}},
+      ] as unknown as AgentToRendererMessage[],
+    };
+    const v09Generator = new DirectJsonPromptGenerator(catalogs, v09Examples);
+    const prompt = v09Generator.generate();
+
+    expect(prompt.split('### Messages (').length).toBe(2);
+    expect(prompt).toContain('### Messages (v0.9):');
+    expect(prompt).toContain('### Catalog a:');
+    expect(prompt).toContain('### Catalog b:');
+    expect(prompt).toContain('"catalogId":"a"');
+    expect(prompt).toContain('"catalogId":"b"');
+    expect(prompt).toContain('"catalogId": "a"');
+    expect(prompt).toContain('"catalogId": "b"');
+  });
+
   it('rejects duplicate catalog IDs and incompatible protocol versions', () => {
     expect(() => new DirectJsonPromptGenerator([catalog, catalog])).toThrow(A2uiCatalogError);
     expect(() => new DirectJsonPromptGenerator([catalog, loadBasicCatalog('v0.9')])).toThrow(
