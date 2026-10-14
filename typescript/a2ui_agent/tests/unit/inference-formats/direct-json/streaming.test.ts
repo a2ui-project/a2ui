@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-import {describe, test, expect, vi} from 'vitest';
-import {DirectJsonStreamProcessorImpl} from '../../../../src/inference-formats/direct-json/streaming.js';
+import {describe, expect, test, vi} from 'vitest';
+import {z} from 'zod';
+
 import {A2uiCatalogError} from '../../../../src/errors.js';
+import {DirectJsonStreamProcessorImpl} from '../../../../src/inference-formats/direct-json/streaming.js';
 import {
   A2uiValidationError,
   Catalog,
@@ -25,7 +27,6 @@ import {
   ComponentRefMap,
   STRICT_VALIDATION,
 } from '../../../../src/internal/web-core.js';
-import {z} from 'zod';
 
 /** Replaces the child reference map the processor built for a catalog. */
 function overrideRefMap(
@@ -658,11 +659,8 @@ describe('Direct JSON Streaming with several catalogs', () => {
       .flatMap(p => p.a2ui);
 
     const allComps = messages
-      .filter(
-        (m): m is {updateComponents: {components: Array<Record<string, unknown>>}} =>
-          'updateComponents' in m,
-      )
-      .flatMap(m => m.updateComponents.components);
+      .filter(m => 'updateComponents' in m)
+      .flatMap(m => m.updateComponents.components as Array<Record<string, unknown>>);
     expect(allComps.find(c => c.id === 'm1')).toEqual({
       id: 'm1',
       catalogId: 'https://a2ui.org/catalogs/custom',
@@ -692,11 +690,8 @@ describe('Direct JSON Streaming with several catalogs', () => {
       .filter(p => p.type === 'a2ui')
       .flatMap(p => p.a2ui);
     const allComps = messages
-      .filter(
-        (m): m is {updateComponents: {components: Array<Record<string, unknown>>}} =>
-          'updateComponents' in m,
-      )
-      .flatMap(m => m.updateComponents.components);
+      .filter(m => 'updateComponents' in m)
+      .flatMap(m => m.updateComponents.components as Array<Record<string, unknown>>);
     expect(allComps).toEqual([
       {
         id: 'root',
@@ -725,11 +720,8 @@ describe('Direct JSON Streaming with several catalogs', () => {
     const comps = parts
       .filter(p => p.type === 'a2ui')
       .flatMap(p => p.a2ui)
-      .filter(
-        (m): m is {updateComponents: {components: Array<Record<string, unknown>>}} =>
-          'updateComponents' in m,
-      )
-      .flatMap(m => m.updateComponents.components);
+      .filter(m => 'updateComponents' in m)
+      .flatMap(m => m.updateComponents.components as Array<Record<string, unknown>>);
     expect(comps.map(c => c.id)).toEqual(['root', 't1', 'u1']);
 
     const validated = new DirectJsonStreamProcessorImpl([catalogBasicV10], {

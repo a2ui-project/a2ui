@@ -26,12 +26,14 @@
   "wireit": {
     "build": {
       "dependencies": [
-        "build:tsc",
-        "../../typescript/web_core:build"
+        "build:tsc"
       ]
     },
     "build:tsc": {
       "command": "tsc -b --pretty",
+      "dependencies": [
+        "../web_core:build"
+      ],
       "files": [
         "src/**/*.ts",
         "tsconfig.json"
