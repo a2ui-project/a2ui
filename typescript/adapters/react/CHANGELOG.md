@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Relocate package directory from `renderers/react` to `typescript/renderers/react`.
+- Relocate package directory from `renderers/react` to `typescript/adapters/react`.
 
 ## 0.13.0
 

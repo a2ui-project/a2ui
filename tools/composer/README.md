@@ -40,7 +40,7 @@ yarn install
 yarn build
 
 # Build lit renderer
-cd ../renderers/lit
+cd ../adapters/lit
 yarn install
 yarn build
 

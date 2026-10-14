@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Relocate package directory from `renderers/lit` to `typescript/renderers/lit`.
+- Relocate package directory from `renderers/lit` to `typescript/adapters/lit`.
 
 ## 0.13.0
 

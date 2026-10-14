@@ -1,5 +1,5 @@
 ---
-codebase_path: typescript/renderers/react
+codebase_path: typescript/adapters/react
 associated_module: a2ui_framework_adapter
 module_blueprint_commit: null
 implemented_features: []

@@ -7,7 +7,7 @@ This is the reference Gallery Application for the A2UI React renderer. It allows
 This application depends on the following local libraries in this repository:
 
 1. `@a2ui/web_core` (located in `typescript/web_core`)
-2. `@a2ui/react` (located in `typescript/renderers/react`)
+2. `@a2ui/react` (located in `typescript/adapters/react`)
 
 ## Building Dependencies
 
@@ -28,7 +28,7 @@ Once the dependencies are built, you can start the gallery app:
 
 ```bash
 # Navigate to this directory
-cd typescript/renderers/react/a2ui_explorer
+cd typescript/adapters/react/a2ui_explorer
 
 # Start the development server
 yarn dev

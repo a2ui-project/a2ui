@@ -242,7 +242,7 @@ cd ../../../..
 yarn build:all
 
 # 2. Clear Vite cache and restart
-cd typescript/renderers/react/visual-parity
+cd typescript/adapters/react/visual-parity
 rm -rf node_modules/.vite react/node_modules/.vite
 yarn dev:react
 ```

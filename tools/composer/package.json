@@ -81,8 +81,8 @@
       "command": "node scripts/sync-gallery.mjs && next build --webpack",
       "dependencies": [
         "../../typescript/web_core:build",
-        "../../typescript/renderers/lit:build",
-        "../../typescript/renderers/react:build"
+        "../../typescript/adapters/lit:build",
+        "../../typescript/adapters/react:build"
       ],
       "files": [
         "src/**/*",

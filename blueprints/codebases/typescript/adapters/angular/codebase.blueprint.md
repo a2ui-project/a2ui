@@ -1,5 +1,5 @@
 ---
-codebase_path: typescript/renderers/angular
+codebase_path: typescript/adapters/angular
 associated_module: a2ui_framework_adapter
 module_blueprint_commit: null
 implemented_features: []

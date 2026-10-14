@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Relocate package directory from `renderers/angular` to `typescript/renderers/angular`.
+- Relocate package directory from `renderers/angular` to `typescript/adapters/angular`.
 
 ## 0.12.0
 

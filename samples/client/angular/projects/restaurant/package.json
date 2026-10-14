@@ -22,7 +22,7 @@
     "build": {
       "command": "yarn workspace angular-a2ui ng build restaurant",
       "dependencies": [
-        "../../../../../typescript/renderers/angular:build"
+        "../../../../../typescript/adapters/angular:build"
       ],
       "files": [
         "src/**/*",

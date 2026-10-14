@@ -34,5 +34,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "references": [{"path": "../../../../typescript/renderers/lit"}]
+  "references": [{"path": "../../../../typescript/adapters/lit"}]
 }

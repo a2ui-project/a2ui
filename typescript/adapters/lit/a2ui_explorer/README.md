@@ -26,7 +26,7 @@ For more details on building the renderers, see:
 1.  **Navigate to this directory**:
 
     ```bash
-    cd typescript/renderers/lit/a2ui_explorer
+    cd typescript/adapters/lit/a2ui_explorer
     ```
 
 2.  **Run the development server**:
