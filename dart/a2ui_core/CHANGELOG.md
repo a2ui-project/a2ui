@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Updated documentation comments referencing `typescript/core/web_core`.
 - **Breaking:** Renamed `A2uiClientAction` and `A2uiClientError` to
   `A2uiRendererAction` and `A2uiRendererError`.
 - **Breaking:** Renamed `MessageProcessor.groupModel` to
