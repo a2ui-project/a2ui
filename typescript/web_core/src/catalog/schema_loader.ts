@@ -830,9 +830,7 @@ function parseFunctionDefinitions(
       const argsSchema = functionArgsSchema(rawDefn);
       assertFunctionIdentifiers(
         name,
-        argsSchema && typeof argsSchema.properties === 'object'
-          ? argsSchema.properties
-          : undefined,
+        argsSchema && typeof argsSchema.properties === 'object' ? argsSchema.properties : undefined,
       );
       if (permittedNames && !permittedNames.has(name)) {
         continue;

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Bump `a2ui_core` dependency to `^0.3.0`.
 - Align `MessageProcessor.model` and `PayloadValidator` usage with `a2ui_core`.
 - The Direct JSON prompt builds its schema from `Catalog.validationSchema`
   instead of the deprecated `catalogSchema`.

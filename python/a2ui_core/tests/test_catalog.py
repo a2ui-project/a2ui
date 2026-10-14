@@ -1476,10 +1476,8 @@ def test_v10_catalog_rejects_at_prefixed_function_names():
         )
 
     with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
-        Catalog.from_json(
-            {
-                "catalogId": "https://a2ui.org/v10-reserved-fn",
-                "protocolVersion": "v1.0",
-                "functions": {"@index": {"returnType": "number"}},
-            }
-        )
+        Catalog.from_json({
+            "catalogId": "https://a2ui.org/v10-reserved-fn",
+            "protocolVersion": "v1.0",
+            "functions": {"@index": {"returnType": "number"}},
+        })

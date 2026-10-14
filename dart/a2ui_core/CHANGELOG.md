@@ -1,6 +1,6 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
-## Unreleased
+## 0.3.0
 
 - **Breaking:** Renamed `A2uiClientAction` and `A2uiClientError` to
   `A2uiRendererAction` and `A2uiRendererError`.
@@ -28,6 +28,14 @@
   `A2uiRecursionError` (`RECURSION_ERROR`), reserving `A2uiRecursionError` for
   exceeding the maximum component traversal depth (`maxDepth`) or
   function-call nesting depth (`maxFunctionCallDepth`).
+- Export `GenericBinder`, `Behavior`, `BehaviorNode`, `resolveSchemaRefs`, and
+  `inlineLocalRefs` from `package:a2ui_core/a2ui_core.dart`.
+- `Catalog.fromJson` validates shorthand `parameters` map keys against UAX #31
+  in v1.0 mode and wraps shorthand parameter maps in an object schema.
+- `PayloadValidator` rejects undeclared function calls in v1.0 catalogs when
+  `ValidationConfig.allowUnknownElements` is `false` (`ValidationConfig.strict`),
+  while continuing to admit them when `allowUnknownElements` is `true` for
+  renderer-to-agent RPC fallback.
 - `CallRendererFunctionMessage` and `CallRendererFunctionOp` accept an optional
   `surfaceId` (`String?`). When provided, `MessageProcessor` evaluates the
   function call against that surface's root `DataContext` (returning
@@ -598,13 +606,11 @@
   traversal/root mutation, and array index bounds), support `DataContext.index`
   and `DataContext.dispose`, and pass the `data_model.yaml` and
   `data_context.yaml` conformance suites.
-- **Breaking:** `GenericBinder`, `Behavior`, `BehaviorNode` and `ComponentContext`
-  are no longer exported. Renderers read components through `NodeResolver` and
-  `ComponentNode`, whose props carry dynamic properties as `ResolvedBinding`
-  values instead of raw values, with no synthesized `set<Property>` setter
-  entries. A property bound to a data path is a `WritableBinding`, even when the
-  path holds no data; writes go through `WritableBinding.set`, and
-  `WritableBinding.path` is the path as authored.
+- **Breaking:** `ComponentNode.props` carries dynamic properties as
+  `ResolvedBinding` values instead of raw values, with no synthesized
+  `set<Property>` setter entries. A property bound to a data path is a
+  `WritableBinding`, even when the path holds no data; writes go through
+  `WritableBinding.set`, and `WritableBinding.path` is the path as authored.
 - **Breaking:** `SurfaceModel.dispatchAction` no longer executes `functionCall`
   payloads and emits an action only for `event` payloads. A node's action runs
   its function call itself.

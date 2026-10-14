@@ -192,7 +192,7 @@ class TestCliTools(unittest.TestCase):
         self.assertEqual(lines[0], 'surface("gallery-incremental-dashboard")')
         self.assertEqual(lines.count('surface("gallery-incremental-dashboard")'), 4)
         self.assertIn(
-            'content_grid = Row([left_panel, right_panel], id="content-grid")',
+            "content_grid = Row([left_panel, right_panel])",
             lines,
         )
         self.assertTrue(lines[-1].startswith("$/logs = ["))
