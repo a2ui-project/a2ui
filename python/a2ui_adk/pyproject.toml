@@ -1,0 +1,81 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[project]
+name = "a2ui-adk"
+dynamic = ["version"]
+description = "A2UI extension for the Agent Development Kit (ADK)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+keywords = ["a2ui", "adk", "agent", "ui"]
+dependencies = [
+  # 0.8.0 is the last agent SDK release that still ships `a2ui.a2a` and
+  # `a2ui.adk` itself. Installing it next to this package would make two
+  # distributions write the same files, so require a later release.
+  "a2ui-agent-sdk>0.8.0",
+  "google-adk>=1.28.1",
+  "google-genai>=1.27.0",
+]
+
+[project.optional-dependencies]
+# The ADK-to-A2A converters (`a2ui.adk.a2a`) and the A2A subagent orchestration
+# helpers (`a2ui.adk.orchestration`) need the A2A extension.
+a2a = [
+  "a2ui-a2a>=0.1.0",
+  "google-adk[a2a]>=1.28.1",
+]
+
+[tool.uv.sources]
+a2ui-agent-sdk = { workspace = true }
+a2ui-a2a = { workspace = true }
+
+[build-system]
+requires = [
+  "hatchling",
+  "hatch-vcs",
+]
+build-backend = "hatchling.build"
+
+# Version is derived from the `python/a2ui-adk/v*` git tags. See the
+# equivalent block in a2ui_core/pyproject.toml for how `fallback-version` is
+# used.
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.1.0"
+
+[tool.hatch.version.raw-options]
+root = "../.."
+tag_regex = '^python/a2ui-adk/v(?P<version>.+)$'
+local_scheme = "no-local-version"
+git_describe_command = [
+  "git",
+  "describe",
+  "--dirty",
+  "--tags",
+  "--long",
+  "--match",
+  "python/a2ui-adk/v*",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/a2ui"]
+core-metadata-version = "2.4"
+
+[tool.hatch.build.targets.sdist]
+core-metadata-version = "2.4"
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true

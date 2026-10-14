@@ -20,7 +20,7 @@ import unittest
 from unittest.mock import MagicMock
 
 from a2ui.core import Catalog
-from a2ui.inference_formats.experimental.express import ExpressFormat
+from a2ui.inference_formats.express import ExpressFormat
 from a2ui.processor import CatalogConfig
 from a2ui.schema.utils import find_repo_root
 from a2ui.skill import SkillGenerator

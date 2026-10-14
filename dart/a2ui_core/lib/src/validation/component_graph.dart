@@ -17,6 +17,7 @@ import 'package:meta/meta.dart';
 import '../core/catalog.dart';
 import '../core/messages.dart';
 import '../primitives/errors.dart';
+import '../primitives/protocol_version.dart';
 import 'component_refs.dart';
 import 'validation_config.dart';
 
@@ -207,8 +208,9 @@ void checkDuplicateComponentIds(Iterable<Map<String, Object?>> components) {
 /// components it does not reach are then walked on their own, so a cycle among
 /// unreachable components is still found.
 ///
-/// Throws [A2uiRecursionError] for a self-reference, a cycle, or a chain
-/// deeper than [maxDepth], which defaults to [maxComponentDepth].
+/// Throws [A2uiIntegrityError] for a self-reference or a cycle, and
+/// [A2uiRecursionError] for a chain deeper than [maxDepth], which defaults to
+/// [maxComponentDepth].
 Set<String> detectComponentCycles(
   Set<String> ids,
   Iterable<ComponentReference> Function(String id) referencesOf, {
@@ -220,10 +222,10 @@ Set<String> detectComponentCycles(
   for (final id in ids) {
     for (final ComponentReference reference in referencesOf(id)) {
       if (reference.id == id) {
-        throw A2uiRecursionError(
+        throw A2uiIntegrityError(
           "Self-reference detected: Component '$id' references itself in "
           "field '${reference.field}'",
-          cycle: [id],
+          componentIds: [id],
         );
       }
     }
@@ -245,9 +247,9 @@ Set<String> detectComponentCycles(
       final String next = reference.id;
       if (!ids.contains(next)) continue;
       if (onStack.contains(next)) {
-        throw A2uiRecursionError(
+        throw A2uiIntegrityError(
           "Circular reference detected involving component '$next'",
-          cycle: [...onStack, next],
+          componentIds: [...onStack, next],
         );
       }
       if (!visited.contains(next)) visit(next, depth + 1);
@@ -280,9 +282,9 @@ Set<String> detectComponentCycles(
 /// [ValidationConfig.allowMissingRoot]. The root is [ValidationConfig.rootId],
 /// or [defaultRootId] when that is null. An empty surface passes.
 ///
-/// Throws [A2uiIntegrityError] for a missing root, a dangling reference or an
-/// unreachable component, and [A2uiRecursionError] for a self-reference, a
-/// cycle or an over-deep chain.
+/// Throws [A2uiIntegrityError] for a missing root, a dangling reference, a
+/// self-reference, a cycle, or an unreachable component, and
+/// [A2uiRecursionError] for an over-deep chain.
 void checkComponentGraph(
   Set<String> ids,
   Iterable<ComponentReference> Function(String id) referencesOf,
@@ -336,21 +338,30 @@ void checkComponentGraph(
 ///
 /// Mirrors `DataContext.isDataBinding`, which needs a context; this check
 /// runs on a raw message before any surface or context exists.
-bool _isDataBinding(Map<Object?, Object?> value, {required bool v1}) => v1
-    ? value['@path'] is String
-    : value['path'] is String && !value.containsKey('componentId');
+bool _isDataBinding(
+  Map<Object?, Object?> value, {
+  required bool usesDirectives,
+}) =>
+    usesDirectives
+        ? value['@path'] is String
+        : value['path'] is String && !value.containsKey('componentId');
 
 /// Whether [value] is a function-call object in the v1.0 (`@call`) or legacy
 /// (`call`) shape. See [_isDataBinding].
-bool _isFunctionCall(Map<Object?, Object?> value, {required bool v1}) =>
-    v1 ? value['@call'] is String : value['call'] is String;
+bool _isFunctionCall(
+  Map<Object?, Object?> value, {
+  required bool usesDirectives,
+}) =>
+    usesDirectives ? value['@call'] is String : value['call'] is String;
 
 /// Checks data-model paths and nesting depth anywhere inside a message body.
 ///
 /// Throws [A2uiValidationError] for a malformed path and [A2uiRecursionError]
 /// when nesting or chained function calls run past their caps.
-void checkPathsAndRecursion(Object? data, {bool? v1}) {
-  final bool isV1 = v1 ?? _inferV1(data);
+void checkPathsAndRecursion(Object? data, {A2uiProtocolVersion? version}) {
+  final bool usesDirectives = version != null
+      ? version.isAtLeast(A2uiProtocolVersion.v1_0)
+      : _inferUsesDirectives(data);
 
   void traverse(
     Object? node,
@@ -388,7 +399,6 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
       if (udmPath is String && !_pathPattern.hasMatch(udmPath)) {
         throw A2uiValidationError(
           "Invalid path syntax: '$udmPath'",
-          details: udm,
         );
       }
       for (final MapEntry<Object?, Object?> entry in udm.entries) {
@@ -402,19 +412,18 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
       return;
     }
 
-    final Object? path = _isDataBinding(object, v1: isV1)
-        ? object[isV1 ? '@path' : 'path']
+    final Object? path = _isDataBinding(object, usesDirectives: usesDirectives)
+        ? object[usesDirectives ? '@path' : 'path']
         : (object['path'] is String && object['componentId'] is String
             ? object['path']
             : null);
     if (path is String && !_pathPattern.hasMatch(path)) {
       throw A2uiValidationError(
         "Invalid path syntax: '$path'",
-        details: object,
       );
     }
 
-    if (_isFunctionCall(object, v1: isV1)) {
+    if (_isFunctionCall(object, usesDirectives: usesDirectives)) {
       if (callDepth >= maxFunctionCallDepth) {
         throw A2uiRecursionError(
           'Recursion limit exceeded: functionCall depth > '
@@ -442,7 +451,6 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
     if (udmPath != null && !_pathPattern.hasMatch(udmPath)) {
       throw A2uiValidationError(
         "Invalid path syntax: '$udmPath'",
-        details: data.toJson()['updateDataModel'],
       );
     }
     traverse(data.value, 2, 0, inDataValue: true);
@@ -457,16 +465,16 @@ void checkPathsAndRecursion(Object? data, {bool? v1}) {
   traverse(data, 0, 0, inDataValue: false);
 }
 
-bool _inferV1(Object? data) {
+bool _inferUsesDirectives(Object? data) {
   final Object? rawVersion = switch (data) {
     AgentToRendererMessage(:final version) => version,
     Map() => data['version'],
     _ => null,
   };
   if (rawVersion is! String) return false;
-  final String core =
-      rawVersion.startsWith('v') ? rawVersion.substring(1) : rawVersion;
-  return (int.tryParse(core.split('.').first) ?? 0) >= 1;
+  return A2uiProtocolVersion.tryParseSemVer(rawVersion)
+          ?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+      false;
 }
 
 Iterable<ComponentReference> _referencesOf(

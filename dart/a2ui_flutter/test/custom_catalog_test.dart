@@ -75,6 +75,7 @@ CatalogImplementation _demoCatalog([
   ],
   functions: BasicCatalog.v0_9().functions.values.toList(),
   themeSchema: BasicComponents.api.themeSchema,
+  definitions: BasicComponents.api.definitions,
 );
 
 List<Map<String, Object?>> _review(Object? value) => [

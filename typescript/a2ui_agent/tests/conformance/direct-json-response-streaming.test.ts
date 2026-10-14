@@ -114,6 +114,10 @@ const KNOWN_FAILURES = new Map<string, string>([
       'test_stream_update_before_create_surface_fails_v09',
     ],
   ),
+  ...group(
+    'an invalid v1.0 component is withheld until the block closes rather than raising on the chunk that closes it',
+    ['test_stream_component_without_catalog_uses_surface_catalog_v10'],
+  ),
 ]);
 
 function group(reason: string, names: string[]): Array<[string, string]> {

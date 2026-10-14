@@ -31,7 +31,7 @@ import unittest
 
 from a2ui.core import Catalog
 from a2ui.inference_formats import to_message_dicts
-from a2ui.inference_formats.experimental.express import ExpressCompiler, ExpressParser
+from a2ui.inference_formats.express import ExpressCompiler, ExpressParser
 from a2ui.schema.utils import find_repo_root, get_spec_dir
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
@@ -140,7 +140,7 @@ class TestExpressParser(unittest.TestCase):
 
     def test_schema_driven_child_reference_helper(self):
         """Verify that _is_component_reference_property correctly inspects JSON schema structures."""
-        from a2ui.inference_formats.experimental.express.decompiler import (
+        from a2ui.inference_formats.express.decompiler import (
             _is_component_reference_property,
         )
 

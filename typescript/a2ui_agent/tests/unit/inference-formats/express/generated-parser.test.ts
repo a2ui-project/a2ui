@@ -27,7 +27,7 @@ import {ExpressParser} from '../../../../src/inference-formats/express/generated
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../..');
 const pythonGeneratedDir = resolve(
   repoRoot,
-  'python/a2ui_agent/src/a2ui/inference_formats/experimental/express/generated',
+  'python/a2ui_agent/src/a2ui/inference_formats/express/generated',
 );
 
 /**

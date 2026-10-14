@@ -177,6 +177,10 @@
           "type": "object",
           "description": "Signals the renderer to execute a function locally on behalf of the agent.",
           "properties": {
+            "surfaceId": {
+              "type": "string",
+              "description": "Optional ID of the surface whose data model provides the evaluation context for this call. If omitted, the function executes in a surface-independent root context with an empty data model."
+            },
             "functionCallId": {
               "$ref": "common_types.json#/$defs/CallId",
               "description": "Unique ID for this instance of the function call. The renderer MUST copy this ID into the return response."

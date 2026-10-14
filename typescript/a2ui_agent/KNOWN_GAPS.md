@@ -275,7 +275,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Python sends the draft MIME type for v0.9
 
-- **What it is:** The Node sample labels every A2UI data part `application/a2ui+json`, the v0.9.1 and v1.0 MIME type. Python's `create_a2ui_part` (`python/a2ui_agent/src/a2ui/a2a/parts.py`) still sends the draft `application/json+a2ui` for v0.9 and v0.8.
+- **What it is:** The Node sample labels every A2UI data part `application/a2ui+json`, the v0.9.1 and v1.0 MIME type. Python's `create_a2ui_part` (`python/a2ui_a2a/src/a2ui/a2a/parts.py`) still sends the draft `application/json+a2ui` for v0.9 and v0.8.
 - **Why it exists:** v0.9.1 renamed the MIME type; the Python SDK kept the old one for older versions.
 - **What it risks:** Nothing for the sample clients, which ignore the MIME type on responses. A client that filters on one of the two types sees only one agent's parts.
 - **Done looks like:** Python sends `application/a2ui+json` for v0.9 too, keeping the draft type only for v0.8.

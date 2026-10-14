@@ -95,7 +95,7 @@ void main() {
         defaultVersion: A2uiProtocolVersion.v0_9,
         validationConfig: ValidationConfig.relaxed,
       );
-      addTearDown(renderer.groupModel.dispose);
+      addTearDown(renderer.model.dispose);
 
       final llmOutput = StringBuffer();
       var chunks = 0;
@@ -139,7 +139,7 @@ void main() {
       expect(partsBeforeTheEnd, greaterThan(0), reason: '$llmOutput');
       expect(surfaceId, isNotNull, reason: '$llmOutput');
       expectLoginFormSurface(
-        renderer.groupModel.getSurface(surfaceId!)!,
+        renderer.model.getSurface(surfaceId!)!,
         llmOutput: '$llmOutput',
       );
 

@@ -15,40 +15,7 @@
  */
 
 import {CatalogTransformer} from './base.js';
-import {Catalog, CatalogApi} from '../internal/web-core.js';
-import {
-  hasCatalogDocument,
-  getCatalogDocument,
-  registerCatalogDocument,
-} from '../utils/catalog-document.js';
-
-/**
- * Registers a pruned copy of the source catalog's JSON document for the
- * pruned catalog, keeping only the allowed entries of one section.
- *
- * Does nothing if the source catalog has no registered document.
- */
-function registerPrunedDocument(
-  source: CatalogApi,
-  pruned: CatalogApi,
-  section: 'components' | 'functions',
-  allowed: Set<string>,
-): void {
-  if (!hasCatalogDocument(source)) {
-    return;
-  }
-  const doc = getCatalogDocument(source);
-  const entries = doc[section];
-  const kept: Record<string, unknown> = {};
-  if (entries && typeof entries === 'object') {
-    for (const [name, schema] of Object.entries(entries as Record<string, unknown>)) {
-      if (allowed.has(name)) {
-        kept[name] = schema;
-      }
-    }
-  }
-  registerCatalogDocument(pruned, {...doc, [section]: kept});
-}
+import {CatalogApi} from '../internal/web-core.js';
 
 /**
  * Prunes catalog component definitions to an allowlist of allowed components.
@@ -78,16 +45,10 @@ export class ComponentPruningTransformer implements CatalogTransformer {
     );
     const functions = Array.from(catalog.functions.values());
 
-    const result = new Catalog(
-      catalog.id,
-      catalog.protocolVersion,
-      prunedComponents,
-      functions,
-      catalog.themeSchema,
-      catalog.instructions,
-    );
-
-    registerPrunedDocument(catalog, result, 'components', this.allowedComponents);
+    // The kept entries keep their definitions, so `toJson()` of the pruned
+    // catalog emits them as written; definitions only pruned entries
+    // referenced are dropped.
+    const result = catalog.withEntries(prunedComponents, functions);
 
     return result;
   }
@@ -121,16 +82,7 @@ export class FunctionPruningTransformer implements CatalogTransformer {
       this.allowedFunctions.has(f.name),
     );
 
-    const result = new Catalog(
-      catalog.id,
-      catalog.protocolVersion,
-      components,
-      prunedFunctions,
-      catalog.themeSchema,
-      catalog.instructions,
-    );
-
-    registerPrunedDocument(catalog, result, 'functions', this.allowedFunctions);
+    const result = catalog.withEntries(components, prunedFunctions);
 
     return result;
   }

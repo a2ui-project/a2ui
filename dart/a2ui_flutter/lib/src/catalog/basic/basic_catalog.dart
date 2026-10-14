@@ -57,13 +57,14 @@ CatalogImplementation basicCatalog({
   description: BasicComponents.api.description,
   protocolVersion: BasicComponents.api.protocolVersion,
   instructions: BasicComponents.api.instructions,
+  definitions: BasicComponents.api.definitions,
 );
 
 /// The v0.9 basic catalog's component implementations.
 abstract final class BasicComponents {
   /// The basic catalog's specification: every component and function schema
   /// and the theme schema.
-  static final CatalogApi api = BasicCatalog.v0_9Api();
+  static final CatalogApi api = BasicCatalog.v0_9();
 
   /// The basic `AudioPlayer` component.
   static final ComponentImplementation audioPlayer = _implement(

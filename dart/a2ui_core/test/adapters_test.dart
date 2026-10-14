@@ -149,7 +149,7 @@ void main() {
     test('serializes outbound v0.9 messages and rejects v1.0 ones', () {
       final action = ActionMessage(
         version: 'v0.9',
-        action: A2uiClientAction(
+        action: A2uiRendererAction(
           name: 'go',
           surfaceId: 's1',
           sourceComponentId: 'b1',
@@ -343,17 +343,19 @@ void main() {
 
     test('a custom registry is honored by MessageProcessor', () {
       final adapter = _RenamingAdapter();
+      final Catalog<ComponentApi, FunctionImplementation> catalog =
+          BasicCatalog.v0_9();
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog()],
+        catalogs: [catalog],
         adapterRegistry: VersionAdapterRegistry([adapter]),
       );
       processor.processMessages({
         'version': 'v0.9',
-        'createSurface': {'surfaceId': 's1', 'catalogId': MinimalCatalog().id},
+        'createSurface': {'surfaceId': 's1', 'catalogId': catalog.id},
       });
       expect(adapter.calls, 1);
-      expect(processor.groupModel.getSurface('s1'), isNull);
-      expect(processor.groupModel.getSurface('renamed-s1'), isNotNull);
+      expect(processor.model.getSurface('s1'), isNull);
+      expect(processor.model.getSurface('renamed-s1'), isNotNull);
     });
   });
 }

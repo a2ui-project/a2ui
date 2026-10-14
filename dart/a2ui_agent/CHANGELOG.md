@@ -2,9 +2,23 @@
 
 ## Unreleased
 
+- Align `MessageProcessor.model` and `PayloadValidator` usage with `a2ui_core`.
+- The Direct JSON prompt builds its schema from `Catalog.validationSchema`
+  instead of the deprecated `catalogSchema`.
 - Payload validation builds its `MessageProcessor` with `defaultVersion`.
-- Validation forwards `catalog.protocolVersion` when constructing its
-  signature-only `Catalog` for `MessageProcessor`.
+- Payload validation gives `MessageProcessor` the catalog through
+  `Catalog.withFunctions`, so a catalog read by `Catalog.fromJson` keeps its
+  protocol version, its authored `$defs` (a recursive `#/$defs/node` no
+  longer fails as an unresolvable reference) and each function's
+  `description` and declared `allowedCallers` and `requiresUserActivation`.
+- The Express format reads component signatures from
+  `Catalog.resolvedComponentSchema`, since `ComponentApi.schema` now keeps a
+  component's schema as the catalog document wrote it.
+- `FileSystemCatalogProvider` and `InMemoryCatalogProvider` pass the
+  provider's id and protocol version to `Catalog.fromJson` instead of
+  writing the id into the document, so `load().toJson()` writes back a
+  document that omits its `catalogId` without one, and the catalog reports
+  the provider's protocol version when the document declares none.
 - Include common mixin properties (`accessibility`, `weight`) at the end of
   Express component signatures (after component-specific properties) so
   positional arguments map to component properties while supporting common
@@ -25,6 +39,10 @@
   `A2uiValidationError`. The check moved into the agent SDK now that
   `a2ui_core` makes the field optional for v1.0; previously `a2ui_core`
   rejected the message during parsing.
+- pub.dev now recognizes the license. The package `LICENSE` linked
+  `https://` where the Apache text has `http://`, which pana does not match,
+  and carried the root's notice for `eval/bin/transcrypt`, a file outside
+  this package. Also a longer `description`.
 
 ## 0.0.1-wip005
 

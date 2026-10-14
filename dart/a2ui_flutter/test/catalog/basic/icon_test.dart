@@ -27,10 +27,16 @@ final CatalogImplementation _catalog = basicTestCatalog([
 
 /// The icon names the specification's `Icon.name` enum lists.
 List<String> _specNames() {
-  final properties =
-      BasicComponents.api.components['Icon']!.schema.value['properties']!
-          as Map<String, Object?>;
-  final name = properties['name']! as Map<String, Object?>;
+  final Map<String, Object?> schema =
+      BasicComponents.api.components['Icon']!.schema.value;
+  final Map<String, Object?> name =
+      [schema, ...(schema['allOf'] as List<Object?>? ?? const [])]
+          .cast<Map<String, Object?>>()
+          .map((part) => part['properties'])
+          .whereType<Map<String, Object?>>()
+          .map((p) => p['name'])
+          .whereType<Map<String, Object?>>()
+          .single;
   for (final Map<String, Object?> option
       in (name['oneOf']! as List<Object?>).cast<Map<String, Object?>>()) {
     if (option['enum'] case final List<Object?> names) {

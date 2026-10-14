@@ -17,6 +17,7 @@
 import contextlib
 import datetime
 import io
+import json
 import os
 import subprocess
 import sys
@@ -217,6 +218,112 @@ class SpecifierTest(unittest.TestCase):
             rv.satisfies("1.0.0", "anything")
 
 
+class DependencySpecifiersTest(unittest.TestCase):
+
+    ADK_PYPROJECT = textwrap.dedent("""\
+        [project]
+        name = "a2ui-adk"
+        dependencies = [
+          "a2ui-agent-sdk>0.8.0",
+          "google-adk>=1.28.1",
+        ]
+
+        [project.optional-dependencies]
+        a2a = [
+          "a2ui-a2a[extra]>=0.1.0 ; python_version >= '3.10'",
+          "google-adk[a2a]>=1.28.1",
+        ]
+        """)
+
+    def test_reads_required_dependencies(self):
+        self.assertEqual(
+            rv.dependency_specifiers(self.ADK_PYPROJECT, "a2ui-agent-sdk"), [">0.8.0"]
+        )
+
+    def test_reads_optional_dependencies_without_extras_or_markers(self):
+        self.assertEqual(
+            rv.dependency_specifiers(self.ADK_PYPROJECT, "a2ui-a2a"), [">=0.1.0"]
+        )
+
+    def test_missing_dependency_yields_nothing(self):
+        self.assertEqual(rv.dependency_specifiers(self.ADK_PYPROJECT, "a2ui-core"), [])
+
+    def test_unversioned_dependency_yields_empty_specifier(self):
+        pyproject = '[project]\nname = "x"\ndependencies = ["a2ui-core"]\n'
+        self.assertEqual(rv.dependency_specifiers(pyproject, "a2ui-core"), [""])
+
+    def test_empty_specifier_is_always_satisfied(self):
+        self.assertTrue(rv.satisfies("0.0.1", ""))
+
+    def test_exclusive_lower_bound(self):
+        self.assertFalse(rv.satisfies("0.8.0", ">0.8.0"))
+        self.assertTrue(rv.satisfies("0.9.0", ">0.8.0"))
+
+
+class DependentConstraintTest(unittest.TestCase):
+
+    def test_agent_release_must_satisfy_the_integration_pins(self):
+        error = rv.check_dependent_constraint(
+            rv.AGENT, "0.8.0", rv.ADK, DependencySpecifiersTest.ADK_PYPROJECT
+        )
+        self.assertIsNotNone(error)
+        self.assertIn("a2ui-agent-sdk 0.8.0 falls outside", error)
+        self.assertIn(rv.ADK.pyproject_path, error)
+
+    def test_optional_dependency_pins_are_checked(self):
+        error = rv.check_dependent_constraint(
+            rv.A2A, "0.0.1", rv.ADK, DependencySpecifiersTest.ADK_PYPROJECT
+        )
+        self.assertIsNotNone(error)
+        self.assertIn("a2ui-a2a>=0.1.0", error)
+
+    def test_version_inside_the_pin_passes(self):
+        self.assertIsNone(
+            rv.check_dependent_constraint(
+                rv.AGENT, "0.9.0", rv.ADK, DependencySpecifiersTest.ADK_PYPROJECT
+            )
+        )
+
+    def test_package_that_is_not_a_dependency_passes(self):
+        self.assertIsNone(
+            rv.check_dependent_constraint(
+                rv.CORE, "9.0.0", rv.ADK, DependencySpecifiersTest.ADK_PYPROJECT
+            )
+        )
+
+
+class DependenciesReleasedTest(unittest.TestCase):
+
+    def _check(self, released, co_released=()):
+        return rv.check_dependencies_released(
+            rv.ADK,
+            DependencySpecifiersTest.ADK_PYPROJECT,
+            co_released,
+            lambda package: released.get(package.pypi_name),
+        )
+
+    def test_released_dependencies_inside_the_pins_pass(self):
+        self.assertEqual(
+            self._check({"a2ui-agent-sdk": "0.9.0", "a2ui-a2a": "0.1.0"}), []
+        )
+
+    def test_unreleased_dependency_is_reported(self):
+        problems = self._check({"a2ui-agent-sdk": "0.9.0"})
+        self.assertEqual(len(problems), 1)
+        self.assertIn("a2ui-a2a, which has not been released yet", problems[0])
+
+    def test_released_dependency_outside_the_pin_is_reported(self):
+        problems = self._check({"a2ui-agent-sdk": "0.8.0", "a2ui-a2a": "0.1.0"})
+        self.assertEqual(len(problems), 1)
+        self.assertIn("requires a2ui-agent-sdk>0.8.0", problems[0])
+        self.assertIn("latest release of a2ui-agent-sdk is 0.8.0", problems[0])
+
+    def test_dependencies_released_in_the_same_run_are_skipped(self):
+        self.assertEqual(
+            self._check({}, co_released=("a2ui-agent-sdk", "a2ui-a2a")), []
+        )
+
+
 class CoreConstraintTest(unittest.TestCase):
 
     def test_patch_bump_is_allowed(self):
@@ -260,6 +367,66 @@ class CoreConstraintTest(unittest.TestCase):
         )
 
 
+class RealIntegrationPinsTest(unittest.TestCase):
+    """Guards the integration packages' pins against drifting out of reach."""
+
+    def test_integration_pins_accept_the_next_agent_release(self):
+        repo_root = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=os.path.dirname(__file__),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        current = rv.current_version(rv.AGENT, repo_root)
+        candidates = [current] + [rv.bump_version(current, b) for b in rv.VALID_BUMPS]
+        for package in (rv.A2A, rv.ADK):
+            with self.subTest(package=package.pypi_name):
+                with open(
+                    os.path.join(repo_root, package.pyproject_path), encoding="utf-8"
+                ) as handle:
+                    specifiers = rv.dependency_specifiers(
+                        handle.read(), rv.AGENT.pypi_name
+                    )
+                self.assertTrue(
+                    specifiers, f"{package.pypi_name} must pin the agent SDK"
+                )
+                for specifier in specifiers:
+                    self.assertTrue(
+                        any(rv.satisfies(v, specifier) for v in candidates),
+                        f"no agent SDK version in {candidates} satisfies {specifier}",
+                    )
+
+
+class ParseSelectionTest(unittest.TestCase):
+
+    def test_all_selects_every_package_in_dependency_order(self):
+        self.assertEqual(rv.parse_selection("all"), list(rv.RELEASE_ORDER))
+
+    def test_single_package(self):
+        self.assertEqual(rv.parse_selection("a2ui-a2a"), [rv.A2A])
+
+    def test_list_is_ordered_by_dependency_and_deduplicated(self):
+        self.assertEqual(
+            rv.parse_selection(" a2ui-adk , a2ui-core,a2ui-adk"), [rv.CORE, rv.ADK]
+        )
+
+    def test_unknown_package_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "unknown package.*a2ui-nope"):
+            rv.parse_selection("a2ui-core,a2ui-nope")
+
+    def test_empty_selection_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "no package selected"):
+            rv.parse_selection(" , ")
+
+    def test_command_line_rejects_unknown_package(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as exit_:
+            rv.main(["plan", "--package", "both", "--bump", "patch"])
+        self.assertEqual(exit_.exception.code, 2)
+        self.assertIn("unknown package(s) both", err.getvalue())
+
+
 class PlanTest(unittest.TestCase):
 
     def setUp(self):
@@ -271,13 +438,33 @@ class PlanTest(unittest.TestCase):
             check=True,
         ).stdout.strip()
 
-    def test_both_puts_core_first(self):
+    def test_listed_packages_are_put_in_dependency_order(self):
         """a2ui-agent-sdk depends on a2ui-core, so core must publish first."""
-        plan = rv.build_plan("both", "patch", self.repo_root)
+        plan = rv.build_plan("a2ui-agent-sdk,a2ui-core", "patch", self.repo_root)
         self.assertEqual(
             [entry["pypi_name"] for entry in plan],
             ["a2ui-core", "a2ui-agent-sdk"],
         )
+
+    def test_all_follows_the_dependency_order(self):
+        plan = rv.build_plan("all", "minor", self.repo_root)
+        self.assertEqual(
+            [entry["pypi_name"] for entry in plan],
+            ["a2ui-core", "a2ui-agent-sdk", "a2ui-a2a", "a2ui-adk"],
+        )
+
+    def test_a2a_is_put_before_adk(self):
+        plan = rv.build_plan("a2ui-adk, a2ui-a2a", "minor", self.repo_root)
+        self.assertEqual(
+            [entry["pypi_name"] for entry in plan], ["a2ui-a2a", "a2ui-adk"]
+        )
+
+    def test_integration_tags_use_their_own_series(self):
+        for package in (rv.A2A, rv.ADK):
+            with self.subTest(package=package.pypi_name):
+                entry = rv.build_plan(package.pypi_name, "minor", self.repo_root)[0]
+                self.assertEqual(entry["directory"], package.directory)
+                self.assertTrue(entry["tag"].startswith(package.tag_prefix))
 
     def test_single_package_selection(self):
         plan = rv.build_plan("a2ui-core", "patch", self.repo_root)
@@ -336,6 +523,9 @@ class NotesCommandTest(unittest.TestCase):
         self.assertEqual(out.strip(), "- Fixed a thing.")
 
 
+CHANGELOG_WITH_ENTRY = "# Changelog\n\n## Unreleased\n\n- Something new.\n"
+
+
 class CheckCommandTest(unittest.TestCase):
 
     def setUp(self):
@@ -371,22 +561,35 @@ class CheckCommandTest(unittest.TestCase):
             check=True,
         )
 
-        for pkg in (rv.CORE, rv.AGENT):
-            path = os.path.join(self.repo_root, pkg.changelog_path)
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "w", encoding="utf-8") as handle:
-                handle.write("# Changelog\n\n## Unreleased\n\n- Something new.\n")
+        pyprojects = {
+            rv.CORE: '[project]\nname = "a2ui-core"\n',
+            rv.AGENT: (
+                '[project]\nname = "a2ui-agent-sdk"\ndependencies = [\n'
+                '  "a2ui-core>=0.2.0,<0.3.0",\n]\n'
+            ),
+            rv.A2A: (
+                '[project]\nname = "a2ui-a2a"\ndependencies = [\n'
+                '  "a2a-sdk>=0.3.0,<0.4.0",\n  "a2ui-agent-sdk>0.7.0",\n]\n'
+            ),
+            rv.ADK: (
+                '[project]\nname = "a2ui-adk"\ndependencies = [\n'
+                '  "a2ui-agent-sdk>0.7.0",\n]\n'
+                "[project.optional-dependencies]\n"
+                'a2a = ["a2ui-a2a>=0.1.0", "google-adk[a2a]>=1.28.1"]\n'
+            ),
+        }
+        for pkg, content in pyprojects.items():
+            self._write(pkg.changelog_path, CHANGELOG_WITH_ENTRY)
+            self._write(pkg.pyproject_path, content)
 
-            pyproject = os.path.join(self.repo_root, pkg.pyproject_path)
-            os.makedirs(os.path.dirname(pyproject), exist_ok=True)
-            with open(pyproject, "w", encoding="utf-8") as handle:
-                if pkg is rv.CORE:
-                    handle.write('[project]\nname = "a2ui-core"\n')
-                else:
-                    handle.write(
-                        '[project]\nname = "a2ui-agent-sdk"\ndependencies = [\n'
-                        '  "a2ui-core>=0.2.0,<0.3.0",\n]\n'
-                    )
+    def _write(self, relative_path: str, content: str) -> None:
+        path = os.path.join(self.repo_root, relative_path)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(content)
+
+    def _tag(self, tag: str) -> None:
+        subprocess.run(["git", "tag", tag], cwd=self.repo_root, check=True)
 
     def tearDown(self):
         self.temp_dir.cleanup()
@@ -410,20 +613,24 @@ class CheckCommandTest(unittest.TestCase):
         self.assertIn("Preflight checks passed for a2ui-core 0.2.1", out)
 
     def test_both_packages_with_patch_bump_success(self):
-        code, out, _ = self._run(["--package", "both", "--bump", "patch"])
+        code, out, _ = self._run(
+            ["--package", "a2ui-core,a2ui-agent-sdk", "--bump", "patch"]
+        )
         self.assertEqual(code, 0)
         self.assertIn("Preflight checks passed for a2ui-core 0.2.1", out)
         self.assertIn("Preflight checks passed for a2ui-agent-sdk 0.7.1", out)
 
     def test_both_packages_without_bump_errors(self):
-        code, _, err = self._run(["--package", "both"])
+        code, _, err = self._run(["--package", "a2ui-core,a2ui-agent-sdk"])
         self.assertEqual(code, 2)
         self.assertIn("either --version or --bump is required", err)
 
     def test_both_packages_with_version_errors(self):
-        code, _, err = self._run(["--package", "both", "--version", "0.2.1"])
+        code, _, err = self._run(
+            ["--package", "a2ui-core,a2ui-agent-sdk", "--version", "0.2.1"]
+        )
         self.assertEqual(code, 2)
-        self.assertIn("--version cannot be used with --package both", err)
+        self.assertIn("--version cannot be used with more than one package", err)
 
     def test_version_and_bump_together_errors(self):
         code, _, err = self._run(
@@ -472,11 +679,79 @@ class CheckCommandTest(unittest.TestCase):
         env_check.assert_not_called()
 
     def test_both_packages_with_minor_bump_catches_pin_violation(self):
-        code, out, err = self._run(["--package", "both", "--bump", "minor"])
+        code, out, err = self._run(
+            ["--package", "a2ui-core,a2ui-agent-sdk", "--bump", "minor"]
+        )
         self.assertEqual(code, 1)
         self.assertIn("falls outside the a2ui-core>=0.2.0,<0.3.0 range", err)
         self.assertIn("error: 1 problem(s) found, see above.", err)
         self.assertIn("Preflight checks passed for a2ui-agent-sdk 0.8.0", out)
+
+    def test_all_with_version_errors(self):
+        code, _, err = self._run(["--package", "all", "--version", "0.2.1"])
+        self.assertEqual(code, 2)
+        self.assertIn("--version cannot be used with more than one package", err)
+
+    def test_all_packages_with_patch_bump_success(self):
+        self._tag("python/a2ui-a2a/v0.1.0")
+        self._tag("python/a2ui-adk/v0.1.0")
+        code, out, err = self._run(["--package", "all", "--bump", "patch"])
+        self.assertEqual(code, 0, err)
+        for name, version in (
+            ("a2ui-core", "0.2.1"),
+            ("a2ui-agent-sdk", "0.7.1"),
+            ("a2ui-a2a", "0.1.1"),
+            ("a2ui-adk", "0.1.1"),
+        ):
+            self.assertIn(f"Preflight checks passed for {name} {version}", out)
+
+    def test_first_integration_release_needs_a_minor_bump(self):
+        code, out, err = self._run(["--package", "all", "--bump", "patch"])
+        # a2ui-a2a 0.0.1 falls outside the a2ui-a2a>=0.1.0 pin of a2ui-adk.
+        self.assertEqual(code, 1)
+        self.assertIn("a2ui-a2a 0.0.1 falls outside the a2ui-a2a>=0.1.0 range", err)
+
+    def test_first_integrations_release_after_the_agent_sdk(self):
+        self._tag("python/a2ui-agent-sdk/v0.8.0")
+        code, out, err = self._run(
+            ["--package", "a2ui-a2a,a2ui-adk", "--bump", "minor"]
+        )
+        self.assertEqual(code, 0, err)
+        self.assertIn("Preflight checks passed for a2ui-a2a 0.1.0", out)
+        self.assertIn("Preflight checks passed for a2ui-adk 0.1.0", out)
+
+    def test_integration_needs_a_released_agent_sdk_inside_its_pin(self):
+        code, _, err = self._run(["--package", "a2ui-a2a", "--bump", "minor"])
+        self.assertEqual(code, 1)
+        self.assertIn("requires a2ui-agent-sdk>0.7.0", err)
+        self.assertIn("latest release of a2ui-agent-sdk is 0.7.0", err)
+
+    def test_integration_needs_its_unreleased_dependency(self):
+        self._tag("python/a2ui-agent-sdk/v0.8.0")
+        code, _, err = self._run(["--package", "a2ui-adk", "--bump", "minor"])
+        self.assertEqual(code, 1)
+        self.assertIn("a2ui-a2a, which has not been released yet", err)
+
+    def test_plan_marks_dependencies_as_released_in_the_same_run(self):
+        plan = os.path.join(self.repo_root, "release-plan.json")
+        with open(plan, "w", encoding="utf-8") as handle:
+            json.dump(
+                [
+                    {"pypi_name": "a2ui-agent-sdk", "version": "0.8.0"},
+                    {"pypi_name": "a2ui-a2a", "version": "0.1.0"},
+                ],
+                handle,
+            )
+        code, out, err = self._run(
+            ["--package", "a2ui-a2a", "--version", "0.1.0", "--plan", plan]
+        )
+        self.assertEqual(code, 0, err)
+        self.assertIn("Preflight checks passed for a2ui-a2a 0.1.0", out)
+
+    def test_agent_release_is_checked_against_the_integration_pins(self):
+        code, _, err = self._run(["--package", "a2ui-agent-sdk", "--version", "0.7.0"])
+        self.assertEqual(code, 1)
+        self.assertIn("a2ui-agent-sdk 0.7.0 falls outside the", err)
 
     def test_invalid_version_fails_gracefully(self):
         code, out, err = self._run(["--package", "a2ui-core", "--version", "invalid"])
@@ -512,7 +787,7 @@ class CheckEnvironmentTest(unittest.TestCase):
         self._git(self.repo_root, "init", "-b", "main")
         self._git(self.repo_root, "config", "user.name", "Test")
         self._git(self.repo_root, "config", "user.email", "test@test.local")
-        for pkg in (rv.CORE, rv.AGENT):
+        for pkg in rv.RELEASE_ORDER:
             self._write(pkg.pyproject_path, "[project]\n")
         self._git(self.repo_root, "add", ".")
         self._git(self.repo_root, "commit", "-m", "Initial")
@@ -690,7 +965,7 @@ class CheckCommandEnvironmentTest(unittest.TestCase):
             code, out, err = self._main([
                 "check",
                 "--package",
-                "both",
+                "a2ui-core,a2ui-agent-sdk",
                 "--bump",
                 "patch",
                 "--repo-root",
@@ -704,9 +979,15 @@ class CheckCommandEnvironmentTest(unittest.TestCase):
     def test_other_repository_stops_before_package_checks(self):
         with tempfile.TemporaryDirectory() as other:
             subprocess.run(["git", "init"], cwd=other, check=True, capture_output=True)
-            code, out, err = self._main(
-                ["check", "--package", "both", "--bump", "patch", "--repo-root", other]
-            )
+            code, out, err = self._main([
+                "check",
+                "--package",
+                "a2ui-core,a2ui-agent-sdk",
+                "--bump",
+                "patch",
+                "--repo-root",
+                other,
+            ])
         self.assertEqual(code, 1)
         self.assertIn("is not an a2ui checkout", err)
         self.assertEqual(out, "")

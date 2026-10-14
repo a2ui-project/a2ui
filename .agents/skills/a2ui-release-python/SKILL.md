@@ -1,6 +1,6 @@
 ---
 name: a2ui-release-python
-description: Releases the Python SDKs (a2ui-core, a2ui-agent-sdk) to PyPI by running preflight checks, dispatching the release workflow as a dry run, confirming with the maintainer, publishing, and following the changelog pull request through to merge. Use when asked to cut, publish, or release a Python SDK version.
+description: Releases the Python SDKs (a2ui-core, a2ui-agent-sdk, a2ui-a2a, a2ui-adk) to PyPI by running preflight checks, dispatching the release workflow as a dry run, confirming with the maintainer, publishing, and following the changelog pull request through to merge. Use when asked to cut, publish, or release a Python SDK version.
 ---
 
 # Releasing the A2UI Python SDKs
@@ -91,9 +91,18 @@ fails. They are skipped in GitHub Actions, where they do not apply.
 
 ## Step 2: Work out what is being released
 
-Two things are needed: `PACKAGE` (`a2ui-core`, `a2ui-agent-sdk`, or `both`) and
-`BUMP` (`patch`, `minor`, or `major`). Derive both from the changelogs. Never
-infer them from the phrasing of the request.
+Two things are needed: `PACKAGE` and `BUMP` (`patch`, `minor`, or `major`).
+`PACKAGE` names the packages to release, either as a comma-separated list of
+package names or as `all`:
+
+- One package: `a2ui-agent-sdk`
+- Several packages: `a2ui-a2a,a2ui-adk`
+- Every package: `all` (`a2ui-core`, `a2ui-agent-sdk`, `a2ui-a2a`, `a2ui-adk`)
+
+The workflow publishes the listed packages in dependency order (`a2ui-core`,
+`a2ui-agent-sdk`, `a2ui-a2a`, `a2ui-adk`), whatever order they are listed in.
+Derive `PACKAGE` and `BUMP` from the changelogs. Never infer them from the
+phrasing of the request.
 
 Fetch first. Versions are derived from tags, so every number below is wrong if
 the checkout is behind:
@@ -103,15 +112,18 @@ git fetch "${REMOTE}" main --tags
 ```
 
 ```bash
-python3 .github/scripts/release_version.py notes --package a2ui-core
-python3 .github/scripts/release_version.py notes --package a2ui-agent-sdk
+for package in a2ui-core a2ui-agent-sdk a2ui-a2a a2ui-adk; do
+  echo "== ${package}"
+  python3 .github/scripts/release_version.py notes --package "${package}"
+done
 ```
 
 **Choose the packages.** Release only those with a non-empty `## Unreleased`.
 Empty output means that package has nothing to release, whatever was asked for.
-A plural request such as _"release the Python SDKs"_ does not mean `both` — if
-only one has pending entries, that one is the release. If neither does, stop and
-say so.
+A plural request such as _"release the Python SDKs"_ does not mean `all`. List
+exactly the packages with pending entries, for example
+`a2ui-agent-sdk,a2ui-a2a`. If only one has pending entries, that one is the
+release. If none does, stop and say so.
 
 Check the exit status, not just the output. The two failure shapes are
 different answers:
@@ -123,7 +135,7 @@ different answers:
 | exit 1, `error:` on stderr | Changelog is malformed, usually a missing `## Unreleased` heading | Stop. Report it and do not dispatch. |
 
 > [!NOTE]
-> Dispatching `both` when one side is empty is not dangerous, just wasteful. The
+> Dispatching a package whose `## Unreleased` is empty is not dangerous, just wasteful. The
 > plan builds, then preflight rejects the empty package and the run fails
 > several minutes in. The check above costs a second.
 
@@ -138,18 +150,19 @@ python3 .github/scripts/release_version.py plan --package "${PACKAGE}" --bump "$
 ```
 
 > [!IMPORTANT]
-> **`both` applies one bump level to both packages.** The workflow takes a
-> single `bump` input, so `build_plan` raises both versions by the same amount.
-> When the two warrant different levels — say fixes in `a2ui-core` and a feature
-> in `a2ui-agent-sdk` — there is no single right answer. Put the choice to the
-> maintainer:
+> **One run applies one bump level to every listed package.** The workflow
+> takes a single `bump` input, so `build_plan` raises every version by the same
+> amount. When the packages warrant different levels — say fixes in
+> `a2ui-core` and a feature in `a2ui-agent-sdk` — there is no single right
+> answer. Put the choice to the maintainer:
 >
-> - **Take the higher level for both.** One release, one changelog pull request.
->   The cost is an over-bumped version on the quieter package.
-> - **Run two single-package releases.** Correct versioning, but the changelog
->   pull request from the first must be **merged before starting the second**,
->   or the Step 3 guard will block it. Release `a2ui-core` first if both are
->   going out, since `a2ui-agent-sdk` depends on it.
+> - **Take the higher level for every listed package.** One release, one
+>   changelog pull request. The cost is an over-bumped version on the quieter
+>   packages.
+> - **Run one release per bump level.** Correct versioning, but the changelog
+>   pull request from each run must be **merged before starting the next**, or
+>   the Step 3 guard will block it. Release in dependency order: `a2ui-core`,
+>   `a2ui-agent-sdk`, `a2ui-a2a`, `a2ui-adk`.
 
 > [!IMPORTANT]
 > **A minor or major `a2ui-core` bump may need a pin change first.**
@@ -159,6 +172,27 @@ python3 .github/scripts/release_version.py plan --package "${PACKAGE}" --bump "$
 > pull request and **merge it to `main` before dispatching**. The workflow
 > releases `main` as it is and cannot change package files during the run.
 > Step 3 rejects the release until this is done.
+>
+> The same applies down the chain: `a2ui-a2a` and `a2ui-adk` pin
+> `a2ui-agent-sdk` in their `pyproject.toml`, and `a2ui-adk` pins `a2ui-a2a`
+> in its `a2a` extra. A new version of a package must fall inside every pin on
+> it.
+
+> [!IMPORTANT]
+> **A dependent needs its dependencies on PyPI.** Releasing `a2ui-a2a` or
+> `a2ui-adk` on its own requires the released `a2ui-agent-sdk` (and, for
+> `a2ui-adk`, `a2ui-a2a`) to satisfy its pins already. If it does not, release
+> the dependency first, or list it in the same run. Step 3 reports
+> this as "has not been released yet" or "requires ..., but the latest release
+> ... is ...".
+>
+> **First release of `a2ui-a2a` and `a2ui-adk`.** They have no tag yet and
+> start from `0.0.0`, so use a `minor` bump to release `0.1.0`. A `patch` bump
+> gives `0.0.1`, which falls outside the `a2ui-a2a>=0.1.0` pin of `a2ui-adk`.
+> Both require `a2ui-agent-sdk>0.8.0`, the first agent SDK release without
+> `a2ui.a2a` and `a2ui.adk`. Release `a2ui-agent-sdk,a2ui-a2a,a2ui-adk` with a
+> `minor` bump in one run, or release `a2ui-agent-sdk` first, merge its
+> changelog pull request, then release `a2ui-a2a,a2ui-adk` with a `minor` bump.
 
 Put the proposal to the maintainer with `ask_question`, showing the pending
 entries and the resulting versions, and let them correct it.
@@ -182,7 +216,8 @@ Step 1: Check environment prerequisites); this is what it looks for and why:
   merged (open the pull request if nobody has), then start over from Step 2,
   because the pending entries will have changed.
 - **The released packages match `${REMOTE}/main`.** The workflow builds from
-  `main`, so `python/a2ui_core` and `python/a2ui_agent` must be identical to it.
+  `main`, so `python/a2ui_core`, `python/a2ui_agent`, `python/a2ui_a2a` and
+  `python/a2ui_adk` must be identical to it.
   Uncommitted edits, or a local commit that is not merged yet (a widened pin,
   say), would make the local preview describe a release that is not the one
   that will go out. Other paths in the checkout do not matter.
@@ -195,20 +230,20 @@ tag, and pin) are the ones the workflow runs, so a failure in them here is a
 failure there:
 
 ```bash
-# Check using bump level (supports 'both', 'a2ui-core', or 'a2ui-agent-sdk'):
+# Check using bump level (comma-separated package names, or 'all'):
 python3 .github/scripts/release_version.py check --package "${PACKAGE}" --bump "${BUMP}"
 
 # Or check a specific version directly (single package only):
 python3 .github/scripts/release_version.py check --package "${PACKAGE}" --version "${VERSION}"
 ```
 
-It rejects an empty `## Unreleased`, a version that already has a tag, and an
-`a2ui-core` version outside the range that `a2ui-agent-sdk` pins. When `--package both`
-is passed with `--bump`, it evaluates both packages and their cross-dependency
-pin compatibility in a single step.
+It rejects an empty `## Unreleased`, a version that already has a tag, a version
+outside the range that another package pins it to, and a dependency on another
+package of this repository that no released version (or no version in the same
+run) satisfies. With several packages and `--bump`, it evaluates every listed
+package and their cross-dependency pins in a single step.
 
-If preflight reports that `a2ui-core` falls outside the `a2ui-agent-sdk` pin,
-stop: see the pin note in Step 2.
+If preflight reports a pin problem, stop: see the pin notes in Step 2.
 
 ---
 

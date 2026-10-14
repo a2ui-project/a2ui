@@ -95,7 +95,7 @@ def test_schema_to_prompt_includes_the_catalog_schema():
 
     sections = _sections(schema_to_prompt([catalog]))
 
-    assert sections[_CATALOG] == catalog.catalog_schema
+    assert sections[_CATALOG] == catalog.validation_schema
 
 
 @pytest.mark.parametrize("version", [VERSION_0_9, VERSION_0_9_1])
@@ -202,8 +202,8 @@ def test_schema_to_prompt_shows_the_protocol_schemas_once_for_several_catalogs()
     assert block.count(constants.A2UI_SCHEMA_BLOCK_END) == 1
     sections = _section_list(block)
     assert [title for title, _ in sections] == [_A2R, _COMMON_TYPES, _CATALOG, _CATALOG]
-    assert sections[2][1] == basic.catalog_schema
-    assert sections[3][1] == label.catalog_schema
+    assert sections[2][1] == basic.validation_schema
+    assert sections[3][1] == label.validation_schema
 
 
 def test_schema_to_prompt_keeps_the_common_types_that_any_catalog_uses():

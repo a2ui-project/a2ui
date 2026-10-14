@@ -42,7 +42,7 @@ bool Function(Object? value)? writerFor(
     } on A2uiDataError catch (error) {
       unawaited(
         surface.dispatchError(
-          A2uiClientError(
+          A2uiRendererError(
             code: error.code,
             surfaceId: surface.id,
             message: error.message,

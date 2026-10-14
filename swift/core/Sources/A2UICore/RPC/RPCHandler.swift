@@ -50,23 +50,22 @@ public final class RPCHandler {
     userActivationPresent: Bool = false
   ) async -> RendererFunctionResponseMessage {
     let callName = message.callFunction.call
-    let targetCatalogID = message.callFunction.catalogID ?? defaultCatalogID
+    let targetCatalogID = message.callFunction.catalogID
 
-    func lookupCatalog(_ id: String) -> AnyCatalog? {
-      if let exact = catalogs[id] { return exact }
-      if let v10Match = catalogs.values.first(where: {
-        $0.id.hasSuffix("/\(id)/catalog.json") && $0.isAtLeastV10
-      }) {
-        return v10Match
-      }
-      return catalogs.values.first {
-        $0.id.hasSuffix("/\(id)/catalog.json")
-      }
+    if let surfaceID = message.surfaceID, dataContext == nil {
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: FunctionErrorPayload(
+          code: .invalidFunctionCall,
+          message: "Surface not found: \(surfaceID)"
+        ),
+        version: message.version
+      )
     }
 
     let resolvedCatalog: AnyCatalog?
     if let targetCatalogID {
-      guard let found = lookupCatalog(targetCatalogID) else {
+      guard let found = catalogs[targetCatalogID] else {
         return RendererFunctionResponseMessage(
           functionCallID: message.functionCallID,
           error: FunctionErrorPayload(
@@ -77,8 +76,6 @@ public final class RPCHandler {
         )
       }
       resolvedCatalog = found
-    } else if Set(catalogs.values.map(\.id)).count == 1 {
-      resolvedCatalog = catalogs.values.first
     } else {
       resolvedCatalog = nil
     }
@@ -94,13 +91,13 @@ public final class RPCHandler {
       )
     }
 
-    if catalog.protocolVersion != nil && !catalog.isAtLeastV10 {
+    if !catalog.isAtLeastV10 {
       return RendererFunctionResponseMessage(
         functionCallID: message.functionCallID,
         error: FunctionErrorPayload(
           code: .invalidFunctionCall,
           message:
-            "Catalog '\(catalog.id)' protocol version (\(catalog.protocolVersion ?? "")) does not match message protocol version."
+            "Catalog '\(catalog.id)' protocol version (\(catalog.protocolVersion ?? "v0.9")) does not match message protocol version."
         ),
         version: message.version
       )
@@ -146,21 +143,42 @@ public final class RPCHandler {
     }
 
     let rawArgs = message.callFunction.args ?? [:]
+    let fallbackHandler = DummyContextFunctionHandler(catalogs: catalogs, defaultCatalog: catalog)
+    let argHandler = RPCArgumentFunctionHandler(
+      delegate: dataContext?.functionHandler,
+      fallback: fallbackHandler
+    )
+    let argResolutionContext = DataContext(
+      dataModel: dataContext?.dataModel ?? DataModel(),
+      path: dataContext?.path ?? "",
+      functionHandler: argHandler,
+      protocolVersion: dataContext?.protocolVersion ?? message.version,
+      index: dataContext?.index
+    )
     let effectiveContext =
       dataContext
       ?? DataContext(
-        dataModel: DataModel(),
+        dataModel: argResolutionContext.dataModel,
         path: "",
-        functionHandler: DummyContextFunctionHandler(catalogs: catalogs, defaultCatalog: catalog)
+        functionHandler: fallbackHandler,
+        protocolVersion: message.version
       )
 
     var resolvedArgs: [String: JSONValue] = [:]
     for (key, val) in rawArgs {
-      if let arr = val.arrayValue {
-        resolvedArgs[key] = .array(arr.map { effectiveContext.resolveDynamicValue($0) })
-      } else {
-        resolvedArgs[key] = effectiveContext.resolveDynamicValue(val)
-      }
+      resolvedArgs[key] = argResolutionContext.resolveDynamicValue(val)
+    }
+
+    if let capturedError = argHandler.capturedError {
+      let errorPayload = FunctionErrorPayload(
+        code: .executionError,
+        message: String(describing: capturedError)
+      )
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: errorPayload,
+        version: message.version
+      )
     }
 
     let argsValidation = function.api.schema.validate(
@@ -241,12 +259,7 @@ public final class RPCHandler {
     return try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
         guard self.pendingCalls[callID] == nil else {
-          continuation.resume(
-            throwing: FunctionError.remoteError(
-              code: FunctionErrorPayload.Code.invalidFunctionCall.rawValue,
-              message: "Duplicate functionCallId: \(callID)"
-            )
-          )
+          continuation.resume(throwing: FunctionError.duplicate(callID: callID))
           return
         }
 
@@ -274,7 +287,7 @@ public final class RPCHandler {
         guard let self else { return }
         if let pending = self.pendingCalls.removeValue(forKey: callID) {
           pending.timeoutTask?.cancel()
-          pending.continuation.resume(throwing: CancellationError())
+          pending.continuation.resume(throwing: FunctionError.cancelled(callID: callID))
         }
       }
     }
@@ -302,13 +315,47 @@ public final class RPCHandler {
     }
   }
 
-  /// Cancels all active pending calls, throwing a cancellation error.
+  /// Cancels all active pending calls, throwing `FunctionError.cancelled`.
   public func cancelAllPendingCalls() {
-    for (_, pending) in pendingCalls {
+    for (callID, pending) in pendingCalls {
       pending.timeoutTask?.cancel()
-      pending.continuation.resume(throwing: CancellationError())
+      pending.continuation.resume(throwing: FunctionError.cancelled(callID: callID))
     }
     pendingCalls.removeAll()
+  }
+
+  /// Disposes all active pending calls, throwing `FunctionError.disposed`.
+  public func disposeAllPendingCalls() {
+    for (callID, pending) in pendingCalls {
+      pending.timeoutTask?.cancel()
+      pending.continuation.resume(throwing: FunctionError.disposed(callID: callID))
+    }
+    pendingCalls.removeAll()
+  }
+}
+
+private final class RPCArgumentFunctionHandler: FunctionHandler {
+  private weak var delegate: FunctionHandler?
+  private let fallback: DummyContextFunctionHandler
+  private(set) var capturedError: Error?
+
+  init(delegate: FunctionHandler?, fallback: DummyContextFunctionHandler) {
+    self.delegate = delegate
+    self.fallback = fallback
+  }
+
+  func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
+    if let delegate {
+      return delegate.function(named: name, catalogID: catalogID)
+    }
+    return fallback.function(named: name, catalogID: catalogID)
+  }
+
+  func handleFunctionError(_ error: Error, functionName: String) {
+    if capturedError == nil {
+      capturedError = error
+    }
+    delegate?.handleFunctionError(error, functionName: functionName)
   }
 }
 

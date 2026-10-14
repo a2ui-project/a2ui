@@ -20,23 +20,6 @@ import 'conformance_harness.dart';
 /// Suite-level error categories mapped onto this SDK's exception types.
 const Map<String, Type> _categoryToError = {'ParseError': A2uiExpressionError};
 
-/// Conformance cases in `core/expressions.yaml` that are expected to fail
-/// until v1.0 validation and `formatString` AST adaptation land.
-const Map<String, String> _expectedFailures = {
-  'test_expression_parser_string_interpolation_multiple_bindings':
-      'Requires v1.0 validate action and formatString resolution.',
-  'test_expression_parser_escaped_interpolation_sequence':
-      'Requires v1.0 validate action and formatString resolution.',
-  'test_expression_parser_nested_function_call':
-      'Requires v1.0 validate action and formatCurrency/formatString resolution.',
-  'test_expression_parser_data_type_coercion_matrix':
-      'Requires v1.0 validate action and formatString resolution.',
-  'test_expression_parser_syntax_error_unclosed_brace':
-      'Requires v1.0 validate action and expression validation.',
-  'test_expression_parser_max_depth_exceeded_error':
-      'Requires v1.0 validate action and expression validation.',
-};
-
 /// Joins adjacent literal parts and drops empty ones.
 ///
 /// A template fixes which values a parser produces, not how it happens to
@@ -56,9 +39,13 @@ List<Object?> _joinLiterals(List<Object?> parts) {
 }
 
 void main() {
-  final List<ConformanceTestCase> cases = loadConformanceSuite(
-    'core/expressions.yaml',
-  );
+  // The suite's `validate` cases render basic-catalog components on a
+  // surface, so `message_processor_conformance_test.dart` runs them.
+  final List<ConformanceTestCase> cases = [
+    for (final ConformanceTestCase testCase
+        in loadConformanceSuite('core/expressions.yaml'))
+      if (testCase['action'] != 'validate') testCase,
+  ];
 
   group('expression parser conformance', () {
     late ExpressionParser parser;
@@ -70,7 +57,6 @@ void main() {
     runConformanceSuite(
       cases,
       (testCase) => _runCase(parser, testCase),
-      expectedFailures: _expectedFailures,
     );
   });
 }

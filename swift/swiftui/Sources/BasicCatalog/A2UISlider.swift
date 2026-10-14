@@ -49,6 +49,18 @@ public struct A2UISlider: View {
     node.double(for: "max") ?? 100
   }
 
+  /// The snapping increment derived from the v1.0 `steps` property, or `nil` for a continuous
+  /// slider. `steps` is the number of divisions across `min...max`, so the increment is
+  /// `(max - min) / steps`. Missing, non-positive, or non-integer `steps` and `max <= min`
+  /// all keep the slider continuous.
+  public var stepValue: Double? {
+    guard let steps = node.int(for: "steps"), steps > 0, maxValue > minValue else {
+      return nil
+    }
+    let step = (maxValue - minValue) / Double(steps)
+    return step > 0 ? step : nil
+  }
+
   private var sliderBinding: Binding<Double> {
     node.binding(for: "value", default: minValue)
   }
@@ -75,10 +87,18 @@ public struct A2UISlider: View {
         }
       }
 
-      Slider(
-        value: sliderBinding,
-        in: minValue...max(minValue + 0.001, maxValue)
-      )
+      if let stepValue {
+        Slider(
+          value: sliderBinding,
+          in: minValue...max(minValue + 0.001, maxValue),
+          step: stepValue
+        )
+      } else {
+        Slider(
+          value: sliderBinding,
+          in: minValue...max(minValue + 0.001, maxValue)
+        )
+      }
 
       if let firstError = node.validationErrors.first {
         Text(firstError)

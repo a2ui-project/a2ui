@@ -41,64 +41,6 @@ public final class V09VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     Self.supportedCatalogVersions
   }
 
-  public override func adaptMessage(
-    _ message: AgentToRendererMessage
-  ) throws -> [InternalOperation] {
-    switch message {
-    case .createSurface(let msg):
-      return [
-        .createSurface(
-          InternalCreateSurfaceOp(
-            surfaceID: msg.surfaceID,
-            catalogID: msg.catalogID,
-            theme: msg.theme,
-            sendDataModel: msg.shouldSendDataModel,
-            components: msg.components,
-            dataModel: msg.dataModel,
-            version: version
-          )
-        )
-      ]
-    case .updateComponents(let msg):
-      return [
-        .updateComponents(
-          InternalUpdateComponentsOp(
-            surfaceID: msg.surfaceID,
-            components: msg.components
-          )
-        )
-      ]
-    case .updateDataModel(let msg):
-      return [
-        .updateDataModel(
-          InternalUpdateDataModelOp(
-            surfaceID: msg.surfaceID,
-            path: msg.path,
-            value: msg.value
-          )
-        )
-      ]
-    case .deleteSurface(let msg):
-      return [
-        .deleteSurface(
-          InternalDeleteSurfaceOp(surfaceID: msg.surfaceID)
-        )
-      ]
-    case .callRendererFunction:
-      let sortedAllowed = validActions.sorted().joined(separator: ", ")
-      throw A2UIValidationError(
-        "Invalid \(version.rawValue) message: action 'callRendererFunction' is not supported "
-          + "in protocol version \(version.rawValue). Allowed actions: \(sortedAllowed)."
-      )
-    case .agentFunctionResponse:
-      let sortedAllowed = validActions.sorted().joined(separator: ", ")
-      throw A2UIValidationError(
-        "Invalid \(version.rawValue) message: action 'agentFunctionResponse' is not supported "
-          + "in protocol version \(version.rawValue). Allowed actions: \(sortedAllowed)."
-      )
-    }
-  }
-
   public override func extractOperationsFromObject(
     _ message: OrderedDictionary<String, JSONValue>,
     action: String,

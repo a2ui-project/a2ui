@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Releases the Python SDKs to PyPI through the OSS Exit Gate.
+# Releases the Python SDKs to PyPI through the OSS Exit Gate: a2ui-core,
+# a2ui-agent-sdk and the agent framework integrations a2ui-a2a and a2ui-adk.
 #
 # The path of this file is part of the Exit Gate's authorization config. It is
 # registered as a builder identity in the a2ui project:
@@ -52,14 +53,14 @@ name: Release Python SDKs
 on:
   workflow_dispatch:
     inputs:
+      # Validated by release_version.py in the plan step. Several packages are
+      # published in dependency order, whatever order they are listed in.
       package:
-        description: Package to release
+        description: >-
+          Packages to release: all, or comma-separated names from a2ui-core,
+          a2ui-agent-sdk, a2ui-a2a, a2ui-adk (for example a2ui-a2a,a2ui-adk)
         required: true
-        type: choice
-        options:
-          - a2ui-core
-          - a2ui-agent-sdk
-          - both
+        type: string
       bump:
         description: Version bump
         required: true
@@ -88,8 +89,8 @@ permissions:
 # Releases must not overlap. Two runs staging different versions of the same
 # package would race on the Artifact Registry and the manifest bucket.
 #
-# The group is deliberately not keyed by the `package` input: `both` and
-# `a2ui-core` would then land in different groups and be free to run at the same
+# The group is deliberately not keyed by the `package` input:
+# `a2ui-core,a2ui-agent-sdk` and `a2ui-core` would then land in different groups and be free to run at the same
 # time, which is exactly the collision this is meant to prevent. Releases are
 # manual and infrequent, so serialising all of them costs nothing.
 concurrency:
@@ -131,6 +132,9 @@ jobs:
 
       - uses: ./.github/actions/setup-python
 
+      # a2ui-core and a2ui-agent-sdk always have tags, so finding theirs proves
+      # the checkout has the tags. a2ui-a2a and a2ui-adk are left out because
+      # they have no tag before their first release.
       - name: Confirm release tags are visible
         run: |
           set -euo pipefail
@@ -156,14 +160,15 @@ jobs:
             --output release-plan.json
 
       # Also rejects an empty `## Unreleased` section, which is what stops a
-      # release that would have nothing to say for itself.
+      # release that would have nothing to say for itself. --plan lets a
+      # package depend on a version of another package from the same run.
       - name: Preflight checks
         run: |
           set -euo pipefail
           jq -r '.[] | "\(.pypi_name) \(.version)"' release-plan.json |
             while read -r name version; do
               python3 .github/scripts/release_version.py check \
-                --package "$name" --version "$version"
+                --package "$name" --version "$version" --plan release-plan.json
             done
 
       - name: Confirm the versions are new to PyPI
@@ -293,8 +298,9 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
 
-      # Staging is ordered core first, which is the order the plan emits, so a
-      # new a2ui-core is in place before the a2ui-agent-sdk that requires it.
+      # Staging follows the plan, which is in dependency order (a2ui-core,
+      # a2ui-agent-sdk, a2ui-a2a, a2ui-adk), so each new version is in place
+      # before the packages that require it.
       - name: Stage in the Exit Gate Artifact Registry
         run: |
           set -euo pipefail
@@ -307,9 +313,9 @@ jobs:
           done
 
       # always(), because cleanup is needed on dry runs and on failed publish
-      # runs: with `package: both`, core can land and agent-sdk fail, and
-      # leaving core behind blocks subsequent release attempts because Artifact
-      # Registry rejects uploading duplicate versions.
+      # runs: with a multi-package selection, one package can land and the next
+      # fail, and leaving the first behind blocks subsequent release attempts
+      # because Artifact Registry rejects uploading duplicate versions.
       - name: Discard the staged artifacts
         if: ${{ always() && (inputs.dry_run || failure()) }}
         env:
@@ -361,8 +367,8 @@ jobs:
       # covered by a ruleset that requires a pull request, and the changelog
       # edit goes through that route at the end of the job.
       #
-      # --atomic, so a `both` release cannot end up with a2ui-core tagged and
-      # a2ui-agent-sdk not. Recovering from that by hand means working out which
+      # --atomic, so a multi-package release cannot end up with a2ui-core
+      # tagged and a2ui-agent-sdk not. Recovering from that by hand means working out which
       # half landed while artifacts are already staged.
       - name: Push the tags
         if: ${{ !inputs.dry_run }}

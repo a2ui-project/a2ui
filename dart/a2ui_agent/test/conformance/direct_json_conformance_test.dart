@@ -73,6 +73,8 @@ const Map<String, String> _knownStreamingGaps = {
   'test_stream_self_reference_fails_v09': _treeChecked,
   'test_stream_update_before_create_surface_fails_v09': _surfaceFirst,
   'test_stream_data_model_before_create_surface_fails_v09': _surfaceFirst,
+  'test_stream_component_without_catalog_uses_surface_catalog_v10':
+      _invalidComponentWithheld,
   'test_stream_cut_surrogate_pair_v09':
       'Known gap: a string cut inside an escaped surrogate pair is healed '
       'with U+FFFD rather than cut before the pair.',
@@ -87,6 +89,9 @@ const String _treeChecked =
 const String _surfaceFirst =
     'Known gap: a message for a surface the block has not created yet is '
     'not rejected when the block closes.';
+const String _invalidComponentWithheld =
+    'Known gap: an invalid component is withheld until the block closes '
+    'rather than raising on the chunk that closes it.';
 
 /// Why a case is skipped, or null when it runs.
 String? _skipReason(Map<String, Object?> testCase) {

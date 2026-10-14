@@ -60,7 +60,6 @@ List<CatalogApi> resolveCatalogs(
     throw A2uiValidationError(
       'Renderer capabilities declare nothing for ${version.jsonValue}, the '
       'only version this SDK supports.',
-      details: rendererCapabilities.toJson(),
     );
   }
 

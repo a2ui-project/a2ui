@@ -447,7 +447,7 @@ async def test_invalid_file_id_and_unsupported_scheme():
 
 
 @pytest.mark.asyncio
-async def test_to_genai_part_and_resolve_all():
+async def test_resolve_all_returns_tuples_and_applies_converter():
     resolver = FileResolver()
 
     file1_bytes = b"%PDF-1.4 Document 1"
@@ -461,18 +461,21 @@ async def test_to_genai_part_and_resolve_all():
         {"fileId": f"data:image/png;base64,{b64_2}"},
     ]
 
-    # Single to_genai_part
-    part1 = await resolver.to_genai_part(files[0])
-    assert part1.inline_data.mime_type == "application/pdf"
-    assert part1.inline_data.data == file1_bytes
+    # Without a converter, each item is a (bytes, mime_type) tuple.
+    resolved = await resolver.resolve_all(files)
+    assert resolved == [
+        (file1_bytes, "application/pdf"),
+        (file2_bytes, "image/png"),
+    ]
 
-    # Batch resolve_all_to_genai_parts
-    parts = await resolver.resolve_all_to_genai_parts(files)
-    assert len(parts) == 2
-    assert parts[0].inline_data.mime_type == "application/pdf"
-    assert parts[0].inline_data.data == file1_bytes
-    assert parts[1].inline_data.mime_type == "image/png"
-    assert parts[1].inline_data.data == file2_bytes
+    # With a converter, each item is the converter's result, in order.
+    converted = await resolver.resolve_all(
+        files, convert=lambda data, mime: {"mime": mime, "size": len(data)}
+    )
+    assert converted == [
+        {"mime": "application/pdf", "size": len(file1_bytes)},
+        {"mime": "image/png", "size": len(file2_bytes)},
+    ]
 
 
 @pytest.mark.asyncio
@@ -526,14 +529,26 @@ async def test_as_tool_decorator():
     out_files, out_parts = await my_tool(my_files=files)
 
     assert out_files[0].get("preprocessed") is True
-    assert len(out_parts) == 1
-    assert out_parts[0].inline_data.mime_type == "application/pdf"
-    assert out_parts[0].inline_data.data == file1_bytes
+    assert out_parts == [(file1_bytes, "application/pdf")]
 
     # Test error handling
     invalid_files = [{"fileId": f"data:application/pdf;base64,!!!invalid!!!"}]
     res = await my_tool(my_files=invalid_files)
     assert "error" in res
+
+
+@pytest.mark.asyncio
+async def test_as_tool_decorator_with_converter_and_default_inject_name():
+    resolver = FileResolver()
+    file_bytes = b"%PDF-1.4 Doc"
+    b64 = base64.b64encode(file_bytes).decode("utf-8")
+
+    @resolver.as_tool_decorator(convert=lambda data, mime: f"{mime}:{len(data)}")
+    async def my_tool(files: list[dict], resolved_files: list[Any] = None):
+        return resolved_files
+
+    out = await my_tool(files=[{"fileId": f"data:application/pdf;base64,{b64}"}])
+    assert out == [f"application/pdf:{len(file_bytes)}"]
 
 
 @pytest.mark.asyncio

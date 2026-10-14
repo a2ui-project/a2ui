@@ -20,7 +20,8 @@ import 'package:a2ui_flutter/basic_catalog.dart';
 const double flexGap = 8;
 
 /// A catalog under the basic catalog's id holding [components], the basic
-/// functions and the basic theme schema.
+/// functions, the basic theme schema and the shared definitions the
+/// component schemas reference.
 CatalogImplementation basicTestCatalog(
   List<ComponentImplementation> components,
 ) => CatalogImplementation(
@@ -28,4 +29,5 @@ CatalogImplementation basicTestCatalog(
   components: components,
   functions: BasicCatalog.v0_9().functions.values.toList(),
   themeSchema: BasicComponents.api.themeSchema,
+  definitions: BasicComponents.api.definitions,
 );

@@ -132,11 +132,10 @@ Map<String, Object?> _render(
     // Some examples replace a placeholder and leave it unreachable.
     validationConfig: ValidationConfig.relaxed,
   );
-  addTearDown(renderer.groupModel.dispose);
+  addTearDown(renderer.model.dispose);
   renderer.processMessages(AgentToRendererMessagePayload(messages));
   return {
-    for (final SurfaceModel<ComponentApi> surface
-        in renderer.groupModel.allSurfaces)
+    for (final SurfaceModel<ComponentApi> surface in renderer.model.allSurfaces)
       surface.id: {
         'catalog': surface.defaultCatalog?.id,
         'components': {
@@ -158,6 +157,7 @@ Catalog<ComponentApi, FunctionImplementation> _rendererCatalog(
   components: catalog.components.values.toList(),
   functions: catalog.functions.values.map(_Signature.new).toList(),
   themeSchema: catalog.themeSchema,
+  definitions: catalog.definitions,
 );
 
 class _Signature extends FunctionImplementation {

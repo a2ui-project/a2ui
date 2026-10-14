@@ -166,8 +166,9 @@ class _ErrorCountingHost extends StatefulWidget {
 
 class _ErrorCountingHostState extends State<_ErrorCountingHost> {
   int _errors = 0;
+  late final Subscription _subscription;
 
-  void _onError(A2uiClientError error) {
+  void _onError(A2uiRendererError error) {
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() => _errors++);
     });
@@ -176,12 +177,12 @@ class _ErrorCountingHostState extends State<_ErrorCountingHost> {
   @override
   void initState() {
     super.initState();
-    widget.surface.onError.addListener(_onError);
+    _subscription = widget.surface.onError.subscribe(_onError);
   }
 
   @override
   void dispose() {
-    widget.surface.onError.removeListener(_onError);
+    _subscription.unsubscribe();
     super.dispose();
   }
 

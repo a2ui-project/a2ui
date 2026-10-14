@@ -29,6 +29,7 @@ import '../primitives/semver.dart';
 import '../rpc/rpc_handler.dart';
 import '../validation/component_graph.dart';
 import '../validation/component_refs.dart';
+import '../validation/nested_calls.dart';
 import '../validation/validation_config.dart';
 import '../validation/validator.dart';
 import 'adapters/version_adapter.dart';
@@ -89,7 +90,7 @@ typedef _CheckedBatch = ({
 /// one graph. Without a config the graph is not checked, so a surface may
 /// arrive across several messages in any order; see [ValidationConfig].
 class MessageProcessor<T extends ComponentApi> {
-  final SurfaceGroupModel<T> groupModel;
+  final SurfaceGroupModel<T> model;
   final List<Catalog<T, FunctionImplementation>> catalogs;
 
   /// The protocol version this processor targets by default, or null for
@@ -106,13 +107,6 @@ class MessageProcessor<T extends ComponentApi> {
   /// Defaults to [VersionAdapterRegistry.standard].
   final VersionAdapterRegistry adapterRegistry;
 
-  /// The shared `common_types.json` definitions the validators resolve
-  /// against, for every protocol version, or null to use the copy this package
-  /// publishes for each message's version.
-  ///
-  /// Pass an empty map to leave the shared types unchecked.
-  final Map<String, Object?>? commonTypesSchema;
-
   /// Which checks each message must pass, or null, the default, for none of
   /// the graph checks.
   ///
@@ -123,6 +117,13 @@ class MessageProcessor<T extends ComponentApi> {
   /// the last of them has arrived. Without a config, duplicate ids within a
   /// batch and the schemas of declared component types are still checked.
   final ValidationConfig? validationConfig;
+
+  /// The shared `common_types.json` definitions the validators resolve
+  /// against, for every protocol version, or null to use the copy this package
+  /// publishes for each message's version.
+  ///
+  /// Pass an empty map to leave the shared types unchecked.
+  final Map<String, Object?>? commonTypesSchema;
 
   /// One validator per catalog and protocol version, built on first use.
   final Map<(String, A2uiProtocolVersion),
@@ -153,11 +154,11 @@ class MessageProcessor<T extends ComponentApi> {
     this.validationConfig,
     this.commonTypesSchema,
     VersionAdapterRegistry? adapterRegistry,
-    void Function(A2uiClientAction)? onAction,
+    void Function(A2uiRendererAction)? onAction,
     OutboundMessageListener? outboundListener,
     Duration defaultTimeout = const Duration(seconds: 30),
   })  : adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
-        groupModel = SurfaceGroupModel<T>(),
+        model = SurfaceGroupModel<T>(),
         _outboundListener = outboundListener,
         _defaultTimeout = defaultTimeout {
     final A2uiProtocolVersion? target = validationConfig?.targetVersion;
@@ -169,11 +170,11 @@ class MessageProcessor<T extends ComponentApi> {
       );
     }
     if (onAction != null) {
-      groupModel.onAction.addListener(onAction);
+      model.onAction.subscribe(onAction);
     }
   }
 
-  /// The validator for [catalog] under protocol [version].
+  /// The validator for [catalog].
   ///
   /// A component belongs to exactly one catalog, so a validator is scoped to
   /// one rather than handed the whole supported set. The processor is what
@@ -185,11 +186,17 @@ class MessageProcessor<T extends ComponentApi> {
   /// resolved component schemas, which a fresh instance per batch would
   /// rebuild on every message.
   ///
+  /// A v1.0 function call nested in a component runs in the catalog it
+  /// resolves to, not necessarily the component's. The component's validator
+  /// checks the calls that run in the component's catalog (see
+  /// `nestedCallRunsInCatalog`), and the processor checks each other call
+  /// against the catalog it resolves to.
+  ///
   /// Throws [A2uiValidationError] when this package publishes no
   /// `common_types.json` for [version] and [commonTypesSchema] is null.
   PayloadValidator<T, FunctionImplementation> validatorFor(
     Catalog<T, FunctionImplementation> catalog, {
-    required A2uiProtocolVersion version,
+    A2uiProtocolVersion version = A2uiProtocolVersion.v0_9,
   }) =>
       _validators.putIfAbsent(
         (catalog.id, version),
@@ -300,11 +307,8 @@ class MessageProcessor<T extends ComponentApi> {
   /// Disposes the RPC layer, failing its pending calls, and every surface.
   void dispose() {
     rpc.dispose();
-    groupModel.dispose();
+    model.dispose();
   }
-
-  /// Alias for [processMessages] for cross-SDK ergonomics.
-  void process(Object? payload) => processMessages(payload);
 
   /// The items [payload] carries, each a raw envelope or a parsed message.
   static List<Object?> _itemsOf(Object? payload) => switch (payload) {
@@ -318,7 +322,6 @@ class MessageProcessor<T extends ComponentApi> {
             final List<Object?> list => list,
             _ => throw A2uiValidationError(
                 "Payload field 'messages' must be a list of envelopes.",
-                details: wrapper,
               ),
           },
         final Map<Object?, Object?> envelope => [envelope],
@@ -349,7 +352,6 @@ class MessageProcessor<T extends ComponentApi> {
         throw A2uiValidationError(
           'Each message must be a JSON object with string keys; got '
           '${item.runtimeType}.',
-          details: item,
         );
     }
   }
@@ -395,7 +397,7 @@ class MessageProcessor<T extends ComponentApi> {
       case DeleteSurfaceOp():
         // An unknown surface id is a no-op, matching the conformance suite
         // and the TypeScript and Python SDKs.
-        groupModel.deleteSurface(operation.surfaceId);
+        model.deleteSurface(operation.surfaceId);
       case CallRendererFunctionOp():
         return _callRendererFunction(operation, isUserActivated);
       case AgentFunctionResponseOp():
@@ -409,37 +411,20 @@ class MessageProcessor<T extends ComponentApi> {
     return null;
   }
 
-  /// Hands a `callRendererFunction` to [rpc], against the first surface whose
-  /// default catalog is the catalog the call names, else the first surface
-  /// that holds the catalog, else the first surface, else no surface at all,
-  /// in which case the function runs headless.
+  /// Hands a `callRendererFunction` to [rpc], targeting the surface named by
+  /// [CallRendererFunctionOp.surfaceId] when present, or no surface at all
+  /// (running against an isolated empty root data model) when omitted.
   Future<void> _callRendererFunction(
     CallRendererFunctionOp operation,
     bool isUserActivated,
   ) {
-    final Object? catalogId = operation.callFunction['catalogId'];
-    SurfaceModel<T>? target;
-    if (catalogId is String) {
-      for (final SurfaceModel<T> surface in groupModel.allSurfaces) {
-        if (surface.defaultCatalog?.id == catalogId) {
-          target = surface;
-          break;
-        }
-      }
-    }
-    if (target == null) {
-      for (final SurfaceModel<T> surface in groupModel.allSurfaces) {
-        target ??= surface;
-        if (catalogId is String &&
-            surface.availableCatalogs.containsKey(catalogId)) {
-          target = surface;
-          break;
-        }
-      }
-    }
+    final SurfaceModel<T>? target = operation.surfaceId != null
+        ? model.getSurface(operation.surfaceId!)
+        : null;
     return rpc.handleCallRendererFunction(
       CallRendererFunctionMessage(
         version: operation.version.jsonValue,
+        surfaceId: operation.surfaceId,
         functionCallId: operation.functionCallId,
         callFunction: operation.callFunction,
       ),
@@ -468,7 +453,7 @@ class MessageProcessor<T extends ComponentApi> {
     );
     if (catalog != null) _checkCatalogVersion(catalog, operation);
 
-    if (groupModel.getSurface(operation.surfaceId) != null) {
+    if (model.getSurface(operation.surfaceId) != null) {
       throw A2uiIntegrityError(
           'Surface ${operation.surfaceId} already exists.');
     }
@@ -477,8 +462,7 @@ class MessageProcessor<T extends ComponentApi> {
     // than on every later message. v1.0 has no theme.
     if (catalog != null &&
         !operation.version.isAtLeast(A2uiProtocolVersion.v1_0)) {
-      validatorFor(catalog, version: operation.version)
-          .validateTheme(operation.theme);
+      validatorFor(catalog).validateTheme(operation.theme);
     }
 
     final surface = SurfaceModel<T>(
@@ -512,7 +496,7 @@ class MessageProcessor<T extends ComponentApi> {
       }
     }
 
-    groupModel.addSurface(surface);
+    model.addSurface(surface);
     try {
       if (operation.dataModel case final Map<String, Object?> dataModel) {
         surface.dataModel.set('/', dataModel);
@@ -520,7 +504,7 @@ class MessageProcessor<T extends ComponentApi> {
       if (batch != null) _applyComponents(surface, batch);
     } catch (_) {
       // Do not leave a half-initialized surface registered.
-      groupModel.deleteSurface(operation.surfaceId);
+      model.deleteSurface(operation.surfaceId);
       rethrow;
     }
   }
@@ -631,7 +615,7 @@ class MessageProcessor<T extends ComponentApi> {
   }
 
   SurfaceModel<T> _surfaceFor(String surfaceId) {
-    final SurfaceModel<T>? surface = groupModel.getSurface(surfaceId);
+    final SurfaceModel<T>? surface = model.getSurface(surfaceId);
     if (surface == null) {
       throw A2uiIntegrityError('Surface not found for message: $surfaceId');
     }
@@ -648,12 +632,16 @@ class MessageProcessor<T extends ComponentApi> {
 
   /// Checks a batch of [components] for [surface], changing nothing.
   ///
-  /// Every component in the batch is resolved to a full entry and checked
-  /// before any of them is applied, so a batch that is rejected leaves the
-  /// surface exactly as it was. Then the surface this batch would leave
-  /// behind is checked as one graph: duplicate ids, then under a
-  /// [validationConfig] the root, references that resolve, cycles, depth and
-  /// reachability, as its flags require.
+  /// Every component in the batch is resolved to a full entry and to the
+  /// catalog it belongs to, and checked, before any of them is applied, so a
+  /// batch that is rejected leaves the surface exactly as it was.
+  /// [_applyComponents] resolves each entry's catalog again when it builds
+  /// the models; the batch has already shown that it resolves. Then the
+  /// surface this batch would leave behind is checked as one
+  /// graph: duplicate ids, then under a [validationConfig] the root,
+  /// references that resolve, cycles, depth and reachability, as its flags
+  /// require. Each component's references are read through the catalog it
+  /// resolved to.
   _CheckedBatch _checkComponents(
     SurfaceModel<T> surface,
     List<Map<String, Object?>> components,
@@ -721,10 +709,12 @@ class MessageProcessor<T extends ComponentApi> {
           if (!_envelopeFields.contains(e.key)) e.key: e.value,
       };
 
+      final Catalog<T, FunctionImplementation> catalog =
+          surface.resolveCatalog(catalogId, subject: "Component '$id'");
       final ComponentModel? existing = model.get(id);
       if (existing != null &&
           existing.type == type &&
-          existing.catalog == catalogId) {
+          identical(surface.resolveCatalog(existing.catalog), catalog)) {
         existing.metadata = metadata;
         existing.properties = props;
         continue;
@@ -738,17 +728,26 @@ class MessageProcessor<T extends ComponentApi> {
     }
   }
 
-  /// Resolves one component entry to the full component it describes and
-  /// checks it against its catalog under protocol [version].
+  /// Resolves one component entry to the full component it describes and the
+  /// catalog it belongs to, and checks it against that catalog under protocol
+  /// [version].
   ///
-  /// An entry that omits `component` updates a component the surface already
-  /// holds: it keeps that component's type, and its `catalogId` and
-  /// `metadata` when it omits those too. Its properties replace the existing
-  /// ones, so the entry is checked against the type's schema as it stands.
+  /// Before v1.0 an entry that omits `component` updates a component the
+  /// surface already holds: it keeps that component's type, and its
+  /// `catalogId` and `metadata` when it omits those too. Its properties
+  /// replace the existing ones, so the entry is checked against the type's
+  /// schema as it stands. From v1.0 every entry must name its type.
   ///
   /// An entry that names `component` replaces the component whole: one that
-  /// omits `catalogId` belongs to the surface's catalog, so a component that
-  /// named a catalog of its own is recreated, as for a change of type.
+  /// omits `catalogId` belongs to the surface's default catalog, so a
+  /// component that named a catalog of its own is recreated, as for a change
+  /// of type. The catalog is the one the entry's `catalogId` names, else the
+  /// surface default (see [SurfaceModel.resolveCatalog]); there is no
+  /// fallback to a catalog the surface did not name.
+  ///
+  /// From v1.0 each function call nested in the entry resolves its own
+  /// catalog, which need not be the component's; see
+  /// [_validateNestedFunctionCalls].
   Map<String, Object?> _resolveComponent(
     Map<String, Object?> entry,
     SurfaceModel<T> surface,
@@ -756,7 +755,7 @@ class MessageProcessor<T extends ComponentApi> {
   ) {
     final Object? id = entry['id'];
     if (id is! String) {
-      throw A2uiValidationError("Component missing an 'id'.", details: entry);
+      throw A2uiValidationError("Component missing an 'id'.");
     }
     final Object? rawType = entry['component'];
     final Object? rawCatalog = entry['catalogId'];
@@ -764,13 +763,11 @@ class MessageProcessor<T extends ComponentApi> {
     if (rawType != null && rawType is! String) {
       throw A2uiValidationError(
         "Component '$id' has a 'component' type that is not a string.",
-        details: entry,
       );
     }
     if (rawCatalog != null && rawCatalog is! String) {
       throw A2uiValidationError(
-        "Component '$id' has a 'catalogId' that is not a string.",
-        details: entry,
+        "Component '$id' has a non-string 'catalogId'.",
       );
     }
     if (rawMetadata != null &&
@@ -780,17 +777,25 @@ class MessageProcessor<T extends ComponentApi> {
       throw A2uiValidationError(
         "Component '$id' has 'metadata' that is not an object with string "
         'keys.',
-        details: entry,
       );
     }
 
+    final bool atLeastV1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
     final ComponentModel? existing = surface.componentsModel.get(id);
     final partial = rawType == null;
     final String? type = rawType as String? ?? existing?.type;
     if (type == null) {
       throw A2uiValidationError(
         "Cannot create component $id without a 'component' type.",
-        details: entry,
+      );
+    }
+    // From v1.0 an update replaces the component whole, and the spec
+    // requires `component` on every component object, so an update cannot
+    // omit it and inherit the previous type.
+    if (atLeastV1 && partial) {
+      throw A2uiValidationError(
+        "Component $id names no 'component' type. From v1.0 every "
+        'component in updateComponents must name its type.',
       );
     }
     final String? catalogId =
@@ -806,9 +811,158 @@ class MessageProcessor<T extends ComponentApi> {
     };
 
     final Catalog<T, FunctionImplementation> catalog =
-        surface.resolveCatalog(catalogId);
-    validatorFor(catalog, version: version).validateComponent(full);
+        surface.resolveCatalog(catalogId, subject: "Component '$id'");
+    validatorFor(catalog, version: version).validateComponent(
+      atLeastV1 ? _componentForValidator(full, catalog, surface) : full,
+    );
+    if (atLeastV1) {
+      _validateNestedFunctionCalls(full, catalog, surface, version);
+    }
     return full;
+  }
+
+  /// [component] as the validator of [catalog], the catalog it resolved to,
+  /// is given it, which tells the validator whether the component is in the
+  /// surface default catalog.
+  ///
+  /// From v1.0 a function call that names no `catalogId` runs in the surface
+  /// default, and the validator takes a component that names no `catalogId`
+  /// to be in that catalog. What decides it is the catalog the component
+  /// resolved to, not whether the payload wrote a `catalogId`: one that
+  /// explicitly names the surface default is in it, so its catalogless calls
+  /// are checked by the validator. So `catalogId` is set to [catalog]'s id
+  /// when [catalog] is not the surface default, and left out when it is.
+  Map<String, Object?> _componentForValidator(
+    Map<String, Object?> component,
+    Catalog<T, FunctionImplementation> catalog,
+    SurfaceModel<T> surface,
+  ) =>
+      <String, Object?>{
+        for (final MapEntry<String, Object?> entry in component.entries)
+          if (entry.key != 'catalogId') entry.key: entry.value,
+        if (!identical(catalog, surface.defaultCatalog))
+          'catalogId': catalog.id,
+      };
+
+  /// The reserved system function that every v1.0 surface provides, whatever
+  /// its catalogs. Names in the `@` namespace belong to no catalog.
+  static const String _indexFunction = '@index';
+
+  /// Checks every v1.0 function call nested in [component]'s properties
+  /// against the catalog the call resolves to.
+  ///
+  /// A call runs in the catalog its own `catalogId` names, or else in the
+  /// surface's default catalog — not necessarily the catalog of the component
+  /// that holds it, [componentCatalog]. See [SurfaceModel.resolveCatalog].
+  /// Every call's catalog is resolved. The arguments of a call that runs in
+  /// [componentCatalog] (see `nestedCallRunsInCatalog`) were checked by
+  /// `PayloadValidator.validateComponent`, so only the other calls' arguments
+  /// are checked here.
+  ///
+  /// Throws [A2uiCatalogError] when a call names a catalog the surface does
+  /// not have, or names none on a surface with no default, and
+  /// [A2uiValidationError] when the resolved catalog declares no such
+  /// function or the arguments do not match its schema.
+  void _validateNestedFunctionCalls(
+    Map<String, Object?> component,
+    Catalog<T, FunctionImplementation> componentCatalog,
+    SurfaceModel<T> surface,
+    A2uiProtocolVersion version,
+  ) {
+    final Object? componentId = component['id'];
+    final bool catalogIsDefault = identical(
+      componentCatalog,
+      surface.defaultCatalog,
+    );
+
+    void visit(Object? node) {
+      if (node is List) {
+        node.forEach(visit);
+        return;
+      }
+      if (node is! Map) return;
+      final Object? name = node['@call'];
+      if (name is String) {
+        final Object? catalogId = node['catalogId'];
+        if (catalogId != null && catalogId is! String) {
+          throw A2uiValidationError(
+            "Function call '$name' in component '$componentId' has a "
+            "non-string 'catalogId'.",
+          );
+        }
+        final Object? rawArgs = node['args'];
+        final Map<String, Object?> args = switch (rawArgs) {
+          null => const <String, Object?>{},
+          final Map<Object?, Object?> map => map.cast<String, Object?>(),
+          _ => throw A2uiValidationError(
+              "Function call '$name' in component '$componentId' has "
+              "non-object 'args'.",
+            ),
+        };
+        if (name.startsWith('@')) {
+          // A system function belongs to no catalog, so it is not resolved
+          // against one; its arguments are still visited below.
+          _validateSystemFunction(name, args, node, componentId);
+        } else {
+          final Catalog<T, FunctionImplementation> catalog =
+              surface.resolveCatalog(
+            catalogId as String?,
+            subject: "Function call '$name' in component '$componentId'",
+          );
+          if (!nestedCallRunsInCatalog(
+            catalogId,
+            componentCatalog.id,
+            catalogIsDefault: catalogIsDefault,
+          )) {
+            validatorFor(catalog, version: version)
+                .validateFunctionArgs(name, args, componentId: componentId);
+          }
+        }
+      }
+      node.values.forEach(visit);
+    }
+
+    for (final MapEntry<String, Object?> entry in component.entries) {
+      if (_envelopeFields.contains(entry.key)) continue;
+      visit(entry.value);
+    }
+  }
+
+  /// Checks a call to a reserved `@`-prefixed system function, which no
+  /// catalog declares. v1.0 defines only `@index`, whose arguments are an
+  /// optional `offset` (`IndexSystemFunction` in `common_types.json`).
+  ///
+  /// Throws [A2uiValidationError] for a system function v1.0 does not define,
+  /// for one that names a `catalogId` (system functions belong to no
+  /// catalog), or for arguments other than the optional `offset`.
+  static void _validateSystemFunction(
+    String name,
+    Map<String, Object?> args,
+    Map<Object?, Object?> node,
+    Object? componentId,
+  ) {
+    if (name != _indexFunction) {
+      throw A2uiValidationError(
+        "Function call '$name' in component '$componentId' names an unknown "
+        "system function. The '@' namespace is reserved; only "
+        "'$_indexFunction' is defined.",
+      );
+    }
+    if (node.containsKey('catalogId')) {
+      throw A2uiValidationError(
+        "Function call '$name' in component '$componentId' names a "
+        "catalogId, but '$_indexFunction' is a system function and belongs "
+        'to no catalog.',
+      );
+    }
+    for (final String key in args.keys) {
+      if (key != 'offset') {
+        throw A2uiValidationError(
+          "Function call '$name' in component '$componentId' has unknown "
+          "argument '$key'; '$_indexFunction' takes only 'offset'.",
+        );
+      }
+    }
   }
 
   /// The capabilities object this processor's renderer advertises, with one
@@ -818,7 +972,8 @@ class MessageProcessor<T extends ComponentApi> {
   /// [CapabilitiesOptions.includeInlineCatalogs] it also carries the catalogs
   /// themselves, shaped for that entry's version as
   /// [A2uiVersionCapabilities.toJson] describes: the legacy inline catalog
-  /// below v1.0, the standalone catalog schema document from v1.0.
+  /// ([Catalog.toLegacyInlineCatalog]) below v1.0, the catalog document
+  /// ([Catalog.toJson]) from v1.0.
   ///
   /// Throws [A2uiValidationError] if [CapabilitiesOptions.versions] is empty.
   A2uiRendererCapabilities getRendererCapabilities(
@@ -860,7 +1015,7 @@ class MessageProcessor<T extends ComponentApi> {
   /// [version] is omitted and the surfaces record different versions.
   Map<String, Object?>? getRendererDataModel({A2uiProtocolVersion? version}) {
     final List<SurfaceModel<T>> enabled = [
-      for (final SurfaceModel<T> surface in groupModel.allSurfaces)
+      for (final SurfaceModel<T> surface in model.allSurfaces)
         if (surface.sendDataModel) surface,
     ];
     if (enabled.isEmpty) return null;

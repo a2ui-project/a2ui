@@ -18,7 +18,7 @@ import unittest
 
 from a2ui.core import Catalog
 from a2ui.inference_formats import to_message_dicts
-from a2ui.inference_formats.experimental.express import ExpressCompiler
+from a2ui.inference_formats.express import ExpressCompiler
 
 
 class TestVersionCompliance(unittest.TestCase):

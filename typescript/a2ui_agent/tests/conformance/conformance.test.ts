@@ -14,28 +14,33 @@
  * limitations under the License.
  */
 
-import {describe, test, expect} from 'vitest';
 import * as path from 'path';
-import {loadCases, classify, CONFORMANCE_ROOT, KNOWN_FAILURES} from './loader.js';
-import {createCatalogConfig, createFileCatalogConfig} from './fixtures.js';
+
+import {describe, expect, test} from 'vitest';
+
 import {
-  A2uiValidationError,
   A2uiCatalogError,
   A2uiCompilationParseError,
   A2uiCompilationValidationError,
   A2uiRecursionError,
+  A2uiValidationError,
   ExpressParser,
   ParseError,
-  ResponsePart,
   resolveCatalogs,
+  ResponsePart,
 } from '../../src/index.js';
-import {STRICT_VALIDATION, V10RendererCapabilities} from '../../src/internal/web-core.js';
 import {DirectJsonParser} from '../../src/inference-formats/direct-json/parser.js';
 import {DirectJsonStreamProcessorImpl} from '../../src/inference-formats/direct-json/streaming.js';
-
+import {
+  CatalogApi,
+  STRICT_VALIDATION,
+  V10RendererCapabilities,
+} from '../../src/internal/web-core.js';
 import {parseAndFix} from '../../src/parser/payload-fixer.js';
 import {toWireProtocolVersion} from '../../src/utils/protocol-version.js';
 import {loadBasicCatalog} from '../helpers/basic-catalogs.js';
+import {createCatalogConfig, createFileCatalogConfig} from './fixtures.js';
+import {classify, CONFORMANCE_ROOT, KNOWN_FAILURES, loadCases} from './loader.js';
 
 // Cases that name no catalog run against the v1.0 basic catalog.
 const basicCatalogV10 = loadBasicCatalog('v1.0');

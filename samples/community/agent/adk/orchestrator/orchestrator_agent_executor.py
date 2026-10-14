@@ -52,14 +52,14 @@ from a2a.client.middleware import ClientCallContext, ClientCallInterceptor
 from a2a.extensions.common import HTTP_EXTENSION_HEADER
 from a2a.types import TransportProtocol as A2ATransport, AgentCard, AgentCapabilities, Message
 
-from a2ui.a2a.extension import (
-    try_activate_a2ui_extension,
-    get_a2ui_extension_uri,
+from a2ui.a2a import (
     A2UI_EXTENSION_BASE_URI,
-    AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY,
     AGENT_EXTENSION_ACCEPTS_INLINE_CATALOGS_KEY,
+    AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY,
+    get_a2ui_extension_uri,
+    is_a2ui_part,
+    try_activate_a2ui_extension,
 )
-from a2ui.a2a import is_a2ui_part
 from a2ui.schema.constants import (
     A2UI_CLIENT_CAPABILITIES_KEY,
     A2UI_CLIENT_DATA_MODEL_KEY,
@@ -74,7 +74,7 @@ from a2ui.schema.constants import (
     A2UI_DELETE_SURFACE_KEY,
 )
 
-from a2ui.adk.orchestration import A2uiSubagentMap, SurfaceIdAlreadyExistsError
+from a2ui.adk import A2uiSubagentMap, SurfaceIdAlreadyExistsError
 
 logger = logging.getLogger(__name__)
 

@@ -71,12 +71,8 @@ struct DataModelPointerConformanceTests {
             } else if let updateDataModel = msg["updateDataModel"] as? [String: Any] {
               let surfaceID = updateDataModel["surfaceId"] as? String ?? "s1"
               let path = updateDataModel["path"] as? String ?? "/"
-              let rawValue = updateDataModel["value"]
-              let value: JSONValue?
-              if rawValue == nil || rawValue is NSNull {
-                value = nil
-              } else {
-                value = ConformanceTestHelper.toJSONValue(rawValue!)
+              let value = updateDataModel["value"].flatMap { rawValue -> JSONValue? in
+                rawValue is NSNull ? nil : ConformanceTestHelper.toJSONValue(rawValue)
               }
               try models[surfaceID]?.setThrowing(path, value: value)
             }

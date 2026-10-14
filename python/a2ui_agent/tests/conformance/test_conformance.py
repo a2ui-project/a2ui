@@ -34,7 +34,7 @@ from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats import to_message_models
 from a2ui.inference_formats.experimental.atom import AtomFormat
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
-from a2ui.inference_formats.experimental.express import ExpressFormat
+from a2ui.inference_formats.express import ExpressFormat
 from a2ui.parser import A2uiCompilationError
 from a2ui.parser import A2uiPart
 from a2ui.parser import RawA2uiPart
@@ -754,7 +754,7 @@ def _factory_for(format_name, allowed_messages=None, progressive_keys=None):
     from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
     from a2ui.inference_formats.experimental.atom import AtomFormatFactory
     from a2ui.inference_formats.experimental.elemental import ElementalFormatFactory
-    from a2ui.inference_formats.experimental.express import ExpressFormatFactory
+    from a2ui.inference_formats.express import ExpressFormatFactory
 
     if format_name == "express":
         return ExpressFormatFactory(

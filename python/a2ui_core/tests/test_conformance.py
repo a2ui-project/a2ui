@@ -17,12 +17,14 @@ import glob
 import json
 import os
 import re
+import sys
 from typing import Any
 import pytest
 import yaml
 
 from a2ui.core.catalog import Catalog, CatalogApi
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
+from a2ui.core.common import to_canonical_version
 from a2ui.core.schema import ProtocolVersion
 from a2ui.core.state import DataModel, SurfaceModel
 from a2ui.core.resolution import DataContext
@@ -66,17 +68,7 @@ SUPPORTED_PROTOCOL_VERSIONS = {
     "1.0",
 }
 
-SKIP_TEST_NAMES: set[str] = {
-    # TODO(#3036): Python Catalog currently preserves raw allOf composition
-    # and does not flatten envelope mixins. Follow-up PR will bring Python Catalog to parity.
-    "test_v09_catalog_allof_envelope_flattening",
-    "test_v09_catalog_inlined_fixed_point_round_trip",
-    "test_v09_catalog_schema_bundles_common_types",
-    "test_v09_catalog_schema_no_theme",
-    "test_v09_catalog_schema_preserves_protocol_version",
-    "test_v09_catalog_schema_ref_node_hygiene",
-    "test_v09_catalog_schema_with_defs",
-}
+SKIP_TEST_NAMES: set[str] = set()
 
 # Transition skip list containing specific test suite files or basenames to skip entirely.
 SKIP_TEST_SUITES: set[str] = set()
@@ -585,8 +577,12 @@ def test_conformance_suite(test_id: str, rel_path: str, case: dict[str, Any]) ->
 
     if action == "from_json":
         validate_from_json_case(case)
-    elif action == "catalog_schema":
-        validate_catalog_schema_case(case)
+    elif action == "validation_schema":
+        validate_validation_schema_case(case)
+    elif action == "round_trip":
+        validate_round_trip_case(case)
+    elif action == "to_json":
+        validate_to_json_case(case)
     elif action == "common_types_schema":
         validate_common_types_schema_case(case)
     elif action == "agent_to_renderer_schema":
@@ -962,11 +958,103 @@ _FROM_JSON_EXPECT_KEYS = frozenset({
     "components",
     "functions",
     "invalidComponents",
+    "matchesBuiltinCatalog",
     "protocolVersion",
     "selfContained",
     "theme",
     "validComponents",
 })
+
+# Component fields every component carries, which `matchesBuiltinCatalog`
+# ignores when it compares component shapes.
+_COMPONENT_ENVELOPE_FIELDS = frozenset({"id", "component"})
+
+
+def _resolve_local_ref(document: dict[str, Any], ref: str) -> Any:
+    """The node a local `#/...` reference points to within `document`."""
+    target: Any = document
+    for token in ref[1:].split("/")[1:]:
+        target = target[token.replace("~1", "/").replace("~0", "~")]
+    return target
+
+
+def _schema_shape(
+    document: dict[str, Any], schema: Any, seen: frozenset[str] = frozenset()
+) -> tuple[set[str], set[str]]:
+    """The property and required names a component schema declares.
+
+    Merges the members of an `allOf` and follows local references, so a
+    schema that composes the component envelope with its own properties
+    yields the same names as one that lists them all directly.
+    """
+    properties: set[str] = set()
+    required: set[str] = set()
+    if not isinstance(schema, dict):
+        return properties, required
+    properties |= set(schema.get("properties") or {})
+    required |= set(schema.get("required") or [])
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and ref.startswith("#") and ref not in seen:
+        props, req = _schema_shape(
+            document, _resolve_local_ref(document, ref), seen | {ref}
+        )
+        properties |= props
+        required |= req
+    for member in schema.get("allOf") or []:
+        props, req = _schema_shape(document, member, seen)
+        properties |= props
+        required |= req
+    return properties, required
+
+
+def _component_shapes(catalog: CatalogApi) -> dict[str, dict[str, list[str]]]:
+    """Each component's property and required names, without the envelope."""
+    document = catalog.validation_schema
+    shapes = {}
+    for name, schema in (document.get("components") or {}).items():
+        properties, required = _schema_shape(document, schema)
+        shapes[name] = {
+            "properties": sorted(properties - _COMPONENT_ENVELOPE_FIELDS),
+            "required": sorted(required - _COMPONENT_ENVELOPE_FIELDS),
+        }
+    return shapes
+
+
+def _function_signatures(catalog: CatalogApi) -> dict[str, dict[str, Any]]:
+    """Each catalog function's returnType, allowedCallers and activation.
+
+    Protocol system functions such as `@index`, which a built-in catalog
+    registers for evaluation but which are not catalog functions, are left out.
+    """
+    return {
+        name: {
+            "returnType": fn.return_type,
+            "allowedCallers": fn.allowed_callers,
+            "requiresUserActivation": fn.requires_user_activation,
+        }
+        for name, fn in catalog.functions.items()
+        if not name.startswith("@")
+    }
+
+
+def _assert_matches_builtin_catalog(loaded: CatalogApi) -> None:
+    """Asserts that a loaded catalog is equivalent to the SDK's own one.
+
+    Implements `matchesBuiltinCatalog` (FromJsonExpect in
+    conformance/conformance_schema.json) and skips the case when the SDK has
+    no implementation of a catalog with the loaded catalogId.
+    """
+    builtin = sdk_catalog(loaded.catalog_id)
+    if builtin is None:
+        pytest.skip(f"The SDK has no built-in catalog {loaded.catalog_id!r}.")
+    assert loaded.catalog_id == builtin.catalog_id
+    assert to_canonical_version(str(loaded.protocol_version)) == to_canonical_version(
+        str(builtin.protocol_version)
+    ), "protocolVersion mismatch"
+    assert _component_shapes(loaded) == _component_shapes(builtin), "Component mismatch"
+    assert _function_signatures(loaded) == _function_signatures(
+        builtin
+    ), "Function mismatch"
 
 
 def validate_from_json_case(case: dict[str, Any]) -> None:
@@ -1012,7 +1100,9 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
                 for fn_name in expected["functions"]:
                     assert cat.get_function(fn_name) is not None
         if expected.get("selfContained"):
-            _assert_self_contained(cat.catalog_schema)
+            _assert_self_contained(cat.validation_schema)
+        if expected.get("matchesBuiltinCatalog"):
+            _assert_matches_builtin_catalog(cat)
         if "validComponents" in expected or "invalidComponents" in expected:
             validator = PayloadValidator(cat)
             for component in expected.get("validComponents", []):
@@ -1020,62 +1110,6 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
             for component in expected.get("invalidComponents", []):
                 with pytest.raises(A2uiValidationError):
                     validator.validate_component(component)
-
-
-def consolidate_spec_catalog(catalog_path: str, common_types_path: str) -> Any:
-    """Returns the expected schema of an `expectCatalog` case.
-
-    Every `$ref` into another document becomes local, and the common types
-    defs the catalog references, transitively, are added to its `$defs`. The
-    catalog's own defs win on a name clash. Top-level metadata keywords that
-    `Catalog.catalog_schema` does not emit (`$id`, `title`, `description`,
-    `protocolVersion`) are dropped.
-    """
-
-    def load(path: str) -> Any:
-        full_path = os.path.join(CONFORMANCE_ROOT, "..", path)
-        with open(full_path, "r", encoding="utf-8") as f:
-            return localize(json.load(f))
-
-    def localize(node: Any) -> Any:
-        if isinstance(node, list):
-            return [localize(item) for item in node]
-        if not isinstance(node, dict):
-            return node
-        return {
-            key: (
-                "#" + value.split("#", 1)[1]
-                if key == "$ref" and isinstance(value, str) and "#/" in value
-                else localize(value)
-            )
-            for key, value in node.items()
-        }
-
-    def refs(node: Any) -> set[str]:
-        found: set[str] = set()
-        if isinstance(node, list):
-            for item in node:
-                found |= refs(item)
-        elif isinstance(node, dict):
-            ref = node.get("$ref")
-            if isinstance(ref, str) and ref.startswith("#/$defs/"):
-                found.add(ref[len("#/$defs/") :])
-            for value in node.values():
-                found |= refs(value)
-        return found
-
-    catalog = load(catalog_path)
-    for key in ("$id", "title", "description", "protocolVersion"):
-        catalog.pop(key, None)
-    common_defs = load(common_types_path)["$defs"]
-    defs = catalog.setdefault("$defs", {})
-    pending = refs(catalog)
-    while pending:
-        name = pending.pop()
-        if name not in defs and name in common_defs:
-            defs[name] = common_defs[name]
-            pending |= refs(defs[name])
-    return catalog
 
 
 def normalize_set_keywords(node: Any) -> Any:
@@ -1113,48 +1147,119 @@ def sdk_catalog(catalog_id: Any) -> CatalogApi | None:
     return None
 
 
-def validate_catalog_schema_case(case: dict[str, Any]) -> None:
-    p_ver = resolve_protocol_version(case)
+def _load_case_catalog(case: dict[str, Any]) -> tuple[Any, str | None]:
+    """Returns the catalog document of a case and the path it was read from."""
     c_path = case.get("catalogPath") or case.get("catalogFile")
     if c_path:
         full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", c_path))
         with open(full_p, "r", encoding="utf-8") as f:
-            c_schema = json.load(f)
-    else:
-        c_schema = (
-            case.get("catalogSchema")
-            or case.get("catalog")
-            or case.get("schema")
-            or case
-        )
+            return json.load(f), c_path
+    return (
+        case.get("catalogSchema") or case.get("catalog") or case.get("schema") or case
+    ), None
+
+
+def validate_validation_schema_case(case: dict[str, Any]) -> None:
+    """Runs a `validation_schema` case against its golden artifact.
+
+    `catalog.validation_schema` must equal the JSON file that `expectFile`
+    names, ignoring object key order, which Python dicts ignore already, and
+    the order of `enum` values and `required` names.
+    """
+    assert "expect" not in case, "validation_schema cases take no expect"
+    p_ver = resolve_protocol_version(case)
+    c_schema, _ = _load_case_catalog(case)
     c_id = (
         resolve_catalog_id(case)
         or (c_schema.get("catalogId") if isinstance(c_schema, dict) else None)
         or "https://a2ui.org/catalogs/basic"
     )
-    # A published catalog that the SDK implements itself is checked through
-    # that implementation, which builds catalog_schema from its models.
-    cat = sdk_catalog(c_id) if c_path else None
-    if cat is not None:
-        assert cat.protocol_version == p_ver, (
-            f"{c_path} is the SDK's {cat.protocol_version} catalog, but the case"
-            f" sets protocolVersion {p_ver}"
-        )
-    else:
-        expect_err = case.get("expectError")
-        if expect_err:
-            with assert_raises(expect_err):
-                Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
-            return
-        cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
+    # The catalog is always loaded with `from_json`, a `catalogPath` too, even
+    # when the SDK implements that catalog itself.
+    expect_err = case.get("expectError")
+    if expect_err:
+        with assert_raises(expect_err):
+            Catalog.from_json(
+                c_schema, catalog_id=c_id, protocol_version=p_ver
+            ).validation_schema
+        return
+    cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
 
-    if "expectCatalog" in case:
-        spec = case["expectCatalog"]
-        assert normalize_set_keywords(cat.catalog_schema) == normalize_set_keywords(
-            consolidate_spec_catalog(spec["catalogPath"], spec["commonTypesPath"])
+    expect_file = case.get("expectFile")
+    assert expect_file, "validation_schema cases require expectFile or expectError"
+    golden_path = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", expect_file))
+    with open(golden_path, "r", encoding="utf-8") as f:
+        expected = json.load(f)
+    assert normalize_set_keywords(cat.validation_schema) == normalize_set_keywords(
+        expected
+    ), f"validation_schema differs from {expect_file}"
+
+
+def validate_round_trip_case(case: dict[str, Any]) -> None:
+    """Runs a `round_trip` case: `from_json(c).to_json()` equals `c`.
+
+    The document is always loaded with `from_json`, even when the SDK
+    implements the catalog itself. A case-level `catalogId` overrides a
+    document that declares none, and must not appear in the output. The
+    comparison ignores key order, which Python dicts ignore already, and the
+    order of `enum` and `required`.
+    """
+    unexpected = {"expect", "expectFile"} & set(case)
+    assert not unexpected, f"round_trip cases take no {sorted(unexpected)}"
+    document, _ = _load_case_catalog(case)
+    p_ver = resolve_protocol_version(case)
+    c_id = resolve_catalog_id(case)
+
+    out = Catalog.from_json(document, catalog_id=c_id, protocol_version=p_ver).to_json()
+    assert normalize_set_keywords(out) == normalize_set_keywords(document)
+
+    again = Catalog.from_json(out, catalog_id=c_id, protocol_version=p_ver).to_json()
+    assert normalize_set_keywords(again) == normalize_set_keywords(out)
+
+
+def builtin_catalog(name: str, protocol_version: str | None) -> CatalogApi | None:
+    """Returns the SDK's own implementation of a named catalog, if any.
+
+    The SDK implements the basic catalog of v0.8, v0.9 and v1.0.
+    """
+    if name != "basic" or protocol_version is None:
+        return None
+    modules = {"0.8": v0_8, "0.9": v0_9, "1.0": v1_0}
+    module = modules.get(to_canonical_version(protocol_version))
+    return module.BasicCatalog() if module is not None else None
+
+
+def validate_to_json_case(case: dict[str, Any]) -> None:
+    """Runs a `to_json` case: `catalog.to_json()` equals `expectFile`.
+
+    A `builtinCatalog` case serializes the SDK's own implementation for the
+    case's protocol version, and is skipped if the SDK has none. Other cases
+    load `catalogPath` or `catalog` with `from_json`. The comparison ignores
+    key order and the order of `enum` and `required`.
+    """
+    assert "expect" not in case, "to_json cases take expectFile, not expect"
+    p_ver = resolve_protocol_version(case)
+    builtin_name = case.get("builtinCatalog")
+    if builtin_name:
+        cat = builtin_catalog(builtin_name, p_ver)
+        if cat is None:
+            pytest.skip(f"The SDK has no built-in {builtin_name} catalog for {p_ver}.")
+    else:
+        document, _ = _load_case_catalog(case)
+        cat = Catalog.from_json(
+            document, catalog_id=resolve_catalog_id(case), protocol_version=p_ver
         )
-    elif "expect" in case:
-        assert cat.catalog_schema == case["expect"]
+
+    expect_file = case["expectFile"]
+    with open(
+        os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", expect_file)),
+        "r",
+        encoding="utf-8",
+    ) as f:
+        expected = json.load(f)
+    assert normalize_set_keywords(cat.to_json()) == normalize_set_keywords(
+        expected
+    ), f"to_json differs from {expect_file}"
 
 
 def validate_common_types_schema_case(case: dict[str, Any]) -> None:
@@ -1783,6 +1888,80 @@ def validate_dispatch_action_case(case: dict[str, Any]) -> None:
             assert data_model.data == expect_data_model
 
 
+def _normalize_version(version: Any) -> str:
+    text = str(getattr(version, "value", version) or "")
+    return text[1:] if text.startswith("v") else text
+
+
+def _load_catalog_path(path: str) -> CatalogApi:
+    """Loads a catalogPaths entry as the catalog built for its own protocol version.
+
+    The published basic catalogs map to the SDK's basic catalogs, which carry
+    the function implementations. Any other file is built from its JSON, for
+    the protocol version it declares.
+    """
+    full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", path))
+    with open(full_p, "r", encoding="utf-8") as f:
+        c_json = json.load(f)
+    c_id = c_json.get("catalogId")
+    for sdk_cat in (v08_catalog, v09_catalog, v10_catalog):
+        if c_id == sdk_cat.catalog_id:
+            return sdk_cat
+    return Catalog.from_json(
+        c_json,
+        catalog_id=c_id,
+        protocol_version=f"v{_normalize_version(c_json.get('protocolVersion'))}",
+    )
+
+
+class _RaisingSurfaceModel(SurfaceModel):
+    """A surface that raises evaluation errors rather than dispatching them.
+
+    A surface reports a failed function call as an error payload, which drops
+    the exception class. Re-raising the exception being handled lets a case
+    check the error category.
+    """
+
+    def dispatch_error(self, error: dict[str, Any]) -> None:
+        exc = sys.exc_info()[1]
+        if exc is None:
+            super().dispatch_error(error)
+            return
+        raise exc
+
+
+def _evaluate_function_on_surface(case: dict[str, Any]) -> Any:
+    """Evaluates the case's function as a call on a surface (the `surface` block).
+
+    The surface is built for the case's protocolVersion. Its available catalogs
+    are the catalogPaths entries built for that version, and its default
+    catalog is the one `surface.catalogId` names, if any. The call goes through
+    the SDK's catalog resolution, naming the case's call-level `catalogId`.
+    """
+    version = case["protocolVersion"]
+    available = {
+        cat.catalog_id: cat
+        for cat in (_load_catalog_path(p) for p in case["catalogPaths"])
+        if _normalize_version(cat.protocol_version) == _normalize_version(version)
+    }
+    default_id = case["surface"].get("catalogId")
+    default_cat = available[default_id] if default_id else None
+    surface = _RaisingSurfaceModel(
+        surface_id="main",
+        default_catalog=default_cat,
+        available_catalogs=available,
+        data_model=DataModel(case.get("dataModel") or {}),
+        protocol_version=version,
+    )
+    surface.locale = case.get("locale", "en-US")
+    context = DataContext(surface=surface, path="/")
+    call_key = "@call" if context.at_least_v10 else "call"
+    call: dict[str, Any] = {call_key: case["function"], "args": case["args"]}
+    if "catalogId" in case:
+        call["catalogId"] = case["catalogId"]
+    return context.resolve_dynamic_value(call)
+
+
 def validate_evaluate_function_case(case: dict[str, Any]) -> None:
     func_name = case["function"]
     args = case["args"]
@@ -1790,28 +1969,34 @@ def validate_evaluate_function_case(case: dict[str, Any]) -> None:
     locale = case.get("locale", "en-US")
     expect_error = case.get("expectError") or case.get("expect_error")
 
-    catalogs = get_catalogs_for_test_case(case)
-    default_cat = catalogs[0] if catalogs else v09_catalog
-    data_model = DataModel(data_model_dict)
-    surface = SurfaceModel(
-        surface_id="main",
-        default_catalog=default_cat,
-        data_model=data_model,
-    )
-    surface.locale = locale
-    context = DataContext(surface=surface, path="/")
+    if "surface" in case:
 
-    def _invoke() -> Any:
-        if (
-            default_cat
-            and hasattr(default_cat, "functions")
-            and func_name in default_cat.functions
-        ):
-            fn = default_cat.functions[func_name]
-            if getattr(fn, "execute_func", None) is not None:
-                return fn.execute_func(args, context)
-            return fn.execute(args, context)
-        return context.resolve_dynamic_value({"call": func_name, "args": args})
+        def _invoke() -> Any:
+            return _evaluate_function_on_surface(case)
+
+    else:
+        catalogs = get_catalogs_for_test_case(case)
+        default_cat = catalogs[0] if catalogs else v09_catalog
+        data_model = DataModel(data_model_dict)
+        surface = SurfaceModel(
+            surface_id="main",
+            default_catalog=default_cat,
+            data_model=data_model,
+        )
+        surface.locale = locale
+        context = DataContext(surface=surface, path="/")
+
+        def _invoke() -> Any:
+            if (
+                default_cat
+                and hasattr(default_cat, "functions")
+                and func_name in default_cat.functions
+            ):
+                fn = default_cat.functions[func_name]
+                if getattr(fn, "execute_func", None) is not None:
+                    return fn.execute_func(args, context)
+                return fn.execute(args, context)
+            return context.resolve_dynamic_value({"call": func_name, "args": args})
 
     if expect_error:
         with assert_raises(expect_error):

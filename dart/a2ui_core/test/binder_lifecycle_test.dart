@@ -13,18 +13,19 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_core/src/core/contexts.dart' show ComponentContext;
 import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
+import 'support/test_catalog.dart';
+
 void main() {
   group('GenericBinder lifecycle', () {
-    late MinimalCatalog catalog;
+    late TestCatalog catalog;
     late SurfaceModel<ComponentApi> surface;
 
     setUp(() {
-      catalog = MinimalCatalog();
+      catalog = TestCatalog();
       surface = SurfaceModel('s1', defaultCatalog: catalog);
     });
 
@@ -137,7 +138,7 @@ void main() {
       surface.dataModel.set('/val', 'initial');
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalTextApi().schema);
+      final binder = GenericBinder(context, TestTextApi().schema);
 
       expect(
         (binder.resolvedProps.value['text'] as ResolvedBinding<Object?>).value,
@@ -159,7 +160,8 @@ void main() {
       () {
         var calls = 0;
         late GenericBinder binder;
-        final trackingCatalog = _TrackingCatalog(
+        final Catalog<ComponentApi, FunctionImplementation> trackingCatalog =
+            _trackingCatalog(
           onExecute: () {
             calls++;
             if (calls == 2) binder.dispose();
@@ -233,7 +235,8 @@ void main() {
         'rebuilding bindings disposes old ComputedNotifiers '
         'from function calls', () {
       var callCount = 0;
-      final trackingCatalog = _TrackingCatalog(onExecute: () => callCount++);
+      final Catalog<ComponentApi, FunctionImplementation> trackingCatalog =
+          _trackingCatalog(onExecute: () => callCount++);
       final trackingSurface = SurfaceModel<ComponentApi>(
         's1',
         defaultCatalog: trackingCatalog,
@@ -252,7 +255,7 @@ void main() {
       trackingSurface.dataModel.set('/val', 'a');
 
       final context = ComponentContext(trackingSurface, comp);
-      final binder = GenericBinder(context, MinimalTextApi().schema);
+      final binder = GenericBinder(context, TestTextApi().schema);
 
       // Trigger a rebuild by updating component properties.
       comp.properties = {
@@ -282,7 +285,8 @@ void main() {
     });
     test('construction resolves function-call properties exactly once', () {
       var callCount = 0;
-      final trackingCatalog = _TrackingCatalog(onExecute: () => callCount++);
+      final Catalog<ComponentApi, FunctionImplementation> trackingCatalog =
+          _trackingCatalog(onExecute: () => callCount++);
       final trackingSurface = SurfaceModel<ComponentApi>(
         's1',
         defaultCatalog: trackingCatalog,
@@ -302,7 +306,7 @@ void main() {
 
       callCount = 0;
       final context = ComponentContext(trackingSurface, comp);
-      GenericBinder(context, MinimalTextApi().schema);
+      GenericBinder(context, TestTextApi().schema);
 
       expect(
         callCount,
@@ -317,7 +321,8 @@ void main() {
       'change without writing to stale resolvedProps during rebuild',
       () {
         var checkCallCount = 0;
-        final trackingCatalog = _TrackingCatalog(
+        final Catalog<ComponentApi, FunctionImplementation> trackingCatalog =
+            _trackingCatalog(
           onExecute: () => checkCallCount++,
         );
         final trackingSurface = SurfaceModel<ComponentApi>(
@@ -346,7 +351,7 @@ void main() {
 
         checkCallCount = 0;
         final context = ComponentContext(trackingSurface, comp);
-        final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+        final binder = GenericBinder(context, TestTextFieldApi().schema);
         addTearDown(binder.dispose);
 
         expect(
@@ -414,13 +419,18 @@ void main() {
   });
 }
 
-class _TrackingCatalog extends MinimalCatalog {
-  _TrackingCatalog({required this.onExecute}) {
-    functions['trackingFn'] = _TrackingFunction(onExecute);
-    functions['trackingCheckFn'] = _TrackingCheckFunction(onExecute);
-  }
-
-  final void Function() onExecute;
+/// [TestCatalog] with two functions that call [onExecute] when run.
+Catalog<ComponentApi, FunctionImplementation> _trackingCatalog({
+  required void Function() onExecute,
+}) {
+  final catalog = TestCatalog();
+  return catalog.copyWith(
+    functions: [
+      ...catalog.functions.values,
+      _TrackingFunction(onExecute),
+      _TrackingCheckFunction(onExecute),
+    ],
+  );
 }
 
 class _TrackingCheckFunction extends FunctionImplementation {

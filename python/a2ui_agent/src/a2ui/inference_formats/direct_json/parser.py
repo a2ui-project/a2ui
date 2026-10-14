@@ -270,6 +270,15 @@ class DirectJsonParser(Parser):
                 surfaces = trial_surfaces
                 ready.extend(models)
             except A2uiError:
+                update_body = envelope.get("updateComponents")
+                if (
+                    v10
+                    and isinstance(envelope.get("version"), str)
+                    and isinstance(update_body, dict)
+                    and isinstance(update_body.get("surfaceId"), str)
+                    and bool(update_body.get("components"))
+                ):
+                    raise
                 break
             except Exception:
                 break
