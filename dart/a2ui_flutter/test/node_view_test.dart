@@ -22,7 +22,8 @@ import 'support/fixture_catalog.dart';
 void main() {
   late FixtureLog log;
   late SurfaceModel<ComponentImplementation> surface;
-  late List<A2uiClientError> errors;
+  late List<A2uiRendererError> errors;
+  Subscription? subscription;
 
   setUp(() {
     log = FixtureLog();
@@ -31,10 +32,13 @@ void main() {
       's',
       defaultCatalog: fixtureCatalog(log),
     );
-    surface.onError.addListener(errors.add);
+    subscription = surface.onError.subscribe(errors.add);
   });
 
-  tearDown(() => surface.dispose());
+  tearDown(() {
+    subscription?.unsubscribe();
+    surface.dispose();
+  });
 
   void add(String id, String type, Map<String, Object?> properties) {
     surface.componentsModel.addComponent(ComponentModel(id, type, properties));

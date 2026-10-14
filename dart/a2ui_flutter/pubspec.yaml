@@ -25,7 +25,7 @@ environment:
   flutter: ">=3.38.0"
 
 dependencies:
-  a2ui_core: ^0.2.2
+  a2ui_core: ^0.3.0
   flutter:
     sdk: flutter
 

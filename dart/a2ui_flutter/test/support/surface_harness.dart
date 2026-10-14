@@ -92,21 +92,21 @@ class SurfaceHarness {
   final MessageProcessor<ComponentImplementation> processor;
 
   /// Actions dispatched by any surface.
-  final List<A2uiClientAction> actions = [];
+  final List<A2uiRendererAction> actions = [];
 
   /// Errors reported on any surface's `onError`.
-  final List<A2uiClientError> errors = [];
+  final List<A2uiRendererError> errors = [];
 
   final ValueNotifier<List<SurfaceModel<ComponentImplementation>>> _surfaces =
       ValueNotifier(const []);
 
   /// The codes of [errors].
-  List<String> get errorCodes => [for (final e in errors) e.code];
+  List<String?> get errorCodes => [for (final e in errors) e.code];
 
   /// The live surface with [surfaceId].
   SurfaceModel<ComponentImplementation> surface([
     String surfaceId = testSurfaceId,
-  ]) => processor.groupModel.getSurface(surfaceId)!;
+  ]) => processor.model.getSurface(surfaceId)!;
 
   /// The data model value at [path].
   Object? data(String path, {String surfaceId = testSurfaceId}) =>
@@ -154,17 +154,24 @@ Future<SurfaceHarness> pumpSurface(
     ),
   );
   final SurfaceGroupModel<ComponentImplementation> group =
-      harness.processor.groupModel;
-  group.onAction.addListener(harness.actions.add);
-  group.onSurfaceCreated.addListener((surface) {
-    surface.onError.addListener(harness.errors.add);
-    harness._surfaces.value = [...harness._surfaces.value, surface];
-  });
-  group.onSurfaceDeleted.addListener((id) {
-    harness._surfaces.value = [
-      for (final s in harness._surfaces.value)
-        if (s.id != id) s,
-    ];
+      harness.processor.model;
+  final subscriptions = <Subscription>[
+    group.onAction.subscribe(harness.actions.add),
+    group.onSurfaceCreated.subscribe((surface) {
+      surface.onError.subscribe(harness.errors.add);
+      harness._surfaces.value = [...harness._surfaces.value, surface];
+    }),
+    group.onSurfaceDeleted.subscribe((id) {
+      harness._surfaces.value = [
+        for (final s in harness._surfaces.value)
+          if (s.id != id) s,
+      ];
+    }),
+  ];
+  addTearDown(() {
+    for (final s in subscriptions) {
+      s.unsubscribe();
+    }
   });
   addTearDown(harness._surfaces.dispose);
   addTearDown(group.dispose);
