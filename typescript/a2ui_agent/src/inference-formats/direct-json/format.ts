@@ -15,10 +15,10 @@
  */
 
 import {InferenceFormat, InferenceFormatFactory} from '../../inference-format.js';
-import {AgentToRendererMessage, CatalogApi, STRICT_VALIDATION} from '../../internal/web-core.js';
+import {CatalogApi, STRICT_VALIDATION} from '../../internal/web-core.js';
 import {Parser} from '../../parser/parser.js';
 import {DirectJsonParser} from './parser.js';
-import {DirectJsonPromptGenerator} from './prompt-generator.js';
+import {DirectJsonExamples, DirectJsonPromptGenerator} from './prompt-generator.js';
 import {checkParserCatalogs} from '../../utils/validation.js';
 import {DirectJsonStreamProcessorImpl} from './streaming.js';
 import {
@@ -36,7 +36,7 @@ export class DirectJsonFormat implements InferenceFormat {
 
   constructor(
     private readonly catalogs: CatalogApi[],
-    examples?: Record<string, AgentToRendererMessage[] | string>,
+    examples?: DirectJsonExamples,
     private readonly streamProcessorFactory?: DirectJsonStreamProcessorFactory,
     private readonly streamOptions?: DirectJsonStreamProcessorOptions,
   ) {
@@ -68,10 +68,7 @@ export class DirectJsonFormatFactory implements InferenceFormatFactory {
     private readonly streamOptions?: DirectJsonStreamProcessorOptions,
   ) {}
 
-  createFormat(
-    catalogs: CatalogApi[],
-    examples?: Record<string, AgentToRendererMessage[] | string>,
-  ): InferenceFormat {
+  createFormat(catalogs: CatalogApi[], examples?: DirectJsonExamples): InferenceFormat {
     if (catalogs.length === 0) {
       throw new Error('At least one catalog must be provided to create a DirectJsonFormat.');
     }
