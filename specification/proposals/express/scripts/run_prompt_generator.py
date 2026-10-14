@@ -41,7 +41,7 @@ sys.path.insert(
     ),
 )
 from a2ui.core import Catalog
-from a2ui.inference_formats.express import ExpressFormat, ExpressPromptGenerator
+from a2ui.inference_formats.express import ExpressFormat
 
 
 def generate_prompt_text(catalog_path: str) -> str:

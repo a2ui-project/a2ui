@@ -47,7 +47,6 @@ from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.express import (
     ExpressCompiler,
     ExpressFormat,
-    ExpressPromptGenerator,
 )
 
 WEATHER_DSL = """<a2ui>

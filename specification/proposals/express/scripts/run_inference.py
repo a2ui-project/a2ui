@@ -55,7 +55,6 @@ from a2ui.core import Catalog
 from a2ui.inference_formats.express import (
     ExpressCompiler,
     ExpressFormat,
-    ExpressPromptGenerator,
 )
 # pylint: enable=import-error, wrong-import-position
 
