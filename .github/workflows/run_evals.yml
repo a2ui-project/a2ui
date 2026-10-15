@@ -25,7 +25,6 @@ on:
       - "python/**"
       - "typescript/core/**"
       - "typescript/a2ui_agent/**"
-      - "typescript/agent/**"
       - "typescript/catalogs/**"
       - "dart/**"
   pull_request:
@@ -37,7 +36,6 @@ on:
       - "python/**"
       - "typescript/core/**"
       - "typescript/a2ui_agent/**"
-      - "typescript/agent/**"
       - "typescript/catalogs/**"
       - "dart/**"
   # Run evals on schedule, in order to:
@@ -82,7 +80,6 @@ jobs:
               - 'catalogs/**'
               - 'typescript/core/**'
               - 'typescript/a2ui_agent/**'
-              - 'typescript/agent/**'
               - 'typescript/catalogs/**'
               - 'eval/**'
               - '!eval/a2ui_eval/bridges/python*'
