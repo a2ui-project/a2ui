@@ -39,6 +39,13 @@ Choose the word that states the meaning directly over an idiom whose meaning dep
 - Instead of: "Leave the version _alone_."
 - Write: "Leave the version _untouched_."
 
+### Name things in full for a reader without your context
+
+Use the full name of a term when you first mention it. Shorthand that was clear while you worked, such as a word you and a collaborator used for a part of the codebase, means nothing to a reader who was not there. Reviewers and future readers see only the text.
+
+- Instead of: "The suites are read through `_plain`."
+- Write: "The conformance suites (the YAML test cases under `conformance/`) are read through `_plain`."
+
 ## 2. Content & tone
 
 ### No "puffery" or forced significance
