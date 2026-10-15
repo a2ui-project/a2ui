@@ -25,10 +25,57 @@ from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import TaskState
 
-from a2ui_eval.bridges import normalize_sdk_name
+from a2ui_eval.bridges import normalize_sdk_name, validate_sdk_version
 from a2ui_eval.dataset import load_a2ui_dataset
 from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 from a2ui_eval.strategies import get_solver
+
+
+def dataset_protocol_version(dataset_name: str) -> str | None:
+    """Returns the protocol version a dataset is pinned to, if any.
+
+    Datasets whose name ends in a version suffix (e.g. 'core_v0_9_1' or
+    'core_v1_0') only run under that protocol version. Other datasets run under
+    any version.
+    """
+    if dataset_name.endswith("v0_9_1"):
+        return "0.9.1"
+    if dataset_name.endswith("v1_0"):
+        return "1.0"
+    return None
+
+
+def split_dataset_names(dataset: str | list[str] | None) -> list[str]:
+    """Splits a comma-separated dataset string or list into dataset names."""
+    if not dataset:
+        return []
+    raw = dataset.split(",") if isinstance(dataset, str) else dataset
+    return [name.strip() for name in raw if name.strip()]
+
+
+def _check_task_inputs(sdk: str, version: str, dataset: str | list[str] | None) -> str:
+    """Validates the SDK, protocol version and datasets of a task.
+
+    Returns:
+        The normalized SDK name.
+
+    Raises:
+        ValueError: If the SDK does not support the version, or a requested
+            dataset is pinned to a different protocol version.
+    """
+    norm_sdk = normalize_sdk_name(sdk)
+    validate_sdk_version(norm_sdk, version)
+    conflicting = [
+        name
+        for name in split_dataset_names(dataset)
+        if dataset_protocol_version(name) not in (None, version)
+    ]
+    if conflicting:
+        raise ValueError(
+            f"Dataset(s) {', '.join(conflicting)} cannot be evaluated with"
+            f" protocol version {version}."
+        )
+    return norm_sdk
 
 
 @scorer(metrics=[])
@@ -94,7 +141,7 @@ def a2ui_v0_9_1_eval(
         )
 
     active_version = "0.9.1"
-    norm_sdk = normalize_sdk_name(sdk)
+    norm_sdk = _check_task_inputs(sdk, active_version, dataset)
     default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
     format_name = (
         strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
@@ -162,7 +209,7 @@ def a2ui_v1_0_eval(
         )
 
     active_version = "1.0"
-    norm_sdk = normalize_sdk_name(sdk)
+    norm_sdk = _check_task_inputs(sdk, active_version, dataset)
     default_catalog_path = "catalogs/basic/v1/catalog.json"
     format_name = (
         strategy if strategy in ["express", "elemental", "atom"] else "direct_json"

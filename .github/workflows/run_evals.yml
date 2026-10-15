@@ -66,33 +66,22 @@ jobs:
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: filter
         with:
+          # With 'every', a changed file counts only if it matches every rule of
+          # a filter. Each filter therefore has one positive rule that lists its
+          # paths as a brace alternation, followed by negations that exclude the
+          # bridge files of the other SDKs. A change to a shared eval file, the
+          # specification, the catalogs or this workflow triggers every SDK.
+          predicate-quantifier: "every"
           filters: |
             python:
-              - 'specification/**'
-              - 'catalogs/**'
-              - 'python/**'
-              - 'eval/**'
-              - '!eval/a2ui_eval/bridges/ts*'
-              - '!eval/a2ui_eval/bridges/dart*'
-              - '.github/workflows/run_evals.yml'
+              - '{specification/**,catalogs/**,python/**,eval/**,.github/workflows/run_evals.yml}'
+              - '!eval/a2ui_eval/bridges/{ts,dart}_*'
             ts:
-              - 'specification/**'
-              - 'catalogs/**'
-              - 'typescript/core/**'
-              - 'typescript/a2ui_agent/**'
-              - 'typescript/catalogs/**'
-              - 'eval/**'
-              - '!eval/a2ui_eval/bridges/python*'
-              - '!eval/a2ui_eval/bridges/dart*'
-              - '.github/workflows/run_evals.yml'
+              - '{specification/**,catalogs/**,typescript/core/**,typescript/a2ui_agent/**,typescript/catalogs/**,eval/**,.github/workflows/run_evals.yml}'
+              - '!eval/a2ui_eval/bridges/{python,dart}_*'
             dart:
-              - 'specification/**'
-              - 'catalogs/**'
-              - 'dart/**'
-              - 'eval/**'
-              - '!eval/a2ui_eval/bridges/python*'
-              - '!eval/a2ui_eval/bridges/ts*'
-              - '.github/workflows/run_evals.yml'
+              - '{specification/**,catalogs/**,dart/**,eval/**,.github/workflows/run_evals.yml}'
+              - '!eval/a2ui_eval/bridges/{python,ts}_*'
 
   eval-python:
     name: Evaluate Python SDK
@@ -102,14 +91,31 @@ jobs:
     permissions:
       contents: read
       issues: write
-    env:
-      TRANSCRYPT_PASSWORD: ${{ secrets.TRANSCRYPT_PASSWORD }}
-      REPO_GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # Secrets are only passed to the steps that need them, so that dependency
+      # install and build scripts never see them. Forks and Dependabot runs have
+      # no secrets; this step records which ones are present for later `if:`s.
+      - name: Check eval secrets
+        id: secrets
+        env:
+          TRANSCRYPT_PASSWORD: ${{ secrets.TRANSCRYPT_PASSWORD }}
+          REPO_GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
+        run: |
+          has_transcrypt=false
+          has_gemini=false
+          if [ -n "$TRANSCRYPT_PASSWORD" ]; then has_transcrypt=true; fi
+          if [ -n "$REPO_GEMINI_API_KEY" ]; then has_gemini=true; fi
+          echo "transcrypt=$has_transcrypt" >> "$GITHUB_OUTPUT"
+          if [ "$has_transcrypt" = true ] && [ "$has_gemini" = true ]; then
+            echo "evals=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "evals=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -118,7 +124,9 @@ jobs:
 
       - name: Decrypt dataset
         working-directory: eval
-        if: ${{ env.TRANSCRYPT_PASSWORD != '' }}
+        if: ${{ steps.secrets.outputs.transcrypt == 'true' }}
+        env:
+          TRANSCRYPT_PASSWORD: ${{ secrets.TRANSCRYPT_PASSWORD }}
         run: ./bin/transcrypt -p "$TRANSCRYPT_PASSWORD" -y
 
       - name: Install `uv` globally
@@ -132,9 +140,9 @@ jobs:
 
       - name: Run Evals (Python SDK)
         working-directory: eval
-        if: ${{ env.TRANSCRYPT_PASSWORD != '' && env.REPO_GEMINI_API_KEY != '' }}
+        if: ${{ steps.secrets.outputs.evals == 'true' }}
         env:
-          GEMINI_API_KEY: ${{ env.REPO_GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
         run: ./bin/run_ci_evals.py --sdk python --threshold 90
 
       - name: Create Issue if evals fail on main branch
@@ -151,14 +159,31 @@ jobs:
     permissions:
       contents: read
       issues: write
-    env:
-      TRANSCRYPT_PASSWORD: ${{ secrets.TRANSCRYPT_PASSWORD }}
-      REPO_GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # Secrets are only passed to the steps that need them, so that dependency
+      # install and build scripts never see them. Forks and Dependabot runs have
+      # no secrets; this step records which ones are present for later `if:`s.
+      - name: Check eval secrets
+        id: secrets
+        env:
+          TRANSCRYPT_PASSWORD: ${{ secrets.TRANSCRYPT_PASSWORD }}
+          REPO_GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
+        run: |
+          has_transcrypt=false
+          has_gemini=false
+          if [ -n "$TRANSCRYPT_PASSWORD" ]; then has_transcrypt=true; fi
+          if [ -n "$REPO_GEMINI_API_KEY" ]; then has_gemini=true; fi
+          echo "transcrypt=$has_transcrypt" >> "$GITHUB_OUTPUT"
+          if [ "$has_transcrypt" = true ] && [ "$has_gemini" = true ]; then
+            echo "evals=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "evals=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -173,7 +198,9 @@ jobs:
 
       - name: Decrypt dataset
         working-directory: eval
-        if: ${{ env.TRANSCRYPT_PASSWORD != '' }}
+        if: ${{ steps.secrets.outputs.transcrypt == 'true' }}
+        env:
+          TRANSCRYPT_PASSWORD: ${{ secrets.TRANSCRYPT_PASSWORD }}
         run: ./bin/transcrypt -p "$TRANSCRYPT_PASSWORD" -y
 
       - name: Install `uv` globally
@@ -187,9 +214,9 @@ jobs:
 
       - name: Run Evals (TypeScript SDK)
         working-directory: eval
-        if: ${{ env.TRANSCRYPT_PASSWORD != '' && env.REPO_GEMINI_API_KEY != '' }}
+        if: ${{ steps.secrets.outputs.evals == 'true' }}
         env:
-          GEMINI_API_KEY: ${{ env.REPO_GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
         run: ./bin/run_ci_evals.py --sdk ts --threshold 90
 
       - name: Create Issue if evals fail on main branch
@@ -206,14 +233,31 @@ jobs:
     permissions:
       contents: read
       issues: write
-    env:
-      TRANSCRYPT_PASSWORD: ${{ secrets.TRANSCRYPT_PASSWORD }}
-      REPO_GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # Secrets are only passed to the steps that need them, so that dependency
+      # install and build scripts never see them. Forks and Dependabot runs have
+      # no secrets; this step records which ones are present for later `if:`s.
+      - name: Check eval secrets
+        id: secrets
+        env:
+          TRANSCRYPT_PASSWORD: ${{ secrets.TRANSCRYPT_PASSWORD }}
+          REPO_GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
+        run: |
+          has_transcrypt=false
+          has_gemini=false
+          if [ -n "$TRANSCRYPT_PASSWORD" ]; then has_transcrypt=true; fi
+          if [ -n "$REPO_GEMINI_API_KEY" ]; then has_gemini=true; fi
+          echo "transcrypt=$has_transcrypt" >> "$GITHUB_OUTPUT"
+          if [ "$has_transcrypt" = true ] && [ "$has_gemini" = true ]; then
+            echo "evals=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "evals=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -233,7 +277,9 @@ jobs:
 
       - name: Decrypt dataset
         working-directory: eval
-        if: ${{ env.TRANSCRYPT_PASSWORD != '' }}
+        if: ${{ steps.secrets.outputs.transcrypt == 'true' }}
+        env:
+          TRANSCRYPT_PASSWORD: ${{ secrets.TRANSCRYPT_PASSWORD }}
         run: ./bin/transcrypt -p "$TRANSCRYPT_PASSWORD" -y
 
       - name: Install `uv` globally
@@ -247,9 +293,9 @@ jobs:
 
       - name: Run Evals (Dart SDK)
         working-directory: eval
-        if: ${{ env.TRANSCRYPT_PASSWORD != '' && env.REPO_GEMINI_API_KEY != '' }}
+        if: ${{ steps.secrets.outputs.evals == 'true' }}
         env:
-          GEMINI_API_KEY: ${{ env.REPO_GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
         run: ./bin/run_ci_evals.py --sdk dart --threshold 90
 
       - name: Create Issue if evals fail on main branch

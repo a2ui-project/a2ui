@@ -29,17 +29,11 @@ from inspect_ai.model import (
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
 from ..bridges import (
-    get_python_strategy,
+    DEFAULT_PARSE_TIMEOUT_SEC,
     get_sdk_bridge,
-    parse_and_validate_in_process,
-    parse_with_hard_kill_timeout,
     validate_sdk_format,
 )
 from ..shared.utils import GIT_ROOT, measured_generate
-
-# Kept for backward compatibility with existing tests and callers.
-_get_strategy = get_python_strategy
-_parse_and_validate_in_process = parse_and_validate_in_process
 
 
 @solver
@@ -128,7 +122,7 @@ def compile_format_payload(
                 resolved_catalog_path,
                 surface_id,
                 completion,
-                15.0,
+                DEFAULT_PARSE_TIMEOUT_SEC,
             )
 
             compiled_jsons = res_dict.get("compiled_jsons", [])

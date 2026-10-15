@@ -16,10 +16,21 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import textwrap
+import time
+from typing import Any
+
 import pytest
 
 from a2ui_eval.bridges import (
     SUPPORTED_SDKS,
+    PythonSdkBridge,
+    TypeScriptSdkBridge,
     get_sdk_bridge,
     normalize_sdk_name,
     validate_sdk_format,
@@ -31,6 +42,11 @@ V091_CATALOG = str(
     GIT_ROOT / "specification" / "v0_9_1" / "catalogs" / "basic" / "catalog.json"
 )
 V10_CATALOG = str(GIT_ROOT / "catalogs" / "basic" / "v1" / "catalog.json")
+V09_CATALOG_ID = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+V10_CATALOG_ID = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+
+ALL_SDKS = ["python", "ts", "dart"]
+PYTHON_AND_TS = ["python", "ts"]
 
 
 def test_normalize_sdk_name() -> None:
@@ -62,7 +78,8 @@ def test_validate_sdk_strategy_and_format() -> None:
             validate_sdk_format(sdk, "atom")
 
 
-@pytest.mark.parametrize("sdk", SUPPORTED_SDKS)
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", ALL_SDKS)
 def test_bridge_generate_prompt_direct_json_v091(sdk: str) -> None:
     bridge = get_sdk_bridge(sdk)
     prompt = bridge.generate_prompt("direct_json", "0.9.1", V091_CATALOG)
@@ -70,7 +87,8 @@ def test_bridge_generate_prompt_direct_json_v091(sdk: str) -> None:
     assert "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json" in prompt
 
 
-@pytest.mark.parametrize("sdk", SUPPORTED_SDKS)
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", ALL_SDKS)
 def test_bridge_generate_prompt_express_v091(sdk: str) -> None:
     bridge = get_sdk_bridge(sdk)
     prompt = bridge.generate_prompt("express", "0.9.1", V091_CATALOG)
@@ -78,7 +96,8 @@ def test_bridge_generate_prompt_express_v091(sdk: str) -> None:
     assert "Text" in prompt
 
 
-@pytest.mark.parametrize("sdk", ("python", "ts"))
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", PYTHON_AND_TS)
 def test_bridge_generate_prompt_v10(sdk: str) -> None:
     bridge = get_sdk_bridge(sdk)
     direct_prompt = bridge.generate_prompt("direct_json", "1.0", V10_CATALOG)
@@ -90,7 +109,8 @@ def test_bridge_generate_prompt_v10(sdk: str) -> None:
     assert "<a2ui>" in express_prompt
 
 
-@pytest.mark.parametrize("sdk", SUPPORTED_SDKS)
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", ALL_SDKS)
 def test_bridge_parse_and_validate_direct_json_v091(sdk: str) -> None:
     bridge = get_sdk_bridge(sdk)
     valid_completion = """
@@ -134,7 +154,8 @@ def test_bridge_parse_and_validate_direct_json_v091(sdk: str) -> None:
     assert "Here is your requested UI:" in res["parts"][0]["text"]
 
 
-@pytest.mark.parametrize("sdk", SUPPORTED_SDKS)
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", ALL_SDKS)
 def test_bridge_parse_and_validate_express_v091(sdk: str) -> None:
     bridge = get_sdk_bridge(sdk)
     express_completion = (
@@ -153,7 +174,8 @@ def test_bridge_parse_and_validate_express_v091(sdk: str) -> None:
     assert res["parts"][2]["text"] == "Outro text"
 
 
-@pytest.mark.parametrize("sdk", SUPPORTED_SDKS)
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", ALL_SDKS)
 def test_bridge_parse_and_validate_rejects_missing_root(sdk: str) -> None:
     bridge = get_sdk_bridge(sdk)
     invalid_completion = """
@@ -190,4 +212,299 @@ def test_bridge_parse_and_validate_rejects_missing_root(sdk: str) -> None:
             surface_id="main",
             completion=invalid_completion,
             require_complete_tags=True,
+        )
+
+
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", PYTHON_AND_TS)
+def test_bridge_rejects_version_that_conflicts_with_catalog(sdk: str) -> None:
+    bridge = get_sdk_bridge(sdk)
+    with pytest.raises(ValueError, match="(?i)version"):
+        bridge.generate_prompt("express", "0.9.1", V10_CATALOG)
+
+
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", PYTHON_AND_TS)
+def test_bridge_parse_and_validate_direct_json_v10(sdk: str) -> None:
+    bridge = get_sdk_bridge(sdk)
+    messages = [
+        {
+            "version": "v1.0",
+            "createSurface": {"surfaceId": "main", "catalogId": V10_CATALOG_ID},
+        },
+        {
+            "version": "v1.0",
+            "updateComponents": {
+                "surfaceId": "main",
+                "components": [
+                    {"id": "root", "component": "Text", "text": "Hello v1.0"}
+                ],
+            },
+        },
+    ]
+    res = bridge.parse_and_validate(
+        format_name="direct_json",
+        version="1.0",
+        resolved_catalog_path=V10_CATALOG,
+        surface_id="main",
+        completion=f"<a2ui-json>{json.dumps(messages)}</a2ui-json>",
+        require_complete_tags=True,
+    )
+    assert [m["version"] for m in res["compiled_jsons"]] == ["v1.0", "v1.0"]
+
+
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", PYTHON_AND_TS)
+def test_bridge_parse_and_validate_express_v10(sdk: str) -> None:
+    bridge = get_sdk_bridge(sdk)
+    res = bridge.parse_and_validate(
+        format_name="express",
+        version="1.0",
+        resolved_catalog_path=V10_CATALOG,
+        surface_id="main",
+        completion='<a2ui>\nroot = Text("Hello v1.0")\n</a2ui>',
+        require_complete_tags=True,
+    )
+    assert res["compiled_jsons"]
+    assert {m["version"] for m in res["compiled_jsons"]} == {"v1.0"}
+
+
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", ALL_SDKS)
+def test_bridge_require_complete_tags_express(sdk: str) -> None:
+    bridge = get_sdk_bridge(sdk)
+    with pytest.raises(ValueError, match="A2UI tags '<a2ui>' and '</a2ui>'"):
+        bridge.parse_and_validate(
+            format_name="express",
+            version="0.9.1",
+            resolved_catalog_path=V091_CATALOG,
+            surface_id="main",
+            completion='<a2ui>\nroot = Text("Unterminated")\n',
+            require_complete_tags=True,
+        )
+
+
+@pytest.mark.sdk_toolchain
+@pytest.mark.parametrize("sdk", PYTHON_AND_TS)
+def test_bridge_validate_false_parses_valid_payload(sdk: str) -> None:
+    res = get_sdk_bridge(sdk).parse_and_validate(
+        format_name="express",
+        version="0.9.1",
+        resolved_catalog_path=V091_CATALOG,
+        surface_id="main",
+        completion='<a2ui>\nroot = Text("Parse only")\n</a2ui>',
+        validate=False,
+    )
+    assert res["compiled_jsons"]
+
+
+def test_python_bridge_large_payload() -> None:
+    """Results above the 64 KB pipe buffer must not deadlock the worker."""
+    count = 800
+    components: list[dict[str, Any]] = [{
+        "id": "root",
+        "component": "Column",
+        "children": [f"t{i}" for i in range(count)],
+    }]
+    components.extend(
+        {"id": f"t{i}", "component": "Text", "text": f"Item {i} " + "x" * 64}
+        for i in range(count)
+    )
+    messages = [
+        {
+            "version": "v0.9",
+            "createSurface": {"surfaceId": "main", "catalogId": V09_CATALOG_ID},
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {"surfaceId": "main", "components": components},
+        },
+    ]
+    completion = f"<a2ui-json>{json.dumps(messages)}</a2ui-json>"
+    assert len(completion) > 64 * 1024
+
+    res = get_sdk_bridge("python").parse_and_validate(
+        format_name="direct_json",
+        version="0.9.1",
+        resolved_catalog_path=V091_CATALOG,
+        surface_id="main",
+        completion=completion,
+    )
+    update = res["compiled_jsons"][1]["updateComponents"]
+    assert len(update["components"]) == count + 1
+
+
+def _fake_worker(body: str) -> list[str]:
+    """Returns a worker command that greets, then runs `body` per request."""
+    script = textwrap.dedent("""
+        import json, os, sys, time
+        print(json.dumps({"ready": True}), flush=True)
+        for line in sys.stdin:
+        """) + textwrap.indent(textwrap.dedent(body), "    ")
+    return [sys.executable, "-c", script]
+
+
+def _parse_with(bridge: PythonSdkBridge, timeout_sec: float = 15.0) -> dict[str, Any]:
+    return bridge.parse_and_validate(
+        format_name="express",
+        version="0.9.1",
+        resolved_catalog_path=V091_CATALOG,
+        surface_id="main",
+        completion='<a2ui>\nroot = Text("hi")\n</a2ui>',
+        timeout_sec=timeout_sec,
+    )
+
+
+def test_python_bridge_worker_exit_raises_value_error() -> None:
+    bridge = PythonSdkBridge(worker_command=_fake_worker("sys.exit(3)"))
+    with pytest.raises(ValueError, match="exit code 3"):
+        _parse_with(bridge)
+
+
+def test_python_bridge_worker_invalid_json_raises_value_error() -> None:
+    bridge = PythonSdkBridge(
+        worker_command=_fake_worker('print("not json", flush=True)')
+    )
+    with pytest.raises(ValueError, match="Invalid JSON from Python SDK worker"):
+        _parse_with(bridge)
+
+
+def test_python_bridge_timeout_kills_and_replaces_worker(tmp_path: Path) -> None:
+    pid_file = tmp_path / "hung_worker.pid"
+    body = f"""
+        if not os.path.exists({str(pid_file)!r}):
+            with open({str(pid_file)!r}, "w") as f:
+                f.write(str(os.getpid()))
+            time.sleep(60)
+        print(json.dumps({{"result": {{"compiled_jsons": [], "parts": []}}}}), flush=True)
+    """
+    bridge = PythonSdkBridge(worker_command=_fake_worker(body))
+
+    start = time.monotonic()
+    with pytest.raises(TimeoutError, match="process was killed"):
+        _parse_with(bridge, timeout_sec=0.5)
+    assert time.monotonic() - start < 10
+
+    if sys.platform == "linux":
+        hung_pid = int(pid_file.read_text())
+        assert not Path(f"/proc/{hung_pid}").exists()
+
+    # The next call gets a fresh worker instead of the killed one.
+    assert _parse_with(bridge) == {"compiled_jsons": [], "parts": []}
+
+
+def test_python_bridge_sends_request_fields_to_worker() -> None:
+    body = """
+        print(json.dumps({"result": {"compiled_jsons": [], "parts": [json.loads(line)]}}), flush=True)
+    """
+    bridge = PythonSdkBridge(worker_command=_fake_worker(body))
+    request = bridge.parse_and_validate(
+        format_name="express",
+        version="0.9.1",
+        resolved_catalog_path=V091_CATALOG,
+        surface_id="side",
+        completion="text",
+        require_complete_tags=True,
+        validate=False,
+    )["parts"][0]
+    assert request == {
+        "format_name": "express",
+        "version": "0.9.1",
+        "resolved_catalog_path": V091_CATALOG,
+        "surface_id": "side",
+        "completion": "text",
+        "require_complete_tags": True,
+        "validate": False,
+    }
+
+
+def test_python_bridge_reuses_worker() -> None:
+    body = """
+        print(json.dumps({"result": {"compiled_jsons": [], "parts": [os.getpid()]}}), flush=True)
+    """
+    bridge = PythonSdkBridge(worker_command=_fake_worker(body))
+    first = _parse_with(bridge)["parts"]
+    second = _parse_with(bridge)["parts"]
+    assert first == second
+
+
+def test_bridges_package_does_not_import_inspect_ai() -> None:
+    """Python bridge workers import this package, so it must stay lightweight."""
+    code = (
+        "import sys, a2ui_eval.bridges;"
+        " print('inspect_ai' in sys.modules or 'a2ui_eval.bridges.ts_bridge' in"
+        " sys.modules)"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=str(Path(__file__).resolve().parents[1]),
+    )
+    assert out.stdout.strip() == "False"
+
+
+class _FakeCompletedProcess:
+
+    def __init__(self, stdout: bytes, stderr: bytes = b"", returncode: int = 0):
+        self.stdout = stdout
+        self.stderr = stderr
+        self.returncode = returncode
+
+
+@pytest.mark.parametrize(
+    ("stdout", "stderr", "returncode", "match"),
+    [
+        (b"", b"", 1, "produced no output \\(exit code 1\\)"),
+        (b"", b"boom on stderr", 1, "boom on stderr"),
+        (b"Segfault!", b"", 139, "Invalid JSON from TypeScript SDK runner"),
+        (b'{"error": "catalog exploded"}', b"", 0, "catalog exploded"),
+        (b'{"unexpected": 1}', b"", 0, "Compilation produced no output"),
+    ],
+)
+def test_ts_bridge_runner_error_mapping(
+    monkeypatch: pytest.MonkeyPatch,
+    stdout: bytes,
+    stderr: bytes,
+    returncode: int,
+    match: str,
+) -> None:
+    bridge = TypeScriptSdkBridge()
+    monkeypatch.setattr(bridge, "prepare", lambda: None)
+    monkeypatch.setattr(shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *args, **kwargs: _FakeCompletedProcess(stdout, stderr, returncode),
+    )
+    with pytest.raises(ValueError, match=match):
+        bridge.parse_and_validate(
+            format_name="express",
+            version="0.9.1",
+            resolved_catalog_path=V091_CATALOG,
+            surface_id="main",
+            completion="",
+        )
+
+
+def test_ts_bridge_runner_timeout_maps_to_timeout_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge = TypeScriptSdkBridge()
+    monkeypatch.setattr(bridge, "prepare", lambda: None)
+    monkeypatch.setattr(shutil, "which", lambda name: f"/usr/bin/{name}")
+
+    def fake_run(*args: Any, **kwargs: Any) -> Any:
+        raise subprocess.TimeoutExpired(cmd=args[0], timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    with pytest.raises(TimeoutError, match="process was killed"):
+        bridge.parse_and_validate(
+            format_name="express",
+            version="0.9.1",
+            resolved_catalog_path=V091_CATALOG,
+            surface_id="main",
+            completion="",
+            timeout_sec=2.0,
         )

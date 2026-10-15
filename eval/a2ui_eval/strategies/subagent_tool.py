@@ -39,7 +39,7 @@ from inspect_ai.solver import (
 from inspect_ai.tool import Tool, tool
 from inspect_ai.util import store
 
-from ..bridges import get_sdk_bridge, normalize_sdk_name
+from ..bridges import DEFAULT_PARSE_TIMEOUT_SEC, get_sdk_bridge, normalize_sdk_name
 from ..shared.utils import GIT_ROOT, measured_generate
 
 PAYLOAD_STORE_KEY = "a2ui_payload"
@@ -87,6 +87,10 @@ def a2ui_specialist() -> Tool:
         output = await get_model().generate(messages)
         if output.completion:
             try:
+                # The specialist only parses, as it did before the SDK bridges
+                # existed. Strict validation runs once, in the scorer. Validating
+                # here would return validation errors to the model and let it
+                # retry, so results would not be comparable with older runs.
                 res_dict = await asyncio.to_thread(
                     bridge.parse_and_validate,
                     "direct_json",
@@ -94,8 +98,9 @@ def a2ui_specialist() -> Tool:
                     resolved_catalog_path,
                     "main",
                     output.completion,
-                    0.0 if sdk == "python" else 10.0,
+                    DEFAULT_PARSE_TIMEOUT_SEC,
                     True,
+                    validate=False,
                 )
                 all_messages = res_dict.get("compiled_jsons", [])
                 payload = json.dumps(all_messages, indent=2)

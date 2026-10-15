@@ -21,8 +21,13 @@ from typing import Callable
 from inspect_ai.solver import Solver
 
 from ..bridges import normalize_sdk_name, validate_sdk_strategy
-from .format import format_solver
-from .subagent_tool import subagent_tool_solver
+from .format import compile_format_payload, format_solver, format_system_prompt
+from .subagent_tool import (
+    PAYLOAD_STORE_KEY,
+    a2ui_specialist,
+    extract_subagent_payload,
+    subagent_tool_solver,
+)
 
 STRATEGIES: dict[str, Callable[..., list[Solver]]] = {
     "direct": lambda version, sdk="python": format_solver(
@@ -48,8 +53,13 @@ def get_solver(strategy: str, version: str, sdk: str = "python") -> list[Solver]
 
 
 __all__ = [
+    "PAYLOAD_STORE_KEY",
     "STRATEGIES",
+    "a2ui_specialist",
+    "compile_format_payload",
+    "extract_subagent_payload",
     "format_solver",
+    "format_system_prompt",
     "get_solver",
     "subagent_tool_solver",
 ]

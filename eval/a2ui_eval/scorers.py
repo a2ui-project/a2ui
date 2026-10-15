@@ -31,8 +31,42 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import TaskState
 
-from .bridges import get_sdk_bridge, normalize_sdk_name
+from .bridges import (
+    DEFAULT_PARSE_TIMEOUT_SEC,
+    AgentSdkBridge,
+    get_sdk_bridge,
+    normalize_sdk_name,
+)
 from .shared.utils import GIT_ROOT
+
+
+async def _compiled_answer_or_none(
+    bridge: AgentSdkBridge,
+    version: str,
+    resolved_catalog_path: str,
+    completion: str,
+) -> str | None:
+    """Parses a completion without validation and returns its JSON messages.
+
+    Used after a failed validation so that the score's answer shows the
+    compiled messages that failed, rather than the raw completion.
+    """
+    try:
+        res_dict = await asyncio.to_thread(
+            bridge.parse_and_validate,
+            "direct_json",
+            version,
+            resolved_catalog_path,
+            "main",
+            completion,
+            DEFAULT_PARSE_TIMEOUT_SEC,
+            True,
+            validate=False,
+        )
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
+    compiled_jsons = res_dict.get("compiled_jsons")
+    return json.dumps(compiled_jsons, indent=2) if compiled_jsons else None
 
 
 @scorer(metrics=[accuracy()])
@@ -77,25 +111,28 @@ def a2ui_scorer(version: str, sdk: str = "python") -> Scorer:
                 resolved_catalog_path,
                 "main",
                 answer_text,
-                0.0 if norm_sdk == "python" else 5.0,
+                DEFAULT_PARSE_TIMEOUT_SEC,
                 True,
             )
-            all_messages = res_dict.get("compiled_jsons", [])
-            if not all_messages:
-                return Score(
-                    value=0.0,
-                    answer=answer_text,
-                    explanation=(
-                        "No A2UI JSON found in response (tags missing or empty)"
-                    ),
-                )
-
-            answer_text = json.dumps(all_messages, indent=2)
             return Score(
-                value=1.0, answer=answer_text, explanation="Valid A2UI payload"
+                value=1.0,
+                answer=json.dumps(res_dict["compiled_jsons"], indent=2),
+                explanation="Valid A2UI payload",
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
-            return Score(value=0.0, answer=answer_text, explanation=str(e))
+            # A timeout would only repeat itself, so skip the parse-only retry.
+            compiled_answer = (
+                None
+                if isinstance(e, TimeoutError)
+                else await _compiled_answer_or_none(
+                    bridge, version, resolved_catalog_path, answer_text
+                )
+            )
+            return Score(
+                value=0.0,
+                answer=compiled_answer or answer_text,
+                explanation=str(e),
+            )
 
     return score
 

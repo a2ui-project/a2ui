@@ -24,32 +24,32 @@ import {CatalogConfig, DirectJsonFormat, ExpressFormat} from '@a2ui/agent';
 import {MessageProcessor, STRICT_VALIDATION} from '@a2ui/web_core';
 
 function toWireVersion(version) {
-  const cleaned = String(version || '0.9.1').trim();
+  const cleaned = String(version ?? '').trim();
+  if (!cleaned) {
+    return undefined;
+  }
   return cleaned.startsWith('v') ? cleaned : `v${cleaned}`;
 }
 
+/**
+ * Loads the catalog the way the Python bridge does with
+ * `CatalogConfig.from_path(path, protocol_version=version)`: the requested
+ * version fills in a missing `protocolVersion` and must match a stated one, and
+ * the catalog must state its own `catalogId`.
+ */
 function loadCatalog(resolvedCatalogPath, version) {
-  const wireVersion = toWireVersion(version);
-  const rawDoc = JSON.parse(fs.readFileSync(resolvedCatalogPath, 'utf8'));
-  const fallbackVersion = rawDoc.protocolVersion ? undefined : wireVersion;
-  const fallbackCatalogId =
-    rawDoc.catalogId || rawDoc.$id || 'https://a2ui.org/eval/default_catalog';
-  const catalogConfig = CatalogConfig.fromPath(
-    resolvedCatalogPath,
-    undefined,
-    fallbackVersion,
-    rawDoc.catalogId ? undefined : fallbackCatalogId,
-  );
-  return catalogConfig.transformedCatalog;
+  return CatalogConfig.fromPath(resolvedCatalogPath, undefined, toWireVersion(version))
+    .transformedCatalog;
 }
 
-function createStrategy(formatName, catalog, surfaceId) {
+function createStrategy(formatName, catalog, version, surfaceId) {
   if (formatName === 'direct_json') {
     return new DirectJsonFormat([catalog]);
   }
   if (formatName === 'express') {
     return new ExpressFormat([catalog], {
       surfaceId: surfaceId || 'main',
+      version: toWireVersion(version),
     });
   }
   throw new Error(`Unknown format strategy for TypeScript SDK: ${formatName}`);
@@ -67,10 +67,11 @@ function main() {
       surface_id: surfaceId = 'main',
       completion = '',
       require_complete_tags: requireCompleteTags = false,
+      validate = true,
     } = req;
 
     const catalog = loadCatalog(resolvedCatalogPath, version);
-    const strategy = createStrategy(formatName, catalog, surfaceId);
+    const strategy = createStrategy(formatName, catalog, version, surfaceId);
 
     if (action === 'generate_prompt') {
       const prompt = strategy.promptGenerator.generate();
@@ -107,10 +108,12 @@ function main() {
         throw new Error(`No compiled A2UI ${formatName} user interface found in parsed parts.`);
       }
 
-      const processor = new MessageProcessor([catalog], undefined, {
-        validationConfig: STRICT_VALIDATION,
-      });
-      processor.processMessages(compiledJsons);
+      if (validate) {
+        const processor = new MessageProcessor([catalog], undefined, {
+          validationConfig: STRICT_VALIDATION,
+        });
+        processor.processMessages(compiledJsons);
+      }
 
       process.stdout.write(
         JSON.stringify({

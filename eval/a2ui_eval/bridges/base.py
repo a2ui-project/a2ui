@@ -41,6 +41,17 @@ SDK_SUPPORTED_FORMATS: dict[str, frozenset[str]] = {
     "dart": frozenset({"direct_json", "express"}),
 }
 
+# Protocol versions each SDK can generate prompts for and validate against.
+SDK_SUPPORTED_VERSIONS: dict[str, frozenset[str]] = {
+    "python": frozenset({"0.9.1", "1.0"}),
+    "ts": frozenset({"0.9.1", "1.0"}),
+    "dart": frozenset({"0.9.1"}),
+}
+
+# Hard-kill budget, in seconds, for a single parse-and-validate call. The same
+# value is used for every SDK so that timeouts behave identically across them.
+DEFAULT_PARSE_TIMEOUT_SEC: float = 15.0
+
 
 def normalize_sdk_name(sdk: str) -> str:
     """Normalizes an SDK identifier (e.g. 'typescript' -> 'ts')."""
@@ -75,6 +86,39 @@ def validate_sdk_format(sdk: str, format_name: str) -> None:
         )
 
 
+def normalize_protocol_version(version: str) -> str:
+    """Normalizes a protocol version string (e.g. 'v0.9.1' -> '0.9.1')."""
+    cleaned = version.strip().lower()
+    if cleaned.startswith("v"):
+        cleaned = cleaned[1:]
+    return cleaned
+
+
+def validate_sdk_version(sdk: str, version: str) -> str:
+    """Checks that the target SDK supports the given protocol version.
+
+    Args:
+        sdk: The SDK identifier or alias (e.g. 'typescript').
+        version: The protocol version, with or without a 'v' prefix.
+
+    Returns:
+        The normalized protocol version (e.g. '0.9.1').
+
+    Raises:
+        ValueError: If the SDK is unknown or does not support the version.
+    """
+    norm_sdk = normalize_sdk_name(sdk)
+    norm_version = normalize_protocol_version(version)
+    supported = SDK_SUPPORTED_VERSIONS[norm_sdk]
+    if norm_version not in supported:
+        valid = ", ".join(sorted(supported))
+        raise ValueError(
+            f"Protocol version '{version}' is not supported by SDK '{norm_sdk}'."
+            f" Supported versions for '{norm_sdk}': {valid}"
+        )
+    return norm_version
+
+
 class AgentSdkBridge(ABC):
     """Interface for executing agent SDK prompt generation and payload validation."""
 
@@ -101,10 +145,28 @@ class AgentSdkBridge(ABC):
         resolved_catalog_path: str,
         surface_id: str,
         completion: str,
-        timeout_sec: float = 5.0,
+        timeout_sec: float = DEFAULT_PARSE_TIMEOUT_SEC,
         require_complete_tags: bool = False,
+        *,
+        validate: bool = True,
     ) -> dict[str, Any]:
-        """Parses an LLM completion and strictly validates compiled A2UI payloads.
+        """Parses an LLM completion and optionally validates the compiled payloads.
+
+        Args:
+            format_name: The inference format of the completion (e.g. 'express').
+            version: The protocol version (e.g. '0.9.1' or '1.0').
+            resolved_catalog_path: Absolute path to the catalog JSON file.
+            surface_id: The default surface ID for formats that need one.
+            completion: The raw LLM completion text.
+            timeout_sec: Hard-kill budget for the call, in seconds.
+            require_complete_tags: Whether to fail when the opening and closing
+                A2UI tags are not both present.
+            validate: Whether to run the compiled messages through a strict
+                message processor. When False, the completion is only parsed.
+
+        Raises:
+            ValueError: If parsing fails, no A2UI payload is found, or (when
+                `validate` is True) the payload fails strict validation.
 
         Returns:
             A dictionary with keys:

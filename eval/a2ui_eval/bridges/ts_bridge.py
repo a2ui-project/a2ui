@@ -25,9 +25,14 @@ import threading
 from typing import Any
 
 from ..shared.utils import GIT_ROOT
-from .base import AgentSdkBridge, validate_sdk_format
+from .base import DEFAULT_PARSE_TIMEOUT_SEC, AgentSdkBridge, validate_sdk_format
 
 TS_RUNNER_PATH = Path(__file__).resolve().parent / "ts_runner.mjs"
+
+_PROMPT_TIMEOUT_SEC = 30.0
+_YARN_INSTALL_TIMEOUT_SEC = 1800.0
+_YARN_BUILD_TIMEOUT_SEC = 900.0
+_OUTPUT_TAIL_CHARS = 8000
 
 
 def find_node_binary() -> str:
@@ -65,6 +70,43 @@ def find_yarn_binary(node_bin: str) -> str:
     raise RuntimeError("Yarn executable ('yarn') not found on PATH.")
 
 
+def _run_yarn_step(cmd: list[str], env: dict[str, str], timeout_sec: float) -> None:
+    """Runs one Yarn step at the repository root, capturing its output."""
+    step = " ".join(cmd[1:])
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(GIT_ROOT),
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout_sec,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        output = _tail(exc.output)
+        raise RuntimeError(
+            f"'yarn {step}' timed out after {timeout_sec}s.\n{output}"
+        ) from exc
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"'yarn {step}' failed with exit code {proc.returncode}.\n"
+            f"{_tail(proc.stdout)}"
+        )
+
+
+def _tail(output: bytes | str | None) -> str:
+    if not output:
+        return ""
+    text = (
+        output.decode("utf-8", errors="replace")
+        if isinstance(output, bytes)
+        else output
+    )
+    return text[-_OUTPUT_TAIL_CHARS:].strip()
+
+
 class TypeScriptSdkBridge(AgentSdkBridge):
     """Bridge for the TypeScript A2UI Agent SDK (typescript/a2ui_agent)."""
 
@@ -73,56 +115,39 @@ class TypeScriptSdkBridge(AgentSdkBridge):
     def __init__(self) -> None:
         self._prepared = False
         self._lock = threading.Lock()
+        self._prompt_cache: dict[tuple[str, str, str, str], str] = {}
 
     def prepare(self) -> None:
-        """Ensures @a2ui/web_core and @a2ui/agent are compiled before running evals."""
+        """Builds @a2ui/web_core and @a2ui/agent once per process.
+
+        `yarn install` runs only when the workspace links are missing. The build
+        always runs: wireit skips it when nothing changed, and running it picks
+        up local edits to the TypeScript sources that a stale `dist` would hide.
+        Yarn output is captured and included in the error if a step fails.
+        """
         with self._lock:
             if self._prepared:
                 return
 
-            agent_dist = (
-                GIT_ROOT / "typescript" / "a2ui_agent" / "dist" / "src" / "index.js"
-            )
-            core_dist = (
-                GIT_ROOT
-                / "typescript"
-                / "core"
-                / "web_core"
-                / "dist"
-                / "src"
-                / "index.js"
-            )
+            node_bin = find_node_binary()
+            yarn_bin = find_yarn_binary(node_bin)
+            env = os.environ.copy()
+            node_dir = str(Path(node_bin).parent)
+            env["PATH"] = f"{node_dir}{os.pathsep}{env.get('PATH', '')}"
+
             web_core_link = GIT_ROOT / "node_modules" / "@a2ui" / "web_core"
-
-            if (
-                not agent_dist.is_file()
-                or not core_dist.is_file()
-                or not web_core_link.exists()
-            ):
-                node_bin = find_node_binary()
-                yarn_bin = find_yarn_binary(node_bin)
-                env = os.environ.copy()
-                node_dir = str(Path(node_bin).parent)
-                env["PATH"] = f"{node_dir}:{env.get('PATH', '')}"
-
-                if not web_core_link.exists():
-                    subprocess.run(
-                        [yarn_bin, "install"],
-                        cwd=str(GIT_ROOT),
-                        env=env,
-                        check=True,
-                    )
-
-                subprocess.run(
-                    [yarn_bin, "workspace", "@a2ui/agent", "build"],
-                    cwd=str(GIT_ROOT),
-                    env=env,
-                    check=True,
+            if not web_core_link.exists():
+                _run_yarn_step(
+                    [yarn_bin, "install"], env, timeout_sec=_YARN_INSTALL_TIMEOUT_SEC
                 )
-
+            _run_yarn_step(
+                [yarn_bin, "workspace", "@a2ui/agent", "build"],
+                env,
+                timeout_sec=_YARN_BUILD_TIMEOUT_SEC,
+            )
             self._prepared = True
 
-    def _invoke_runner(self, payload: dict[str, Any], timeout_sec: float = 10.0) -> Any:
+    def _invoke_runner(self, payload: dict[str, Any], timeout_sec: float) -> Any:
         self.prepare()
         node_bin = find_node_binary()
         input_bytes = json.dumps(payload).encode("utf-8")
@@ -133,7 +158,7 @@ class TypeScriptSdkBridge(AgentSdkBridge):
                 input=input_bytes,
                 capture_output=True,
                 cwd=str(GIT_ROOT),
-                timeout=timeout_sec if timeout_sec > 0 else None,
+                timeout=timeout_sec,
                 check=False,
             )
         except subprocess.TimeoutExpired as exc:
@@ -170,17 +195,24 @@ class TypeScriptSdkBridge(AgentSdkBridge):
         surface_id: str = "main",
     ) -> str:
         validate_sdk_format(self.sdk_name, format_name)
-        result = self._invoke_runner(
-            {
-                "action": "generate_prompt",
-                "format_name": format_name,
-                "version": version,
-                "resolved_catalog_path": resolved_catalog_path,
-                "surface_id": surface_id,
-            },
-            timeout_sec=15.0,
+        key = (format_name, version, resolved_catalog_path, surface_id)
+        cached = self._prompt_cache.get(key)
+        if cached is not None:
+            return cached
+        result = str(
+            self._invoke_runner(
+                {
+                    "action": "generate_prompt",
+                    "format_name": format_name,
+                    "version": version,
+                    "resolved_catalog_path": resolved_catalog_path,
+                    "surface_id": surface_id,
+                },
+                timeout_sec=_PROMPT_TIMEOUT_SEC,
+            )
         )
-        return str(result)
+        self._prompt_cache[key] = result
+        return result
 
     def parse_and_validate(
         self,
@@ -189,9 +221,15 @@ class TypeScriptSdkBridge(AgentSdkBridge):
         resolved_catalog_path: str,
         surface_id: str,
         completion: str,
-        timeout_sec: float = 5.0,
+        timeout_sec: float = DEFAULT_PARSE_TIMEOUT_SEC,
         require_complete_tags: bool = False,
+        *,
+        validate: bool = True,
     ) -> dict[str, Any]:
+        """Parses, and optionally validates, in a Node process killed on timeout.
+
+        A `timeout_sec` of zero or less selects `DEFAULT_PARSE_TIMEOUT_SEC`.
+        """
         validate_sdk_format(self.sdk_name, format_name)
         result = self._invoke_runner(
             {
@@ -202,7 +240,8 @@ class TypeScriptSdkBridge(AgentSdkBridge):
                 "surface_id": surface_id,
                 "completion": completion,
                 "require_complete_tags": require_complete_tags,
+                "validate": validate,
             },
-            timeout_sec=timeout_sec if timeout_sec > 0 else 15.0,
+            timeout_sec=(timeout_sec if timeout_sec > 0 else DEFAULT_PARSE_TIMEOUT_SEC),
         )
         return dict(result)
