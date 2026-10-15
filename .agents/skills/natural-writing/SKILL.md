@@ -41,7 +41,7 @@ Choose the word that states the meaning directly over an idiom whose meaning dep
 
 ### Name things in full for a reader without your context
 
-Use the full name of a term when first mentioning it. Shorthand that was clear during development—such as an informal name for a part of the codebase—may be meaningless to reviewers and future readers who lack that context.
+Use the full name of a term when first mentioning it. Shorthand that was clear during development—such as an informal name for a part of the codebase may be meaningless to reviewers and future readers who lack that context.
 
 - Instead of: "The suites are read through `_plain`."
 - Write: "The conformance suites (the YAML test cases under `conformance/`) are read through `_plain`."
