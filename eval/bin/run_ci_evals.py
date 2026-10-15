@@ -81,6 +81,8 @@ def build_main_command(args: argparse.Namespace, seed: str) -> list[str]:
         cmd.extend(["--sdk", args.sdk])
     if getattr(args, "sdks", None):
         cmd.extend(["--sdks", args.sdks])
+    if getattr(args, "strategies", None):
+        cmd.extend(["--strategies", args.strategies])
     if getattr(args, "max_samples", None) and args.max_samples != 0:
         cmd.extend(["--limit", str(args.max_samples)])
     return cmd
@@ -139,6 +141,12 @@ def main() -> None:
         type=str,
         default=None,
         help="Comma-separated list of Agent SDKs to evaluate (e.g. 'python,ts,dart').",
+    )
+    parser.add_argument(
+        "--strategies",
+        type=str,
+        default=None,
+        help="Comma-separated list of evaluation strategies to run.",
     )
     args = parser.parse_args()
 

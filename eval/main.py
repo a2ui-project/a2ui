@@ -24,6 +24,7 @@ from inspect_ai import eval_set
 from inspect_ai.dataset import MemoryDataset
 
 from a2ui_eval.bridges import (
+    SDK_SUPPORTED_STRATEGIES,
     get_sdk_bridge,
     normalize_sdk_name,
     validate_sdk_strategy,
@@ -249,33 +250,42 @@ def main() -> None:
     if args.datasets:
         selected_dataset = args.datasets
 
-    # Parse and validate strategies
-    selected_strategies: list[str] = []
-    raw_strategies = args.strategies if args.strategies else ["direct", "subagent_tool"]
-    for item in raw_strategies:
-        for s in item.split(","):
-            s_clean = s.strip()
-            if s_clean and s_clean not in selected_strategies:
-                selected_strategies.append(s_clean)
-
     # Parse and validate SDKs
     selected_sdks = _parse_sdks(args.sdk, args.sdks)
 
-    for strat in selected_strategies:
-        if strat not in STRATEGIES:
-            raise ValueError(
-                f"Unknown evaluation strategy: {strat}. Valid choices:"
-                f" {', '.join(STRATEGIES.keys())}"
-            )
+    # Parse and validate strategies
+    selected_strategies: list[str] = []
+    if args.strategies:
+        for item in args.strategies:
+            for s in item.split(","):
+                s_clean = s.strip()
+                if s_clean and s_clean not in selected_strategies:
+                    selected_strategies.append(s_clean)
+        for strat in selected_strategies:
+            if strat not in STRATEGIES:
+                raise ValueError(
+                    f"Unknown evaluation strategy: {strat}. Valid choices:"
+                    f" {', '.join(STRATEGIES.keys())}"
+                )
+            for sdk in selected_sdks:
+                validate_sdk_strategy(sdk, strat)
+    else:
         for sdk in selected_sdks:
-            validate_sdk_strategy(sdk, strat)
+            for strat in SDK_SUPPORTED_STRATEGIES[sdk]:
+                if strat not in selected_strategies:
+                    selected_strategies.append(strat)
 
     for sdk in selected_sdks:
         get_sdk_bridge(sdk).prepare()
 
     tasks = []
     for sdk in selected_sdks:
-        for strat in selected_strategies:
+        sdk_strategies = (
+            selected_strategies
+            if args.strategies
+            else list(SDK_SUPPORTED_STRATEGIES[sdk])
+        )
+        for strat in sdk_strategies:
             if args.version == "0.9.1":
                 task_func = a2ui_v0_9_1_eval
             elif args.version == "1.0":

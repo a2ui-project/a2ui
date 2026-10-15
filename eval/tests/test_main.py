@@ -158,6 +158,51 @@ def test_main_multi_sdk_selection() -> None:
         assert len(dart_calls) == 2
 
 
+def test_main_default_strategies_per_sdk() -> None:
+    """Verify default strategies per SDK when --strategies is omitted."""
+    # Python defaults to direct, subagent_tool, express, elemental, atom
+    with patch.object(sys, "argv", ["main.py", "--sdk", "python"]), patch(
+        "main.eval_set", return_value=(True, [])
+    ), patch("main.get_sdk_bridge"), patch(
+        "main.a2ui_v1_0_eval"
+    ) as mock_v1_py, patch("main.a2ui_v0_9_1_eval") as mock_v09_py:
+        main()
+        py_strategies = [
+            call.kwargs["strategy"] for call in mock_v1_py.call_args_list
+        ] + [call.kwargs["strategy"] for call in mock_v09_py.call_args_list]
+        assert set(py_strategies) == {
+            "direct",
+            "subagent_tool",
+            "express",
+            "elemental",
+            "atom",
+        }
+
+    # TS defaults to direct, subagent_tool, express
+    with patch.object(sys, "argv", ["main.py", "--sdk", "ts"]), patch(
+        "main.eval_set", return_value=(True, [])
+    ), patch("main.get_sdk_bridge"), patch(
+        "main.a2ui_v1_0_eval"
+    ) as mock_v1_ts, patch("main.a2ui_v0_9_1_eval") as mock_v09_ts:
+        main()
+        ts_strategies = [
+            call.kwargs["strategy"] for call in mock_v1_ts.call_args_list
+        ] + [call.kwargs["strategy"] for call in mock_v09_ts.call_args_list]
+        assert set(ts_strategies) == {"direct", "subagent_tool", "express"}
+
+    # Dart defaults to direct, subagent_tool, express
+    with patch.object(sys, "argv", ["main.py", "--sdk", "dart"]), patch(
+        "main.eval_set", return_value=(True, [])
+    ), patch("main.get_sdk_bridge"), patch(
+        "main.a2ui_v1_0_eval"
+    ) as mock_v1_dart, patch("main.a2ui_v0_9_1_eval") as mock_v09_dart:
+        main()
+        dart_strategies = [
+            call.kwargs["strategy"] for call in mock_v1_dart.call_args_list
+        ] + [call.kwargs["strategy"] for call in mock_v09_dart.call_args_list]
+        assert set(dart_strategies) == {"direct", "subagent_tool", "express"}
+
+
 def test_main_rejects_unsupported_sdk_strategy() -> None:
     """Verify that running an experimental Python-only strategy on TS or Dart raises ValueError."""
     test_args = [

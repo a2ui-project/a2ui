@@ -29,10 +29,10 @@ SDK_ALIASES: dict[str, str] = {
     "typescript": "ts",
 }
 
-SDK_SUPPORTED_STRATEGIES: dict[str, frozenset[str]] = {
-    "python": frozenset({"direct", "express", "subagent_tool", "elemental", "atom"}),
-    "ts": frozenset({"direct", "express", "subagent_tool"}),
-    "dart": frozenset({"direct", "express", "subagent_tool"}),
+SDK_SUPPORTED_STRATEGIES: dict[str, tuple[str, ...]] = {
+    "python": ("direct", "subagent_tool", "express", "elemental", "atom"),
+    "ts": ("direct", "subagent_tool", "express"),
+    "dart": ("direct", "subagent_tool", "express"),
 }
 
 SDK_SUPPORTED_FORMATS: dict[str, frozenset[str]] = {
