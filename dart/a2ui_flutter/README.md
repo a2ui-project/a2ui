@@ -15,7 +15,7 @@ same commit, and keep the override:
 
 ```yaml
 dependencies:
-  a2ui_core: ^0.2.2
+  a2ui_core: ^0.3.0
   a2ui_flutter:
     git:
       url: https://github.com/a2ui-project/a2ui.git
