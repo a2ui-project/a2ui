@@ -278,7 +278,7 @@ export class PayloadValidator {
    *   not a valid UAX #31 identifier, or `args` is not an object.
    */
   private assertFunctionIdentifiers(name: string, args: unknown): void {
-    this.assertIdentifier(name, `Function name '${name}' must be a valid UAX #31 identifier`);
+    this.assertIdentifier(name, `Function name '${name}' must be a valid UAX #31 identifier`, true);
     // The call envelope types `args` as an object, whatever catalog the call
     // runs in.
     if (
@@ -460,9 +460,9 @@ export class PayloadValidator {
    * @param message Error message to use when validation fails.
    * @throws {A2uiValidationError} If identifier enforcement is active and `name` is invalid.
    */
-  private assertIdentifier(name: string, message: string): void {
+  private assertIdentifier(name: string, message: string, allowLeadingAt = false): void {
     if (!this.enforceIdentifiers) return;
-    if (!isValidUax31Identifier(name)) {
+    if (!isValidUax31Identifier(name, allowLeadingAt)) {
       throw new A2uiValidationError(message);
     }
   }

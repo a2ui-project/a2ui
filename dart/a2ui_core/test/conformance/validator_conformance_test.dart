@@ -28,11 +28,7 @@ const Map<String, String> _v09ExpectedFailures = {};
 const Map<String, String> _v10ExpectedFailures = {};
 
 /// The `validate` cases in `core/reserved_keys.yaml` expected to fail.
-const Map<String, String> _reservedKeysExpectedFailures = {
-  'test_escaped_doubled_at_unescaping':
-      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
-          'surface has no default catalog to resolve its items against.',
-};
+const Map<String, String> _reservedKeysExpectedFailures = {};
 
 /// Cases in `core/composition_constraints.yaml` expected to fail.
 const Map<String, String> _compositionExpectedFailures = {};

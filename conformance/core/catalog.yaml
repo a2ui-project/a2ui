@@ -146,8 +146,6 @@
     functions:
       format_text_1:
         returnType: string
-      "@index":
-        returnType: number
   expect:
     catalogId: "https://a2ui.org/catalogs/v10/uax31"
     protocolVersion: "v1.0"
@@ -157,8 +155,18 @@
     functions:
       format_text_1:
         returnType: string
+
+- name: test_v10_catalog_from_json_rejects_at_prefixed_function_name
+  description: Tests that @-prefixed function names (such as @index) are reserved for protocol system functions and cannot be declared in a v1.0 catalog.
+  action: from_json
+  catalog:
+    protocolVersion: "v1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/reserved_at_function"
+    functions:
       "@index":
         returnType: number
+  expectError:
+    category: "CatalogError"
 
 - name: test_v10_catalog_from_json_invalid_uax31_identifier_error
   description: Tests that invalid UAX#31 component identifier with hyphen raises CatalogError under v1.0.

@@ -19,7 +19,6 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../core/catalog.dart';
 import '../core/common.dart';
-import '../core/contexts.dart';
 import '../core/data_model.dart';
 import '../core/messages.dart';
 import '../core/surface_model.dart';
@@ -28,6 +27,7 @@ import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/semver.dart';
+import '../resolution/data_context.dart';
 
 /// Receives every message the RPC layer sends to the agent: the
 /// `callAgentFunction` requests a renderer makes and the

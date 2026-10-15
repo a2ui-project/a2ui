@@ -890,6 +890,46 @@ class _ResolvedSchemas:
     theme: dict[str, Any]
 
 
+def _parameter_names(schema: Any) -> list[str]:
+    """Extracts declared parameter names from a function argument schema."""
+    if not isinstance(schema, dict):
+        return []
+    names: list[str] = []
+
+    def _extract_properties(node: Any) -> None:
+        if not isinstance(node, dict):
+            return
+        props = node.get("properties")
+        if isinstance(props, dict):
+            names.extend(str(k) for k in props.keys())
+        all_of = node.get("allOf")
+        if isinstance(all_of, list):
+            for member in all_of:
+                _extract_properties(member)
+
+    if isinstance(schema.get("properties"), dict) or isinstance(
+        schema.get("allOf"), list
+    ):
+        _extract_properties(schema)
+        return names
+
+    # Shorthand parameter map: an object whose values are property subschemas
+    # (dicts or bools), excluding JSON Schema keywords like $ref, allOf, oneOf, anyOf, not, type.
+    if (
+        schema
+        and not isinstance(schema.get("type"), str)
+        and "$ref" not in schema
+        and "allOf" not in schema
+        and "oneOf" not in schema
+        and "anyOf" not in schema
+        and "not" not in schema
+        and all(isinstance(v, (dict, bool)) for v in schema.values())
+    ):
+        return [str(k) for k in schema.keys()]
+
+    return []
+
+
 class Catalog(Generic[TComponent, TFunction]):
     """A versioned set of component and function API definitions.
 
@@ -1047,9 +1087,18 @@ class Catalog(Generic[TComponent, TFunction]):
                 )
             self.components[c.name] = c
 
+        system_impls = (
+            tuple(system_functions_for(protocol_version).values())
+            if validate_identifiers
+            else ()
+        )
         self.functions: dict[str, TFunction] = {}
         for fn in functions or []:
-            if validate_identifiers and not is_valid_uax31_identifier(fn.name):
+            if (
+                validate_identifiers
+                and fn not in system_impls
+                and not is_valid_uax31_identifier(fn.name)
+            ):
                 raise A2uiCatalogError(
                     f"Invalid UAX #31 function identifier: '{fn.name}'"
                 )
@@ -1911,6 +1960,7 @@ class Catalog(Generic[TComponent, TFunction]):
             doc["$schema"] = self.schema_dialect
         for key, value in (
             ("$id", self.schema_id),
+            ("protocolVersion", self.declared_protocol_version),
             ("title", self.title),
             ("description", self.description),
         ):
@@ -1918,8 +1968,6 @@ class Catalog(Generic[TComponent, TFunction]):
                 doc[key] = value
         if self.declares_catalog_id:
             doc["catalogId"] = self.catalog_id
-        if self.declared_protocol_version is not None:
-            doc["protocolVersion"] = self.declared_protocol_version
         if self.instructions is not None:
             doc["instructions"] = self.instructions
         doc.update(copy.deepcopy(self.extras))
@@ -2310,15 +2358,34 @@ class Catalog(Generic[TComponent, TFunction]):
         for name, spec in _function_entries(document.get("functions"), catalog_id):
             if validate_identifiers and not is_valid_uax31_identifier(name):
                 raise A2uiCatalogError(f"Invalid UAX #31 function identifier: '{name}'")
-            props = (
-                spec.get("properties")
-                if isinstance(spec.get("properties"), dict)
-                else spec.get("parameters")
-                if isinstance(spec.get("parameters"), dict)
+            spec_dict = spec
+            raw_props = (
+                spec_dict.get("properties")
+                if isinstance(spec_dict.get("properties"), dict)
                 else None
             )
-            if validate_identifiers and isinstance(props, dict):
-                for arg_name in props:
+            args_schema = (
+                raw_props.get("args")
+                if raw_props is not None and isinstance(raw_props.get("args"), dict)
+                else spec_dict.get("args")
+                if isinstance(spec_dict.get("args"), dict)
+                else spec_dict.get("parameters")
+                if isinstance(spec_dict.get("parameters"), dict)
+                else None
+            )
+            if isinstance(args_schema, dict):
+                param_names = _parameter_names(args_schema)
+            elif (
+                raw_props is not None
+                and "call" not in raw_props
+                and "@call" not in raw_props
+                and "function" not in raw_props
+            ):
+                param_names = _parameter_names(spec_dict)
+            else:
+                param_names = []
+            if validate_identifiers:
+                for arg_name in param_names:
                     if not is_valid_uax31_identifier(arg_name):
                         raise A2uiCatalogError(
                             f"Invalid UAX #31 argument identifier: '{arg_name}' in"

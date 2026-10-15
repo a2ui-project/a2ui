@@ -1,7 +1,9 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
-## Unreleased
+## 0.3.0
 
+- `Catalog.commonTypesSchema` and the bundled `common_types` schemas list
+  `description` after `type`, following the reordered specification files.
 - Updated documentation comments referencing `typescript/core/web_core`.
 - **Breaking:** Renamed `A2uiClientAction` and `A2uiClientError` to
   `A2uiRendererAction` and `A2uiRendererError`.
@@ -21,6 +23,9 @@
 - **Breaking:** `PayloadValidator` derives its rules and `common_types.json`
   document from `catalog.protocolVersion`; removed `protocolVersion`,
   `commonTypesSchema`, `checkVersion`, and `PayloadValidator.forVersion`.
+  `PayloadValidator` gains a `config` parameter (`ValidationConfig`). Adds
+  `ValidationConfig.allowUnknownElements`, `A2uiValidationError.surfaceId`,
+  and `ComponentApi.allowedParents` / `allowedChildren`.
   Removed `MessageProcessor.commonTypesSchema`, the `version` parameter of
   `MessageProcessor.validatorFor(catalog)`, `A2uiValidationError.details`, and
   `MinimalCatalog`.
@@ -29,6 +34,10 @@
   `A2uiRecursionError` (`RECURSION_ERROR`), reserving `A2uiRecursionError` for
   exceeding the maximum component traversal depth (`maxDepth`) or
   function-call nesting depth (`maxFunctionCallDepth`).
+- Export `GenericBinder`, `Behavior`, `BehaviorNode`, `resolveSchemaRefs`, and
+  `inlineLocalRefs` from `package:a2ui_core/a2ui_core.dart`.
+- `Catalog.fromJson` validates shorthand `parameters` map keys against UAX #31
+  in v1.0 mode and wraps shorthand parameter maps in an object schema.
 - `CallRendererFunctionMessage` and `CallRendererFunctionOp` accept an optional
   `surfaceId` (`String?`). When provided, `MessageProcessor` evaluates the
   function call against that surface's root `DataContext` (returning
@@ -60,12 +69,6 @@
   including components whose schema does not declare `accessibility`.
 - **Behavior change:** Template `ChildList`s in v1.0 surfaces bind their
   `path` with the v1.0 `@path` key, so v1.0 templates expand.
-- `PayloadValidator` takes its rules from the catalog: `Catalog.protocolVersion`
-  (parsed from the document's `protocolVersion`) selects the v1.0 rules for
-  v1.0 and later and the v0.9 rules otherwise, and the embedded
-  `common_types.json` for that version, and the validator gains a `config`. Adds
-  `ValidationConfig.allowUnknownElements`, `A2uiValidationError.surfaceId`,
-  and `ComponentApi.allowedParents` / `allowedChildren`.
 - **Breaking:** `Catalog.protocolVersion` is an `A2uiProtocolVersion?` rather
   than a `String?`. `Catalog.fromJson` reads the document's value as a
   semantic version (`1.0`, `v1.0` and `1.0.0` all name v1.0; pre-release and
@@ -108,9 +111,10 @@
   an unknown function is rejected.
 - **Behavior change:** v1.0 catalogs require UAX #31 identifiers for component
   ids, component and property names, function names and argument names, and
-  `createSurface.metadata.extensions` keys, and reject objects with
-  unrecognized single-`@` keys (code `INVALID_RESERVED_KEY`); `@@name` remains
-  an escaped literal key.
+  `createSurface.metadata.extensions` keys, reject `@`-prefixed function names in
+  `Catalog.fromJson` (reserving `@` for system functions such as `@index`), and
+  reject objects with unrecognized single-`@` keys (code `INVALID_RESERVED_KEY`);
+  `@@name` remains an escaped literal key.
 - **Behavior change:** a `$ref` into a document the SDK holds that names
   nothing now throws `A2uiCatalogError("Unresolvable schema reference:
 '<ref>'")` instead of silently leaving the subschema unconstrained, and
@@ -599,13 +603,11 @@
   traversal/root mutation, and array index bounds), support `DataContext.index`
   and `DataContext.dispose`, and pass the `data_model.yaml` and
   `data_context.yaml` conformance suites.
-- **Breaking:** `GenericBinder`, `Behavior`, `BehaviorNode` and `ComponentContext`
-  are no longer exported. Renderers read components through `NodeResolver` and
-  `ComponentNode`, whose props carry dynamic properties as `ResolvedBinding`
-  values instead of raw values, with no synthesized `set<Property>` setter
-  entries. A property bound to a data path is a `WritableBinding`, even when the
-  path holds no data; writes go through `WritableBinding.set`, and
-  `WritableBinding.path` is the path as authored.
+- **Breaking:** `ComponentNode.props` carries dynamic properties as
+  `ResolvedBinding` values instead of raw values, with no synthesized
+  `set<Property>` setter entries. A property bound to a data path is a
+  `WritableBinding`, even when the path holds no data; writes go through
+  `WritableBinding.set`, and `WritableBinding.path` is the path as authored.
 - **Breaking:** `SurfaceModel.dispatchAction` no longer executes `functionCall`
   payloads and emits an action only for `event` payloads. A node's action runs
   its function call itself.

@@ -18,7 +18,6 @@ import 'dart:io';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/primitives/reference_schema.dart'
     show ReferenceSchemaReader;
-import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
 import 'package:json_schema_builder/json_schema_builder.dart'
     hide ValidationResult;
 import 'package:test/test.dart';

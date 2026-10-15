@@ -742,7 +742,7 @@ class PayloadValidator:
         if not (ver and is_at_least_version(ver, ProtocolVersion.V1_0)):
             return
 
-        if not is_valid_uax31_identifier(name):
+        if not is_valid_uax31_identifier(name, allow_leading_at=True):
             raise A2uiValidationError(
                 f"Function name '{name}' must be a valid UAX #31 identifier",
                 details=[

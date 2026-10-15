@@ -24,7 +24,7 @@ from typing import Any, Final, NamedTuple, cast, get_args
 from ..exceptions import A2uiError
 from . import ProtocolVersion
 from ._dynamic_types import clean_schema_node
-from ._json_schema import inline_marked_defs, spec_schema
+from ._json_schema import inline_marked_defs, order_spec_schema_keys, spec_schema
 from .common_types_schema import (
     _raw_symbol_schema,
     _strip_const_implied_keywords,
@@ -141,13 +141,16 @@ def _build_agent_to_renderer_schema(
 
     description = (mod.__doc__ or "").strip()
     if schema_id is None:
-        return {
-            "title": "A2UI Message Schema",
-            "description": description,
-            "type": "object",
-            "additionalProperties": False,
-            "properties": published_defs,
-        }
+        return cast(
+            dict[str, Any],
+            order_spec_schema_keys({
+                "title": "A2UI Message Schema",
+                "description": description,
+                "type": "object",
+                "additionalProperties": False,
+                "properties": published_defs,
+            }),
+        )
 
     for def_schema in published_defs.values():
         _normalize_message_version(def_schema, protocol_version)
@@ -158,15 +161,18 @@ def _build_agent_to_renderer_schema(
             f"Schema module '{module_name}' does not define AgentToRendererMessage."
         )
     one_of = [{"$ref": f"#/$defs/{cls.__name__}"} for cls in get_args(message_union)]
-    return {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": schema_id,
-        "title": "A2UI Message Schema",
-        "description": description,
-        "type": "object",
-        "oneOf": one_of,
-        "$defs": published_defs,
-    }
+    return cast(
+        dict[str, Any],
+        order_spec_schema_keys({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": schema_id,
+            "title": "A2UI Message Schema",
+            "description": description,
+            "type": "object",
+            "oneOf": one_of,
+            "$defs": published_defs,
+        }),
+    )
 
 
 class _CachedAgentToRenderer(NamedTuple):

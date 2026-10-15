@@ -68,6 +68,49 @@ describe('PayloadValidator', () => {
     );
   });
 
+  it('validates function arguments when parameters schema uses $ref', () => {
+    const catalog = Catalog.fromJson({
+      catalogId: 'https://example.com/test-ref-validator.json',
+      protocolVersion: 'v1.0',
+      $defs: {
+        RefArgs: {
+          type: 'object',
+          properties: {
+            field: {type: 'string'},
+          },
+          required: ['field'],
+        },
+      },
+      functions: {
+        testRef: {
+          parameters: {$ref: '#/$defs/RefArgs'},
+          returnType: 'string',
+        },
+      },
+    });
+
+    const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
+
+    // Valid arguments pass
+    assert.doesNotThrow(() => validator.validateFunction('testRef', {field: 'hello'}));
+
+    // Missing required field throws
+    assert.throws(
+      () => validator.validateFunction('testRef', {}),
+      (err: unknown) =>
+        err instanceof A2uiValidationError &&
+        err.message.includes("Validation failed for function 'testRef'"),
+    );
+
+    // Unrecognized extra field throws in strict mode
+    assert.throws(
+      () => validator.validateFunction('testRef', {field: 'hello', unexpected: 123}),
+      (err: unknown) =>
+        err instanceof A2uiValidationError &&
+        err.message.includes("Validation failed for function 'testRef'"),
+    );
+  });
+
   describe('v1.0 nested function calls', () => {
     const CATALOG_ID = 'https://example.com/v10';
     // `value` is a string or a nested call, like a DynamicString argument.

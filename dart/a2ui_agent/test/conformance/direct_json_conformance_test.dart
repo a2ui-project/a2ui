@@ -135,6 +135,7 @@ void _runCase(Map<String, Object?> testCase) {
 
 InferenceFormat _format(Map<String, Object?> testCase) {
   final args = testCase['args']! as Map<String, Object?>;
+  final unlowered = testCase['action'] == 'generate_prompt_snippet';
   return DirectJsonFormatFactory(
     allowedMessages: (args['allowed_messages'] as List<Object?>?)
         ?.cast<String>(),
@@ -143,10 +144,12 @@ InferenceFormat _format(Map<String, Object?> testCase) {
     },
     bufferIncompleteComponents: caseDeclaresV1(args),
   ).createFormat(
-    caseCatalogs(args),
+    caseCatalogs(args, lower: !unlowered),
     examples: [
       for (final Object? path in args['examples'] as List<Object?>? ?? const [])
-        loadExample(path! as String),
+        unlowered
+            ? loadExampleUnlowered(path! as String)
+            : loadExample(path! as String),
     ],
   );
 }

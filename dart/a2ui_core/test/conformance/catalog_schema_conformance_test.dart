@@ -53,11 +53,7 @@ void main() {
 const String _noV08 = 'Targets v0.8, which a2ui_core does not implement.';
 
 /// Cases whose expected outcome Dart does not produce, with the reason.
-const Map<String, String> _knownDivergences = {
-  'test_v10_catalog_from_json_uax31_validation':
-      "Catalog.fromJson rejects function names starting with '@', which are "
-          'reserved for protocol system functions such as @index.',
-};
+const Map<String, String> _knownDivergences = {};
 
 /// The built-in catalogs this package implements, by catalog id.
 final Map<String, CatalogApi> _builtinCatalogs = {

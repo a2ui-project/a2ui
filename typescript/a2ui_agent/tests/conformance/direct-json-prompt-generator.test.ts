@@ -48,9 +48,7 @@ describe('Conformance: direct_json/prompt_generator.yaml', () => {
         file =>
           JSON.parse(fs.readFileSync(conformancePath(file), 'utf8')) as AgentToRendererMessage[],
       );
-      // The generator keys examples by catalog id; the suite's examples are not tied to one.
-      const examples =
-        turns.length > 0 && catalogs.length > 0 ? {[catalogs[0].id]: turns.flat()} : undefined;
+      const examples = turns.length > 0 ? turns : undefined;
       const generate = () =>
         new DirectJsonPromptGenerator(catalogs, examples, args.allowed_messages).generate();
 
@@ -60,6 +58,10 @@ describe('Conformance: direct_json/prompt_generator.yaml', () => {
       }
 
       const snippet = generate();
+      if (typeof testCase.expect_file === 'string') {
+        const expectedText = fs.readFileSync(conformancePath(testCase.expect_file), 'utf8');
+        expect(snippet).toBe(expectedText);
+      }
       for (const needle of (testCase.expect_contains as string[] | undefined) ?? []) {
         expect(snippet, `snippet should contain '${needle}'`).toContain(needle);
       }

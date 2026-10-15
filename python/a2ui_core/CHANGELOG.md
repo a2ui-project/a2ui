@@ -1,5 +1,10 @@
 ## Unreleased
 
+- `is_valid_uax31_identifier` and `assert_uax31_identifier` no longer strip a
+  leading `@` before checking UAX 31 syntax, and `Catalog.from_json` now rejects
+  `@`-prefixed catalog function names and validates function parameter names.
+  `PayloadValidator` allows the reserved `@index` system function call on v1.0+
+  surfaces while validating user-defined function names against UAX 31.
 - **BREAKING**: `a2ui.core.schema.AgentToRendererMessage`,
   `RendererToAgentMessage`, and their legacy aliases now expose the full
   v0.8–v1.0 union instead of being overwritten by v0.9 re-exports. The facade
