@@ -51,9 +51,10 @@ class A2uiGenerator {
   /// generator's format for this processor.
   ///
   /// Throws [A2uiValidationError] if [rendererCapabilities] declares nothing
-  /// for v0.9, [A2uiCatalogError] if no registered catalog is supported by the
-  /// renderer, and the [A2uiError] a renderer would report for an example the
-  /// active catalogs cannot render.
+  /// for the version of the registered catalogs, [A2uiCatalogError] if they
+  /// target different versions or the renderer supports none of them, and
+  /// the [A2uiError] a renderer would report for an example the active
+  /// catalogs cannot render.
   A2uiRequestProcessor createProcessor(
     A2uiRendererCapabilities rendererCapabilities, {
     InferenceFormatFactory? inferenceFormatFactory,

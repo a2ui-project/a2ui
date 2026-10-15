@@ -22,48 +22,63 @@ import 'package:test/test.dart';
 import 'suites.dart';
 
 /// Runs the shared `conformance/agent/catalog_provider.yaml` suite against
-/// [FileSystemCatalogProvider].
+/// [FileSystemCatalogProvider], in each [SuiteVersion].
 ///
-/// The suite is written against v1.0, so the harness lowers each document it
-/// can read to v0.9 into a temporary file, and constructs the provider with
-/// v0.9 where the case says v1.0; see `suites.dart`. A case whose provider
-/// states v0.9 would need a provider stating v1.0 after lowering, which this
-/// SDK cannot name, so it runs as written: its document's `1.0` and the
-/// provider's v0.9 conflict just the same.
+/// Lowered to v0.9, the harness lowers each document it can read to v0.9 into
+/// a temporary file, and constructs the provider with v0.9 where the case says
+/// v1.0; see `suites.dart`. A case whose provider states v0.9 would need a
+/// provider stating v1.0 after lowering, so it runs as written: its
+/// document's `1.0` and the provider's v0.9 conflict just the same.
 void main() {
   const path = 'agent/catalog_provider.yaml';
   late Directory temp;
   setUpAll(() => temp = Directory.systemTemp.createTempSync('a2ui_provider'));
   tearDownAll(() => temp.deleteSync(recursive: true));
 
-  group('conformance $path', () {
-    final List<Map<String, Object?>> cases = loadSuite(path);
-    test('suite is not empty', () => expect(cases, isNotEmpty));
-    for (final testCase in cases) {
-      final name = testCase['name']! as String;
-      test(name, () {
-        final args = testCase['args']! as Map<String, Object?>;
-        expect(args['provider'], 'file_system');
-        final lower = args['protocol_version'] != 'v0.9';
-        final provider = FileSystemCatalogProvider(
-          _documentPath(args['path']! as String, lower, temp, name),
-          catalogId: args['catalog_id'] as String?,
-          protocolVersion: switch (args['protocol_version']) {
-            null => null,
-            _ => A2uiProtocolVersion.v0_9,
-          },
-        );
-        if (testCase['expect_error'] case final Object error) {
-          expect(provider.load, throwsCategory(error));
-          return;
-        }
-        expectCatalog(
-          provider.load(),
-          testCase['expect']! as Map<String, Object?>,
-        );
-      });
-    }
-  });
+  for (final SuiteVersion version in SuiteVersion.values) {
+    group('conformance $path ${version.label}', () {
+      final List<Map<String, Object?>> cases = loadSuite(path);
+      test('suite is not empty', () => expect(cases, isNotEmpty));
+      for (final testCase in cases) {
+        final name = testCase['name']! as String;
+        test(name, () => version.run(() => _runCase(testCase, version, temp)));
+      }
+    });
+  }
+}
+
+void _runCase(
+  Map<String, Object?> testCase,
+  SuiteVersion version,
+  Directory temp,
+) {
+  final args = testCase['args']! as Map<String, Object?>;
+  expect(args['provider'], 'file_system');
+  final bool lower =
+      version == SuiteVersion.v0_9 && args['protocol_version'] != 'v0.9';
+  final provider = FileSystemCatalogProvider(
+    _documentPath(
+      args['path']! as String,
+      lower,
+      temp,
+      testCase['name']! as String,
+    ),
+    catalogId: args['catalog_id'] as String?,
+    protocolVersion: switch (args['protocol_version']) {
+      null => null,
+      final String stated when version == SuiteVersion.v1_0 =>
+        A2uiProtocolVersion.parse(stated),
+      _ => A2uiProtocolVersion.v0_9,
+    },
+  );
+  if (testCase['expect_error'] case final Object error) {
+    expectThrowsCategory(provider.load, error);
+    return;
+  }
+  version.expectCatalog(
+    provider.load(),
+    testCase['expect']! as Map<String, Object?>,
+  );
 }
 
 /// The path the provider reads for [path], relative to `conformance/`.

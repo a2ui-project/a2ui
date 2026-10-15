@@ -20,10 +20,11 @@ import 'package:test/test.dart';
 
 /// Catalog providers beyond `conformance/agent/catalog_provider.yaml`, which
 /// covers the file system provider against v1.0 documents: the in-memory
-/// provider, the v0.9 spellings of a version, and malformed documents.
+/// provider, the spellings of a version, and malformed documents.
 void main() {
   const basicPath = '../../specification/v0_9/catalogs/basic/catalog.json';
   const A2uiProtocolVersion v0_9 = A2uiProtocolVersion.v0_9;
+  const A2uiProtocolVersion v1_0 = A2uiProtocolVersion.v1_0;
 
   Map<String, Object?> document({Object? id, Object? version}) => {
     'catalogId': ?id,
@@ -73,6 +74,26 @@ void main() {
       expect(catalog.toJson(), equals(source));
     });
 
+    test('reads each spelling of v1.0 a document may use', () {
+      for (final version in ['1.0', 'v1.0']) {
+        final CatalogApi catalog = InMemoryCatalogProvider(
+          document(id: 'a', version: version),
+          protocolVersion: v1_0,
+        ).load();
+        expect(catalog.protocolVersion, v1_0, reason: version);
+      }
+    });
+
+    test('gives a document that states no version the provider\'s v1.0', () {
+      expect(
+        InMemoryCatalogProvider(
+          document(id: 'a'),
+          protocolVersion: v1_0,
+        ).load().protocolVersion,
+        v1_0,
+      );
+    });
+
     test('reads each spelling of v0.9 a document may use', () {
       for (final version in ['0.9', 'v0.9', '0.9.1']) {
         expect(
@@ -97,8 +118,12 @@ void main() {
         protocolVersion: v0_9,
       ),
       'no version anywhere': InMemoryCatalogProvider(document(id: 'a')),
-      'a version other than v0.9': InMemoryCatalogProvider(
+      'a version this SDK does not implement': InMemoryCatalogProvider(
+        document(id: 'a', version: '0.8'),
+      ),
+      'a v1.0 document given v0.9': InMemoryCatalogProvider(
         document(id: 'a', version: '1.0'),
+        protocolVersion: v0_9,
       ),
       'an id that is not a string': InMemoryCatalogProvider(
         document(id: 7),
@@ -134,6 +159,15 @@ void main() {
       expect(catalog.id, contains('v0_9/catalogs/basic'));
       expect(catalog.components, contains('Text'));
       expect(catalog.functions, contains('formatString'));
+    });
+
+    test('loads the published v1.0 basic catalog', () {
+      final CatalogApi catalog = const FileSystemCatalogProvider(
+        '../../catalogs/basic/v1/catalog.json',
+      ).load();
+      expect(catalog.id, contains('v1_0/catalogs/basic'));
+      expect(catalog.protocolVersion, v1_0);
+      expect(catalog.components, contains('Text'));
     });
 
     test('rejects a document that is not a JSON object', () {

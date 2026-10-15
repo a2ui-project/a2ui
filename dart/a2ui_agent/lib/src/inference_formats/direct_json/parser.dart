@@ -44,6 +44,10 @@ final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
 /// A parser holds the state of one streamed response, so it reads one
 /// response through [parseChunk]; [parseResponse] and the other members keep
 /// no state.
+///
+/// Messages are read as the protocol version the catalogs target. Reading
+/// the messages of v1.0 catalogs, in [compile] and in [parseChunk], is not
+/// implemented yet and throws [UnimplementedError].
 class DirectJsonParser extends Parser {
   DirectJsonParser(
     List<CatalogApi> catalogs, {
@@ -129,7 +133,8 @@ class DirectJsonParser extends Parser {
     return parts;
   }
 
-  /// Reads a list of messages, or a single message, into v0.9 messages.
+  /// Reads a list of messages, or a single message, into messages of the
+  /// catalogs' protocol version.
   ///
   /// A trailing comma, a curly quote used as a JSON quote and a markdown
   /// fence around the payload are repaired before reading.
@@ -142,10 +147,11 @@ class DirectJsonParser extends Parser {
   /// catalog declaring it. The checks that need a whole surface, such as a
   /// reachable root, are `A2uiRequestProcessor.parseResponse`'s.
   ///
-  /// Throws [A2uiParseError] if [formatContent] is empty or not JSON, and
-  /// [A2uiValidationError] if a message is not a v0.9 message, declares a
-  /// version other than v0.9 or none, or names or uses anything the
-  /// catalogs do not declare.
+  /// Throws [A2uiParseError] if [formatContent] is empty or not JSON,
+  /// [A2uiCatalogError] if the catalogs target different versions, and
+  /// [A2uiValidationError] if a message is not a message of the catalogs'
+  /// version, declares another version or none, or names or uses anything
+  /// the catalogs do not declare.
   @override
   List<AgentToRendererMessage> compile(String formatContent) {
     final String content = _clean(formatContent);

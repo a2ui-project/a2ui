@@ -15,6 +15,7 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../processor/catalog_config.dart';
+import 'catalogs.dart';
 
 /// Negotiates the catalogs the agent registered against the capabilities a
 /// renderer declared, and returns the catalogs active for the session.
@@ -23,10 +24,13 @@ import '../processor/catalog_config.dart';
 /// The renderer has then stated no preference, so every registered catalog
 /// is active, in registration order.
 ///
-/// Every registered catalog the renderer supports for protocol v0.9 is
-/// active, in the renderer's preference order, so the renderer's first choice
-/// is the first catalog the model reads about. An id the renderer names and
-/// the agent does not hold is ignored.
+/// The registered catalogs target one protocol version, and the renderer's
+/// capabilities for that version decide. Every registered catalog the
+/// renderer supports there is active, in the renderer's preference order, so
+/// the renderer's first choice is the first catalog the model reads about. An
+/// id the renderer names and the agent does not hold is ignored. An agent
+/// that serves renderers of several versions registers the catalogs of each
+/// with a generator of its own.
 ///
 /// The catalogs returned are the transformed ones, so a pruning transformer is
 /// visible both in the prompt and in what the processor accepts.
@@ -39,9 +43,10 @@ import '../processor/catalog_config.dart';
 /// redefines it gets the agent's registration.
 ///
 /// Throws [A2uiValidationError] if [rendererCapabilities] declares nothing
-/// for v0.9, and [A2uiCatalogError] if no catalog is active: the renderer
-/// supports none of the registered catalogs and declares no inline catalog
-/// the agent accepts.
+/// for the version of the registered catalogs, and [A2uiCatalogError] if no
+/// catalog is registered, the registered catalogs target different versions,
+/// or no catalog is active: the renderer supports none of the registered
+/// catalogs and declares no inline catalog the agent accepts.
 List<CatalogApi> resolveCatalogs(
   List<CatalogConfig> catalogs,
   A2uiRendererCapabilities? rendererCapabilities, {
@@ -52,14 +57,21 @@ List<CatalogApi> resolveCatalogs(
       for (final CatalogConfig config in catalogs) config.transformedCatalog,
     ];
   }
-  const A2uiProtocolVersion version = A2uiProtocolVersion.v0_9;
+  if (catalogs.isEmpty) {
+    throw A2uiCatalogError(
+      'No catalog is registered with this agent, so none can be active.',
+    );
+  }
+  final A2uiProtocolVersion version = catalogsProtocolVersion([
+    for (final CatalogConfig config in catalogs) config.catalog,
+  ]);
   final A2uiVersionCapabilities? capabilities = rendererCapabilities.forVersion(
     version,
   );
   if (capabilities == null) {
     throw A2uiValidationError(
       'Renderer capabilities declare nothing for ${version.jsonValue}, the '
-      'only version this SDK supports.',
+      'version of the registered catalogs.',
     );
   }
 

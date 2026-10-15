@@ -156,6 +156,18 @@ abstract class AgentToRendererMessage {
   }
 
   Map<String, dynamic> toJson();
+
+  /// The message types an agent may send in [version], such as
+  /// `createSurface`, in the order the version's schema lists them.
+  ///
+  /// Each is the key of a message body on the wire, and the name
+  /// `ValidationConfig.allowedMessages` takes. v1.0 adds
+  /// `callRendererFunction` and `agentFunctionResponse` to the four of v0.9.
+  static List<String> typesFor(A2uiProtocolVersion version) => [
+        ..._agentToRendererBodyKeys,
+        if (version.isAtLeast(A2uiProtocolVersion.v1_0))
+          ..._agentToRendererV1BodyKeys,
+      ];
 }
 
 /// The message bodies an agent-to-renderer envelope may carry in every

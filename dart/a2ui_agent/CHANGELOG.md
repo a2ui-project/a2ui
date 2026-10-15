@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- Declared the API for protocol v1.0. The SDK reads and writes the protocol
+  version that the active catalogs target, rather than always v0.9:
+  - `FileSystemCatalogProvider` and `InMemoryCatalogProvider` load documents
+    that declare `protocolVersion` `1.0`, and take
+    `A2uiProtocolVersion.v1_0`.
+  - `resolveCatalogs`, and so `A2uiGenerator.createProcessor`, negotiate
+    against the renderer's capabilities for the version of the registered
+    catalogs. They throw `A2uiCatalogError` when no catalog is registered or
+    the registered catalogs target different versions.
+  - The direct JSON prompt already described v1.0 catalogs.
+  - Not implemented yet for v1.0 catalogs, and throwing
+    `UnimplementedError`: the Express prompt, compiling Express and direct
+    JSON, decompiling Express, and checking payloads, which
+    `A2uiRequestProcessor` does for its examples and in `parseResponse`.
+- `DirectJsonFormat` and `ExpressFormatFactory.createFormat` throw
+  `A2uiCatalogError` for two catalogs with the same id, since a `catalogId`
+  could not say which of the two it names.
+- Express prompts, compilers and decompilers, and direct JSON parsers, throw
+  `A2uiCatalogError` for catalogs that target different protocol versions.
+- Payload checks run through `a2ui_core`'s `MessageProcessor.forAgent`.
 - Bump `a2ui_core` dependency to `^0.3.0`.
 - The Direct JSON prompt lists `description` after `type` in the
   agent-to-renderer and `common_types` schemas it embeds, following the

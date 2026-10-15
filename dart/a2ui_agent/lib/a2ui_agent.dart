@@ -15,8 +15,15 @@
 /// The A2UI agent SDK: capability negotiation, prompting and response parsing
 /// for agents that generate A2UI.
 ///
-/// Implements protocol v0.9 only, in two inference formats: direct JSON,
-/// which can be read as it streams, and Express.
+/// Implements protocol v0.9 in two inference formats: direct JSON, which can
+/// be read as it streams, and Express. The protocol version is the one the
+/// active catalogs target.
+///
+/// Protocol v1.0 is declared and partly implemented: v1.0 catalogs load,
+/// negotiate with a renderer's v1.0 capabilities, and are described by the
+/// direct JSON prompt. The Express prompt, compiling v1.0 messages in either
+/// format, decompiling them into Express, and checking v1.0 payloads throw
+/// [UnimplementedError].
 library;
 
 export 'src/catalog_transformers/base.dart';

@@ -17,6 +17,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 import '../../inference_format.dart';
 import '../../parser/parser.dart';
 import '../../prompt/generator.dart';
+import '../../utils/catalogs.dart';
 import 'parser.dart';
 import 'prompt_generator.dart';
 
@@ -35,15 +36,19 @@ class ExpressFormatFactory extends InferenceFormatFactory {
   /// to these types.
   final List<String>? allowedMessages;
 
+  /// Throws [A2uiCatalogError] if two of [catalogs] share an id.
   @override
   InferenceFormat createFormat(
     List<CatalogApi> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
-  }) => ExpressFormat._(
-    List.unmodifiable(catalogs),
-    List.unmodifiable(examples),
-    allowedMessages == null ? null : List.unmodifiable(allowedMessages!),
-  );
+  }) {
+    checkDistinctIds(catalogs);
+    return ExpressFormat._(
+      List.unmodifiable(catalogs),
+      List.unmodifiable(examples),
+      allowedMessages == null ? null : List.unmodifiable(allowedMessages!),
+    );
+  }
 }
 
 /// The Express format bound to the catalogs of one request.
