@@ -24,7 +24,9 @@ Available with the base install:
 - `SendA2uiToClientToolset` is an ADK toolset that lets an agent send A2UI
   to the client through a tool call. It takes the list of active catalogs,
   describes all of them to the model, and validates each payload against
-  them before it is sent. `A2uiEnabledProvider`,
+  them before it is sent. The model writes A2UI in Direct JSON by default;
+  pass an `InferenceFormatFactory`, such as `ExpressFormatFactory()`, to use
+  another inference format. `A2uiEnabledProvider`,
   `A2uiCatalogsProvider` and `A2uiExamplesProvider` are the callback types it
   accepts.
 - `GenAIFileResolver` is a

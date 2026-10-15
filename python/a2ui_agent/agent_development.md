@@ -371,12 +371,31 @@ ui_toolset = SendA2uiToClientToolset(
 
 When the LLM calls the UI tool, the toolset uses the dynamic catalogs to:
 
-1. **Generate Instructions**: Inject the specific schema and examples into the
-   LLM's system prompt for that turn.
-2. **Parse and Fix Payloads**: Parse and fix the LLM's generated JSON using the
-   parser and payload-fixer.
-3. **Validate Payloads**: Validate the LLM's generated JSON against the specific
-   active `Catalog` objects with `a2ui.utils.validate_payload`.
+1. **Generate Instructions**: Inject the inference format's prompt (its rules,
+   the catalogs and any example turns) and the examples into the LLM's system
+   prompt for that turn.
+2. **Compile Payloads**: Compile the tool argument with the inference format's
+   parser, which also accepts the block wrapped in the format's tags.
+3. **Validate Payloads**: The parser validates the compiled messages against the
+   active `Catalog` objects before the tool returns them as JSON.
+
+#### 2d. Choosing an Inference Format
+
+The toolset uses the Direct JSON format by default. Pass an
+`InferenceFormatFactory` to have the model write A2UI in another format, such
+as Express. Give examples as turns of A2UI messages so that the format renders
+them in its own syntax. A string of examples is added to the prompt as written.
+
+```python
+from a2ui.inference_formats import ExpressFormatFactory
+
+ui_toolset = SendA2uiToClientToolset(
+    a2ui_enabled=True,
+    a2ui_catalogs=get_a2ui_catalogs,
+    a2ui_examples=example_turns,  # list[list[AgentToRendererMessage]]
+    inference_format_factory=ExpressFormatFactory(),
+)
+```
 
 ### 3. Multiple Version Support
 

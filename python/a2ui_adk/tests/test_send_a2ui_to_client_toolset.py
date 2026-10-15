@@ -22,6 +22,24 @@ import pytest
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.inference_format import InferenceFormatFactory
+from a2ui.inference_formats import ExpressFormatFactory
+from a2ui.parser import to_message_models
+from a2ui.schema.constants import A2UI_SCHEMA_BLOCK_START
+
+_Tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool
+
+
+def _fake_format_factory(compiled=None):
+    """Returns a format factory whose format and parser are mocks."""
+    factory = MagicMock(spec=InferenceFormatFactory)
+    inference_format = factory.create_format.return_value
+    inference_format.prompt_generator.generate.return_value = "format_prompt"
+    parser = inference_format.create_parser.return_value
+    parser.has_format_content.return_value = False
+    parser.compile.return_value = compiled if compiled is not None else []
+    return factory
+
 
 # region SendA2uiToClientToolset Tests
 """Tests for the SendA2uiToClientToolset class."""
@@ -112,18 +130,26 @@ async def test_toolset_get_tools_disabled():
 
 
 @pytest.mark.asyncio
-async def test_toolset_get_part_converter_uses_all_catalogs():
+async def test_toolset_get_part_converter_uses_all_catalogs_and_format_parser():
     pytest.importorskip("a2a")
     first = MagicMock(spec=Catalog)
     second = MagicMock(spec=Catalog)
+    factory = _fake_format_factory()
     toolset = SendA2uiToClientToolset(
-        a2ui_enabled=True, a2ui_catalogs=[first, second], a2ui_examples=""
+        a2ui_enabled=True,
+        a2ui_catalogs=[first, second],
+        a2ui_examples="",
+        inference_format_factory=factory,
     )
 
     with patch("a2ui.adk.A2uiPartConverter") as converter_cls:
         converter = await toolset.get_part_converter(MagicMock(spec=ReadonlyContext))
 
-    converter_cls.assert_called_once_with([first, second])
+    factory.create_format.assert_called_once_with([first, second], examples=None)
+    converter_cls.assert_called_once_with(
+        [first, second],
+        parser=factory.create_format.return_value.create_parser.return_value,
+    )
     assert converter is converter_cls.return_value
 
 
@@ -237,23 +263,81 @@ async def test_send_tool_resolve_catalogs_rejects_provider_returning_catalog():
 async def test_send_tool_process_llm_request_describes_all_catalogs():
     first = MagicMock(spec=Catalog)
     second = MagicMock(spec=Catalog)
-    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
-        [first, second], "examples"
-    )
+    factory = _fake_format_factory()
+    tool = _Tool([first, second], "examples", factory)
     llm_request_mock = MagicMock()
 
-    with patch(
-        "a2ui.adk.send_a2ui_to_client_toolset.schema_to_prompt",
-        return_value="rendered_catalogs",
-    ) as mock_render:
-        await tool.process_llm_request(
-            tool_context=MagicMock(spec=ToolContext), llm_request=llm_request_mock
-        )
-
-    mock_render.assert_called_once_with([first, second])
-    llm_request_mock.append_instructions.assert_called_once_with(
-        ["rendered_catalogs", "examples"]
+    await tool.process_llm_request(
+        tool_context=MagicMock(spec=ToolContext), llm_request=llm_request_mock
     )
+
+    factory.create_format.assert_called_once_with([first, second], examples=None)
+    llm_request_mock.append_instructions.assert_called_once_with(
+        ["format_prompt", _Tool.TOOL_USAGE_INSTRUCTION, "examples"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_send_tool_process_llm_request_skips_empty_examples():
+    factory = _fake_format_factory()
+    tool = _Tool([MagicMock(spec=Catalog)], "", factory)
+    llm_request_mock = MagicMock()
+
+    await tool.process_llm_request(
+        tool_context=MagicMock(spec=ToolContext), llm_request=llm_request_mock
+    )
+
+    llm_request_mock.append_instructions.assert_called_once_with(
+        ["format_prompt", _Tool.TOOL_USAGE_INSTRUCTION]
+    )
+
+
+@pytest.mark.asyncio
+async def test_send_tool_process_llm_request_passes_example_turns_to_format():
+    catalog = MagicMock(spec=Catalog)
+    turn = _update_text_messages({"text": "Hello"})
+    factory = _fake_format_factory()
+    tool = _Tool([catalog], lambda _ctx: [turn], factory)
+    llm_request_mock = MagicMock()
+
+    await tool.process_llm_request(
+        tool_context=MagicMock(spec=ToolContext), llm_request=llm_request_mock
+    )
+
+    factory.create_format.assert_called_once_with([catalog], examples=[turn])
+    llm_request_mock.append_instructions.assert_called_once_with(
+        ["format_prompt", _Tool.TOOL_USAGE_INSTRUCTION]
+    )
+
+
+@pytest.mark.asyncio
+async def test_send_tool_process_llm_request_defaults_to_direct_json():
+    tool = _Tool([BasicCatalog("0.9")], "examples")
+    llm_request_mock = MagicMock()
+
+    await tool.process_llm_request(
+        tool_context=MagicMock(spec=ToolContext), llm_request=llm_request_mock
+    )
+
+    (instructions,), _ = llm_request_mock.append_instructions.call_args
+    assert A2UI_SCHEMA_BLOCK_START in instructions[0]
+    assert instructions[1:] == [_Tool.TOOL_USAGE_INSTRUCTION, "examples"]
+
+
+@pytest.mark.asyncio
+async def test_send_tool_process_llm_request_renders_express_examples():
+    turn = _update_text_messages({"text": "Hello from example"})
+    tool = _Tool([BasicCatalog("0.9")], [turn], ExpressFormatFactory())
+    llm_request_mock = MagicMock()
+
+    await tool.process_llm_request(
+        tool_context=MagicMock(spec=ToolContext), llm_request=llm_request_mock
+    )
+
+    (instructions,), _ = llm_request_mock.append_instructions.call_args
+    assert "A2UI Express" in instructions[0]
+    assert 'Text("Hello from example")' in instructions[0]
+    assert instructions[1:] == [_Tool.TOOL_USAGE_INSTRUCTION]
 
 
 @pytest.mark.asyncio
@@ -266,82 +350,55 @@ async def test_send_tool_resolve_examples():
 
 
 @pytest.mark.asyncio
-async def test_send_tool_process_llm_request():
-    catalog_mock = MagicMock(spec=Catalog)
-    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool([catalog_mock], "examples")
+async def test_send_tool_resolve_example_turns():
+    turn = _update_text_messages({"text": "Hello"})
+    tool = _Tool([MagicMock(spec=Catalog)], (tuple(turn),))
+    examples = await tool._resolve_a2ui_examples(MagicMock(spec=ReadonlyContext))
+    assert examples == [turn]
 
-    tool_context_mock = MagicMock(spec=ToolContext)
-    tool_context_mock.state = {}
-    llm_request_mock = MagicMock()
-    llm_request_mock.append_instructions = MagicMock()
 
-    with patch(
-        "a2ui.adk.send_a2ui_to_client_toolset.schema_to_prompt",
-        return_value="rendered_catalog",
-    ) as mock_render:
-        await tool.process_llm_request(
-            tool_context=tool_context_mock, llm_request=llm_request_mock
-        )
-        mock_render.assert_called_once_with([catalog_mock])
-
-    llm_request_mock.append_instructions.assert_called_once()
-    args, _ = llm_request_mock.append_instructions.call_args
-    instructions = args[0]
-    assert "rendered_catalog" in instructions
-    assert "examples" in instructions
+@pytest.mark.asyncio
+async def test_send_tool_resolve_examples_rejects_single_turn():
+    turn = _update_text_messages({"text": "Hello"})
+    tool = _Tool([MagicMock(spec=Catalog)], turn)
+    with pytest.raises(TypeError, match="sequence of turns"):
+        await tool._resolve_a2ui_examples(MagicMock(spec=ReadonlyContext))
 
 
 @pytest.mark.asyncio
 async def test_send_tool_run_async_valid():
     catalog_mock = MagicMock(spec=Catalog)
-    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool([catalog_mock], "examples")
+    compiled = [{"version": "v0.9", "deleteSurface": {"surfaceId": "s1"}}]
+    factory = _fake_format_factory(compiled)
+    tool = _Tool([catalog_mock], "examples", factory)
     tool_context_mock = MagicMock(spec=ToolContext)
     tool_context_mock.state = {}
     tool_context_mock.actions = MagicMock(skip_summarization=False)
+    args = {_Tool.A2UI_JSON_ARG_NAME: "a2ui block"}
 
-    valid_a2ui = [{"type": "Text", "text": "Hello"}]
-    args = {
-        SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: (
-            json.dumps(valid_a2ui)
-        )
-    }
+    result = await tool.run_async(args=args, tool_context=tool_context_mock)
 
-    with patch(
-        "a2ui.adk.send_a2ui_to_client_toolset.validate_payload"
-    ) as mock_validate:
-        result = await tool.run_async(args=args, tool_context=tool_context_mock)
-        mock_validate.assert_called_once_with([catalog_mock], valid_a2ui)
-
-    assert result == {
-        SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY: (
-            valid_a2ui
-        )
-    }
+    factory.create_format.assert_called_once_with([catalog_mock], examples=None)
+    parser = factory.create_format.return_value.create_parser.return_value
+    parser.compile.assert_called_once_with("a2ui block")
+    assert result == {_Tool.VALIDATED_A2UI_JSON_KEY: compiled}
     assert tool_context_mock.actions.skip_summarization
 
 
 @pytest.mark.asyncio
-async def test_send_tool_run_async_validates_against_all_catalogs():
+async def test_send_tool_run_async_compiles_against_all_catalogs():
     first = MagicMock(spec=Catalog)
     second = MagicMock(spec=Catalog)
-    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
-        [first, second], "examples"
-    )
+    factory = _fake_format_factory()
+    tool = _Tool([first, second], "examples", factory)
     tool_context_mock = MagicMock(spec=ToolContext)
     tool_context_mock.actions = MagicMock(skip_summarization=False)
-    payload = [{"type": "Text", "text": "Hello"}]
-    args = {
-        SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: (
-            json.dumps(payload)
-        )
-    }
 
-    with patch(
-        "a2ui.adk.send_a2ui_to_client_toolset.validate_payload"
-    ) as mock_validate:
-        await tool.run_async(args=args, tool_context=tool_context_mock)
+    await tool.run_async(
+        args={_Tool.A2UI_JSON_ARG_NAME: "a2ui block"}, tool_context=tool_context_mock
+    )
 
-    mock_validate.assert_called_once_with([first, second], payload)
+    factory.create_format.assert_called_once_with([first, second], examples=None)
 
 
 @pytest.mark.asyncio
@@ -359,35 +416,30 @@ async def test_send_tool_run_async_missing_arg():
 
 @pytest.mark.asyncio
 async def test_send_tool_run_async_invalid_json():
-    catalog_mock = MagicMock(spec=Catalog)
-    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool([catalog_mock], "examples")
-    args = {
-        SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: "{invalid"
-    }
+    tool = _Tool([BasicCatalog("0.9")], "examples")
+    args = {_Tool.A2UI_JSON_ARG_NAME: "{invalid"}
     result = await tool.run_async(args=args, tool_context=MagicMock())
     assert "error" in result
     assert "Failed to call A2UI tool" in result["error"]
-    assert "Expecting property name enclosed in double quotes" in result["error"]
+    assert "not JSON" in result["error"]
 
 
 @pytest.mark.asyncio
-async def test_send_tool_run_async_schema_validation_fail():
-    catalog_mock = MagicMock(spec=Catalog)
-    tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool([catalog_mock], "examples")
-    invalid_a2ui = [{"type": "Text"}]  # Missing 'text'
-    args = {
-        SendA2uiToClientToolset._SendA2uiJsonToClientTool.A2UI_JSON_ARG_NAME: (
-            json.dumps(invalid_a2ui)
-        )
-    }
-    with patch(
-        "a2ui.adk.send_a2ui_to_client_toolset.validate_payload",
-        side_effect=A2uiValidationError("'text' is a required property"),
-    ):
-        result = await tool.run_async(args=args, tool_context=MagicMock())
+async def test_send_tool_run_async_reports_format_validation_error():
+    factory = _fake_format_factory()
+    parser = factory.create_format.return_value.create_parser.return_value
+    parser.compile.side_effect = A2uiValidationError("'text' is a required property")
+    tool = _Tool([MagicMock(spec=Catalog)], "examples", factory)
+    result = await tool.run_async(
+        args={_Tool.A2UI_JSON_ARG_NAME: "a2ui block"}, tool_context=MagicMock()
+    )
     assert "error" in result
     assert "Failed to call A2UI tool" in result["error"]
     assert "'text' is a required property" in result["error"]
+
+
+def _update_text_messages(text_props: dict) -> list:
+    return to_message_models(_update_text_payload(text_props))
 
 
 def _update_text_payload(text_props: dict) -> list[dict]:
@@ -440,6 +492,54 @@ async def test_send_tool_run_async_rejects_invalid_payload_for_real_catalog():
     assert "error" in result
     assert "Failed to call A2UI tool" in result["error"]
     assert "'text' is a required property" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_send_tool_run_async_accepts_wrapped_direct_json():
+    payload = _update_text_payload({"text": "Hello"})
+    tool = _Tool([BasicCatalog("0.9")], "examples")
+    tool_context_mock = MagicMock(spec=ToolContext)
+    tool_context_mock.actions = MagicMock(skip_summarization=False)
+    content = f"Here you go:\n<a2ui-json>{json.dumps(payload)}</a2ui-json>"
+
+    result = await tool.run_async(
+        args={_Tool.A2UI_JSON_ARG_NAME: content}, tool_context=tool_context_mock
+    )
+
+    assert result == {_Tool.VALIDATED_A2UI_JSON_KEY: payload}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("wrapped", [False, True], ids=["bare", "wrapped"])
+async def test_send_tool_run_async_compiles_express(wrapped):
+    tool = _Tool([BasicCatalog("0.9")], "", ExpressFormatFactory())
+    tool_context_mock = MagicMock(spec=ToolContext)
+    tool_context_mock.actions = MagicMock(skip_summarization=False)
+    content = 'surface("s1")\nroot = Text("Hello")'
+    if wrapped:
+        content = f"<a2ui>\n{content}\n</a2ui>"
+
+    result = await tool.run_async(
+        args={_Tool.A2UI_JSON_ARG_NAME: content}, tool_context=tool_context_mock
+    )
+
+    payload = result[_Tool.VALIDATED_A2UI_JSON_KEY]
+    assert payload[0]["createSurface"]["surfaceId"] == "s1"
+    assert payload[1]["updateComponents"]["components"] == [
+        {"id": "root", "component": "Text", "text": "Hello"}
+    ]
+    assert tool_context_mock.actions.skip_summarization
+
+
+@pytest.mark.asyncio
+async def test_send_tool_run_async_rejects_invalid_express():
+    tool = _Tool([BasicCatalog("0.9")], "", ExpressFormatFactory())
+    result = await tool.run_async(
+        args={_Tool.A2UI_JSON_ARG_NAME: 'root = NoSuchComponent("Hello")'},
+        tool_context=MagicMock(),
+    )
+    assert "error" in result
+    assert "Failed to call A2UI tool" in result["error"]
 
 
 # endregion

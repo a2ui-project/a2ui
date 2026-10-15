@@ -15,19 +15,21 @@
 """Module for the SendA2uiToClientToolset.
 
 This module provides the necessary components to enable an agent to send A2UI (Agent-to-User Interface)
-JSON payloads to a client. It includes the `SendA2uiToClientToolset` for managing A2UI tools, and a specific tool for the LLM
-to send JSON.
+payloads to a client. It includes the `SendA2uiToClientToolset` for managing A2UI tools, and a specific tool for the LLM
+to send A2UI.
 
-This is just one approach for capturing A2UI JSON payloads from an LLM.
+This is just one approach for capturing A2UI payloads from an LLM.
 
 Key Components:
   * `SendA2uiToClientToolset`: The main entry point. It accepts providers for determining
-    if A2UI is enabled and for fetching the active A2UI catalogs. It manages the lifecycle of the
-    `_SendA2uiJsonToClientTool`.
+    if A2UI is enabled and for fetching the active A2UI catalogs and examples, and an
+    optional `InferenceFormatFactory` that picks the inference format the model writes
+    A2UI in (Direct JSON by default, or another format such as Express). It manages the
+    lifecycle of the `_SendA2uiJsonToClientTool`.
   * `_SendA2uiJsonToClientTool`: A tool exposed to the LLM. It allows the LLM to "call" a function
-    that effectively sends a JSON payload to the client. This tool validates the JSON against
-    the provided catalogs. It automatically wraps the provided schema in an array structure,
-    instructing the LLM that it can send a list of UI items.
+    that effectively sends an A2UI payload to the client. The tool adds the inference format's
+    prompt to the system instructions, compiles the tool argument with the format's parser,
+    which validates it against the provided catalogs, and returns the A2UI messages as JSON.
 
 Usage Examples:
 
@@ -59,7 +61,20 @@ Usage Examples:
     )
     ```
 
-  2. Integration with Agent:
+  2. Choosing an Inference Format:
+    Pass an `InferenceFormatFactory` to have the model write A2UI in another format.
+    Examples given as A2UI message turns are rendered in that format.
+
+    ```python
+    toolset = SendA2uiToClientToolset(
+        a2ui_enabled=True,
+        a2ui_catalogs=[MY_CATALOG],
+        a2ui_examples=MY_EXAMPLE_TURNS,  # list[list[AgentToRendererMessage]]
+        inference_format_factory=ExpressFormatFactory(),
+    )
+    ```
+
+  3. Integration with Agent:
     Typically used when initializing an agent's toolset.
 
     ```python
@@ -96,15 +111,15 @@ from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
 
 from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog, CatalogApi
-from a2ui.inference_formats.direct_json import schema_to_prompt
-from a2ui.parser import parse_and_fix
-from a2ui.schema import constants
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_format import InferenceFormat, InferenceFormatFactory
+from a2ui.inference_formats import DirectJsonFormatFactory
+from a2ui.parser import A2uiPart, Parser, to_message_dicts
 from a2ui.schema.constants import (
     A2UI_TOOL_ERROR_KEY,
     A2UI_TOOL_NAME,
     A2UI_VALIDATED_JSON_KEY,
 )
-from a2ui.utils import validate_payload
 
 if TYPE_CHECKING:
     from a2ui.adk.a2a import A2uiPartConverter
@@ -118,8 +133,10 @@ A2uiCatalogsProvider: TypeAlias = Callable[
     [readonly_context.ReadonlyContext],
     Sequence[CatalogApi] | Awaitable[Sequence[CatalogApi]],
 ]
+A2uiExampleTurns: TypeAlias = Sequence[Sequence[AgentToRendererMessage]]
+A2uiExamples: TypeAlias = str | A2uiExampleTurns
 A2uiExamplesProvider: TypeAlias = Callable[
-    [readonly_context.ReadonlyContext], str | Awaitable[str]
+    [readonly_context.ReadonlyContext], A2uiExamples | Awaitable[A2uiExamples]
 ]
 
 
@@ -131,7 +148,8 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         self,
         a2ui_enabled: bool | A2uiEnabledProvider,
         a2ui_catalogs: Sequence[CatalogApi] | A2uiCatalogsProvider,
-        a2ui_examples: str | A2uiExamplesProvider,
+        a2ui_examples: A2uiExamples | A2uiExamplesProvider,
+        inference_format_factory: InferenceFormatFactory | None = None,
     ):
         """Initializes the toolset.
 
@@ -140,14 +158,21 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
               per context.
             a2ui_catalogs: The active A2UI catalogs, or a provider that returns
               them per context. The catalogs must share a protocol version. The
-              schema prompt describes every catalog, and a payload is validated
+              prompt describes every catalog, and a payload is validated
               against the catalog each surface names.
-            a2ui_examples: The A2UI examples, or a provider that returns them
-              per context.
+            a2ui_examples: The few-shot examples, or a provider that returns
+              them per context. A string is added to the prompt as written, so
+              it must already be in the inference format's syntax. A sequence
+              of turns, each a sequence of A2UI messages, is rendered by the
+              inference format.
+            inference_format_factory: Creates the inference format that the
+              model writes A2UI in. Defaults to `DirectJsonFormatFactory()`.
         """
         super().__init__()
         self._a2ui_enabled = a2ui_enabled
-        self._ui_tool = self._SendA2uiJsonToClientTool(a2ui_catalogs, a2ui_examples)
+        self._ui_tool = self._SendA2uiJsonToClientTool(
+            a2ui_catalogs, a2ui_examples, inference_format_factory
+        )
         self._ui_tools: list[base_tool.BaseTool] = [self._ui_tool]
 
     async def _resolve_a2ui_enabled(
@@ -200,7 +225,8 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             ctx: The readonly_context.ReadonlyContext to resolve the catalogs with.
 
         Returns:
-            A configured A2uiPartConverter.
+            A configured A2uiPartConverter that parses text-based A2UI with the
+            inference format's parser.
 
         Raises:
             ImportError: If the `a2a` extra (`pip install "a2ui-adk[a2a]"`) is
@@ -211,18 +237,25 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         from a2ui.adk import A2uiPartConverter
 
         catalogs = await self._ui_tool._resolve_a2ui_catalogs(ctx)
-        return A2uiPartConverter(catalogs)
+        inference_format = self._ui_tool._create_inference_format(catalogs)
+        return A2uiPartConverter(catalogs, parser=inference_format.create_parser())
 
     class _SendA2uiJsonToClientTool(base_tool.BaseTool):
         TOOL_NAME = A2UI_TOOL_NAME
         VALIDATED_A2UI_JSON_KEY = A2UI_VALIDATED_JSON_KEY
         A2UI_JSON_ARG_NAME = "a2ui_json"
         TOOL_ERROR_KEY = A2UI_TOOL_ERROR_KEY
+        TOOL_USAGE_INSTRUCTION = (
+            f"To show UI to the user, call the `{A2UI_TOOL_NAME}` tool and pass"
+            f" the A2UI block as its `{A2UI_JSON_ARG_NAME}` argument, instead of"
+            " writing A2UI in your text response. Call the tool once per block."
+        )
 
         def __init__(
             self,
             a2ui_catalogs: Sequence[CatalogApi] | A2uiCatalogsProvider,
-            a2ui_examples: str | A2uiExamplesProvider,
+            a2ui_examples: A2uiExamples | A2uiExamplesProvider,
+            inference_format_factory: InferenceFormatFactory | None = None,
         ):
             self._a2ui_catalogs: list[CatalogApi] | A2uiCatalogsProvider = (
                 a2ui_catalogs
@@ -230,16 +263,20 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                 else self._to_catalog_list(a2ui_catalogs)
             )
             self._a2ui_examples = a2ui_examples
+            self._inference_format_factory = (
+                inference_format_factory
+                if inference_format_factory is not None
+                else DirectJsonFormatFactory()
+            )
             super().__init__(
                 name=self.TOOL_NAME,
                 description=(
-                    "Sends A2UI JSON to the client to render rich UI for the user."
-                    " This tool can be called multiple times in the same call to"
-                    f" render multiple UI surfaces.Args:    {self.A2UI_JSON_ARG_NAME}:"
-                    " Valid A2UI JSON Schema to send to the client. The A2UI JSON"
-                    f" Schema definition is between {constants.A2UI_SCHEMA_BLOCK_START}"
-                    f" and {constants.A2UI_SCHEMA_BLOCK_END} in the system"
-                    " instructions."
+                    "Sends A2UI to the client to render rich UI for the user."
+                    " This tool can be called multiple times in the same turn to"
+                    " render multiple UI surfaces. Args:"
+                    f" {self.A2UI_JSON_ARG_NAME}: The A2UI to send to the client,"
+                    " written in the A2UI format that the system instructions"
+                    " describe."
                 ),
             )
 
@@ -252,7 +289,10 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                     properties={
                         self.A2UI_JSON_ARG_NAME: genai_types.Schema(
                             type=genai_types.Type.STRING,
-                            description="valid A2UI JSON Schema to send to the client.",
+                            description=(
+                                "The A2UI to send to the client, in the format"
+                                " the system instructions describe."
+                            ),
                         ),
                     },
                     required=[self.A2UI_JSON_ARG_NAME],
@@ -261,22 +301,75 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
 
         async def _resolve_a2ui_examples(
             self, ctx: readonly_context.ReadonlyContext
-        ) -> str:
+        ) -> str | list[list[AgentToRendererMessage]]:
             """The resolved self.a2ui_examples field to construct instruction for this agent.
 
             Args:
                 ctx: The readonly_context.ReadonlyContext to resolve the provider with.
 
             Returns:
-                The A2UI examples string.
+                The A2UI examples, either as a string or as a list of turns, each
+                a list of A2UI messages.
+
+            Raises:
+                TypeError: If the examples are neither a string nor a sequence of
+                  turns.
             """
-            if isinstance(self._a2ui_examples, str):
-                return self._a2ui_examples
+            examples: A2uiExamples
+            if callable(self._a2ui_examples):
+                resolved = self._a2ui_examples(ctx)
+                if inspect.isawaitable(resolved):
+                    resolved = await resolved
+                examples = resolved
             else:
-                a2ui_examples = self._a2ui_examples(ctx)
-                if inspect.isawaitable(a2ui_examples):
-                    a2ui_examples = await a2ui_examples
-                return a2ui_examples
+                examples = self._a2ui_examples
+            if isinstance(examples, str):
+                return examples
+            turns: list[list[AgentToRendererMessage]] = []
+            for turn in examples:
+                if not isinstance(turn, Sequence) or isinstance(turn, (str, bytes)):
+                    raise TypeError(
+                        f"Tool {self.TOOL_NAME} expects A2UI examples as a string or"
+                        " a sequence of turns, each a sequence of A2UI messages,"
+                        f" got a turn of type {type(turn).__name__}."
+                    )
+                turns.append(list(turn))
+            return turns
+
+        def _create_inference_format(
+            self,
+            catalogs: Sequence[CatalogApi],
+            examples: A2uiExampleTurns | None = None,
+        ) -> InferenceFormat:
+            """Creates the inference format for the given catalogs and examples."""
+            return self._inference_format_factory.create_format(
+                catalogs, examples=examples
+            )
+
+        def _compile(self, parser: Parser, content: str) -> list[dict[str, Any]]:
+            """Compiles the tool argument into validated A2UI message dicts.
+
+            The argument may be a bare block in the inference format, or one or
+            more blocks wrapped in the format's tags, with any text around them
+            ignored.
+
+            Args:
+                parser: The inference format's parser.
+                content: The tool argument.
+
+            Returns:
+                The A2UI messages as wire-format dicts.
+            """
+            if parser.has_format_content(content, complete=True):
+                messages = [
+                    message
+                    for part in parser.parse_response(content)
+                    if isinstance(part, A2uiPart)
+                    for message in part.a2ui
+                ]
+            else:
+                messages = parser.compile(content)
+            return to_message_dicts(messages)
 
         def _to_catalog_list(self, catalogs: Iterable[CatalogApi]) -> list[CatalogApi]:
             """Checks catalogs and returns them as a list.
@@ -339,13 +432,23 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             )
 
             a2ui_catalogs = await self._resolve_a2ui_catalogs(tool_context)
-
-            instruction = schema_to_prompt(a2ui_catalogs)
             examples = await self._resolve_a2ui_examples(tool_context)
+            if isinstance(examples, str):
+                inference_format = self._create_inference_format(a2ui_catalogs)
+            else:
+                inference_format = self._create_inference_format(
+                    a2ui_catalogs, examples
+                )
 
-            llm_request.append_instructions([instruction, examples])
+            instructions = [
+                inference_format.prompt_generator.generate(),
+                self.TOOL_USAGE_INSTRUCTION,
+            ]
+            if isinstance(examples, str) and examples:
+                instructions.append(examples)
+            llm_request.append_instructions(instructions)
 
-            logger.info("Added A2UI schema and examples to system instructions")
+            logger.info("Added A2UI prompt and examples to system instructions")
 
         async def run_async(
             self, *, args: dict[str, Any], tool_context: tool_context.ToolContext
@@ -359,8 +462,8 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                     )
 
                 a2ui_catalogs = await self._resolve_a2ui_catalogs(tool_context)
-                a2ui_json_payload = parse_and_fix(a2ui_json)
-                validate_payload(a2ui_catalogs, a2ui_json_payload)
+                parser = self._create_inference_format(a2ui_catalogs).create_parser()
+                a2ui_json_payload = self._compile(parser, a2ui_json)
 
                 logger.info(
                     f"Validated call to tool {self.TOOL_NAME} with"
