@@ -640,6 +640,7 @@ public final class MessageProcessor: ObservableObject {
 
   private func processCallRendererFunctionOp(_ op: InternalCallRendererFunctionOp) throws {
     let msg = CallRendererFunctionMessage(
+      surfaceID: op.surfaceID,
       functionCallID: op.functionCallID,
       callFunction: CallFunctionPayload(
         call: op.call,
@@ -650,7 +651,7 @@ public final class MessageProcessor: ObservableObject {
       version: op.version
     )
     let userActivated = op.isUserActivated
-    let (dataContext, defaultCatalogID) = resolveRPCDataContext(catalogID: op.catalogID)
+    let (dataContext, defaultCatalogID) = resolveRPCDataContext(surfaceID: op.surfaceID)
     let callID = op.functionCallID
     activeRPCTasks[callID]?.cancel()
     let task = Task { @MainActor [weak self] in
@@ -970,24 +971,10 @@ public final class MessageProcessor: ObservableObject {
     }
   }
 
-  private func resolveRPCDataContext(catalogID: String?) -> (DataContext?, String?) {
-    let sortedSurfaces = surfaceGroupModel.surfacesMap
-      .sorted { $0.key < $1.key }
-      .map(\.value)
-    guard !sortedSurfaces.isEmpty else { return (nil, nil) }
-
-    let matchedSurface: SurfaceViewModel?
-    if let catalogID {
-      matchedSurface =
-        sortedSurfaces.first(where: {
-          $0.defaultCatalogID == catalogID || $0.catalog.id == catalogID
-        })
-        ?? sortedSurfaces.first
-    } else {
-      matchedSurface = sortedSurfaces.first
+  private func resolveRPCDataContext(surfaceID: String?) -> (DataContext?, String?) {
+    guard let surfaceID, let surface = surfaceGroupModel.surfacesMap[surfaceID] else {
+      return (nil, nil)
     }
-
-    guard let surface = matchedSurface else { return (nil, nil) }
     let context = DataContext(
       dataModel: surface.dataModel,
       path: "",

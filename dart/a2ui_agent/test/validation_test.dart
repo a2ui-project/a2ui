@@ -61,6 +61,59 @@ void main() {
       A2uiRequestProcessor(activeCatalogs: [basic], examples: [example]);
 
   group('A2uiRequestProcessor example validation', () {
+    test('resolves a recursive definition the catalog document declares', () {
+      final CatalogApi tree = Catalog.fromJson({
+        'catalogId': 'https://example.com/tree',
+        'protocolVersion': '0.9',
+        'components': {
+          'Tree': {
+            'type': 'object',
+            'properties': {
+              'root': {r'$ref': r'#/$defs/node'},
+            },
+          },
+        },
+        r'$defs': {
+          'node': {
+            'type': 'object',
+            'properties': {
+              'children': {
+                'type': 'array',
+                'items': {r'$ref': r'#/$defs/node'},
+              },
+            },
+          },
+        },
+      });
+
+      expect(
+        () => A2uiRequestProcessor(
+          activeCatalogs: [tree],
+          examples: [
+            [
+              CreateSurfaceMessage(
+                version: 'v0.9',
+                surfaceId: 's',
+                catalogId: tree.id,
+              ),
+              update([
+                {
+                  'id': 'root',
+                  'component': 'Tree',
+                  'root': {
+                    'children': [
+                      {'children': <Object?>[]},
+                    ],
+                  },
+                },
+              ]),
+            ],
+          ],
+        ),
+        returnsNormally,
+      );
+    });
+
     test('accepts a parent whose child arrives in a later message', () {
       expect(
         () => check([

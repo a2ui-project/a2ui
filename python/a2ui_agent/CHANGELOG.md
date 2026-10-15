@@ -1,5 +1,24 @@
 ## Unreleased
 
+- **BREAKING**: Move `a2ui.inference_formats.experimental.express` to
+  `a2ui.inference_formats.express`.
+- **BREAKING**: The agent SDK no longer depends on an agent framework. `a2ui.a2a`
+  moves to the new `a2ui-a2a` package and `a2ui.adk` to the new `a2ui-adk`
+  package, and `a2a-sdk`, `google-adk`, `google-genai` and `nest-asyncio` are no
+  longer dependencies. Import paths are unchanged. To migrate, install the
+  packages you use: `pip install a2ui-a2a` and `pip install "a2ui-adk[a2a]"`.
+- **BREAKING**: `FileResolver` no longer creates `google.genai` parts.
+  `to_genai_part` and `resolve_all_to_genai_parts` move to
+  `a2ui.adk.GenAIFileResolver`. `FileResolver.resolve_all` resolves a list of
+  file pointers, and `resolve_all` and `as_tool_decorator` take a `convert`
+  callback `(bytes, mime_type) -> Any`. Without one they return
+  `(bytes, mime_type)` tuples, and `as_tool_decorator` injects them into
+  `resolved_files` instead of `genai_parts`. To keep the old behavior, use
+  `GenAIFileResolver` from `a2ui-adk`.
+- The experimental Elemental and Atom formats warn through an A2UI decorator
+  instead of ADK's. Set `A2UI_SUPPRESS_EXPERIMENTAL_FEATURE_WARNINGS`
+  instead of `ADK_SUPPRESS_EXPERIMENTAL_FEATURE_WARNINGS` to silence the
+  warnings.
 - `DirectJsonParser.parse_chunk` raises `A2uiValidationError` on the chunk that
   closes an invalid v1.0 component. Previously the error was swallowed until the
   block ended, and every component after it was held back.
@@ -34,6 +53,19 @@
   `a2ui.schema` to `a2ui.processor` with
   `CatalogConfig(catalog, transformers=None)` and `transformed_catalog`, and
   `A2uiCatalogProvider` is replaced by `CatalogProvider`.
+- `ComponentPruningTransformer` and `FunctionPruningTransformer` keep a
+  catalog's metadata and authored document, so a pruned catalog loaded from a
+  file serializes with `to_json()` as that file minus the pruned entries, with
+  the unions rebuilt. The macro expander builds the expanded catalog from
+  `to_json()`, keeping common type references and metadata (#3053).
+- `DirectJsonPromptGenerator` (`schema_to_prompt`) embeds each active catalog's
+  `Catalog.to_json()` document alongside the pruned `common_types` schema,
+  avoiding duplicate inlined common type definitions across multiple catalogs.
+- The SDK reads `Catalog.validation_schema` instead of the deprecated
+  `catalog_schema` (#3053).
+- A generated skill no longer falls back to the catalog's `description` when
+  none is given, since catalogs loaded with `Catalog.from_json` now carry the
+  file's description (#3053).
 
 ## 0.8.0 (2026-10-08)
 

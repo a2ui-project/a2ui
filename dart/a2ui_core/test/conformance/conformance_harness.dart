@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:a2ui_core/a2ui_core.dart';
@@ -53,6 +54,27 @@ String _conformanceRoot() {
     }
     dir = parent;
   }
+}
+
+/// Reads a JSON document, such as a catalog, from a path relative to the
+/// conformance or repository root.
+Map<String, Object?> readConformanceJson(String path) {
+  final file = File(resolveConformancePath(path));
+  if (!file.existsSync()) {
+    throw StateError('Conformance document not found: ${file.path}');
+  }
+  return jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+}
+
+/// Whether a catalog document is built for protocol v1.0 or later, which it
+/// states with a `protocolVersion` of 1.x. Catalogs built for v0.9 declare
+/// none.
+bool isAtLeastV1CatalogDocument(Map<String, Object?> document) {
+  final Object? declared = document['protocolVersion'];
+  if (declared is! String) return false;
+  final String version =
+      declared.startsWith('v') ? declared.substring(1) : declared;
+  return version.split('.').first == '1';
 }
 
 /// Loads a conformance suite, for example `core/data_model.yaml`.

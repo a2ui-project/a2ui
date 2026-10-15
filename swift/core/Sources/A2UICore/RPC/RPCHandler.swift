@@ -50,7 +50,18 @@ public final class RPCHandler {
     userActivationPresent: Bool = false
   ) async -> RendererFunctionResponseMessage {
     let callName = message.callFunction.call
-    let targetCatalogID = message.callFunction.catalogID ?? defaultCatalogID
+    let targetCatalogID = message.callFunction.catalogID
+
+    if let surfaceID = message.surfaceID, dataContext == nil {
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: FunctionErrorPayload(
+          code: .invalidFunctionCall,
+          message: "Surface not found: \(surfaceID)"
+        ),
+        version: message.version
+      )
+    }
 
     let resolvedCatalog: AnyCatalog?
     if let targetCatalogID {
@@ -65,8 +76,6 @@ public final class RPCHandler {
         )
       }
       resolvedCatalog = found
-    } else if catalogs.count == 1 {
-      resolvedCatalog = catalogs.values.first
     } else {
       resolvedCatalog = nil
     }
@@ -134,18 +143,42 @@ public final class RPCHandler {
     }
 
     let rawArgs = message.callFunction.args ?? [:]
+    let fallbackHandler = DummyContextFunctionHandler(catalogs: catalogs, defaultCatalog: catalog)
+    let argHandler = RPCArgumentFunctionHandler(
+      delegate: dataContext?.functionHandler,
+      fallback: fallbackHandler
+    )
+    let argResolutionContext = DataContext(
+      dataModel: dataContext?.dataModel ?? DataModel(),
+      path: dataContext?.path ?? "",
+      functionHandler: argHandler,
+      protocolVersion: dataContext?.protocolVersion ?? message.version,
+      index: dataContext?.index
+    )
     let effectiveContext =
       dataContext
       ?? DataContext(
-        dataModel: DataModel(),
+        dataModel: argResolutionContext.dataModel,
         path: "",
-        functionHandler: DummyContextFunctionHandler(catalogs: catalogs, defaultCatalog: catalog),
+        functionHandler: fallbackHandler,
         protocolVersion: message.version
       )
 
     var resolvedArgs: [String: JSONValue] = [:]
     for (key, val) in rawArgs {
-      resolvedArgs[key] = effectiveContext.resolveDynamicValue(val)
+      resolvedArgs[key] = argResolutionContext.resolveDynamicValue(val)
+    }
+
+    if let capturedError = argHandler.capturedError {
+      let errorPayload = FunctionErrorPayload(
+        code: .executionError,
+        message: String(describing: capturedError)
+      )
+      return RendererFunctionResponseMessage(
+        functionCallID: message.functionCallID,
+        error: errorPayload,
+        version: message.version
+      )
     }
 
     let argsValidation = function.api.schema.validate(
@@ -298,6 +331,31 @@ public final class RPCHandler {
       pending.continuation.resume(throwing: FunctionError.disposed(callID: callID))
     }
     pendingCalls.removeAll()
+  }
+}
+
+private final class RPCArgumentFunctionHandler: FunctionHandler {
+  private weak var delegate: FunctionHandler?
+  private let fallback: DummyContextFunctionHandler
+  private(set) var capturedError: Error?
+
+  init(delegate: FunctionHandler?, fallback: DummyContextFunctionHandler) {
+    self.delegate = delegate
+    self.fallback = fallback
+  }
+
+  func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
+    if let delegate {
+      return delegate.function(named: name, catalogID: catalogID)
+    }
+    return fallback.function(named: name, catalogID: catalogID)
+  }
+
+  func handleFunctionError(_ error: Error, functionName: String) {
+    if capturedError == nil {
+      capturedError = error
+    }
+    delegate?.handleFunctionError(error, functionName: functionName)
   }
 }
 

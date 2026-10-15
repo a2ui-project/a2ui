@@ -47,8 +47,7 @@ abstract class VersionAdapter {
   /// adapter does not serve or is not a well-formed message of its version.
   List<InternalOperation> toOperations(Map<String, Object?> rawMessage) {
     checkServes(
-      A2uiProtocolVersion.fromJson(rawMessage['version'], details: rawMessage),
-      details: rawMessage,
+      A2uiProtocolVersion.fromJson(rawMessage['version']),
     );
     return operationsFor(
       AgentToRendererMessage.fromJson(Map<String, dynamic>.from(rawMessage)),
@@ -68,12 +67,11 @@ abstract class VersionAdapter {
   Map<String, Object?> fromRendererMessage(RendererToAgentMessage message);
 
   /// Throws [A2uiValidationError] unless this adapter serves [declared].
-  void checkServes(A2uiProtocolVersion declared, {Object? details}) {
+  void checkServes(A2uiProtocolVersion declared) {
     if (versions.contains(declared)) return;
     throw A2uiValidationError(
       'Invalid ${version.jsonValue} message: it declares version '
       "'${declared.jsonValue}', which this adapter does not serve.",
-      details: details,
     );
   }
 
@@ -137,12 +135,11 @@ class VersionAdapterRegistry {
   /// The adapter serving [version].
   ///
   /// Throws [A2uiValidationError] if no adapter serves it.
-  VersionAdapter adapterFor(A2uiProtocolVersion version, {Object? details}) =>
+  VersionAdapter adapterFor(A2uiProtocolVersion version) =>
       _adapters[version] ??
       (throw A2uiValidationError(
         "Unsupported protocol version '${version.jsonValue}'. Supported "
         'versions: ${_adapters.keys.map((v) => v.jsonValue).join(', ')}.',
-        details: details,
       ));
 
   /// The adapter for the version [rawMessage] declares.
@@ -150,9 +147,7 @@ class VersionAdapterRegistry {
   /// Throws [A2uiValidationError] if [rawMessage] declares no version, one
   /// this SDK does not know, or one no adapter here serves.
   VersionAdapter resolve(Map<String, Object?> rawMessage) => adapterFor(
-        A2uiProtocolVersion.fromJson(rawMessage['version'],
-            details: rawMessage),
-        details: rawMessage,
+        A2uiProtocolVersion.fromJson(rawMessage['version']),
       );
 
   /// The adapter for the version [message] declares.

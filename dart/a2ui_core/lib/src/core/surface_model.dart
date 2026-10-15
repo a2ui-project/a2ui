@@ -96,18 +96,18 @@ class SurfaceModel<T extends ComponentApi> {
   /// `MessageProcessor` wires it to its `RpcHandler`.
   final AgentFunctionCaller? callAgentFunction;
 
-  final _onAction = EventNotifier<A2uiClientAction>();
-  final _onError = EventNotifier<A2uiClientError>();
+  final _onAction = EventNotifier<A2uiRendererAction>();
+  final _onError = EventNotifier<A2uiRendererError>();
   final _onWarning = EventNotifier<A2uiWarning>();
 
   /// Fires whenever an action is dispatched from this surface.
-  EventListenable<A2uiClientAction> get onAction => _onAction;
+  EventSource<A2uiRendererAction> get onAction => _onAction;
 
   /// Fires whenever an error occurs on this surface.
-  EventListenable<A2uiClientError> get onError => _onError;
+  EventSource<A2uiRendererError> get onError => _onError;
 
   /// Fires whenever a non-fatal warning occurs on this surface.
-  EventListenable<A2uiWarning> get onWarning => _onWarning;
+  EventSource<A2uiWarning> get onWarning => _onWarning;
 
   /// Creates a surface whose items resolve against [defaultCatalog] or, when
   /// they name one, against a catalog in [availableCatalogs].
@@ -181,22 +181,28 @@ class SurfaceModel<T extends ComponentApi> {
   /// [catalogId] is the id the item names for itself. The order is the one
   /// v1.0 specifies: the named catalog, which must be in
   /// [availableCatalogs]; otherwise [defaultCatalog]. There is no fallback to
-  /// a sole available catalog.
+  /// a sole available catalog. An empty [catalogId] names a catalog too.
+  /// [subject] names the item in the error, such as `"Component 'root'"`.
   ///
   /// Throws [A2uiCatalogResolutionError] when [catalogId] is not in
   /// [availableCatalogs], or when it is null and the surface has no default.
-  Catalog<T, FunctionImplementation> resolveCatalog(String? catalogId) {
+  Catalog<T, FunctionImplementation> resolveCatalog(
+    String? catalogId, {
+    String subject = 'Item',
+  }) {
     if (catalogId != null) {
       return availableCatalogs[catalogId] ??
           (throw A2uiCatalogResolutionError(
-            "Catalog '$catalogId' is not supported by surface '$id'.",
+            'Catalog not found: $catalogId. $subject names a catalog surface '
+            "'$id' does not have. "
+            "Available: ${availableCatalogs.keys.join(', ')}.",
             catalogId: catalogId,
           ));
     }
     return defaultCatalog ??
         (throw A2uiCatalogResolutionError(
-          "Surface '$id' has no default catalog, so an item that names no "
-          'catalogId cannot be resolved.',
+          "$subject names no catalogId and surface '$id' has no default "
+          'catalogId.',
         ));
   }
 
@@ -222,7 +228,7 @@ class SurfaceModel<T extends ComponentApi> {
       event = payload;
     } else {
       await dispatchError(
-        A2uiClientError(
+        A2uiRendererError(
           code: 'INVALID_ACTION',
           surfaceId: id,
           message: "Invalid action payload in component '$sourceComponentId': "
@@ -236,7 +242,7 @@ class SurfaceModel<T extends ComponentApi> {
     final Object? name = event['name'];
     if (name is! String || name.isEmpty) {
       await dispatchError(
-        A2uiClientError(
+        A2uiRendererError(
           code: 'INVALID_ACTION',
           surfaceId: id,
           message: "Invalid action payload in component '$sourceComponentId': "
@@ -262,7 +268,7 @@ class SurfaceModel<T extends ComponentApi> {
     }
 
     final Object? catalogId = event['catalogId'] ?? payload['catalogId'];
-    final action = A2uiClientAction(
+    final action = A2uiRendererAction(
       name: name,
       surfaceId: id,
       sourceComponentId: sourceComponentId,
@@ -279,7 +285,7 @@ class SurfaceModel<T extends ComponentApi> {
   }
 
   /// Dispatches an error from this surface.
-  Future<void> dispatchError(A2uiClientError error) async {
+  Future<void> dispatchError(A2uiRendererError error) async {
     _onError.emit(error);
   }
 

@@ -133,7 +133,11 @@ CatalogApi _load(
 }) {
   final String id = _settleId(document, catalogId, source);
   _checkVersion(document, protocolVersion, source, id);
-  return Catalog.fromJson({...document, 'catalogId': id});
+  return Catalog.fromJson(
+    document,
+    catalogId: id,
+    protocolVersion: protocolVersion,
+  );
 }
 
 String _settleId(

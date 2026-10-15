@@ -415,6 +415,11 @@ export class McpApp extends CatalogComponent<any> implements OnDestroy, OnInit {
       if (!surface) {
         throw new Error('Surface not found');
       }
+      // samples/community builds against the published @a2ui/web_core, which has
+      // no `defaultCatalog` yet; `catalog` names the surface default in both.
+      if (!surface.catalog) {
+        throw new Error(`Surface '${surface.id}' has no default catalog`);
+      }
       const dataContext = new DataContext(surface, '/');
 
       const result = await surface.catalog.invoker(params.call, params.args, dataContext);

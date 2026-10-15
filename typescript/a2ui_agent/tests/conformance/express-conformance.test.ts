@@ -20,7 +20,6 @@ import {describe, test, expect} from 'vitest';
 import {CONFORMANCE_ROOT, loadCases} from './loader.js';
 import {createFileCatalogConfig} from './fixtures.js';
 import {Catalog, CatalogApi} from '../../src/internal/web-core.js';
-import {registerCatalogDocument} from '../../src/utils/catalog-document.js';
 import {
   A2uiCatalogError,
   A2uiCompilationError,
@@ -46,13 +45,10 @@ const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
  * Registered with test.fails and Python's reason.
  */
 const KNOWN_FAILURES = new Map<string, string>([
-  ...[
-    'test_compile_express_surface_targeting_names_a_catalog',
+  [
     'test_decompile_express_two_surfaces_in_two_catalogs',
-  ].map((name): [string, string] => [
-    name,
     'multi-catalog Express resolves components by name across active catalogs and omits createSurface.catalogId',
-  ]),
+  ],
 ]);
 
 /**
@@ -313,8 +309,7 @@ describe('Express Conformance Suite', () => {
         for (const entry of catEntries) {
           const fullPath = path.resolve(CONFORMANCE_ROOT, entry.catalog);
           const schema = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
-          let catalog = Catalog.fromSchema(schema);
-          registerCatalogDocument(catalog, schema);
+          let catalog = Catalog.fromJson(schema);
 
           if (entry.transformers) {
             for (const trans of entry.transformers) {

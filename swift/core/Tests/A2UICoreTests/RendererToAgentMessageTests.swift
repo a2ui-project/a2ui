@@ -545,4 +545,32 @@ struct RendererToAgentMessageTests {
       #expect(decodedError.version == targetVersion)
     }
   }
+
+  @Test func genericErrorExpressionRoundTrips() throws {
+    for targetVersion in A2UIProtocolVersion.allCases {
+      let errorMsg = RendererToAgentMessage.error(
+        .generic(
+          GenericError(
+            code: "EXPRESSION_ERROR",
+            surfaceID: "s1",
+            message: "Function not found: noSuchFunction",
+            expression: "noSuchFunction",
+            version: targetVersion
+          )
+        )
+      )
+      let data = try JSONEncoder().encode(errorMsg)
+      let json = try #require(String(data: data, encoding: .utf8))
+      #expect(json.contains("\"expression\":\"noSuchFunction\""))
+      let decoded = try JSONDecoder().decode(RendererToAgentMessage.self, from: data)
+      #expect(decoded == errorMsg)
+    }
+  }
+
+  @Test func genericErrorOmitsExpressionWhenNil() throws {
+    let error = GenericError(code: "ERR", surfaceID: "s1", message: "msg", version: .v10)
+    let data = try JSONEncoder().encode(RendererToAgentMessage.error(.generic(error)))
+    let json = try #require(String(data: data, encoding: .utf8))
+    #expect(!json.contains("expression"))
+  }
 }

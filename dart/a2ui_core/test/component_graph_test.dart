@@ -43,7 +43,10 @@ void main() {
 
         expect(() => checkPathsAndRecursion(messageJson), returnsNormally);
         expect(
-          () => checkPathsAndRecursion(messageJson, v1: true),
+          () => checkPathsAndRecursion(
+            messageJson,
+            version: A2uiProtocolVersion.v1_0,
+          ),
           returnsNormally,
         );
 
@@ -137,7 +140,7 @@ void main() {
               ],
             },
           },
-          v1: false,
+          version: A2uiProtocolVersion.v0_9,
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -157,7 +160,7 @@ void main() {
               ],
             },
           },
-          v1: false,
+          version: A2uiProtocolVersion.v0_9,
         ),
         throwsA(isA<A2uiValidationError>()),
       );
@@ -178,7 +181,7 @@ void main() {
               ],
             },
           },
-          v1: false,
+          version: A2uiProtocolVersion.v0_9,
         ),
         returnsNormally,
       );
@@ -194,12 +197,14 @@ void main() {
         };
       }
       expect(
-        () => checkPathsAndRecursion(nestedCall, v1: false),
+        () => checkPathsAndRecursion(nestedCall,
+            version: A2uiProtocolVersion.v0_9),
         throwsA(isA<A2uiRecursionError>()),
       );
       // In v1.0 mode, plain 'call' is not a function call object.
       expect(
-        () => checkPathsAndRecursion(nestedCall, v1: true),
+        () => checkPathsAndRecursion(nestedCall,
+            version: A2uiProtocolVersion.v1_0),
         returnsNormally,
       );
     });
@@ -282,11 +287,17 @@ void main() {
         };
       }
       expect(
-        () => checkPathsAndRecursion(nestedAtCall, v1: true),
+        () => checkPathsAndRecursion(
+          nestedAtCall,
+          version: A2uiProtocolVersion.v1_0,
+        ),
         throwsA(isA<A2uiRecursionError>()),
       );
       expect(
-        () => checkPathsAndRecursion(nestedAtCall, v1: false),
+        () => checkPathsAndRecursion(
+          nestedAtCall,
+          version: A2uiProtocolVersion.v0_9,
+        ),
         returnsNormally,
       );
     });

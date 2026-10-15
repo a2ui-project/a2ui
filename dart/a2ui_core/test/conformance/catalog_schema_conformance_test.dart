@@ -21,8 +21,9 @@ import 'package:test/test.dart';
 
 import 'conformance_harness.dart';
 
-/// Runs the shared `conformance/core/catalog.yaml` suite (`from_json` and
-/// `catalog_schema` actions) against [Catalog].
+/// Runs the shared catalog suite `conformance/core/catalog.yaml` against
+/// [Catalog]: its `from_json`, `to_json`, `round_trip` and
+/// `validation_schema` cases, for every protocol version.
 void main() {
   final List<Map<String, Object?>> cases = loadConformanceSuite(
     'core/catalog.yaml',
@@ -31,398 +32,355 @@ void main() {
   group('conformance core/catalog.yaml', () {
     test('suite has cases', () => expect(cases, isNotEmpty));
 
-    runConformanceSuite(
-      cases,
-      _runCase,
-      expectedFailures: _expectedFailures,
-      skipReason: _skipReason,
-    );
+    for (final testCase in cases) {
+      final name = testCase['name']! as String;
+      test(
+        name,
+        () => _runCase(testCase),
+        skip: _knownDivergences[name] ??
+            (testCase['protocolVersion'] == 'v0.8' &&
+                    testCase['action'] != 'round_trip'
+                ? _noV08
+                : null),
+      );
+    }
   });
 }
 
-/// Cases expected to fail.
-const Map<String, String> _expectedFailures = {
-  'test_v09_basic_catalog_schema':
-      '`Catalog.fromJson` flattens the `allOf` component envelope and '
-          'synthesizes its `ComponentCommon` and `Checkable` members, so '
-          "`catalogSchema` does not reproduce the published document's shape.",
-  'test_v10_basic_catalog_schema':
-      '`Catalog.fromJson` flattens the `allOf` component envelope and '
-          'synthesizes its `ComponentCommon` and `Checkable` members, so '
-          "`catalogSchema` does not reproduce the published document's shape.",
-  'test_v10_catalog_from_json_uax31_validation':
-      "The case declares a function named '@index', which `Catalog.fromJson` "
-          'rejects because names starting with `@` are reserved.',
-  'test_v10_catalog_schema_basic':
-      'The case declares `id` on a v1.0 component, which the protocol '
-          'reserves for the message envelope, so `catalogSchema` omits it; '
-          'it also emits the resolved `protocolVersion` and the v1.0 '
-          '`anyFunction` entry, which the case does not expect.',
-  'test_v10_uax31_invalid_argument_name':
-      'v1.0 identifiers are not checked against UAX #31 yet.',
-  'test_v10_uax31_invalid_armenian_hyphen_function_name':
-      'v1.0 identifiers are not checked against UAX #31 yet.',
-  'test_v10_uax31_invalid_component_name':
-      'v1.0 identifiers are not checked against UAX #31 yet.',
-  'test_v10_uax31_invalid_em_dash_property_name':
-      'v1.0 identifiers are not checked against UAX #31 yet.',
-  'test_v10_uax31_invalid_en_dash_component_name':
-      'v1.0 identifiers are not checked against UAX #31 yet.',
-  'test_v10_uax31_invalid_function_name':
-      'v1.0 identifiers are not checked against UAX #31 yet.',
-  'test_v10_uax31_invalid_property_name':
-      'v1.0 identifiers are not checked against UAX #31 yet.',
-};
+/// Why a case naming protocol version v0.8 is skipped, unless it is a
+/// `round_trip`, which reads and writes the document without a v0.8 basic
+/// catalog or v0.8 validation rules.
+const String _noV08 = 'Targets v0.8, which a2ui_core does not implement.';
 
-/// Why a case cannot run, or null when it can.
-String? _skipReason(Map<String, Object?> testCase) =>
-    caseVersion(testCase) == '0.8'
-        ? 'This SDK does not implement protocol v0.8.'
-        : null;
+/// Cases whose expected outcome Dart does not produce, with the reason.
+const Map<String, String> _knownDivergences = {};
+
+/// The built-in catalogs this package implements, by catalog id.
+final Map<String, CatalogApi> _builtinCatalogs = {
+  for (final CatalogApi catalog in [BasicCatalog.v0_9(), BasicCatalog.v1_0()])
+    catalog.id: catalog,
+};
 
 void _runCase(Map<String, Object?> testCase) {
   final action = testCase['action'] as String?;
   switch (action) {
     case 'from_json':
       _runFromJsonCase(testCase);
-    case 'catalog_schema':
-      _runCatalogSchemaCase(testCase);
+    case 'validation_schema':
+      _runValidationSchemaCase(testCase);
+    case 'round_trip':
+      _runRoundTripCase(testCase);
+    case 'to_json':
+      _runToJsonCase(testCase);
     default:
       throw StateError('Unsupported catalog conformance action: $action');
   }
 }
 
+/// The keys a `FromJsonExpect` may set.
+const Set<String> _fromJsonExpectKeys = {
+  'catalogId',
+  'protocolVersion',
+  'components',
+  'functions',
+  'theme',
+  'matchesBuiltinCatalog',
+  'selfContained',
+  'validComponents',
+  'invalidComponents',
+};
+
 void _runFromJsonCase(Map<String, Object?> testCase) {
   final name = testCase['name']! as String;
   final Map<String, Object?> rawCatalog = _document(
-    testCase['catalogSchema'] ??
-        testCase['catalog'] ??
-        testCase['schema'] ??
-        testCase['catalogPath'],
+    testCase['catalog'] ?? testCase['catalogPath'],
   );
-  final overrideId = testCase['catalogId'] as String?;
-  final input = <String, Object?>{
-    ...rawCatalog,
-    if (overrideId != null) 'catalogId': overrideId,
-  };
+  final input = rawCatalog;
+  final catalogId = testCase['catalogId'] as String?;
+  // As in the other SDK harnesses, a case that names no version reads a
+  // document that declares none as v0.9.
+  final A2uiProtocolVersion version =
+      _version(testCase) ?? A2uiProtocolVersion.v0_9;
 
-  final Object? expectError = testCase['expectError'];
-  if (expectError != null) {
+  if (testCase['expectError'] != null) {
     expect(
-      () => Catalog.fromJson(input),
+      () => Catalog.fromJson(
+        input,
+        protocolVersion: version,
+        catalogId: catalogId,
+      ),
       throwsA(isA<A2uiCatalogError>()),
       reason: name,
     );
     return;
   }
 
-  final CatalogApi catalog = Catalog.fromJson(input);
+  final CatalogApi catalog = Catalog.fromJson(
+    input,
+    protocolVersion: version,
+    catalogId: catalogId,
+  );
   final Map<String, Object?> expected =
-      (testCase['expect'] as Map<String, Object?>?) ?? const {};
+      (testCase['expect'] as Map?)?.cast<String, Object?>() ?? const {};
+  final Set<String> unknown = expected.keys.toSet().difference(
+        _fromJsonExpectKeys,
+      );
+  if (unknown.isNotEmpty) {
+    fail('$name: unsupported from_json expectations $unknown');
+  }
 
   if (expected['catalogId'] case final String expectedId) {
     expect(catalog.id, expectedId, reason: '$name: catalogId');
   }
-  if (expected['components'] case final Map<String, Object?> expectedComps) {
+  if (expected['protocolVersion'] case final String expectedVersion) {
     expect(
-      catalog.components.keys.toList()..sort(),
-      expectedComps.keys.toList()..sort(),
+      catalog.protocolVersion,
+      A2uiProtocolVersion.tryParseSemVer(expectedVersion),
+      reason: '$name: protocolVersion',
+    );
+  }
+  if (expected.containsKey('components')) {
+    final List<String> expectedComps = _names(expected['components']);
+    expect(
+      catalog.components.keys,
+      unorderedEquals(expectedComps),
       reason: '$name: components',
     );
-    for (final String compName in expectedComps.keys) {
+    for (final compName in expectedComps) {
       final Map<String, Object?> schemaValue =
-          catalog.components[compName]!.schema.value;
+          catalog.resolvedComponentSchemas[compName]!.value;
       expect(
         jsonEncode(schemaValue),
         isNot(contains(r'"$ref":"#/$defs/')),
-        reason: '$name: local \$defs inlined in $compName',
+        reason: '$name: local \$defs inlined in resolved $compName',
       );
     }
   }
-  if (expected['functions'] case final Map<String, Object?> expectedFuncs) {
+  if (expected.containsKey('functions')) {
     expect(
-      catalog.functions.keys.toList()..sort(),
-      expectedFuncs.keys.toList()..sort(),
+      catalog.functions.keys,
+      unorderedEquals(_names(expected['functions'])),
       reason: '$name: functions',
     );
   }
-  if (expected['theme'] case final Map<String, Object?> expectedTheme) {
+  if (expected['theme'] case final Map<Object?, Object?> expectedTheme) {
     if (expectedTheme.isNotEmpty) {
       expect(catalog.themeSchema, isNotNull, reason: '$name: themeSchema');
     }
   }
+  if (expected['selfContained'] == true) {
+    _checkSelfContained(catalog.validationSchema, name, requireRefs: true);
+  }
+  if (expected.containsKey('validComponents') ||
+      expected.containsKey('invalidComponents')) {
+    final validator = PayloadValidator<ComponentApi, FunctionApi>(
+      catalog: catalog,
+    );
+    for (final Object? component in _list(expected['validComponents'])) {
+      validator.validateComponent((component! as Map).cast<String, Object?>());
+    }
+    for (final Object? component in _list(expected['invalidComponents'])) {
+      expect(
+        () => validator.validateComponent(
+          (component! as Map).cast<String, Object?>(),
+        ),
+        throwsA(isA<A2uiValidationError>()),
+        reason: '$name: expected ${jsonEncode(component)} to be rejected',
+      );
+    }
+  }
+  if (expected['matchesBuiltinCatalog'] == true) {
+    _checkMatchesBuiltinCatalog(catalog, name);
+  }
 }
 
-void _runCatalogSchemaCase(Map<String, Object?> testCase) {
-  if (testCase['expectCatalog'] case final Map<String, Object?> spec) {
-    _runExpectCatalogCase(testCase, spec);
+List<Object?> _list(Object? value) => value is List ? value : const <Object?>[];
+
+/// Checks `matchesBuiltinCatalog`: [loaded] is equivalent to this package's
+/// own implementation of the catalog with the same id.
+void _checkMatchesBuiltinCatalog(CatalogApi loaded, String name) {
+  final CatalogApi? builtin = _builtinCatalogs[loaded.id];
+  if (builtin == null) {
+    markTestSkipped('a2ui_core has no built-in catalog ${loaded.id}.');
     return;
   }
-  final Map<String, Object?> source = _document(
-    testCase['catalogSchema'] ??
-        testCase['catalog'] ??
-        testCase['schema'] ??
-        testCase['catalogPath'],
-  );
-  final CatalogApi catalog = Catalog.fromJson(source);
-
-  final Map<String, Object?> document = catalog.catalogSchema;
-  final Map<String, Object?> expect_;
-  if (testCase.containsKey('expectFile')) {
-    final String expFile =
-        resolveConformancePath(testCase['expectFile']! as String);
-    expect_ =
-        jsonDecode(File(expFile).readAsStringSync()) as Map<String, Object?>;
-  } else {
-    expect_ = (testCase['expect'] as Map<String, Object?>?) ?? const {};
-  }
-  final name = testCase['name']! as String;
-
-  if (expect_[r'$schema'] case final String expectedSchema) {
-    expect(document[r'$schema'], expectedSchema, reason: '$name: \$schema');
-  }
-  if (expect_['catalogId'] case final String expectedId) {
-    expect(document['catalogId'], expectedId, reason: '$name: catalogId');
-  }
-  if (expect_['protocolVersion'] case final String expectedVer) {
-    expect(
-      document['protocolVersion'],
-      expectedVer,
-      reason: '$name: protocolVersion',
-    );
-  }
-  if (expect_['components'] case final Map<String, Object?> expectedComps) {
-    expect(
-      document['components'],
-      equals(expectedComps),
-      reason: '$name: components',
-    );
-  }
-  if (expect_['functions'] case final Map<String, Object?> expectedFuncs) {
-    final Map<String, Object?> actualFuncs =
-        (document['functions'] as Map?)?.cast<String, Object?>() ?? const {};
-    expect(
-      actualFuncs.keys.toList()..sort(),
-      expectedFuncs.keys.toList()..sort(),
-      reason: '$name: function names',
-    );
-  }
-  if (expect_[r'$defs'] case final Map<String, Object?> expectedDefs) {
-    final Map<String, Object?> actualDefs =
-        (document[r'$defs'] as Map?)?.cast<String, Object?>() ?? const {};
-    if (expectedDefs.containsKey('theme')) {
-      expect(
-        actualDefs['theme'],
-        equals(expectedDefs['theme']),
-        reason: '$name: \$defs.theme',
-      );
-    } else {
-      expect(
-        actualDefs.containsKey('theme'),
-        isFalse,
-        reason: '$name: \$defs.theme should be omitted',
-      );
-    }
-  }
-
-  _checkUnions(document, name);
-  _checkSelfContained(document, name);
-  _checkFixedPoint(document, name);
-}
-
-/// Checks the SDK's own implementation of a published catalog against that
-/// catalog, as the reference harness does.
-///
-/// The case names the published document by path; the [BasicCatalog] factory
-/// with the same `catalogId` is the implementation under test. Both sides are
-/// brought to the form [_consolidate] describes and must then be equal.
-void _runExpectCatalogCase(
-  Map<String, Object?> testCase,
-  Map<String, Object?> spec,
-) {
-  final name = testCase['name']! as String;
-  final Map<String, Object?> published = _document(testCase['catalogPath']);
-  final Catalog<ComponentApi, FunctionImplementation> catalog =
-      switch (published['catalogId']) {
-    BasicCatalog.v0_9Id => BasicCatalog.v0_9(),
-    BasicCatalog.v1_0Id => BasicCatalog.v1_0(),
-    final Object? other => fail('$name: no SDK implementation of $other.'),
-  };
   expect(
-    catalog.protocolVersion,
-    A2uiProtocolVersion.tryParseSemVer(caseVersion(testCase)!),
-    reason: '$name: ${catalog.id} implements protocol '
-        '${catalog.protocolVersion?.jsonValue}',
+    loaded.protocolVersion,
+    builtin.protocolVersion,
+    reason: '$name: protocolVersion',
   );
-
-  final Map<String, Object?> commonTypes = _document(spec['commonTypesPath']);
   expect(
-    _consolidate(catalog.catalogSchema, commonTypes),
-    equals(_consolidate(_document(spec['catalogPath']), commonTypes)),
-    reason: name,
+    _functionSignatures(loaded),
+    equals(_functionSignatures(builtin)),
+    reason: '$name: functions',
+  );
+  expect(
+    _componentShapes(loaded),
+    equals(_componentShapes(builtin)),
+    reason: '$name: components',
   );
 }
 
-/// Brings a catalog document to the form an `expectCatalog` case compares.
-///
-/// Follows `consolidate_spec_catalog` in the Python harness: every `$ref`
-/// into another document becomes local, and the common types the document
-/// references, transitively, join its `$defs`. On top of that:
-/// - Definitions the document declares for itself, other than `theme` and the
-///   `anyComponent` and `anyFunction` unions, are inlined where referenced
-///   and dropped, because [Catalog.fromJson] inlines them and
-///   [Catalog.catalogSchema] emits only those three.
-/// - `$id`, `title`, `description` and `protocolVersion` are dropped, as the
-///   reference harness drops them.
-/// - `enum` and `required` lists are sorted, since their order has no
-///   meaning.
-Map<String, Object?> _consolidate(
-  Map<String, Object?> document,
-  Map<String, Object?> commonTypes,
-) {
-  final consolidated = _localize(document)! as Map<String, Object?>;
-  for (final key in [r'$id', 'title', 'description', 'protocolVersion']) {
-    consolidated.remove(key);
-  }
-
-  final commonDefs = (_localize(commonTypes)!
-      as Map<String, Object?>)[r'$defs']! as Map<String, Object?>;
-  final Map<String, Object?> defs =
-      (consolidated[r'$defs'] as Map<String, Object?>?) ?? {};
-  // Common types bundled into `$defs` (as `catalogSchema` does) stay there,
-  // since they reference each other and are joined from [commonTypes] below.
-  const kept = {'theme', 'anyComponent', 'anyFunction'};
-  final Map<String, Object?> own = {
-    for (final MapEntry<String, Object?> entry in defs.entries)
-      if (!kept.contains(entry.key) && !commonDefs.containsKey(entry.key))
-        entry.key: entry.value,
-  };
-  defs.removeWhere((key, _) => own.containsKey(key));
-  final inlined = _inlineDefs(consolidated, own)! as Map<String, Object?>;
-  inlined[r'$defs'] = defs;
-
-  final Set<String> pending = _defRefs(inlined);
-  while (pending.isNotEmpty) {
-    final String def = pending.first;
-    pending.remove(def);
-    if (!defs.containsKey(def) && commonDefs.containsKey(def)) {
-      defs[def] = commonDefs[def];
-      pending.addAll(_defRefs(commonDefs[def]));
-    }
-  }
-  return _sortSetKeywords(inlined)! as Map<String, Object?>;
-}
-
-/// A deep copy of [node] in which every `$ref` that points into a document,
-/// local or not, becomes a local `#/...` reference.
-Object? _localize(Object? node) {
-  if (node is List) return [for (final Object? item in node) _localize(item)];
-  if (node is! Map) return node;
-  return <String, Object?>{
-    for (final MapEntry<Object?, Object?> entry in node.entries)
-      entry.key! as String: entry.key == r'$ref' &&
-              entry.value is String &&
-              (entry.value! as String).contains('#/')
-          ? '#${(entry.value! as String).split('#').last}'
-          : _localize(entry.value),
+/// The property and required names of each component, without the `id`
+/// and `component` envelope fields.
+Map<String, Object?> _componentShapes(CatalogApi catalog) {
+  const envelope = {'id', 'component'};
+  final Map<String, Object?> components =
+      (catalog.validationSchema['components'] as Map?)
+              ?.cast<String, Object?>() ??
+          const {};
+  return {
+    for (final MapEntry<String, Object?> entry in components.entries)
+      entry.key: {
+        'properties': [
+          for (final Object? key
+              in ((entry.value! as Map)['properties'] as Map? ?? const {}).keys)
+            if (!envelope.contains(key)) '$key',
+        ]..sort(),
+        'required': [
+          for (final Object? key
+              in (entry.value! as Map)['required'] as List? ?? const [])
+            if (!envelope.contains(key)) '$key',
+        ]..sort(),
+      },
   };
 }
 
-/// [node] with each `#/$defs/<name>` reference to one of [defs] replaced by
-/// that definition, keywords beside the `$ref` winning as in
-/// [Catalog.fromJson].
-Object? _inlineDefs(Object? node, Map<String, Object?> defs) {
-  if (node is List) {
-    return [for (final Object? item in node) _inlineDefs(item, defs)];
-  }
-  if (node is! Map<String, Object?>) return node;
-  final Object? ref = node[r'$ref'];
-  if (ref is String && ref.startsWith(r'#/$defs/')) {
-    final Object? target = defs[ref.substring(r'#/$defs/'.length)];
-    if (target is Map<String, Object?>) {
-      return <String, Object?>{
-        ...(_inlineDefs(target, defs)! as Map<String, Object?>),
-        for (final MapEntry<String, Object?> entry in node.entries)
-          if (entry.key != r'$ref') entry.key: _inlineDefs(entry.value, defs),
-      };
-    }
-  }
-  return <String, Object?>{
-    for (final MapEntry<String, Object?> entry in node.entries)
-      entry.key: _inlineDefs(entry.value, defs),
-  };
-}
-
-/// The names of the definitions [node] references as `#/$defs/<name>`.
-Set<String> _defRefs(Object? node) => {
-      for (final String ref in _localRefs(node))
-        if (ref.startsWith(r'#/$defs/')) ref.substring(r'#/$defs/'.length),
+/// The return type, callers and activation of each function.
+Map<String, Object?> _functionSignatures(CatalogApi catalog) => {
+      for (final FunctionApi function in catalog.functions.values)
+        function.name: {
+          'returnType': function.returnType.name,
+          'allowedCallers': function.allowedCallers.jsonValue,
+          'requiresUserActivation': function.requiresUserActivation,
+        },
     };
 
-/// [node] with its `enum` and `required` lists sorted.
-Object? _sortSetKeywords(Object? node) {
-  if (node is List) {
-    return [for (final Object? item in node) _sortSetKeywords(item)];
-  }
-  if (node is! Map<String, Object?>) return node;
-  return <String, Object?>{
-    for (final MapEntry<String, Object?> entry in node.entries)
-      entry.key: (entry.key == 'enum' || entry.key == 'required') &&
-              entry.value is List
-          ? ([...(entry.value! as List<Object?>)]
-            ..sort((a, b) => jsonEncode(a).compareTo(jsonEncode(b))))
-          : _sortSetKeywords(entry.value),
-  };
-}
+/// The protocol version a case names, or null when it names none.
+///
+/// A case may spell it with or without the `v` prefix.
+A2uiProtocolVersion? _version(Map<String, Object?> testCase) =>
+    switch (testCase['protocolVersion']) {
+      final String version => A2uiProtocolVersion.tryParseSemVer(version),
+      _ => null,
+    };
 
-/// `anyComponent` and `anyFunction` cover exactly what the document declares.
-void _checkUnions(Map<String, Object?> document, String name) {
-  final Map<String, Object?> defs =
-      (document[r'$defs'] as Map?)?.cast<String, Object?>() ?? {};
-  final Iterable<Object?> components =
-      ((document['components'] as Map?) ?? const {}).keys;
-  final Iterable<Object?> functions =
-      ((document['functions'] as Map?) ?? const {}).keys;
-
-  expect(
-    _unionTargets(defs['anyComponent'])..sort(),
-    [for (final Object? c in components) '#/components/$c']..sort(),
-    reason: '$name: anyComponent',
+/// Compares `validationSchema` with the golden document at `expectFile`,
+/// ignoring object key order and the order of `enum` and `required`.
+///
+/// A case naming a catalog by `catalogPath` loads the published document
+/// with `fromJson`, even when this package implements that catalog itself:
+/// equivalence with the built-in catalog is covered by
+/// `matchesBuiltinCatalog` in the `from_json` cases.
+void _runValidationSchemaCase(Map<String, Object?> testCase) {
+  final name = testCase['name']! as String;
+  final Map<String, Object?> source = _document(
+    testCase['catalog'] ?? testCase['catalogPath'],
   );
-
-  if (functions.isEmpty) {
+  if (testCase['expectError'] != null) {
     expect(
-      defs.containsKey('anyFunction'),
-      isFalse,
-      reason: '$name: anyFunction with no functions',
+      () => _load(testCase, source).validationSchema,
+      throwsA(isA<A2uiError>()),
+      reason: name,
     );
-  } else {
-    expect(
-      _unionTargets(defs['anyFunction'])..sort(),
-      [for (final Object? f in functions) '#/functions/$f']..sort(),
-      reason: '$name: anyFunction',
+    return;
+  }
+
+  final Map<String, Object?> document = _load(
+    testCase,
+    source,
+  ).validationSchema;
+  final String goldenPath = resolveConformancePath(
+    testCase['expectFile']! as String,
+  );
+  final Object? golden = jsonDecode(File(goldenPath).readAsStringSync());
+  final List<String> differences = [
+    for (final (String path, String detail) in _differences(document, golden))
+      '$path: $detail',
+  ];
+  if (differences.isNotEmpty) {
+    fail(
+      '$name: validationSchema differs from ${testCase['expectFile']}:\n'
+      '${differences.join('\n')}',
     );
   }
 }
 
-List<String> _unionTargets(Object? union) {
-  final Object? oneOf = (union as Map?)?['oneOf'];
-  if (oneOf is! List) return const [];
-  return [
-    for (final Object? branch in oneOf)
-      if (branch is Map && branch[r'$ref'] is String)
-        branch[r'$ref']! as String,
-  ];
+/// The JSON pointer paths where [actual] and [expected] differ, each with
+/// a description of the difference, compared as by [_jsonEquivalent].
+List<(String, String)> _differences(
+  Object? actual,
+  Object? expected, [
+  String path = '',
+  String? key,
+]) {
+  if (actual is Map && expected is Map) {
+    return [
+      for (final Object? k in {...actual.keys, ...expected.keys})
+        if (!actual.containsKey(k))
+          ('$path/$k', 'missing, expected ${jsonEncode(expected[k])}')
+        else if (!expected.containsKey(k))
+          ('$path/$k', 'unexpected ${jsonEncode(actual[k])}')
+        else
+          ..._differences(actual[k], expected[k], '$path/$k', '$k'),
+    ];
+  }
+  if (actual is List &&
+      expected is List &&
+      actual.length == expected.length &&
+      key != 'enum' &&
+      key != 'required') {
+    return [
+      for (var i = 0; i < actual.length; i++)
+        ..._differences(actual[i], expected[i], '$path/$i'),
+    ];
+  }
+  return _jsonEquivalent(actual, expected, key)
+      ? const []
+      : [(path, '${jsonEncode(actual)} != ${jsonEncode(expected)}')];
 }
 
-/// Every reference into the document resolves inside it.
-void _checkSelfContained(Map<String, Object?> document, String name) {
+/// Every reference into the document resolves inside it. With
+/// [requireRefs], the document must also contain at least one reference and
+/// none may leave it.
+void _checkSelfContained(
+  Map<String, Object?> document,
+  String name, {
+  bool requireRefs = false,
+}) {
+  if (requireRefs) {
+    final List<String> refs = _allRefs(document).toList();
+    expect(refs, isNotEmpty, reason: '$name: the schema has no references');
+    for (final ref in refs) {
+      expect(
+        ref.startsWith('#'),
+        isTrue,
+        reason: '$name: reference $ref leaves the document',
+      );
+    }
+  }
   for (final String ref in _localRefs(document)) {
     expect(
       _resolves(ref, document),
       isTrue,
       reason: '$name: dangling reference $ref',
     );
+  }
+}
+
+/// Every `$ref` value in [node].
+Iterable<String> _allRefs(Object? node) sync* {
+  if (node is List) {
+    for (final Object? item in node) {
+      yield* _allRefs(item);
+    }
+  } else if (node is Map) {
+    for (final MapEntry<Object?, Object?> entry in node.entries) {
+      if (entry.key == r'$ref' && entry.value is String) {
+        yield entry.value! as String;
+      }
+      yield* _allRefs(entry.value);
+    }
   }
 }
 
@@ -453,25 +411,142 @@ bool _resolves(String ref, Map<String, Object?> document) {
   return true;
 }
 
-/// Rebuilding the rebuilt document changes nothing.
-void _checkFixedPoint(Map<String, Object?> document, String name) {
-  expect(
-    const DeepCollectionEquality().equals(
-      Catalog.fromJson(document).catalogSchema,
-      document,
-    ),
-    isTrue,
-    reason: '$name: rebuilding the rebuilt document is not a fixed point',
+/// `fromJson(c).toJson()` equals `c`, and serializing again changes nothing.
+void _runRoundTripCase(Map<String, Object?> testCase) {
+  final name = testCase['name']! as String;
+  final Map<String, Object?> source = _document(
+    testCase['catalog'] ?? testCase['catalogPath'],
   );
+  final Map<String, Object?> out = _load(testCase, source).toJson();
+  expect(
+    _jsonEquivalent(out, source),
+    isTrue,
+    reason: '$name: toJson differs from the source document.\n'
+        'Source: ${jsonEncode(source)}\nOutput: ${jsonEncode(out)}',
+  );
+
+  final Map<String, Object?> again = _load(testCase, out).toJson();
+  expect(
+    _jsonEquivalent(again, out),
+    isTrue,
+    reason: '$name: toJson is not idempotent.\n'
+        'First: ${jsonEncode(out)}\nSecond: ${jsonEncode(again)}',
+  );
+}
+
+/// Compares `catalog.toJson()` with the document at `expectFile`, as
+/// [_differences] does.
+///
+/// A case naming `builtinCatalog: basic` serializes this package's own basic
+/// catalog for the case's protocol version; any other case loads its catalog
+/// with [Catalog.fromJson].
+void _runToJsonCase(Map<String, Object?> testCase) {
+  final name = testCase['name']! as String;
+  final CatalogApi catalog;
+  if (testCase['builtinCatalog'] case final String builtin) {
+    final CatalogApi? implemented = _builtinCatalog(
+      builtin,
+      _version(testCase),
+    );
+    if (implemented == null) {
+      markTestSkipped(
+        'a2ui_core has no built-in $builtin catalog for '
+        '${testCase['protocolVersion']}.',
+      );
+      return;
+    }
+    catalog = implemented;
+  } else {
+    catalog = _load(
+      testCase,
+      _document(testCase['catalog'] ?? testCase['catalogPath']),
+    );
+  }
+
+  final Map<String, Object?> expected = _document(testCase['expectFile']);
+  final List<String> differences = [
+    for (final (String path, String detail) in _differences(
+      catalog.toJson(),
+      expected,
+    ))
+      '$path: $detail',
+  ];
+  if (differences.isNotEmpty) {
+    fail(
+      '$name: toJson differs from ${testCase['expectFile']}:\n'
+      '${differences.join('\n')}',
+    );
+  }
+}
+
+/// This package's implementation of the built-in catalog [name] for
+/// [version], or null when it has none.
+CatalogApi? _builtinCatalog(String name, A2uiProtocolVersion? version) =>
+    switch ((name, version)) {
+      ('basic', A2uiProtocolVersion.v0_9) => BasicCatalog.v0_9(),
+      ('basic', A2uiProtocolVersion.v1_0) => BasicCatalog.v1_0(),
+      _ => null,
+    };
+
+/// Loads [document] as a case's catalog, with the case's protocol version
+/// and catalog id.
+CatalogApi _load(
+  Map<String, Object?> testCase,
+  Map<String, Object?> document,
+) =>
+    Catalog.fromJson(
+      document,
+      protocolVersion: _version(testCase),
+      catalogId: testCase['catalogId'] as String?,
+    );
+
+/// The names under a document's `components`, `functions` or `$defs`, in
+/// either form `functions` takes.
+List<String> _names(Object? section) => switch (section) {
+      final Map<Object?, Object?> map => [for (final key in map.keys) '$key'],
+      final List<Object?> list => [
+          for (final Object? item in list)
+            if (item is String)
+              item
+            else if (item is Map && item['name'] is String)
+              item['name']! as String,
+        ],
+      _ => const [],
+    };
+
+/// JSON equality that ignores object key order and the order of `enum`
+/// values and `required` names.
+bool _jsonEquivalent(Object? a, Object? b, [String? key]) {
+  if (a is Map && b is Map) {
+    if (a.length != b.length) return false;
+    for (final MapEntry<Object?, Object?> entry in a.entries) {
+      if (!b.containsKey(entry.key)) return false;
+      if (!_jsonEquivalent(entry.value, b[entry.key], '${entry.key}')) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (a is List && b is List) {
+    if (a.length != b.length) return false;
+    if (key == 'enum' || key == 'required') {
+      final List<String> left = [for (final item in a) jsonEncode(item)]
+        ..sort();
+      final List<String> right = [for (final item in b) jsonEncode(item)]
+        ..sort();
+      return const ListEquality<String>().equals(left, right);
+    }
+    for (var i = 0; i < a.length; i++) {
+      if (!_jsonEquivalent(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  return a == b;
 }
 
 /// Reads a catalog document, inline or by path.
 Map<String, Object?> _document(Object? value) {
-  if (value is Map<String, Object?>) {
-    return value.containsKey('catalog_schema')
-        ? _document(value['catalog_schema'])
-        : value;
-  }
+  if (value is Map<String, Object?>) return value;
   if (value is String) {
     final file = File(resolveConformancePath(value));
     if (!file.existsSync()) {

@@ -16,8 +16,8 @@
 
 Each package's version lives in its own git tag series rather than in a file,
 so this module reads the latest tag, computes the next version, cuts the
-changelog and validates that the release will not break the dependency between
-a2ui-agent-sdk and a2ui-core.
+changelog and validates that the release will not break the dependencies
+between the packages (a2ui-core <- a2ui-agent-sdk <- a2ui-a2a <- a2ui-adk).
 
 Used by .github/workflows/release-pypi.yml. Runs on the standard library only,
 so it can be invoked with a bare `python3` before any dependency sync.
@@ -98,7 +98,64 @@ AGENT = Package(
     bootstrap_version="0.6.0",
 )
 
-PACKAGES = {p.pypi_name: p for p in (CORE, AGENT)}
+# The agent framework integrations start from 0.0.0, so their first release
+# with a minor bump is 0.1.0.
+A2A = Package(
+    pypi_name="a2ui-a2a",
+    directory="python/a2ui_a2a",
+    tag_prefix="python/a2ui-a2a/v",
+    bootstrap_version="0.0.0",
+)
+
+ADK = Package(
+    pypi_name="a2ui-adk",
+    directory="python/a2ui_adk",
+    tag_prefix="python/a2ui-adk/v",
+    bootstrap_version="0.0.0",
+)
+
+# Dependency order: every package depends only on packages that come before it,
+# so releasing in this order puts each dependency on PyPI before its dependents.
+RELEASE_ORDER = (CORE, AGENT, A2A, ADK)
+
+PACKAGES = {p.pypi_name: p for p in RELEASE_ORDER}
+
+# Selects every package. Any other selection is a comma-separated list of
+# package names, such as "a2ui-core,a2ui-agent-sdk".
+ALL = "all"
+
+
+def parse_selection(selection: str) -> list[Package]:
+    """Returns the packages a selection names, in `RELEASE_ORDER`.
+
+    Args:
+      selection: `all`, or a comma-separated list of package names, for example
+        "a2ui-a2a" or "a2ui-a2a,a2ui-adk". Whitespace around names is ignored.
+
+    Raises:
+      ValueError: If the selection is empty or names an unknown package.
+    """
+    if selection.strip() == ALL:
+        return list(RELEASE_ORDER)
+    names = [name.strip() for name in selection.split(",") if name.strip()]
+    if not names:
+        raise ValueError("no package selected")
+    unknown = [name for name in names if name not in PACKAGES]
+    if unknown:
+        raise ValueError(
+            f"unknown package(s) {', '.join(unknown)}. Choose from"
+            f" {', '.join(PACKAGES)}, or {ALL}."
+        )
+    return [package for package in RELEASE_ORDER if package.pypi_name in names]
+
+
+def _selection(value: str) -> str:
+    """argparse type that validates a selection and returns it unchanged."""
+    try:
+        parse_selection(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from None
+    return value
 
 
 def parse_version(version: str) -> tuple[int, int, int]:
@@ -166,17 +223,23 @@ def versions_from_tags(package: Package, tags: Iterable[str]) -> list[str]:
     return versions
 
 
-def current_version(package: Package, repo_root: str) -> str:
-    """Returns the latest released version, or the bootstrap version.
-
-    Falling back to the bootstrap version covers the first release after the
-    migration, when a package may not have a tag yet.
-    """
+def released_version(package: Package, repo_root: str) -> str | None:
+    """Returns the latest released version, or None if there is no tag yet."""
     output = _git(["tag", "--list", f"{package.tag_prefix}*"], repo_root)
     versions = versions_from_tags(package, output.splitlines())
     if not versions:
-        return package.bootstrap_version
+        return None
     return format_version(max(parse_version(v) for v in versions))
+
+
+def current_version(package: Package, repo_root: str) -> str:
+    """Returns the latest released version, or the bootstrap version.
+
+    Falling back to the bootstrap version covers the first release of a package,
+    or the first release after the migration to tag-derived versions, when a
+    package does not have a tag yet.
+    """
+    return released_version(package, repo_root) or package.bootstrap_version
 
 
 def read_unreleased(changelog: str) -> str:
@@ -234,20 +297,42 @@ def cut_changelog(changelog: str, version: str, today: datetime.date) -> str:
     return "\n".join([*lines[:start], *replacement, *lines[end:]]).rstrip() + "\n"
 
 
+def dependency_specifiers(pyproject: str, dependency: str) -> list[str]:
+    """Returns every version specifier a pyproject declares for a dependency.
+
+    Both `project.dependencies` and every `project.optional-dependencies` extra
+    are searched. Extras and environment markers are dropped, so
+    "a2ui-a2a[x]>=0.1.0; python_version>='3.10'" yields ">=0.1.0". A dependency
+    without a version yields an empty string.
+    """
+    project = tomllib.loads(pyproject).get("project", {})
+    requirements = list(project.get("dependencies", []))
+    for extra in project.get("optional-dependencies", {}).values():
+        requirements.extend(extra)
+
+    specifiers = []
+    for requirement in requirements:
+        requirement = requirement.split(";", 1)[0]
+        match = re.match(
+            r"^\s*([A-Za-z0-9._-]+)\s*(?:\[[^\]]*\])?\s*(.*)$", requirement
+        )
+        if not match:
+            continue
+        name = match[1].lower().replace("_", "-")
+        if name == dependency:
+            specifiers.append(match[2].strip())
+    return specifiers
+
+
 def core_specifier(agent_pyproject: str) -> str:
     """Returns a2ui-agent-sdk's version specifier for a2ui-core.
 
     For example "a2ui-core>=0.1.1,<0.2.0" yields ">=0.1.1,<0.2.0".
     """
-    data = tomllib.loads(agent_pyproject)
-    for dependency in data["project"]["dependencies"]:
-        match = re.match(r"^\s*([A-Za-z0-9._-]+)\s*(.*)$", dependency)
-        if not match:
-            continue
-        name = match[1].lower().replace("_", "-")
-        if name == CORE.pypi_name:
-            return match[2].strip()
-    raise ValueError(f"{AGENT.pypi_name} does not depend on {CORE.pypi_name}")
+    specifiers = dependency_specifiers(agent_pyproject, CORE.pypi_name)
+    if not specifiers:
+        raise ValueError(f"{AGENT.pypi_name} does not depend on {CORE.pypi_name}")
+    return specifiers[0]
 
 
 def satisfies(version: str, specifier: str) -> bool:
@@ -257,6 +342,9 @@ def satisfies(version: str, specifier: str) -> bool:
     An unrecognised operator raises rather than silently passing.
     """
     target = parse_version(version)
+    if not specifier.strip():
+        # A dependency without a version accepts any version.
+        return True
     clauses = _CLAUSE_RE.findall(specifier)
     if not clauses:
         raise ValueError(f"could not parse version specifier: {specifier!r}")
@@ -280,6 +368,32 @@ def satisfies(version: str, specifier: str) -> bool:
     return True
 
 
+def check_dependent_constraint(
+    package: Package,
+    proposed_version: str,
+    dependent: Package,
+    dependent_pyproject: str,
+) -> str | None:
+    """Returns an error message if a dependent does not accept a new version.
+
+    A dependent pins this package to a range. Publishing a version outside that
+    range would leave the latest dependent unable to resolve against the latest
+    release of this package, so the release is stopped instead.
+    """
+    for specifier in dependency_specifiers(dependent_pyproject, package.pypi_name):
+        if satisfies(proposed_version, specifier):
+            continue
+        return (
+            f"{package.pypi_name} {proposed_version} falls outside the"
+            f" {package.pypi_name}{specifier} range that {dependent.pypi_name}"
+            f" declares in {dependent.pyproject_path}. Action needed: update the"
+            f" pin in {dependent.pyproject_path} (e.g. to"
+            f" '{package.pypi_name}>={proposed_version},<...') and merge a PR to"
+            " main before dispatching the release."
+        )
+    return None
+
+
 def check_core_constraint(
     proposed_core_version: str, agent_pyproject: str
 ) -> str | None:
@@ -289,22 +403,100 @@ def check_core_constraint(
     that range would leave the latest agent-sdk unable to resolve against the
     latest core, so the release is stopped instead.
     """
-    specifier = core_specifier(agent_pyproject)
-    if satisfies(proposed_core_version, specifier):
-        return None
-    return (
-        f"{CORE.pypi_name} {proposed_core_version} falls outside the"
-        f" {CORE.pypi_name}{specifier} range that {AGENT.pypi_name} declares in"
-        f" {AGENT.pyproject_path}. Action needed: update the pin in"
-        f" {AGENT.pyproject_path} (e.g. to"
-        f" '{CORE.pypi_name}>={proposed_core_version},<...') and merge a PR to main"
-        " before dispatching the release."
+    core_specifier(agent_pyproject)  # Raises if the pin is missing.
+    return check_dependent_constraint(
+        CORE, proposed_core_version, AGENT, agent_pyproject
     )
+
+
+def check_dependencies_released(
+    package: Package,
+    pyproject: str,
+    co_released: Iterable[str],
+    released: Callable[[Package], str | None],
+) -> list[str]:
+    """Returns problems with the in-repo dependencies a release would need.
+
+    Each dependency of `package` on another package of this repository must be
+    satisfiable from PyPI once the release is out. A dependency released in the
+    same run is skipped here, because the dependent checks of that dependency
+    already compare its new version against this package's pins. Any other
+    dependency must already have a released version inside the pinned range.
+
+    Args:
+      package: The package being released.
+      pyproject: The contents of the package's pyproject.toml.
+      co_released: PyPI names of the packages released in the same run.
+      released: Returns a package's latest released version, or None.
+    """
+    co_released = set(co_released)
+    problems = []
+    for dependency in RELEASE_ORDER:
+        if dependency is package or dependency.pypi_name in co_released:
+            continue
+        for specifier in dependency_specifiers(pyproject, dependency.pypi_name):
+            version = released(dependency)
+            if version is None:
+                problems.append(
+                    f"{package.pypi_name} depends on {dependency.pypi_name}, which has"
+                    " not been released yet. Action needed: release"
+                    f" {dependency.pypi_name} first, or in the same run (add it to the"
+                    " package list, or use all)."
+                )
+            elif not satisfies(version, specifier):
+                problems.append(
+                    f"{package.pypi_name} requires"
+                    f" {dependency.pypi_name}{specifier}, but the latest release of"
+                    f" {dependency.pypi_name} is {version}. Action needed: release"
+                    f" a matching {dependency.pypi_name} first, or in the same run"
+                    " (add it to the package list, or use all)."
+                )
+    return problems
+
+
+def check_package(
+    package: Package,
+    version: str,
+    repo_root: str,
+    co_released: Iterable[str] = (),
+) -> list[str]:
+    """Returns the dependency problems found for releasing one package version.
+
+    Args:
+      package: The package being released.
+      version: The version it would be released as.
+      repo_root: Root of the a2ui checkout.
+      co_released: PyPI names of the other packages released in the same run.
+    """
+
+    def read(path: str) -> str:
+        with open(os.path.join(repo_root, path), encoding="utf-8") as handle:
+            return handle.read()
+
+    problems = []
+    for dependent in RELEASE_ORDER:
+        if dependent is package:
+            continue
+        error = check_dependent_constraint(
+            package, version, dependent, read(dependent.pyproject_path)
+        )
+        if error:
+            problems.append(error)
+
+    problems.extend(
+        check_dependencies_released(
+            package,
+            read(package.pyproject_path),
+            co_released,
+            lambda dependency: released_version(dependency, repo_root),
+        )
+    )
+    return problems
 
 
 CANONICAL_REPO = "a2ui-project/a2ui"
 RELEASE_BRANCH = "main"
-RELEASE_PATHS = ("python/a2ui_core", "python/a2ui_agent")
+RELEASE_PATHS = tuple(p.directory for p in RELEASE_ORDER)
 
 # Matches the owner/repo at the end of a remote URL in any of its usual forms:
 # git@github.com:a2ui-project/a2ui.git, https://github.com/a2ui-project/a2ui,
@@ -386,7 +578,7 @@ def check_environment(
 
     missing = [
         pkg.pyproject_path
-        for pkg in (CORE, AGENT)
+        for pkg in RELEASE_ORDER
         if not os.path.isfile(os.path.join(repo_root, pkg.pyproject_path))
     ]
     if missing:
@@ -555,11 +747,12 @@ def target_versions(
 ) -> list[tuple[Package, str]]:
     """Returns each selected package with the version a bump would release.
 
-    a2ui-core is always ordered before a2ui-agent-sdk. When both are released
-    together the agent-sdk depends on the core version going out in the same
-    run, so the core artifact has to be staged and published first.
+    Packages are always in `RELEASE_ORDER` (a2ui-core, a2ui-agent-sdk,
+    a2ui-a2a, a2ui-adk). When several are released together a later one may
+    depend on the version of an earlier one going out in the same run, so the
+    earlier artifact has to be staged and published first.
     """
-    selected = [CORE, AGENT] if selection == "both" else [PACKAGES[selection]]
+    selected = parse_selection(selection)
     return [
         (package, bump_version(current_version(package, repo_root), bump))
         for package in selected
@@ -645,8 +838,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     check = subparsers.add_parser(
         "check", help="Run release preflight checks", parents=[common]
     )
-    check.add_argument("--package", required=True, choices=[*sorted(PACKAGES), "both"])
+    check.add_argument(
+        "--package",
+        required=True,
+        type=_selection,
+        help=f"Package name, comma-separated package names, or {ALL}",
+    )
     check.add_argument("--version", default=None, help="Explicit version to check")
+    check.add_argument(
+        "--plan",
+        default=None,
+        help=(
+            "Release plan JSON (from the `plan` command). The other packages in"
+            " it count as released in the same run when checking dependencies."
+        ),
+    )
     check.add_argument(
         "--bump",
         default=None,
@@ -666,7 +872,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     plan = subparsers.add_parser(
         "plan", help="Emit the release plan as JSON", parents=[common]
     )
-    plan.add_argument("--package", required=True, choices=[*sorted(PACKAGES), "both"])
+    plan.add_argument(
+        "--package",
+        required=True,
+        type=_selection,
+        help=f"Package name, comma-separated package names, or {ALL}",
+    )
     plan.add_argument("--bump", required=True, choices=VALID_BUMPS)
     plan.add_argument("--output", default=None)
 
@@ -695,10 +906,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "check":
         # Usage errors come first, so a typo is reported without waiting on
         # the network calls the environment checks make.
-        if args.package == "both" and args.version:
+        selected = parse_selection(args.package)
+        if len(selected) > 1 and args.version:
             print(
-                "error: --version cannot be used with --package both, because"
-                " each package has its own version. Use --bump instead.",
+                "error: --version cannot be used with more than one package,"
+                " because each package has its own version. Use --bump instead.",
                 file=sys.stderr,
             )
             return 2
@@ -730,7 +942,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.bump:
             packages_to_check = target_versions(args.package, args.bump, repo_root)
         else:
-            packages_to_check = [(PACKAGES[args.package], args.version)]
+            packages_to_check = [(selected[0], args.version)]
+
+        co_released = {pkg.pypi_name for pkg, _ in packages_to_check}
+        if args.plan:
+            with open(args.plan, encoding="utf-8") as handle:
+                co_released.update(entry["pypi_name"] for entry in json.load(handle))
 
         for pkg, ver in packages_to_check:
             problems = []
@@ -762,12 +979,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "again would be rejected by PyPI."
                     )
 
-                if pkg is CORE:
-                    agent_pyproject = os.path.join(repo_root, AGENT.pyproject_path)
-                    with open(agent_pyproject, encoding="utf-8") as handle:
-                        error = check_core_constraint(ver, handle.read())
-                    if error:
-                        problems.append(error)
+                problems.extend(
+                    check_package(pkg, ver, repo_root, co_released - {pkg.pypi_name})
+                )
 
             if problems:
                 for problem in problems:

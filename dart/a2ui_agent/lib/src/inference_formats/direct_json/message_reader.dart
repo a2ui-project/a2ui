@@ -42,10 +42,7 @@ class MessageReader {
   late final Map<String, PayloadValidator<ComponentApi, FunctionApi>>
   _validators = {
     for (final CatalogApi catalog in catalogs)
-      catalog.id: PayloadValidator(
-        catalog: catalog,
-        protocolVersion: A2uiProtocolVersion.v0_9,
-      ),
+      catalog.id: PayloadValidator(catalog: catalog),
   };
 
   /// Reads [envelope], the next message of a payload.
@@ -60,7 +57,6 @@ class MessageReader {
       throw A2uiValidationError(
         'A direct JSON payload must be a list of message objects, got '
         '${envelope.runtimeType}.',
-        details: envelope,
       );
     }
     final AgentToRendererMessage message = AgentToRendererMessage.parseAll([
@@ -73,7 +69,6 @@ class MessageReader {
             message.catalogId ??
             (throw A2uiValidationError(
               "Surface '${message.surfaceId}' names no catalogId.",
-              details: envelope,
             ));
         final PayloadValidator<ComponentApi, FunctionApi> validator =
             _validators[catalogId] ??
@@ -81,7 +76,6 @@ class MessageReader {
               "Surface '${message.surfaceId}' names catalog "
               "'$catalogId', which is not active. Active catalogs: "
               '${_validators.keys.join(', ')}.',
-              details: envelope,
             ));
         validator.validateTheme(message.theme);
         surfaces[message.surfaceId] = catalogId;
@@ -89,7 +83,6 @@ class MessageReader {
         if (message.components.isEmpty) {
           throw A2uiValidationError(
             "The update of surface '${message.surfaceId}' has no components.",
-            details: envelope,
           );
         }
         for (final Map<String, Object?> component in message.components) {
@@ -127,10 +120,7 @@ void _checkFields(Map<String, Object?> envelope) {
   final String type = envelope.keys.firstWhere(_bodyFields.containsKey);
   for (final String key in envelope.keys) {
     if (key != 'version' && key != type) {
-      throw A2uiValidationError(
-        "A '$type' message has no field '$key'.",
-        details: envelope,
-      );
+      throw A2uiValidationError("A '$type' message has no field '$key'.");
     }
   }
   final Set<String> allowed = _bodyFields[type]!;
@@ -139,7 +129,6 @@ void _checkFields(Map<String, Object?> envelope) {
       throw A2uiValidationError(
         "A '$type' message has no field '$type.$key'. Its fields are: "
         '${allowed.join(', ')}.',
-        details: envelope,
       );
     }
   }
@@ -156,14 +145,12 @@ void _checkCalls(
         throw A2uiValidationError(
           "Catalog '${validator.catalog.id}' declares no function named "
           "'$name'.",
-          details: value,
         );
       }
       final Object args = value['args'] ?? const <String, Object?>{};
       if (args is! Map<String, Object?>) {
         throw A2uiValidationError(
           "The 'args' of a call to '$name' must be an object.",
-          details: value,
         );
       }
       validator.validateFunction(name, args);

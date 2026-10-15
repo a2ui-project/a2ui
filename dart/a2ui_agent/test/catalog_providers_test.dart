@@ -60,6 +60,19 @@ void main() {
       );
     });
 
+    test('writes back a document that omits its id without one', () {
+      final Map<String, Object?> source = document();
+      final CatalogApi catalog = InMemoryCatalogProvider(
+        source,
+        catalogId: 'provided',
+        protocolVersion: v0_9,
+      ).load();
+
+      expect(catalog.id, 'provided');
+      expect(catalog.protocolVersion, v0_9);
+      expect(catalog.toJson(), equals(source));
+    });
+
     test('reads each spelling of v0.9 a document may use', () {
       for (final version in ['0.9', 'v0.9', '0.9.1']) {
         expect(
@@ -145,6 +158,41 @@ void main() {
       );
       expect(config.catalog.components, hasLength(greaterThan(1)));
       expect(config.transformedCatalog.components.keys, ['Text']);
+    });
+
+    test('writes the pruned catalog as the document narrowed to it', () {
+      final config = CatalogConfig.fromPath(
+        basicPath,
+        protocolVersion: v0_9,
+        transformers: [
+          ComponentPruningTransformer(['Text']),
+        ],
+      );
+      final Map<String, Object?> source = config.catalog.toJson();
+      final Map<String, Object?> pruned = config.transformedCatalog.toJson();
+      final defs = pruned[r'$defs']! as Map<String, Object?>;
+      final sourceDefs = source[r'$defs']! as Map<String, Object?>;
+
+      for (final key in [r'$schema', r'$id', 'title', 'description']) {
+        expect(pruned[key], source[key], reason: key);
+      }
+      expect(
+        (pruned['components']! as Map<String, Object?>)['Text'],
+        (source['components']! as Map<String, Object?>)['Text'],
+      );
+      expect(pruned['functions'], source['functions']);
+      expect(
+        defs['CatalogComponentCommon'],
+        sourceDefs['CatalogComponentCommon'],
+      );
+      expect(defs['theme'], sourceDefs['theme']);
+      expect(defs['anyFunction'], sourceDefs['anyFunction']);
+      expect(defs['anyComponent'], {
+        'oneOf': [
+          {r'$ref': '#/components/Text'},
+        ],
+        'discriminator': {'propertyName': 'component'},
+      });
     });
 
     test('fails with a catalog error when the document cannot be read', () {

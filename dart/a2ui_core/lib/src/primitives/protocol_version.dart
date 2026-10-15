@@ -66,35 +66,32 @@ enum A2uiProtocolVersion implements Comparable<A2uiProtocolVersion> {
   ///
   /// Throws [A2uiValidationError] if [value] is absent, is not a string, or
   /// names a version this SDK does not implement.
-  static A2uiProtocolVersion fromJson(Object? value, {Object? details}) {
+  static A2uiProtocolVersion fromJson(Object? value) {
     if (value == null) {
       throw A2uiValidationError(
         "A2UI payloads must declare a 'version' field; this SDK supports "
         'only $supportedVersions.',
-        details: details,
       );
     }
     if (value is! String) {
       throw A2uiValidationError(
         "A2UI payloads must have a string 'version' field (got "
         '${value.runtimeType}).',
-        details: details,
       );
     }
-    return parse(value, details: details);
+    return parse(value);
   }
 
   /// Parses a protocol version from its wire value, such as `'v1.0'`.
   ///
   /// Throws [A2uiValidationError] if [value] names a version this SDK does
-  /// not implement. [details] is attached to the error.
-  static A2uiProtocolVersion parse(String value, {Object? details}) {
+  /// not implement.
+  static A2uiProtocolVersion parse(String value) {
     final A2uiProtocolVersion? version = tryParse(value);
     if (version != null) return version;
     throw A2uiValidationError(
       "Unsupported A2UI protocol version '$value'; this SDK supports only "
       '$supportedVersions.',
-      details: details,
     );
   }
 

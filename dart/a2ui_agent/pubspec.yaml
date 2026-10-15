@@ -13,7 +13,9 @@
 # limitations under the License.
 
 name: a2ui_agent
-description: The A2UI agent SDK.
+description: >-
+  Helps a Dart agent generate A2UI: negotiates catalogs with the renderer,
+  teaches the model the catalog, and parses its reply into A2UI messages.
 version: 0.0.1-wip005
 repository: https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_agent
 
@@ -23,7 +25,7 @@ environment:
   sdk: ">=3.10.0 <4.0.0"
 
 dependencies:
-  a2ui_core: ^0.2.2
+  a2ui_core: ^0.3.0
 
 dev_dependencies:
   test: ^1.26.2

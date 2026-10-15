@@ -56,7 +56,7 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(
 
 CallRendererFunctionMessage _inbound(
   String name, {
-  String? catalogId,
+  String? catalogId = 'basic',
   Map<String, Object?> args = const {},
   String id = 'call-1',
   String version = 'v1.0',
@@ -535,11 +535,25 @@ void main() {
       );
     });
 
-    test('reports no catalog when headless and no catalogId', () async {
-      final A2uiFunctionResponse r =
-          await run(handler(), _inbound('echo'), withSurface: false);
+    test('reports no catalog when catalogId is omitted', () async {
+      final A2uiFunctionResponse rHeadless = await run(
+        handler(),
+        _inbound('echo', catalogId: null),
+        withSurface: false,
+      );
       expectError(
-        r,
+        rHeadless,
+        RpcErrorCode.invalidFunctionCall,
+        'No catalog available for function resolution.',
+      );
+
+      final A2uiFunctionResponse rSurface = await run(
+        handler(),
+        _inbound('echo', catalogId: null),
+        withSurface: true,
+      );
+      expectError(
+        rSurface,
         RpcErrorCode.invalidFunctionCall,
         'No catalog available for function resolution.',
       );
@@ -657,6 +671,40 @@ void main() {
       final A2uiFunctionResponse r =
           await run(h, _inbound('read', catalogId: 'reading'));
       expect(r.value, 3);
+    });
+
+    test('resolves dynamic @path and @call expressions in arguments', () async {
+      surface.dataModel.set('/user/name', 'Alice');
+      final A2uiFunctionResponse withSurface = await run(
+        handler(),
+        _inbound('echo', catalogId: 'basic', args: {
+          'value': {'@path': '/user/name'},
+        }),
+      );
+      expect(withSurface.value, 'Alice');
+
+      final A2uiFunctionResponse headless = await run(
+        handler(),
+        _inbound('echo', catalogId: 'basic', args: {
+          'value': {'@path': '/user/name'},
+        }),
+        withSurface: false,
+      );
+      expect(headless.value, isNull);
+      expect(headless.error, isNull);
+
+      final A2uiFunctionResponse indexErr = await run(
+        handler(),
+        _inbound('echo', catalogId: 'basic', args: {
+          'value': {'@call': '@index'},
+        }),
+        withSurface: false,
+      );
+      expectError(
+        indexErr,
+        RpcErrorCode.executionError,
+        '@index function can only be evaluated inside a collection template',
+      );
     });
   });
 }

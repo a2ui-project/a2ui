@@ -52,20 +52,18 @@ The following directories contain the base protocol logic, parsing, and schema o
 - **`inference_format.py`**: Defines `InferenceFormat` and `InferenceFormatFactory`.
 - **`inference_formats/`**: Format implementations and factories for Direct JSON (`direct_json/`), Express (`express/`), and experimental Elemental and Atom (`experimental/`) formats. Direct JSON is the format that streams: `DirectJsonParser.parse_chunk` heals the partial JSON of each chunk (`direct_json/json_reader.py`) and emits the messages that are ready.
 
-## A2A (`src/a2ui/a2a`)
+## Agent framework integrations
 
-- **`extension.py`**: Utilities for managing the A2UI extension URI and activation logic.
-- **`parts.py`**: Utilities for creating A2A Parts with A2UI data and helpers for response parsing.
+The agent SDK does not depend on an agent framework. Integrations are separate
+packages that add to the `a2ui` namespace:
 
-## ADK Extensions (`src/a2ui/adk`)
+- [`a2ui-a2a`](../a2ui_a2a/README.md) provides `a2ui.a2a`, the A2UI extension
+  for the Agent-to-Agent (A2A) protocol.
+- [`a2ui-adk`](../a2ui_adk/README.md) provides `a2ui.adk`, the integration
+  with the [Agent Development Kit (ADK)](https://github.com/google/adk-python).
 
-Support for
-the [Agent Development Kit (ADK)](https://github.com/google/adk-python) and A2A
-protocol.
-
-- **`send_a2ui_to_client_toolset.py`**: Implementation of
-  `SendA2uiToClientToolset` to enable agents to send UI to clients via tool
-  calls.
+Code in this package must not import an agent framework or model SDK.
+`tests/test_framework_agnostic.py` checks this.
 
 ## Running tests
 
@@ -91,7 +89,7 @@ uv build
 ```
 
 The build doesn't need Java. The Express lexer, parser, and visitor in
-`src/a2ui/inference_formats/experimental/express/generated/` are generated from
+`src/a2ui/inference_formats/express/generated/` are generated from
 `specification/inference_formats/express/Express.g4` and committed to the
 repository.
 

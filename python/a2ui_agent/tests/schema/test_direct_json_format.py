@@ -30,7 +30,7 @@ def test_direct_json_format_holds_its_catalogs():
     direct_json_format = DirectJsonFormat([catalog])
 
     assert direct_json_format.catalogs == [catalog]
-    assert "Text" in direct_json_format.catalogs[0].catalog_schema["components"]
+    assert "Text" in direct_json_format.catalogs[0].validation_schema["components"]
 
 
 def test_direct_json_format_without_catalogs_is_an_error():

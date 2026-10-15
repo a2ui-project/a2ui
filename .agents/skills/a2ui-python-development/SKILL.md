@@ -40,6 +40,13 @@ Python code across the repository spans SDK libraries, agent implementations, ev
 - **`a2ui_agent`** (`python/a2ui_agent/`):
   - Agent-side orchestration and prompting framework.
   - Implements `A2uiGenerator`, `A2uiRequestProcessor`, format strategies (`DirectJsonFormat`, `ExpressFormat`), and prompt generators.
+  - **Boundary rule**: `a2ui_agent` is agent-framework agnostic. It must not import or depend on agent frameworks or model SDKs (`a2a`, `google.adk`, `google.genai`, ...). `python/a2ui_agent/tests/test_framework_agnostic.py` enforces this.
+- **`a2ui_a2a`** (`python/a2ui_a2a/`, distribution `a2ui-a2a`):
+  - A2A protocol extension (`a2ui.a2a`): extension URI negotiation and A2A part helpers.
+- **`a2ui_adk`** (`python/a2ui_adk/`, distribution `a2ui-adk`):
+  - Agent Development Kit integration (`a2ui.adk`): `SendA2uiToClientToolset` and `GenAIFileResolver`.
+  - The ADK-to-A2A converters (`a2ui.adk.a2a`) and A2A orchestration helpers (`a2ui.adk.orchestration`) need the `a2a` extra and are exported lazily from `a2ui.adk`.
+- **Namespace rule**: `a2ui` is a PEP 420 namespace package shared by all of these distributions. Never add `src/a2ui/__init__.py`, and never ship the same subpackage from two distributions.
 - **`a2ui.builder`** (`python/a2ui_agent/src/a2ui/builder/`):
   - Strongly typed Pydantic v2 fluent builders for components and basic catalogs.
   - Versioned by protocol (e.g. `a2ui.builder.v0_9`) to ensure protocol immutability.
@@ -171,6 +178,7 @@ uv run pytest
 # Run specific package tests
 uv run pytest python/a2ui_core/tests
 uv run pytest python/a2ui_agent/tests
+uv run pytest python/a2ui_a2a/tests python/a2ui_adk/tests
 ```
 
 ### 5. Build Verification

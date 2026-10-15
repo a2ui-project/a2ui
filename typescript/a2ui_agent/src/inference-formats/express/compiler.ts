@@ -25,14 +25,42 @@
 
 import {CharStream, CommonTokenStream} from 'antlr4ng';
 
+import {A2uiCatalogError} from '../../errors.js';
 import {
   normalizeVersionString,
   type AgentToRendererMessage,
   type CatalogApi,
 } from '../../internal/web-core.js';
+import {
+  buildSchemaHelpers,
+  catalogsDefining,
+  resolveExpressVersion,
+  surfaceCatalogId,
+  toCatalogList,
+} from './catalogs.js';
+import {
+  ExpressDuplicateParamError,
+  ExpressDuplicatePropertyError,
+  ExpressForbiddenDatabindingError,
+  ExpressIdCollisionError,
+  ExpressInvalidParamError,
+  ExpressMissingRequiredPropertyError,
+  ExpressParseError,
+  ExpressSyntaxError,
+  ExpressUndefinedRootError,
+  ExpressUnknownComponentError,
+  ExpressUnknownFunctionError,
+  ExpressUnknownPropertyError,
+  ExpressValidationError,
+} from './errors.js';
 import {ExpressLexer} from './generated/ExpressLexer.js';
 import {ExpressParser} from './generated/ExpressParser.js';
-import {buildSchemaHelpers, resolveExpressVersion, toCatalogList} from './catalogs.js';
+import {
+  CatalogSchemaHelper,
+  expectsOptionObjects,
+  isActionSlot,
+  type ReservedKeys,
+} from './schema-helper.js';
 import {
   ExpressAstVisitor,
   ExpressErrorListener,
@@ -43,28 +71,6 @@ import {
   type ExpressStatement,
   type ExpressValue,
 } from './visitor.js';
-import {
-  CatalogSchemaHelper,
-  expectsOptionObjects,
-  isActionSlot,
-  type ReservedKeys,
-} from './schema-helper.js';
-import {
-  ExpressDuplicateParamError,
-  ExpressDuplicatePropertyError,
-  ExpressForbiddenDatabindingError,
-  ExpressInvalidParamError,
-  ExpressParseError,
-  ExpressSyntaxError,
-  ExpressUndefinedRootError,
-  ExpressUnknownComponentError,
-  ExpressUnknownFunctionError,
-  ExpressMissingRequiredPropertyError,
-  ExpressUnknownPropertyError,
-  ExpressValidationError,
-  ExpressIdCollisionError,
-  ExpressUnknownCatalogError,
-} from './errors.js';
 
 /**
  * Standard A2UI surface operation envelope keys matching Python's SurfaceOperation.
@@ -170,6 +176,27 @@ export function isCheckExpression(val: unknown): boolean {
 }
 
 /**
+ * Checks if an AST argument inside a `?check(...)` call is a plain map literal
+ * rather than a path, call, check, variable, or skipped-argument node.
+ */
+function isPlainAstMap(arg: unknown): arg is Record<string, unknown> {
+  if (!arg || typeof arg !== 'object' || Array.isArray(arg)) {
+    return false;
+  }
+  const obj = arg as Record<string, unknown>;
+  if (
+    ('path' in obj && Object.keys(obj).length === 1) ||
+    ('call' in obj && Array.isArray(obj.args)) ||
+    ('check' in obj && Array.isArray(obj.args)) ||
+    ('variable' in obj && Object.keys(obj).length === 1) ||
+    ('skipped' in obj && obj.skipped === true && Object.keys(obj).length === 1)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Parses numeric major.minor.patch components from a version string.
  */
 function parseVersionNumbers(v: string): number[] {
@@ -238,7 +265,11 @@ class CompileContext {
   inlineCounter = 0;
   /** Compiled data bindings of the component being compiled, by property name. */
   activeBoundPaths: Map<string, Record<string, unknown>> = new Map();
-  helper!: CatalogSchemaHelper;
+  readonly keys: ReservedKeys;
+
+  constructor(keys: ReservedKeys) {
+    this.keys = keys;
+  }
 }
 
 /**
@@ -246,15 +277,22 @@ class CompileContext {
  */
 class SurfaceScope {
   readonly surfaceId: string;
-  readonly catalogId?: string;
+  readonly sendDataModel?: boolean;
+  readonly update: boolean;
   readonly rawSymbols: Record<string, unknown> = {};
   readonly dataPathAssignments: Record<string, unknown> = {};
 
-  constructor(surfaceId: string, catalogId?: string) {
+  constructor(surfaceId: string, sendDataModel?: boolean, update = false) {
     this.surfaceId = surfaceId;
-    this.catalogId = catalogId;
+    this.sendDataModel = sendDataModel;
+    this.update = update;
   }
 }
+
+type CompilationUnit =
+  | {kind: 'scope'; scope: SurfaceScope}
+  | {kind: 'delete'; surfaceId: string}
+  | {kind: 'call'; stmt: ExpressCallValue; scope: SurfaceScope | null};
 
 /**
  * Compilation pipeline for A2UI Express.
@@ -268,7 +306,7 @@ export class ExpressCompiler {
   readonly version: string;
 
   /**
-   * @param catalogs The active catalog, or several. A `surface(...)` line picks one by id.
+   * @param catalogs The active catalog, or several.
    * @param version The protocol version to emit. Defaults to the catalogs' version.
    */
   constructor(catalogs: CatalogApi | CatalogApi[], version?: string) {
@@ -278,31 +316,172 @@ export class ExpressCompiler {
   }
 
   /**
-   * Picks the catalog a block compiles against.
-   *
-   * A block that names no catalog uses the first one. With several active catalogs
-   * that choice may be wrong, so it is logged.
-   *
-   * @param catalogId The catalog id the block names, or an empty string.
-   * @returns The catalog id and its schema helper.
-   * @throws ExpressUnknownCatalogError if the id is not an active catalog.
+   * Checks whether a call names a component rather than a function across active catalogs.
    */
-  private resolveScopeCatalog(catalogId: string): [string, CatalogSchemaHelper] {
-    let id = catalogId;
-    if (!id) {
-      id = this.catalogs[0].id;
+  private definesComponent(name: string, explicitCatalogId: unknown): boolean {
+    if (typeof explicitCatalogId === 'string' && this.helpers.has(explicitCatalogId)) {
+      return this.helpers.get(explicitCatalogId)!.components.has(name);
+    }
+    return catalogsDefining(this.helpers, 'component', name).length > 0;
+  }
+
+  /**
+   * Checks whether a call names a function across active catalogs or in the named catalog.
+   */
+  private definesFunction(name: string, explicitCatalogId: unknown): boolean {
+    if (explicitCatalogId !== undefined) {
+      return (
+        typeof explicitCatalogId === 'string' &&
+        (this.helpers.get(explicitCatalogId)?.functions.has(name) ?? false)
+      );
+    }
+    return catalogsDefining(this.helpers, 'function', name).length > 0;
+  }
+
+  /**
+   * Resolves a component or function symbol against the active catalogs.
+   */
+  private resolveSymbol(
+    kind: 'component' | 'function',
+    name: string,
+    explicitCatalogId: unknown,
+    targetMajorMinor: [number, number],
+  ): {helper: CatalogSchemaHelper; catalogId?: string} {
+    const label = kind === 'component' ? 'Component' : 'Function';
+    if (explicitCatalogId !== undefined) {
+      if (targetMajorMinor[0] < 1) {
+        throw new ExpressValidationError(
+          'catalogId on a component or function call is only supported in A2UI v1.0 or later.',
+        );
+      }
+      if (typeof explicitCatalogId !== 'string' || !explicitCatalogId) {
+        throw new ExpressValidationError(
+          `catalogId on ${kind} '${name}' must be a non-empty string.`,
+        );
+      }
+      const helper = this.helpers.get(explicitCatalogId);
+      if (!helper) {
+        const active = this.catalogs.map(c => `'${c.id}'`).join(', ');
+        throw new ExpressValidationError(
+          `${label} '${name}' targets unknown catalog '${explicitCatalogId}'. Active catalogs: ${active}.`,
+        );
+      }
+      const defs = kind === 'component' ? helper.components : helper.functions;
+      if (!defs.has(name)) {
+        const defining = catalogsDefining(this.helpers, kind, name);
+        const hint =
+          defining.length > 0
+            ? ` It is defined in: ${defining.map(c => `'${c}'`).join(', ')}.`
+            : '';
+        throw new ExpressValidationError(
+          `${label} '${name}' is not in catalog '${explicitCatalogId}'.${hint}`,
+        );
+      }
+      return {helper, catalogId: explicitCatalogId};
+    }
+
+    const matches = catalogsDefining(this.helpers, kind, name);
+    if (matches.length > 1) {
+      const ids = matches.map(c => `'${c}'`).join(', ');
+      throw new ExpressValidationError(
+        `${label} '${name}' is defined in several catalogs: ${ids}. Name the catalog to use with a catalogId argument.`,
+      );
+    }
+    if (matches.length === 0) {
+      if (kind === 'component') {
+        throw new ExpressUnknownComponentError(name);
+      }
+      throw new ExpressUnknownFunctionError(name);
+    }
+    const cid = matches[0];
+    return {
+      helper: this.helpers.get(cid)!,
+      catalogId: this.catalogs.length > 1 ? cid : undefined,
+    };
+  }
+
+  /**
+   * Parses and validates a `surface(...)` statement.
+   */
+  private parseSurfaceCall(callVal: ExpressCallValue): {
+    surfaceId: string;
+    catalogId: string;
+    sendDataModel?: boolean;
+    update: boolean;
+  } {
+    const args = callVal.args ?? [];
+    const kwargs = callVal.kwargs ?? {};
+
+    if (args.length === 0) {
+      throw new ExpressValidationError(
+        'surface() requires at least 1 argument: surface("surface_id").',
+      );
+    }
+    if (args.length > 2) {
+      throw new ExpressValidationError(
+        'surface() takes at most 2 positional arguments: surface(id) or surface(id, catalogId).',
+      );
+    }
+    const surfaceId = args[0];
+    if (typeof surfaceId !== 'string') {
+      throw new ExpressValidationError('The first argument to surface() must be a string literal.');
+    }
+
+    let catalogId = '';
+    if (args.length === 2) {
+      if ('catalogId' in kwargs) {
+        throw new ExpressValidationError(
+          'Duplicate catalogId in surface(): specified both positionally and as a keyword argument.',
+        );
+      }
+      if (typeof args[1] !== 'string') {
+        throw new ExpressValidationError(
+          'The second argument to surface() must be a catalog ID string.',
+        );
+      }
+      catalogId = args[1];
+    }
+
+    let sendDataModel: boolean | undefined;
+    let update = false;
+
+    for (const [k, val] of Object.entries(kwargs)) {
+      if (k === 'catalogId') {
+        if (typeof val !== 'string') {
+          throw new ExpressValidationError('The catalogId argument to surface() must be a string.');
+        }
+        catalogId = val;
+      } else if (k === 'sendDataModel') {
+        if (typeof val !== 'boolean') {
+          throw new ExpressValidationError(
+            'The sendDataModel argument to surface() must be a boolean.',
+          );
+        }
+        sendDataModel = val;
+      } else if (k === 'update') {
+        if (typeof val !== 'boolean') {
+          throw new ExpressValidationError('The update argument to surface() must be a boolean.');
+        }
+        update = val;
+      } else {
+        throw new ExpressValidationError(`Unknown keyword argument '${k}' in surface().`);
+      }
+    }
+
+    if (catalogId) {
       if (this.catalogs.length > 1) {
-        console.warn(
-          `Express block names no catalog; using the first active catalog, '${id}'. ` +
-            'Name one with surface("<id>", catalogId="<catalog>").',
+        throw new ExpressValidationError(
+          `surface() names catalog '${catalogId}', but a surface names no catalog when several catalogs are active. Component and function names resolve across the active catalogs, or take catalogId="..." when shared.`,
+        );
+      }
+      if (catalogId !== this.catalogs[0].id) {
+        throw new ExpressValidationError(
+          `Surface '${surfaceId}' targets unknown catalog '${catalogId}'. Active catalogs: '${this.catalogs[0].id}'.`,
         );
       }
     }
-    const helper = this.helpers.get(id);
-    if (!helper) {
-      throw new ExpressUnknownCatalogError(id, [...this.helpers.keys()]);
-    }
-    return [id, helper];
+
+    return {surfaceId, catalogId, sendDataModel, update};
   }
 
   /**
@@ -310,7 +489,6 @@ export class ExpressCompiler {
    *
    * @param dslText The source A2UI Express DSL text block.
    * @param surfaceId The unique identifier for the compiled surface.
-   * @param catalogId The URI/identifier of the schema catalog to reference.
    * @param isFinal Whether this is the final compilation pass.
    * @param version Target version override ("v0.9", "v0.9.1", or "v1.0").
    * @returns A list of standard A2UI wire JSON message dicts.
@@ -318,12 +496,21 @@ export class ExpressCompiler {
   compile(
     dslText: string,
     surfaceId = 'default_surface',
-    catalogId = '',
     isFinal = true,
     version?: string,
   ): AgentToRendererMessage[] {
     const targetVersion = version ? resolveExpressVersion(this.catalogs, version) : this.version;
-    const ctx = new CompileContext();
+    const vNums = parseVersionNumbers(targetVersion);
+    const targetMajorMinor: [number, number] = [vNums[0] ?? 0, vNums[1] ?? 0];
+    if (this.catalogs.length > 1 && targetMajorMinor[0] < 1) {
+      throw new A2uiCatalogError(
+        `Several catalogs need A2UI v1.0 or later, where components and function calls carry their own catalogId, but got '${targetVersion}'.`,
+      );
+    }
+
+    const defaultKeys: ReservedKeys =
+      targetMajorMinor[0] >= 1 ? {path: '@path', call: '@call'} : {path: 'path', call: 'call'};
+    const ctx = new CompileContext(defaultKeys);
 
     // Sentinel tag stripping (compiler.py:235-254; load-bearing per plan §9)
     const hasSentinels = dslText.includes('<a2ui>');
@@ -399,10 +586,8 @@ export class ExpressCompiler {
       }
     }
 
-    const scopes: SurfaceScope[] = [];
+    const units: CompilationUnit[] = [];
     let currentScope: SurfaceScope | null = null;
-    let targetDeleteSurfaceId: string | null = null;
-    const standaloneFunctionCalls: Array<[ExpressCallValue, SurfaceScope | null]> = [];
 
     for (const stmt of statements) {
       const [stmtType, ...stmtArgs] = stmt;
@@ -414,24 +599,9 @@ export class ExpressCompiler {
           'call' in parsedVal &&
           (parsedVal as ExpressCallValue).call === 'surface'
         ) {
-          const callVal = parsedVal as ExpressCallValue;
-          const args = callVal.args ?? [];
-          const kwargs = callVal.kwargs ?? {};
-          const targetSurf =
-            typeof kwargs.surfaceId === 'string'
-              ? kwargs.surfaceId
-              : args.length > 0 && typeof args[0] === 'string'
-                ? args[0]
-                : surfaceId;
-          const targetCat =
-            typeof kwargs.catalogId === 'string'
-              ? kwargs.catalogId
-              : args.length > 1 && typeof args[1] === 'string'
-                ? args[1]
-                : catalogId;
-
-          currentScope = new SurfaceScope(targetSurf, targetCat);
-          scopes.push(currentScope);
+          const parsed = this.parseSurfaceCall(parsedVal as ExpressCallValue);
+          currentScope = new SurfaceScope(parsed.surfaceId, parsed.sendDataModel, parsed.update);
+          units.push({kind: 'scope', scope: currentScope});
         } else if (
           parsedVal &&
           typeof parsedVal === 'object' &&
@@ -441,19 +611,30 @@ export class ExpressCompiler {
           const callVal = parsedVal as ExpressCallValue;
           const args = callVal.args ?? [];
           const kwargs = callVal.kwargs ?? {};
+          let targetDeleteSurfaceId: string | null = null;
           if (args.length > 0 && typeof args[0] === 'string') {
             targetDeleteSurfaceId = args[0];
           } else if (typeof kwargs.surfaceId === 'string') {
             targetDeleteSurfaceId = kwargs.surfaceId;
           }
+          if (!targetDeleteSurfaceId) {
+            throw new ExpressValidationError(
+              'deleteSurface() requires the id of the surface to delete.',
+            );
+          }
+          units.push({kind: 'delete', surfaceId: targetDeleteSurfaceId});
         } else if (parsedVal && typeof parsedVal === 'object' && 'call' in parsedVal) {
-          standaloneFunctionCalls.push([parsedVal as ExpressCallValue, currentScope]);
+          units.push({
+            kind: 'call',
+            stmt: parsedVal as ExpressCallValue,
+            scope: currentScope,
+          });
         }
       } else if (stmtType === 'ASSIGN') {
         const [varName, parsedVal] = stmtArgs as [string, ExpressValue];
         if (currentScope === null) {
-          currentScope = new SurfaceScope(surfaceId, catalogId);
-          scopes.push(currentScope);
+          currentScope = new SurfaceScope(surfaceId);
+          units.push({kind: 'scope', scope: currentScope});
         }
         if (varName.startsWith('$')) {
           currentScope.dataPathAssignments[varName] = parsedVal;
@@ -463,156 +644,53 @@ export class ExpressCompiler {
       }
     }
 
-    if (targetDeleteSurfaceId !== null) {
-      return [
-        asAgentToRendererMessage({
-          version: targetVersion,
-          [SurfaceOperation.DELETE]: {surfaceId: targetDeleteSurfaceId},
-        }),
-      ];
-    }
-
-    if (standaloneFunctionCalls.length > 0) {
-      if (!isAtLeastVersion(targetVersion, 'v1.0')) {
-        throw new ExpressValidationError(
-          `Standalone function calls are not supported in A2UI ${targetVersion}`,
-        );
-      }
-      const [firstCall, callScope] = standaloneFunctionCalls[0];
-      ctx.inlineCounter += 1;
-      const rawSyms = callScope ? callScope.rawSymbols : {};
-
-      const [callCatId, helper] = this.resolveScopeCatalog(callScope?.catalogId || catalogId);
-      ctx.helper = helper;
-
-      const compiledVal = this._compileValue(firstCall, rawSyms, ctx, false) as Record<
-        string,
-        unknown
-      >;
-
-      return [
-        asAgentToRendererMessage({
-          version: targetVersion,
-          callRendererFunction: {
-            functionCallId: `call_${ctx.inlineCounter}`,
-            callFunction: {
-              catalogId: callCatId,
-              [helper.keys.call]: compiledVal[helper.keys.call] as string,
-              args: (compiledVal.args as Record<string, unknown>) ?? {},
-            },
-          },
-        }),
-      ];
-    }
-
-    if (scopes.length === 0) {
+    if (units.length === 0) {
       throw new ExpressUndefinedRootError('root');
     }
 
     const resultMessages: AgentToRendererMessage[] = [];
+    let callCounter = 0;
 
-    for (const scope of scopes) {
-      const scopeSurfId = scope.surfaceId;
-      const [scopeCatId, helper] = this.resolveScopeCatalog(scope.catalogId || catalogId);
-      ctx.helper = helper;
-
-      // Compile data model paths (compiler.py:401-405)
-      const dataModel: Record<string, unknown> = {};
-      for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
-        const compiledVal = this._compileValue(astVal, scope.rawSymbols, ctx, false);
-        setNestedPath(dataModel, pathName, compiledVal);
-      }
-
-      const compiledComponents: Record<string, unknown>[] = [];
-      for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
-        const compDict = this._compileAstNode(varName, ast, scope.rawSymbols, ctx);
-        if (compDict) {
-          compiledComponents.push(compDict);
-        }
-      }
-
-      compiledComponents.push(...ctx.extraComponents);
-      ctx.extraComponents = [];
-
-      if (!('root' in scope.rawSymbols)) {
-        if (
-          compiledComponents.length === 0 &&
-          Object.keys(scope.dataPathAssignments).length === 0
-        ) {
-          throw new ExpressUndefinedRootError('root');
-        }
-
-        if (compiledComponents.length > 0) {
-          resultMessages.push(
-            asAgentToRendererMessage({
-              version: targetVersion,
-              [SurfaceOperation.UPDATE_COMPONENTS]: {
-                surfaceId: scopeSurfId,
-                components: compiledComponents,
-              },
-            }),
-          );
-        }
-
-        if (Object.keys(dataModel).length > 0) {
-          resultMessages.push(
-            asAgentToRendererMessage({
-              version: targetVersion,
-              [SurfaceOperation.UPDATE_DATA]: {
-                surfaceId: scopeSurfId,
-                path: '/',
-                value: dataModel,
-              },
-            }),
-          );
-        }
-        continue;
-      }
-
-      if (isAtLeastVersion(targetVersion, 'v1.0')) {
-        const createPayload: Record<string, unknown> = {
-          surfaceId: scopeSurfId,
-          catalogId: scopeCatId,
-          components: compiledComponents,
-        };
-        if (Object.keys(dataModel).length > 0) {
-          createPayload.dataModel = dataModel;
-        }
+    for (const unit of units) {
+      if (unit.kind === 'delete') {
         resultMessages.push(
           asAgentToRendererMessage({
             version: targetVersion,
-            [SurfaceOperation.CREATE]: createPayload,
+            [SurfaceOperation.DELETE]: {surfaceId: unit.surfaceId},
+          }),
+        );
+      } else if (unit.kind === 'call') {
+        if (targetMajorMinor[0] === 0 && targetMajorMinor[1] <= 9) {
+          throw new ExpressValidationError(
+            'Standalone function calls are not supported in A2UI v0.9',
+          );
+        }
+        callCounter += 1;
+        const rawSyms = unit.scope ? unit.scope.rawSymbols : {};
+        const [compiledVal, explicitCallId] = this.compileFunctionCall(
+          unit.stmt,
+          rawSyms,
+          new Map(),
+          ctx,
+          targetMajorMinor,
+          false,
+          true,
+        );
+        const callFunction: Record<string, unknown> = {
+          catalogId: (compiledVal.catalogId as string | undefined) ?? this.catalogs[0].id,
+          ...compiledVal,
+        };
+        resultMessages.push(
+          asAgentToRendererMessage({
+            version: targetVersion,
+            callRendererFunction: {
+              functionCallId: explicitCallId ?? `call_${callCounter}`,
+              callFunction,
+            },
           }),
         );
       } else {
-        resultMessages.push(
-          asAgentToRendererMessage({
-            version: targetVersion,
-            [SurfaceOperation.CREATE]: {
-              surfaceId: scopeSurfId,
-              catalogId: scopeCatId,
-            },
-          }),
-          asAgentToRendererMessage({
-            version: targetVersion,
-            [SurfaceOperation.UPDATE_COMPONENTS]: {
-              surfaceId: scopeSurfId,
-              components: compiledComponents,
-            },
-          }),
-        );
-        if (Object.keys(dataModel).length > 0) {
-          resultMessages.push(
-            asAgentToRendererMessage({
-              version: targetVersion,
-              [SurfaceOperation.UPDATE_DATA]: {
-                surfaceId: scopeSurfId,
-                path: '/',
-                value: dataModel,
-              },
-            }),
-          );
-        }
+        resultMessages.push(...this.compileScope(unit.scope, ctx, targetVersion, targetMajorMinor));
       }
     }
 
@@ -620,19 +698,180 @@ export class ExpressCompiler {
   }
 
   /**
+   * Compiles a single surface scope into createSurface, updateComponents, and/or updateDataModel messages.
+   */
+  private compileScope(
+    scope: SurfaceScope,
+    ctx: CompileContext,
+    targetVersion: string,
+    targetMajorMinor: [number, number],
+  ): AgentToRendererMessage[] {
+    const scopeSurfId = scope.surfaceId;
+    const catalogId = surfaceCatalogId(this.catalogs);
+
+    const compIds = new Map<string, string>();
+    for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
+      if (ast && typeof ast === 'object' && 'call' in ast) {
+        const callAst = ast as ExpressCallValue;
+        const compName = callAst.call;
+        const explicitId = callAst.kwargs?.id;
+        if (explicitId !== undefined) {
+          if (typeof explicitId !== 'string' || explicitId.length === 0) {
+            throw new ExpressValidationError(
+              `id on component '${compName}' must be a non-empty string.`,
+            );
+          }
+        }
+        if (this.definesComponent(compName, callAst.kwargs?.catalogId)) {
+          compIds.set(varName, (explicitId as string | undefined) ?? varName);
+        }
+      }
+    }
+
+    // Compile data model paths (compiler.py:401-405)
+    const dataModel: Record<string, unknown> = {};
+    for (const [pathName, astVal] of Object.entries(scope.dataPathAssignments)) {
+      const compiledVal = this._compileValue(
+        astVal,
+        scope.rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        false,
+      );
+      setNestedPath(dataModel, pathName, compiledVal);
+    }
+
+    const compiledComponents: Record<string, unknown>[] = [];
+    for (const [varName, ast] of Object.entries(scope.rawSymbols)) {
+      const compDict = this._compileAstNode(
+        varName,
+        ast,
+        scope.rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+      );
+      if (compDict) {
+        compiledComponents.push(compDict);
+      }
+    }
+
+    compiledComponents.push(...ctx.extraComponents);
+    ctx.extraComponents = [];
+
+    const resultMessages: AgentToRendererMessage[] = [];
+    const hasRootComponent = compiledComponents.some(c => c.id === 'root');
+
+    if (scope.update || !hasRootComponent) {
+      if (compiledComponents.length === 0) {
+        if (Object.keys(scope.dataPathAssignments).length > 0) {
+          return [
+            asAgentToRendererMessage({
+              version: targetVersion,
+              [SurfaceOperation.UPDATE_DATA]: {
+                surfaceId: scopeSurfId,
+                path: '/',
+                value: dataModel,
+              },
+            }),
+          ];
+        }
+        throw new ExpressUndefinedRootError('root');
+      }
+      resultMessages.push(
+        asAgentToRendererMessage({
+          version: targetVersion,
+          [SurfaceOperation.UPDATE_COMPONENTS]: {
+            surfaceId: scopeSurfId,
+            components: compiledComponents,
+          },
+        }),
+      );
+      if (Object.keys(dataModel).length > 0) {
+        resultMessages.push(
+          asAgentToRendererMessage({
+            version: targetVersion,
+            [SurfaceOperation.UPDATE_DATA]: {
+              surfaceId: scopeSurfId,
+              path: '/',
+              value: dataModel,
+            },
+          }),
+        );
+      }
+      return resultMessages;
+    }
+
+    const createPayload: Record<string, unknown> = {
+      surfaceId: scopeSurfId,
+    };
+    if (catalogId !== undefined) {
+      createPayload.catalogId = catalogId;
+    }
+    if (scope.sendDataModel !== undefined) {
+      createPayload.sendDataModel = scope.sendDataModel;
+    }
+
+    if (isAtLeastVersion(targetVersion, 'v1.0')) {
+      createPayload.components = compiledComponents;
+      if (Object.keys(dataModel).length > 0) {
+        createPayload.dataModel = dataModel;
+      }
+      resultMessages.push(
+        asAgentToRendererMessage({
+          version: targetVersion,
+          [SurfaceOperation.CREATE]: createPayload,
+        }),
+      );
+    } else {
+      resultMessages.push(
+        asAgentToRendererMessage({
+          version: targetVersion,
+          [SurfaceOperation.CREATE]: createPayload,
+        }),
+        asAgentToRendererMessage({
+          version: targetVersion,
+          [SurfaceOperation.UPDATE_COMPONENTS]: {
+            surfaceId: scopeSurfId,
+            components: compiledComponents,
+          },
+        }),
+      );
+      if (Object.keys(dataModel).length > 0) {
+        resultMessages.push(
+          asAgentToRendererMessage({
+            version: targetVersion,
+            [SurfaceOperation.UPDATE_DATA]: {
+              surfaceId: scopeSurfId,
+              path: '/',
+              value: dataModel,
+            },
+          }),
+        );
+      }
+    }
+    return resultMessages;
+  }
+
+  /**
    * Compiles a single variable's AST node into standard component format (compiler.py:471-643).
    *
-   * @param varName The variable identifier (which becomes component ID).
+   * @param varName The variable identifier (which becomes component ID unless `id=` is set).
    * @param ast The parsed expression AST node.
    * @param rawSymbols Parsed global variable symbol table.
+   * @param compIds Mapping from variable names to resolved component IDs.
    * @param ctx Active compiler execution context.
+   * @param targetMajorMinor Target major and minor protocol version numbers.
    * @returns The compiled component JSON dictionary, or null if not a component.
    */
   private _compileAstNode(
     varName: string,
     ast: unknown,
     rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
     ctx: CompileContext,
+    targetMajorMinor: [number, number],
   ): Record<string, unknown> | null {
     if (!ast || typeof ast !== 'object' || !('call' in ast)) {
       return null;
@@ -641,29 +880,49 @@ export class ExpressCompiler {
     const callAst = ast as ExpressCallValue;
     const compName = callAst.call;
     const args = callAst.args ?? [];
-    const kwargs = callAst.kwargs ?? {};
+    const rawKwargs = {...(callAst.kwargs ?? {})};
 
-    if (!ctx.helper.components.has(compName)) {
-      if (
-        compName === 'Event' ||
-        compName === '_template' ||
-        compName === 'surface' ||
-        compName === 'deleteSurface' ||
-        ctx.helper.functions.has(compName)
-      ) {
-        return null;
-      }
-      throw new ExpressUnknownComponentError(compName);
+    const explicitCatalogId = rawKwargs.catalogId;
+    delete rawKwargs.catalogId;
+
+    const explicitId = rawKwargs.id;
+    delete rawKwargs.id;
+
+    if (explicitId !== undefined && (typeof explicitId !== 'string' || explicitId.length === 0)) {
+      throw new ExpressValidationError(`id on component '${compName}' must be a non-empty string.`);
     }
 
-    const properties = ctx.helper.getComponentProperties(compName);
+    if (
+      !this.definesComponent(compName, explicitCatalogId) &&
+      ((explicitCatalogId === undefined &&
+        (compName === 'Event' ||
+          compName === '_template' ||
+          compName === 'surface' ||
+          compName === 'deleteSurface')) ||
+        this.definesFunction(compName, explicitCatalogId))
+    ) {
+      return null;
+    }
+
+    const {helper: compHelper, catalogId: resolvedCatalogId} = this.resolveSymbol(
+      'component',
+      compName,
+      explicitCatalogId,
+      targetMajorMinor,
+    );
+
+    const compId = (explicitId as string | undefined) ?? compIds.get(varName) ?? varName;
+    const properties = compHelper.getComponentProperties(compName);
     const compDict: Record<string, unknown> = {
-      id: varName,
+      id: compId,
       component: compName,
     };
+    if (resolvedCatalogId !== undefined) {
+      compDict.catalogId = resolvedCatalogId;
+    }
 
     // Sanctioned departure §5.2 item 4: check-rule property
-    const checkPropName = ctx.helper.getCheckRuleProperty(compName);
+    const checkPropName = compHelper.getCheckRuleProperty(compName);
     const nonCheckProperties = checkPropName
       ? properties.filter(p => p !== checkPropName)
       : properties;
@@ -688,7 +947,7 @@ export class ExpressCompiler {
       }
     }
 
-    for (const [k, v] of Object.entries(kwargs)) {
+    for (const [k, v] of Object.entries(rawKwargs)) {
       if (isCheckExpression(v)) {
         if (Array.isArray(v)) {
           rawChecks.push(...(v as ExpressCheckValue[]));
@@ -722,24 +981,32 @@ export class ExpressCompiler {
         continue;
       }
 
-      const propSchema = ctx.helper.getPropertySchema(compName, propName);
+      const propSchema = compHelper.getPropertySchema(compName, propName);
       // Sanctioned departure §5.2 item 1: action slot via isActionSlot
       const isAction = isActionSlot(propSchema);
 
-      let mappedVal = this._compileValue(arg, rawSymbols, ctx, isAction, {
-        parentId: varName,
-        property: propName,
-      });
+      let mappedVal = this._compileValue(
+        arg,
+        rawSymbols,
+        compIds,
+        ctx,
+        targetMajorMinor,
+        isAction,
+        {
+          parentId: compId,
+          property: propName,
+        },
+      );
 
       // Sanctioned departure §5.2 item 5: forbidden-binding check walking schema.
       // Gated like Python (compiler.py:547): a property whose schema admits a path
       // as a whole is not inspected further.
-      if (propSchema && !ctx.helper.admitsPath(propSchema)) {
-        this._checkDataBindings(compName, propName, mappedVal, propSchema, ctx.helper);
+      if (propSchema && !compHelper.admitsPath(propSchema)) {
+        this._checkDataBindings(compName, propName, mappedVal, propSchema, compHelper);
       }
 
       // Sanctioned departure §5.2 item 2: option-object coercion
-      if (propSchema && !ctx.helper.admitsPath(propSchema)) {
+      if (propSchema && !compHelper.admitsPath(propSchema)) {
         if (Array.isArray(mappedVal) && expectsOptionObjects(propSchema)) {
           mappedVal = mappedVal.map(opt =>
             typeof opt === 'string' ? {label: opt, value: opt} : opt,
@@ -748,7 +1015,7 @@ export class ExpressCompiler {
       }
 
       // Enum validation (compiler.py:557-565)
-      const enumVals = ctx.helper.getPropertyEnum(compName, propName);
+      const enumVals = compHelper.getPropertyEnum(compName, propName);
       if (enumVals && typeof mappedVal === 'string') {
         if (!enumVals.includes(mappedVal)) {
           const pyListStr = `[${enumVals.map(e => `'${e}'`).join(', ')}]`;
@@ -765,14 +1032,14 @@ export class ExpressCompiler {
       if (
         mappedVal &&
         typeof mappedVal === 'object' &&
-        ctx.helper.keys.path in mappedVal &&
+        compHelper.keys.path in mappedVal &&
         !('componentId' in mappedVal)
       ) {
         boundPaths.set(propName, mappedVal as Record<string, unknown>);
       }
     }
 
-    const requiredProps = ctx.helper.getComponentRequired(compName);
+    const requiredProps = compHelper.getComponentRequired(compName);
     for (const reqProp of requiredProps) {
       if (reqProp === 'id' || reqProp === 'component') {
         continue;
@@ -798,80 +1065,9 @@ export class ExpressCompiler {
       const compiledChecks: Record<string, unknown>[] = [];
       for (const rc of rawChecks) {
         if (rc && typeof rc === 'object' && 'check' in rc) {
-          const checkName = rc.check;
-          const checkArgs = rc.args ?? [];
-          const compiledArgs: Record<string, unknown> = {};
-
-          const checkProps = ctx.helper.getFunctionProperties(checkName);
-          let messageVal = `${checkName.charAt(0).toUpperCase() + checkName.slice(1)} check failed`;
-
-          const explicitArgs = [...checkArgs];
-          let isValueInjected = false;
-
-          // Sanctioned departure §5.2 item 3: implicit first argument injection
-          if (checkProps.length > 0) {
-            const first = checkProps[0];
-            const firstIsPath =
-              explicitArgs.length > 0 &&
-              explicitArgs[0] &&
-              typeof explicitArgs[0] === 'object' &&
-              'path' in explicitArgs[0];
-
-            if (!firstIsPath) {
-              const bound = boundPaths.get(first);
-              if (bound) {
-                compiledArgs[first] = bound;
-                isValueInjected = true;
-              }
-            }
-          }
-
-          const startPropIdx = isValueInjected ? 1 : 0;
-
-          for (let cIdx = 0; cIdx < explicitArgs.length; cIdx++) {
-            const cArg = explicitArgs[cIdx];
-            const propTargetIdx = cIdx + startPropIdx;
-            if (propTargetIdx < checkProps.length) {
-              const propName = checkProps[propTargetIdx];
-              const propSchema = ctx.helper.getFunctionPropertySchema(checkName, propName);
-              let isMessage = false;
-              if (typeof cArg === 'string' && propSchema) {
-                const expectedType = propSchema.type;
-                if (
-                  expectedType === 'integer' ||
-                  expectedType === 'number' ||
-                  expectedType === 'boolean'
-                ) {
-                  isMessage = true;
-                }
-              }
-
-              if (isMessage) {
-                messageVal = cArg as string;
-                break;
-              }
-
-              if (
-                cArg &&
-                typeof cArg === 'object' &&
-                'skipped' in cArg &&
-                (cArg as ExpressSkippedValue).skipped
-              ) {
-                compiledArgs[propName] = null;
-                continue;
-              }
-              compiledArgs[propName] = this._compileValue(cArg, rawSymbols, ctx, false);
-            } else {
-              if (typeof cArg === 'string') {
-                messageVal = cArg;
-              }
-            }
-          }
-
-          compiledChecks.push({
-            condition: {[ctx.helper.keys.call]: checkName, args: compiledArgs},
-            message: messageVal,
-          });
+          compiledChecks.push(
+            this.compileCheckCall(rc, rawSymbols, compIds, ctx, targetMajorMinor, false),
+          );
         }
       }
 
@@ -892,108 +1088,284 @@ export class ExpressCompiler {
   }
 
   /**
+   * Compiles a `?check(...)` expression into a condition and failure message.
+   */
+  private compileCheckCall(
+    rc: ExpressCheckValue,
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    isAction = false,
+  ): {condition: Record<string, unknown>; message: string} {
+    const checkName = rc.check;
+    const rawArgs = rc.args ?? [];
+    const remainingArgs: ExpressValue[] = [];
+    let checkCatalogId: unknown = (rc as unknown as {catalogId?: unknown}).catalogId;
+
+    for (const arg of rawArgs) {
+      if (isPlainAstMap(arg) && 'catalogId' in arg) {
+        const otherKeys = Object.keys(arg).filter(k => k !== 'catalogId');
+        if (otherKeys.length > 0) {
+          throw new ExpressValidationError(
+            `Unsupported key(s) in check options for '?${checkName}': ${otherKeys.join(', ')}. Only 'catalogId' is allowed.`,
+          );
+        }
+        if (checkCatalogId !== undefined && checkCatalogId !== arg.catalogId) {
+          throw new ExpressValidationError(
+            `Check '?${checkName}' specifies conflicting catalogId values.`,
+          );
+        }
+        checkCatalogId = arg.catalogId;
+        continue;
+      }
+      remainingArgs.push(arg);
+    }
+
+    const rcKwargs = (rc as unknown as {kwargs?: Record<string, ExpressValue>}).kwargs;
+    if (rcKwargs && 'catalogId' in rcKwargs) {
+      if (checkCatalogId !== undefined && checkCatalogId !== rcKwargs.catalogId) {
+        throw new ExpressValidationError(
+          `Check '?${checkName}' specifies conflicting catalogId values.`,
+        );
+      }
+      checkCatalogId = rcKwargs.catalogId;
+    }
+
+    const {helper: checkHelper} = this.resolveSymbol(
+      'function',
+      checkName,
+      checkCatalogId,
+      targetMajorMinor,
+    );
+
+    const checkProps = checkHelper.getFunctionProperties(checkName);
+    let messageVal = `${checkName.charAt(0).toUpperCase() + checkName.slice(1)} check failed`;
+
+    const callArgs: ExpressValue[] = [];
+    let isValueInjected = false;
+
+    // Sanctioned departure §5.2 item 3: implicit first argument injection
+    if (checkProps.length > 0) {
+      const first = checkProps[0];
+      const firstIsPath =
+        remainingArgs.length > 0 &&
+        remainingArgs[0] &&
+        typeof remainingArgs[0] === 'object' &&
+        'path' in remainingArgs[0];
+
+      if (!firstIsPath) {
+        const bound = ctx.activeBoundPaths.get(first);
+        if (bound) {
+          const rawPath = String(bound[ctx.keys.path] ?? '');
+          callArgs.push({path: rawPath});
+          isValueInjected = true;
+        }
+      }
+    }
+
+    const startPropIdx = isValueInjected ? 1 : 0;
+    for (let cIdx = 0; cIdx < remainingArgs.length; cIdx++) {
+      const cArg = remainingArgs[cIdx];
+      const propTargetIdx = cIdx + startPropIdx;
+      if (propTargetIdx < checkProps.length) {
+        const propName = checkProps[propTargetIdx];
+        const propSchema = checkHelper.getFunctionPropertySchema(checkName, propName);
+        let isMessage = false;
+        if (typeof cArg === 'string' && propSchema) {
+          const expectedType = propSchema.type;
+          if (
+            expectedType === 'integer' ||
+            expectedType === 'number' ||
+            expectedType === 'boolean'
+          ) {
+            isMessage = true;
+          }
+        }
+
+        if (isMessage) {
+          messageVal = cArg as string;
+          break;
+        }
+
+        callArgs.push(cArg);
+      } else {
+        if (typeof cArg === 'string') {
+          messageVal = cArg;
+        }
+      }
+    }
+
+    const innerKwargs: Record<string, ExpressValue> = {...(rcKwargs ?? {})};
+    if (checkCatalogId !== undefined) {
+      innerKwargs.catalogId = checkCatalogId as ExpressValue;
+    }
+
+    const conditionCall: ExpressCallValue = {
+      call: checkName,
+      args: callArgs,
+      ...(Object.keys(innerKwargs).length > 0 ? {kwargs: innerKwargs} : {}),
+    };
+
+    const [condition] = this.compileFunctionCall(
+      conditionCall,
+      rawSymbols,
+      compIds,
+      ctx,
+      targetMajorMinor,
+      isAction,
+      false,
+    );
+
+    return {condition, message: messageVal};
+  }
+
+  /**
+   * Compiles a function call AST node into a wire function call object.
+   */
+  private compileFunctionCall(
+    callVal: ExpressCallValue,
+    rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
+    ctx: CompileContext,
+    targetMajorMinor: [number, number],
+    isAction = false,
+    allowCallId = false,
+  ): [Record<string, unknown>, string | undefined] {
+    const fnName = callVal.call;
+    const fnArgs = callVal.args ?? [];
+    const fnKwargs = {...(callVal.kwargs ?? {})};
+
+    const explicitCatalogId = fnKwargs.catalogId;
+    delete fnKwargs.catalogId;
+
+    let explicitCallId: string | undefined;
+    if (allowCallId && 'functionCallId' in fnKwargs) {
+      const rawCallId = fnKwargs.functionCallId;
+      delete fnKwargs.functionCallId;
+      if (typeof rawCallId !== 'string' || !rawCallId) {
+        throw new ExpressValidationError(
+          `functionCallId on function '${fnName}' must be a non-empty string.`,
+        );
+      }
+      explicitCallId = rawCallId;
+    }
+
+    const {helper: fnHelper, catalogId: resolvedCatalogId} = this.resolveSymbol(
+      'function',
+      fnName,
+      explicitCatalogId,
+      targetMajorMinor,
+    );
+
+    const fnProps = fnHelper.getFunctionProperties(fnName);
+    const compiledArgs: Record<string, unknown> = {};
+    for (let idx = 0; idx < fnArgs.length; idx++) {
+      const arg = fnArgs[idx];
+      if (idx < fnProps.length) {
+        if (
+          arg &&
+          typeof arg === 'object' &&
+          'skipped' in arg &&
+          (arg as ExpressSkippedValue).skipped
+        ) {
+          continue;
+        }
+        const valItem = this._compileValue(
+          arg,
+          rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
+          isAction,
+        );
+        if (valItem !== undefined && valItem !== null) {
+          compiledArgs[fnProps[idx]] = valItem;
+        }
+      }
+    }
+
+    for (const [k, v] of Object.entries(fnKwargs)) {
+      if (!fnProps.includes(k)) {
+        throw new ExpressInvalidParamError(fnName, k, fnProps);
+      }
+      if (k in compiledArgs) {
+        throw new ExpressDuplicateParamError(fnName, k);
+      }
+      if (v && typeof v === 'object' && 'skipped' in v && (v as ExpressSkippedValue).skipped) {
+        continue;
+      }
+      const valItem = this._compileValue(v, rawSymbols, compIds, ctx, targetMajorMinor, isAction);
+      if (valItem !== undefined && valItem !== null) {
+        compiledArgs[k] = valItem;
+      }
+    }
+
+    const res: Record<string, unknown> = {
+      [fnHelper.keys.call]: fnName,
+    };
+    if (resolvedCatalogId !== undefined) {
+      res.catalogId = resolvedCatalogId;
+    }
+    res.args = compiledArgs;
+
+    return [res, explicitCallId];
+  }
+
+  /**
    * Compiles an individual AST node value into valid A2UI equivalents (compiler.py:644-838).
    *
    * @param val The parsed AST node value.
    * @param rawSymbols Parsed global variable symbol table.
+   * @param compIds Mapping from variable names to resolved component IDs.
    * @param ctx Active compiler execution context.
+   * @param targetMajorMinor Target major and minor protocol version numbers.
    * @param isAction Whether this value lies inside a component Action field.
    * @returns The semantically correct A2UI JSON structure.
    */
   private _compileValue(
     val: unknown,
     rawSymbols: Record<string, unknown>,
+    compIds: Map<string, string>,
     ctx: CompileContext,
+    targetMajorMinor: [number, number],
     isAction = false,
     inlineCtx?: {parentId: string; property: string; index?: number},
   ): unknown {
     if (val && typeof val === 'object') {
       if ('path' in val) {
-        return {[ctx.helper.keys.path]: (val as ExpressPathValue).path};
+        return {[ctx.keys.path]: (val as ExpressPathValue).path};
       }
 
       if ('variable' in val) {
         const refName = (val as {variable: string}).variable;
+        if (compIds.has(refName)) {
+          return compIds.get(refName)!;
+        }
         if (refName in rawSymbols) {
           const symbolVal = rawSymbols[refName];
-          if (
-            symbolVal &&
-            typeof symbolVal === 'object' &&
-            'call' in symbolVal &&
-            ctx.helper.components.has((symbolVal as ExpressCallValue).call)
-          ) {
-            return refName;
-          }
-          return this._compileValue(symbolVal, rawSymbols, ctx, isAction);
+          return this._compileValue(
+            symbolVal,
+            rawSymbols,
+            compIds,
+            ctx,
+            targetMajorMinor,
+            isAction,
+          );
         }
         return refName;
       }
 
       if ('check' in val) {
-        const checkVal = val as ExpressCheckValue;
-        const checkName = checkVal.check;
-        const checkArgs = checkVal.args ?? [];
-
-        const compiledArgs: Record<string, unknown> = {};
-        const checkProps = ctx.helper.getFunctionProperties(checkName);
-
-        const explicitArgs = [...checkArgs];
-        let isValueInjected = false;
-
-        // Sanctioned departure §5.2 item 3: implicit first argument injection
-        if (checkProps.length > 0) {
-          const first = checkProps[0];
-          const firstIsPath =
-            explicitArgs.length > 0 &&
-            explicitArgs[0] &&
-            typeof explicitArgs[0] === 'object' &&
-            'path' in explicitArgs[0];
-
-          if (!firstIsPath) {
-            const bound = ctx.activeBoundPaths.get(first);
-            if (bound) {
-              compiledArgs[first] = bound;
-              isValueInjected = true;
-            }
-          }
-        }
-
-        const startPropIdx = isValueInjected ? 1 : 0;
-        for (let cIdx = 0; cIdx < explicitArgs.length; cIdx++) {
-          const cArg = explicitArgs[cIdx];
-          const propTargetIdx = cIdx + startPropIdx;
-          if (propTargetIdx < checkProps.length) {
-            const propName = checkProps[propTargetIdx];
-            const propSchema = ctx.helper.getFunctionPropertySchema(checkName, propName);
-            let isMessage = false;
-            if (typeof cArg === 'string' && propSchema) {
-              const expectedType = propSchema.type;
-              if (
-                expectedType === 'integer' ||
-                expectedType === 'number' ||
-                expectedType === 'boolean'
-              ) {
-                isMessage = true;
-              }
-            }
-
-            if (isMessage) {
-              break;
-            }
-
-            if (
-              cArg &&
-              typeof cArg === 'object' &&
-              'skipped' in cArg &&
-              (cArg as ExpressSkippedValue).skipped
-            ) {
-              continue;
-            }
-            compiledArgs[propName] = this._compileValue(cArg, rawSymbols, ctx, isAction);
-          }
-        }
-
-        return {[ctx.helper.keys.call]: checkName, args: compiledArgs};
+        const {condition} = this.compileCheckCall(
+          val as ExpressCheckValue,
+          rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
+          isAction,
+        );
+        return condition;
       }
 
       if ('call' in val) {
@@ -1002,52 +1374,48 @@ export class ExpressCompiler {
         const fnArgs = callVal.args ?? [];
         const fnKwargs = callVal.kwargs ?? {};
 
-        // 1. Is it an inline component constructor?
-        if (ctx.helper.components.has(fnName)) {
-          ctx.inlineCounter += 1;
-          const inlineId = inlineCtx
-            ? inlineCtx.index !== undefined
-              ? `${inlineCtx.parentId}_${inlineCtx.property}_${inlineCtx.index}`
-              : `${inlineCtx.parentId}_${inlineCtx.property}`
-            : `_inline_${ctx.inlineCounter}`;
-          if (inlineId in rawSymbols || ctx.generatedIds.has(inlineId)) {
-            throw new ExpressIdCollisionError(inlineId);
-          }
-          ctx.generatedIds.add(inlineId);
-          const extraStartIndex = ctx.extraComponents.length;
-          const compiledInline = this._compileAstNode(inlineId, val, rawSymbols, ctx);
-          if (compiledInline) {
-            ctx.extraComponents.splice(extraStartIndex, 0, compiledInline);
-          }
-          return inlineId;
-        }
-
-        // 2. Is it a reserved _template signature?
+        // 1. Is it a reserved _template signature?
         if (fnName === '_template') {
           if (fnArgs.length < 2) {
             throw new ExpressParseError(
               '_template helper requires exactly 2 arguments: path and templateComponent.',
             );
           }
-          const pathVal = this._compileValue(fnArgs[0], rawSymbols, ctx, isAction);
-          if (!pathVal || typeof pathVal !== 'object' || !(ctx.helper.keys.path in pathVal)) {
+          const pathVal = this._compileValue(
+            fnArgs[0],
+            rawSymbols,
+            compIds,
+            ctx,
+            targetMajorMinor,
+            isAction,
+          );
+          if (!pathVal || typeof pathVal !== 'object' || !(ctx.keys.path in pathVal)) {
             throw new ExpressParseError(
               `The first argument to _template must be a dynamic data binding path (prefixed by $), got: ${formatValue(fnArgs[0])}`,
             );
           }
-          const compIdVal = this._compileValue(fnArgs[1], rawSymbols, ctx, isAction);
+          const compIdVal = this._compileValue(
+            fnArgs[1],
+            rawSymbols,
+            compIds,
+            ctx,
+            targetMajorMinor,
+            isAction,
+          );
           // A template's path is a plain property of ChildList, not a data binding, so it
           // keeps the unprefixed name in every version.
           return {
-            path: (pathVal as Record<string, unknown>)[ctx.helper.keys.path],
+            path: (pathVal as Record<string, unknown>)[ctx.keys.path],
             componentId: compIdVal,
           };
         }
 
-        // 3. Is it a reserved Event signature?
+        // 2. Is it a reserved Event signature?
         if (fnName === 'Event') {
           const compiledEventName =
-            fnArgs.length > 0 ? this._compileValue(fnArgs[0], rawSymbols, ctx, isAction) : '';
+            fnArgs.length > 0
+              ? this._compileValue(fnArgs[0], rawSymbols, compIds, ctx, targetMajorMinor, isAction)
+              : '';
 
           if (fnArgs.length <= 1) {
             return {
@@ -1057,7 +1425,14 @@ export class ExpressCompiler {
             };
           }
 
-          const rawContext = this._compileValue(fnArgs[1], rawSymbols, ctx, isAction);
+          const rawContext = this._compileValue(
+            fnArgs[1],
+            rawSymbols,
+            compIds,
+            ctx,
+            targetMajorMinor,
+            isAction,
+          );
           const compiledContext: Record<string, unknown> = {};
           if (rawContext && typeof rawContext === 'object') {
             if (Array.isArray(rawContext)) {
@@ -1078,62 +1453,52 @@ export class ExpressCompiler {
           };
         }
 
-        // 4. Is it a regular catalog function?
-        if (ctx.helper.functions.has(fnName)) {
-          const fnProps = ctx.helper.getFunctionProperties(fnName);
-          const compiledArgs: Record<string, unknown> = {};
-          for (let idx = 0; idx < fnArgs.length; idx++) {
-            const arg = fnArgs[idx];
-            if (idx < fnProps.length) {
-              if (
-                arg &&
-                typeof arg === 'object' &&
-                'skipped' in arg &&
-                (arg as ExpressSkippedValue).skipped
-              ) {
-                continue;
-              }
-              const valItem = this._compileValue(arg, rawSymbols, ctx, isAction);
-              if (valItem !== undefined && valItem !== null) {
-                compiledArgs[fnProps[idx]] = valItem;
-              }
-            }
+        // 3. Is it an inline component constructor?
+        if (this.definesComponent(fnName, fnKwargs.catalogId)) {
+          ctx.inlineCounter += 1;
+          const inlineId = inlineCtx
+            ? inlineCtx.index !== undefined
+              ? `${inlineCtx.parentId}_${inlineCtx.property}_${inlineCtx.index}`
+              : `${inlineCtx.parentId}_${inlineCtx.property}`
+            : `_inline_${ctx.inlineCounter}`;
+          if (
+            inlineId in rawSymbols ||
+            Array.from(compIds.values()).includes(inlineId) ||
+            ctx.generatedIds.has(inlineId)
+          ) {
+            throw new ExpressIdCollisionError(inlineId);
           }
-
-          for (const [k, v] of Object.entries(fnKwargs)) {
-            if (!fnProps.includes(k)) {
-              throw new ExpressInvalidParamError(fnName, k, fnProps);
-            }
-            if (k in compiledArgs) {
-              throw new ExpressDuplicateParamError(fnName, k);
-            }
-            if (
-              v &&
-              typeof v === 'object' &&
-              'skipped' in v &&
-              (v as ExpressSkippedValue).skipped
-            ) {
-              continue;
-            }
-            const valItem = this._compileValue(v, rawSymbols, ctx, isAction);
-            if (valItem !== undefined && valItem !== null) {
-              compiledArgs[k] = valItem;
-            }
+          ctx.generatedIds.add(inlineId);
+          const extraStartIndex = ctx.extraComponents.length;
+          const compiledInline = this._compileAstNode(
+            inlineId,
+            val,
+            rawSymbols,
+            compIds,
+            ctx,
+            targetMajorMinor,
+          );
+          if (compiledInline) {
+            ctx.extraComponents.splice(extraStartIndex, 0, compiledInline);
+            return compiledInline.id as string;
           }
-
-          // Wrap in functionCall only if inside an action field
-          if (isAction) {
-            return {
-              functionCall: {[ctx.helper.keys.call]: fnName, args: compiledArgs},
-            };
-          }
-
-          // Otherwise, compile direct dynamic function call expression
-          return {[ctx.helper.keys.call]: fnName, args: compiledArgs};
+          return inlineId;
         }
 
-        // Fallback for unknown functions
-        throw new ExpressUnknownFunctionError(fnName);
+        // 4. Regular catalog function call
+        const [compiledFn] = this.compileFunctionCall(
+          callVal,
+          rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
+          false,
+          false,
+        );
+        if (isAction) {
+          return {functionCall: compiledFn};
+        }
+        return compiledFn;
       }
 
       if (Array.isArray(val)) {
@@ -1141,7 +1506,9 @@ export class ExpressCompiler {
           this._compileValue(
             item,
             rawSymbols,
+            compIds,
             ctx,
+            targetMajorMinor,
             isAction,
             inlineCtx ? {...inlineCtx, index} : undefined,
           ),
@@ -1150,7 +1517,7 @@ export class ExpressCompiler {
 
       const dictRes: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-        dictRes[k] = this._compileValue(v, rawSymbols, ctx, isAction);
+        dictRes[k] = this._compileValue(v, rawSymbols, compIds, ctx, targetMajorMinor, isAction);
       }
       return dictRes;
     }

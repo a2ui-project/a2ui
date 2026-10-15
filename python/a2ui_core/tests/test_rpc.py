@@ -40,7 +40,7 @@ def test_rpc_handler_initialization_and_disposal() -> None:
             version="v1.0",
             call_renderer_function=CallRendererFunction(
                 function_call_id="call-1",
-                call_function=FunctionCall(call="someFunc"),
+                call_function=FunctionCall(call="someFunc", catalog_id="basic"),
             ),
         ),
         context=None,
@@ -430,3 +430,152 @@ def test_a2ui_rpc_error_constructor_parameter_order() -> None:
     assert str(err4) == "TIMEOUT"
     assert err4.code == "SERVER_FAULT"
     assert err4.function_call_id == "call-3"
+
+
+@pytest.mark.asyncio
+async def test_call_renderer_function_surface_id_resolution() -> None:
+    from a2ui.core.processing import MessageProcessor
+
+    def read_name(args: dict[str, Any], context: DataContext | None = None) -> str:
+        if "text" in args:
+            return args["text"] or "empty"
+        if context is None or context.data_model is None:
+            return "empty"
+        return context.data_model.get("/user/name") or "empty"
+
+    fn = FunctionImplementation(
+        name="readUserName",
+        execute=read_name,
+        allowed_callers="rendererOrAgent",
+    )
+    cat = Catalog("rpc-model-cat", protocol_version="v1.0", functions=[fn])
+    proc = MessageProcessor([cat])
+
+    proc.process_messages([
+        {
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "s1",
+                "catalogId": "rpc-model-cat",
+                "dataModel": {"user": {"name": "Alice"}},
+            },
+        },
+        {
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "s2",
+                "catalogId": "rpc-model-cat",
+                "dataModel": {"user": {"name": "Bob"}},
+            },
+        },
+    ])
+
+    # 1. With surfaceId="s2" and @path arg -> resolves against s2's data model ("Bob")
+    res_with_surface = await proc.process_messages_async({
+        "version": "v1.0",
+        "callRendererFunction": {
+            "surfaceId": "s2",
+            "functionCallId": "rpc-surf-1",
+            "callFunction": {
+                "@call": "readUserName",
+                "catalogId": "rpc-model-cat",
+                "args": {"text": {"@path": "/user/name"}},
+            },
+        },
+    })
+    assert len(res_with_surface) == 1
+    assert res_with_surface[0]["rendererFunctionResponse"]["value"] == "Bob"
+
+    # 2. Without surfaceId and @path arg -> resolves against isolated empty root model ("empty")
+    res_isolated = await proc.process_messages_async({
+        "version": "v1.0",
+        "callRendererFunction": {
+            "functionCallId": "rpc-surf-2",
+            "callFunction": {
+                "@call": "readUserName",
+                "catalogId": "rpc-model-cat",
+                "args": {"text": {"@path": "/user/name"}},
+            },
+        },
+    })
+    assert len(res_isolated) == 1
+    assert res_isolated[0]["rendererFunctionResponse"]["value"] == "empty"
+
+    # 3. With non-existent surfaceId -> returns INVALID_FUNCTION_CALL
+    res_missing = await proc.process_messages_async({
+        "version": "v1.0",
+        "callRendererFunction": {
+            "surfaceId": "non_existent_surface",
+            "functionCallId": "rpc-surf-3",
+            "callFunction": {
+                "@call": "readUserName",
+                "catalogId": "rpc-model-cat",
+                "args": {},
+            },
+        },
+    })
+    assert len(res_missing) == 1
+    assert (
+        res_missing[0]["rendererFunctionResponse"]["error"]["code"]
+        == RpcErrorCode.INVALID_FUNCTION_CALL.value
+    )
+    assert (
+        "Surface not found: non_existent_surface"
+        in res_missing[0]["rendererFunctionResponse"]["error"]["message"]
+    )
+
+    # 4. With @call: "@index" in args -> returns EXECUTION_ERROR
+    res_index_err = await proc.process_messages_async({
+        "version": "v1.0",
+        "callRendererFunction": {
+            "functionCallId": "rpc-surf-4",
+            "callFunction": {
+                "@call": "readUserName",
+                "catalogId": "rpc-model-cat",
+                "args": {"text": {"@call": "@index"}},
+            },
+        },
+    })
+    assert len(res_index_err) == 1
+    assert (
+        res_index_err[0]["rendererFunctionResponse"]["error"]["code"]
+        == RpcErrorCode.EXECUTION_ERROR.value
+    )
+
+    # 5. Omitting catalogId on wire message is rejected by schema validation even with surfaceId
+    from a2ui.core.exceptions import A2uiValidationError
+
+    with pytest.raises(A2uiValidationError, match="catalogId"):
+        await proc.process_messages_async({
+            "version": "v1.0",
+            "callRendererFunction": {
+                "surfaceId": "s1",
+                "functionCallId": "rpc-surf-5",
+                "callFunction": {
+                    "@call": "readUserName",
+                    "args": {},
+                },
+            },
+        })
+
+    # 6. Direct RpcHandler invocation without catalogId rejects with INVALID_FUNCTION_CALL
+    # even when the DataContext has a surface with a defaultCatalog
+    s1_surface = proc.model.get_surface("s1")
+    assert s1_surface is not None
+    unvalidated_msg = CallRendererFunctionMessage.model_construct(
+        version="v1.0",
+        call_renderer_function=CallRendererFunction.model_construct(
+            surface_id="s1",
+            function_call_id="rpc-surf-6",
+            call_function=FunctionCall(call="readUserName"),
+        ),
+    )
+    direct_handler = RpcHandler([cat])
+    direct_res = await direct_handler.handle_call_renderer_function_async(
+        unvalidated_msg,
+        context=DataContext(surface=s1_surface, path="/"),
+    )
+    assert (
+        direct_res["rendererFunctionResponse"]["error"]["code"]
+        == RpcErrorCode.INVALID_FUNCTION_CALL.value
+    )

@@ -3,7 +3,7 @@
   "$id": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
   "protocolVersion": "1.0",
   "title": "A2UI MCP Catalog",
-  "description": "A2UI catalog for Model Context Protocol (MCP) integrations. It defines `callMcpTool` and data functions that transform tool results into data model updates, and the `McpApp` component that renders a sandboxed MCP App connected to the host through the MCP Apps bridge.",
+  "description": "A2UI catalog for Model Context Protocol (MCP) integrations. It defines the `callMcpTool` function and the `McpApp` component that renders a sandboxed MCP App connected to the host through the MCP Apps bridge.",
   "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
   "components": {
     "McpApp": {
@@ -116,7 +116,7 @@
   "functions": {
     "callMcpTool": {
       "type": "object",
-      "description": "Invokes a tool on a connected Model Context Protocol (MCP) server and returns the result. Can be combined with `jmespath` and `updateDataModel` to update the surface data model from tool output.",
+      "description": "Invokes a tool on a connected Model Context Protocol (MCP) server and returns the result.",
       "returnType": "any",
       "properties": {
         "@call": {
@@ -146,136 +146,6 @@
         }
       },
       "required": ["@call", "args"]
-    },
-    "jmespath": {
-      "type": "object",
-      "description": "Evaluates a JMESPath expression against input data.",
-      "returnType": "any",
-      "properties": {
-        "@call": {
-          "const": "jmespath"
-        },
-        "args": {
-          "type": "object",
-          "properties": {
-            "expression": {
-              "$ref": "common_types.json#/$defs/DynamicString",
-              "description": "A standard JMESPath expression evaluated against `data`."
-            },
-            "data": {
-              "$ref": "common_types.json#/$defs/DynamicValue",
-              "description": "The input data to evaluate the expression against."
-            }
-          },
-          "required": ["expression", "data"],
-          "additionalProperties": false
-        }
-      },
-      "required": ["@call", "args"]
-    },
-    "split": {
-      "type": "object",
-      "description": "Splits a string or array of strings by a separator.",
-      "returnType": "any",
-      "properties": {
-        "@call": {
-          "const": "split"
-        },
-        "args": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "$ref": "common_types.json#/$defs/DynamicValue",
-              "description": "The string or array of strings to split."
-            },
-            "separator": {
-              "$ref": "common_types.json#/$defs/DynamicString",
-              "description": "The delimiter string to split on. An empty string splits into individual characters."
-            }
-          },
-          "required": ["value", "separator"],
-          "additionalProperties": false
-        }
-      },
-      "required": ["@call", "args"]
-    },
-    "regexCapture": {
-      "type": "object",
-      "description": "Extracts capture groups from the first RE2 regular expression match.",
-      "returnType": "any",
-      "properties": {
-        "@call": {
-          "const": "regexCapture"
-        },
-        "args": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "$ref": "common_types.json#/$defs/DynamicValue",
-              "description": "The string or array of strings to match against."
-            },
-            "pattern": {
-              "$ref": "common_types.json#/$defs/DynamicString",
-              "description": "An RE2 regular expression. Returns an array of capture groups from the first match, or null if there is no match. Unmatched optional groups return empty strings."
-            }
-          },
-          "required": ["value", "pattern"],
-          "additionalProperties": false
-        }
-      },
-      "required": ["@call", "args"]
-    },
-    "regexReplace": {
-      "type": "object",
-      "description": "Replaces all matches of an RE2 regular expression with literal text.",
-      "returnType": "any",
-      "properties": {
-        "@call": {
-          "const": "regexReplace"
-        },
-        "args": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "$ref": "common_types.json#/$defs/DynamicValue",
-              "description": "The string or array of strings to perform replacements on."
-            },
-            "pattern": {
-              "$ref": "common_types.json#/$defs/DynamicString",
-              "description": "An RE2 regular expression matching substrings to replace."
-            },
-            "replacement": {
-              "$ref": "common_types.json#/$defs/DynamicString",
-              "description": "Literal replacement string. Capture group references like $1 are treated as literal text."
-            }
-          },
-          "required": ["value", "pattern", "replacement"],
-          "additionalProperties": false
-        }
-      },
-      "required": ["@call", "args"]
-    },
-    "updateDataModel": {
-      "type": "object",
-      "description": "Writes key-value pairs to the surface data model.",
-      "returnType": "any",
-      "properties": {
-        "@call": {
-          "const": "updateDataModel"
-        },
-        "args": {
-          "type": "object",
-          "properties": {
-            "updates": {
-              "$ref": "common_types.json#/$defs/DynamicValue",
-              "description": "An object mapping data model paths to the values to write (e.g., {\"/entries\": [...], \"/title\": \"Home\"}). Paths starting with \"/\" are absolute; relative paths resolve against the current data context."
-            }
-          },
-          "required": ["updates"],
-          "additionalProperties": false
-        }
-      },
-      "required": ["@call", "args"]
     }
   },
   "$defs": {
@@ -293,21 +163,6 @@
       "oneOf": [
         {
           "$ref": "#/functions/callMcpTool"
-        },
-        {
-          "$ref": "#/functions/jmespath"
-        },
-        {
-          "$ref": "#/functions/split"
-        },
-        {
-          "$ref": "#/functions/regexCapture"
-        },
-        {
-          "$ref": "#/functions/regexReplace"
-        },
-        {
-          "$ref": "#/functions/updateDataModel"
         }
       ]
     }

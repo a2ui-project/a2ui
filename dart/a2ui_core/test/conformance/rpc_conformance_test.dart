@@ -114,7 +114,6 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   final processor = MessageProcessor<ComponentApi>(
     catalogs: [catalog],
     defaultVersion: A2uiProtocolVersion.v1_0,
-    commonTypesSchema: const {},
     outboundListener: sent.add,
   );
   addTearDown(processor.dispose);

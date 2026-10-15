@@ -16,12 +16,21 @@
 
 import {describe, it, expect} from 'vitest';
 import {
+  buildSchemaHelpers,
+  catalogsDefining,
+  surfaceCatalogId,
+} from '../../../../src/inference-formats/express/catalogs.js';
+import {
   ExpressFormat,
   ExpressFormatFactory,
 } from '../../../../src/inference-formats/express/format.js';
 import {ExpressParser} from '../../../../src/inference-formats/express/parser.js';
 import {ExpressPromptGenerator} from '../../../../src/inference-formats/express/prompt-generator.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
+import {
+  catalogFromTestDocument,
+  loadConformanceCatalog,
+} from '../../../helpers/conformance-catalogs.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 
 const basicCatalogV10 = loadBasicCatalog('v1.0');
@@ -41,6 +50,43 @@ describe('ExpressFormat', () => {
     expect(() => new ExpressFormat([catalog1, catalog2])).toThrow(
       `Express catalogs must share one protocol version, but '${catalog1.id}' is 'v1.0' and '${catalog2.id}' is 'v0.9'.`,
     );
+  });
+
+  it('throws A2uiCatalogError when duplicate catalog IDs are provided', () => {
+    expect(() => new ExpressFormat([catalog1, catalog1])).toThrow(A2uiCatalogError);
+    expect(() => new ExpressFormat([catalog1, catalog1])).toThrow(
+      `Duplicate catalog ID: '${catalog1.id}'`,
+    );
+  });
+
+  it('throws A2uiCatalogError when multiple v0.9 catalogs are provided', () => {
+    const customV09 = catalogFromTestDocument({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      catalogId: 'test/custom_v0_9',
+      protocolVersion: '0.9',
+      components: {},
+      functions: {},
+    });
+    expect(() => new ExpressFormat([catalog2, customV09])).toThrow(A2uiCatalogError);
+    expect(() => new ExpressFormat([catalog2, customV09])).toThrow(
+      /Several catalogs need A2UI v1\.0 or later/,
+    );
+  });
+
+  it('surfaceCatalogId returns catalog id for single catalog and undefined for multiple', () => {
+    const customV10 = loadConformanceCatalog('custom_catalog_v1_0.json');
+    expect(surfaceCatalogId([catalog1])).toBe(catalog1.id);
+    expect(surfaceCatalogId([catalog1, customV10])).toBeUndefined();
+  });
+
+  it('catalogsDefining returns catalog ids that define a component or function in order', () => {
+    const simplified = loadConformanceCatalog('simplified_catalog_v1_0.json');
+    const custom = loadConformanceCatalog('custom_catalog_v1_0.json');
+    const helpers = buildSchemaHelpers([simplified, custom], 'v1.0');
+    expect(catalogsDefining(helpers, 'component', 'Text')).toEqual([simplified.id]);
+    expect(catalogsDefining(helpers, 'component', 'Chart')).toEqual([custom.id]);
+    expect(catalogsDefining(helpers, 'component', 'NonExistent')).toEqual([]);
+    expect(catalogsDefining(helpers, 'function', 'percent')).toEqual([custom.id]);
   });
 
   it('constructs successfully with exactly one catalog', () => {

@@ -15,10 +15,11 @@
 import 'dart:async';
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_core/src/rendering/binder.dart';
 import 'package:json_schema_builder/json_schema_builder.dart'
     hide ValidationResult;
 import 'package:test/test.dart';
+
+import 'support/test_catalog.dart';
 
 /// A catalog function whose behavior and metadata the test chooses.
 class _Fn extends FunctionImplementation {
@@ -47,7 +48,7 @@ Catalog<ComponentApi, FunctionImplementation> _catalog({
       protocolVersion: protocolVersion != null
           ? A2uiProtocolVersion.tryParseSemVer(protocolVersion)
           : null,
-      components: [MinimalTextApi(), MinimalButtonApi(), MinimalTextFieldApi()],
+      components: [TestTextApi(), TestButtonApi(), TestTextFieldApi()],
       functions: [
         _Fn('upper', (args) => (args['value'] as String).toUpperCase()),
         _Fn('gated', (_) => 'opened', requiresUserActivation: true),
@@ -58,7 +59,7 @@ Future<void> _flush() => Future<void>.delayed(Duration.zero);
 
 void main() {
   late List<_AgentCall> agentCalls;
-  late List<A2uiClientError> clientErrors;
+  late List<A2uiRendererError> clientErrors;
 
   Future<Object?> callAgent(FunctionCall call) {
     final completer = Completer<Object?>();
@@ -76,7 +77,7 @@ void main() {
       protocolVersion: protocolVersion,
       callAgentFunction: withCaller ? callAgent : null,
     );
-    surface.onError.addListener(clientErrors.add);
+    surface.onError.subscribe(clientErrors.add);
     addTearDown(surface.dispose);
     return surface;
   }
@@ -94,7 +95,7 @@ void main() {
       final DataContext context =
           ComponentContext(surface, component).dataContext;
 
-      final ReadonlySignal<Object?> value = context.resolveListenable({
+      final ReadonlySignal<Object?> value = context.resolveSignal({
         '@call': 'queryInventory',
         'args': {
           'sku': {'@path': '/sku'},
@@ -136,28 +137,30 @@ void main() {
         '@call': 'lookup',
         'args': {'tag': 'a', 'id': 1},
       };
-      expect(context.resolveSync(call), isNull);
-      expect(context.resolveSync(call), isNull);
-      expect(context.resolveSync(reorderedCall), isNull);
+      expect(context.resolveDynamicValue(call), isNull);
+      expect(context.resolveDynamicValue(call), isNull);
+      expect(context.resolveDynamicValue(reorderedCall), isNull);
       expect(context.isPendingAgentCall(reorderedCall), isTrue);
-      expect(context.nested('/x').resolveSync(call), isNull);
+      expect(context.nested('/x').resolveDynamicValue(call), isNull);
       final childComp = ComponentModel('child', 'Text', {});
       surface.componentsModel.addComponent(childComp);
       expect(
-        ComponentContext(surface, childComp).dataContext.resolveSync(call),
+        ComponentContext(surface, childComp)
+            .dataContext
+            .resolveDynamicValue(call),
         isNull,
       );
       expect(
         ComponentContext(surface, ComponentModel('root', 'Text', {}))
             .childContext('child')
             .dataContext
-            .resolveSync(call),
+            .resolveDynamicValue(call),
         isNull,
       );
       expect(agentCalls, hasLength(1));
 
       expect(
-        context.resolveSync({
+        context.resolveDynamicValue({
           '@call': 'lookup',
           'args': {'id': 2},
         }),
@@ -172,7 +175,7 @@ void main() {
       final DataContext context =
           ComponentContext(surface, ComponentModel('root', 'Text', {}))
               .dataContext;
-      final ReadonlySignal<Object?> value = context.resolveListenable({
+      final ReadonlySignal<Object?> value = context.resolveSignal({
         '@call': 'lookup',
         'args': <String, Object?>{},
       });
@@ -195,14 +198,18 @@ void main() {
 
       // A failed call is evicted so a later retry invokes the agent again.
       expect(
-        context.resolveSync({'@call': 'lookup', 'args': <String, Object?>{}}),
+        context.resolveDynamicValue(
+          {'@call': 'lookup', 'args': <String, Object?>{}},
+        ),
         isNull,
       );
       expect(agentCalls, hasLength(2));
       agentCalls.last.completer.complete('recovered');
       await _flush();
       expect(
-        context.resolveSync({'@call': 'lookup', 'args': <String, Object?>{}}),
+        context.resolveDynamicValue(
+          {'@call': 'lookup', 'args': <String, Object?>{}},
+        ),
         'recovered',
       );
     });
@@ -215,7 +222,7 @@ void main() {
           ComponentContext(surface, ComponentModel('root', 'Text', {}))
               .dataContext;
       final ReadonlySignal<DynamicValueState> state =
-          context.resolveListenableWithPending({
+          context.resolveSignalWithPending({
         '@call': 'outer',
         'args': {
           'x': {'@call': 'inner', 'args': <String, Object?>{}},
@@ -275,7 +282,9 @@ void main() {
         ComponentModel('root', 'Text', {}),
         onError: errors.add,
       ).dataContext;
-      context.resolveSync({'@call': 'lookup', 'args': <String, Object?>{}});
+      context.resolveDynamicValue(
+        {'@call': 'lookup', 'args': <String, Object?>{}},
+      );
       final rpcError = A2uiRpcError('timed out', RpcErrorCode.timeout,
           functionCallId: 'fc-1');
       agentCalls.single.completer.completeError(rpcError);
@@ -293,7 +302,9 @@ void main() {
           ComponentContext(surface, ComponentModel('root', 'Text', {}))
               .dataContext;
       expect(
-        context.resolveSync({'call': 'lookup', 'args': <String, Object?>{}}),
+        context.resolveDynamicValue(
+          {'call': 'lookup', 'args': <String, Object?>{}},
+        ),
         isNull,
       );
       expect(agentCalls, isEmpty);
@@ -306,7 +317,9 @@ void main() {
           ComponentContext(surface, ComponentModel('root', 'Text', {}))
               .dataContext;
       expect(
-        context.resolveSync({'@call': 'lookup', 'args': <String, Object?>{}}),
+        context.resolveDynamicValue(
+          {'@call': 'lookup', 'args': <String, Object?>{}},
+        ),
         isNull,
       );
       expect(clientErrors.single.code, 'EXPRESSION_ERROR');
@@ -319,7 +332,7 @@ void main() {
           ComponentContext(surface, ComponentModel('root', 'Text', {}))
               .dataContext;
       expect(
-        context.resolveSync({
+        context.resolveDynamicValue({
           '@call': 'upper',
           'args': {'value': 1}
         }),
@@ -334,7 +347,7 @@ void main() {
       final DataContext context =
           ComponentContext(surface, ComponentModel('root', 'Text', {}))
               .dataContext;
-      context.resolveSync({
+      context.resolveDynamicValue({
         '@call': 'remote',
         'catalogId': 'elsewhere',
         'args': <String, Object?>{},
@@ -349,7 +362,9 @@ void main() {
               .dataContext;
       expect(context.isUserActivated, isFalse);
       expect(
-        context.resolveSync({'@call': 'gated', 'args': <String, Object?>{}}),
+        context.resolveDynamicValue(
+          {'@call': 'gated', 'args': <String, Object?>{}},
+        ),
         isNull,
       );
       expect(clientErrors.single.code, 'EXPRESSION_ERROR');
@@ -363,7 +378,9 @@ void main() {
       expect(activated.isUserActivated, isTrue);
       expect(activated.path, context.path);
       expect(
-        activated.resolveSync({'@call': 'gated', 'args': <String, Object?>{}}),
+        activated.resolveDynamicValue(
+          {'@call': 'gated', 'args': <String, Object?>{}},
+        ),
         'opened',
       );
     });
@@ -430,7 +447,7 @@ void main() {
       final comp = ComponentModel('c1', 'TextField', props);
       surface.componentsModel.addComponent(comp);
       final binder = GenericBinder(
-          ComponentContext(surface, comp), MinimalTextFieldApi().schema);
+          ComponentContext(surface, comp), TestTextFieldApi().schema);
       addTearDown(binder.dispose);
       return binder;
     }
@@ -530,7 +547,7 @@ void main() {
       });
       surface.componentsModel.addComponent(comp);
       final binder = GenericBinder(
-          ComponentContext(surface, comp), MinimalButtonApi().schema);
+          ComponentContext(surface, comp), TestButtonApi().schema);
       addTearDown(binder.dispose);
       final callback =
           binder.resolvedProps.value['action'] as Future<void> Function();

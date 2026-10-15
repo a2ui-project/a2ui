@@ -27,7 +27,7 @@ permissions:
   contents: read
 
 env:
-  RENDERERS_INC: "--include 'renderers/**' --include 'typescript/**'"
+  RENDERERS_INC: "--include 'typescript/**'"
   TOOLS_INC: "--include 'tools/**'"
   SAMPLES_INC: "--include 'samples/client/**'"
 
@@ -48,8 +48,9 @@ jobs:
         id: filter
         with:
           filters: |
+            # Keep the `renderers` filter and `ci-renderers` job names for
+            # branch protection required status checks.
             renderers:
-              - 'renderers/**'
               - 'typescript/**'
               - 'conformance/**'
               - 'catalogs/**'
@@ -111,7 +112,7 @@ jobs:
       - name: Test React 18 Compatibility
         run: yarn workspace @a2ui/react run test:react18
       - name: Verify NPM Publish Script
-        run: node --test renderers/scripts/publish_npm.test.mjs
+        run: node --test typescript/scripts/publish_npm.test.mjs typescript/scripts/upload_manifest.test.mjs
 
   ci-tools:
     needs: changes
