@@ -2,8 +2,8 @@
 
 - **BREAKING**: Remove the `a2ui.schema` package.
   - The constants move to `a2ui.constants`. For example,
-    `from a2ui.schema import VERSION_0_9` becomes
-    `from a2ui.constants import VERSION_0_9`.
+    `from a2ui.schema import A2UI_OPEN_TAG` becomes
+    `from a2ui.constants import A2UI_OPEN_TAG`.
   - `load_examples`, `resolve_examples_path`, `load_agent_to_renderer_schema`
     and `load_common_types_schema` move to `a2ui.utils`.
   - `find_repo_root`, `get_spec_dir`, `get_basic_catalog_path`,

@@ -27,11 +27,12 @@ from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import ProtocolVersion
 
 
-def load_agent_to_renderer_schema(version: str) -> dict[str, Any]:
+def load_agent_to_renderer_schema(version: ProtocolVersion | str) -> dict[str, Any]:
     """Returns the agent-to-renderer (server-to-client) schema for a protocol version.
 
     Args:
-        version: The protocol version string (e.g. '1.0', '0.9.1', 'v0_9').
+        version: A `ProtocolVersion`, or a version string such as '1.0',
+            '0.9.1' or 'v0_9'.
 
     Returns:
         The agent-to-renderer JSON schema as a dictionary.
@@ -46,7 +47,7 @@ def load_agent_to_renderer_schema(version: str) -> dict[str, Any]:
     return get_agent_to_renderer_schema_map(protocol_version)
 
 
-def load_common_types_schema(version: str) -> dict[str, Any]:
+def load_common_types_schema(version: ProtocolVersion | str) -> dict[str, Any]:
     """Returns the common types schema for a protocol version.
 
     a2ui-core generates the schema from the same Pydantic models it validates
@@ -54,7 +55,8 @@ def load_common_types_schema(version: str) -> dict[str, Any]:
     source of truth with payload validation.
 
     Args:
-        version: The protocol version string (e.g. '1.0', '0.9.1', 'v0_9').
+        version: A `ProtocolVersion`, or a version string such as '1.0',
+            '0.9.1' or 'v0_9'.
 
     Returns:
         The common types JSON schema, or an empty dictionary for versions that
