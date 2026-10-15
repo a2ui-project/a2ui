@@ -23,6 +23,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 from typing import Any
 
 from ..shared.utils import GIT_ROOT
@@ -104,6 +105,7 @@ class DartSdkBridge(AgentSdkBridge):
 
     def __init__(self) -> None:
         self._compiled_exe: Path | None = None
+        self._lock = threading.Lock()
 
     def _get_exe_path(self) -> Path:
         uid = getattr(os, "getuid", lambda: 0)()
@@ -113,53 +115,56 @@ class DartSdkBridge(AgentSdkBridge):
 
     def prepare(self) -> None:
         """Compiles dart_runner.dart to a native executable for fast parallel invocation."""
-        exe_path = self._get_exe_path()
-        latest_mtime = _latest_dart_source_mtime()
+        with self._lock:
+            exe_path = self._get_exe_path()
+            latest_mtime = _latest_dart_source_mtime()
 
-        if (
-            self._compiled_exe is not None
-            and self._compiled_exe.is_file()
-            and self._compiled_exe.stat().st_mtime >= latest_mtime
-        ):
-            return
+            if (
+                self._compiled_exe is not None
+                and self._compiled_exe.is_file()
+                and self._compiled_exe.stat().st_mtime >= latest_mtime
+            ):
+                return
 
-        if exe_path.is_file() and exe_path.stat().st_mtime >= latest_mtime:
+            if exe_path.is_file() and exe_path.stat().st_mtime >= latest_mtime:
+                self._compiled_exe = exe_path
+                return
+
+            dart_bin = find_dart_binary()
+            pkg_config = GIT_ROOT / ".dart_tool" / "package_config.json"
+            if not pkg_config.is_file():
+                subprocess.run(
+                    [dart_bin, "pub", "get"],
+                    cwd=str(GIT_ROOT),
+                    check=True,
+                )
+
+            tmp_exe = exe_path.with_suffix(
+                f".tmp.{os.getpid()}.{threading.get_ident()}"
+            )
+            try:
+                subprocess.run(
+                    [
+                        dart_bin,
+                        "compile",
+                        "exe",
+                        str(DART_RUNNER_PATH),
+                        f"--packages={pkg_config}",
+                        "-o",
+                        str(tmp_exe),
+                    ],
+                    cwd=str(GIT_ROOT),
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as exc:
+                raise RuntimeError(
+                    "Dart compilation"
+                    f" failed:\nStdout:\n{exc.stdout}\nStderr:\n{exc.stderr}"
+                ) from exc
+            os.replace(tmp_exe, exe_path)
             self._compiled_exe = exe_path
-            return
-
-        dart_bin = find_dart_binary()
-        pkg_config = GIT_ROOT / ".dart_tool" / "package_config.json"
-        if not pkg_config.is_file():
-            subprocess.run(
-                [dart_bin, "pub", "get"],
-                cwd=str(GIT_ROOT),
-                check=True,
-            )
-
-        tmp_exe = exe_path.with_suffix(f".tmp.{os.getpid()}")
-        try:
-            subprocess.run(
-                [
-                    dart_bin,
-                    "compile",
-                    "exe",
-                    str(DART_RUNNER_PATH),
-                    f"--packages={pkg_config}",
-                    "-o",
-                    str(tmp_exe),
-                ],
-                cwd=str(GIT_ROOT),
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-        except subprocess.CalledProcessError as exc:
-            raise RuntimeError(
-                "Dart compilation"
-                f" failed:\nStdout:\n{exc.stdout}\nStderr:\n{exc.stderr}"
-            ) from exc
-        os.replace(tmp_exe, exe_path)
-        self._compiled_exe = exe_path
 
     def _invoke_runner(self, payload: dict[str, Any], timeout_sec: float = 10.0) -> Any:
         self.prepare()

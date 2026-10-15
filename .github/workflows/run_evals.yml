@@ -100,7 +100,7 @@ jobs:
   eval-python:
     name: Evaluate Python SDK
     needs: changes
-    if: ${{ always() && (github.event_name == 'schedule' || needs.changes.outputs.python == 'true') }}
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || needs.changes.outputs.python == 'true') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -149,7 +149,7 @@ jobs:
   eval-ts:
     name: Evaluate TypeScript SDK
     needs: changes
-    if: ${{ always() && (github.event_name == 'schedule' || needs.changes.outputs.ts == 'true') }}
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || needs.changes.outputs.ts == 'true') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -204,7 +204,7 @@ jobs:
   eval-dart:
     name: Evaluate Dart SDK
     needs: changes
-    if: ${{ always() && (github.event_name == 'schedule' || needs.changes.outputs.dart == 'true') }}
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || needs.changes.outputs.dart == 'true') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -232,9 +232,7 @@ jobs:
           cache: false
 
       - name: Install Dart dependencies
-        run: |
-          (cd dart/a2ui_core && flutter pub get)
-          (cd dart/a2ui_agent && flutter pub get)
+        run: flutter pub get
 
       - name: Decrypt dataset
         working-directory: eval

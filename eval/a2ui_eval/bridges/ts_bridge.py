@@ -21,6 +21,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import threading
 from typing import Any
 
 from ..shared.utils import GIT_ROOT
@@ -71,47 +72,55 @@ class TypeScriptSdkBridge(AgentSdkBridge):
 
     def __init__(self) -> None:
         self._prepared = False
+        self._lock = threading.Lock()
 
     def prepare(self) -> None:
         """Ensures @a2ui/web_core and @a2ui/agent are compiled before running evals."""
-        if self._prepared:
-            return
+        with self._lock:
+            if self._prepared:
+                return
 
-        agent_dist = (
-            GIT_ROOT / "typescript" / "a2ui_agent" / "dist" / "src" / "index.js"
-        )
-        core_dist = (
-            GIT_ROOT / "typescript" / "core" / "web_core" / "dist" / "src" / "index.js"
-        )
-        web_core_link = GIT_ROOT / "node_modules" / "@a2ui" / "web_core"
+            agent_dist = (
+                GIT_ROOT / "typescript" / "a2ui_agent" / "dist" / "src" / "index.js"
+            )
+            core_dist = (
+                GIT_ROOT
+                / "typescript"
+                / "core"
+                / "web_core"
+                / "dist"
+                / "src"
+                / "index.js"
+            )
+            web_core_link = GIT_ROOT / "node_modules" / "@a2ui" / "web_core"
 
-        if (
-            not agent_dist.is_file()
-            or not core_dist.is_file()
-            or not web_core_link.exists()
-        ):
-            node_bin = find_node_binary()
-            yarn_bin = find_yarn_binary(node_bin)
-            env = os.environ.copy()
-            node_dir = str(Path(node_bin).parent)
-            env["PATH"] = f"{node_dir}:{env.get('PATH', '')}"
+            if (
+                not agent_dist.is_file()
+                or not core_dist.is_file()
+                or not web_core_link.exists()
+            ):
+                node_bin = find_node_binary()
+                yarn_bin = find_yarn_binary(node_bin)
+                env = os.environ.copy()
+                node_dir = str(Path(node_bin).parent)
+                env["PATH"] = f"{node_dir}:{env.get('PATH', '')}"
 
-            if not web_core_link.exists():
+                if not web_core_link.exists():
+                    subprocess.run(
+                        [yarn_bin, "install"],
+                        cwd=str(GIT_ROOT),
+                        env=env,
+                        check=True,
+                    )
+
                 subprocess.run(
-                    [yarn_bin, "install"],
+                    [yarn_bin, "workspace", "@a2ui/agent", "build"],
                     cwd=str(GIT_ROOT),
                     env=env,
                     check=True,
                 )
 
-            subprocess.run(
-                [yarn_bin, "workspace", "@a2ui/agent", "build"],
-                cwd=str(GIT_ROOT),
-                env=env,
-                check=True,
-            )
-
-        self._prepared = True
+            self._prepared = True
 
     def _invoke_runner(self, payload: dict[str, Any], timeout_sec: float = 10.0) -> Any:
         self.prepare()

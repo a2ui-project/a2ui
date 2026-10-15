@@ -108,6 +108,7 @@ def a2ui_v0_9_1_eval(
     )
 
     return Task(
+        name=f"a2ui_v0_9_1_eval_{norm_sdk}" if norm_sdk != "python" else None,
         dataset=dataset_obj,
         solver=get_solver(strategy, version=active_version, sdk=norm_sdk),
         scorer=[
@@ -175,6 +176,7 @@ def a2ui_v1_0_eval(
     )
 
     return Task(
+        name=f"a2ui_v1_0_eval_{norm_sdk}" if norm_sdk != "python" else None,
         dataset=dataset_obj,
         solver=get_solver(strategy, version=active_version, sdk=norm_sdk),
         scorer=[

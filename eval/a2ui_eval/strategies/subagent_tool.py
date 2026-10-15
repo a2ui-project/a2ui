@@ -94,7 +94,7 @@ def a2ui_specialist() -> Tool:
                     resolved_catalog_path,
                     "main",
                     output.completion,
-                    5.0,
+                    0.0 if sdk == "python" else 10.0,
                     True,
                 )
                 all_messages = res_dict.get("compiled_jsons", [])

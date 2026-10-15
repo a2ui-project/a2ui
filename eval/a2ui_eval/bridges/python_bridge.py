@@ -151,7 +151,7 @@ def parse_with_hard_kill_timeout(
     resolved_catalog_path: str,
     surface_id: str,
     completion: str,
-    timeout_sec: float = 5.0,
+    timeout_sec: float = 15.0,
     require_complete_tags: bool = False,
 ) -> dict[str, Any]:
     """Runs Python parsing and validation in a child process with a hard kill timeout."""
@@ -172,17 +172,22 @@ def parse_with_hard_kill_timeout(
     p.start()
     child_conn.close()
     try:
-        p.join(timeout=timeout_sec)
+        if parent_conn.poll(timeout_sec):
+            return_dict = parent_conn.recv()
+            p.join(timeout=1.0)
+        else:
+            if p.is_alive():
+                p.kill()
+                p.join()
+                raise TimeoutError(
+                    f"Format compilation timed out after {timeout_sec}s and"
+                    " process was killed."
+                )
+            return_dict = parent_conn.recv() if parent_conn.poll() else {}
+    finally:
         if p.is_alive():
             p.kill()
             p.join()
-            raise TimeoutError(
-                f"Format compilation timed out after {timeout_sec}s and"
-                " process was killed."
-            )
-
-        return_dict = parent_conn.recv() if parent_conn.poll() else {}
-    finally:
         parent_conn.close()
 
     if "error" in return_dict:
@@ -220,7 +225,7 @@ class PythonSdkBridge(AgentSdkBridge):
         resolved_catalog_path: str,
         surface_id: str,
         completion: str,
-        timeout_sec: float = 5.0,
+        timeout_sec: float = 15.0,
         require_complete_tags: bool = False,
     ) -> dict[str, Any]:
         validate_sdk_format(self.sdk_name, format_name)

@@ -128,7 +128,7 @@ def compile_format_payload(
                 resolved_catalog_path,
                 surface_id,
                 completion,
-                5.0,
+                15.0,
             )
 
             compiled_jsons = res_dict.get("compiled_jsons", [])
