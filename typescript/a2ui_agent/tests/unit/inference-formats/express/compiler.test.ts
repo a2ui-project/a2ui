@@ -15,7 +15,7 @@
  */
 
 import {basicCatalog as codeDefinedBasicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
-import {afterEach, describe, expect, it, vi} from 'vitest';
+import {describe, expect, it} from 'vitest';
 
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {
@@ -50,6 +50,7 @@ describe('ExpressCompiler', () => {
   const simplifiedCatalog = loadConformanceCatalog('simplified_catalog_v1_0.json');
 
   const customCatalog = loadConformanceCatalog('custom_catalog_v1_0.json');
+  const formsCatalog = loadConformanceCatalog('forms_catalog_v1_0.json');
 
   describe('Compiling against the v1.0 basic catalog', () => {
     it('compiles a Text with a variant', () => {
@@ -327,7 +328,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const compiler = new ExpressCompiler([simplifiedCatalog], 'v1.0');
       // When isFinal=false, syntax error in incomplete input is swallowed and statements becomes []
       // With no statements, scopes is [] which raises ExpressUndefinedRootError
-      expect(() => compiler.compile('root = Text(', 'default_surface', '', false)).toThrow(
+      expect(() => compiler.compile('root = Text(', 'default_surface', false)).toThrow(
         ExpressUndefinedRootError,
       );
     });
@@ -370,7 +371,6 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const messages = compiler.compile(
         '$/foo = 123\n$/bar = """unclosed string...\n',
         'default_surface',
-        '',
         false,
       );
       expect(messages).toEqual([
@@ -386,7 +386,6 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const messages = compiler.compile(
         'root = Column([title])\ntitle = Text("Hello")\nfooter = Text("unfin',
         'default_surface',
-        '',
         false,
       );
       expect(messages).toEqual([
@@ -430,7 +429,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
     it('accepts a per-call version on the same line', () => {
       const compiler = new ExpressCompiler(basicCatalogV09);
-      const messages = compiler.compile('root = Text("Hi")', 's', '', true, 'v0.9.1');
+      const messages = compiler.compile('root = Text("Hi")', 's', true, 'v0.9.1');
       expect(versionsOf(messages)).toEqual(['v0.9.1', 'v0.9.1']);
     });
 
@@ -440,15 +439,13 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
     it('rejects a per-call v1.0 version for a v0.9 catalog', () => {
       const compiler = new ExpressCompiler(basicCatalogV09);
-      expect(() => compiler.compile('root = Text("Hi")', 's', '', true, 'v1.0')).toThrow(
+      expect(() => compiler.compile('root = Text("Hi")', 's', true, 'v1.0')).toThrow(
         A2uiCatalogError,
       );
     });
   });
 
   describe('Multiple Catalogs', () => {
-    // A second catalog that also defines `Text`, with a different property, so a
-    // test can tell which catalog a block compiled against.
     const labelsDoc: Record<string, unknown> = {
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       catalogId: 'test/labels',
@@ -460,74 +457,315 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
           required: ['component', 'label'],
         },
       },
-      functions: {},
+      functions: {
+        formatString: {
+          type: 'object',
+          properties: {
+            call: {const: 'formatString'},
+            args: {
+              type: 'object',
+              properties: {template: {type: 'string'}},
+              required: ['template'],
+            },
+          },
+        },
+        required: {
+          type: 'object',
+          properties: {
+            call: {const: 'required'},
+            args: {
+              type: 'object',
+              properties: {value: {type: 'string'}, hint: {type: 'string'}},
+              required: ['value'],
+            },
+          },
+        },
+      },
     };
     const labelsCatalog = Catalog.fromJson(labelsDoc);
 
-    afterEach(() => {
-      vi.restoreAllMocks();
-    });
-
-    function createSurfaceOf(message: unknown): Record<string, unknown> {
-      return (message as {createSurface: Record<string, unknown>}).createSurface;
-    }
-
-    it('looks components up only in the catalog the surface line names', () => {
-      const compiler = new ExpressCompiler([basicCatalogV10, labelsCatalog]);
+    it('resolves unique components, functions, and checks across active catalogs and omits createSurface.catalogId', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog, customCatalog, formsCatalog]);
       const messages = compiler.compile(
-        `surface("s1", catalogId="${basicCatalogV10.id}")\nroot = Text("hello")\n` +
-          'surface("s2", catalogId="test/labels")\nroot = Text("hello")',
+        'surface("dashboard")\n' +
+          'root = Column([g, f])\n' +
+          'g = Gauge(0.75)\n' +
+          'f = TextField(formatString("Zip"), $/zip, _, [?regex(r"^[0-9]{5}$", "Must be 5 digits")])',
       );
-      expect(messages.map(createSurfaceOf)).toEqual([
+      expect(messages).toEqual([
         {
-          surfaceId: 's1',
-          catalogId: basicCatalogV10.id,
-          components: [{id: 'root', component: 'Text', text: 'hello'}],
-        },
-        {
-          surfaceId: 's2',
-          catalogId: 'test/labels',
-          components: [{id: 'root', component: 'Text', label: 'hello'}],
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'dashboard',
+            components: [
+              {
+                id: 'root',
+                component: 'Column',
+                catalogId: simplifiedCatalog.id,
+                children: ['g', 'f'],
+              },
+              {
+                id: 'g',
+                component: 'Gauge',
+                catalogId: customCatalog.id,
+                value: 0.75,
+              },
+              {
+                id: 'f',
+                component: 'TextField',
+                catalogId: formsCatalog.id,
+                label: {
+                  '@call': 'formatString',
+                  catalogId: simplifiedCatalog.id,
+                  args: {value: 'Zip'},
+                },
+                value: {'@path': '/zip'},
+                checks: [
+                  {
+                    condition: {
+                      '@call': 'regex',
+                      catalogId: formsCatalog.id,
+                      args: {value: {'@path': '/zip'}, pattern: '^[0-9]{5}$'},
+                    },
+                    message: 'Must be 5 digits',
+                  },
+                ],
+              },
+            ],
+          },
         },
       ]);
     });
 
-    it('uses the first catalog and warns when a block names none', () => {
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const compiler = new ExpressCompiler([basicCatalogV10, labelsCatalog]);
-      const messages = compiler.compile('root = Text("hi")');
-      expect(warn).toHaveBeenCalledOnce();
-      expect(warn.mock.calls[0][0]).toContain(`'${basicCatalogV10.id}'`);
-      expect(createSurfaceOf(messages[0]).catalogId).toBe(basicCatalogV10.id);
-    });
-
-    it('does not warn with a single catalog', () => {
-      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      new ExpressCompiler(basicCatalogV10).compile('root = Text("hi")');
-      expect(warn).not.toHaveBeenCalled();
-    });
-
-    it('decompiles each message with the catalog it names', () => {
-      const decompiler = new ExpressDecompiler([basicCatalogV10, labelsCatalog], 'v1.0');
-      const dsl = decompiler.decompile({
-        version: 'v1.0',
-        createSurface: {
-          surfaceId: 's2',
-          catalogId: 'test/labels',
-          components: [{id: 'root', component: 'Text', label: 'hello'}],
-        },
-      });
-      expect(dsl).toBe('surface("s2", catalogId="test/labels")\nroot = Text("hello")');
-    });
-
-    it('refuses to decompile messages for a catalog it does not have', () => {
-      const decompiler = new ExpressDecompiler(basicCatalogV10, 'v1.0');
-      expect(() =>
-        decompiler.decompile({
+    it('disambiguates shared component, function, and check names with catalogId', () => {
+      const compiler = new ExpressCompiler([formsCatalog, simplifiedCatalog, labelsCatalog]);
+      const messages = compiler.compile(
+        'root = Column([t1, t2, tf])\n' +
+          `t1 = Text(formatString("Hello", catalogId="${simplifiedCatalog.id}"), catalogId="${simplifiedCatalog.id}")\n` +
+          't2 = Text(formatString("World", catalogId="test/labels"), catalogId="test/labels")\n' +
+          'tf = TextField("Name", $/name, _, [?required("Field required", {catalogId: "test/labels"})])',
+      );
+      expect(messages).toEqual([
+        {
           version: 'v1.0',
-          createSurface: {surfaceId: 's', catalogId: 'test/labels', components: []},
-        }),
-      ).toThrow(A2uiCatalogError);
+          createSurface: {
+            surfaceId: 'default_surface',
+            components: [
+              {
+                id: 'root',
+                component: 'Column',
+                catalogId: simplifiedCatalog.id,
+                children: ['t1', 't2', 'tf'],
+              },
+              {
+                id: 't1',
+                component: 'Text',
+                catalogId: simplifiedCatalog.id,
+                text: {
+                  '@call': 'formatString',
+                  catalogId: simplifiedCatalog.id,
+                  args: {value: 'Hello'},
+                },
+              },
+              {
+                id: 't2',
+                component: 'Text',
+                catalogId: 'test/labels',
+                label: {
+                  '@call': 'formatString',
+                  catalogId: 'test/labels',
+                  args: {template: 'World'},
+                },
+              },
+              {
+                id: 'tf',
+                component: 'TextField',
+                catalogId: formsCatalog.id,
+                label: 'Name',
+                value: {'@path': '/name'},
+                checks: [
+                  {
+                    condition: {
+                      '@call': 'required',
+                      catalogId: 'test/labels',
+                      args: {value: {'@path': '/name'}, hint: 'Field required'},
+                    },
+                    message: 'Required check failed',
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ]);
+    });
+
+    it('rejects ambiguous component or function names without catalogId', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog, labelsCatalog]);
+      expect(() => compiler.compile('root = Text("hi")')).toThrow(ExpressValidationError);
+      expect(() => compiler.compile('root = Text("hi")')).toThrow(
+        "Component 'Text' is defined in several catalogs: 'conformance/simplified', 'test/labels'. Name the catalog to use with a catalogId argument.",
+      );
+
+      expect(() =>
+        compiler.compile(`root = Text(formatString("hi"), catalogId="${simplifiedCatalog.id}")`),
+      ).toThrow(
+        "Function 'formatString' is defined in several catalogs: 'conformance/simplified', 'test/labels'. Name the catalog to use with a catalogId argument.",
+      );
+    });
+
+    it('rejects unknown catalogId or catalogId on surface(...) when multiple catalogs are active', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog, customCatalog]);
+      expect(() => compiler.compile('root = Text("hi", catalogId="unknown/cat")')).toThrow(
+        "Component 'Text' targets unknown catalog 'unknown/cat'. Active catalogs: 'conformance/simplified', 'conformance/custom'.",
+      );
+      expect(() =>
+        compiler.compile(`surface("s1", catalogId="${simplifiedCatalog.id}")\nroot = Text("hi")`),
+      ).toThrow(
+        `surface() names catalog '${simplifiedCatalog.id}', but a surface names no catalog when several catalogs are active.`,
+      );
+    });
+
+    it('supports surface sendDataModel, surface update, component id, and standalone call functionCallId', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog]);
+      const messages = compiler.compile(
+        'surface("s1", sendDataModel=true)\n' +
+          'root = Card(child_var)\n' +
+          'child_var = Text("Hello", id="custom-child-id")\n' +
+          'surface("s1", update=true)\n' +
+          'root = Text("Updated root")\n' +
+          'openUrl("https://example.com", functionCallId="custom-call-1")\n' +
+          'deleteSurface("s2")',
+      );
+      expect(messages).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: simplifiedCatalog.id,
+            sendDataModel: true,
+            components: [
+              {id: 'root', component: 'Card', child: 'custom-child-id'},
+              {id: 'custom-child-id', component: 'Text', text: 'Hello'},
+            ],
+          },
+        },
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Text', text: 'Updated root'}],
+          },
+        },
+        {
+          version: 'v1.0',
+          callRendererFunction: {
+            functionCallId: 'custom-call-1',
+            callFunction: {
+              catalogId: simplifiedCatalog.id,
+              '@call': 'openUrl',
+              args: {url: 'https://example.com'},
+            },
+          },
+        },
+        {
+          version: 'v1.0',
+          deleteSurface: {
+            surfaceId: 's2',
+          },
+        },
+      ]);
+    });
+
+    it('determines createSurface vs updateComponents from compiled component id="root"', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog]);
+
+      expect(compiler.compile('x = Text("x", id="root")')).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: simplifiedCatalog.id,
+            components: [{id: 'root', component: 'Text', text: 'x'}],
+          },
+        },
+      ]);
+
+      expect(compiler.compile('root = Text("x", id="main")')).toEqual([
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'default_surface',
+            components: [{id: 'main', component: 'Text', text: 'x'}],
+          },
+        },
+      ]);
+
+      expect(compiler.compile('surface("s1")\nroot = Text("x", id="main")')).toEqual([
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'main', component: 'Text', text: 'x'}],
+          },
+        },
+      ]);
+    });
+
+    it('inlines a variable holding a function call with catalogId and rejects invalid catalogId overrides on variables', () => {
+      const compiler = new ExpressCompiler([simplifiedCatalog, customCatalog]);
+
+      expect(
+        compiler.compile(
+          'surface("s1")\n' +
+            'root = Chart([1, 2], total)\n' +
+            `total = formatString("Total: \${/total}", catalogId="${simplifiedCatalog.id}")`,
+        ),
+      ).toEqual([
+        {
+          version: 'v1.0',
+          createSurface: {
+            surfaceId: 's1',
+            components: [
+              {
+                id: 'root',
+                component: 'Chart',
+                catalogId: customCatalog.id,
+                values: [1, 2],
+                caption: {
+                  '@call': 'formatString',
+                  catalogId: simplifiedCatalog.id,
+                  args: {value: 'Total: ${/total}'},
+                },
+              },
+            ],
+          },
+        },
+      ]);
+
+      expect(() =>
+        compiler.compile(
+          'surface("s1")\n' +
+            'root = Chart([1, 2], total)\n' +
+            `total = percent(75, catalogId="${simplifiedCatalog.id}")`,
+        ),
+      ).toThrow(/percent/);
+
+      expect(() =>
+        compiler.compile(
+          'surface("s1")\n' +
+            'root = Chart([1, 2], "Total")\n' +
+            'total = formatString("Total", catalogId="conformance/missing")',
+        ),
+      ).toThrow(/conformance\/missing/);
+
+      expect(() =>
+        compiler.compile(
+          'surface("s1")\n' +
+            'root = Chart([1, 2], "Total")\n' +
+            `act = Event("click", catalogId="${simplifiedCatalog.id}")`,
+        ),
+      ).toThrow(/Event/);
     });
   });
 

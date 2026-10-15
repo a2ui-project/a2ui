@@ -55,5 +55,6 @@ public struct A2UICard: View {
         .stroke(Color.primary.opacity(0.08), lineWidth: 1)
     )
     .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+    .a2uiAccessibilityElement(for: node, children: .contain)
   }
 }
