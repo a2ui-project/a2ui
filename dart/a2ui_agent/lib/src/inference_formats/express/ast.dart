@@ -238,7 +238,11 @@ Object? _literal(LiteralContext literal) {
   if (literal.string() case final StringContext string) return _string(string);
   if (literal.NUMBER() case final TerminalNode number) {
     final String text = number.text!;
-    return text.contains('.') ? double.parse(text) : int.parse(text);
+    // The grammar takes integers of any size, so one too large for an `int`
+    // is read as a double rather than rejected.
+    return text.contains('.')
+        ? double.parse(text)
+        : int.tryParse(text) ?? double.parse(text);
   }
   if (literal.BOOLEAN() case final TerminalNode boolean) {
     return boolean.text == 'true';
