@@ -171,7 +171,7 @@ void main() {
       });
 
       final CatalogApi linked = referencing.withPeerCatalogs([peer]);
-      final Map<String, Object?> properties = linked
+      final properties = linked
           .resolvedComponentSchema('Mine')!
           .value['properties']! as Map<String, Object?>;
 
@@ -220,7 +220,7 @@ void main() {
       });
 
       final CatalogApi linked = referencing.withPeerCatalogs([peer]);
-      final Map<String, Object?> box =
+      final box =
           (linked.resolvedComponentSchema('Holder')!.value['properties']!
               as Map<String, Object?>)['box']! as Map<String, Object?>;
       final Object? innerBox = ((((box['properties']! as Map)['wrapped']!

@@ -340,7 +340,7 @@ void main() {
     });
 
     test('links copies and leaves the registered catalogs unchanged', () {
-      final List<CatalogConfig> configs = [
+      final configs = <CatalogConfig>[
         CatalogConfig(referencing),
         CatalogConfig(
           a,

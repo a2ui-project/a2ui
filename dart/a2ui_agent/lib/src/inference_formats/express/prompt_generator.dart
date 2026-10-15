@@ -75,7 +75,7 @@ class ExpressPromptGenerator extends PromptGenerator {
         'default. To build a surface from another catalog, name it in the '
         'surface line, e.g. surface("my-surface", "${catalogs.last.id}").',
       );
-      for (final CatalogApi catalog in catalogs) {
+      for (final catalog in catalogs) {
         buffer
           ..write('\n\n## Catalog `${catalog.id}`\n\n')
           ..write(_catalogSection(CatalogSchemaHelper(catalog), '###'));

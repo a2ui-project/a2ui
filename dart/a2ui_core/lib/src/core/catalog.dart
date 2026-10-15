@@ -406,7 +406,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     }
 
     _peerCatalogs.forEach(add);
-    for (final Catalog<ComponentApi, FunctionApi> peer in peers) {
+    for (final peer in peers) {
       add(peer._sourceCatalog);
       add(peer);
     }
