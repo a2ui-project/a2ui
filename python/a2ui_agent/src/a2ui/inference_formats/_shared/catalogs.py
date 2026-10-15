@@ -167,5 +167,4 @@ def build_catalog_helpers(
         A2uiCatalogError: If two catalogs share a catalog ID.
     """
     _check_unique_ids(catalogs)
-    link_catalogs(catalogs)
-    return {c.catalog_id: CatalogSchemaHelper(c) for c in catalogs}
+    return {c.catalog_id: CatalogSchemaHelper(c) for c in link_catalogs(catalogs)}

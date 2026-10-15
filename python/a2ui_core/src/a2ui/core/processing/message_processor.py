@@ -174,7 +174,9 @@ class MessageProcessor:
         """
         if not catalogs:
             raise ValueError("At least one catalog must be provided.")
-        link_catalogs(catalogs)
+        # Linking returns copies, so the caller's catalogs, which may be shared
+        # with other processors, never see this processor's peers.
+        catalogs = link_catalogs(catalogs)
         self.catalogs = catalogs
         self.model = SurfaceGroupModel()
         opts = options or MessageProcessorOptions()

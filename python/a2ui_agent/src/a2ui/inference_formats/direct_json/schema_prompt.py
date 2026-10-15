@@ -72,7 +72,7 @@ def schema_to_prompt(
     if allowed_messages is not None:
         a2r_schema = prune_messages_schema(a2r_schema, version, allowed_messages)
 
-    link_catalogs(catalogs)
+    catalogs = link_catalogs(catalogs)
     catalog_docs = [c.to_json() for c in catalogs]
     peer_resolved_docs = [
         inline_local_refs(

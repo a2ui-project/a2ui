@@ -166,23 +166,32 @@ def _query_json_pointer(doc: Mapping[str, Any], pointer: str) -> Any:
 # Schema documents whose `$defs` are addressable as local definitions once a
 # catalog has been loaded. `common_types.json` definitions are supplied from the
 # Pydantic models in `a2ui.core.schema`, and `catalog.json` definitions live in
-# the catalog document itself.
-_LOCALIZABLE_REF_DOCUMENTS: Final[tuple[str, ...]] = (
-    "common_types.json",
-    "catalog.json",
-)
+# the catalog document itself. `common_types.json` is also the document every
+# unbundled common types reference points into, unless a catalog names another
+# (`Catalog.common_types_uri`).
+_COMMON_TYPES_DOCUMENT: Final[str] = "common_types.json"
+_CATALOG_DOCUMENT: Final[str] = "catalog.json"
 
 
-def _localize_ref(ref: str) -> str:
+def _names_document(document: str, name: str) -> bool:
+    """Whether a `$ref` document part is the file `name` or a path ending in it."""
+    return document == name or document.endswith(f"/{name}")
+
+
+def _localize_ref(ref: str, peers: Sequence[CatalogApi] = ()) -> str:
     """Rewrites a cross-document `$defs` reference as a local pointer.
 
     The published specification cross-references shared types between documents,
     for example ``common_types.json#/$defs/ChildList``. Those pointers cannot be
     resolved without the specification files on disk, so they are rewritten to
     ``#/$defs/ChildList`` and satisfied from the in-memory definitions instead.
+    A pointer into a document named ``catalog.json`` is rewritten the same way,
+    since it addresses the catalog's own definitions, unless the document is a
+    path that names one of `peers` exactly or by suffix.
 
     Args:
         ref: Raw ``$ref`` string from a schema node.
+        peers: Peer catalogs that a ``.../catalog.json`` path may name.
 
     Returns:
         A local ``#/$defs/...`` pointer when the reference targets a known
@@ -191,64 +200,111 @@ def _localize_ref(ref: str) -> str:
     if "#/$defs/" not in ref or ref.startswith("#/"):
         return ref
     document, _, fragment = ref.partition("#")
-    if not any(document.endswith(name) for name in _LOCALIZABLE_REF_DOCUMENTS):
-        return ref
-    return f"#{fragment}"
+    if _names_document(document, _COMMON_TYPES_DOCUMENT) or (
+        document == _CATALOG_DOCUMENT
+    ):
+        return f"#{fragment}"
+    if _names_document(document, _CATALOG_DOCUMENT) and (
+        _match_peer_by_id(document, peers) is None
+    ):
+        return f"#{fragment}"
+    return ref
 
 
-def _normalize_external_schema_refs(node: Any) -> Any:
+def _normalize_external_schema_refs(node: Any, peers: Sequence[CatalogApi] = ()) -> Any:
     """Recursively rewrites cross-document `$refs` into local `$defs` pointers.
 
     Args:
         node: Schema fragment to normalize.
+        peers: Peer catalogs whose references are left for peer resolution.
 
     Returns:
-        An equivalent fragment whose references are all catalog-local.
+        An equivalent fragment whose references are all catalog-local, apart
+        from references into peer catalogs.
     """
     if isinstance(node, dict):
         normalized: dict[str, Any] = {}
         for key, value in node.items():
             if key == "$ref" and isinstance(value, str):
-                normalized[key] = _localize_ref(value)
+                normalized[key] = _localize_ref(value, peers)
             else:
-                normalized[key] = _normalize_external_schema_refs(value)
+                normalized[key] = _normalize_external_schema_refs(value, peers)
         return normalized
     if isinstance(node, list):
-        return [_normalize_external_schema_refs(item) for item in node]
+        return [_normalize_external_schema_refs(item, peers) for item in node]
     return node
 
 
-def _find_peer_catalog_doc(
-    doc_part: str,
-    peers: Sequence[CatalogApi],
-) -> Mapping[str, Any] | None:
-    """Finds a peer catalog document matching the URI or filename `doc_part`."""
-    if not doc_part or not peers:
-        return None
-    if doc_part in _LOCALIZABLE_REF_DOCUMENTS or any(
-        doc_part.endswith(f"/{name}") for name in _LOCALIZABLE_REF_DOCUMENTS
-    ):
-        return None
-
-    # Pass 1: exact or path-suffix match on catalog_id or schema_id ($id).
+def _match_peer_by_id(document: str, peers: Sequence[CatalogApi]) -> CatalogApi | None:
+    """Returns the first peer whose `catalogId` or `$id` is `document` or a path suffix of it."""
     for peer in peers:
         for candidate in (peer.catalog_id, peer.schema_id):
             if candidate and (
-                doc_part == candidate
-                or candidate.endswith(f"/{doc_part}")
-                or doc_part.endswith(f"/{candidate}")
+                document == candidate
+                or candidate.endswith(f"/{document}")
+                or document.endswith(f"/{candidate}")
             ):
-                return peer.to_json()
-
-    # Pass 2: basename match on schema_id ($id) or catalog_id.
-    doc_base = doc_part.rsplit("/", 1)[-1]
-    if doc_base and doc_base not in _LOCALIZABLE_REF_DOCUMENTS:
-        for peer in peers:
-            for candidate in (peer.schema_id, peer.catalog_id):
-                if candidate and candidate.rsplit("/", 1)[-1] == doc_base:
-                    return peer.to_json()
-
+                return peer
     return None
+
+
+def _find_peer_catalog(document: str, peers: Sequence[CatalogApi]) -> CatalogApi | None:
+    """Returns the peer catalog that the document part of a `$ref` names.
+
+    The lookup has two passes. The first matches `document` exactly or by
+    path suffix against each peer's `catalogId` and `$id`. The second matches
+    its file name against the file name of each peer's `$id` and `catalogId`.
+    The first matching peer in `peers` order wins. A reference into
+    `common_types.json` never names a peer, and neither does one into a
+    document named `catalog.json`, except a path that the first pass matches:
+    otherwise such a document is the referencing catalog itself.
+
+    Args:
+        document: The part of a `$ref` before `#`.
+        peers: The peer catalogs to search.
+
+    Returns:
+        The matching peer, or None.
+    """
+    if (
+        not document
+        or not peers
+        or _names_document(document, _COMMON_TYPES_DOCUMENT)
+        or document == _CATALOG_DOCUMENT
+    ):
+        return None
+    peer = _match_peer_by_id(document, peers)
+    if peer is not None or _names_document(document, _CATALOG_DOCUMENT):
+        return peer
+    base = document.rsplit("/", 1)[-1]
+    for peer in peers:
+        for candidate in (peer.schema_id, peer.catalog_id):
+            if candidate and candidate.rsplit("/", 1)[-1] == base:
+                return peer
+    return None
+
+
+def _is_cross_document_ref(ref: str) -> bool:
+    """Whether a `$ref` may point into a peer catalog."""
+    if "#" not in ref:
+        return False
+    document = ref.partition("#")[0]
+    return bool(document) and not (
+        _names_document(document, _COMMON_TYPES_DOCUMENT)
+        or document == _CATALOG_DOCUMENT
+    )
+
+
+def _has_cross_document_refs(node: Any) -> bool:
+    """Whether any `$ref` in `node` may point into a peer catalog."""
+    if isinstance(node, dict):
+        ref = node.get("$ref")
+        if isinstance(ref, str) and _is_cross_document_ref(ref):
+            return True
+        return any(_has_cross_document_refs(v) for v in node.values())
+    if isinstance(node, list):
+        return any(_has_cross_document_refs(item) for item in node)
+    return False
 
 
 def _strip_envelope_from_subschema(sub: dict[str, Any]) -> dict[str, Any]:
@@ -332,30 +388,30 @@ def inline_local_refs(
             ref_path: str | None = None
             visit_key: str = raw_ref
 
-            if raw_ref.startswith("#/") or (
-                "#" in raw_ref and raw_ref.partition("#")[0].endswith("catalog.json")
-            ):
-                local_ref = (
-                    _localize_ref(raw_ref) if not raw_ref.startswith("#/") else raw_ref
-                )
-                if local_ref.startswith("#/"):
-                    ref_name = local_ref.split("/")[-1]
-                    if (
-                        local_ref.startswith("#/$defs/")
-                        and ref_name in PRESERVED_TYPE_REFS
-                    ):
-                        return node
-                    target_catalog = root_catalog
-                    ref_path = local_ref
-                    visit_key = f"{id(root_catalog)}:{local_ref}"
-            elif "#" in raw_ref:
-                doc_part, _, fragment = raw_ref.partition("#")
-                if fragment.startswith("/"):
-                    peer_doc = _find_peer_catalog_doc(doc_part, peers)
-                    if peer_doc is not None:
-                        target_catalog = peer_doc
+            doc_part, _, fragment = raw_ref.partition("#")
+            local_ref: str | None = None
+            if raw_ref.startswith("#/"):
+                local_ref = raw_ref
+            elif "#" in raw_ref and fragment.startswith("/"):
+                if _names_document(doc_part, _COMMON_TYPES_DOCUMENT):
+                    localized = _localize_ref(raw_ref)
+                    if localized.startswith("#/"):
+                        local_ref = localized
+                else:
+                    peer = _find_peer_catalog(doc_part, peers)
+                    if peer is not None:
+                        target_catalog = peer.to_json()
                         ref_path = f"#{fragment}"
-                        visit_key = f"{doc_part}#{fragment}"
+                        visit_key = f"{id(target_catalog)}:#{fragment}"
+                    elif _names_document(doc_part, _CATALOG_DOCUMENT):
+                        local_ref = f"#{fragment}"
+            if local_ref is not None:
+                ref_name = local_ref.split("/")[-1]
+                if local_ref.startswith("#/$defs/") and ref_name in PRESERVED_TYPE_REFS:
+                    return node
+                target_catalog = root_catalog
+                ref_path = local_ref
+                visit_key = f"{id(root_catalog)}:{local_ref}"
 
             if target_catalog is not None and ref_path is not None:
                 if visit_key in visited:
@@ -444,10 +500,6 @@ _DEFAULT_PROTOCOL_VERSION: Final[str] = "0.9"
 # The `v` that a declared protocol version may start with, which the bare
 # semantic version form of `catalog_definition.json` omits.
 _BARE_VERSION_PREFIX: Final[re.Pattern[str]] = re.compile(r"^[vV](?=\d)")
-
-# The document every unbundled common types reference points into, unless a
-# catalog names another (`Catalog.common_types_uri`).
-_COMMON_TYPES_DOCUMENT: Final[str] = "common_types.json"
 
 # The `$defs` that a catalog derives from its components and functions.
 _UNION_DEFS: Final[tuple[str, str]] = ("anyComponent", "anyFunction")
@@ -551,7 +603,7 @@ def _local_def_name(ref: Any) -> str | None:
     pointer: str = ref
     if not pointer.startswith("#"):
         document = pointer.partition("#")[0]
-        if not document.endswith("catalog.json"):
+        if not _names_document(document, _CATALOG_DOCUMENT):
             return None
         pointer = str(_localize_ref(pointer))
     if not pointer.startswith("#/$defs/"):
@@ -1248,6 +1300,8 @@ class Catalog(Generic[TComponent, TFunction]):
             p for p in _peer_catalogs if p is not self
         )
         self._source_catalog: CatalogApi | None = None
+        self._linked_from: CatalogApi | None = None
+        self._cross_document_refs: bool | None = None
 
     @property
     def id(self) -> str:
@@ -1262,36 +1316,54 @@ class Catalog(Generic[TComponent, TFunction]):
     def with_peer_catalogs(
         self, peers: Sequence[CatalogApi]
     ) -> Catalog[TComponent, TFunction]:
-        """Associates peer catalogs for resolving cross-catalog `$ref` pointers.
+        """Returns a copy of this catalog that resolves `$ref`s into `peers`.
 
-        Existing peer catalogs are preserved in priority order before any newly
-        added peers. Cached resolved schemas and validation schemas are
-        invalidated when the peer list changes.
+        The copy keeps this catalog's peers and adds `peers` after them, in
+        order, without duplicates. For a peer derived from another catalog by
+        `copy_with`, such as a pruned catalog, the catalog it was derived from
+        is added first, so references to entries that were pruned from the
+        peer still resolve. This catalog is not changed, so a catalog shared
+        between sessions, such as the basic catalog, can be linked freely.
 
         Args:
-            peers: Peer catalogs to link with this catalog.
+            peers: Peer catalogs to resolve cross-catalog references against.
 
         Returns:
-            This catalog instance.
+            A new catalog with the combined peers, or this catalog when `peers`
+            adds none.
         """
+        origin = _link_origin(self)
         existing = list(self.peer_catalogs)
-        seen_ids = {id(self), *(id(p) for p in existing)}
+        seen_ids = {id(origin), *(id(p) for p in existing)}
         changed = False
         for peer in peers:
             if not isinstance(peer, Catalog):
                 continue
             source = getattr(peer, "_source_catalog", None)
-            for candidate in (source, peer):
+            for candidate in (source, _link_origin(peer)):
                 if isinstance(candidate, Catalog) and id(candidate) not in seen_ids:
                     existing.append(candidate)
                     seen_ids.add(id(candidate))
                     changed = True
-        if changed:
-            self._peer_catalogs = tuple(existing)
-            self._cached_catalog_schema = None
-            self._resolved = None
-            self._component_ref_map = None
-        return self
+        if not changed:
+            return self
+        linked = copy.copy(self)
+        linked.components = dict(self.components)
+        linked.functions = dict(self.functions)
+        linked._peer_catalogs = tuple(existing)
+        linked._linked_from = origin
+        linked._cached_catalog_schema = None
+        linked._resolved = None
+        linked._component_ref_map = None
+        return linked
+
+    def _has_cross_document_refs(self) -> bool:
+        """Whether the catalog document has a `$ref` that may name a peer catalog."""
+        cached = getattr(self, "_cross_document_refs", None)
+        if cached is None:
+            cached = _has_cross_document_refs(self.to_json())
+            self._cross_document_refs = cached
+        return cached
 
     def copy_with(
         self,
@@ -1407,7 +1479,9 @@ class Catalog(Generic[TComponent, TFunction]):
             ),
             _peer_catalogs=self.peer_catalogs,
         )
-        copied._source_catalog = getattr(self, "_source_catalog", None) or self
+        copied._source_catalog = getattr(self, "_source_catalog", None) or _link_origin(
+            self
+        )
         return copied
 
     def _document_roots(self) -> list[Any]:
@@ -1454,20 +1528,23 @@ class Catalog(Generic[TComponent, TFunction]):
             for name, fn in self.functions.items()
             if isinstance(fn.schema, dict)
         }
-        root: dict[str, Any] = _normalize_external_schema_refs({
-            "$defs": own_defs,
-            "components": authored_components,
-            "functions": authored_functions,
-        })
-
         peers = self.peer_catalogs
+        root: dict[str, Any] = _normalize_external_schema_refs(
+            {
+                "$defs": own_defs,
+                "components": authored_components,
+                "functions": authored_functions,
+            },
+            peers,
+        )
 
         def resolve(node: Any) -> Any:
             return copy.deepcopy(
                 _normalize_external_schema_refs(
                     inline_local_refs(
-                        _normalize_external_schema_refs(node), root, peers=peers
-                    )
+                        _normalize_external_schema_refs(node, peers), root, peers=peers
+                    ),
+                    peers,
                 )
             )
 
@@ -2779,24 +2856,39 @@ instead.
 """
 
 
+def _link_origin(catalog: CatalogApi) -> CatalogApi:
+    """Returns the catalog that `with_peer_catalogs` made `catalog` from."""
+    return getattr(catalog, "_linked_from", None) or catalog
+
+
 def link_catalogs(
     catalogs: Sequence[CatalogApi],
     extra_peers: Sequence[CatalogApi] = (),
 ) -> list[CatalogApi]:
-    """Links a collection of catalogs as peers for cross-catalog `$ref` resolution.
+    """Returns the catalogs linked to one another for cross-catalog `$ref`s.
+
+    Each catalog that has a `$ref` into another document, other than
+    `common_types.json` or its own `catalog.json`, is replaced by a copy from
+    `with_peer_catalogs` whose peers are `extra_peers` followed by the other
+    catalogs. Catalogs without such references are returned unchanged. The
+    catalogs passed in are never modified.
 
     Args:
         catalogs: Catalogs to link with one another.
-        extra_peers: Optional additional peer catalogs (such as pristine
-            unpruned catalogs) to make available during reference resolution.
+        extra_peers: Further peer catalogs, such as the unpruned catalogs that
+            pruned catalogs were derived from, searched before `catalogs`.
 
     Returns:
-        A list containing the linked catalogs in their original order.
+        The catalogs, linked, in their original order.
     """
     items = list(catalogs)
-    all_peers: list[CatalogApi] = [*extra_peers, *items]
-    if len(all_peers) > 1:
-        for cat in items:
-            if isinstance(cat, Catalog):
-                cat.with_peer_catalogs(all_peers)
-    return items
+    if len(items) + len(extra_peers) < 2:
+        return items
+    linked: list[CatalogApi] = []
+    for cat in items:
+        if isinstance(cat, Catalog) and cat._has_cross_document_refs():
+            peers = [*extra_peers, *(p for p in items if p is not cat)]
+            linked.append(cat.with_peer_catalogs(peers))
+        else:
+            linked.append(cat)
+    return linked

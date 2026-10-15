@@ -139,10 +139,11 @@ def resolve_catalogs(
             "No client-supported catalog found on the agent side. Agent-supported"
             f" catalogs are: {list(registered_by_id)}"
         )
-    return link_catalogs(
-        list(active.values()),
-        extra_peers=[*pristine, *registered, *inline],
-    )
+    # Inactive registered catalogs stay resolvable as peers. Inline catalogs
+    # are peers only when active, so a refused one never affects the prompt or
+    # validation. Linking returns per-request copies and leaves the registered
+    # catalogs, which live as long as the agent, unchanged.
+    return link_catalogs(list(active.values()), extra_peers=[*pristine, *registered])
 
 
 def _capabilities_entry(

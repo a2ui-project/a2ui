@@ -117,7 +117,7 @@ def validate_payload(
     """
     if not catalogs:
         raise A2uiCatalogError("Validating a payload requires at least one catalog.")
-    link_catalogs(catalogs)
+    catalogs = link_catalogs(catalogs)
     protocol_version = to_protocol_version(catalogs[0].protocol_version)
     for catalog in catalogs[1:]:
         other_version = to_protocol_version(catalog.protocol_version)
