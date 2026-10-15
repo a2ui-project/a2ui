@@ -20,7 +20,7 @@ import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.processor import CatalogConfig
-from a2ui.schema import VERSION_0_9
+from a2ui.schema import VERSION_0_8, VERSION_0_9
 from a2ui.utils import validate_payload
 
 
@@ -52,6 +52,17 @@ SAMPLE_CONFIGS = [
         "catalogs": [(
             lambda: CatalogConfig(BasicCatalog(VERSION_0_9)),
             "examples/0.9",
+        )],
+        "validate": True,
+    },
+    # The agent also validates its v0.8 examples at startup (agent.py), so an
+    # invalid one stops the server.
+    {
+        "name": "restaurant_finder (v0.8)",
+        "path": SAMPLES_DIR / "restaurant_finder",
+        "catalogs": [(
+            lambda: CatalogConfig(BasicCatalog(VERSION_0_8)),
+            "examples/0.8",
         )],
         "validate": True,
     },
