@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from collections import deque
 from collections.abc import Mapping, Sequence
 import copy
@@ -218,7 +220,7 @@ def _normalize_external_schema_refs(node: Any) -> Any:
 
 def _find_peer_catalog_doc(
     doc_part: str,
-    peers: Sequence["CatalogApi"],
+    peers: Sequence[CatalogApi],
 ) -> Mapping[str, Any] | None:
     """Finds a peer catalog document matching the URI or filename `doc_part`."""
     if not doc_part or not peers:
@@ -297,7 +299,7 @@ def inline_local_refs(
     node: Any,
     root_catalog: Mapping[str, Any],
     visited: set[str] | None = None,
-    peers: Sequence["CatalogApi"] = (),
+    peers: Sequence[CatalogApi] = (),
 ) -> Any:
     """Returns a schema node with its local and peer catalog references written inline.
 
@@ -1091,8 +1093,8 @@ class Catalog(Generic[TComponent, TFunction]):
         functions_form: FunctionsForm | None = None,
         union_defs: Mapping[str, Any | None] | None = None,
         extras: Mapping[str, Any] | None = None,
-        _layout: "_DocumentLayout | None" = None,
-        _peer_catalogs: Sequence["CatalogApi"] = (),
+        _layout: _DocumentLayout | None = None,
+        _peer_catalogs: Sequence[CatalogApi] = (),
     ):
         """Initializes the catalog.
 
@@ -1253,13 +1255,13 @@ class Catalog(Generic[TComponent, TFunction]):
         return self.catalog_id
 
     @property
-    def peer_catalogs(self) -> tuple["CatalogApi", ...]:
+    def peer_catalogs(self) -> tuple[CatalogApi, ...]:
         """Peer catalogs available for resolving cross-catalog `$ref` pointers."""
         return getattr(self, "_peer_catalogs", ())
 
     def with_peer_catalogs(
-        self, peers: Sequence["CatalogApi"]
-    ) -> "Catalog[TComponent, TFunction]":
+        self, peers: Sequence[CatalogApi]
+    ) -> Catalog[TComponent, TFunction]:
         """Associates peer catalogs for resolving cross-catalog `$ref` pointers.
 
         Existing peer catalogs are preserved in priority order before any newly
@@ -1297,7 +1299,7 @@ class Catalog(Generic[TComponent, TFunction]):
         components: Sequence[ComponentApi] | None = None,
         functions: Sequence[FunctionApi] | None = None,
         defs: Mapping[str, Any] | None = None,
-    ) -> "CatalogApi":
+    ) -> CatalogApi:
         """Returns a catalog derived from this one, for catalog transformers.
 
         The copy keeps this catalog's id, protocol version, theme,
