@@ -1,5 +1,47 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
+## Unreleased
+
+- Resolve cross-catalog `$ref` pointers across peer catalogs in
+  `resolvedComponentSchemas`, `validationSchema`, `refMap`, `PayloadValidator`
+  and `MessageProcessor`:
+  - `Catalog.withPeerCatalogs` returns a new linked catalog whose
+    `Catalog.peerCatalogs` lists the given peers (and the catalog a pruned
+    peer was derived from); the receiver is not changed. The linked copy is a
+    `Catalog` even when the receiver is a subclass.
+  - `linkCatalogs` returns linked copies of the catalogs it is given, each
+    linked with the others and with the optional `extraPeers`. A catalog whose
+    document holds no `$ref` into another catalog document is returned as it
+    is.
+  - `MessageProcessor` links copies of the catalogs passed to it and holds
+    those copies in `MessageProcessor.catalogs`; the catalogs passed in, such
+    as a shared basic catalog, are not changed.
+  - A `$ref` names the peer whose `catalogId` or `$id` equals its document
+    part, or of which one is a path suffix of the other, and failing that the
+    peer with the same file name. A bare `catalog.json`, or a path ending in
+    `/catalog.json` that no peer matches exactly, names the catalog itself.
+  - `resolveSchemaRefs` takes an optional `peers` argument and
+    `inlineLocalRefs` an optional fourth `peers` argument: the documents
+    cross-catalog references resolve against.
+- `resolveSchemaRefs` reads only a document named exactly `catalog.json`, or a
+  path ending in `/catalog.json`, as the catalog itself, and only
+  `common_types.json`, or a path ending in `/common_types.json`, as the common
+  types. A reference to any other document that no peer matches, such as
+  `other.json#/components/X` or `mcp_catalog.json#/...`, throws
+  `A2uiCatalogError` instead of leaving the subschema unconstrained, so
+  `PayloadValidator` reports it rather than accepting any value.
+- Added `MessageProcessor.forAgent`, which an agent checks its own outbound
+  payloads with. It takes the negotiated `CatalogApi`s, holds each function
+  as a signature that cannot be invoked, and validates under
+  `ValidationConfig.strict` by default. It checks a `callRendererFunction`
+  instead of running it; that check is declared but not implemented yet, and
+  throws `UnimplementedError`.
+- Added `AgentToRendererMessage.typesFor`, the message types an agent may
+  send in a protocol version.
+- `A2uiRendererCapabilities.fromJson` reads an inline catalog that states no
+  `protocolVersion` as targeting the version of the entry it is declared in.
+  `A2uiVersionCapabilities.fromJson` takes that version as `protocolVersion`.
+
 ## 0.3.0
 
 - `Catalog.commonTypesSchema` and the bundled `common_types` schemas list

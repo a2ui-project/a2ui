@@ -218,6 +218,33 @@ void main() {
     });
   });
 
+  group('AgentToRendererMessage.typesFor', () {
+    test('lists the four messages of v0.9 and v0.9.1', () {
+      for (final A2uiProtocolVersion version in [
+        A2uiProtocolVersion.v0_9,
+        A2uiProtocolVersion.v0_9_1,
+      ]) {
+        expect(AgentToRendererMessage.typesFor(version), [
+          'createSurface',
+          'updateComponents',
+          'updateDataModel',
+          'deleteSurface',
+        ]);
+      }
+    });
+
+    test('adds the function call messages of v1.0', () {
+      expect(AgentToRendererMessage.typesFor(A2uiProtocolVersion.v1_0), [
+        'createSurface',
+        'updateComponents',
+        'updateDataModel',
+        'deleteSurface',
+        'callRendererFunction',
+        'agentFunctionResponse',
+      ]);
+    });
+  });
+
   group('AgentToRendererMessagePayload', () {
     Map<String, Object?> createSurface(String surfaceId) => {
           'version': 'v0.9',

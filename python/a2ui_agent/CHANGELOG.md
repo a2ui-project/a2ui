@@ -1,5 +1,12 @@
 ## Unreleased
 
+- `resolve_catalogs`, `validate_payload`, and the Direct JSON and Express
+  formats resolve cross-catalog `$ref`s between the catalogs they are given.
+  `resolve_catalogs` also resolves references into registered catalogs that
+  the renderer doesn't support and into the unpruned catalogs that
+  transformers start from. It links per-request copies, so the registered
+  catalogs are never modified, and an inline catalog is only linked when the
+  agent accepts it.
 - **BREAKING**: Remove the `a2ui.schema` package.
   - The constants move to `a2ui.constants`. For example,
     `from a2ui.schema import A2UI_OPEN_TAG` becomes

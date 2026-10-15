@@ -44,12 +44,7 @@ const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
  * Conformance cases that fail because TS follows Python's behavior.
  * Registered with test.fails and Python's reason.
  */
-const KNOWN_FAILURES = new Map<string, string>([
-  [
-    'test_decompile_express_two_surfaces_in_two_catalogs',
-    'multi-catalog Express resolves components by name across active catalogs and omits createSurface.catalogId',
-  ],
-]);
+const KNOWN_FAILURES = new Map<string, string>();
 
 /**
  * Cases Python skips as UNSUPPORTED.
@@ -233,6 +228,11 @@ describe('Express Conformance Suite', () => {
             expect(notation).toContain(fragment);
           }
         }
+        if (testCase.expect_absent) {
+          for (const fragment of testCase.expect_absent as string[]) {
+            expect(notation).not.toContain(fragment);
+          }
+        }
 
         if (testCase.expect_round_trip) {
           expect(parser.compile(notation)).toEqual(messages);
@@ -326,16 +326,25 @@ describe('Express Conformance Suite', () => {
           loadedCatalogs.push(catalog);
         }
 
-        let examples: Record<string, AgentToRendererMessage[]> | undefined;
+        let examples: Record<string, AgentToRendererMessage[][]> | undefined;
         if (Array.isArray(args.examples) && args.examples.length > 0) {
           examples = {};
           for (const exPath of args.examples as string[]) {
             const fullExPath = path.resolve(CONFORMANCE_ROOT, exPath);
             const exContent = JSON.parse(fs.readFileSync(fullExPath, 'utf8'));
-            const messages = Array.isArray(exContent) ? exContent : [exContent];
-            const catId = messages[0]?.createSurface?.catalogId || loadedCatalogs[0]?.id;
+            const messages: AgentToRendererMessage[] = Array.isArray(exContent)
+              ? exContent
+              : [exContent];
+            const firstMsg = messages[0];
+            const catId =
+              (firstMsg && 'createSurface' in firstMsg
+                ? firstMsg.createSurface.catalogId
+                : undefined) || loadedCatalogs[0]?.id;
             if (catId) {
-              examples[catId] = messages;
+              if (!examples[catId]) {
+                examples[catId] = [];
+              }
+              examples[catId].push(messages);
             }
           }
         }

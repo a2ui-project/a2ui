@@ -343,6 +343,103 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     commonTypes: commonTypesSchema,
   );
 
+  /// The catalogs this one resolves cross-catalog `$ref`s against.
+  ///
+  /// Set only when a copy is made, such as by [withPeerCatalogs], and never
+  /// changed after.
+  List<Catalog<ComponentApi, FunctionApi>> _peerCatalogs = const [];
+
+  /// The catalog a pruned copy, such as one [copyWith] or [withFunctions]
+  /// returns, was derived from, so a peer reference to an entry the copy
+  /// dropped still resolves.
+  Catalog<ComponentApi, FunctionApi>? _sourceCatalog;
+
+  /// The catalog [withPeerCatalogs] copied this one from, when it is a linked
+  /// copy.
+  Catalog<C, F>? _linkedFrom;
+
+  /// The catalog this one is, or is a linked copy of: what peer lists hold,
+  /// so they never retain a linked copy.
+  Catalog<C, F> get _linkOrigin => _linkedFrom ?? this;
+
+  /// The catalogs this one resolves cross-catalog `$ref`s against, in the
+  /// order they are tried.
+  ///
+  /// Empty unless this catalog was returned by [withPeerCatalogs] or
+  /// [linkCatalogs].
+  List<Catalog<ComponentApi, FunctionApi>> get peerCatalogs => _peerCatalogs;
+
+  /// A copy of this catalog that also resolves cross-catalog `$ref`s against
+  /// [peers].
+  ///
+  /// The copy has the same id, components, functions, theme and document as
+  /// this catalog, and its own [validationSchema], [refMap] and
+  /// [resolvedComponentSchemas], which follow references into the peers. Its
+  /// [peerCatalogs] are this catalog's, then each of [peers] in order,
+  /// preceded by the catalog a pruned peer was derived from so references to
+  /// entries the pruning dropped still resolve. A catalog already listed, and
+  /// this catalog itself, are not added again.
+  ///
+  /// This catalog is not changed, so a catalog shared between sessions, such
+  /// as a basic catalog singleton, can be linked with any of them. Returns
+  /// this catalog when [peers] adds no catalog.
+  ///
+  /// The copy is a [Catalog], even when this catalog is an instance of a
+  /// subclass.
+  ///
+  /// A `$ref` whose document part equals a peer's `catalogId` or `$id`, or
+  /// of which one is a path suffix of the other, resolves against the first
+  /// such peer. Failing that, a bare `catalog.json`, or a path ending in
+  /// `/catalog.json`, names the document holding the reference, and anything
+  /// else the first peer whose `$id` or `catalogId` ends in the same file
+  /// name.
+  Catalog<C, F> withPeerCatalogs(
+    Iterable<Catalog<ComponentApi, FunctionApi>> peers,
+  ) {
+    final Set<Catalog<ComponentApi, FunctionApi>> seen = Set.identity()
+      ..add(_linkOrigin);
+    final linked = <Catalog<ComponentApi, FunctionApi>>[];
+    void add(Catalog<ComponentApi, FunctionApi>? candidate) {
+      if (candidate == null) return;
+      final Catalog<ComponentApi, FunctionApi> origin = candidate._linkOrigin;
+      if (seen.add(origin)) linked.add(origin);
+    }
+
+    _peerCatalogs.forEach(add);
+    for (final peer in peers) {
+      add(peer._sourceCatalog);
+      add(peer);
+    }
+    if (linked.length == _peerCatalogs.length) return this;
+    return Catalog<C, F>._linked(this, List.unmodifiable(linked));
+  }
+
+  /// The documents of [peerCatalogs], in order.
+  ///
+  /// Shared and read-only. Internal to this package.
+  @internal
+  List<Map<String, Object?>> get peerDocuments => [
+        for (final Catalog<ComponentApi, FunctionApi> p in _peerCatalogs)
+          p._document,
+      ];
+
+  /// Whether this catalog's document holds a `$ref` into another catalog
+  /// document, which [linkCatalogs] links only such catalogs for.
+  late final bool _hasPeerRefs = _holdsPeerRef(_document);
+
+  static bool _holdsPeerRef(Object? node) {
+    if (node is List) return node.any(_holdsPeerRef);
+    if (node is! Map) return false;
+    final Object? ref = node[r'$ref'];
+    if (ref is String) {
+      final int hash = ref.indexOf('#');
+      if (isPeerDocumentRef(hash < 0 ? ref : ref.substring(0, hash))) {
+        return true;
+      }
+    }
+    return node.values.any(_holdsPeerRef);
+  }
+
   /// Throws [A2uiCatalogError] when two components or two functions share a
   /// name, when a component is named [reservedComponentName], when a
   /// function name starts with `@`, which the protocol reserves for its own
@@ -407,6 +504,30 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         _declaredProtocolVersion = declaredProtocolVersion,
         _otherFields = _frozenCopy(otherFields)! as Map<String, Object?>,
         _layout = layout;
+
+  /// A copy of [source] that resolves cross-catalog `$ref`s against [peers],
+  /// sharing everything but the derived schemas.
+  Catalog._linked(
+    Catalog<C, F> source,
+    List<Catalog<ComponentApi, FunctionApi>> peers,
+  )   : id = source.id,
+        schemaDialect = source.schemaDialect,
+        schemaId = source.schemaId,
+        title = source.title,
+        description = source.description,
+        protocolVersion = source.protocolVersion,
+        _declaredProtocolVersion = source._declaredProtocolVersion,
+        instructions = source.instructions,
+        components = source.components,
+        functions = source.functions,
+        themeSchema = source.themeSchema,
+        definitions = source.definitions,
+        _otherFields = source._otherFields,
+        _layout = source._layout {
+    _peerCatalogs = peers;
+    _sourceCatalog = source._sourceCatalog;
+    _linkedFrom = source._linkOrigin;
+  }
 
   static Map<String, T> _indexComponents<T extends ComponentApi>(
     String catalogId,
@@ -1114,6 +1235,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// [resolvedComponentSchemas] describes.
   _FlatComponent _flatten(String compName, Map<String, Object?> compMap) {
     final Map<String, Object?> rootDoc = _document;
+    final List<Map<String, Object?>> peerDocs = peerDocuments;
     final bool atLeastV1 = _isAtLeastV1;
     final subSchemas = <Map<String, Object?>>[];
     final unmerged = <Map<String, Object?>>[];
@@ -1124,6 +1246,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       <String>{},
       atLeastV1: atLeastV1,
       unmerged: unmerged,
+      peers: peerDocs,
     );
 
     final mergedProperties = <String, Object?>{};
@@ -1183,6 +1306,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       <String>{},
       atLeastV1: atLeastV1,
       keyOrder: true,
+      peers: peerDocs,
     );
     final Map<String, Object?> orderedProperties = {
       for (final Map<String, Object?> s in keySubSchemas)
@@ -1208,7 +1332,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       'properties': {
         for (final MapEntry<String, Object?> entry in orderedProperties.entries)
           entry.key: _normalizePropertyRefs(
-            inlineLocalRefs(entry.value, rootDoc),
+            inlineLocalRefs(entry.value, rootDoc, null, peerDocs),
           ),
       },
       if (requiredSet.isNotEmpty) 'required': requiredSet.toList()..sort(),
@@ -1219,7 +1343,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       propertiesWithDefRefs: {
         for (final MapEntry<String, Object?> entry in orderedProperties.entries)
           entry.key: _normalizePropertyRefs(
-            _keepAuthoredDefRefs(entry.value, rootDoc),
+            _keepAuthoredDefRefs(entry.value, rootDoc, peerDocs),
           ),
       },
     );
@@ -1232,9 +1356,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// The built `theme`, `anyComponent` and `anyFunction` and the common
   /// types are not kept: the former are inlined as before, and
   /// [inlineLocalRefs] keeps the latter.
-  static Object? _keepAuthoredDefRefs(Object? node, Map<String, Object?> root) {
+  static Object? _keepAuthoredDefRefs(
+    Object? node,
+    Map<String, Object?> root, [
+    List<Map<String, Object?>> peers = const [],
+  ]) {
     final Object? defs = root[r'$defs'];
-    if (defs is! Map) return inlineLocalRefs(node, root);
+    if (defs is! Map) return inlineLocalRefs(node, root, null, peers);
     final Set<String> authored = {
       for (final Object? name in defs.keys)
         if (name is String &&
@@ -1242,7 +1370,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
             !isCommonTypeDef(name))
           name,
     };
-    if (authored.isEmpty) return inlineLocalRefs(node, root);
+    if (authored.isEmpty) return inlineLocalRefs(node, root, null, peers);
 
     Object? visit(Object? node) {
       if (node is List) return [for (final Object? item in node) visit(item)];
@@ -1251,7 +1379,12 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       if (ref is String && ref.startsWith('#/')) {
         final bool keep = ref.startsWith(r'#/$defs/') &&
             authored.contains(ref.substring(8).split('/').first);
-        if (!keep) return inlineLocalRefs(node, root);
+        if (!keep) return inlineLocalRefs(node, root, null, peers);
+      } else if (ref is String &&
+          !ref.startsWith('#/') &&
+          ref.contains('#/') &&
+          peers.isNotEmpty) {
+        return inlineLocalRefs(node, root, null, peers);
       }
       return <String, Object?>{
         for (final MapEntry<Object?, Object?> entry in node.entries)
@@ -1291,6 +1424,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     bool atLeastV1 = false,
     bool keyOrder = false,
     List<Map<String, Object?>>? unmerged,
+    List<Map<String, Object?>> peers = const [],
   }) {
     final bool contributes =
         schema.containsKey('properties') || schema.containsKey('description');
@@ -1350,10 +1484,13 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                 },
               },
             });
-          } else if (ref.startsWith('#/')) {
-            final Object? target = _resolveJsonPointer(rootDoc, ref);
+          } else if (ref.startsWith('#/') || _isSelfRef(ref, peers)) {
+            final String local = ref.substring(ref.indexOf('#'));
+            final Object? target = _resolveJsonPointer(rootDoc, local);
             if (target is Map) {
-              if (visited.add(ref)) {
+              // Keyed by document, so the same pointer into a peer's
+              // document is still followed.
+              if (visited.add(localRefVisitKey(rootDoc, local))) {
                 _collectComponentSubSchemas(
                   target.cast<String, Object?>(),
                   rootDoc,
@@ -1362,10 +1499,41 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                   atLeastV1: atLeastV1,
                   keyOrder: keyOrder,
                   unmerged: unmerged,
+                  peers: peers,
                 );
               }
             } else {
               unmerged?.add(subMap);
+            }
+          } else if (_peerTarget(ref, peers)
+              case (
+                final Map<String, Object?> peerDoc,
+                final String fragment
+              )) {
+            if (visited.add(ref)) {
+              // The peer's own local references resolve against its
+              // document, before its subschemas are merged into this one.
+              Map<String, Object?> targetMap = (inlineLocalRefs(
+                followJsonPointer(peerDoc, fragment),
+                peerDoc,
+                {ref},
+                peers,
+              )! as Map)
+                  .cast<String, Object?>();
+              if (fragment.startsWith('/components/') &&
+                  fragment.split('/').length == 3) {
+                targetMap = stripReferencedComponentEnvelope(targetMap);
+              }
+              _collectComponentSubSchemas(
+                targetMap,
+                peerDoc,
+                localRefSubs,
+                visited,
+                atLeastV1: atLeastV1,
+                keyOrder: keyOrder,
+                unmerged: unmerged,
+                peers: peers,
+              );
             }
           } else {
             // A reference this catalog cannot follow, such as one into the
@@ -1382,12 +1550,14 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
           atLeastV1: atLeastV1,
           keyOrder: keyOrder,
           unmerged: unmerged,
+          peers: peers,
         );
       }
       if (keyOrder) {
         // [schema] first, then its `allOf` branches in authored order with
-        // local references in place, then mixins.
+        // local references in place, then peer references, then mixins.
         result.addAll(inlineSubs);
+        result.addAll(localRefSubs);
         result.addAll(commonSubs);
       } else {
         // From least to most specific, so a component's own definition of a
@@ -1399,6 +1569,32 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       }
     }
     if (contributes && !keyOrder) result.add(schema);
+  }
+
+  /// Whether [ref] points into the document holding it through a
+  /// `catalog.json` document part, as [isSelfDocumentRef] decides.
+  static bool _isSelfRef(String ref, List<Map<String, Object?>> peers) {
+    final int hash = ref.indexOf('#');
+    return hash > 0 &&
+        ref.startsWith('#/', hash) &&
+        isSelfDocumentRef(ref.substring(0, hash), peers);
+  }
+
+  /// The peer document in [peers] that [ref] points into and the pointer
+  /// into it, or null when [ref] names no peer or nothing in it.
+  static (Map<String, Object?>, String)? _peerTarget(
+    String ref,
+    List<Map<String, Object?>> peers,
+  ) {
+    final int hash = ref.indexOf('#');
+    if (hash <= 0 || !ref.startsWith('#/', hash)) return null;
+    final Map<String, Object?>? peerDoc =
+        findPeerCatalogDoc(ref.substring(0, hash), peers);
+    if (peerDoc == null) return null;
+    final String fragment = ref.substring(hash + 1);
+    return followJsonPointer(peerDoc, fragment) is Map
+        ? (peerDoc, fragment)
+        : null;
   }
 
   static bool _isComponentCommonRef(String ref) =>
@@ -1563,7 +1759,8 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
 
   /// The catalog document [toJson] copies, built from the model on first
   /// access.
-  late final Map<String, Object?> _document = _buildDocument();
+  late final Map<String, Object?> _document =
+      _linkedFrom?._document ?? _buildDocument();
 
   /// This catalog as a catalog document, the JSON [Catalog.fromJson] reads.
   ///
@@ -1965,7 +2162,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   Map<String, Object?> _serializeFunction(String name, FunctionApi fn) {
     final String callKey = _callKey;
     final Object? argsValue = _deepCopyValue(
-      _keepAuthoredDefRefs(fn.argumentSchema.value, _document),
+      _keepAuthoredDefRefs(fn.argumentSchema.value, _document, peerDocuments),
     );
     _restoreRefs(argsValue);
     if (argsValue is Map<String, Object?> && argsValue['type'] == 'object') {
@@ -2204,7 +2401,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       newFunctions,
       newTheme,
     );
-    return Catalog<C, F>._(
+    final copy = Catalog<C, F>._(
       id: id,
       components: newComponents,
       functions: newFunctions,
@@ -2248,6 +2445,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                 : _layout.writesFunctionUnion),
       ),
     );
+    copy._sourceCatalog = _sourceCatalog ?? _linkOrigin;
+    copy._peerCatalogs = _peerCatalogs;
+    return copy;
   }
 
   /// [definitions] without those that the current entries reference but
@@ -2328,7 +2528,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
   /// [FunctionImplementation]s with the same signatures.
   Catalog<C, G> withFunctions<G extends FunctionApi>(Iterable<G> functions) {
     final List<G> newFunctions = functions.toList();
-    return Catalog<C, G>._(
+    final copy = Catalog<C, G>._(
       id: id,
       components: components.values.toList(),
       functions: newFunctions,
@@ -2348,6 +2548,9 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
       otherFields: _otherFields,
       layout: _layout,
     );
+    copy._sourceCatalog = _sourceCatalog ?? _linkOrigin;
+    copy._peerCatalogs = _peerCatalogs;
+    return copy;
   }
 
   static bool _hasRequiredParameters(Schema schema) {
@@ -2389,6 +2592,34 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     }
     return a == b;
   }
+}
+
+/// Copies of [catalogs], in the same order, that each resolve cross-catalog
+/// `$ref`s against the others and against [extraPeers].
+///
+/// Element `i` is `catalogs[i].withPeerCatalogs([...extraPeers, ...others])`,
+/// where `others` are the other [catalogs], except that a catalog whose
+/// document holds no `$ref` into another catalog document is returned as it
+/// is. With fewer than two catalogs in [catalogs] and [extraPeers] together,
+/// every catalog is returned as it is. The catalogs passed in are not
+/// changed: see [Catalog.withPeerCatalogs].
+List<Catalog<C, F>> linkCatalogs<C extends ComponentApi, F extends FunctionApi>(
+  Iterable<Catalog<C, F>> catalogs, {
+  Iterable<Catalog<ComponentApi, FunctionApi>> extraPeers = const [],
+}) {
+  final List<Catalog<C, F>> list = catalogs.toList();
+  final List<Catalog<ComponentApi, FunctionApi>> extra = extraPeers.toList();
+  if (list.length + extra.length < 2) return list;
+  return [
+    for (var i = 0; i < list.length; i++)
+      list[i]._hasPeerRefs
+          ? list[i].withPeerCatalogs([
+              ...extra,
+              for (var j = 0; j < list.length; j++)
+                if (j != i) list[j],
+            ])
+          : list[i],
+  ];
 }
 
 /// A component schema flattened by [Catalog.resolvedComponentSchemas].

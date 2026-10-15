@@ -23,6 +23,11 @@ import 'validation.dart';
 /// prompt snippet describing them, and parsing of the LLM's response.
 ///
 /// Usually obtained from `A2uiGenerator.createProcessor`.
+///
+/// Every message is written against the protocol version the active catalogs
+/// target. For v1.0 catalogs, checking examples and payloads is not
+/// implemented yet and throws [UnimplementedError], as do the Express format
+/// and reading direct JSON messages.
 class A2uiRequestProcessor {
   /// The catalogs negotiated for this request, in the renderer's preference
   /// order.
@@ -71,8 +76,8 @@ class A2uiRequestProcessor {
   String get promptSnippet =>
       _promptSnippet ??= _format.promptGenerator.generate();
 
-  /// Parses a complete LLM response into text and v0.9 A2UI messages, in the
-  /// order the LLM emitted them.
+  /// Parses a complete LLM response into text and A2UI messages of the
+  /// active catalogs' protocol version, in the order the LLM emitted them.
   ///
   /// Each payload block becomes one [A2uiPart], checked as a renderer holding
   /// [activeCatalogs] would check it.

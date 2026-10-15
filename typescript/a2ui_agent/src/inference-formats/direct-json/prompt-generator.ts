@@ -18,6 +18,8 @@ import {A2uiCatalogError} from '../../errors.js';
 import {
   AgentToRendererMessage,
   CatalogApi,
+  inlinePeerAndLocalRefs,
+  linkCatalogs,
   normalizeVersionString,
 } from '../../internal/web-core.js';
 import {
@@ -32,6 +34,7 @@ import {
   pruneCommonTypesSchema,
   pruneMessagesSchema,
 } from '../../utils/message-schemas.js';
+import {checkParserCatalogs} from '../../utils/validation.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 
 export type DirectJsonExamples =
@@ -46,7 +49,8 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
   private readonly decompiler = new DirectJsonDecompiler();
 
   /**
-   * @param catalogs Active catalogs to describe.
+   * @param catalogs Active catalogs to describe. The generator describes copies of them
+   *     linked to each other, so cross-catalog `$ref`s resolve; they are not changed.
    * @param examples Optional examples keyed by catalog id or provided as an ordered list
    *     of turns, either as messages or as preformatted text.
    * @param allowedMessages Optional allowlist of message names (`createSurface`,
@@ -58,13 +62,8 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     private readonly examples?: DirectJsonExamples,
     private readonly allowedMessages?: readonly string[],
   ) {
-    super(catalogs);
-    const versions = new Set(catalogs.map(c => normalizeVersionString(c.protocolVersion ?? '0.9')));
-    if (versions.size > 1) {
-      throw new A2uiCatalogError(
-        `The schema prompt's catalogs target different protocol versions: ${[...versions].sort().join(', ')}.`,
-      );
-    }
+    super(linkCatalogs(catalogs));
+    checkParserCatalogs(catalogs);
   }
 
   generateBaseRules(): string {
@@ -94,9 +93,17 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     }
 
     const catalogDocs = targets.map(c => c.toJson());
+    const peerResolvedDocs = targets.map(c => {
+      const doc = c.toJson();
+      const peers = c.peerCatalogs ?? [];
+      return peers.length > 0
+        ? (inlinePeerAndLocalRefs(doc, doc, peers) as Record<string, unknown>)
+        : doc;
+    });
     const commonTypesSchema = pruneCommonTypesSchema(
       loadCommonTypesSchema(version),
       ...catalogDocs,
+      ...peerResolvedDocs,
       a2rSchema,
     );
 

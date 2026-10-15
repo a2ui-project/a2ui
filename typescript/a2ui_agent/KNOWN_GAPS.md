@@ -13,13 +13,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** Streamed output differs from Python's and Dart's for the same model output, and a renderer can receive placeholder components and pruned messages.
 - **Done looks like:** The stream processor follows `response_streaming.yaml`, every case leaves `KNOWN_FAILURES` in `tests/conformance/direct-json-response-streaming.test.ts`, and the v0.8 cases stay skipped since this package does not implement v0.8.
 
-### Express multi-catalog resolution still uses surface-level catalogId
-
-- **What it is:** With multiple active catalogs, Python's Express compiler omits `createSurface.catalogId`, resolves un-annotated components and function calls by name across active catalogs, and stamps `catalogId` on each compiled component and function call (#3031). The TypeScript Express compiler and decompiler still resolve a surface-level catalog from `surface("id", "cat")` or the first catalog.
-- **Why it exists:** Python updated its multi-catalog Express resolution in #3031, and the TypeScript compiler and decompiler have not followed yet.
-- **What it risks:** Multi-catalog Express compilation and decompilation differ between Python and TypeScript until ported.
-- **Done looks like:** The TypeScript Express compiler and decompiler implement name-based multi-catalog resolution and omit `createSurface.catalogId` when multiple catalogs are active, so `test_compile_express_surface_targeting_names_a_catalog` and `test_decompile_express_two_surfaces_in_two_catalogs` pass and leave `KNOWN_FAILURES` in `tests/conformance/express_conformance.test.ts`.
-
 ### Streamed component properties are not validated against catalogs
 
 - **What it is:** With a `ValidationConfig`, `DirectJsonStreamProcessorImpl` checks each completed envelope against the protocol schema and `allowedMessages`, and checks that each reachable component's `component` type exists in its resolved catalog, but does not validate component properties against the catalog schema during streaming.
@@ -69,16 +62,9 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **What it risks:** An example that uses a component from another catalog, or a misspelled one, becomes a shorter Express example with no warning, and the model is shown something other than what the author wrote.
 - **Done looks like:** The decompiler throws for an unknown component, and a conformance case pins it for both SDKs, which likely means changing Python to throw too. Throwing is our reading of two things the suite does state: the `decompiler.yaml` header requires every decompiled case to recompile to the messages it started from, which a dropped component breaks, and `compiler.yaml` makes an unknown component a validation error (`test_compile_express_unknown_component_is_a_validation_error`).
 
-### Express logs the catalog fallback with `console.warn`
-
-- **What it is:** When several catalogs are active and an Express block names none, the compiler uses the first catalog and calls `console.warn`. The package has no logger, so callers cannot route or silence the message.
-- **Why it exists:** The user asked that the fallback be visible. `console.warn` is the only channel the package has.
-- **What it risks:** Noise in server logs for agents that deliberately rely on the first catalog.
-- **Done looks like:** A logging hook on the processor or format, if a caller needs one.
-
 ### Some blueprint conformance suites are not run
 
-- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness reads them there. Of the suites added for the blueprint interface, `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/direct_json/prompt_generator.yaml` and `agent/direct_json/response_streaming.yaml` run. The rest do not: the other `agent/direct_json/*.yaml` files, `agent/catalog_transformer.yaml`, `agent/request_processor.yaml` and `agent/builder/`.
+- **What it is:** Merging `main` into `v1_0` reorganized `conformance/agent/`. The parser and inference format suites this harness runs moved unchanged to `agent/legacy/`, and the harness reads them there. Of the suites added for the blueprint interface, `agent/catalog_provider.yaml`, `agent/catalog_resolution.yaml`, `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, `agent/direct_json/prompt_generator.yaml` and `agent/direct_json/response_streaming.yaml` run. The rest do not: the other `agent/direct_json/*.yaml` files, `agent/catalog_transformer.yaml` and `agent/builder/`.
 - **Why it exists:** Those suites exercise blueprint APIs this package does not implement yet.
 - **What it risks:** Behaviour they pin can drift in this package without a failing test.
 - **Done looks like:** The harness runs every blueprint suite and stops reading `agent/legacy/`, which the conformance README keeps for the earlier agent interface.
@@ -133,7 +119,7 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 
 ### Behaviours TypeScript enforces that no conformance case pins
 
-- **What it is:** TypeScript's Express throws in several places where no conformance case says what should happen: an inline component id that collides with a declared variable (`ExpressIdCollisionError`); decompiling a component id that is not an Express identifier, such as `title-heading` or `true` (`ExpressInvalidIdentifierError`); a `surface(...)` line naming a catalog that is not active (`ExpressUnknownCatalogError`); decompiling messages for a catalog the decompiler was not given (`A2uiCatalogError`); and catalogs, or a requested version, from different release lines such as v0.9 and v1.0 (`A2uiCatalogError`). A block that names no catalog while several are active uses the first one and logs a warning.
+- **What it is:** TypeScript's Express throws in several places where no conformance case says what should happen: an inline component id that collides with a declared variable (`ExpressIdCollisionError`); decompiling a component id that is not an Express identifier, such as `title-heading` or `true` (`ExpressInvalidIdentifierError`); decompiling messages for a catalog the decompiler was not given (`A2uiCatalogError`); and catalogs, or a requested version, from different release lines such as v0.9 and v1.0 (`A2uiCatalogError`).
 - **Why it exists:** Each was decided while making TypeScript follow the suite: throwing is preferred to silently producing wrong output.
 - **What it risks:** Python may choose differently, and nothing would catch the drift.
 - **Done looks like:** Conformance cases pin each behaviour, so both SDKs are held to it.
@@ -183,7 +169,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
   - Validation, in `compiler.py`: a component the catalog doesn't declare is dropped instead of failing (`test_compile_express_unknown_component_is_a_validation_error`, and through the response parser `test_parse_response_express_validation_failure_surfaces`); a call to an undeclared function compiles (`test_compile_express_unknown_function_is_a_validation_error`); a missing required property is not reported (`test_compile_express_missing_required_property_is_a_validation_error`).
   - Output shapes, in `compiler.py`: inline components get `_inline_N` ids instead of `<parent>_<property>`, or `<parent>_<property>_<index>` in arrays, emitted after the parent (`test_compile_express_inline_nesting`); an `Event` with no context compiles to `context: {}` instead of no `context` key (`test_compile_express_event_action`, `test_compile_express_event_variable_is_inlined_at_each_use`); a standalone function call compiles to a top-level `functionCallId`/`callFunction`, which `agent_to_renderer.json` rejects, instead of a `callRendererFunction` message (`test_compile_express_standalone_function_call`); a block that assigns components but no `root` raises "Root target 'root' is not defined" instead of compiling to `updateComponents`, which the round trip in `test_decompile_express_update_components` needs.
   - Decompilation, in `decompiler.py`: a standalone `updateComponents` writes no `surface` line and does not round-trip (`test_decompile_express_update_components`); `callRendererFunction` decompiles to an empty string (`test_decompile_express_renderer_function_call`); a standalone `updateDataModel` writes no `surface` line (`test_decompile_express_update_data_model`, `test_decompile_express_nested_data_model_is_one_assignment_per_leaf`); a string holding a quote is written triple-quoted instead of escaped (`test_decompile_express_escapes_a_quote_in_a_string`); a map key that is not an identifier is written unquoted, which the grammar rejects (`test_decompile_express_quotes_a_map_key_that_is_not_an_identifier`).
-  - Several catalogs: Python marks `test_compile_express_surface_targeting_names_a_catalog` unsupported, because its `ExpressFormat` (`format.py`), `ExpressParser` (`parser.py`) and `ExpressCompiler` (`compiler.py`) each take a single `catalog`, and the compiler looks every name up in that catalog's `self.helper`, whatever the `surface(...)` line names. TypeScript takes several catalogs and looks names up only in the catalog a block names.
 - **Why it exists:** These are behaviours of main's Python compiler and decompiler, written before the suite.
 - **What it risks:** In Python, unknown components and missing required properties reach the renderer without a compile-time error, some compiled messages fail the protocol schema, and decompiled examples do not always compile back to the same messages.
 - **Also passing in TypeScript only, for API reasons:** seven response-parser cases that Python's harness lists as gaps. Four `wrap` cases pass because TypeScript's `wrap` takes response parts where Python's takes strings, two text-between-blocks cases pass because the shared block lexer keeps text apart from payloads, and the unwrapped-body case passes because `parseResponse` accepts `wrapped`.
@@ -204,13 +189,6 @@ Most of these are deliberate scope boundaries rather than defects. However, a fe
 - **Why it exists in Python:** The rules text was written against the basic catalog.
 - **What it risks:** The model may be told to use components or properties that the negotiated catalog does not have. This conflicts with the repository rule that inference formats stay catalog-agnostic.
 - **Done looks like:** Upstream Python rewrites its rules to be catalog-agnostic and regenerates the `express_base_rules.txt` golden.
-
-### Express decompiles a check without a condition as `?None`
-
-- **What it is:** When the prompt generator rewrites catalog examples as Express, a check rule written as `{"call": "required"}` without the `condition` wrapper decompiles to `?None`. Python writes it as `?required` (#3031). The v1.0 basic catalog example now uses a valid `CheckRule` with a `condition`, so the `express_catalog_instructions.txt` golden no longer exercises this path and the unit test compares against it unchanged.
-- **Why it exists:** The port reproduced Python's earlier decompiler, which read `rc.get("condition", {}).get("call")` and formatted the missing value as `None`.
-- **What it risks:** A custom catalog whose examples use the bare form shows the model an example that does not compile.
-- **Done looks like:** The decompiler handles a bare call as Python does.
 
 ### Python's Express ignores common properties defined inside a v0.9 catalog
 

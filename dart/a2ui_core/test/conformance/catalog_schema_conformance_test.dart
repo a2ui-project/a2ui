@@ -115,10 +115,9 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
     return;
   }
 
-  final CatalogApi catalog = Catalog.fromJson(
-    input,
-    protocolVersion: version,
-    catalogId: catalogId,
+  final CatalogApi catalog = _withPeers(
+    testCase,
+    Catalog.fromJson(input, protocolVersion: version, catalogId: catalogId),
   );
   final Map<String, Object?> expected =
       (testCase['expect'] as Map?)?.cast<String, Object?>() ?? const {};
@@ -286,9 +285,9 @@ void _runValidationSchemaCase(Map<String, Object?> testCase) {
     return;
   }
 
-  final Map<String, Object?> document = _load(
+  final Map<String, Object?> document = _withPeers(
     testCase,
-    source,
+    _load(testCase, source),
   ).validationSchema;
   final String goldenPath = resolveConformancePath(
     testCase['expectFile']! as String,
@@ -499,6 +498,18 @@ CatalogApi _load(
       protocolVersion: _version(testCase),
       catalogId: testCase['catalogId'] as String?,
     );
+
+/// [catalog] linked with the catalogs at the case's `peerCatalogPaths`, each
+/// loaded with [Catalog.fromJson], in order; [catalog] itself when the case
+/// lists none.
+CatalogApi _withPeers(Map<String, Object?> testCase, CatalogApi catalog) {
+  final Object? paths = testCase['peerCatalogPaths'];
+  if (paths is! List || paths.isEmpty) return catalog;
+  return catalog.withPeerCatalogs([
+    for (final Object? path in paths)
+      Catalog.fromJson(_document(path), protocolVersion: _version(testCase)),
+  ]);
+}
 
 /// The names under a document's `components`, `functions` or `$defs`, in
 /// either form `functions` takes.

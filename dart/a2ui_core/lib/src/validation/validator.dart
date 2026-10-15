@@ -815,12 +815,17 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     };
   }();
 
+  /// The documents of the catalog's peer catalogs, which cross-catalog
+  /// references resolve against.
+  late final List<Map<String, Object?>> _peerDocuments = catalog.peerDocuments;
+
   Schema _resolve(Map<String, Object?> schema) => Schema.fromMap(
         resolveSchemaRefs(
           schema,
           _resolutionDocument,
           commonTypes: commonTypesSchema,
           fallbackCommonTypes: _fallbackCommonTypes,
+          peers: _peerDocuments,
         ),
       );
 

@@ -577,7 +577,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - All helper properties (such as common properties factored out of catalog items) MUST be inlined directly inside the properties block of each supporting component schema rather than referenced from a shared helper.
 3. **Restricted `$ref` Targets:**
    - Local `$ref` targets are restricted to referencing the catalog's top-level components or functions (e.g., `#/components/Text`, `#/functions/required`).
-   - External `$ref` targets MUST reference the standard types inside `common_types.json` using the relative target format (`common_types.json#/$defs/...`). Allowed `$ref` targets are limited to the following schemas:
+   - External `$ref` targets, other than references to peer catalogs (below), MUST reference the standard types inside `common_types.json` using the relative target format (`common_types.json#/$defs/...`). Allowed `$ref` targets are limited to the following schemas:
      - `ComponentId`
      - `Child`
      - `ChildList`
@@ -592,6 +592,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
      - `Action`
      - `DataBinding`
      - `FunctionCall`
+   - External `$ref` targets MAY also reference a **peer catalog**, as described in [Cross-Catalog References](#cross-catalog-references). These are the only other external targets allowed.
 
    > [!NOTE]
    > **Catalog Evolution and Protocol Compatibility**
@@ -731,6 +732,30 @@ Below is an annotated, fully compliant `catalog.json` schema template (written i
   },
 }
 ```
+
+#### Cross-Catalog References
+
+A catalog MAY reuse definitions from another catalog, its **peer**, through an external `$ref`. For example, a custom catalog can inherit the basic catalog's `Text` and add a property, or reuse the `action` property of another catalog's `Button`. Cross-catalog references are still local: the peer MUST be a catalog that the agent or renderer already holds, because it is registered with the agent or renderer or supplied together with the referencing catalog. An implementation MUST NOT fetch or download a peer catalog over the network to resolve a reference.
+
+A cross-catalog `$ref` has the form `<peer document>#<pointer>`, and the pointer MUST address one of the peer's top-level components or functions, or a subschema inside one:
+
+- `<peer document>#/components/<Name>` inherits a whole component, usually as an `allOf` entry. The peer's `component` discriminator, `id` envelope and closure keywords (`unevaluatedProperties`, `additionalProperties`) are not inherited; the referencing component declares its own discriminator.
+- `<peer document>#/components/<Name>/properties/<property>` reuses the schema of one property.
+- `<peer document>#/functions/<Name>` and pointers into a function, such as `#/functions/<Name>/properties/args/properties/<arg>`, do the same for functions.
+
+`<peer document>` names the peer by its `catalogId` or `$id`, or by a path or file name that ends one of them. Implementations MUST resolve it against the peer catalogs they hold in this order, and the first catalog that matches wins:
+
+1. A document named `common_types.json`, or a path ending in `/common_types.json`, refers to the protocol's common types and never to a peer.
+2. A document named exactly `catalog.json` refers to the referencing catalog itself, as in the envelope schemas.
+3. **Exact or path-suffix match:** a peer whose `catalogId` or `$id` equals the document, ends with `/` followed by the document, or is itself a path suffix of the document (the document ends with `/` followed by it).
+4. A path ending in `/catalog.json` that no peer matches in step 3 refers to the referencing catalog itself.
+5. **File name match:** a peer whose `$id` or `catalogId` has the same last path segment as the document.
+
+Only a document named exactly `catalog.json` is generic. A file whose name merely ends in `catalog.json`, such as `mcp_catalog.json`, is matched like any other name, and a full URI such as `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json` resolves to the peer with that `$id` before it is treated as the referencing catalog. When several peers match in the same step, the one listed or registered first wins; catalog authors SHOULD write references that match exactly one peer, for example by using the peer's full `$id`.
+
+Inside the inherited content, the peer's own local references (`#/...`) resolve against the peer document, and its cross-catalog references resolve against the same set of peers. A catalog with a cross-catalog `$ref` that resolves to no peer the implementation holds is a catalog error. Implementations MUST NOT silently ignore such a reference or treat it as accepting any value; they report the error when the catalog is loaded or linked, or at the latest when a payload is validated against the affected component or function. The referencing catalog's own references MUST keep using local pointers (`#/components/...`) or `catalog.json`.
+
+Catalog documents keep cross-catalog references as authored, for example in prompts and in `inlineCatalogs`. A renderer or agent that receives such a catalog MUST already hold its peers, or bundle them before validating.
 
 #### Deprecating Catalog Properties
 

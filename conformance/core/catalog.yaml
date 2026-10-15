@@ -610,6 +610,89 @@
     components: [Listed]
     functions: [listed]
 
+# ------------------------------------------------------------------------------
+# 1d. Cross-catalog references to peer catalogs
+#
+# A catalog can reference components, property subschemas and definitions in
+# peer catalogs that the agent or renderer already holds locally. A case lists
+# those peers in `peerCatalogPaths`: the harness loads each with `fromJson` and
+# links them to the case's catalog with `withPeerCatalogs`, then checks the
+# catalog that call returns. The fixtures under test_data/catalogs/peer_matching/
+# cover the peer matching rules: an exact or path-suffix match on a peer's
+# `catalogId` or `$id` wins over a match on the file name, and only a document
+# named exactly `catalog.json` is treated as generic.
+# ------------------------------------------------------------------------------
+
+- name: test_v10_cross_catalog_refs_inherit_peer_components
+  description: Tests that a catalog whose components inherit components and property subschemas from a peer catalog validates instances against the inherited properties and required names.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogPath: "conformance/test_data/catalogs/cross_ref_catalog_v1_0.json"
+  peerCatalogPaths:
+    - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
+  expect:
+    catalogId: "conformance/cross_ref"
+    components: ["CustomText", "StyledCard"]
+    functions: ["formatBadge"]
+    validComponents:
+      - id: t1
+        component: CustomText
+        badge: "NEW"
+        text: "Quarterly Revenue"
+        variant: caption
+      - id: c1
+        component: StyledCard
+        subtitle: "Q1"
+        child: t1
+        action:
+          event: {name: expand}
+    invalidComponents:
+      - id: t1
+        component: CustomText
+        badge: "NEW"
+      - id: t1
+        component: CustomText
+        badge: "NEW"
+        text: "Quarterly Revenue"
+        variant: headline
+      - id: c1
+        component: StyledCard
+        subtitle: "Q1"
+        action:
+          event: {name: expand}
+
+- name: test_v10_cross_catalog_refs_prefer_exact_id_over_file_name
+  description: Tests the peer matching rules. Two peers have $ids ending in /catalog.json and a third is named mcp_catalog.json. A reference to a peer's full $id or to a path suffix of it resolves to that peer rather than to the first peer whose file name matches, and a reference to mcp_catalog.json resolves to that peer instead of being treated as the referencing catalog itself.
+  action: from_json
+  protocolVersion: "v1.0"
+  catalogPath: "conformance/test_data/catalogs/peer_matching/referencing_catalog_v1_0.json"
+  peerCatalogPaths:
+    - "conformance/test_data/catalogs/peer_matching/alpha/catalog.json"
+    - "conformance/test_data/catalogs/peer_matching/beta/catalog.json"
+    - "conformance/test_data/catalogs/peer_matching/mcp_catalog.json"
+  expect:
+    catalogId: "conformance/peer_matching/referencing"
+    components: ["AlphaBadge", "BetaBadge", "McpBadge"]
+    validComponents:
+      - id: b1
+        component: BetaBadge
+        count: 3
+      - id: a1
+        component: AlphaBadge
+        label: "New"
+      - id: m1
+        component: McpBadge
+        icon: "star"
+    invalidComponents:
+      - id: b1
+        component: BetaBadge
+        label: "New"
+      - id: a1
+        component: AlphaBadge
+        count: 3
+      - id: m1
+        component: McpBadge
+
 # ==============================================================================
 # 2. to_json
 # ==============================================================================
@@ -734,3 +817,12 @@
         properties:
           weight: {type: number}
   expectFile: "conformance/test_data/validation_schema/test_v09_custom_validation_schema_flattening.json"
+
+- name: test_v10_cross_catalog_validation_schema
+  description: Tests that the validationSchema of a catalog whose components inherit components and property subschemas from a linked peer catalog flattens the peer's properties and required names into each component, as if they were authored locally.
+  action: validation_schema
+  protocolVersion: "v1.0"
+  catalogPath: "conformance/test_data/catalogs/cross_ref_catalog_v1_0.json"
+  peerCatalogPaths:
+    - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
+  expectFile: "conformance/test_data/validation_schema/test_v10_cross_catalog_validation_schema.json"

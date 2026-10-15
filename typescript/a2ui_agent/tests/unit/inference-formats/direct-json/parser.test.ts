@@ -109,6 +109,7 @@ describe('DirectJsonParser', () => {
   describe('validation', () => {
     it('throws A2uiCatalogError on empty catalog list', () => {
       expect(() => new DirectJsonParser([])).toThrow(A2uiCatalogError);
+      expect(() => new DirectJsonFormatFactory().createFormat([])).toThrow(A2uiCatalogError);
     });
 
     it('throws A2uiCatalogError on duplicate catalogs', () => {
@@ -124,6 +125,27 @@ describe('DirectJsonParser', () => {
       expect(() => new DirectJsonParser([basicCatalogV10, loadBasicCatalog('v0.9')])).toThrow(
         A2uiCatalogError,
       );
+    });
+
+    it.each(['v0.9', 'v0.9.1', 'v1.0'] as const)(
+      'accepts multiple catalogs for protocol version %s',
+      version => {
+        const catalogs = [
+          new Catalog('https://a2ui.org/catalogs/basic', version, [], []),
+          new Catalog('https://a2ui.org/catalogs/custom', version, [], []),
+        ];
+        expect(new DirectJsonParser(catalogs).catalogs).toEqual(catalogs);
+        expect(new DirectJsonFormatFactory().createFormat(catalogs).catalogs).toEqual(catalogs);
+      },
+    );
+
+    it('accepts mixed v0.9 and v0.9.1 catalogs since they share a release line', () => {
+      const catalogs = [
+        new Catalog('https://a2ui.org/catalogs/basic', 'v0.9', [], []),
+        new Catalog('https://a2ui.org/catalogs/custom', 'v0.9.1', [], []),
+      ];
+      expect(new DirectJsonParser(catalogs).catalogs).toEqual(catalogs);
+      expect(new DirectJsonFormatFactory().createFormat(catalogs).catalogs).toEqual(catalogs);
     });
 
     it('throws A2uiValidationError on missing version', () => {

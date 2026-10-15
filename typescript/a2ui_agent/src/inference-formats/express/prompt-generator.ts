@@ -21,11 +21,12 @@
  * signatures and instruction blocks.
  */
 
-import {PromptGenerator} from '../../prompt/generator.js';
 import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
+import {PromptGenerator} from '../../prompt/generator.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
-import {CatalogSchemaHelper, commonDefName} from './schema-helper.js';
+import {buildSchemaHelpers, catalogsDefining, resolveExpressVersion} from './catalogs.js';
 import {ExpressDecompiler, RawNumber} from './decompiler.js';
+import {CatalogSchemaHelper, commonDefName} from './schema-helper.js';
 
 export const EXPRESS_RULES = `# A2UI Express DSL Output Contract
 
@@ -133,10 +134,100 @@ function getSchemaEnum(propSchema: unknown): string[] | undefined {
   return undefined;
 }
 
+function applyDefaultCatalogToValue(val: unknown, defaultCatalogId: string): unknown {
+  if (val instanceof RawNumber || !val || typeof val !== 'object') {
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return val.map(item => applyDefaultCatalogToValue(item, defaultCatalogId));
+  }
+  const obj = val as Record<string, unknown>;
+  const copy: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    copy[k] = applyDefaultCatalogToValue(v, defaultCatalogId);
+  }
+  const isComponent = typeof copy.component === 'string';
+  const isCall = typeof copy.call === 'string' || typeof copy['@call'] === 'string';
+  if ((isComponent || isCall) && !copy.catalogId) {
+    copy.catalogId = defaultCatalogId;
+  }
+  return copy;
+}
+
+/**
+ * Stamps a default `catalogId` on example messages that belong to a catalog but omit it.
+ */
+function withDefaultCatalog(
+  messages: AgentToRendererMessage[],
+  defaultCatalogId?: string,
+): AgentToRendererMessage[] {
+  if (!defaultCatalogId) {
+    return messages;
+  }
+  const createdSurfaces = new Set<string>();
+  return messages.map(rawMsg => {
+    if (!rawMsg || typeof rawMsg !== 'object') {
+      return rawMsg;
+    }
+    const msg = rawMsg as unknown as Record<string, unknown>;
+    const copy: Record<string, unknown> = {...msg};
+
+    if (copy.createSurface && typeof copy.createSurface === 'object') {
+      const cs = copy.createSurface as Record<string, unknown>;
+      const sid =
+        typeof cs.surfaceId === 'string' && cs.surfaceId ? cs.surfaceId : 'default_surface';
+      createdSurfaces.add(sid);
+      if (!cs.catalogId) {
+        copy.createSurface = {...cs, catalogId: defaultCatalogId};
+      }
+    } else if (copy.deleteSurface && typeof copy.deleteSurface === 'object') {
+      const ds = copy.deleteSurface as Record<string, unknown>;
+      const sid =
+        typeof ds.surfaceId === 'string' && ds.surfaceId ? ds.surfaceId : 'default_surface';
+      createdSurfaces.delete(sid);
+    } else if (copy.updateComponents && typeof copy.updateComponents === 'object') {
+      const uc = copy.updateComponents as Record<string, unknown>;
+      const sid =
+        typeof uc.surfaceId === 'string' && uc.surfaceId ? uc.surfaceId : 'default_surface';
+      if (!createdSurfaces.has(sid)) {
+        copy.updateComponents = applyDefaultCatalogToValue(uc, defaultCatalogId);
+      }
+    } else if (copy.updateDataModel && typeof copy.updateDataModel === 'object') {
+      const udm = copy.updateDataModel as Record<string, unknown>;
+      const sid =
+        typeof udm.surfaceId === 'string' && udm.surfaceId ? udm.surfaceId : 'default_surface';
+      if (!createdSurfaces.has(sid)) {
+        copy.updateDataModel = applyDefaultCatalogToValue(udm, defaultCatalogId);
+      }
+    } else if (copy.callRendererFunction && typeof copy.callRendererFunction === 'object') {
+      const crf = copy.callRendererFunction as Record<string, unknown>;
+      if (crf.callFunction && typeof crf.callFunction === 'object') {
+        const cf = crf.callFunction as Record<string, unknown>;
+        if (!cf.catalogId) {
+          copy.callRendererFunction = {
+            ...crf,
+            callFunction: {...cf, catalogId: defaultCatalogId},
+          };
+        }
+      }
+    } else if (copy.callFunction && typeof copy.callFunction === 'object') {
+      const cf = copy.callFunction as Record<string, unknown>;
+      if (!cf.catalogId) {
+        copy.callFunction = {...cf, catalogId: defaultCatalogId};
+      }
+    }
+
+    return copy as unknown as AgentToRendererMessage;
+  });
+}
+
 export class ExpressPromptGenerator extends PromptGenerator {
-  private readonly examples?: Record<string, AgentToRendererMessage[] | string>;
-  private readonly helpers = new Map<string, CatalogSchemaHelper>();
-  private readonly decompilers = new Map<string, ExpressDecompiler>();
+  private readonly examples?: Record<
+    string,
+    AgentToRendererMessage[] | AgentToRendererMessage[][] | string
+  >;
+  private readonly version: string;
+  private readonly helpers: Map<string, CatalogSchemaHelper>;
 
   /**
    * @param catalogs Active catalogs to render instructions for.
@@ -144,14 +235,18 @@ export class ExpressPromptGenerator extends PromptGenerator {
    * @param allowedMessages Optional allowlist of message names (`createSurface`,
    *     `updateComponents`, `updateDataModel`, `deleteSurface`). The base rules drop the
    *     instructions for messages outside it.
+   * @param version Optional wire protocol version override.
    */
   constructor(
     catalogs: CatalogApi[],
-    examples?: Record<string, AgentToRendererMessage[] | string>,
+    examples?: Record<string, AgentToRendererMessage[] | AgentToRendererMessage[][] | string>,
     private readonly allowedMessages?: readonly string[],
+    version?: string,
   ) {
     super(catalogs);
+    this.version = resolveExpressVersion(this.catalogs, version);
     this.examples = examples;
+    this.helpers = buildSchemaHelpers(this.catalogs, this.version);
   }
 
   private getHelper(catalog: CatalogApi): CatalogSchemaHelper {
@@ -164,14 +259,55 @@ export class ExpressPromptGenerator extends PromptGenerator {
     return helper;
   }
 
-  private getDecompiler(catalog: CatalogApi): ExpressDecompiler {
-    let decompiler = this.decompilers.get(catalog.id);
-    if (!decompiler) {
-      const version = toWireProtocolVersion(catalog.protocolVersion);
-      decompiler = new ExpressDecompiler([catalog], version);
-      this.decompilers.set(catalog.id, decompiler);
+  private multiCatalogRules(): string {
+    const catalogIds = [...this.helpers.keys()];
+    const exampleId = catalogIds[catalogIds.length - 1];
+    const listing = catalogIds.map(catId => `- \`${catId}\``).join('\n');
+    const lines = [
+      '',
+      '## Multiple Catalogs',
+      '',
+      'Several component catalogs are active. Each is identified by its catalog ID, and the signatures below are grouped by catalog:',
+      listing,
+      '',
+      '16. A surface has no catalog of its own: do not name a catalog on a `surface` line. Each component and function call, including checks, actions, nested function calls and inline child components, is found by its name in whichever catalog defines it.',
+      '',
+      '17. When several catalogs define the same component or function name, you MUST say which one you mean: add a `catalogId` keyword argument to the component or function call, or a `{catalogId: ...}` argument to a check. Do not add `catalogId` to any other name:',
+      `    widget = ComponentName(..., catalogId="${exampleId}")`,
+      `    action = functionName(..., catalogId="${exampleId}")`,
+      `    ?checkName(..., {catalogId: "${exampleId}"})`,
+    ];
+
+    const sharedLines: string[] = [];
+    const kinds: ReadonlyArray<['component' | 'function', string]> = [
+      ['component', 'Component'],
+      ['function', 'Function'],
+    ];
+    for (const [kind, label] of kinds) {
+      const names = new Set<string>();
+      for (const helper of this.helpers.values()) {
+        const map = kind === 'component' ? helper.components : helper.functions;
+        for (const name of map.keys()) {
+          names.add(name);
+        }
+      }
+      for (const name of [...names].sort()) {
+        const defining = catalogsDefining(this.helpers, kind, name);
+        if (defining.length > 1) {
+          const ids = defining.map(catId => `\`${catId}\``).join(', ');
+          sharedLines.push(`- ${label} \`${name}\`: ${ids}`);
+        }
+      }
     }
-    return decompiler;
+
+    if (sharedLines.length > 0) {
+      lines.push(
+        '',
+        'These names are defined in several catalogs and need a `catalogId`:',
+        ...sharedLines,
+      );
+    }
+    return lines.join('\n');
   }
 
   /**
@@ -183,44 +319,49 @@ export class ExpressPromptGenerator extends PromptGenerator {
    */
   generateBaseRules(): string {
     const allowedMessages = this.allowedMessages;
-    if (!allowedMessages) {
-      return EXPRESS_RULES;
-    }
-
     let rules = EXPRESS_RULES;
+    let wantsComponentsOrData = true;
 
-    // Filter rule 12 if deleteSurface is disallowed
-    if (!allowedMessages.includes('deleteSurface')) {
-      rules = rules.replace(
-        /\n\n12\. To delete a user interface surface, output the standalone `deleteSurface\(surfaceId\)` command \(no variable assignment\):\n {4}deleteSurface\("dashboard-surface-1"\)/,
-        '',
-      );
-    }
-
-    // Filter rule 10 if updateDataModel is disallowed
-    if (!allowedMessages.includes('updateDataModel')) {
-      rules = rules.replace(
-        /\n\n10\. Data model population: Assign a value directly to an absolute data path \(e\.g\. \$\/path\/to\/key = "value"\) to populate or initialize values inside the shared dataModel\. The value can be a primitive, array, or map\./,
-        '',
-      );
-    }
-
-    // Rule 15 teaches `surface(...)`, which component and data statements both need to
-    // target a surface. Its `root = ...` line applies only to components, and the rule
-    // goes when neither kind of statement is allowed.
-    const writesComponents =
-      allowedMessages.includes('createSurface') || allowedMessages.includes('updateComponents');
-    if (!writesComponents) {
-      rules = rules.replace(/\n {4}root = ComponentA\(\.\.\.\)$/, '');
-      if (!allowedMessages.includes('updateDataModel')) {
+    if (allowedMessages) {
+      // Filter rule 12 if deleteSurface is disallowed
+      if (!allowedMessages.includes('deleteSurface')) {
         rules = rules.replace(
-          /\n\n15\. Surface targeting: Output `surface\(surfaceId\)` to specify or target a user interface surface:\n {4}surface\("dashboard-surface-1"\)$/,
+          /\n\n12\. To delete a user interface surface, output the standalone `deleteSurface\(surfaceId\)` command \(no variable assignment\):\n {4}deleteSurface\("dashboard-surface-1"\)/,
           '',
         );
       }
+
+      // Filter rule 10 if updateDataModel is disallowed
+      if (!allowedMessages.includes('updateDataModel')) {
+        rules = rules.replace(
+          /\n\n10\. Data model population: Assign a value directly to an absolute data path \(e\.g\. \$\/path\/to\/key = "value"\) to populate or initialize values inside the shared dataModel\. The value can be a primitive, array, or map\./,
+          '',
+        );
+      }
+
+      // Rule 15 teaches `surface(...)`, which component and data statements both need to
+      // target a surface. Its `root = ...` line applies only to components, and the rule
+      // goes when neither kind of statement is allowed.
+      const writesComponents =
+        allowedMessages.includes('createSurface') || allowedMessages.includes('updateComponents');
+      const writesData = allowedMessages.includes('updateDataModel');
+      wantsComponentsOrData = writesComponents || writesData;
+      if (!writesComponents) {
+        rules = rules.replace(/\n {4}root = ComponentA\(\.\.\.\)$/, '');
+        if (!writesData) {
+          rules = rules.replace(
+            /\n\n15\. Surface targeting: Output `surface\(surfaceId\)` to specify or target a user interface surface:\n {4}surface\("dashboard-surface-1"\)$/,
+            '',
+          );
+        }
+      }
     }
 
-    return rules;
+    const lines = [rules];
+    if (this.catalogs.length > 1 && wantsComponentsOrData) {
+      lines.push(this.multiCatalogRules());
+    }
+    return lines.join('\n');
   }
 
   protected renderCatalogInstructions(catalog: CatalogApi): string {
@@ -304,182 +445,163 @@ export class ExpressPromptGenerator extends PromptGenerator {
     }
   }
 
-  generateComponentSignatures(helper: CatalogSchemaHelper): string {
-    const signatures: string[] = [];
-    const compNames = Array.from(helper.components.keys()).sort();
+  private formatSignatureEntry(
+    name: string,
+    orderedArgs: string[],
+    description: string | undefined,
+    propDetails: string[],
+  ): string {
+    let sig = `• ${name}(${orderedArgs.join(', ')})`;
+    if (description) {
+      const descIndented = description.replaceAll('\n', '\n    ');
+      sig += `\n  - Description: ${descIndented}`;
+    }
+    if (propDetails.length > 0) {
+      sig += '\n' + propDetails.join('\n');
+    }
+    return sig;
+  }
 
-    for (const name of compNames) {
-      const props = helper.getComponentProperties(name);
-      const reqs = helper.getComponentRequired(name);
-      const compDesc = helper.getComponentDescription(name);
+  private formatComponentArgLabel(
+    propName: string,
+    isRequired: boolean,
+    pSchema: Record<string, unknown> | undefined,
+    helper: CatalogSchemaHelper,
+  ): string {
+    let argLabel = `${propName}${isRequired ? '' : '?'}`;
+    const ref =
+      pSchema && typeof pSchema === 'object' && typeof pSchema.$ref === 'string'
+        ? pSchema.$ref
+        : undefined;
+    if (ref && commonDefName(ref) === 'ComponentId') {
+      argLabel += ' (component ID)';
+    } else if (!helper.admitsPath(pSchema)) {
+      argLabel += ' (static)';
+    }
+    return argLabel;
+  }
 
-      const orderedArgs: string[] = [];
-      const propDetails: string[] = [];
+  private formatSubKeyLines(properties: Record<string, unknown>): string {
+    return Object.entries(properties)
+      .map(([subK, subV]) => {
+        const desc =
+          subV &&
+          typeof subV === 'object' &&
+          typeof (subV as Record<string, unknown>).description === 'string'
+            ? (subV as Record<string, unknown>).description
+            : '';
+        return `    * ${subK}${desc ? ` - ${desc}` : ''}`;
+      })
+      .join('\n');
+  }
 
-      for (const p of props) {
-        const isReq = reqs.includes(p);
-        const optSuffix = isReq ? '' : '?';
-
-        const pSchema = helper.getPropertySchema(name, p);
-        let argLabel = `${p}${optSuffix}`;
-
-        let isComponentId = false;
-        if (
-          pSchema &&
-          typeof pSchema === 'object' &&
-          typeof (pSchema as Record<string, unknown>).$ref === 'string'
-        ) {
-          if (commonDefName((pSchema as Record<string, unknown>).$ref) === 'ComponentId') {
-            isComponentId = true;
-          }
-        }
-
-        if (isComponentId) {
-          argLabel += ' (component ID)';
-        } else if (!helper.admitsPath(pSchema)) {
-          argLabel += ' (static)';
-        }
-
-        orderedArgs.push(argLabel);
-
-        const pDesc =
-          pSchema && typeof pSchema === 'object' && typeof pSchema.description === 'string'
-            ? pSchema.description
-            : undefined;
-        const enumVals = getSchemaEnum(pSchema);
-
-        if (pDesc || enumVals) {
-          const pLineParts: string[] = [];
-          if (pDesc) {
-            pLineParts.push(pDesc);
-          }
-          if (enumVals) {
-            const enumValsStr = enumVals.map(v => `'${v}'`).join(', ');
-            pLineParts.push(`Must be one of: ${enumValsStr}`);
-          }
-          propDetails.push(`  - ${p}: ${pLineParts.join(' ')}`);
-        }
-
-        // Fetch property schema and check if it has nested object structure
-        if (pSchema && typeof pSchema === 'object') {
-          const s = pSchema as Record<string, unknown>;
-          if (s.type === 'object' && s.properties && typeof s.properties === 'object') {
-            const subKeys: string[] = [];
-            for (const [subK, subV] of Object.entries(s.properties as Record<string, unknown>)) {
-              const desc =
-                subV &&
-                typeof subV === 'object' &&
-                typeof (subV as Record<string, unknown>).description === 'string'
-                  ? (subV as Record<string, unknown>).description
-                  : '';
-              const descSuffix = desc ? ` - ${desc}` : '';
-              subKeys.push(`    * ${subK}${descSuffix}`);
-            }
-
-            if (
-              propDetails.length > 0 &&
-              propDetails[propDetails.length - 1].startsWith(`  - ${p}:`)
-            ) {
-              propDetails[propDetails.length - 1] += '\n    Map keys:\n' + subKeys.join('\n');
-            } else {
-              propDetails.push(`  - ${p}: Map with keys:\n` + subKeys.join('\n'));
-            }
-          } else if (s.type === 'array' && s.items && typeof s.items === 'object') {
-            const itemsSchema = s.items as Record<string, unknown>;
-            if (
-              itemsSchema.type === 'object' &&
-              itemsSchema.properties &&
-              typeof itemsSchema.properties === 'object'
-            ) {
-              const subKeys: string[] = [];
-              for (const [subK, subV] of Object.entries(
-                itemsSchema.properties as Record<string, unknown>,
-              )) {
-                const desc =
-                  subV &&
-                  typeof subV === 'object' &&
-                  typeof (subV as Record<string, unknown>).description === 'string'
-                    ? (subV as Record<string, unknown>).description
-                    : '';
-                const descSuffix = desc ? ` - ${desc}` : '';
-                subKeys.push(`    * ${subK}${descSuffix}`);
-              }
-
-              if (
-                propDetails.length > 0 &&
-                propDetails[propDetails.length - 1].startsWith(`  - ${p}:`)
-              ) {
-                propDetails[propDetails.length - 1] +=
-                  '\n    List of maps keys:\n' + subKeys.join('\n');
-              } else {
-                propDetails.push(`  - ${p}: List of maps with keys:\n` + subKeys.join('\n'));
-              }
-            }
-          }
-        }
-      }
-
-      let sig = `• ${name}(${orderedArgs.join(', ')})`;
-      if (compDesc) {
-        const descIndented = compDesc.replaceAll('\n', '\n    ');
-        sig += `\n  - Description: ${descIndented}`;
-      }
-      if (propDetails.length > 0) {
-        sig += '\n' + propDetails.join('\n');
-      }
-      signatures.push(sig);
+  private formatComponentPropertyDetail(
+    propName: string,
+    pSchema: Record<string, unknown> | undefined,
+  ): string | undefined {
+    if (!pSchema || typeof pSchema !== 'object') {
+      return undefined;
     }
 
-    return signatures.join('\n');
+    const pDesc = typeof pSchema.description === 'string' ? pSchema.description : undefined;
+    const enumVals = getSchemaEnum(pSchema);
+    const lineParts: string[] = [];
+    if (pDesc) {
+      lineParts.push(pDesc);
+    }
+    if (enumVals) {
+      lineParts.push(`Must be one of: ${enumVals.map(v => `'${v}'`).join(', ')}`);
+    }
+
+    let detail = lineParts.length > 0 ? `  - ${propName}: ${lineParts.join(' ')}` : undefined;
+
+    if (pSchema.type === 'object' && pSchema.properties && typeof pSchema.properties === 'object') {
+      const subKeys = this.formatSubKeyLines(pSchema.properties as Record<string, unknown>);
+      detail = detail
+        ? `${detail}\n    Map keys:\n${subKeys}`
+        : `  - ${propName}: Map with keys:\n${subKeys}`;
+    } else if (pSchema.type === 'array' && pSchema.items && typeof pSchema.items === 'object') {
+      const itemsSchema = pSchema.items as Record<string, unknown>;
+      if (
+        itemsSchema.type === 'object' &&
+        itemsSchema.properties &&
+        typeof itemsSchema.properties === 'object'
+      ) {
+        const subKeys = this.formatSubKeyLines(itemsSchema.properties as Record<string, unknown>);
+        detail = detail
+          ? `${detail}\n    List of maps keys:\n${subKeys}`
+          : `  - ${propName}: List of maps with keys:\n${subKeys}`;
+      }
+    }
+
+    return detail;
+  }
+
+  generateComponentSignatures(helper: CatalogSchemaHelper): string {
+    const compNames = Array.from(helper.components.keys()).sort();
+    return compNames
+      .map(name => {
+        const props = helper.getComponentProperties(name);
+        const reqs = helper.getComponentRequired(name);
+        const orderedArgs: string[] = [];
+        const propDetails: string[] = [];
+
+        for (const p of props) {
+          const pSchema = helper.getPropertySchema(name, p);
+          orderedArgs.push(this.formatComponentArgLabel(p, reqs.includes(p), pSchema, helper));
+          const detail = this.formatComponentPropertyDetail(p, pSchema);
+          if (detail) {
+            propDetails.push(detail);
+          }
+        }
+
+        return this.formatSignatureEntry(
+          name,
+          orderedArgs,
+          helper.getComponentDescription(name),
+          propDetails,
+        );
+      })
+      .join('\n');
   }
 
   generateFunctionSignatures(helper: CatalogSchemaHelper): string {
-    const signatures: string[] = [];
     const fnNames = Array.from(helper.functions.keys()).sort();
+    return fnNames
+      .map(name => {
+        const props = helper.getFunctionProperties(name);
+        const reqs = helper.getFunctionRequired(name);
+        const orderedArgs: string[] = [];
+        const propDetails: string[] = [];
 
-    for (const name of fnNames) {
-      const props = helper.getFunctionProperties(name);
-      const reqs = helper.getFunctionRequired(name);
-      const fDesc = helper.getFunctionDescription(name);
-
-      const orderedArgs: string[] = [];
-      const propDetails: string[] = [];
-
-      for (const p of props) {
-        const isReq = reqs.includes(p);
-        const optSuffix = isReq ? '' : '?';
-        orderedArgs.push(`${p}${optSuffix}`);
-
-        const pSchema = helper.getFunctionPropertySchema(name, p);
-        const pDesc =
-          pSchema && typeof pSchema.description === 'string' ? pSchema.description : undefined;
-        if (pDesc) {
-          propDetails.push(`  - ${p}: ${pDesc}`);
+        for (const p of props) {
+          orderedArgs.push(`${p}${reqs.includes(p) ? '' : '?'}`);
+          const pSchema = helper.getFunctionPropertySchema(name, p);
+          const pDesc =
+            pSchema && typeof pSchema.description === 'string' ? pSchema.description : undefined;
+          if (pDesc) {
+            propDetails.push(`  - ${p}: ${pDesc}`);
+          }
         }
-      }
 
-      let sig = `• ${name}(${orderedArgs.join(', ')})`;
-      if (fDesc) {
-        const descIndented = fDesc.replaceAll('\n', '\n    ');
-        sig += `\n  - Description: ${descIndented}`;
-      }
-      if (propDetails.length > 0) {
-        sig += '\n' + propDetails.join('\n');
-      }
-      signatures.push(sig);
-    }
-
-    return signatures.join('\n');
+        return this.formatSignatureEntry(
+          name,
+          orderedArgs,
+          helper.getFunctionDescription(name),
+          propDetails,
+        );
+      })
+      .join('\n');
   }
 
-  transformExamples(rawExamplesMarkdown: string, catalog: CatalogApi): string {
+  transformExamples(rawExamplesMarkdown: string, catalog?: CatalogApi): string {
     const pattern = /```json\s*\n([\s\S]*?)\n```/g;
     return rawExamplesMarkdown.replace(pattern, (match, jsonContent) =>
       this.replaceJsonBlock(match, jsonContent, catalog),
     );
   }
 
-  private replaceJsonBlock(match: string, jsonContent: string, catalog: CatalogApi): string {
+  private replaceJsonBlock(match: string, jsonContent: string, catalog?: CatalogApi): string {
     try {
       const parsed = JSON.parse(jsonContent.trim());
       const messages: unknown[] = Array.isArray(parsed)
@@ -510,11 +632,12 @@ export class ExpressPromptGenerator extends PromptGenerator {
    * `surface(...)` scope per message, which fails to compile.
    *
    * @param messages The messages of one example.
-   * @param catalog The catalog the example belongs to.
+   * @param catalog Optional catalog the example belongs to, used as the default catalog.
    */
-  private decompileMessages(messages: AgentToRendererMessage[], catalog: CatalogApi): string {
-    const decompiler = this.getDecompiler(catalog);
-    return decompiler.wrapDecompiledBlocks([decompiler.decompile(messages)]);
+  private decompileMessages(messages: AgentToRendererMessage[], catalog?: CatalogApi): string {
+    const decompiler = new ExpressDecompiler(this.catalogs, this.version);
+    const normalized = withDefaultCatalog(messages, catalog?.id);
+    return decompiler.wrapDecompiledBlocks([decompiler.decompile(normalized)]);
   }
 
   protected renderExamples(catalog: CatalogApi): string {
@@ -522,11 +645,26 @@ export class ExpressPromptGenerator extends PromptGenerator {
       return '';
     }
 
-    const ex = this.examples[catalog.id];
-    if (typeof ex === 'string') {
-      return this.transformExamples(ex, catalog);
+    const exampleMessages = this.examples[catalog.id];
+    if (typeof exampleMessages === 'string') {
+      return this.transformExamples(exampleMessages, catalog);
     }
 
-    return this.decompileMessages(ex, catalog);
+    if (Array.isArray(exampleMessages) && exampleMessages.length > 0) {
+      if (Array.isArray(exampleMessages[0])) {
+        const decompiler = new ExpressDecompiler(this.catalogs, this.version);
+        const blocks: string[] = [];
+        for (const turn of exampleMessages as AgentToRendererMessage[][]) {
+          const dsl = decompiler.decompile(withDefaultCatalog(turn, catalog.id));
+          if (dsl) {
+            blocks.push(decompiler.wrapDecompiledBlocks([dsl]));
+          }
+        }
+        return blocks.join('\n\n');
+      }
+      return this.decompileMessages(exampleMessages as AgentToRendererMessage[], catalog);
+    }
+
+    return '';
   }
 }

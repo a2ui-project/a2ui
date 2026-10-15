@@ -37,6 +37,8 @@ import {
   resolveExpressVersion,
   surfaceCatalogId,
   toCatalogList,
+  unknownCatalogError,
+  unknownSymbolError,
 } from './catalogs.js';
 import {
   ExpressDuplicateParamError,
@@ -48,8 +50,6 @@ import {
   ExpressParseError,
   ExpressSyntaxError,
   ExpressUndefinedRootError,
-  ExpressUnknownComponentError,
-  ExpressUnknownFunctionError,
   ExpressUnknownPropertyError,
   ExpressValidationError,
 } from './errors.js';
@@ -361,21 +361,11 @@ export class ExpressCompiler {
       }
       const helper = this.helpers.get(explicitCatalogId);
       if (!helper) {
-        const active = this.catalogs.map(c => `'${c.id}'`).join(', ');
-        throw new ExpressValidationError(
-          `${label} '${name}' targets unknown catalog '${explicitCatalogId}'. Active catalogs: ${active}.`,
-        );
+        throw unknownCatalogError(`${label} '${name}'`, explicitCatalogId, this.catalogs);
       }
       const defs = kind === 'component' ? helper.components : helper.functions;
       if (!defs.has(name)) {
-        const defining = catalogsDefining(this.helpers, kind, name);
-        const hint =
-          defining.length > 0
-            ? ` It is defined in: ${defining.map(c => `'${c}'`).join(', ')}.`
-            : '';
-        throw new ExpressValidationError(
-          `${label} '${name}' is not in catalog '${explicitCatalogId}'.${hint}`,
-        );
+        throw unknownSymbolError(kind, name, explicitCatalogId, this.helpers);
       }
       return {helper, catalogId: explicitCatalogId};
     }
@@ -388,10 +378,7 @@ export class ExpressCompiler {
       );
     }
     if (matches.length === 0) {
-      if (kind === 'component') {
-        throw new ExpressUnknownComponentError(name);
-      }
-      throw new ExpressUnknownFunctionError(name);
+      throw unknownSymbolError(kind, name, undefined, this.helpers);
     }
     const cid = matches[0];
     return {
@@ -475,9 +462,7 @@ export class ExpressCompiler {
         );
       }
       if (catalogId !== this.catalogs[0].id) {
-        throw new ExpressValidationError(
-          `Surface '${surfaceId}' targets unknown catalog '${catalogId}'. Active catalogs: '${this.catalogs[0].id}'.`,
-        );
+        throw unknownCatalogError(`Surface '${surfaceId}'`, catalogId, this.catalogs);
       }
     }
 

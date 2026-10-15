@@ -21,7 +21,7 @@ import {ParseError} from '../../errors.js';
 import {parseAndFix} from '../../parser/payload-fixer.js';
 import {A2UI_OPEN_TAG, A2UI_CLOSE_TAG} from '../../parser/constants.js';
 import {DirectJsonStreamProcessor} from './streaming-types.js';
-import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
+import {AgentToRendererMessage, CatalogApi, linkCatalogs} from '../../internal/web-core.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 import {checkParserCatalogs, validatePayload} from '../../utils/validation.js';
 
@@ -42,7 +42,7 @@ export class DirectJsonParser extends Parser {
   constructor(catalogs: CatalogApi[], streamProcessor?: DirectJsonStreamProcessor) {
     super();
     checkParserCatalogs(catalogs);
-    this.catalogs = catalogs;
+    this.catalogs = linkCatalogs(catalogs);
     this.streamProcessor = streamProcessor;
     this.lexer = new BlockLexer(A2UI_OPEN_TAG, A2UI_CLOSE_TAG, new Set(["'", '"']), new Set());
     this.decompiler = new DirectJsonDecompiler();

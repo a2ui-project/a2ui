@@ -15,15 +15,16 @@
  */
 
 import {
-  CatalogApi,
-  MessageProcessor,
-  STRICT_VALIDATION,
-  A2uiValidationError,
   A2uiCatalogError,
   A2uiError,
+  A2uiValidationError,
+  CatalogApi,
+  linkCatalogs,
+  MessageProcessor,
+  STRICT_VALIDATION,
 } from '../internal/web-core.js';
-import {toWireProtocolVersion} from './protocol-version.js';
 import {validateEnvelope} from './envelope-validation.js';
+import {toWireProtocolVersion} from './protocol-version.js';
 
 /**
  * Checks that catalogs target the same release line and returns it.
@@ -64,6 +65,8 @@ export function checkParserCatalogs(catalogs: CatalogApi[]): string {
  */
 export function validatePayload(catalogs: CatalogApi[], payload: unknown[]): void {
   const wireProtocolVersion = checkParserCatalogs(catalogs);
+  // Linked once here, so that the processors below share the linked copies.
+  const linkedCatalogs = linkCatalogs(catalogs);
   if (!Array.isArray(payload)) {
     throw new A2uiValidationError('Payload is not a JSON array.');
   }
@@ -160,7 +163,7 @@ export function validatePayload(catalogs: CatalogApi[], payload: unknown[]): voi
 
   if (fullValidationMessages.length > 0) {
     try {
-      const processor = new MessageProcessor(catalogs as any, undefined, {
+      const processor = new MessageProcessor(linkedCatalogs as any, undefined, {
         validationConfig: STRICT_VALIDATION,
       });
       processor.processMessages(fullValidationMessages as any);
@@ -176,7 +179,7 @@ export function validatePayload(catalogs: CatalogApi[], payload: unknown[]): voi
 
   for (const [surfaceId, messages] of messagesBySurfaceId.entries()) {
     if (!createSurfaceTargets.has(surfaceId)) {
-      validateUpdateOnlySurface(catalogs, releaseLine, surfaceId, messages as any);
+      validateUpdateOnlySurface(linkedCatalogs, releaseLine, surfaceId, messages as any);
     }
   }
 }
