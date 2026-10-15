@@ -60,6 +60,7 @@ nav:
       - Defining Your Own Catalog: guides/defining-your-own-catalog.md
       - Authoring Universal Components: guides/authoring-universal-components.md
       - Authoring Custom Components (Framework-Specific): guides/authoring-components.md
+      - Iframe and MCP Catalogs: guides/iframe-and-mcp-catalogs.md
       - Theming & Styling: guides/theming.md
       - A2UI + MCP:
           - A2UI over MCP: guides/a2ui_over_mcp.md
