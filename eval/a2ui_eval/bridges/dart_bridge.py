@@ -107,7 +107,9 @@ class DartSdkBridge(AgentSdkBridge):
 
     def _get_exe_path(self) -> Path:
         uid = getattr(os, "getuid", lambda: 0)()
-        return Path(tempfile.gettempdir()) / f"a2ui_dart_eval_bridge_{uid}"
+        temp_dir = Path(tempfile.gettempdir()) / f"a2ui_dart_eval_{uid}"
+        temp_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        return temp_dir / "bridge_exe"
 
     def prepare(self) -> None:
         """Compiles dart_runner.dart to a native executable for fast parallel invocation."""
@@ -135,20 +137,27 @@ class DartSdkBridge(AgentSdkBridge):
             )
 
         tmp_exe = exe_path.with_suffix(f".tmp.{os.getpid()}")
-        subprocess.run(
-            [
-                dart_bin,
-                "compile",
-                "exe",
-                str(DART_RUNNER_PATH),
-                f"--packages={pkg_config}",
-                "-o",
-                str(tmp_exe),
-            ],
-            cwd=str(GIT_ROOT),
-            check=True,
-            capture_output=True,
-        )
+        try:
+            subprocess.run(
+                [
+                    dart_bin,
+                    "compile",
+                    "exe",
+                    str(DART_RUNNER_PATH),
+                    f"--packages={pkg_config}",
+                    "-o",
+                    str(tmp_exe),
+                ],
+                cwd=str(GIT_ROOT),
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                "Dart compilation"
+                f" failed:\nStdout:\n{exc.stdout}\nStderr:\n{exc.stderr}"
+            ) from exc
         os.replace(tmp_exe, exe_path)
         self._compiled_exe = exe_path
 

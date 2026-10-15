@@ -155,8 +155,7 @@ def parse_with_hard_kill_timeout(
     require_complete_tags: bool = False,
 ) -> dict[str, Any]:
     """Runs Python parsing and validation in a child process with a hard kill timeout."""
-    start_method = "fork" if "fork" in multiprocessing.get_all_start_methods() else None
-    ctx: Any = multiprocessing.get_context(start_method)
+    ctx: Any = multiprocessing.get_context("spawn")
     parent_conn, child_conn = ctx.Pipe(duplex=False)
     p = ctx.Process(
         target=_process_target_wrapper,

@@ -37,7 +37,14 @@ def find_node_binary() -> str:
 
     nvm_versions_dir = Path.home() / ".nvm" / "versions" / "node"
     if nvm_versions_dir.is_dir():
-        candidates = sorted(nvm_versions_dir.glob("*/bin/node"))
+        candidates = sorted(
+            nvm_versions_dir.glob("*/bin/node"),
+            key=lambda p: [
+                int(x)
+                for x in p.parent.parent.name.lstrip("v").split(".")
+                if x.isdigit()
+            ],
+        )
         if candidates:
             return str(candidates[-1])
 

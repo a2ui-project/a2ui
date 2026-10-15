@@ -62,7 +62,7 @@ CatalogApi _loadCatalog(String resolvedCatalogPath) {
   final String text = File(resolvedCatalogPath).readAsStringSync();
   final rawDoc = jsonDecode(text) as Map<String, Object?>;
   final Map<String, Object?> doc = _lowerCatalogDocument(rawDoc);
-  final String? fallbackId = doc.containsKey('catalogId')
+  final String? fallbackId = doc['catalogId'] != null
       ? null
       : (doc[r'$id']?.toString() ?? 'https://a2ui.org/eval/default_catalog');
 
