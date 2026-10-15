@@ -66,12 +66,14 @@ class DirectJsonPromptGenerator extends PromptGenerator {
   /// message type.
   @override
   String generate() {
-    if (catalogs.isEmpty) {
+    if (this.catalogs.isEmpty) {
       throw A2uiCatalogError(
         'A direct JSON prompt needs at least one catalog.',
       );
     }
-    linkCatalogs(catalogs);
+    // Linked copies resolve cross-catalog references; [catalogs] stay as
+    // they are.
+    final List<CatalogApi> catalogs = linkCatalogs(this.catalogs);
     final Set<A2uiProtocolVersion> versions = {
       for (final CatalogApi c in catalogs)
         c.protocolVersion ?? A2uiProtocolVersion.v0_9,

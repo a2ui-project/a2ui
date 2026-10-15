@@ -38,6 +38,12 @@ import '../processor/catalog_config.dart';
 /// is already active is dropped, so a renderer that names a catalog and also
 /// redefines it gets the agent's registration.
 ///
+/// The active catalogs are copies linked with one another, with each
+/// registered catalog as declared and as transformed, so a cross-catalog
+/// `$ref` resolves, including one to an entry a transformer pruned; see
+/// [linkCatalogs]. The registered catalogs are not changed. A refused inline
+/// catalog is linked with nothing.
+///
 /// Throws [A2uiValidationError] if [rendererCapabilities] declares nothing
 /// for v0.9, and [A2uiCatalogError] if no catalog is active: the renderer
 /// supports none of the registered catalogs and declares no inline catalog
@@ -47,15 +53,17 @@ List<CatalogApi> resolveCatalogs(
   A2uiRendererCapabilities? rendererCapabilities, {
   bool acceptsInlineCatalogs = false,
 }) {
+  final List<CatalogApi> transformed = [
+    for (final CatalogConfig config in catalogs) config.transformedCatalog,
+  ];
+  // Each registered catalog, as declared and as transformed, so a reference
+  // to an entry a transformer pruned still resolves.
+  final List<CatalogApi> extraPeers = [
+    for (final CatalogConfig config in catalogs) config.catalog,
+    ...transformed,
+  ];
   if (rendererCapabilities == null) {
-    final List<CatalogApi> active = [
-      for (final CatalogConfig config in catalogs) config.transformedCatalog,
-    ];
-    linkCatalogs([
-      ...active,
-      for (final CatalogConfig config in catalogs) config.catalog,
-    ]);
-    return active;
+    return linkCatalogs(transformed, extraPeers: extraPeers);
   }
   const A2uiProtocolVersion version = A2uiProtocolVersion.v0_9;
   final A2uiVersionCapabilities? capabilities = rendererCapabilities.forVersion(
@@ -68,14 +76,14 @@ List<CatalogApi> resolveCatalogs(
     );
   }
 
-  final Map<String, CatalogConfig> registered = {
-    for (final CatalogConfig config in catalogs) config.catalog.id: config,
+  final Map<String, CatalogApi> registered = {
+    for (var i = 0; i < catalogs.length; i++)
+      catalogs[i].catalog.id: transformed[i],
   };
   final List<CatalogApi> active = [
-    for (final CatalogConfig config in {
+    ...{
       for (final String id in capabilities.supportedCatalogIds) ?registered[id],
-    })
-      config.transformedCatalog,
+    },
   ];
   if (acceptsInlineCatalogs) {
     for (final CatalogApi inline in capabilities.inlineCatalogs) {
@@ -91,11 +99,7 @@ List<CatalogApi> resolveCatalogs(
       '${registered.keys.toList()}.',
     );
   }
-  linkCatalogs([
-    ...active,
-    for (final CatalogConfig config in catalogs) config.catalog,
-    for (final CatalogConfig config in catalogs) config.transformedCatalog,
-    if (acceptsInlineCatalogs) ...capabilities.inlineCatalogs,
-  ]);
-  return active;
+  // An accepted inline catalog is already active, and a refused one is
+  // linked with nothing.
+  return linkCatalogs(active, extraPeers: extraPeers);
 }

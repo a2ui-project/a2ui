@@ -91,6 +91,12 @@ typedef _CheckedBatch = ({
 /// arrive across several messages in any order; see [ValidationConfig].
 class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> model;
+
+  /// The catalogs this processor supports, in the order given, each linked
+  /// with the others so a cross-catalog `$ref` resolves (see [linkCatalogs]).
+  ///
+  /// A catalog whose document references another catalog's is held as a
+  /// linked copy; the catalogs passed to the constructor are not changed.
   final List<Catalog<T, FunctionImplementation>> catalogs;
 
   /// The protocol version this processor targets by default, or null for
@@ -149,7 +155,7 @@ class MessageProcessor<T extends ComponentApi> {
   /// agent, and [defaultTimeout] bounds how long [callAgentFunction] waits
   /// for an answer; see [RpcHandler].
   MessageProcessor({
-    required this.catalogs,
+    required List<Catalog<T, FunctionImplementation>> catalogs,
     this.defaultVersion,
     this.validationConfig,
     this.commonTypesSchema,
@@ -157,11 +163,11 @@ class MessageProcessor<T extends ComponentApi> {
     void Function(A2uiRendererAction)? onAction,
     OutboundMessageListener? outboundListener,
     Duration defaultTimeout = const Duration(seconds: 30),
-  })  : adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
+  })  : catalogs = linkCatalogs(catalogs),
+        adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
         model = SurfaceGroupModel<T>(),
         _outboundListener = outboundListener,
         _defaultTimeout = defaultTimeout {
-    linkCatalogs(catalogs);
     final A2uiProtocolVersion? target = validationConfig?.targetVersion;
     final A2uiProtocolVersion? defaultVersion = this.defaultVersion;
     if (target != null && defaultVersion != null && target != defaultVersion) {

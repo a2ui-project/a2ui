@@ -27,7 +27,6 @@ void validatePayloads(
   List<CatalogApi> catalogs,
   Iterable<List<AgentToRendererMessage>> payloads,
 ) {
-  linkCatalogs(catalogs);
   for (final payload in payloads) {
     for (final CreateSurfaceMessage message
         in payload.whereType<CreateSurfaceMessage>()) {
@@ -40,6 +39,8 @@ void validatePayloads(
       }
     }
   }
+  // The processor links copies of the catalogs so cross-catalog references
+  // resolve, leaving [catalogs] as they are.
   final renderer = MessageProcessor<ComponentApi>(
     catalogs: [for (final CatalogApi catalog in catalogs) _signed(catalog)],
     defaultVersion: A2uiProtocolVersion.v0_9,

@@ -41,10 +41,13 @@ const Set<String> _keywords = {'_', 'null', 'true', 'false'};
 class ExpressDecompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ExpressDecompiler(this.catalogs) {
-    linkCatalogs(catalogs);
-  }
+  ///
+  /// [catalogs] are linked with one another, as by [linkCatalogs], so a
+  /// cross-catalog `$ref` resolves; the catalogs passed in are not changed.
+  ExpressDecompiler(List<CatalogApi> catalogs)
+    : catalogs = linkCatalogs(catalogs);
 
+  /// The catalogs this decompiler knows, linked with one another.
   final List<CatalogApi> catalogs;
 
   late final Map<String, CatalogSchemaHelper> _helpers = {

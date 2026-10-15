@@ -54,10 +54,12 @@ class ExpressPromptGenerator extends PromptGenerator {
   /// [ExpressDecompiler.decompile].
   @override
   String generate() {
-    if (catalogs.isEmpty) {
+    if (this.catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
     }
-    linkCatalogs(catalogs);
+    // Linked copies resolve cross-catalog references; [catalogs] stay as
+    // they are.
+    final List<CatalogApi> catalogs = linkCatalogs(this.catalogs);
     final buffer = StringBuffer(
       _rules(resolveAllowedMessages(allowedMessages)),
     );
