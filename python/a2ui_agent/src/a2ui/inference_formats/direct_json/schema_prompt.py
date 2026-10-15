@@ -76,11 +76,7 @@ def schema_to_prompt(
     catalog_docs = [c.to_json() for c in catalogs]
     peer_resolved_docs = [
         inline_local_refs(
-            {
-                k: v
-                for k, v in doc.items()
-                if k in ("components", "functions", "theme")
-            },
+            {k: v for k, v in doc.items() if k in ("components", "functions", "theme")},
             doc,
             peers=c.peer_catalogs,
         )

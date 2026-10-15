@@ -981,12 +981,12 @@ function collectComponentSubSchemas(
             if (peerResolved) {
               const visitKey = `${peerResolved.docPart}${peerResolved.pointer}`;
               if (!visitedPointers.has(visitKey)) {
-                visitedPointers.add(visitKey);
+                const nextVisited = new Set(visitedPointers).add(visitKey);
                 local.push(
                   ...collectComponentSubSchemas(
                     peerResolved.target,
                     peerResolved.peerDoc,
-                    visitedPointers,
+                    nextVisited,
                     isAtLeastV10,
                   ),
                 );
@@ -1156,8 +1156,8 @@ function collectArgSubSchemas(
       if (peerResolved) {
         const visitKey = `${peerResolved.docPart}${peerResolved.pointer}`;
         if (!visited.has(visitKey)) {
-          visited.add(visitKey);
-          const sub = collectArgSubSchemas(peerResolved.target, peerResolved.peerDoc, visited);
+          const nextVisited = new Set(visited).add(visitKey);
+          const sub = collectArgSubSchemas(peerResolved.target, peerResolved.peerDoc, nextVisited);
           result.schemas.push(...sub.schemas);
           if (sub.hasUnresolvable) {
             result.hasUnresolvable = true;

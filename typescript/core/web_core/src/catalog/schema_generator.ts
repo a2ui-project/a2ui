@@ -376,8 +376,7 @@ function collectSourceSubSchemas(
           visited: nextVisited,
         });
         if (isJsonObject(resolvedPeer) && resolvedPeer['$ref'] !== ref) {
-          visited.add(ref);
-          local.push(...collectSourceSubSchemas(resolvedPeer, context, visited));
+          local.push(...collectSourceSubSchemas(resolvedPeer, context, nextVisited));
           continue;
         }
       }

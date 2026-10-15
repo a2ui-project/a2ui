@@ -284,9 +284,7 @@ def _strip_envelope_from_subschema(sub: dict[str, Any]) -> dict[str, Any]:
         }
     req = cleaned.get("required")
     if isinstance(req, list):
-        cleaned["required"] = [
-            r for r in req if r not in _COMPONENT_ENVELOPE_KEYS
-        ]
+        cleaned["required"] = [r for r in req if r not in _COMPONENT_ENVELOPE_KEYS]
     all_of = cleaned.get("allOf")
     if isinstance(all_of, list):
         specific: list[Any] = []
@@ -294,9 +292,7 @@ def _strip_envelope_from_subschema(sub: dict[str, Any]) -> dict[str, Any]:
         for item in all_of:
             if isinstance(item, dict):
                 item_props = item.get("properties")
-                has_comp = (
-                    isinstance(item_props, Mapping) and "component" in item_props
-                )
+                has_comp = isinstance(item_props, Mapping) and "component" in item_props
                 stripped_item = _strip_envelope_from_subschema(item)
                 if has_comp:
                     specific.append(stripped_item)
@@ -358,7 +354,9 @@ def inline_local_refs(
             if raw_ref.startswith("#/") or (
                 "#" in raw_ref and raw_ref.partition("#")[0].endswith("catalog.json")
             ):
-                local_ref = _localize_ref(raw_ref) if not raw_ref.startswith("#/") else raw_ref
+                local_ref = (
+                    _localize_ref(raw_ref) if not raw_ref.startswith("#/") else raw_ref
+                )
                 if local_ref.startswith("#/"):
                     ref_name = local_ref.split("/")[-1]
                     if (
@@ -425,8 +423,7 @@ def inline_local_refs(
 
     elif isinstance(node, list):
         return [
-            inline_local_refs(item, root_catalog, visited, peers=peers)
-            for item in node
+            inline_local_refs(item, root_catalog, visited, peers=peers) for item in node
         ]
 
     return node
