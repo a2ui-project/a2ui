@@ -32,7 +32,7 @@
     "build:tsc": {
       "command": "tsc -b --pretty",
       "dependencies": [
-        "../../../../typescript/a2ui_agent:build"
+        "../../../../typescript/agents/a2ui_agent:build"
       ],
       "files": [
         "src/**/*.ts",

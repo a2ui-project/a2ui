@@ -42,7 +42,7 @@ describe('ExpressPromptGenerator', () => {
       // forbids (see KNOWN_GAPS.md). Everything except these substitutions must match it.
       const goldenPath = path.resolve(
         __dirname,
-        '../../../../../../conformance/test_data/skills/express_base_rules.txt',
+        '../../../../../../../conformance/test_data/skills/express_base_rules.txt',
       );
       const substitutions: [string, string][] = [
         ['date-time inputs (e.g. in DateTimeInput)', 'date-time properties'],
@@ -70,7 +70,7 @@ describe('ExpressPromptGenerator', () => {
     it('generateCatalogInstructions() for the v1.0 basic catalog matches express_catalog_instructions.txt BYTE FOR BYTE', () => {
       const goldenPath = path.resolve(
         __dirname,
-        '../../../../../../conformance/test_data/skills/express_catalog_instructions.txt',
+        '../../../../../../../conformance/test_data/skills/express_catalog_instructions.txt',
       );
       const expected = fs.readFileSync(goldenPath, 'utf8');
 
@@ -392,7 +392,10 @@ describe('ExpressPromptGenerator', () => {
     it('translates fenced v0.9 examples in catalog instructions', () => {
       const doc = JSON.parse(
         fs.readFileSync(
-          path.join(__dirname, '../../../../../../specification/v0_9/catalogs/basic/catalog.json'),
+          path.join(
+            __dirname,
+            '../../../../../../../specification/v0_9/catalogs/basic/catalog.json',
+          ),
           'utf8',
         ),
       );
@@ -449,7 +452,10 @@ describe('ExpressPromptGenerator', () => {
     it('rejects multiple v0.9 catalogs with A2uiCatalogError', () => {
       const schema1 = JSON.parse(
         fs.readFileSync(
-          path.join(__dirname, '../../../../../../specification/v0_9/catalogs/basic/catalog.json'),
+          path.join(
+            __dirname,
+            '../../../../../../../specification/v0_9/catalogs/basic/catalog.json',
+          ),
           'utf8',
         ),
       );

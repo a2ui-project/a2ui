@@ -24,7 +24,7 @@ import {describe, expect, it} from 'vitest';
 import {ExpressLexer} from '../../../../src/inference-formats/express/generated/ExpressLexer.js';
 import {ExpressParser} from '../../../../src/inference-formats/express/generated/ExpressParser.js';
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../..');
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../../..');
 const pythonGeneratedDir = resolve(
   repoRoot,
   'python/a2ui_agent/src/a2ui/inference_formats/express/generated',

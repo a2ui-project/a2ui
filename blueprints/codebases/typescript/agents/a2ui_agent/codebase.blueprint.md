@@ -1,5 +1,5 @@
 ---
-codebase_path: typescript/a2ui_agent
+codebase_path: typescript/agents/a2ui_agent
 associated_module: a2ui_agent
 module_blueprint_commit: 47f4988ab66c88be77bd48ca8c92dffb8b39ea11
 implemented_features: []
@@ -53,14 +53,14 @@ Protocol versions and core dependencies are handled in a few fixed places, and a
   4. A component's check-rule property is discovered from its own properties or an `allOf` common def as an array of common `CheckRule`; writing checks on a component with no check-rule property throws `ExpressValidationError`.
   5. `EXPRESS_RULES` names no catalog component.
   6. Data-binding allowance (`admitsPath`) checks structurally whether a schema is or combines an object declaring `path`, and compilation walks nested array items and object properties alongside the schema.
-- Express follows the conformance suite where it disagrees with main's Python. Unknown components and functions, missing required properties, inline id collisions and component ids that are not Express identifiers all throw, where Python drops, overwrites or writes invalid output. `typescript/a2ui_agent/KNOWN_GAPS.md` lists the conformance cases where the two SDKs differ.
+- Express follows the conformance suite where it disagrees with main's Python. Unknown components and functions, missing required properties, inline id collisions and component ids that are not Express identifiers all throw, where Python drops, overwrites or writes invalid output. `typescript/agents/a2ui_agent/KNOWN_GAPS.md` lists the conformance cases where the two SDKs differ.
 - `A2uiCompilationParseError` and `A2uiCompilationValidationError` extend only `A2uiCompilationError`. In Python they also inherit from the core parse and validation errors, which a single-parent class cannot do.
 - `Parser.hasFormatContent(content, {complete})` follows the blueprint's `has_format_content`, but runs the block lexer instead of a substring test, so `complete` also checks that the closing tag follows the opening one.
 - Transformers such as pruning return new catalogs rather than mutating them, so stale schemas cannot leak across contexts.
 - `Parser` adds a `parseStream` async generator for iterating over streams.
 - Flat `ResponsePart` shapes from the conformance suites are reassembled by the harness (`adaptParts`) into disjoint `TextPart` and `A2uiPart` types, rather than bending the lexer to the flat Python-derived structure.
 
-Where the port follows Python even though conformance disagrees, `typescript/a2ui_agent/KNOWN_GAPS.md` records the case (§4), so issues can be filed upstream.
+Where the port follows Python even though conformance disagrees, `typescript/agents/a2ui_agent/KNOWN_GAPS.md` records the case (§4), so issues can be filed upstream.
 
 ### **What is NOT Implemented (and Why)**
 
@@ -75,7 +75,7 @@ Where the port follows Python even though conformance disagrees, `typescript/a2u
 ### **Test Structure & Coverage**
 
 - **Main conformance runners** (`tests/conformance/`): Run the legacy suites (`conformance/agent/legacy/*.yaml`) alongside the `catalog_provider`, `catalog_resolution`, `direct_json/prompt_generator`, `multi_catalog_formats` and `request_processor` blueprint suites. The `KNOWN_FAILURES` list (`tests/conformance/loader.ts`) is empty. Cases are skipped by the protocol version, format or action they declare, not by name: `v0.8` cases, legacy cases superseded by the newer suites, skill-generation actions (`UNIMPLEMENTED_ACTIONS`), and Elemental or Atom cases. None is skipped for a defect, and an unhandled action fails the test instead of passing without assertions.
-- **Express conformance runner** (`tests/conformance/express-conformance.test.ts`): Runs all suites under `conformance/agent/express/*.yaml` (`compiler`, `decompiler`, `response_parser`, `prompt_generator`) with empty `KNOWN_FAILURES` and `UNSUPPORTED` lists. That includes the cases Python fails; `typescript/a2ui_agent/KNOWN_GAPS.md` lists them so Python issues can be filed.
+- **Express conformance runner** (`tests/conformance/express-conformance.test.ts`): Runs all suites under `conformance/agent/express/*.yaml` (`compiler`, `decompiler`, `response_parser`, `prompt_generator`) with empty `KNOWN_FAILURES` and `UNSUPPORTED` lists. That includes the cases Python fails; `typescript/agents/a2ui_agent/KNOWN_GAPS.md` lists them so Python issues can be filed.
 - **Unit tests** (`tests/unit/`): Cover the lexer, parsers, streaming healer, catalog providers and transformers, processor facades, and Express compiler/decompiler/prompt generator. The Express unit tests state their expected values inline and record no output from Python. The schema helper tests derive each basic catalog component's property order, required properties, checkability and enums, and each function's argument order, from the catalog JSON. Cases already in `conformance/agent/express/` are left to the Express conformance runner.
 - **Streaming coverage**: Verified against the canonical streaming cases in `conformance/agent/` as well as unit tests in `tests/unit/inference-formats/direct-json/streaming.test.ts`. Canonical cases cover both `v0.9` and `v1.0`, including multi-catalog resolution and buffering incomplete components.
 
@@ -91,7 +91,7 @@ Where the port follows Python even though conformance disagrees, `typescript/a2u
 The Express lexer, parser, and visitor in `src/inference-formats/express/generated/` are generated from `specification/inference_formats/express/Express.g4` (which takes precedence over the prose proposal whenever the two disagree, such as newline handling and ASCII-only `IDENTIFIER` tokens) and checked in so building, testing, and using the package never runs the generator.
 
 - **Generator and runtime**: Uses [`antlr-ng`](https://www.antlr-ng.org/introduction.html) (devDependency, TypeScript port of ANTLR 4.13.2) targeting [`antlr4ng`](https://www.npmjs.com/package/antlr4ng) (runtime dependency). Both are pinned to exact versions because `antlr-ng` pins the `antlr4ng` version it generates for. The official `antlr4` npm runtime is not used because its type declarations fail under `"moduleResolution": "nodenext"` (extensionless relative re-exports in its ESM `.d.ts` files), its `AbstractParseTreeVisitor.visitChildren` returns an array instead of the last child's result, and the official tool requires Java.
-- **Command**: `yarn workspace @a2ui/agent generate:express` runs `antlr-ng -Dlanguage=TypeScript --generate-visitor --generate-listener false -o src/inference-formats/express/generated ../../specification/inference_formats/express/Express.g4`, matching Python's visitor-only flags (`python/a2ui_agent/scripts/generate_express_parser.py`). The generated directory is excluded from ESLint and Prettier.
+- **Command**: `yarn workspace @a2ui/agent generate:express` runs `antlr-ng -Dlanguage=TypeScript --generate-visitor --generate-listener false -o src/inference-formats/express/generated ../../../specification/inference_formats/express/Express.g4`, matching Python's visitor-only flags (`python/a2ui_agent/scripts/generate_express_parser.py`). The generated directory is excluded from ESLint and Prettier.
 - **ATN parity with Python**: `tests/unit/inference-formats/express/generated-parser.test.ts` compares the serialized lexer and parser ATNs value-for-value against Python's checked-in `express_lexer.py` and `express_parser.py` (generated by the Java ANTLR 4.13.2 tool) and fails if either SDK is regenerated from a different grammar.
 - **Visitor overrides and error columns**:
   - The generated TypeScript visitor declares each `visitX` as an optional property rather than a method. Assign overrides as instance properties, do not call `super.visitX(ctx)`, and use `this.visitChildren(ctx)` for the default behaviour (returning the last child's result, as in Python).
