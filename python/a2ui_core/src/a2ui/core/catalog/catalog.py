@@ -218,7 +218,7 @@ def _normalize_external_schema_refs(node: Any) -> Any:
 
 def _find_peer_catalog_doc(
     doc_part: str,
-    peers: Sequence["Catalog[Any, Any] | Mapping[str, Any]"],
+    peers: Sequence["CatalogApi"],
 ) -> Mapping[str, Any] | None:
     """Finds a peer catalog document matching the URI or filename `doc_part`."""
     if not doc_part or not peers:
@@ -228,44 +228,23 @@ def _find_peer_catalog_doc(
     ):
         return None
 
-    def _peer_ids(
-        peer: "Catalog[Any, Any] | Mapping[str, Any]",
-    ) -> tuple[str | None, str | None]:
-        if isinstance(peer, Catalog):
-            return peer.catalog_id, peer.schema_id
-        if isinstance(peer, Mapping):
-            cid = peer.get("catalogId")
-            sid = peer.get("$id")
-            return (
-                cid if isinstance(cid, str) else None,
-                sid if isinstance(sid, str) else None,
-            )
-        return None, None
-
-    def _peer_doc(peer: "Catalog[Any, Any] | Mapping[str, Any]") -> Mapping[str, Any]:
-        if isinstance(peer, Catalog):
-            return peer.to_json()
-        return peer
-
     # Pass 1: exact or path-suffix match on catalog_id or schema_id ($id).
     for peer in peers:
-        cid, sid = _peer_ids(peer)
-        for candidate in (cid, sid):
+        for candidate in (peer.catalog_id, peer.schema_id):
             if candidate and (
                 doc_part == candidate
                 or candidate.endswith(f"/{doc_part}")
                 or doc_part.endswith(f"/{candidate}")
             ):
-                return _peer_doc(peer)
+                return peer.to_json()
 
     # Pass 2: basename match on schema_id ($id) or catalog_id.
     doc_base = doc_part.rsplit("/", 1)[-1]
     if doc_base and doc_base not in _LOCALIZABLE_REF_DOCUMENTS:
         for peer in peers:
-            cid, sid = _peer_ids(peer)
-            for candidate in (sid, cid):
+            for candidate in (peer.schema_id, peer.catalog_id):
                 if candidate and candidate.rsplit("/", 1)[-1] == doc_base:
-                    return _peer_doc(peer)
+                    return peer.to_json()
 
     return None
 
@@ -318,7 +297,7 @@ def inline_local_refs(
     node: Any,
     root_catalog: Mapping[str, Any],
     visited: set[str] | None = None,
-    peers: Sequence["Catalog[Any, Any] | Mapping[str, Any]"] = (),
+    peers: Sequence["CatalogApi"] = (),
 ) -> Any:
     """Returns a schema node with its local and peer catalog references written inline.
 
@@ -334,8 +313,8 @@ def inline_local_refs(
         root_catalog: The document that the references point into, usually the
             catalog schema that holds `node`.
         visited: The references being inlined, which callers leave out.
-        peers: Optional peer catalogs (or catalog JSON documents) for resolving
-            cross-catalog `$ref` pointers.
+        peers: Optional peer catalogs for resolving cross-catalog `$ref`
+            pointers.
 
     Returns:
         A new node, whose leaf values are shared with `node` and
@@ -1113,7 +1092,7 @@ class Catalog(Generic[TComponent, TFunction]):
         union_defs: Mapping[str, Any | None] | None = None,
         extras: Mapping[str, Any] | None = None,
         _layout: "_DocumentLayout | None" = None,
-        _peer_catalogs: Sequence["Catalog[Any, Any]"] = (),
+        _peer_catalogs: Sequence["CatalogApi"] = (),
     ):
         """Initializes the catalog.
 
@@ -1263,10 +1242,10 @@ class Catalog(Generic[TComponent, TFunction]):
         self._cached_document: dict[str, Any] | None = None
         self._resolved: _ResolvedSchemas | None = None
         self._component_ref_map: dict[str, ComponentRefSpec] | None = None
-        self._peer_catalogs: tuple[Catalog[Any, Any], ...] = tuple(
+        self._peer_catalogs: tuple[CatalogApi, ...] = tuple(
             p for p in _peer_catalogs if p is not self
         )
-        self._source_catalog: Catalog[Any, Any] | None = None
+        self._source_catalog: CatalogApi | None = None
 
     @property
     def id(self) -> str:
@@ -1274,12 +1253,12 @@ class Catalog(Generic[TComponent, TFunction]):
         return self.catalog_id
 
     @property
-    def peer_catalogs(self) -> tuple["Catalog[Any, Any]", ...]:
+    def peer_catalogs(self) -> tuple["CatalogApi", ...]:
         """Peer catalogs available for resolving cross-catalog `$ref` pointers."""
         return getattr(self, "_peer_catalogs", ())
 
     def with_peer_catalogs(
-        self, peers: Sequence["Catalog[Any, Any]"]
+        self, peers: Sequence["CatalogApi"]
     ) -> "Catalog[TComponent, TFunction]":
         """Associates peer catalogs for resolving cross-catalog `$ref` pointers.
 
@@ -2797,12 +2776,12 @@ evaluates functions needs a catalog of ``FunctionImplementation`` instances
 instead.
 """
 
-TCatalog = TypeVar("TCatalog", bound=Catalog[Any, Any])
+TCatalog = TypeVar("TCatalog", bound=CatalogApi)
 
 
 def link_catalogs(
     catalogs: Sequence[TCatalog],
-    extra_peers: Sequence[Catalog[Any, Any]] = (),
+    extra_peers: Sequence[CatalogApi] = (),
 ) -> list[TCatalog]:
     """Links a collection of catalogs as peers for cross-catalog `$ref` resolution.
 
@@ -2815,7 +2794,7 @@ def link_catalogs(
         A list containing the linked catalogs in their original order.
     """
     items = list(catalogs)
-    all_peers: list[Catalog[Any, Any]] = [*extra_peers, *items]
+    all_peers: list[CatalogApi] = [*extra_peers, *items]
     if len(all_peers) > 1:
         for cat in items:
             if isinstance(cat, Catalog):
