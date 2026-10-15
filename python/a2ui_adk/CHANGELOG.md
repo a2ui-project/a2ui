@@ -17,6 +17,14 @@
 - `A2uiEventConverter` reads catalogs from the `system:a2ui_catalogs`
   session-state key by default, instead of `system:a2ui_catalog`. Its
   `catalog_key` argument is renamed to `catalogs_key`.
+- `SendA2uiToClientToolset` supports any inference format. Pass an
+  `InferenceFormatFactory`, such as `ExpressFormatFactory()`, as
+  `inference_format_factory`; the default is `DirectJsonFormatFactory()`. The
+  tool adds the format's prompt and a note on calling the tool to the system
+  instructions, and compiles its argument with the format's parser, bare or
+  wrapped in the format's tags. `a2ui_examples` also accepts turns of A2UI
+  messages, which the format renders in its own syntax. With Direct JSON, the
+  prompt now includes the format's workflow rules.
 - Add `GenAIFileResolver`, a `FileResolver` that returns
   `google.genai.types.Part` objects. It takes over `to_genai_part`,
   `resolve_all_to_genai_parts` and the `genai_parts` default of

@@ -35,7 +35,8 @@ cases_adk_extensions = get_conformance_cases("extensions/adk/adk_extensions.yaml
 def test_adk_extensions_conformance(name, test_case):
     from a2ui.adk import SendA2uiToClientToolset
     from a2ui.core import Catalog
-    from unittest.mock import MagicMock, patch
+    from a2ui.inference_format import InferenceFormatFactory
+    from unittest.mock import MagicMock
 
     action = test_case["action"]
     args = test_case.get("args", {})
@@ -46,19 +47,25 @@ def test_adk_extensions_conformance(name, test_case):
 
         catalog_mock = MagicMock(spec=Catalog)
 
+        # The cases check the tool contract, not catalog validation, so the
+        # format's parser only decodes the JSON.
+        format_factory = MagicMock(spec=InferenceFormatFactory)
+        parser = format_factory.create_format.return_value.create_parser.return_value
+        parser.has_format_content.return_value = False
+        parser.compile.side_effect = lambda content: [json.loads(content)]
+
         tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
-            [catalog_mock], "examples"
+            [catalog_mock], "examples", format_factory
         )
 
         tool_context_mock = MagicMock()
         tool_context_mock.state = {}
         tool_context_mock.actions = MagicMock(skip_summarization=False)
 
-        with patch("a2ui.adk.send_a2ui_to_client_toolset.validate_payload"):
-            # run_async is async in Python
-            result = asyncio.run(
-                tool.run_async(args=tool_args, tool_context=tool_context_mock)
-            )
+        # run_async is async in Python
+        result = asyncio.run(
+            tool.run_async(args=tool_args, tool_context=tool_context_mock)
+        )
 
         expect = test_case["expect"]
         expect_success = expect["success"]
