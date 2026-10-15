@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Loads the few-shot examples that prompts show the model."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -20,11 +22,11 @@ import json
 import logging
 import os
 
+from a2ui.constants import ENCODING
 from a2ui.core import A2uiCatalogError, A2uiError, CatalogApi
-from a2ui.utils import validate_payload
-from a2ui.utils._paths import to_local_path
 
-from .constants import ENCODING
+from ._paths import to_local_path
+from .validation import validate_payload
 
 
 def resolve_examples_path(path: str | None) -> str | None:

@@ -45,15 +45,16 @@ from a2ui.core.schema.v0_9 import (
     UpdateDataModelMessage,
 )
 from a2ui.core import Catalog, CatalogApi, ValidationConfig
-from a2ui.schema.constants import VERSION_0_9_1
-from a2ui.schema.utils import find_repo_root
+from a2ui.core.schema import ProtocolVersion
+
+from ..repo_paths import find_repo_root
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 CONFORMANCE_DIR = os.path.join(REPO_ROOT, "conformance", "agent", "builder")
 GOLDEN_DIR = os.path.join(CONFORMANCE_DIR, "golden")
 SUITE_PATH = os.path.join(CONFORMANCE_DIR, "builder.yaml")
 
-PROTOCOL_VERSION = VERSION_0_9_1
+PROTOCOL_VERSION = ProtocolVersion.V0_9_1
 
 # =============================================================================
 # Suite definition

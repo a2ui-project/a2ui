@@ -19,9 +19,9 @@ from pathlib import Path
 import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import CatalogConfig
-from a2ui.schema import VERSION_0_9
-from a2ui.utils import validate_payload
+from a2ui.utils import to_version_number, validate_payload
 
 
 ROOT_DIR = Path(__file__).parent.parent.parent.parent.parent  # a2ui root
@@ -35,12 +35,12 @@ SAMPLE_CONFIGS = [
             (
                 lambda: CatalogConfig.from_path(
                     catalog_path="inline_catalog_0.9.json",
-                    protocol_version=VERSION_0_9,
+                    protocol_version=ProtocolVersion.V0_9,
                 ),
-                f"examples/{VERSION_0_9}",
+                f"examples/{to_version_number(ProtocolVersion.V0_9)}",
             ),
             (
-                lambda: CatalogConfig(BasicCatalog(VERSION_0_9)),
+                lambda: CatalogConfig(BasicCatalog(ProtocolVersion.V0_9)),
                 None,
             ),
         ],
@@ -50,7 +50,7 @@ SAMPLE_CONFIGS = [
         "name": "restaurant_finder",
         "path": SAMPLES_DIR / "restaurant_finder",
         "catalogs": [(
-            lambda: CatalogConfig(BasicCatalog(VERSION_0_9)),
+            lambda: CatalogConfig(BasicCatalog(ProtocolVersion.V0_9)),
             "examples/0.9",
         )],
         "validate": True,

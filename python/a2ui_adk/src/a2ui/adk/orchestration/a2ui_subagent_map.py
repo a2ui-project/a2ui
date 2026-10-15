@@ -81,16 +81,16 @@ from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.session import Session
 from google.adk.sessions.state import State
 import asyncio
-from a2ui.schema.constants import (
+from a2ui.a2a import is_a2ui_part
+from a2ui.constants import (
+    A2UI_ACTIONS_KEY,
     A2UI_BEGIN_RENDERING_KEY,
-    A2UI_SURFACE_ID_KEY,
+    A2UI_CLIENT_DATA_MODEL_SURFACES_KEY,
     A2UI_CREATE_SURFACE_KEY,
     A2UI_DELETE_SURFACE_KEY,
-    A2UI_ACTIONS_KEY,
     A2UI_ERROR_KEY,
-    A2UI_CLIENT_DATA_MODEL_SURFACES_KEY,
+    A2UI_SURFACE_ID_KEY,
 )
-from a2ui.a2a import is_a2ui_part
 from a2a.types import Part, DataPart
 
 

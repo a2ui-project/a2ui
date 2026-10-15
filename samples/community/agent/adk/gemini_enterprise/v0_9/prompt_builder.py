@@ -14,8 +14,9 @@
 
 import os
 
+from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import VERSION_0_9
+from a2ui.utils import to_version_number
 
 COMPOSITE_CATALOG_PATH = os.path.join(
     os.path.dirname(__file__), "gemini_enterprise_composite_catalog.json"
@@ -130,17 +131,19 @@ def get_text_prompt() -> str:
 
 
 if __name__ == "__main__":
-    from a2ui.schema import load_examples
+    from a2ui.utils import load_examples
 
     # Example of how to use A2uiRequestProcessor to generate a system prompt.
-    version = VERSION_0_9
+    version = ProtocolVersion.V0_9
     catalog = CatalogConfig.from_path(
         catalog_path=COMPOSITE_CATALOG_PATH,
         protocol_version=version,
     ).transformed_catalog
     processor = A2uiRequestProcessor([catalog])
     examples = load_examples(
-        processor.active_catalogs, f"examples/{version}", validate=True
+        processor.active_catalogs,
+        f"examples/{to_version_number(version)}",
+        validate=True,
     )
     prompt_parts = [
         ROLE_DESCRIPTION,

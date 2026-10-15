@@ -14,9 +14,13 @@ The following directories contain the base protocol logic, parsing, and schema o
 - **`catalog_config.py`**: Defines `CatalogConfig`, which binds a `Catalog` (or loads one from a path via `CatalogConfig.from_path`) with an optional sequence of `CatalogTransformer` instances into `transformed_catalog`.
 - **`catalog_providers.py`**: Defines `CatalogProvider`, `FileSystemCatalogProvider`, and `InMemoryCatalogProvider` for loading catalogs.
 
-### Schema & Examples (`src/a2ui/schema`)
+### Constants (`src/a2ui/constants.py`)
 
-- **`catalog.py`**: Defines `load_examples`, which reads few-shot examples from disk and can validate them against the active catalogs.
+- Protocol and SDK string constants such as `A2UI_OPEN_TAG`,
+  `A2UI_CLOSE_TAG` and `A2UI_CLIENT_CAPABILITIES_KEY`. Protocol versions are
+  `a2ui.core.schema.ProtocolVersion` members. The
+  module has no dependencies, so callers that only need a constant can import
+  `a2ui.constants` without loading the rest of the SDK.
 
 ### Catalog transformers (`src/a2ui/catalog_transformers`)
 
@@ -29,6 +33,13 @@ The following directories contain the base protocol logic, parsing, and schema o
 
 - **`catalog_resolver.py`**: `resolve_catalogs` returns the catalogs that are
   active for the capabilities that a renderer sent.
+- **`examples.py`**: `load_examples` reads few-shot examples from a directory
+  or glob pattern and can validate them against the active catalogs.
+- **`schemas.py`**: `load_agent_to_renderer_schema` and
+  `load_common_types_schema` return the protocol JSON schemas for a version.
+- **`versions.py`**: `to_version_number` returns a protocol version without
+  its leading "v" (`ProtocolVersion.V0_9` gives `"0.9"`), the form that A2A
+  extension URIs and many file layouts use.
 - **`schema_pruning.py`**: `prune_messages_schema` and
   `prune_common_types_schema` reduce the protocol schemas to the allowed
   messages and the common types that are referenced.

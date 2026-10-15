@@ -42,16 +42,13 @@ from a2ui.a2a import (
     parse_response_to_parts,
     stream_response_to_parts,
 )
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core import CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.parser import A2uiPart, Parser
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    VERSION_0_8,
-    VERSION_0_9,
-)
+from a2ui.utils import to_version_number
 from a2ui_examples import load_floor_plan_example
 from prompt_builder import ROLE_DESCRIPTION, UI_DESCRIPTION, WORKFLOW_DESCRIPTION, get_text_prompt
 from tools import get_contact_info
@@ -79,7 +76,7 @@ def _renderer_capabilities(
     Returns:
         The capabilities for `A2uiGenerator.create_processor`.
     """
-    key = f"v{version}"
+    key = f"v{to_version_number(version)}"
     if not client_ui_capabilities:
         return {key: {"supportedCatalogIds": list(catalog_ids)}}
     raw: Any = client_ui_capabilities
@@ -123,13 +120,13 @@ class ContactAgent:
         self._parsers: OrderedDict[str, Parser] = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
 
-        for version in [VERSION_0_8, VERSION_0_9]:
+        for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]:
             generator = self._build_generator(version)
             processor = self._build_default_processor(version, generator)
             self._generators[version] = generator
             self._processors[version] = processor
             agent = self._build_llm_agent(
-                processor, examples_path=f"examples/{version}"
+                processor, examples_path=f"examples/{to_version_number(version)}"
             )
             self._ui_runners[version] = self._build_runner(agent)
 
@@ -238,7 +235,7 @@ class ContactAgent:
         examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
-        from a2ui.schema import load_examples
+        from a2ui.utils import load_examples
 
         LITELLM_MODEL = os.getenv("LITELLM_MODEL", "gemini/gemini-3.6-flash")
 

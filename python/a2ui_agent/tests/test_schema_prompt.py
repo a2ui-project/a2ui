@@ -19,11 +19,12 @@ from typing import Any
 
 import pytest
 
+from a2ui import constants
 from a2ui.core import A2uiCatalogError, Catalog, CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import schema_to_prompt
-from a2ui.schema import VERSION_0_8, VERSION_0_9, VERSION_0_9_1, VERSION_1_0, constants
-from a2ui.schema.utils import load_common_types_schema
+from a2ui.utils import load_common_types_schema
 
 _A2R = "Agent to Renderer Schema"
 _COMMON_TYPES = "Common Types Schema"
@@ -77,13 +78,13 @@ def _label_catalog() -> CatalogApi:
                 }
             },
         },
-        protocol_version=VERSION_0_9,
+        protocol_version=ProtocolVersion.V0_9,
         catalog_id=catalog_id,
     )
 
 
 def test_schema_to_prompt_puts_the_sections_between_the_markers_in_order():
-    block = schema_to_prompt([BasicCatalog(VERSION_0_9)])
+    block = schema_to_prompt([BasicCatalog(ProtocolVersion.V0_9)])
 
     assert block.startswith(constants.A2UI_SCHEMA_BLOCK_START + "\n\n")
     assert block.endswith("\n\n" + constants.A2UI_SCHEMA_BLOCK_END)
@@ -91,14 +92,14 @@ def test_schema_to_prompt_puts_the_sections_between_the_markers_in_order():
 
 
 def test_schema_to_prompt_includes_the_catalog_schema():
-    catalog = BasicCatalog(VERSION_0_9)
+    catalog = BasicCatalog(ProtocolVersion.V0_9)
 
     sections = _sections(schema_to_prompt([catalog]))
 
     assert sections[_CATALOG] == catalog.to_json()
 
 
-@pytest.mark.parametrize("version", [VERSION_0_9, VERSION_0_9_1])
+@pytest.mark.parametrize("version", [ProtocolVersion.V0_9, ProtocolVersion.V0_9_1])
 def test_schema_to_prompt_uses_the_published_v0_9_schemas(version):
     sections = _sections(schema_to_prompt([BasicCatalog(version)]))
 
@@ -107,14 +108,14 @@ def test_schema_to_prompt_uses_the_published_v0_9_schemas(version):
 
 
 def test_schema_to_prompt_uses_the_published_v1_0_schemas():
-    sections = _sections(schema_to_prompt([BasicCatalog(VERSION_1_0)]))
+    sections = _sections(schema_to_prompt([BasicCatalog(ProtocolVersion.V1_0)]))
 
     assert "CallRendererFunctionMessage" in _message_refs(sections[_A2R])
     assert sections[_COMMON_TYPES]["$defs"]
 
 
 def test_schema_to_prompt_has_no_common_types_section_for_v0_8():
-    sections = _sections(schema_to_prompt([BasicCatalog(VERSION_0_8)]))
+    sections = _sections(schema_to_prompt([BasicCatalog(ProtocolVersion.V0_8)]))
 
     assert list(sections) == [_A2R, _CATALOG]
     assert set(sections[_A2R]["properties"]) == _V08_MESSAGES
@@ -122,7 +123,7 @@ def test_schema_to_prompt_has_no_common_types_section_for_v0_8():
 
 def test_schema_to_prompt_keeps_every_message_without_an_allowlist():
     sections = _sections(
-        schema_to_prompt([BasicCatalog(VERSION_0_9)], allowed_messages=None)
+        schema_to_prompt([BasicCatalog(ProtocolVersion.V0_9)], allowed_messages=None)
     )
 
     assert _message_refs(sections[_A2R]) == _V09_MESSAGES
@@ -131,7 +132,7 @@ def test_schema_to_prompt_keeps_every_message_without_an_allowlist():
 def test_schema_to_prompt_keeps_only_the_allowed_messages():
     sections = _sections(
         schema_to_prompt(
-            [BasicCatalog(VERSION_0_9)],
+            [BasicCatalog(ProtocolVersion.V0_9)],
             allowed_messages=["CreateSurfaceMessage", "UpdateComponentsMessage"],
         )
     )
@@ -143,7 +144,7 @@ def test_schema_to_prompt_keeps_only_the_allowed_messages():
 
 def test_schema_to_prompt_keeps_no_message_with_an_empty_allowlist():
     sections = _sections(
-        schema_to_prompt([BasicCatalog(VERSION_0_9)], allowed_messages=[])
+        schema_to_prompt([BasicCatalog(ProtocolVersion.V0_9)], allowed_messages=[])
     )
 
     assert sections[_A2R]["oneOf"] == []
@@ -153,7 +154,7 @@ def test_schema_to_prompt_keeps_no_message_with_an_empty_allowlist():
 def test_schema_to_prompt_keeps_only_the_allowed_v0_8_messages():
     sections = _sections(
         schema_to_prompt(
-            [BasicCatalog(VERSION_0_8)],
+            [BasicCatalog(ProtocolVersion.V0_8)],
             allowed_messages=["beginRendering", "surfaceUpdate"],
         )
     )
@@ -162,7 +163,7 @@ def test_schema_to_prompt_keeps_only_the_allowed_v0_8_messages():
 
 
 def test_schema_to_prompt_keeps_only_the_common_types_in_use():
-    published = load_common_types_schema(VERSION_0_9)["$defs"]
+    published = load_common_types_schema(ProtocolVersion.V0_9)["$defs"]
 
     sections = _sections(schema_to_prompt([_label_catalog()], allowed_messages=[]))
 
@@ -183,7 +184,7 @@ def test_schema_to_prompt_omits_common_types_that_nothing_uses():
                 "Label": {"type": "object", "properties": {"text": {"type": "string"}}}
             },
         },
-        protocol_version=VERSION_0_9,
+        protocol_version=ProtocolVersion.V0_9,
         catalog_id=catalog_id,
     )
 
@@ -193,7 +194,7 @@ def test_schema_to_prompt_omits_common_types_that_nothing_uses():
 
 
 def test_schema_to_prompt_shows_the_protocol_schemas_once_for_several_catalogs():
-    basic = BasicCatalog(VERSION_0_9)
+    basic = BasicCatalog(ProtocolVersion.V0_9)
     label = _label_catalog()
 
     block = schema_to_prompt([basic, label])
@@ -215,7 +216,7 @@ def test_schema_to_prompt_keeps_the_common_types_that_any_catalog_uses():
                 "Plain": {"type": "object", "properties": {"text": {"type": "string"}}}
             },
         },
-        protocol_version=VERSION_0_9,
+        protocol_version=ProtocolVersion.V0_9,
         catalog_id=catalog_id,
     )
 
@@ -233,4 +234,6 @@ def test_schema_to_prompt_rejects_no_catalogs():
 
 def test_schema_to_prompt_rejects_catalogs_of_different_versions():
     with pytest.raises(A2uiCatalogError):
-        schema_to_prompt([BasicCatalog(VERSION_0_9), BasicCatalog(VERSION_1_0)])
+        schema_to_prompt(
+            [BasicCatalog(ProtocolVersion.V0_9), BasicCatalog(ProtocolVersion.V1_0)]
+        )

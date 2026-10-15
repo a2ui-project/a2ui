@@ -86,7 +86,7 @@ from a2ui.core import DataModel, MessageProcessor, PayloadValidator
 
 ### The Constants Exception
 
-Constants that are formally part of the public protocol API (e.g., `SPEC_VERSION`, `PROTOCOL_VERSION`) may be exported from a lightweight, dependency-free leaf module (e.g., `a2ui.core.schema.v0_9.constants` or `a2ui.schema.constants`):
+Constants that are formally part of the public protocol API (e.g., `SPEC_VERSION`, `PROTOCOL_VERSION`) may be exported from a lightweight, dependency-free leaf module (e.g., `a2ui.core.schema.v0_9.constants` or `a2ui.constants`):
 
 - Callers requiring _only_ protocol constants should be able to depend on the leaf module without pulling in the entire agent or runtime dependency tree.
 - When refactoring packages, keep existing leaf constant imports stable while ensuring the new structure exposes them through the canonical versioned schema facade.
