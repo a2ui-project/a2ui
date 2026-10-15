@@ -214,7 +214,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   A2uiProtocolVersion checkVersion(Map<String, Object?> envelope) {
     final A2uiProtocolVersion version = A2uiProtocolVersion.fromJson(
       envelope['version'],
-      details: envelope,
     );
     if (!isCatalogVersionCompatible(
       version.jsonValue,
@@ -223,7 +222,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       throw A2uiValidationError(
         "Payload declares version '${version.jsonValue}' but this validator "
         "accepts only versions compatible with '${protocolVersion.jsonValue}'.",
-        details: envelope,
       );
     }
     return protocolVersion;
@@ -257,7 +255,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       throw A2uiValidationError(
         "Component id '$id' must be a valid UAX #31 identifier",
         path: '/id',
-        details: component,
       );
     }
     final Object? type = component['component'];
@@ -265,7 +262,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       throw A2uiValidationError(
         "Component '$id' does not name a component type.",
         path: '/component',
-        details: component,
       );
     }
     if (_v1) {
@@ -278,7 +274,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       throw A2uiValidationError(
         "Catalog '${catalog.id}' declares no component named '$type'.",
         path: '/component',
-        details: component,
       );
     }
 
@@ -287,7 +282,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       throw A2uiValidationError(
         "Component '$id' has a non-string 'catalogId'.",
         path: '/catalogId',
-        details: component,
       );
     }
 
@@ -317,7 +311,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       ).validateSync(target),
       "Component '$id' does not match the '$type' schema in catalog "
       "'${catalog.id}'",
-      component,
     );
 
     if (!_v1) return;
@@ -339,7 +332,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       _throwOnErrors(
         _resolvedEnvelopeSchemas[key]!.validateSync(value),
         "Component '$id' has an invalid '$key'",
-        component,
         path: '/$key',
       );
     }
@@ -353,7 +345,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
             "Component '$id' has a metadata extension key '$name' that is "
             'not a valid UAX #31 identifier',
             path: '/metadata/extensions/${_escape('$name')}',
-            details: component,
           );
         }
       }
@@ -428,7 +419,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       throw A2uiValidationError(
         "${where}Catalog '${catalog.id}' declares no function named '$name'.",
         path: path,
-        details: args,
       );
     }
 
@@ -439,7 +429,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         "catalog '${catalog.id}': "
         '${errors.map((e) => e.toErrorString()).join('; ')}',
         path: path,
-        details: args,
       );
     }
   }
@@ -458,7 +447,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     _throwOnErrors(
       schema.validateSync(theme),
       "Theme does not match the theme schema in catalog '${catalog.id}'",
-      theme,
     );
   }
 
@@ -622,7 +610,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       if (args != null && args is! Map) {
         throw A2uiValidationError(
           "$subject has non-object 'args'.",
-          details: node,
         );
       }
       if (name.startsWith('@')) {
@@ -630,14 +617,12 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           throw A2uiValidationError(
             "$subject names an unknown system function. The '@' namespace is "
             "reserved; only '$_indexFunction' is defined.",
-            details: node,
           );
         }
         if (node.containsKey('catalogId')) {
           throw A2uiValidationError(
             "$subject names a catalogId, but '$_indexFunction' is a system "
             'function and belongs to no catalog.',
-            details: node,
           );
         }
         if (args is Map) {
@@ -646,7 +631,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
               throw A2uiValidationError(
                 "$subject has unknown argument '$argName'; '$_indexFunction' "
                 "takes only 'offset'.",
-                details: node,
               );
             }
           }
@@ -655,14 +639,12 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         if (!isValidUax31Identifier(name)) {
           throw A2uiValidationError(
             '$subject does not name a valid UAX #31 identifier.',
-            details: node,
           );
         }
         final Object? catalogId = node['catalogId'];
         if (catalogId != null && catalogId is! String) {
           throw A2uiValidationError(
             "$subject has a non-string 'catalogId'.",
-            details: node,
           );
         }
         if (args is Map) {
@@ -671,7 +653,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
               throw A2uiValidationError(
                 "$subject has argument '$argName', which is not a valid "
                 'UAX #31 identifier.',
-                details: node,
               );
             }
           }
@@ -689,8 +670,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// Pointer below [path].
   static void _throwOnErrors(
     List<ValidationError> errors,
-    String message,
-    Object? details, {
+    String message, {
     String path = '',
   }) {
     if (errors.isEmpty) return;
@@ -705,7 +685,6 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
             message: error.toErrorString(),
           ),
       ],
-      details: details,
     );
   }
 
@@ -836,12 +815,17 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     };
   }();
 
+  /// The documents of the catalog's peer catalogs, which cross-catalog
+  /// references resolve against.
+  late final List<Map<String, Object?>> _peerDocuments = catalog.peerDocuments;
+
   Schema _resolve(Map<String, Object?> schema) => Schema.fromMap(
         resolveSchemaRefs(
           schema,
           _resolutionDocument,
           commonTypes: commonTypesSchema,
           fallbackCommonTypes: _fallbackCommonTypes,
+          peers: _peerDocuments,
         ),
       );
 

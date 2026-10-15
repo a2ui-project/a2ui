@@ -133,20 +133,6 @@ void main() {
       }
     });
 
-    test('carries the offending payload as error details', () {
-      final payload = {'version': 'v2.0'};
-      expect(
-        () => A2uiProtocolVersion.fromJson('v2.0', details: payload),
-        throwsA(
-          isA<A2uiValidationError>().having(
-            (e) => e.details,
-            'details',
-            same(payload),
-          ),
-        ),
-      );
-    });
-
     test('exposes the bare semantic version catalogs declare', () {
       expect(A2uiProtocolVersion.v0_9.semverValue, '0.9');
       expect(A2uiProtocolVersion.v0_9_1.semverValue, '0.9.1');

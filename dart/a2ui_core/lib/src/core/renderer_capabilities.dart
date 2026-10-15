@@ -51,15 +51,21 @@ class A2uiVersionCapabilities {
 
   /// Parses a version capabilities object.
   ///
+  /// [protocolVersion] is the version the object is declared for. An inline
+  /// catalog that states no `protocolVersion` of its own targets it, as the
+  /// renderer declared the catalog for that version.
+  ///
   /// Throws [A2uiValidationError] unless `supportedCatalogIds` is a list of
   /// strings. Throws [A2uiCatalogError] if `inlineCatalogs`, when present, is
   /// not a list of valid catalog objects.
-  factory A2uiVersionCapabilities.fromJson(Map<String, Object?> json) {
+  factory A2uiVersionCapabilities.fromJson(
+    Map<String, Object?> json, {
+    A2uiProtocolVersion? protocolVersion,
+  }) {
     final Object? rawIds = json['supportedCatalogIds'];
     if (rawIds is! List) {
       throw A2uiValidationError(
         "Renderer capabilities must declare a 'supportedCatalogIds' array.",
-        details: json,
       );
     }
     final Object? rawInline = json['inlineCatalogs'];
@@ -76,14 +82,16 @@ class A2uiVersionCapabilities {
           else
             throw A2uiValidationError(
               "'supportedCatalogIds' must contain only strings.",
-              details: json,
             ),
       ],
       inlineCatalogs: [
         if (rawInline is List)
           for (final Object? catalog in rawInline)
             if (catalog is Map)
-              Catalog.fromJson(catalog.cast<String, Object?>())
+              Catalog.fromJson(
+                catalog.cast<String, Object?>(),
+                protocolVersion: protocolVersion,
+              )
             else
               throw A2uiCatalogError(
                 "'inlineCatalogs' must contain only catalog objects (got "
@@ -157,6 +165,10 @@ class A2uiRendererCapabilities {
 
   /// Parses an `a2uiClientCapabilities` object.
   ///
+  /// Each entry is read as [A2uiVersionCapabilities.fromJson] reads it for
+  /// the version of its key, so an inline catalog that states no version
+  /// targets that one.
+  ///
   /// Throws [A2uiValidationError] if the object carries no entry for any
   /// version this SDK implements.
   factory A2uiRendererCapabilities.fromJson(Map<String, Object?> json) {
@@ -175,11 +187,11 @@ class A2uiRendererCapabilities {
       if (value is! Map) {
         throw A2uiValidationError(
           "Renderer capabilities entry '${entry.key}' must be an object.",
-          details: json,
         );
       }
       versions[version] = A2uiVersionCapabilities.fromJson(
         value.cast<String, Object?>(),
+        protocolVersion: version,
       );
     }
 
@@ -188,7 +200,6 @@ class A2uiRendererCapabilities {
         'Renderer capabilities must declare an entry for a supported '
         'version; this SDK supports only '
         '${A2uiProtocolVersion.supportedVersions}.',
-        details: json,
       );
     }
 

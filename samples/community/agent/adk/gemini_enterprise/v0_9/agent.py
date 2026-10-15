@@ -28,13 +28,11 @@ from a2a.types import (
 )
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.a2a import parse_response_to_parts, stream_response_to_parts
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.core.schema import ProtocolVersion
 from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    VERSION_0_9,
-)
+from a2ui.utils import to_version_number
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.artifacts import InMemoryArtifactService
@@ -54,7 +52,7 @@ from tools import get_restaurants
 logger = logging.getLogger(__name__)
 
 # A2UI version supported by this agent. Only v0.9 is supported.
-A2UI_VERSION = VERSION_0_9
+A2UI_VERSION = ProtocolVersion.V0_9
 
 # Name of the component catalog this agent advertises and validates against.
 COMPOSITE_CATALOG_NAME = "composite"
@@ -84,7 +82,8 @@ class A2uiDemoAgent:
         self._processor: A2uiRequestProcessor = self._build_processor(self._generator)
         self._ui_runner: Runner = self._build_runner(
             self._build_llm_agent(
-                self._processor, examples_path=f"examples/{A2UI_VERSION}"
+                self._processor,
+                examples_path=f"examples/{to_version_number(A2UI_VERSION)}",
             )
         )
         self._parsers = OrderedDict()
@@ -105,7 +104,7 @@ class A2uiDemoAgent:
 
     def _build_processor(self, generator: A2uiGenerator) -> A2uiRequestProcessor:
         return generator.create_processor({
-            f"v{A2UI_VERSION}": {
+            f"v{to_version_number(A2UI_VERSION)}": {
                 "supportedCatalogIds": [
                     c.transformed_catalog.catalog_id for c in generator.catalogs
                 ]
@@ -190,7 +189,7 @@ class A2uiDemoAgent:
         examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the A2UI demo agent."""
-        from a2ui.schema import load_examples
+        from a2ui.utils import load_examples
 
         model_env = os.getenv("MODEL") or "gemini-2.5-flash"
         model_name = model_env.split("/")[-1]

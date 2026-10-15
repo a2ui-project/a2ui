@@ -18,12 +18,12 @@ import 'dart:io';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/primitives/reference_schema.dart'
     show ReferenceSchemaReader;
-import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
 import 'package:json_schema_builder/json_schema_builder.dart'
     hide ValidationResult;
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
+import 'support/test_catalog.dart';
 
 /// The published basic catalog, which agent-side tests are measured against.
 const String basicCatalogPath =
@@ -462,7 +462,7 @@ void main() {
       );
 
       final Catalog<ComponentApi, FunctionImplementation> rendererCatalog =
-          MinimalCatalog();
+          TestCatalog();
       expect(
         rendererCatalog.functions.values,
         everyElement(isA<FunctionImplementation>()),
@@ -493,6 +493,48 @@ void main() {
       );
       expect((schema['properties']! as Map).containsKey('call'), isFalse);
       expect(schema['required'], ['@call', 'args']);
+    });
+
+    test('localizes full-URI common_types refs in function args', () {
+      final fn = FunctionApi(
+        name: 'customFn',
+        description: 'Custom function with full URI common_types ref',
+        returnType: A2uiReturnType.string,
+        argumentSchema: Schema.fromMap({
+          'type': 'object',
+          'properties': {
+            'label': {
+              r'$ref':
+                  r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString',
+            },
+          },
+          'required': ['label'],
+        }),
+      );
+      final catalog = Catalog<ComponentApi, FunctionApi>(
+        id: 'custom-cat',
+        protocolVersion: A2uiProtocolVersion.v0_9,
+        components: const [],
+        functions: [fn],
+      );
+      final Map<String, Object?> schema = catalog.catalogSchema;
+      final functions = schema['functions']! as Map<String, Object?>;
+      final fnSchema = functions['customFn']! as Map<String, Object?>;
+      expect(
+        fnSchema['description'],
+        'Custom function with full URI common_types ref',
+      );
+      final args =
+          (fnSchema['properties']! as Map<String, Object?>)['args']! as Map;
+      final props = args['properties']! as Map;
+      expect(
+        (props['label']! as Map)[r'$ref'],
+        r'#/$defs/DynamicString',
+      );
+      expect(
+        (schema[r'$defs']! as Map).containsKey('DynamicString'),
+        isTrue,
+      );
     });
 
     test('is call before protocol 1.0 or without a version', () {
@@ -655,6 +697,38 @@ void main() {
       expect(catalog.validationSchema['instructions'], 'Prefer cards.');
       expect(catalog.copyWith().instructions, 'Prefer cards.');
       expect(catalog.copyWith().protocolVersion, A2uiProtocolVersion.v1_0);
+    });
+
+    test(
+        'does not misclassify top-level combinators in function args as '
+        'parameters', () {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'https://example.com/combinator.json',
+        'functions': {
+          'flexibleFunc': {
+            'parameters': {
+              'oneOf': [
+                {
+                  'type': 'object',
+                  'properties': {
+                    'text': {'type': 'string'},
+                  },
+                },
+                {
+                  'type': 'object',
+                  'properties': {
+                    'count': {'type': 'number'},
+                  },
+                },
+              ],
+            },
+          },
+        },
+      });
+
+      final FunctionApi fn = catalog.functions['flexibleFunc']!;
+      expect(fn.argumentSchema.value.containsKey('properties'), isFalse);
+      expect(fn.argumentSchema.value.containsKey('oneOf'), isTrue);
     });
 
     test('requires args in validationSchema only for required parameters', () {
@@ -1347,7 +1421,7 @@ void main() {
     });
 
     test('uses the v0.9 shape below v1.0', () {
-      final Map<String, Object?> out = MinimalCatalog().toJson();
+      final Map<String, Object?> out = TestCatalog().toJson();
 
       expect(out['protocolVersion'], '0.9');
       final capitalize = (out['functions']! as Map).values.single as Map;
@@ -1884,7 +1958,7 @@ void main() {
 
     test('follow the version a processor advertises', () {
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog()],
+        catalogs: [TestCatalog()],
       );
 
       final Map<String, Object?> json = processor
@@ -1898,11 +1972,11 @@ void main() {
 
       expect(
         ((json['v1.0']! as Map)['inlineCatalogs'] as List).single,
-        equals(MinimalCatalog().toJson()),
+        equals(TestCatalog().toJson()),
       );
       expect(
         ((json['v0.9']! as Map)['inlineCatalogs'] as List).single,
-        equals(MinimalCatalog().toLegacyInlineCatalog()),
+        equals(TestCatalog().toLegacyInlineCatalog()),
       );
     });
   });

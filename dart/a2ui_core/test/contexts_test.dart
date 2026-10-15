@@ -16,6 +16,8 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:preact_signals/preact_signals.dart' show SignalEffectException;
 import 'package:test/test.dart';
 
+import 'support/test_catalog.dart';
+
 void main() {
   late DataModel dataModel;
   late DataContext context;
@@ -43,12 +45,12 @@ void main() {
         'meta': {'path': '/x'},
         'static': 'value',
       };
-      final Object? result = context.resolveSync(payload);
+      final Object? result = context.resolveDynamicValue(payload);
       expect(result, isNot(same(payload)));
       expect((result as Map)['meta'], 'resolved');
       expect(result['static'], 'value');
 
-      final ReadonlySignal<Object?> listenable = context.resolveListenable(
+      final ReadonlySignal<Object?> listenable = context.resolveSignal(
         payload,
       );
       expect((listenable.value as Map)['meta'], 'resolved');
@@ -60,7 +62,7 @@ void main() {
     test('resolves array elements as dynamic values', () {
       dataModel.set('/a', 'A');
       expect(
-        context.resolveSync([
+        context.resolveDynamicValue([
           {'path': '/a'},
           'literal',
         ]),
@@ -70,12 +72,12 @@ void main() {
 
     test('returns a fully static array unchanged', () {
       final list = ['x', 'y'];
-      expect(identical(context.resolveSync(list), list), isTrue);
+      expect(identical(context.resolveDynamicValue(list), list), isTrue);
     });
 
     test('re-evaluates array elements reactively', () {
       dataModel.set('/a', 'A');
-      final ReadonlySignal<Object?> listenable = context.resolveListenable([
+      final ReadonlySignal<Object?> listenable = context.resolveSignal([
         {'path': '/a'},
         'static',
       ]);
@@ -88,7 +90,7 @@ void main() {
     test('resolves a list-of-dynamic-values function argument', () {
       dataModel.set('/a', 'A');
       dataModel.set('/b', 'B');
-      final ReadonlySignal<Object?> listenable = context.resolveListenable({
+      final ReadonlySignal<Object?> listenable = context.resolveSignal({
         'call': 'join',
         'args': {
           'values': [
@@ -112,7 +114,7 @@ void main() {
         (name, args, currentContext) {
           invocationPaths.add(currentContext.path);
           if (name == 'fail') throw failure;
-          return currentContext.resolveSync(args['value']);
+          return currentContext.resolveDynamicValue(args['value']);
         },
         '/users',
         onError: errors.add,
@@ -124,7 +126,7 @@ void main() {
       expect(nested.path, '/users/0');
       expect(dataModel.get('/users/0/name'), 'Ada');
       expect(
-        nested.resolveSync({
+        nested.resolveDynamicValue({
           'call': 'read',
           'args': {
             'value': {'path': 'name'},
@@ -132,7 +134,7 @@ void main() {
         }),
         'Ada',
       );
-      expect(nested.resolveSync({'call': 'fail'}), isNull);
+      expect(nested.resolveDynamicValue({'call': 'fail'}), isNull);
       expect(invocationPaths, ['/users/0', '/users/0']);
       expect(errors, [same(failure)]);
     });
@@ -146,8 +148,8 @@ void main() {
           'args': <String, Object?>{},
         };
         return reactive
-            ? context.resolveListenable(call).value
-            : context.resolveSync(call);
+            ? context.resolveSignal(call).value
+            : context.resolveDynamicValue(call);
       }
 
       for (final original in <Exception>[
@@ -216,23 +218,22 @@ void main() {
   group('ComponentContext error reporting', () {
     late SurfaceModel<ComponentApi> surface;
     late ComponentModel component;
-    late List<A2uiClientError> clientErrors;
+    late List<A2uiRendererError> clientErrors;
 
     setUp(() {
-      surface = SurfaceModel('surf-1', defaultCatalog: MinimalCatalog());
+      surface = SurfaceModel('surf-1', defaultCatalog: TestCatalog());
       component = ComponentModel('root', 'Text', {});
       clientErrors = [];
-      surface.onError.addListener(clientErrors.add);
+      surface.onError.subscribe(clientErrors.add);
       addTearDown(surface.dispose);
     });
 
     group('from v1.0', () {
-      late List<A2uiClientError> v1Errors;
+      late List<A2uiRendererError> v1Errors;
 
       SurfaceModel<ComponentApi> v1Surface({bool withDefault = true}) {
         final Catalog<ComponentApi, FunctionImplementation> catalog =
-            MinimalCatalog()
-                .copyWith(protocolVersion: A2uiProtocolVersion.v1_0);
+            BasicCatalog.v1_0();
         final s = SurfaceModel<ComponentApi>(
           'surf-v1',
           defaultCatalog: withDefault ? catalog : null,
@@ -240,7 +241,7 @@ void main() {
           protocolVersion: 'v1.0',
         );
         v1Errors = [];
-        s.onError.addListener(v1Errors.add);
+        s.onError.subscribe(v1Errors.add);
         addTearDown(s.dispose);
         return s;
       }
@@ -251,7 +252,7 @@ void main() {
           'Text',
           {},
         );
-        return ComponentContext(s, root).dataContext.resolveSync(value);
+        return ComponentContext(s, root).dataContext.resolveDynamicValue(value);
       }
 
       test('dispatches CATALOG_ERROR for a call naming an unknown catalog', () {
@@ -314,7 +315,7 @@ void main() {
       final componentContext = ComponentContext(surface, component);
 
       expect(
-        componentContext.dataContext.resolveSync({'call': 'missing'}),
+        componentContext.dataContext.resolveDynamicValue({'call': 'missing'}),
         isNull,
       );
       expect(clientErrors, hasLength(1));
@@ -338,10 +339,11 @@ void main() {
         final ComponentContext child = componentContext.childContext('child');
 
         expect(
-          componentContext.dataContext.resolveSync({'call': 'missing'}),
+          componentContext.dataContext.resolveDynamicValue({'call': 'missing'}),
           isNull,
         );
-        expect(child.dataContext.resolveSync({'call': 'missing'}), isNull);
+        expect(
+            child.dataContext.resolveDynamicValue({'call': 'missing'}), isNull);
         expect(child.dataContext.path, '/users/0');
         expect(errors, hasLength(2));
         expect(errors.map((error) => error.expression), ['missing', 'missing']);
@@ -375,13 +377,13 @@ void main() {
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
 
-      expect(context.resolveSync({'@path': '/user/name'}), 'Alice');
+      expect(context.resolveDynamicValue({'@path': '/user/name'}), 'Alice');
 
       final plainMap = <String, dynamic>{'path': '/user/name'};
-      expect(context.resolveSync(plainMap), {'path': '/user/name'});
+      expect(context.resolveDynamicValue(plainMap), {'path': '/user/name'});
     });
 
     test('v1.0 resolves @call and treats plain call as literal', () {
@@ -389,20 +391,20 @@ void main() {
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
 
       final dynamicCall = <String, dynamic>{
         '@call': 'uppercase',
         'args': {'value': 'hello'},
       };
-      expect(context.resolveSync(dynamicCall), 'HELLO');
+      expect(context.resolveDynamicValue(dynamicCall), 'HELLO');
 
       final plainCall = <String, dynamic>{
         'call': 'uppercase',
         'args': {'value': 'hello'},
       };
-      expect(context.resolveSync(plainCall), {
+      expect(context.resolveDynamicValue(plainCall), {
         'call': 'uppercase',
         'args': {'value': 'hello'},
       });
@@ -413,14 +415,14 @@ void main() {
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
 
       final escaped = <String, dynamic>{
         '@@path': '/static/file',
         '@@type': 'custom',
       };
-      expect(context.resolveSync(escaped), {
+      expect(context.resolveDynamicValue(escaped), {
         '@path': '/static/file',
         '@type': 'custom',
       });
@@ -431,11 +433,11 @@ void main() {
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
 
       expect(
-        () => context.resolveSync({'@invalidDirective': true}),
+        () => context.resolveDynamicValue({'@invalidDirective': true}),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -445,11 +447,11 @@ void main() {
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v0.9',
+        protocolVersion: A2uiProtocolVersion.v0_9,
       );
 
-      expect(context.resolveSync({'path': '/user/name'}), 'Alice');
-      expect(context.resolveSync({'@path': '/user/name'}), {
+      expect(context.resolveDynamicValue({'path': '/user/name'}), 'Alice');
+      expect(context.resolveDynamicValue({'@path': '/user/name'}), {
         '@path': '/user/name',
       });
 
@@ -457,13 +459,13 @@ void main() {
         'call': 'uppercase',
         'args': {'value': 'hello'},
       };
-      expect(context.resolveSync(plainCall), 'HELLO');
+      expect(context.resolveDynamicValue(plainCall), 'HELLO');
 
       final escaped = <String, dynamic>{'@@path': '/static/file'};
-      expect(context.resolveSync(escaped), {'@@path': '/static/file'});
+      expect(context.resolveDynamicValue(escaped), {'@@path': '/static/file'});
 
       // Unknown @ keys should not throw in v0.9
-      expect(context.resolveSync({'@foo': 'bar'}), {'@foo': 'bar'});
+      expect(context.resolveDynamicValue({'@foo': 'bar'}), {'@foo': 'bar'});
     });
 
     test('v1.0 resolveListenable unescapes @@ keys and validates directives',
@@ -472,15 +474,15 @@ void main() {
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
 
       final escaped = <String, dynamic>{'@@path': '/static/file'};
-      final ReadonlySignal<Object?> signal = context.resolveListenable(escaped);
+      final ReadonlySignal<Object?> signal = context.resolveSignal(escaped);
       expect(signal.value, {'@path': '/static/file'});
 
       expect(
-        () => context.resolveListenable({'@invalid': true}),
+        () => context.resolveSignal({'@invalid': true}),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -490,25 +492,36 @@ void main() {
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v1.1',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
       expect(ctx1.atLeastV10, isTrue);
+      expect(ctx1.usesDirectives, isTrue);
 
       final ctx2 = DataContext(
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: '2.0.0',
+        protocolVersion: A2uiProtocolVersion.v0_9,
       );
-      expect(ctx2.atLeastV10, isTrue);
+      expect(ctx2.atLeastV10, isFalse);
+      expect(ctx2.usesDirectives, isFalse);
 
       final ctx3 = DataContext(
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v0.9.1',
+        protocolVersion: A2uiProtocolVersion.v0_9_1,
       );
       expect(ctx3.atLeastV10, isFalse);
+      expect(ctx3.usesDirectives, isFalse);
+
+      final ctx4 = DataContext(
+        dataModel,
+        mockInvoker,
+        '/',
+      );
+      expect(ctx4.atLeastV10, isFalse);
+      expect(ctx4.usesDirectives, isFalse);
     });
 
     test('bindingFor returns version-appropriate binding map', () {
@@ -516,7 +529,7 @@ void main() {
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v0.9',
+        protocolVersion: A2uiProtocolVersion.v0_9,
       );
       expect(v09Ctx.bindingFor('/user/name'), {'path': '/user/name'});
 
@@ -524,7 +537,7 @@ void main() {
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
       expect(v10Ctx.bindingFor('/user/name'), {'@path': '/user/name'});
     });
@@ -535,7 +548,7 @@ void main() {
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
 
       expect(v09Ctx.isDataBinding({'path': '/x'}), isTrue);
@@ -564,7 +577,7 @@ void main() {
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
       final Map<String, Object?> call = {
         'call': 'upper',
@@ -604,14 +617,15 @@ void main() {
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v0.9',
+        protocolVersion: A2uiProtocolVersion.v0_9,
       );
       final v09LiteralWithAt = <String, Object?>{
         'meta': {'@path': '/user/name'},
         'template': {'path': '/items', 'componentId': 'item-row'},
       };
       expect(
-        identical(v09Ctx.resolveSync(v09LiteralWithAt), v09LiteralWithAt),
+        identical(
+            v09Ctx.resolveDynamicValue(v09LiteralWithAt), v09LiteralWithAt),
         isTrue,
       );
 
@@ -619,7 +633,7 @@ void main() {
         dataModel,
         mockInvoker,
         '/',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
       final v10LiteralWithLegacyKeys = <String, Object?>{
         'path': '/user/name',
@@ -630,12 +644,12 @@ void main() {
       };
       expect(
         identical(
-          v10Ctx.resolveSync(v10LiteralWithLegacyKeys),
+          v10Ctx.resolveDynamicValue(v10LiteralWithLegacyKeys),
           v10LiteralWithLegacyKeys,
         ),
         isTrue,
       );
-      final ReadonlySignal<Object?> sig = v10Ctx.resolveListenable(
+      final ReadonlySignal<Object?> sig = v10Ctx.resolveSignal(
         v10LiteralWithLegacyKeys,
       );
       expect(identical(sig.value, v10LiteralWithLegacyKeys), isTrue);
@@ -647,7 +661,10 @@ void main() {
         final countingModel = _WatchCountingDataModel();
         addTearDown(countingModel.dispose);
 
-        for (final version in ['v0.9', 'v1.0']) {
+        for (final version in <A2uiProtocolVersion>[
+          A2uiProtocolVersion.v0_9,
+          A2uiProtocolVersion.v1_0,
+        ]) {
           countingModel.set('/a', 'hello');
           countingModel.set('/b', 'world');
           countingModel.watchCounts.clear();
@@ -657,8 +674,8 @@ void main() {
             '/',
             protocolVersion: version,
           );
-          final isV1 = version == 'v1.0';
-          final ReadonlySignal<Object?> sig = ctx.resolveListenable({
+          final isV1 = version == A2uiProtocolVersion.v1_0;
+          final ReadonlySignal<Object?> sig = ctx.resolveSignal({
             if (isV1) '@call': 'concat' else 'call': 'concat',
             'args': {
               'first': isV1 ? {'@path': '/a'} : {'path': '/a'},
@@ -707,54 +724,54 @@ void main() {
           dataModel,
           mockInvoker,
           '/',
-          protocolVersion: 'v1.0',
+          protocolVersion: A2uiProtocolVersion.v1_0,
         );
 
         expect(
-          () => v10Context.resolveSync({'@path': 123}),
+          () => v10Context.resolveDynamicValue({'@path': 123}),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () => v10Context.resolveListenable({'@path': 123}),
+          () => v10Context.resolveSignal({'@path': 123}),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () => v10Context.resolveSync({'@path': null}),
+          () => v10Context.resolveDynamicValue({'@path': null}),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () => v10Context.resolveSync({'@call': null}),
+          () => v10Context.resolveDynamicValue({'@call': null}),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () => v10Context.resolveListenable({'@call': null}),
+          () => v10Context.resolveSignal({'@call': null}),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () => v10Context.resolveSync({'@call': 123}),
+          () => v10Context.resolveDynamicValue({'@call': 123}),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () => v10Context.resolveSync({
+          () => v10Context.resolveDynamicValue({
             '@call': 'uppercase',
             'args': 'not_a_map',
           }),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () => v10Context.resolveListenable({
+          () => v10Context.resolveSignal({
             '@call': 'uppercase',
             'args': 'not_a_map',
           }),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () => v10Context.resolveSync(<Object?, Object?>{123: 'bad_key'}),
+          () => v10Context
+              .resolveDynamicValue(<Object?, Object?>{123: 'bad_key'}),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () =>
-              v10Context.resolveListenable(<Object?, Object?>{123: 'bad_key'}),
+          () => v10Context.resolveSignal(<Object?, Object?>{123: 'bad_key'}),
           throwsA(isA<A2uiValidationError>()),
         );
 
@@ -762,29 +779,29 @@ void main() {
           dataModel,
           mockInvoker,
           '/',
-          protocolVersion: 'v0.9',
+          protocolVersion: A2uiProtocolVersion.v0_9,
         );
         expect(
-          () => v09Context.resolveSync({
+          () => v09Context.resolveDynamicValue({
             'call': 'uppercase',
             'args': 'not_a_map',
           }),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () => v09Context.resolveListenable({
+          () => v09Context.resolveSignal({
             'call': 'uppercase',
             'args': 'not_a_map',
           }),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () => v09Context.resolveSync(<Object?, Object?>{123: 'bad_key'}),
+          () => v09Context
+              .resolveDynamicValue(<Object?, Object?>{123: 'bad_key'}),
           throwsA(isA<A2uiValidationError>()),
         );
         expect(
-          () =>
-              v09Context.resolveListenable(<Object?, Object?>{123: 'bad_key'}),
+          () => v09Context.resolveSignal(<Object?, Object?>{123: 'bad_key'}),
           throwsA(isA<A2uiValidationError>()),
         );
       },
@@ -797,7 +814,7 @@ void main() {
     late ComponentModel component;
 
     setUp(() {
-      surface = SurfaceModel('surf-err', defaultCatalog: MinimalCatalog());
+      surface = SurfaceModel('surf-err', defaultCatalog: TestCatalog());
       component = ComponentModel('root', 'Column', {});
       surface.componentsModel.addComponent(component);
       surface.componentsModel.addComponent(ComponentModel('child', 'Text', {}));
@@ -860,7 +877,7 @@ void main() {
           (name, args, context) => throw ArgumentError('Function not found'),
           path,
           onError: onError,
-          protocolVersion: 'v1.0',
+          protocolVersion: A2uiProtocolVersion.v1_0,
           onMissingData: onMissingData,
         );
 
@@ -876,7 +893,7 @@ void main() {
           );
       expect(item.parent!.parent, same(root));
       expect(item.path, '/items/1');
-      expect(item.resolveSync({'@path': 'name'}), 'B');
+      expect(item.resolveDynamicValue({'@path': 'name'}), 'B');
       expect(root.parent, isNull);
     });
 
@@ -897,17 +914,19 @@ void main() {
 
     test('@index resolves to the iteration index plus offset', () {
       final DataContext item = v10Context().childContext('items/3', index: 3);
-      expect(item.resolveSync({'@call': '@index', 'args': <String, Object?>{}}),
+      expect(
+          item.resolveDynamicValue(
+              {'@call': '@index', 'args': <String, Object?>{}}),
           3);
       expect(
-        item.resolveSync({
+        item.resolveDynamicValue({
           '@call': '@index',
           'args': {'offset': 1},
         }),
         4,
       );
       expect(
-        item.resolveListenable({
+        item.resolveSignal({
           '@call': '@index',
           'args': {'offset': 10},
         }).value,
@@ -917,8 +936,8 @@ void main() {
 
     test('@index outside a collection scope raises A2uiValidationError', () {
       expect(
-        () => v10Context()
-            .resolveSync({'@call': '@index', 'args': <String, Object?>{}}),
+        () => v10Context().resolveDynamicValue(
+            {'@call': '@index', 'args': <String, Object?>{}}),
         throwsA(
           isA<A2uiValidationError>().having(
             (e) => e.message,
@@ -930,8 +949,8 @@ void main() {
       );
       final reported = <A2uiExpressionError>[];
       expect(
-        v10Context(onError: reported.add)
-            .resolveSync({'@call': '@index', 'args': <String, Object?>{}}),
+        v10Context(onError: reported.add).resolveDynamicValue(
+            {'@call': '@index', 'args': <String, Object?>{}}),
         isNull,
       );
       expect(reported.single.message, contains('collection template'));
@@ -943,7 +962,7 @@ void main() {
           v10Context(onError: reported.add).childContext('items/0', index: 0);
       for (final Object offset in ['1', double.nan, double.infinity]) {
         expect(
-          item.resolveSync({
+          item.resolveDynamicValue({
             '@call': '@index',
             'args': {'offset': offset},
           }),
@@ -962,8 +981,8 @@ void main() {
         index: 0,
       );
       expect(
-        () =>
-            legacy.resolveSync({'call': '@index', 'args': <String, Object?>{}}),
+        () => legacy.resolveDynamicValue(
+            {'call': '@index', 'args': <String, Object?>{}}),
         throwsArgumentError,
       );
     });
@@ -987,6 +1006,21 @@ void main() {
       subscription.unsubscribe();
     });
 
+    test('subscribeDynamicValue<T> returns typed DataSubscription<T>', () {
+      dataModel.set('/name', 'Alice');
+      final seen = <String?>[];
+      final DataSubscription<String> subscription =
+          v10Context().subscribeDynamicValue<String>(
+        {'@path': '/name'},
+        seen.add,
+      );
+      expect(subscription.value, 'Alice');
+      dataModel.set('/name', 'Bob');
+      expect(seen, ['Bob']);
+      expect(subscription.value, 'Bob');
+      subscription.unsubscribe();
+    });
+
     test('rejects dynamic values nested deeper than maxDynamicValueDepth', () {
       Object? nest(int depth) {
         Object? value = {'@path': '/x'};
@@ -1005,14 +1039,16 @@ void main() {
         return value;
       }
 
-      expect(unwrap(v10Context().resolveSync(nest(maxDynamicValueDepth))), 1);
       expect(
-        () => v10Context().resolveSync(nest(maxDynamicValueDepth + 1)),
+          unwrap(v10Context().resolveDynamicValue(nest(maxDynamicValueDepth))),
+          1);
+      expect(
+        () => v10Context().resolveDynamicValue(nest(maxDynamicValueDepth + 1)),
         throwsA(isA<A2uiExpressionError>()),
       );
       final reported = <A2uiExpressionError>[];
       v10Context(onError: reported.add)
-          .resolveListenable(nest(maxDynamicValueDepth + 1));
+          .resolveSignal(nest(maxDynamicValueDepth + 1));
       expect(reported.single.message, contains('depth'));
     });
 
@@ -1021,10 +1057,10 @@ void main() {
       final missing = <String>[];
       final DataContext root = v10Context(onMissingData: missing.add);
       final DataContext child = root.childContext('items/0', index: 0);
-      root.resolveSync({'@path': '/absent'});
-      child.resolveListenable({'@path': '/absent'});
-      child.resolveSync({'@path': 'field'});
-      root.resolveSync({'@path': '/present'});
+      root.resolveDynamicValue({'@path': '/absent'});
+      child.resolveSignal({'@path': '/absent'});
+      child.resolveDynamicValue({'@path': 'field'});
+      root.resolveDynamicValue({'@path': '/present'});
       expect(missing, ['/absent', '/items/0/field']);
     });
   });

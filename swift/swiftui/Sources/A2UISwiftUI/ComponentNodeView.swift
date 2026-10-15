@@ -17,9 +17,16 @@ import SwiftUI
 
 /// Renders a single resolved A2UI engine node by looking up its view builder
 /// from the active component catalogs in the SwiftUI environment.
+///
+/// The rendered view gets the node's `accessibility` attributes applied through
+/// ``A2UIAccessibilityModifier``. When the component applied the label and hint to its own
+/// control with ``SwiftUI/View/a2uiAccessibilityControl(for:)``, they are left off the root.
 public struct ComponentNodeView: View {
   @Environment(\.a2uiCatalogs) private var catalogs
   @Environment(\.a2uiDefaultCatalogID) private var defaultCatalogID
+
+  /// Whether the rendered component reported applying its label and hint to its own control.
+  @State private var controlCarriesLabel = false
 
   public let node: Node
 
@@ -32,6 +39,20 @@ public struct ComponentNodeView: View {
       node: node, using: catalogs, defaultCatalogID: defaultCatalogID)
     {
       renderedView
+        .modifier(
+          A2UIAccessibilityModifier(node: node, appliesLabelAndHint: !controlCarriesLabel)
+        )
+        .onPreferenceChange(A2UIAccessibilityControlKey.self) { carriesLabel in
+          // SwiftUI delivers preference changes on the main thread. Updating synchronously avoids
+          // a frame where both the root and the control carry the label.
+          MainActor.assumeIsolated {
+            if controlCarriesLabel != carriesLabel {
+              controlCarriesLabel = carriesLabel
+            }
+          }
+        }
+        // A nested component's control must not affect its ancestors.
+        .transformPreference(A2UIAccessibilityControlKey.self) { $0 = false }
     } else {
       fallbackView
     }

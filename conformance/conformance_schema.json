@@ -108,6 +108,11 @@
           "$ref": "#/$defs/Catalog",
           "description": "Inlined catalog definition object."
         },
+        "peerCatalogPaths": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Repository-relative paths of peer catalogs. The harness loads each with fromJson and links them to the case's catalog with withPeerCatalogs, in the listed order, before checking the catalog that call returns."
+        },
         "catalogs": {
           "type": "array",
           "items": {
@@ -1049,7 +1054,7 @@
     },
     "GeneratePromptSnippetTest": {
       "type": "object",
-      "description": "Rendering the system prompt snippet for a format and a set of active catalogs. Assertions are substrings rather than whole texts, because the wording around the catalog is an implementation's own.",
+      "description": "Rendering the system prompt snippet for a format and a set of active catalogs.",
       "properties": {
         "action": {"const": "generate_prompt_snippet"},
         "args": {
@@ -1073,6 +1078,10 @@
           },
           "required": ["format", "catalogs"],
           "additionalProperties": false
+        },
+        "expect_file": {
+          "type": "string",
+          "description": "Path relative to `conformance/` to a text file containing the exact expected prompt snippet."
         },
         "expect_contains": {"type": "array", "items": {"type": "string"}},
         "expect_absent": {

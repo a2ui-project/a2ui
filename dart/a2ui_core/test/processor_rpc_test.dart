@@ -18,6 +18,8 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
+import 'support/test_catalog.dart';
+
 /// A catalog function that records the surface it ran against.
 class _Fn extends FunctionImplementation {
   _Fn(String name, this.body)
@@ -42,9 +44,10 @@ Catalog<ComponentApi, FunctionImplementation> _catalog(String id) =>
     Catalog<ComponentApi, FunctionImplementation>(
       id: id,
       protocolVersion: A2uiProtocolVersion.v1_0,
-      components: [MinimalTextApi()],
+      components: [TestTextApi()],
       functions: [
         _Fn('whereAmI', (_, context) => context.dataModel.get('/name')),
+        _Fn('versionOf', (_, context) => context.protocolVersion?.name),
         _Fn('slow', (_, __) async {
           await Future<void>.delayed(const Duration(milliseconds: 5));
           return 'late';
@@ -80,7 +83,6 @@ void main() {
     processor = MessageProcessor<ComponentApi>(
       catalogs: [_catalog('alpha'), _catalog('beta')],
       defaultVersion: A2uiProtocolVersion.v1_0,
-      commonTypesSchema: const {},
       outboundListener: sent.add,
     );
     addTearDown(processor.dispose);
@@ -119,8 +121,8 @@ void main() {
         'createSurface': {'surfaceId': 'two', 'catalogId': 'beta'},
       },
     ]);
-    processor.groupModel.getSurface('one')!.dataModel.set('/name', 'one');
-    processor.groupModel.getSurface('two')!.dataModel.set('/name', 'two');
+    processor.model.getSurface('one')!.dataModel.set('/name', 'one');
+    processor.model.getSurface('two')!.dataModel.set('/name', 'two');
 
     // Explicit surfaceId targets surface 'two'.
     await processor.processMessagesAsync(
@@ -161,7 +163,6 @@ void main() {
     final gated = MessageProcessor<ComponentApi>(
       catalogs: [gatedCatalog],
       defaultVersion: A2uiProtocolVersion.v1_0,
-      commonTypesSchema: const {},
       outboundListener: sent.add,
     );
     addTearDown(gated.dispose);
@@ -215,9 +216,9 @@ void main() {
       'createSurface': {'surfaceId': 'one', 'catalogId': 'alpha'},
     });
     final SurfaceModel<ComponentApi> surface =
-        processor.groupModel.getSurface('one')!;
-    final errors = <A2uiClientError>[];
-    surface.onError.addListener(errors.add);
+        processor.model.getSurface('one')!;
+    final errors = <A2uiRendererError>[];
+    surface.onError.subscribe(errors.add);
     final Future<Object?> result = surface.callAgentFunction!(
       FunctionCall(call: 'remote', args: {}),
     );
@@ -239,6 +240,25 @@ void main() {
         outbound.functionCallId,
       )),
     );
+  });
+
+  test('preserves null protocolVersion on an unversioned surface', () async {
+    processor.model.addSurface(
+      SurfaceModel<ComponentApi>(
+        'unversioned-surface',
+        defaultCatalog: _catalog('alpha'),
+      ),
+    );
+    await processor.processMessagesAsync(
+      _callRendererFunction(
+        'c-unversioned',
+        'versionOf',
+        surfaceId: 'unversioned-surface',
+        catalogId: 'alpha',
+      ),
+    );
+    expect(responses().single.response.error, isNull);
+    expect(responses().single.response.value, isNull);
   });
 }
 

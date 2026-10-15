@@ -15,18 +15,17 @@
 import 'dart:convert';
 
 import 'package:a2ui_agent/a2ui_agent.dart';
-import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 import 'suites.dart';
 
 /// Runs the shared `conformance/agent/express/` suites against the Express
-/// format.
+/// format, in each [SuiteVersion].
 ///
-/// The suites are written against v1.0, and this SDK compiles to v0.9, so the
-/// harness moves messages between the two as `suites.dart` describes. The
-/// Express suites write a created surface in the joined v1.0 form, a
-/// `createSurface` carrying its `components` and `dataModel`.
+/// Lowered to v0.9, the harness moves messages between v1.0 and v0.9 as
+/// `suites.dart` describes. The Express suites write a created surface in the
+/// joined v1.0 form, a `createSurface` carrying its `components` and
+/// `dataModel`.
 ///
 /// A case that needs something this SDK does not implement is skipped with
 /// the reason.
@@ -38,17 +37,19 @@ void main() {
     'decompiler',
   ]) {
     final path = 'agent/express/$suite.yaml';
-    group('conformance $path', () {
-      final List<Map<String, Object?>> cases = loadSuite(path);
-      test('suite is not empty', () => expect(cases, isNotEmpty));
-      for (final testCase in cases) {
-        test(
-          testCase['name']! as String,
-          () => _runCase(testCase),
-          skip: _skipReason(testCase),
-        );
-      }
-    });
+    for (final SuiteVersion version in SuiteVersion.values) {
+      group('conformance $path ${version.label}', () {
+        final List<Map<String, Object?>> cases = loadSuite(path);
+        test('suite is not empty', () => expect(cases, isNotEmpty));
+        for (final testCase in cases) {
+          test(
+            testCase['name']! as String,
+            () => version.run(() => _runCase(testCase, version)),
+            skip: _skipReason(testCase, version),
+          );
+        }
+      });
+    }
   }
 }
 
@@ -63,9 +64,6 @@ const Map<String, String> _knownGaps = {
   'test_compile_express_inline_id_collision_is_a_validation_error':
       'Does not reject inline child IDs colliding with variables '
       '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_compile_express_surface_targeting_names_a_catalog':
-      'Multi-catalog Express in Dart compiles to v0.9 and has not been updated '
-      'to omit createSurface.catalogId and stamp catalogId per component.',
   'test_decompile_express_check_with_arg_omits_default_message':
       'Wraps single check rules in brackets [?check] instead of bare ?check '
       '(https://github.com/a2ui-project/a2ui/issues/3100).',
@@ -89,9 +87,6 @@ const Map<String, String> _knownGaps = {
       'Default check message in Dart ends with a period ("Required check '
       'failed."), so "Required check failed" is written as a custom message '
       '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_decompile_express_two_surfaces_in_two_catalogs':
-      'Multi-catalog Express in Dart compiles to v0.9 and has not been updated '
-      'to omit createSurface.catalogId and stamp catalogId per component.',
   'test_decompile_express_update_data_model_map_at_path':
       'Does not decompile updateDataModel with a non-root path '
       '(https://github.com/a2ui-project/a2ui/issues/3100).',
@@ -100,29 +95,41 @@ const Map<String, String> _knownGaps = {
       '(https://github.com/a2ui-project/a2ui/issues/3100).',
 };
 
-/// Why this SDK cannot run [testCase], or null if it can.
-String? _skipReason(Map<String, Object?> testCase) {
+/// Cases that state what v0.9 cannot, so they run as written in v1.0 only.
+const Set<String> _v1OnlyCases = {
+  // Several catalogs on one surface: v1.0 names the catalog per component.
+  'test_compile_express_surface_targeting_names_a_catalog',
+  'test_decompile_express_two_surfaces_in_two_catalogs',
+};
+
+/// Why this SDK cannot run [testCase] in [version], or null if it can.
+String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
   if (_knownGaps[testCase['name']] case final String reason) return reason;
+  if (version == SuiteVersion.v1_0) return null;
+  if (_v1OnlyCases.contains(testCase['name'])) {
+    return 'v0.9 names one catalog per surface, so the case runs as written '
+        'in v1.0 only.';
+  }
   if (jsonEncode(testCase).contains('"callRendererFunction"')) {
     return 'Protocol v0.9 has no callRendererFunction message.';
   }
   return null;
 }
 
-void _runCase(Map<String, Object?> testCase) {
+void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
   final Object? error = testCase['expect_error'];
   if (error != null) {
-    expect(() => _perform(testCase), throwsCategory(error));
+    expectThrowsCategory(() => _perform(testCase, version), error);
     return;
   }
-  final Object? result = _perform(testCase);
+  final Object? result = _perform(testCase, version);
   switch (testCase['action']) {
     case 'generate_prompt_snippet':
-      _checkSnippet(testCase, result! as String);
+      _checkSnippet(testCase, version, result! as String);
     case 'wrap':
-      _checkWrapped(testCase, result! as String);
+      _checkWrapped(testCase, version, result! as String);
     case 'decompile':
-      _checkDecompiled(testCase, result! as String);
+      _checkDecompiled(testCase, version, result! as String);
     case 'compile':
       final messages = result! as List<Object?>;
       for (final Object? pointer
@@ -135,25 +142,25 @@ void _runCase(Map<String, Object?> testCase) {
   }
 }
 
-InferenceFormat _format(Map<String, Object?> testCase) {
+InferenceFormat _format(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   return ExpressFormatFactory(
     allowedMessages: (args['allowed_messages'] as List<Object?>?)
         ?.cast<String>(),
   ).createFormat(
-    caseCatalogs(args),
+    version.catalogs(args),
     examples: [
       for (final Object? path in args['examples'] as List<Object?>? ?? const [])
-        loadExample(path! as String),
+        version.example(path! as String),
     ],
   );
 }
 
 /// Performs the call a case names, with its result in the suite's
 /// vocabulary.
-Object? _perform(Map<String, Object?> testCase) {
+Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
-  final InferenceFormat format = _format(testCase);
+  final InferenceFormat format = _format(testCase, version);
   final input = testCase['input'] as String?;
   switch (testCase['action']) {
     case 'generate_prompt_snippet':
@@ -168,11 +175,16 @@ Object? _perform(Map<String, Object?> testCase) {
           rawPartJson(part),
       ];
     case 'compile':
-      return liftMessages(format.createParser().compile(input!), join: true);
+      return version.messagesJson(
+        format.createParser().compile(input!),
+        join: true,
+      );
     case 'decompile':
-      return format.createParser().decompile(_messages(testCase));
+      return format.createParser().decompile(
+        version.messages(testCase['messages']! as List<Object?>),
+      );
     case 'parse_response':
-      return liftParts(
+      return version.partsJson(
         format.createParser().parseResponse(
           input!,
           wrapped: args['wrapped'] as bool? ?? true,
@@ -184,13 +196,13 @@ Object? _perform(Map<String, Object?> testCase) {
   }
 }
 
-/// The messages a `decompile` case starts from, lowered to v0.9.
-List<AgentToRendererMessage> _messages(Map<String, Object?> testCase) =>
-    lowerMessages(testCase['messages']! as List<Object?>);
-
 /// Checks the output of a `wrap` case, and that unwrapping it returns the
 /// parts the case supplied when the case asks.
-void _checkWrapped(Map<String, Object?> testCase, String output) {
+void _checkWrapped(
+  Map<String, Object?> testCase,
+  SuiteVersion version,
+  String output,
+) {
   if (testCase['expect_output'] case final String expected) {
     expect(output, expected);
   }
@@ -202,6 +214,7 @@ void _checkWrapped(Map<String, Object?> testCase, String output) {
     expect([
       for (final RawResponsePart part in _format(
         testCase,
+        version,
       ).createParser().unwrap(output))
         rawPartJson(part),
     ], withoutFinalFlags(testCase['parts']));
@@ -210,15 +223,19 @@ void _checkWrapped(Map<String, Object?> testCase, String output) {
 
 /// Checks the output of a `decompile` case, and that compiling it returns
 /// the messages the case started from when the case asks.
-void _checkDecompiled(Map<String, Object?> testCase, String output) {
+void _checkDecompiled(
+  Map<String, Object?> testCase,
+  SuiteVersion version,
+  String output,
+) {
   for (final Object? text
       in (testCase['expect_contains'] as List<Object?>?) ?? const []) {
     expect(output, contains(text));
   }
   if (testCase['expect_round_trip'] == true) {
     expect(
-      liftMessages(
-        _format(testCase).createParser().compile(output),
+      version.messagesJson(
+        _format(testCase, version).createParser().compile(output),
         join: true,
       ),
       testCase['messages'],
@@ -227,8 +244,8 @@ void _checkDecompiled(Map<String, Object?> testCase, String output) {
   }
   if (testCase['expect_recompiled'] case final Object expected) {
     expect(
-      liftMessages(
-        _format(testCase).createParser().compile(output),
+      version.messagesJson(
+        _format(testCase, version).createParser().compile(output),
         join: true,
       ),
       expected,
@@ -237,10 +254,14 @@ void _checkDecompiled(Map<String, Object?> testCase, String output) {
   }
 }
 
-void _checkSnippet(Map<String, Object?> testCase, String snippet) {
+void _checkSnippet(
+  Map<String, Object?> testCase,
+  SuiteVersion version,
+  String snippet,
+) {
   expectSnippet(snippet, testCase);
   if (testCase['expect_deterministic'] == true) {
-    expect(_perform(testCase), snippet);
+    expect(_perform(testCase, version), snippet);
   }
 }
 

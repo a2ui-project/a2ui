@@ -19,7 +19,6 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../core/catalog.dart';
 import '../core/common.dart';
-import '../core/contexts.dart';
 import '../core/data_model.dart';
 import '../core/messages.dart';
 import '../core/surface_model.dart';
@@ -28,6 +27,7 @@ import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/semver.dart';
+import '../resolution/data_context.dart';
 
 /// Receives every message the RPC layer sends to the agent: the
 /// `callAgentFunction` requests a renderer makes and the
@@ -376,7 +376,7 @@ class RpcHandler {
     try {
       resolvedArgs = {
         for (final MapEntry<String, dynamic> entry in call.args.entries)
-          entry.key: dataContext.resolveSync(entry.value),
+          entry.key: dataContext.resolveDynamicValue(entry.value),
       };
     } catch (error) {
       final String errorMessage =
@@ -454,7 +454,11 @@ class RpcHandler {
         (name, args, context) =>
             surface.resolveCatalog(null).invoke(name, args, context),
         '/',
-        protocolVersion: surface.protocolVersion,
+        protocolVersion: surface.protocolVersion == null
+            ? null
+            : A2uiProtocolVersion.tryParseSemVer(
+                surface.protocolVersion!,
+              ),
         invokerForCatalog: (catalogId) =>
             surface.resolveCatalog(catalogId).invoke,
         isUserActivated: execution.isUserActivated,
@@ -465,7 +469,8 @@ class RpcHandler {
       DataModel(),
       catalog.invoke,
       '/',
-      protocolVersion: version,
+      protocolVersion: A2uiProtocolVersion.tryParseSemVer(version) ??
+          A2uiProtocolVersion.v1_0,
       invokerForCatalog: (catalogId) {
         if (catalogId == catalog.id) return catalog.invoke;
         throw A2uiCatalogResolutionError(

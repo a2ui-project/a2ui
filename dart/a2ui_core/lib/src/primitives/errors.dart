@@ -81,14 +81,12 @@ class A2uiValidationError extends A2uiError {
   /// both the surface and the [path].
   final String? surfaceId;
   final List<A2uiErrorDetail> errors;
-  final Object? details;
 
   A2uiValidationError(
     super.message, {
     super.code = 'VALIDATION_FAILED',
     this.path,
     List<A2uiErrorDetail> errors = const <A2uiErrorDetail>[],
-    this.details,
     super.cause,
     this.surfaceId,
   }) : errors = List.unmodifiable(errors);
@@ -279,7 +277,6 @@ class A2uiIntegrityError extends A2uiValidationError {
     super.code = 'INTEGRITY_ERROR',
     super.path,
     super.errors,
-    super.details,
     super.cause,
   }) : componentIds = List.unmodifiable(componentIds);
 }
@@ -295,7 +292,6 @@ class A2uiRecursionError extends A2uiValidationError {
     super.code = 'RECURSION_ERROR',
     super.path,
     super.errors,
-    super.details,
     super.cause,
   }) : cycle = List.unmodifiable(cycle);
 }

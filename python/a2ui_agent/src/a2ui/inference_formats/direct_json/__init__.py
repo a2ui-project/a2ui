@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from a2ui.schema import DEFAULT_PROGRESSIVE_KEYS
+from a2ui.constants import DEFAULT_PROGRESSIVE_KEYS
 
 from .decompiler import DirectJsonDecompiler
 from .format import DirectJsonFormat

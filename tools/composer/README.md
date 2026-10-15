@@ -30,17 +30,17 @@ Since the composer depends on shared renderers in this repository, you must buil
 
 ```bash
 # Build markdown-it renderer
-cd ../../typescript/markdown/markdown-it
+cd ../../typescript/renderers/markdown-it
 yarn install
 yarn build
 
 # Build web-core renderer
-cd ../../web_core
+cd ../../core/web_core
 yarn install
 yarn build
 
 # Build lit renderer
-cd ../adapters/lit
+cd ../../renderers/lit
 yarn install
 yarn build
 

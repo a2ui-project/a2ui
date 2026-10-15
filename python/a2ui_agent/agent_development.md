@@ -34,12 +34,12 @@ The first step in any A2UI-enabled agent is loading your catalogs into an
 
 ```python
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import VERSION_0_9
 
 # Define your catalogs (basic or bring your own)
 catalog_configs = [
-    CatalogConfig(BasicCatalog(VERSION_0_9)),
+    CatalogConfig(BasicCatalog(ProtocolVersion.V0_9)),
     CatalogConfig.from_path("path/to/catalog.json"),
 ]
 
@@ -88,7 +88,7 @@ snippet, and combine it with your agent's role/workflow instructions and
 optional few-shot examples loaded via `load_examples`.
 
 ```python
-from a2ui.schema import load_examples
+from a2ui.utils import load_examples
 
 examples = load_examples(
     processor.active_catalogs,
@@ -114,7 +114,7 @@ from a2ui.processor import A2uiRequestProcessor, CatalogConfig
 
 # Keep only some components in the catalog that the prompt describes.
 config = CatalogConfig(
-    BasicCatalog(VERSION_0_9),
+    BasicCatalog(ProtocolVersion.V0_9),
     transformers=[ComponentPruningTransformer(["Text", "Button", "Column"])],
 )
 processor = A2uiRequestProcessor([config.transformed_catalog])
@@ -312,7 +312,7 @@ at runtime (e.g., during session preparation) to negotiate the active catalogs
 and store the selected catalog in the session state.
 
 ```python
-from a2ui.schema import load_examples
+from a2ui.utils import load_examples
 
 # In your AgentExecutor subclass
 async def _prepare_session(self, context, run_request, runner):
@@ -386,12 +386,12 @@ To support multiple protocol versions (e.g., v0.8 and v0.9), pre-configure `A2ui
 ```python
 # During Initialization (Setup mapping for each supported version)
 generators = {
-    VERSION_0_8: A2uiGenerator([CatalogConfig(BasicCatalog(VERSION_0_8))]),
-    VERSION_0_9: A2uiGenerator([CatalogConfig(BasicCatalog(VERSION_0_9))]),
+    ProtocolVersion.V0_8: A2uiGenerator([CatalogConfig(BasicCatalog(ProtocolVersion.V0_8))]),
+    ProtocolVersion.V0_9: A2uiGenerator([CatalogConfig(BasicCatalog(ProtocolVersion.V0_9))]),
 }
 processors = {
     version: gen.create_processor({
-        f"v{version}": {
+        version.value: {
             "supportedCatalogIds": [
                 c.transformed_catalog.catalog_id for c in gen.catalogs
             ]
@@ -400,8 +400,8 @@ processors = {
     for version, gen in generators.items()
 }
 ui_runners = {
-    VERSION_0_8: build_runner(build_agent(processors[VERSION_0_8])),
-    VERSION_0_9: build_runner(build_agent(processors[VERSION_0_9])),
+    ProtocolVersion.V0_8: build_runner(build_agent(processors[ProtocolVersion.V0_8])),
+    ProtocolVersion.V0_9: build_runner(build_agent(processors[ProtocolVersion.V0_9])),
 }
 
 # Runtime Stream Handling (Select based on negotiation)
@@ -442,7 +442,7 @@ agent_card = AgentCard(
     capabilities=AgentCapabilities(
         extensions=[
             get_a2ui_agent_extension(
-                version=VERSION_0_9,  # Specify the version to advertise
+                version=ProtocolVersion.V0_9,  # Specify the version to advertise
                 supported_catalog_ids=list(supported_catalog_ids),
             )
         ]
@@ -462,7 +462,7 @@ When an orchestrator receives an A2A request from a client, it captures the clie
 
 ```python
 from a2a.types import Message as A2AMessage
-from a2ui.schema import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from google.adk.a2a.agent.config import A2aRemoteAgentConfig, ParametersConfig, RequestInterceptor
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
@@ -501,7 +501,7 @@ When acting as a proxy connecting a non-A2A frontend (such as Orcas UI) to a rem
 
 ```python
 from a2a.types import Message as A2AMessage
-from a2ui.schema import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from google.adk.a2a.agent.config import A2aRemoteAgentConfig, ParametersConfig, RequestInterceptor
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent

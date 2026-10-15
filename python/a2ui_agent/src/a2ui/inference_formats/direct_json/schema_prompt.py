@@ -17,11 +17,15 @@
 from collections.abc import Sequence
 import json
 
-from a2ui.core import A2uiCatalogError, CatalogApi
+from a2ui import constants
+from a2ui.core import A2uiCatalogError, CatalogApi, inline_local_refs, link_catalogs
 from a2ui.core.common import to_protocol_version
-from a2ui.schema import constants
-from a2ui.schema.utils import load_agent_to_renderer_schema, load_common_types_schema
-from a2ui.utils import prune_common_types_schema, prune_messages_schema
+from a2ui.utils import (
+    load_agent_to_renderer_schema,
+    load_common_types_schema,
+    prune_common_types_schema,
+    prune_messages_schema,
+)
 
 
 def schema_to_prompt(
@@ -68,9 +72,21 @@ def schema_to_prompt(
     if allowed_messages is not None:
         a2r_schema = prune_messages_schema(a2r_schema, version, allowed_messages)
 
+    catalogs = link_catalogs(catalogs)
+    catalog_docs = [c.to_json() for c in catalogs]
+    peer_resolved_docs = [
+        inline_local_refs(
+            {k: v for k, v in doc.items() if k in ("components", "functions", "theme")},
+            doc,
+            peers=c.peer_catalogs,
+        )
+        for c, doc in zip(catalogs, catalog_docs)
+        if c.peer_catalogs
+    ]
     common_types_schema = prune_common_types_schema(
         load_common_types_schema(version),
-        *[c.to_json() for c in catalogs],
+        *catalog_docs,
+        *peer_resolved_docs,
         a2r_schema,
     )
 
@@ -85,8 +101,8 @@ def schema_to_prompt(
         common_str = json.dumps(common_types_schema, separators=(",", ":"))
         all_schemas.append(f"### Common Types Schema:\n{common_str}")
 
-    for catalog in catalogs:
-        catalog_str = json.dumps(catalog.validation_schema, separators=(",", ":"))
+    for catalog_doc in catalog_docs:
+        catalog_str = json.dumps(catalog_doc, separators=(",", ":"))
         all_schemas.append(f"### Catalog Schema:\n{catalog_str}")
 
     all_schemas.append(constants.A2UI_SCHEMA_BLOCK_END)

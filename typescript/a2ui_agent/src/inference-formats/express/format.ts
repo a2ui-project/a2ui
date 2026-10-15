@@ -28,7 +28,8 @@ import {ExpressPromptGenerator} from './prompt-generator.js';
 export interface ExpressFormatOptions {
   surfaceId?: string;
   version?: string;
-  examples?: Record<string, AgentToRendererMessage[] | string>;
+  examples?: Record<string, AgentToRendererMessage[] | AgentToRendererMessage[][] | string>;
+  allowedMessages?: readonly string[];
 }
 
 /**
@@ -46,7 +47,12 @@ export class ExpressFormat implements InferenceFormat {
     this.surfaceId = options.surfaceId ?? 'main';
     this.version = resolveExpressVersion(this.catalogs, options.version);
 
-    this.promptGenerator = new ExpressPromptGenerator(this.catalogs, options.examples);
+    this.promptGenerator = new ExpressPromptGenerator(
+      this.catalogs,
+      options.examples,
+      options.allowedMessages,
+      this.version,
+    );
   }
 
   createParser(): Parser {
@@ -62,12 +68,13 @@ export class ExpressFormatFactory implements InferenceFormatFactory {
     private readonly options: {
       surfaceId?: string;
       version?: string;
+      allowedMessages?: readonly string[];
     } = {},
   ) {}
 
   createFormat(
     catalogs: CatalogApi[],
-    examples?: Record<string, AgentToRendererMessage[] | string>,
+    examples?: Record<string, AgentToRendererMessage[] | AgentToRendererMessage[][] | string>,
   ): InferenceFormat {
     return new ExpressFormat(catalogs, {
       ...this.options,

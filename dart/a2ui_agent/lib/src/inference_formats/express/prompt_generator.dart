@@ -16,6 +16,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../prompt/allowed_messages.dart';
 import '../../prompt/generator.dart';
+import '../../utils/catalogs.dart';
 import 'decompiler.dart';
 import 'schema_helper.dart';
 
@@ -48,17 +49,29 @@ class ExpressPromptGenerator extends PromptGenerator {
   /// `deleteSurface(...)`.
   ///
   /// Throws [A2uiCatalogError] if [catalogs] is empty, since there would be
-  /// nothing the model could be told to write, [ArgumentError] if
-  /// [allowedMessages] names a message type v0.9 does not have, and
-  /// [A2uiValidationError] if an example has no Express notation; see
-  /// [ExpressDecompiler.decompile].
+  /// nothing the model could be told to write, or target different protocol
+  /// versions, [ArgumentError] if [allowedMessages] names a message type the
+  /// catalogs' version does not have, and [A2uiValidationError] if an example
+  /// has no Express notation; see [ExpressDecompiler.decompile].
+  ///
+  /// The prompt for v1.0 catalogs is not implemented yet and throws
+  /// [UnimplementedError].
   @override
   String generate() {
-    if (catalogs.isEmpty) {
+    if (this.catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
     }
+    // Linked copies resolve cross-catalog references; [catalogs] stay as
+    // they are.
+    final List<CatalogApi> catalogs = linkCatalogs(this.catalogs);
+    final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
+    if (version.isAtLeast(A2uiProtocolVersion.v1_0)) {
+      throw UnimplementedError(
+        'ExpressPromptGenerator.generate for protocol v1.0',
+      );
+    }
     final buffer = StringBuffer(
-      _rules(resolveAllowedMessages(allowedMessages)),
+      _rules(resolveAllowedMessages(allowedMessages, version)),
     );
     if (catalogs.length == 1) {
       buffer
@@ -72,7 +85,7 @@ class ExpressPromptGenerator extends PromptGenerator {
         'default. To build a surface from another catalog, name it in the '
         'surface line, e.g. surface("my-surface", "${catalogs.last.id}").',
       );
-      for (final CatalogApi catalog in catalogs) {
+      for (final catalog in catalogs) {
         buffer
           ..write('\n\n## Catalog `${catalog.id}`\n\n')
           ..write(_catalogSection(CatalogSchemaHelper(catalog), '###'));

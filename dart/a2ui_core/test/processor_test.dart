@@ -12,24 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/src/basic_catalog/basic_catalog.dart';
-import 'package:a2ui_core/src/core/catalog.dart';
-import 'package:a2ui_core/src/core/common_schemas.dart';
-import 'package:a2ui_core/src/core/component_model.dart';
-import 'package:a2ui_core/src/core/contexts.dart';
-import 'package:a2ui_core/src/core/messages.dart';
-import 'package:a2ui_core/src/core/minimal_catalog.dart';
-import 'package:a2ui_core/src/core/renderer_capabilities.dart';
-import 'package:a2ui_core/src/core/surface_model.dart';
-import 'package:a2ui_core/src/primitives/errors.dart';
-import 'package:a2ui_core/src/primitives/protocol_version.dart';
-import 'package:a2ui_core/src/primitives/reactivity.dart';
-import 'package:a2ui_core/src/primitives/semver.dart';
-import 'package:a2ui_core/src/processing/processor.dart';
-import 'package:a2ui_core/src/resolution/node_resolver.dart';
-import 'package:a2ui_core/src/validation/validation_config.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
+
+import 'support/test_catalog.dart';
 
 void main() {
   group('MessageProcessor catalog scope', () {
@@ -105,24 +92,16 @@ void main() {
       final Catalog<ComponentApi, FunctionImplementation> cat1 =
           processor.catalogs.first;
       expect(
-          processor
-              .validatorFor(cat1, version: A2uiProtocolVersion.v0_9)
-              .catalog
-              .id,
-          'cat1');
+        processor.validatorFor(cat1).catalog.id,
+        'cat1',
+      );
       expect(
-        processor.validatorFor(cat1, version: A2uiProtocolVersion.v0_9),
-        same(processor.validatorFor(cat1, version: A2uiProtocolVersion.v0_9)),
+        processor.validatorFor(cat1),
+        same(processor.validatorFor(cat1)),
         reason: 'resolved component schemas are cached on the validator',
       );
       expect(
-        processor
-            .validatorFor(
-              processor.catalogs.last,
-              version: A2uiProtocolVersion.v0_9,
-            )
-            .catalog
-            .id,
+        processor.validatorFor(processor.catalogs.last).catalog.id,
         'cat2',
       );
     });
@@ -149,9 +128,6 @@ void main() {
           catalogNamed('legacy'),
         ],
         defaultVersion: version,
-        // This package embeds no v1.0 common types; the surface's catalog
-        // set, not schema checking, is the subject here.
-        commonTypesSchema: const {},
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
@@ -162,7 +138,7 @@ void main() {
           ),
         ]),
       );
-      return processor.groupModel.getSurface('s1')!.availableCatalogs;
+      return processor.model.getSurface('s1')!.availableCatalogs;
     }
 
     test('a v1.0 surface excludes unversioned catalogs', () {
@@ -181,11 +157,11 @@ void main() {
   });
 
   group('MessageProcessor', () {
-    late MinimalCatalog catalog;
+    late TestCatalog catalog;
     late MessageProcessor processor;
 
     setUp(() {
-      catalog = MinimalCatalog();
+      catalog = TestCatalog();
       processor = MessageProcessor(
         catalogs: [catalog],
         defaultVersion: A2uiProtocolVersion.v0_9,
@@ -286,7 +262,7 @@ void main() {
               ),
             ]),
           ),
-          throwsA(isA<A2uiRecursionError>()),
+          throwsA(isA<A2uiIntegrityError>()),
         );
       });
 
@@ -318,7 +294,7 @@ void main() {
           ),
           throwsA(isA<A2uiIntegrityError>()),
         );
-        final SurfaceModel surface = processor.groupModel.getSurface('s1')!;
+        final SurfaceModel surface = processor.model.getSurface('s1')!;
         expect(surface.componentsModel.get('b'), isNull);
         expect(surface.componentsModel.get('a'), isNotNull);
       });
@@ -348,7 +324,7 @@ void main() {
       );
 
       final SurfaceModel<ComponentApi> surface =
-          processor.groupModel.getSurface('s1')!;
+          processor.model.getSurface('s1')!;
       expect(surface.dataModel.get('/greeting'), 'hello');
     });
 
@@ -360,7 +336,7 @@ void main() {
         ),
       );
 
-      expect(processor.groupModel.getSurface('s1'), isNotNull);
+      expect(processor.model.getSurface('s1'), isNotNull);
     });
 
     test('processMessages applies a parsed payload', () {
@@ -375,7 +351,7 @@ void main() {
 
       processor.processMessages(payload);
 
-      expect(processor.groupModel.getSurface('s1'), isNotNull);
+      expect(processor.model.getSurface('s1'), isNotNull);
     });
 
     test('getRendererCapabilities emits both inline catalog shapes', () {
@@ -456,9 +432,7 @@ void main() {
       );
 
       void addSurface(String id, String? version, {bool send = true}) {
-        final catalog = version != null && compareVersions(version, 'v1.0') >= 0
-            ? v10Catalog
-            : v09Catalog;
+        final catalog = version == 'v1.0' ? v10Catalog : v09Catalog;
         final surface = SurfaceModel<ComponentApi>(
           id,
           defaultCatalog: catalog,
@@ -466,7 +440,7 @@ void main() {
           protocolVersion: version,
         );
         surface.dataModel.set('/', {'id': id});
-        dataProcessor.groupModel.addSurface(surface);
+        dataProcessor.model.addSurface(surface);
       }
 
       setUp(() {
@@ -586,16 +560,16 @@ void main() {
       );
 
       final SurfaceModel<ComponentApi>? surface =
-          processor.groupModel.getSurface('s1');
+          processor.model.getSurface('s1');
       expect(surface?.componentsModel.get('root'), isNotNull);
       expect(surface?.componentsModel.get('second'), isNotNull);
     });
   });
 
   group('MessageProcessor per-update integrity', () {
-    late MinimalCatalog catalog;
+    late TestCatalog catalog;
 
-    setUp(() => catalog = MinimalCatalog());
+    setUp(() => catalog = TestCatalog());
 
     MessageProcessor processorWith([
       ValidationConfig config = ValidationConfig.strict,
@@ -623,7 +597,7 @@ void main() {
         );
 
     SurfaceComponentsModel componentsOf(MessageProcessor processor) =>
-        processor.groupModel.getSurface('s1')!.componentsModel;
+        processor.model.getSurface('s1')!.componentsModel;
 
     test('checks completeness on each update, not once per payload', () {
       final MessageProcessor processor = processorWith();
@@ -708,7 +682,7 @@ void main() {
       send(processor, [
         DeleteSurfaceMessage(version: 'v0.9', surfaceId: 'nope'),
       ]);
-      expect(processor.groupModel.getSurface('nope'), isNull);
+      expect(processor.model.getSurface('nope'), isNull);
     });
 
     test('checks path syntax before looking up the surface', () {
@@ -951,7 +925,7 @@ void main() {
             {'id': 'main', 'component': 'Text', 'text': 'hi'},
           ]),
         ]);
-        expect(accepted.groupModel.getSurface('s1')!.rootId, 'main');
+        expect(accepted.model.getSurface('s1')!.rootId, 'main');
 
         final MessageProcessor rejected = processorWith(config);
         send(rejected, [create()]);
@@ -1035,7 +1009,7 @@ void main() {
         );
 
     SurfaceComponentsModel components() =>
-        processor.groupModel.getSurface('s1')!.componentsModel;
+        processor.model.getSurface('s1')!.componentsModel;
 
     test('keeps catalogId and metadata out of properties', () {
       update({
@@ -1062,8 +1036,8 @@ void main() {
     test('recreates a component whose catalogId changes', () {
       update({'id': 'root', 'component': 'Alpha', 'a': 'x'});
       final events = <String>[];
-      components().onDeleted.addListener((id) => events.add('deleted:$id'));
-      components().onCreated.addListener((c) => events.add('created:${c.id}'));
+      components().onDeleted.subscribe((id) => events.add('deleted:$id'));
+      components().onCreated.subscribe((c) => events.add('created:${c.id}'));
 
       update({
         'id': 'root',
@@ -1107,11 +1081,11 @@ void main() {
           ],
         );
 
-    final String minimalId = MinimalCatalog().id;
+    final String minimalId = TestCatalog().id;
 
     test('holds v0.9 and v1.0 surfaces side by side', () {
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog(), v10Catalog()],
+        catalogs: [TestCatalog(), v10Catalog()],
       );
       processor.processMessages([
         {
@@ -1124,18 +1098,19 @@ void main() {
         },
       ]);
 
-      final SurfaceModel<ComponentApi> old = processor.groupModel.getSurface(
+      final SurfaceModel<ComponentApi> old = processor.model.getSurface(
         'old',
       )!;
       final SurfaceModel<ComponentApi> fresh =
-          processor.groupModel.getSurface('new')!;
+          processor.model.getSurface('new')!;
       expect(old.protocolVersion, 'v0.9');
       expect(fresh.protocolVersion, 'v1.0');
       bool atLeastV10(SurfaceModel<ComponentApi> s) => DataContext(
             s.dataModel,
             (_, __, ___) => null,
             '/',
-            protocolVersion: s.protocolVersion,
+            protocolVersion:
+                A2uiProtocolVersion.tryParseSemVer(s.protocolVersion!),
           ).atLeastV10;
       expect(atLeastV10(old), isFalse);
       expect(atLeastV10(fresh), isTrue);
@@ -1143,7 +1118,7 @@ void main() {
 
     test('accepts a lone raw envelope, a raw list and the wrapper', () {
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog()],
+        catalogs: [TestCatalog()],
       );
       processor.processMessages({
         'version': 'v0.9',
@@ -1172,13 +1147,13 @@ void main() {
       ]);
       processor.processMessages(null);
 
-      expect(processor.groupModel.allSurfaces.map((s) => s.id), ['c']);
-      expect(processor.groupModel.getSurface('c')!.protocolVersion, 'v0.9.1');
+      expect(processor.model.allSurfaces.map((s) => s.id), ['c']);
+      expect(processor.model.getSurface('c')!.protocolVersion, 'v0.9.1');
     });
 
     test('rejects a malformed payload before applying any of it', () {
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog()],
+        catalogs: [TestCatalog()],
       );
       expect(
         () => processor.processMessages([
@@ -1193,7 +1168,7 @@ void main() {
         ]),
         throwsA(isA<A2uiValidationError>()),
       );
-      expect(processor.groupModel.getSurface('a'), isNull);
+      expect(processor.model.getSurface('a'), isNull);
       expect(
         () => processor.processMessages('not a payload'),
         throwsA(isA<A2uiValidationError>()),
@@ -1206,13 +1181,13 @@ void main() {
 
     test('processMessagesAsync applies the payload', () async {
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog()],
+        catalogs: [TestCatalog()],
       );
       await processor.processMessagesAsync({
         'version': 'v0.9',
         'createSurface': {'surfaceId': 'a', 'catalogId': minimalId},
       });
-      expect(processor.groupModel.getSurface('a'), isNotNull);
+      expect(processor.model.getSurface('a'), isNotNull);
     });
 
     test(
@@ -1221,12 +1196,10 @@ void main() {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [v10Catalog()],
         validationConfig: ValidationConfig.strict,
-        // This package embeds no v1.0 common types yet.
-        commonTypesSchema: const {},
       );
       final events = <String>[];
       final rootValues = <Object?>[];
-      processor.groupModel.onSurfaceCreated.addListener((surface) {
+      processor.model.onSurfaceCreated.subscribe((surface) {
         events.add(
           'created: data=${surface.dataModel.get('/')} '
           'components=${surface.componentsModel.all.length} '
@@ -1247,7 +1220,7 @@ void main() {
             'data: components=${surface.componentsModel.all.length}',
           );
         });
-        surface.componentsModel.onCreated.addListener(
+        surface.componentsModel.onCreated.subscribe(
           (c) => events.add('component ${c.id}'),
         );
       });
@@ -1288,7 +1261,7 @@ void main() {
         },
       ]);
       final SurfaceModel<ComponentApi> surface =
-          processor.groupModel.getSurface('s1')!;
+          processor.model.getSurface('s1')!;
       expect(surface.defaultCatalog!.id, 'v10');
       expect(surface.metadata, {
         'extensions': {'trace': true},
@@ -1299,8 +1272,6 @@ void main() {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [v10Catalog()],
         validationConfig: ValidationConfig.strict,
-        // This package embeds no v1.0 common types yet.
-        commonTypesSchema: const {},
       );
       expect(
         () => processor.processMessages({
@@ -1315,7 +1286,7 @@ void main() {
         }),
         throwsA(isA<A2uiIntegrityError>()),
       );
-      expect(processor.groupModel.getSurface('s1'), isNull);
+      expect(processor.model.getSurface('s1'), isNull);
     });
 
     test('a v1.0 createSurface without catalogId has no default catalog', () {
@@ -1323,15 +1294,13 @@ void main() {
       // exactly one: an item on such a surface must name its catalog.
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [v10Catalog()],
-        // This package embeds no v1.0 common types yet.
-        commonTypesSchema: const {},
       );
       processor.processMessages({
         'version': 'v1.0',
         'createSurface': {'surfaceId': 's1'},
       });
       final SurfaceModel<ComponentApi> surface =
-          processor.groupModel.getSurface('s1')!;
+          processor.model.getSurface('s1')!;
       expect(surface.defaultCatalog, isNull);
       expect(surface.availableCatalogs.keys, ['v10']);
 
@@ -1363,14 +1332,13 @@ void main() {
       expect(basic.protocolVersion, A2uiProtocolVersion.v1_0);
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [basic],
-        commonTypesSchema: const {},
       );
       processor.processMessages({
         'version': 'v1.0',
         'createSurface': {'surfaceId': 's1', 'catalogId': basic.id},
       });
       expect(
-        processor.groupModel.getSurface('s1')!.defaultCatalog,
+        processor.model.getSurface('s1')!.defaultCatalog,
         same(basic),
       );
     });
@@ -1390,7 +1358,7 @@ void main() {
           'createSurface': {'surfaceId': 's_$version', 'catalogId': 'plain'},
         });
         expect(
-          processor.groupModel.getSurface('s_$version')!.defaultCatalog,
+          processor.model.getSurface('s_$version')!.defaultCatalog,
           same(unversioned),
           reason: version,
         );
@@ -1410,12 +1378,12 @@ void main() {
           ),
         ),
       );
-      expect(processor.groupModel.getSurface('s_v1'), isNull);
+      expect(processor.model.getSurface('s_v1'), isNull);
     });
 
     test('rejects a catalog with an incompatible version', () {
       final processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog(), v10Catalog()],
+        catalogs: [TestCatalog(), v10Catalog()],
       );
       expect(
         () => processor.processMessages({
@@ -1437,7 +1405,7 @@ void main() {
         }),
         throwsA(isA<A2uiCatalogError>()),
       );
-      expect(processor.groupModel.allSurfaces, isEmpty);
+      expect(processor.model.allSurfaces, isEmpty);
     });
   });
 }

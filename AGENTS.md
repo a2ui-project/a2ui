@@ -65,7 +65,7 @@ For a detailed explanation of the methodology, lifecycle, and workflows, read th
 - **`conformance/`**: Language-agnostic test suites (`core/`, `agent/`, `extensions/`) and test data (`test_data/`) for verifying behavioral parity across all SDK implementations.
 - **`dart/`**: Dart implementations including core state model (`a2ui_core/`), agent SDK (`a2ui_agent/`), and Flutter framework adapter (`a2ui_flutter/`).
 - **`kotlin/`**: Legacy Kotlin agent SDK (`agent_sdk_legacy/`).
-- **`typescript/`**: Framework-agnostic Web Core state and protocol logic (`web_core/`), web framework adapters (`adapters/lit/`, `adapters/angular/`, `adapters/react/`), markdown parser (`markdown/markdown-it/`), TypeScript agent SDK (`a2ui_agent/`), TypeScript catalog packages (`catalogs/`), and release scripts (`scripts/`).
+- **`typescript/`**: Framework-agnostic Web Core state and protocol logic (`core/web_core/`), web framework renderers (`renderers/lit/`, `renderers/angular/`, `renderers/react/`), Markdown renderer (`renderers/markdown-it/`), TypeScript agent SDK (`a2ui_agent/`), TypeScript catalog packages (`catalogs/`), and release scripts (`scripts/`).
 - **`samples/`**: Ready-to-run demo agents utilizing Python ADK (`agent/adk/`), MCP server (`agent/mcp/`), and sample clients (`client/lit/`, `client/angular/`, `client/react/`, `client/flutter/`).
 - **`swift/`**: Native Apple implementation including core state engine (`core/`), SwiftUI adapter (`swiftui/`), and sample iOS client (`sample/`).
 - **`tools/`**: Developer utility suite including visual Editor (`editor/`), visual Composer (`composer/`), payload Inspector (`inspector/`), and catalog builder (`build_catalog/`).
@@ -91,7 +91,7 @@ When creating or modifying workspaces, guarantee strict script uniformity by imp
 
 Do not use hardcoded or guessed build/run sequences. Each subdirectory contains detailed setup, build, dependency resolution, and execution steps.
 
-- **Prerequisite:** Consult the `README.md` files under `typescript/web_core/` and `typescript/adapters/` to build the shared web core and renderer packages before running any web tools or clients.
+- **Prerequisite:** Consult the `README.md` files under `typescript/core/web_core/` and `typescript/renderers/` to build the shared web core and renderer packages before running any web tools or clients.
 - **Running SDKs & Samples:** Consult the local `README.md` inside any targeted directory under `python/`, `kotlin/`, `samples/`, or `tools/` for specific run/test/build commands.
 
 ---

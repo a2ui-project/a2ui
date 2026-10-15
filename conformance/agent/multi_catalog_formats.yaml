@@ -158,6 +158,81 @@
               args:
                 value: "Total: ${/total}"
 
+- name: test_express_compile_variable_holding_function_call_with_catalog_override
+  description: A variable that holds a function call naming its catalogId is inlined wherever it is used, like any other variable holding a function call, rather than compiled as a component.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Chart([1, 2], total)
+    total = formatString("Total: ${/total}", catalogId="conformance/simplified")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [1, 2]
+            caption:
+              "@call": "formatString"
+              catalogId: "conformance/simplified"
+              args:
+                value: "Total: ${/total}"
+
+- name: test_express_compile_variable_holding_function_call_missing_from_named_catalog_fails
+  description: A variable holding a function call whose catalogId names a catalog that does not define the function fails, even though another active catalog defines it.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Chart([1, 2], total)
+    total = percent(75, catalogId="conformance/simplified")
+  expect_error:
+    category: ValidationError
+    message: "percent"
+
+- name: test_express_compile_variable_holding_function_call_naming_unknown_catalog_fails
+  description: A variable holding a function call whose catalogId names no active catalog fails where it is defined, even when the variable is never used.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Chart([1, 2], "Total")
+    total = formatString("Total", catalogId="conformance/missing")
+  expect_error:
+    category: ValidationError
+    message: "conformance/missing"
+
+- name: test_express_compile_variable_holding_event_with_catalog_id_fails
+  description: Events belong to no catalog, so a variable holding an Event that names a catalogId fails instead of being inlined with the catalogId ignored.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Chart([1, 2], "Total")
+    act = Event("click", catalogId="conformance/simplified")
+  expect_error:
+    category: ValidationError
+    message: "Event"
+
 - name: test_express_compile_standalone_function_catalog_override
   description: A standalone function call with an explicit catalogId keyword argument resolves against that catalog and sets catalogId on callRendererFunction.callFunction.
   action: compile
@@ -571,6 +646,242 @@
               "component": "Text",
               "catalogId": "conformance/unknown",
               "text": "Hello"
+            }
+          ]
+        }
+      }
+    ]
+  expect_error:
+    category: ValidationError
+
+# =============================================================================
+# 3. Cross-Catalog Schema References ($ref across peer catalogs)
+# =============================================================================
+
+- name: test_express_compile_cross_catalog_component_and_function_refs
+  description: Components and functions whose schemas reference peer catalog components and property subschemas via external $refs resolve their own and inherited positional parameters, types, enums, actions, and children across catalogs.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = StyledCard("Q1 Summary", Event("expand"), header)
+    header = CustomText(formatBadge("NEW: ${/count}"), "Quarterly Revenue", "caption")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "StyledCard"
+            catalogId: "conformance/cross_ref"
+            subtitle: "Q1 Summary"
+            action:
+              event:
+                name: "expand"
+            child: "header"
+          - id: "header"
+            component: "CustomText"
+            catalogId: "conformance/cross_ref"
+            badge:
+              "@call": "formatBadge"
+              catalogId: "conformance/cross_ref"
+              args:
+                value: "NEW: ${/count}"
+            text: "Quarterly Revenue"
+            variant: "caption"
+
+- name: test_express_compile_cross_catalog_missing_inherited_required_property_fails
+  description: A component that inherits a peer catalog component via allOf requires the peer component's required properties during compilation.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = CustomText("NEW")
+  expect_error:
+    category: ValidationError
+
+- name: test_express_compile_cross_catalog_invalid_inherited_enum_fails
+  description: A component that inherits an enum property from a peer catalog component validates the property value against the inherited enum choices.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = CustomText("NEW", "Quarterly Revenue", "invalid_variant")
+  expect_error:
+    category: ValidationError
+
+- name: test_express_decompile_cross_catalog_component_and_function_refs
+  description: Decompiling a surface whose components and functions inherit schemas from a peer catalog preserves positional parameter order and round-trips cleanly.
+  action: decompile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
+  messages:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "StyledCard"
+            catalogId: "conformance/cross_ref"
+            subtitle: "Q1 Summary"
+            action:
+              event:
+                name: "expand"
+            child: "header"
+          - id: "header"
+            component: "CustomText"
+            catalogId: "conformance/cross_ref"
+            badge:
+              "@call": "formatBadge"
+              catalogId: "conformance/cross_ref"
+              args:
+                value: "NEW"
+            text: "Quarterly Revenue"
+            variant: "caption"
+  expect_contains:
+    - 'surface("s1")'
+    - 'StyledCard("Q1 Summary", Event("expand")'
+    - 'CustomText(formatBadge("NEW"), "Quarterly Revenue", "caption")'
+  expect_round_trip: true
+
+- name: test_direct_json_compile_cross_catalog_component_and_function_refs
+  description: Direct JSON validates components and functions that reference peer catalog schemas via external $refs.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
+  input: |
+    [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "components": [
+            {
+              "id": "root",
+              "component": "StyledCard",
+              "catalogId": "conformance/cross_ref",
+              "subtitle": "Q1 Summary",
+              "action": {
+                "event": {
+                  "name": "expand"
+                }
+              },
+              "child": "header"
+            },
+            {
+              "id": "header",
+              "component": "CustomText",
+              "catalogId": "conformance/cross_ref",
+              "badge": {
+                "@call": "formatBadge",
+                "catalogId": "conformance/cross_ref",
+                "args": {
+                  "value": "NEW"
+                }
+              },
+              "text": "Quarterly Revenue",
+              "variant": "caption"
+            }
+          ]
+        }
+      }
+    ]
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "StyledCard"
+            catalogId: "conformance/cross_ref"
+            subtitle: "Q1 Summary"
+            action:
+              event:
+                name: "expand"
+            child: "header"
+          - id: "header"
+            component: "CustomText"
+            catalogId: "conformance/cross_ref"
+            badge:
+              "@call": "formatBadge"
+              catalogId: "conformance/cross_ref"
+              args:
+                value: "NEW"
+            text: "Quarterly Revenue"
+            variant: "caption"
+
+- name: test_direct_json_compile_cross_catalog_missing_inherited_required_property_fails
+  description: Direct JSON rejects a component that omits a required property inherited via an external $ref to a peer catalog component.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
+  input: |
+    [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "conformance/cross_ref",
+          "components": [
+            {
+              "id": "root",
+              "component": "CustomText",
+              "badge": "NEW"
+            }
+          ]
+        }
+      }
+    ]
+  expect_error:
+    category: ValidationError
+
+- name: test_direct_json_compile_cross_catalog_dangling_inherited_child_ref_fails
+  description: Direct JSON rejects a component whose Child property inherited from a peer catalog component references a missing component ID.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
+  input: |
+    [
+      {
+        "version": "v1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "conformance/cross_ref",
+          "components": [
+            {
+              "id": "root",
+              "component": "StyledCard",
+              "subtitle": "Q1 Summary",
+              "action": {
+                "event": {
+                  "name": "expand"
+                }
+              },
+              "child": "nonexistent"
             }
           ]
         }

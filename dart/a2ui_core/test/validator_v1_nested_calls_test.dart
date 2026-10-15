@@ -815,13 +815,13 @@ void main() {
         );
 
     setUp(() => processor = build(ValidationConfig.relaxed));
-    tearDown(() => processor.groupModel.dispose());
+    tearDown(() => processor.model.dispose());
 
     // A strict processor rejects a call to a function the catalog it runs in
     // does not declare; a relaxed one lets the renderer forward it to the
     // agent.
     void useStrict() {
-      processor.groupModel.dispose();
+      processor.model.dispose();
       processor = build(ValidationConfig.strict);
     }
 
@@ -1071,7 +1071,7 @@ void main() {
       );
 
       ComponentModel? root() =>
-          processor.groupModel.getSurface('s')!.componentsModel.get('root');
+          processor.model.getSurface('s')!.componentsModel.get('root');
 
       test('rejects an update that names no component type', () {
         final ComponentModel? before = root();

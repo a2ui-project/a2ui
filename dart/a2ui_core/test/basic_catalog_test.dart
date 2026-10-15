@@ -26,7 +26,7 @@ typedef _RendererCatalog = Catalog<ComponentApi, FunctionImplementation>;
 /// Builds a data context that evaluates nested calls against [catalog].
 DataContext _contextFor(
   _RendererCatalog catalog, {
-  String? protocolVersion,
+  A2uiProtocolVersion? protocolVersion,
   DataModel? dataModel,
 }) {
   return DataContext(
@@ -181,6 +181,16 @@ void main() {
           final FunctionApi expected = parsed.functions[name]!;
           final FunctionImplementation actual = catalog.functions[name]!;
           expect(
+            actual.description,
+            expected.description,
+            reason: '$name description',
+          );
+          expect(
+            actual.description,
+            isNotNull,
+            reason: '$name description is non-null',
+          );
+          expect(
             actual.argumentSchema.value,
             expected.argumentSchema.value,
             reason: '$name argument schema',
@@ -215,6 +225,74 @@ void main() {
         expect(catalog.description, document['description']);
       });
     }
+
+    test('basic_catalog files do not import runtime engine layers', () {
+      final dir = Directory('lib/src/basic_catalog');
+      final List<File> dartFiles = dir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'))
+          .toList();
+      expect(dartFiles, isNotEmpty);
+
+      final importPattern = RegExp(
+        r'''^\s*(?:import|export)\s+['"]([^'"]+)['"]''',
+        multiLine: true,
+      );
+      const forbiddenSegments = <String>[
+        'processing/',
+        'rendering/',
+        'resolution/',
+        'rpc/',
+        'validation/',
+      ];
+
+      for (final file in dartFiles) {
+        final String normalizedPath = file.path.replaceAll(r'\', '/');
+        final String content = file.readAsStringSync();
+        for (final RegExpMatch match in importPattern.allMatches(content)) {
+          final String uri = match.group(1)!;
+          final bool isAllowedException = (normalizedPath.endsWith(
+                    'lib/src/basic_catalog/basic_catalog.dart',
+                  ) ||
+                  normalizedPath.endsWith(
+                    'lib/src/basic_catalog/function_support.dart',
+                  )) &&
+              uri == '../resolution/data_context.dart';
+          if (isAllowedException) continue;
+          for (final segment in forbiddenSegments) {
+            expect(
+              uri,
+              isNot(contains(segment)),
+              reason: '$normalizedPath must not import or export $uri',
+            );
+          }
+        }
+      }
+
+      final List<File> allLibFiles = Directory('lib')
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.dart'))
+          .toList();
+      const allowedInboundImporters = <String>{
+        'lib/a2ui_core.dart',
+      };
+      for (final file in allLibFiles) {
+        final String normalizedPath = file.path.replaceAll(r'\', '/');
+        if (normalizedPath.contains('lib/src/basic_catalog/')) continue;
+        if (allowedInboundImporters.any(normalizedPath.endsWith)) continue;
+        final String content = file.readAsStringSync();
+        for (final RegExpMatch match in importPattern.allMatches(content)) {
+          final String uri = match.group(1)!;
+          expect(
+            uri,
+            isNot(contains('basic_catalog')),
+            reason: '$normalizedPath must not import or export $uri',
+          );
+        }
+      }
+    });
   });
 
   group('truthiness', () {
@@ -406,7 +484,7 @@ void main() {
       dataModel.set('/count', 2);
       final DataContext context = _contextFor(
         v10,
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
         dataModel: dataModel,
       );
       expect(
@@ -427,7 +505,7 @@ void main() {
       dataModel.set('/name', 'Ada');
       final DataContext context = _contextFor(
         v10,
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
         dataModel: dataModel,
       );
       final Object? result = FormatStringFunction().execute({
@@ -495,7 +573,7 @@ void main() {
       expect(_call(v09, 'numeric', {'value': '42.5', 'max': 100}), isTrue);
     });
 
-    test('email matches the TypeScript pattern', () {
+    test('email validates address syntax', () {
       expect(_call(v09, 'email', {'value': 'user@example.com'}), isTrue);
       expect(_call(v09, 'email', {'value': 'test@test.c'}), isFalse);
       expect(_call(v09, 'email', {'value': 'invalid-email'}), isFalse);

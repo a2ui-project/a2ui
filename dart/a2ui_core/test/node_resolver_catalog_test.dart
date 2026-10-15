@@ -20,6 +20,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 import 'conformance/conformance_harness.dart';
+import 'support/test_catalog.dart';
 
 class _RecordingFunction extends FunctionImplementation {
   final List<Map<String, Object?>> calls = [];
@@ -77,11 +78,11 @@ void main() {
               version: 'v0.9', surfaceId: 's', catalogId: catalog.id),
         ),
       );
-      surface = processor.groupModel.getSurface('s')!;
+      surface = processor.model.getSurface('s')!;
       resolver = NodeResolver(surface);
       addTearDown(() {
         resolver.dispose();
-        processor.groupModel.dispose();
+        processor.model.dispose();
       });
     });
 
@@ -154,8 +155,8 @@ void main() {
 
     test('resolves event context when the action is invoked', () async {
       surface.dataModel.set('/name', 'Ada');
-      final actions = <A2uiClientAction>[];
-      surface.onAction.addListener(actions.add);
+      final actions = <A2uiRendererAction>[];
+      surface.onAction.subscribe(actions.add);
       process([
         {
           'id': 'root',
@@ -185,8 +186,8 @@ void main() {
     });
 
     test('executes a function action without emitting an event', () async {
-      final actions = <A2uiClientAction>[];
-      surface.onAction.addListener(actions.add);
+      final actions = <A2uiRendererAction>[];
+      surface.onAction.subscribe(actions.add);
       process([
         {
           'id': 'root',
@@ -282,7 +283,7 @@ void main() {
         functions: [_ConstantFunction('capitalize', 'from second')],
       );
       processor = MessageProcessor<ComponentApi>(
-        catalogs: [MinimalCatalog(), second],
+        catalogs: [TestCatalog(), second],
         defaultVersion: A2uiProtocolVersion.v0_9,
       );
       processor.processMessages(
@@ -290,15 +291,15 @@ void main() {
           CreateSurfaceMessage(
             version: 'v0.9',
             surfaceId: 's',
-            catalogId: MinimalCatalog().id,
+            catalogId: TestCatalog().id,
           ),
         ),
       );
-      surface = processor.groupModel.getSurface('s')!;
+      surface = processor.model.getSurface('s')!;
       resolver = NodeResolver(surface);
       addTearDown(() {
         resolver.dispose();
-        processor.groupModel.dispose();
+        processor.model.dispose();
       });
     });
 

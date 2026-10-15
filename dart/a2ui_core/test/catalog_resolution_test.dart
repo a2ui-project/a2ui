@@ -35,11 +35,11 @@ void main() {
       ],
       defaultVersion: A2uiProtocolVersion.v1_0,
       // Leaves the shared types unchecked; these tests use none.
-      commonTypesSchema: const {},
+      commonTypesSchema: const <String, Object?>{},
       validationConfig: ValidationConfig.relaxed,
     );
   });
-  tearDown(() => processor.groupModel.dispose());
+  tearDown(() => processor.model.dispose());
 
   void create({String? catalogId}) => processor.processMessages(
         AgentToRendererMessagePayload([
@@ -62,7 +62,7 @@ void main() {
         ]),
       );
 
-  SurfaceModel<ComponentApi> surface() => processor.groupModel.getSurface('s')!;
+  SurfaceModel<ComponentApi> surface() => processor.model.getSurface('s')!;
 
   group('createSurface', () {
     test('v1.0 without catalogId creates a surface with no default', () {
@@ -99,7 +99,7 @@ void main() {
       // Both catalogs declare `Box`, but only `boxes` gives it a child. The
       // graph checks must read root's references through `boxes`, the catalog
       // it names, not through the surface default.
-      processor.groupModel.dispose();
+      processor.model.dispose();
       processor = MessageProcessor<ComponentApi>(
         catalogs: [
           Catalog<ComponentApi, FunctionImplementation>(
@@ -124,7 +124,7 @@ void main() {
           ),
         ],
         defaultVersion: A2uiProtocolVersion.v1_0,
-        commonTypesSchema: const {},
+        commonTypesSchema: const <String, Object?>{},
         validationConfig: ValidationConfig.strict,
       );
       create(catalogId: 'cat-a');
@@ -162,14 +162,14 @@ void main() {
 
     test('an update that resolves to another catalog replaces the model', () {
       // Both catalogs declare the same type, so only the catalog changes.
-      processor.groupModel.dispose();
+      processor.model.dispose();
       processor = MessageProcessor<ComponentApi>(
         catalogs: [
           _catalog('cat-a', 'Alpha', _EchoFunction('shout')),
           _catalog('cat-b', 'Alpha', _EchoFunction('whisper')),
         ],
         defaultVersion: A2uiProtocolVersion.v1_0,
-        commonTypesSchema: const {},
+        commonTypesSchema: const <String, Object?>{},
         validationConfig: ValidationConfig.relaxed,
       );
       create(catalogId: 'cat-a');
@@ -224,13 +224,13 @@ void main() {
         (name, args, context) =>
             surface().resolveCatalog(null).invoke(name, args, context),
         '/',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
         invokerForCatalog: (catalogId) =>
             surface().resolveCatalog(catalogId).invoke,
       ).nested('items');
 
       expect(
-        () => nested.resolveSync({
+        () => nested.resolveDynamicValue({
           '@call': 'shout',
           'args': {'value': 'Hi'},
         }),
@@ -245,11 +245,11 @@ void main() {
         surface().dataModel,
         (name, args, context) => consulted.add(name),
         '/items/0',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
 
       expect(
-        context.resolveSync({
+        context.resolveDynamicValue({
           '@call': '@index',
           'args': {'offset': 1},
         }),
@@ -265,11 +265,11 @@ void main() {
         surface().dataModel,
         (name, args, context) => consulted.add(name),
         '/items/0',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
 
       expect(
-        () => context.resolveSync({'@call': '@now'}),
+        () => context.resolveDynamicValue({'@call': '@now'}),
         throwsA(
           isA<A2uiExpressionError>().having(
             (e) => e.message,
@@ -293,7 +293,7 @@ void main() {
               (name, args, context) => consulted.add(name),
               '/items/0',
               onError: errors.add,
-              protocolVersion: 'v1.0',
+              protocolVersion: A2uiProtocolVersion.v1_0,
             );
             final call = <String, Object?>{
               '@call': '@index',
@@ -301,8 +301,8 @@ void main() {
             };
 
             final Object? result = reactive
-                ? context.resolveListenable(call).value
-                : context.resolveSync(call);
+                ? context.resolveSignal(call).value
+                : context.resolveDynamicValue(call);
 
             expect(result, isNull);
             expect(consulted, isEmpty);

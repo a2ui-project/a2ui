@@ -186,7 +186,7 @@ void main() {
         DataModel(),
         catalog.invoke,
         '/',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
       expect(
         () => catalog.invoke('agentOnlyFn', <String, dynamic>{}, context),
@@ -217,7 +217,7 @@ void main() {
         DataModel(),
         catalog.invoke,
         '/',
-        protocolVersion: 'v1.0',
+        protocolVersion: A2uiProtocolVersion.v1_0,
       );
       expect(
         () => catalog.invoke(

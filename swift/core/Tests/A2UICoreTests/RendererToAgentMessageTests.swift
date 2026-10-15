@@ -442,6 +442,39 @@ struct RendererToAgentMessageTests {
     }
   }
 
+  @Test func genericErrorEncodesExactlyOneTargetID() throws {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = .sortedKeys
+    let decoder = makeVersionedDecoder(.v10)
+
+    let surfaceError = GenericError(
+      code: "ERR", surfaceID: "surf_1", message: "msg", version: .v10)
+    let surfaceJSON = try #require(
+      String(data: try encoder.encode(surfaceError), encoding: .utf8))
+    #expect(surfaceJSON == #"{"code":"ERR","message":"msg","surfaceId":"surf_1"}"#)
+    #expect(
+      try decoder.decode(GenericError.self, from: encoder.encode(surfaceError)) == surfaceError)
+
+    let functionCallError = GenericError(
+      code: "ERR", functionCallID: "call_1", message: "msg", version: .v10)
+    let functionCallJSON = try #require(
+      String(data: try encoder.encode(functionCallError), encoding: .utf8))
+    #expect(functionCallJSON == #"{"code":"ERR","functionCallId":"call_1","message":"msg"}"#)
+    #expect(
+      try decoder.decode(GenericError.self, from: encoder.encode(functionCallError))
+        == functionCallError)
+
+    #expect(surfaceError.surfaceID == "surf_1")
+    #expect(surfaceError.functionCallID == nil)
+    #expect(functionCallError.surfaceID == nil)
+    #expect(functionCallError.functionCallID == "call_1")
+
+    // The same ID string under different targets must not compare equal.
+    let surfaceWithCallID = GenericError(
+      code: "ERR", surfaceID: "call_1", message: "msg", version: .v10)
+    #expect(surfaceWithCallID != functionCallError)
+  }
+
   @Test func rendererFunctionResponseEnforcesValueXorError() throws {
     let decoder = makeVersionedDecoder(.v10)
     // Both value and error present should fail

@@ -28,37 +28,19 @@ const Map<String, String> _v09ExpectedFailures = {};
 const Map<String, String> _v10ExpectedFailures = {};
 
 /// The `validate` cases in `core/reserved_keys.yaml` expected to fail.
-const Map<String, String> _reservedKeysExpectedFailures = {
-  'test_escaped_doubled_at_unescaping':
-      "The case's `createSurface` names no `catalogId`, so from v1.0 the "
-          'surface has no default catalog to resolve its items against.',
-};
+const Map<String, String> _reservedKeysExpectedFailures = {};
 
 /// Cases in `core/composition_constraints.yaml` expected to fail.
-const Map<String, String> _compositionExpectedFailures = {
-  'test_composition_unallowed_child_error':
-      'The harness reads the case\'s `catalog` map as the catalog document '
-          'itself, and does not read its inline `catalogSchema`.',
-  'test_composition_unallowed_parent_error':
-      'The harness reads the case\'s `catalog` map as the catalog document '
-          'itself, and does not read its inline `catalogSchema`.',
-};
+const Map<String, String> _compositionExpectedFailures = {};
 
 /// Cases in `core/validation_result.yaml` expected to fail.
 const Map<String, String> _validationResultExpectedFailures = {};
 
-/// Cases in `core/index_function.yaml` expected to fail.
-const Map<String, String> _indexFunctionExpectedFailures = {
-  'test_index_function_outside_loop_error':
-      'The harness reads the case\'s `catalog` map as the catalog document '
-          'itself, which declares no components.',
-};
-
 /// Runs the shared validator suites against [MessageProcessor.processMessages],
 /// the entry point for checking a payload on its own: the `validate` cases of
 /// `core/validator_v0_9.yaml`, `core/validator_v1_0.yaml`,
-/// `core/reserved_keys.yaml`, `core/composition_constraints.yaml`,
-/// `core/validation_result.yaml` and `core/index_function.yaml`.
+/// `core/reserved_keys.yaml`, `core/composition_constraints.yaml` and
+/// `core/validation_result.yaml`.
 ///
 /// Cases targeting a protocol version this SDK does not implement are skipped
 /// with a reason, so the suite doubles as the implementation checklist.
@@ -82,10 +64,6 @@ void main() {
   _registerValidatorSuite(
     'core/validation_result.yaml',
     expectedFailures: _validationResultExpectedFailures,
-  );
-  _registerValidatorSuite(
-    'core/index_function.yaml',
-    expectedFailures: _indexFunctionExpectedFailures,
   );
 }
 
@@ -136,7 +114,6 @@ void _runCase(Map<String, Object?> testCase) {
       allPayloads,
       version,
     ),
-    commonTypesSchema: _commonTypesFor(testCase),
     // The validator cases are about what a renderer rejects, so the graph
     // checks are on, as in the other SDKs' harnesses.
     validationConfig: ValidationConfig.strict,
@@ -184,8 +161,15 @@ List<Map<String, Object?>> _documentsFor(Map<String, Object?> testCase) {
       if (path is String) documents.add(_document(path));
     }
   } else if (testCase['catalog'] case final Map<String, Object?> catalog) {
-    if (catalog.containsKey('catalog_schema')) {
-      documents.add(_document(catalog['catalog_schema']));
+    if (catalog['catalog_schema'] ?? catalog['catalogSchema']
+        case final Object rawSchema) {
+      final Map<String, Object?> schema = _document(rawSchema);
+      documents.add({
+        if (catalog['protocolVersion'] != null &&
+            !schema.containsKey('protocolVersion'))
+          'protocolVersion': catalog['protocolVersion'],
+        ...schema,
+      });
     } else if (catalog.containsKey('components') ||
         catalog.containsKey('catalogId')) {
       documents.add(catalog);
@@ -207,17 +191,6 @@ String _versionOf(
     if (envelope['version'] case final String version) return version;
   }
   return caseVersion(testCase) ?? 'v0.9';
-}
-
-/// The shared common-types document a case declares, or null to use the copy
-/// this package publishes for the protocol version.
-Map<String, Object?>? _commonTypesFor(Map<String, Object?> testCase) {
-  if (testCase['catalog'] case final Map<String, Object?> catalog) {
-    if (catalog.containsKey('common_types_schema')) {
-      return _document(catalog['common_types_schema']);
-    }
-  }
-  return null;
 }
 
 /// The steps a case runs, whether it declares one payload or several.
@@ -327,7 +300,10 @@ Matcher _categoryMatches(String? category) => switch (category) {
 Matcher _messageMatches(String pattern) => isA<A2uiError>().having(
       (e) => e.message,
       'message',
-      matches(RegExp(_align(pattern), caseSensitive: false)),
+      anyOf(
+        contains(pattern),
+        matches(RegExp(_align(pattern), caseSensitive: false)),
+      ),
     );
 
 /// Widens a case's expected message to the wording this SDK uses.

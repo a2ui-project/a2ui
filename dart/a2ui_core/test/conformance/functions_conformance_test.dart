@@ -71,7 +71,8 @@ Object? _evaluate(Map<String, Object?> testCase) {
     _withCaseData(DataModel(), testCase),
     catalog.invoke,
     '/',
-    protocolVersion: version == null ? null : 'v$version',
+    protocolVersion:
+        version == null ? null : A2uiProtocolVersion.tryParseSemVer(version),
   );
   final args = Map<String, dynamic>.from(
     testCase['args'] as Map<String, Object?>? ?? const {},
@@ -107,8 +108,9 @@ _RendererCatalog _catalogOf(
 /// The case-level `catalogId` is the one the call names.
 Object? _evaluateOnSurface(Map<String, Object?> testCase) {
   final version = 'v${caseVersion(testCase)!}';
-  final bool atLeastV1 =
-      A2uiProtocolVersion.fromJson(version).isAtLeast(A2uiProtocolVersion.v1_0);
+  final A2uiProtocolVersion protocolVersion =
+      A2uiProtocolVersion.fromJson(version);
+  final bool atLeastV1 = protocolVersion.isAtLeast(A2uiProtocolVersion.v1_0);
   final List<_RendererCatalog> available = [
     for (final Object? path in testCase['catalogPaths']! as List<Object?>)
       if (readConformanceJson(path! as String) case final document
@@ -132,10 +134,10 @@ Object? _evaluateOnSurface(Map<String, Object?> testCase) {
     (name, args, context) =>
         surface.resolveCatalog(null).invoke(name, args, context),
     '/',
-    protocolVersion: version,
+    protocolVersion: protocolVersion,
     invokerForCatalog: (catalogId) => surface.resolveCatalog(catalogId).invoke,
   );
-  return context.resolveSync(<String, Object?>{
+  return context.resolveDynamicValue(<String, Object?>{
     atLeastV1 ? '@call' : 'call': testCase['function'],
     if (testCase['catalogId'] case final String catalogId)
       'catalogId': catalogId,

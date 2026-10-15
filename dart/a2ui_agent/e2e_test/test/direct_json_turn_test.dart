@@ -21,21 +21,32 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 import 'test_infra/ai_client.dart';
+import 'test_infra/basic_catalog.dart';
 import 'test_infra/login_form.dart';
-import 'test_infra/renderer_catalog.dart';
 
 void main() {
+  for (final MapEntry(key: A2uiProtocolVersion version, value: String? skip)
+      in turnVersions.entries) {
+    group(version.jsonValue, skip: skip, () => _turns(version));
+  }
+}
+
+/// The direct JSON turns against the basic catalog of [version].
+void _turns(A2uiProtocolVersion version) {
   const timeout = Timeout(Duration(minutes: 3));
 
   late CatalogApi catalog;
   late A2uiRequestProcessor processor;
 
   setUp(() {
-    catalog = loadBasicCatalog();
+    catalog = loadBasicCatalog(version);
     // Direct JSON is the default format, so the generator names none.
-    processor = A2uiGenerator(
-      catalogs: [CatalogConfig(catalog)],
-    ).createProcessor(A2uiRendererCapabilities.forCatalogIds([catalog.id]));
+    processor = A2uiGenerator(catalogs: [CatalogConfig(catalog)])
+        .createProcessor(
+          A2uiRendererCapabilities.forCatalogIds([
+            catalog.id,
+          ], version: version),
+        );
   });
 
   /// Waits for the whole response, then parses it at once with
@@ -72,7 +83,9 @@ void main() {
   /// one exception, which this test turns on with `progressiveKeys`: a `text`
   /// or `label` string is returned while the model is still writing it, cut
   /// where it stands. This happens only if the rest of the component is
-  /// already valid.
+  /// already valid. From v1.0 a component is held back until it is complete,
+  /// since its `catalogId` may come last, so the exception is for values
+  /// outside components only.
   ///
   /// The test passes each message to the renderer. The renderer replaces the
   /// components it already holds with the ones in the message, by id.
@@ -83,19 +96,20 @@ void main() {
   test(
     'a streamed direct JSON turn builds the surface as it arrives',
     () async {
-      final Parser parser = const DirectJsonFormatFactory(
-        progressiveKeys: {'text', 'label'},
+      final Parser parser = DirectJsonFormatFactory(
+        progressiveKeys: const {'text', 'label'},
+        bufferIncompleteComponents: version.isAtLeast(A2uiProtocolVersion.v1_0),
       ).createFormat(processor.activeCatalogs).createParser();
 
       // A renderer applying each part as it arrives. A surface is incomplete
       // until the stream ends, so the checks that need a whole surface wait
       // for the end.
-      final renderer = MessageProcessor<ComponentApi>(
-        catalogs: [rendererCatalog(catalog)],
-        defaultVersion: A2uiProtocolVersion.v0_9,
+      final MessageProcessor<ComponentApi> renderer = MessageProcessor.forAgent(
+        catalogs: [catalog],
+        defaultVersion: catalog.protocolVersion,
         validationConfig: ValidationConfig.relaxed,
       );
-      addTearDown(renderer.groupModel.dispose);
+      addTearDown(renderer.model.dispose);
 
       final llmOutput = StringBuffer();
       var chunks = 0;
@@ -139,7 +153,7 @@ void main() {
       expect(partsBeforeTheEnd, greaterThan(0), reason: '$llmOutput');
       expect(surfaceId, isNotNull, reason: '$llmOutput');
       expectLoginFormSurface(
-        renderer.groupModel.getSurface(surfaceId!)!,
+        renderer.model.getSurface(surfaceId!)!,
         llmOutput: '$llmOutput',
       );
 

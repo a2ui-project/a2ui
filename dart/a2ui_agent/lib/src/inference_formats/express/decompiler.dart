@@ -14,6 +14,7 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import '../../utils/catalogs.dart';
 import 'compiler.dart';
 import 'schema_helper.dart';
 
@@ -24,7 +25,11 @@ final RegExp _pathSegment = RegExp(r'^[a-zA-Z0-9_]+$');
 /// Words the lexer reads as something other than an identifier.
 const Set<String> _keywords = {'_', 'null', 'true', 'false'};
 
-/// Writes v0.9 messages in Express notation: the inverse of the compiler.
+/// Writes messages of the protocol version the catalogs target in Express
+/// notation: the inverse of the compiler.
+///
+/// Writing v1.0 messages is not implemented yet and throws
+/// [UnimplementedError].
 ///
 /// Positional arguments follow the property order the catalogs declare, so
 /// the decompiler needs the same catalogs the compiler reads with.
@@ -41,8 +46,13 @@ const Set<String> _keywords = {'_', 'null', 'true', 'false'};
 class ExpressDecompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ExpressDecompiler(this.catalogs);
+  ///
+  /// [catalogs] are linked with one another, as by [linkCatalogs], so a
+  /// cross-catalog `$ref` resolves; the catalogs passed in are not changed.
+  ExpressDecompiler(List<CatalogApi> catalogs)
+    : catalogs = linkCatalogs(catalogs);
 
+  /// The catalogs this decompiler knows, linked with one another.
   final List<CatalogApi> catalogs;
 
   late final Map<String, CatalogSchemaHelper> _helpers = {
@@ -58,8 +68,9 @@ class ExpressDecompiler {
   /// and whole data model `updateDataModel` that follow it for the same
   /// surface, since assigning `root` is how Express creates a surface.
   ///
-  /// Throws [A2uiCatalogError] if there are no [catalogs], and
-  /// [A2uiValidationError] if a message has no Express notation:
+  /// Throws [A2uiCatalogError] if there are no [catalogs] or they target
+  /// different versions, and [A2uiValidationError] if a message has no
+  /// Express notation:
   ///
   /// - a `createSurface` with a theme, with `sendDataModel`, or without an
   ///   `updateComponents` giving the surface its root;
@@ -74,6 +85,9 @@ class ExpressDecompiler {
   String decompile(List<AgentToRendererMessage> messages) {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('Decompiling Express needs at least one catalog.');
+    }
+    if (catalogsProtocolVersion(catalogs).isAtLeast(A2uiProtocolVersion.v1_0)) {
+      throw UnimplementedError('ExpressDecompiler.decompile for protocol v1.0');
     }
     final paragraphs = <String>[];
     final created = <String, CatalogSchemaHelper>{};
@@ -117,7 +131,6 @@ class ExpressDecompiler {
         default:
           throw A2uiValidationError(
             'A ${message.runtimeType} has no Express notation.',
-            details: message.toJson(),
           );
       }
     }
@@ -132,10 +145,10 @@ class ExpressDecompiler {
   ) {
     final String surfaceId = message.surfaceId;
     if (message.theme != null) {
-      throw _noNotation("The theme of surface '$surfaceId'", message);
+      throw _noNotation("The theme of surface '$surfaceId'");
     }
     if (message.sendDataModel) {
-      throw _noNotation("'sendDataModel' of surface '$surfaceId'", message);
+      throw _noNotation("'sendDataModel' of surface '$surfaceId'");
     }
     if (components == null ||
         !components.components.any((c) => c['id'] == 'root')) {
@@ -143,7 +156,6 @@ class ExpressDecompiler {
         "Surface '$surfaceId' is created without a root. Express creates a "
         "surface by assigning 'root', so a createSurface has Express notation "
         'only beside the updateComponents that gives the surface its root.',
-        details: message.toJson(),
       );
     }
     return [
@@ -162,7 +174,6 @@ class ExpressDecompiler {
         "The update of surface '${message.surfaceId}' sets 'root' without "
         "creating the surface. Assigning 'root' in Express creates the "
         'surface, so this update has no Express notation.',
-        details: message.toJson(),
       );
     }
     final CatalogSchemaHelper helper =
@@ -182,7 +193,6 @@ class ExpressDecompiler {
         "The update of path '${message.path}' in the data model of surface "
         "'${message.surfaceId}' has no Express notation. Express writes the "
         'whole data model, from its root, and cannot remove it.',
-        details: message.toJson(),
       );
     }
     return [
@@ -288,14 +298,12 @@ class _Component {
         "Component id '$id' has no Express notation. In Express the id is the "
         'name of the variable holding the component, so it has to be made of '
         'letters, digits and underscores, and not start with a digit.',
-        details: json,
       );
     }
     final Object? type = json['component'];
     if (type is! String || !helper.isComponent(type)) {
       throw A2uiValidationError(
         "Catalog '${helper.catalog.id}' declares no component named '$type'.",
-        details: json,
       );
     }
     final List<String> properties = helper.properties(type);
@@ -306,7 +314,6 @@ class _Component {
           "Property '$key' of component '$id' has no Express notation: an "
           'Express call to $type takes only the properties $type declares '
           'itself (${properties.join(', ')}).',
-          details: json,
         );
       }
     }
@@ -323,7 +330,6 @@ class _Component {
         throw A2uiValidationError(
           "Property '$property' of component '$id' is null, which Express "
           'cannot write: the compiler leaves a null argument out.',
-          details: json,
         );
       }
       arguments
@@ -449,7 +455,6 @@ class _Component {
       throw A2uiValidationError(
         "The checks of component '$_id' have no Express notation: Express "
         'writes checks as a non-empty list.',
-        details: json,
       );
     }
     return '[${checks.map(_check).join(', ')}]';
@@ -471,7 +476,6 @@ class _Component {
     throw A2uiValidationError(
       "A check of component '$_id' has no Express notation. Express writes a "
       'check as a call to a function of the catalog, with a message.',
-      details: rule,
     );
   }
 
@@ -496,7 +500,6 @@ class _Component {
           "Check '?$name' of component '$_id' tests a value other than the "
           "component's own, and not a data binding, which Express cannot "
           'write.',
-          details: json,
         );
       }
     }
@@ -535,10 +538,7 @@ String _literal(Object? value) => switch (value) {
   String() => _string(value),
   List() => '[${value.map(_literal).join(', ')}]',
   Map() => _mapOfLiterals(value),
-  _ => throw A2uiValidationError(
-    'The value $value has no Express notation.',
-    details: value,
-  ),
+  _ => throw A2uiValidationError('The value $value has no Express notation.'),
 };
 
 String _mapOfLiterals(Map<Object?, Object?> value) {
@@ -614,8 +614,5 @@ Map<String, Object?>? _itemSchema(Map<String, Object?>? schema) =>
       _ => null,
     };
 
-A2uiValidationError _noNotation(String what, AgentToRendererMessage message) =>
-    A2uiValidationError(
-      '$what has no Express notation.',
-      details: message.toJson(),
-    );
+A2uiValidationError _noNotation(String what) =>
+    A2uiValidationError('$what has no Express notation.');

@@ -6,8 +6,8 @@
     "noPropertyAccessFromIndexSignature": true,
     "paths": {
       "@a2ui/angular-sample-lib": ["./projects/lib/src/index.ts"],
-      "@a2ui/angular": ["../../../typescript/adapters/angular/dist"],
-      "@a2ui/angular/*": ["../../../typescript/adapters/angular/dist/*"]
+      "@a2ui/angular": ["../../../typescript/renderers/angular/dist"],
+      "@a2ui/angular/*": ["../../../typescript/renderers/angular/dist/*"]
     },
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,

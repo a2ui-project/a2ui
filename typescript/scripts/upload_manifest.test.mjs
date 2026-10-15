@@ -106,16 +106,16 @@ describe('upload_manifest script integration test', () => {
     );
   });
 
-  it('should resolve web_core and adapter packages under typescript directory', async () => {
+  it('should resolve web_core and renderer packages under typescript directory', async () => {
     const graph = getPackageGraph();
     assert.ok(graph['@a2ui/web_core']);
-    assert.match(graph['@a2ui/web_core'].dir, /\/typescript\/web_core$/);
+    assert.match(graph['@a2ui/web_core'].dir, /\/typescript\/core\/web_core$/);
     assert.ok(graph['@a2ui/lit']);
-    assert.match(graph['@a2ui/lit'].dir, /\/typescript\/adapters\/lit$/);
+    assert.match(graph['@a2ui/lit'].dir, /\/typescript\/renderers\/lit$/);
     assert.ok(graph['@a2ui/angular']);
-    assert.match(graph['@a2ui/angular'].dir, /\/typescript\/adapters\/angular$/);
+    assert.match(graph['@a2ui/angular'].dir, /\/typescript\/renderers\/angular$/);
     assert.ok(graph['@a2ui/react']);
-    assert.match(graph['@a2ui/react'].dir, /\/typescript\/adapters\/react$/);
+    assert.match(graph['@a2ui/react'].dir, /\/typescript\/renderers\/react$/);
 
     let writtenFileContent = null;
     const mocks = {

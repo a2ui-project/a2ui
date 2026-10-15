@@ -45,19 +45,22 @@ describe('DirectJsonPromptGenerator', () => {
     const instructions = generator.generateCatalogInstructions();
     expect(instructions).toContain('---BEGIN A2UI JSON SCHEMA---');
     expect(instructions).toContain('---END A2UI JSON SCHEMA---');
-    expect(instructions).toContain(`### Messages (${catalog.protocolVersion}):`);
-    expect(instructions).toContain(`### Catalog ${catalog.id}:`);
+    expect(instructions).toContain('### Agent to Renderer Schema:');
+    expect(instructions).toContain('### Common Types Schema:');
+    expect(instructions).toContain('### Catalog Schema:');
     // Ensure the schema json is present inside the block
-    expect(instructions).toContain('"components":{');
+    expect(instructions).toContain(JSON.stringify(catalog.toJson()));
   });
 
-  it('describes each protocol version once, however many catalogs use it', () => {
+  it('describes protocol schemas once, however many catalogs use it', () => {
     const customCatalog = new Catalog('https://a2ui.org/catalogs/custom_v10', 'v1.0', [], []);
     const twoCatalogs = new DirectJsonPromptGenerator([catalog, customCatalog]);
     const instructions = twoCatalogs.generateCatalogInstructions();
-    expect(instructions.split('### Messages (').length).toBe(2);
-    expect(instructions).toContain(`### Catalog ${catalog.id}:`);
-    expect(instructions).toContain(`### Catalog ${customCatalog.id}:`);
+    expect(instructions.split('### Agent to Renderer Schema:').length).toBe(2);
+    expect(instructions.split('### Common Types Schema:').length).toBe(2);
+    expect(instructions.split('### Catalog Schema:').length).toBe(3);
+    expect(instructions).toContain(JSON.stringify(catalog.toJson()));
+    expect(instructions).toContain(JSON.stringify(customCatalog.toJson()));
   });
 
   it('describes multiple v0.9 catalogs and their examples in the prompt', () => {
@@ -75,10 +78,8 @@ describe('DirectJsonPromptGenerator', () => {
     const v09Generator = new DirectJsonPromptGenerator(catalogs, v09Examples);
     const prompt = v09Generator.generate();
 
-    expect(prompt.split('### Messages (').length).toBe(2);
-    expect(prompt).toContain('### Messages (v0.9):');
-    expect(prompt).toContain('### Catalog a:');
-    expect(prompt).toContain('### Catalog b:');
+    expect(prompt.split('### Agent to Renderer Schema:').length).toBe(2);
+    expect(prompt.split('### Catalog Schema:').length).toBe(3);
     expect(prompt).toContain('"catalogId":"a"');
     expect(prompt).toContain('"catalogId":"b"');
     expect(prompt).toContain('"catalogId": "a"');
@@ -110,10 +111,38 @@ describe('DirectJsonPromptGenerator', () => {
     expect(exampleStr).toContain('</a2ui-json>');
   });
 
+  it('renders every turn of a turn list, with or without a catalog', () => {
+    const turns = [
+      [
+        {version: '1.0', createSurface: {surfaceId: 'first'}},
+      ] as unknown as AgentToRendererMessage[],
+      [
+        {version: '1.0', deleteSurface: {surfaceId: 'second'}},
+      ] as unknown as AgentToRendererMessage[],
+    ];
+    const turnGenerator = new DirectJsonPromptGenerator([catalog], turns);
+    const all = turnGenerator.generateExamples();
+    expect(all).toContain('"first"');
+    expect(all).toContain('"second"');
+    expect(turnGenerator.generateExamples(catalog)).toBe(all);
+  });
+
+  it('filters examples keyed by catalog id to the given catalog', () => {
+    const keyed = new DirectJsonPromptGenerator([catalog], {
+      ...examples,
+      'https://example.com/other.json': '<a2ui-json>other</a2ui-json>',
+    });
+    const forCatalog = keyed.generateExamples(catalog);
+    expect(forCatalog).toContain('"example"');
+    expect(forCatalog).not.toContain('other');
+  });
+
   it('generates the snippet with rules, schemas and examples', () => {
     const prompt = generator.generate();
+    expect(prompt).toContain('## Workflow Description:');
     expect(prompt).toContain('The generated response MUST follow these rules:');
     expect(prompt).toContain('---BEGIN A2UI JSON SCHEMA---');
+    expect(prompt).toContain('### Examples:');
     expect(prompt).toContain('<a2ui-json>');
     expect(prompt).toContain('"createSurface": {');
   });

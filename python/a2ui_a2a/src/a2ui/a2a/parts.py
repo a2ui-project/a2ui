@@ -22,6 +22,7 @@ from a2a.types import DataPart
 from a2a.types import Part
 from a2a.types import TextPart as A2aTextPart
 
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats import to_message_dicts
 from a2ui.parser import A2uiPart
 from a2ui.parser import BlockLexer
@@ -29,6 +30,7 @@ from a2ui.parser import Parser
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import TextPart
 from a2ui.parser import parse_and_fix
+from a2ui.utils import to_version_number
 
 logger = logging.getLogger(__name__)
 
@@ -37,18 +39,22 @@ A2UI_MIME_TYPE = "application/a2ui+json"
 DEPRECATED_A2UI_MIME_TYPE = "application/json+a2ui"
 
 
-def create_a2ui_part(a2ui_data: dict[str, Any], version: str | None = None) -> Part:
+def create_a2ui_part(
+    a2ui_data: dict[str, Any], version: ProtocolVersion | str | None = None
+) -> Part:
     """Creates an A2A Part containing A2UI data.
 
     Args:
         a2ui_data: The A2UI data dictionary.
-        version: Optional version string.
+        version: The A2UI version: a `ProtocolVersion`, or a version string with
+            or without a leading "v". Without one, or for v0.8 and v0.9, the
+            part uses the deprecated MIME type.
 
     Returns:
         An A2A Part with a DataPart containing the A2UI data.
     """
     mime_type = A2UI_MIME_TYPE
-    if version is None or version in ("0.8", "0.9", "v0.8", "v0.9"):
+    if version is None or to_version_number(version) in ("0.8", "0.9"):
         mime_type = DEPRECATED_A2UI_MIME_TYPE
 
     return Part(

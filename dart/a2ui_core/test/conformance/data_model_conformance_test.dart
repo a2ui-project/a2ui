@@ -108,7 +108,7 @@ void _runPayloadDataModelCase(Map<String, Object?> testCase) {
     ],
     validationConfig: ValidationConfig.relaxed,
   );
-  addTearDown(processor.groupModel.dispose);
+  addTearDown(processor.model.dispose);
 
   for (var i = 0; i < steps.length; i++) {
     final step = steps[i]! as Map<String, Object?>;
@@ -132,7 +132,7 @@ void _runPayloadDataModelCase(Map<String, Object?> testCase) {
       final expMap = surfaceExp! as Map<String, Object?>;
       if (expMap.containsKey('dataModel')) {
         expect(
-          processor.groupModel.getSurface(surfaceId)!.dataModel.get('/'),
+          processor.model.getSurface(surfaceId)!.dataModel.get('/'),
           equals(expMap['dataModel']),
           reason: '${testCase['name']} surface $surfaceId dataModel',
         );

@@ -13,17 +13,18 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_core/src/rendering/binder.dart' show GenericBinder;
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
+import 'support/test_catalog.dart';
+
 void main() {
   group('GenericBinder lifecycle', () {
-    late MinimalCatalog catalog;
+    late TestCatalog catalog;
     late SurfaceModel<ComponentApi> surface;
 
     setUp(() {
-      catalog = MinimalCatalog();
+      catalog = TestCatalog();
       surface = SurfaceModel('s1', defaultCatalog: catalog);
     });
 
@@ -136,7 +137,7 @@ void main() {
       surface.dataModel.set('/val', 'initial');
 
       final context = ComponentContext(surface, comp);
-      final binder = GenericBinder(context, MinimalTextApi().schema);
+      final binder = GenericBinder(context, TestTextApi().schema);
 
       expect(
         (binder.resolvedProps.value['text'] as ResolvedBinding<Object?>).value,
@@ -253,7 +254,7 @@ void main() {
       trackingSurface.dataModel.set('/val', 'a');
 
       final context = ComponentContext(trackingSurface, comp);
-      final binder = GenericBinder(context, MinimalTextApi().schema);
+      final binder = GenericBinder(context, TestTextApi().schema);
 
       // Trigger a rebuild by updating component properties.
       comp.properties = {
@@ -304,7 +305,7 @@ void main() {
 
       callCount = 0;
       final context = ComponentContext(trackingSurface, comp);
-      GenericBinder(context, MinimalTextApi().schema);
+      GenericBinder(context, TestTextApi().schema);
 
       expect(
         callCount,
@@ -349,7 +350,7 @@ void main() {
 
         checkCallCount = 0;
         final context = ComponentContext(trackingSurface, comp);
-        final binder = GenericBinder(context, MinimalTextFieldApi().schema);
+        final binder = GenericBinder(context, TestTextFieldApi().schema);
         addTearDown(binder.dispose);
 
         expect(
@@ -417,11 +418,11 @@ void main() {
   });
 }
 
-/// [MinimalCatalog] with two functions that call [onExecute] when run.
+/// [TestCatalog] with two functions that call [onExecute] when run.
 Catalog<ComponentApi, FunctionImplementation> _trackingCatalog({
   required void Function() onExecute,
 }) {
-  final catalog = MinimalCatalog();
+  final catalog = TestCatalog();
   return catalog.copyWith(
     functions: [
       ...catalog.functions.values,

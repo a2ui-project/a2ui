@@ -25,7 +25,7 @@ All triaged issues must be tagged with the `status: first-line-handled` label.
   - **Static Analysis**: For complex bugs, analyze the logs, stack traces, and relevant specification files (e.g., JSON schemas in `specification/`) to diagnose the issue.
 - **Action**:
   - If reproduction steps or logs are missing, set action to `needs_info`, apply the `status: waiting-for-author-response` label, and use the [Requesting Information template](../../../../docs/contributing/triage-templates.md).
-  - If verified, suggest the appropriate priority (`P0` to `P3`) and recommend the owner of the affected component based on path mapping (e.g., paths with `typescript/adapters/lit` belong to the Lit renderer maintainer, `specification/` to the specification maintainer) and file commit history (`git log -n 5 --format="%ae" <file>`).
+  - If verified, suggest the appropriate priority (`P0` to `P3`) and recommend the owner of the affected component based on path mapping (e.g., paths with `typescript/renderers/lit` belong to the Lit renderer maintainer, `specification/` to the specification maintainer) and file commit history (`git log -n 5 --format="%ae" <file>`).
   - Clean up any temporary files, worktrees, or clones when finished.
 
 ### 2. Feature Requests

@@ -38,7 +38,7 @@ from ..validation.payload_validator import (
     nested_call_runs_in_catalog,
     rebase_function_error_details,
 )
-from ..catalog import CatalogApi, is_system_function_name
+from ..catalog import CatalogApi, is_system_function_name, link_catalogs
 from ..exceptions import (
     A2uiCatalogError,
     A2uiError,
@@ -174,6 +174,9 @@ class MessageProcessor:
         """
         if not catalogs:
             raise ValueError("At least one catalog must be provided.")
+        # Linking returns copies, so the caller's catalogs, which may be shared
+        # with other processors, never see this processor's peers.
+        catalogs = link_catalogs(catalogs)
         self.catalogs = catalogs
         self.model = SurfaceGroupModel()
         opts = options or MessageProcessorOptions()

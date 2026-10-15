@@ -40,6 +40,7 @@ def test_a2a_integration_conformance(name, test_case):
         try_activate_a2ui_extension,
     )
     from a2ui.a2a.extension import _select_newest_a2ui_extension
+    from a2ui.core.common import to_protocol_version
     from unittest.mock import MagicMock
     from a2a.server.agent_execution import RequestContext
 
@@ -104,7 +105,9 @@ def test_a2a_integration_conformance(name, test_case):
             assert result_version is None
             context.add_activated_extension.assert_not_called()
         else:
-            assert result_version == expect["version"]
+            # The YAML is shared across SDKs and names the version as a string;
+            # the Python helper returns the matching ProtocolVersion.
+            assert result_version == to_protocol_version(expect["version"])
             context.add_activated_extension.assert_called_once_with(expect["activated"])
 
     elif action == "select_newest":

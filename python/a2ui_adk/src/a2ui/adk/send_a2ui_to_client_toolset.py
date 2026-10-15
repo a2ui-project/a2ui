@@ -94,15 +94,11 @@ from google.adk.tools import tool_context
 from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
 
+from a2ui import constants
+from a2ui.constants import A2UI_TOOL_ERROR_KEY, A2UI_TOOL_NAME, A2UI_VALIDATED_JSON_KEY
 from a2ui.core import A2uiValidationError, Catalog, CatalogApi
 from a2ui.inference_formats.direct_json import schema_to_prompt
 from a2ui.parser import parse_and_fix
-from a2ui.schema import constants
-from a2ui.schema.constants import (
-    A2UI_TOOL_ERROR_KEY,
-    A2UI_TOOL_NAME,
-    A2UI_VALIDATED_JSON_KEY,
-)
 from a2ui.utils import validate_payload
 
 if TYPE_CHECKING:

@@ -56,6 +56,8 @@ A web adapter whose implementations are not custom elements (React function comp
 ### **6. Styling**
 
 - Elements render into the light DOM by default, so the application's stylesheet reaches them and framework components can be composed inside them. An element MAY opt into shadow DOM.
+- The surface element also renders into the light DOM, so the application's styles reach the elements inside it the same way; a surface does not add a shadow boundary of its own.
+- Class names on the markup an element renders carry the `a2ui-` prefix (for example `a2ui-error-message`), so an application's own class selectors do not match element internals by accident.
 - An element's own styles are adopted once per document or shadow root and scoped to its tag name, so that two elements with the same selectors do not leak styles into each other.
 - Elements style themselves from CSS custom properties with documented names and defaults. They read no styling from the protocol: a surface at v1.0 or later carries no `theme`, and the element layer MUST NOT depend on one. A legacy v0.9 theme, where an adapter still supports it, is applied by setting the same custom properties from outside the element.
 
@@ -161,8 +163,8 @@ function toWebComponent(
 
 - Framework adapter blueprint: [`a2ui_framework_adapter.blueprint.md`](../modules/a2ui_framework_adapter.blueprint.md)
 - Node resolution feature: [`node_resolution.blueprint.md`](node_resolution.blueprint.md)
-- Reference shared layer: [`typescript/web_core/src/universal`](../../typescript/web_core/src/universal) (`a2ui-lit-element.ts`, `a2ui-controller.ts`, `render-a2ui-node.ts`, `register_universal_element.ts`, `to_web_component_implementation.ts`, `basic_catalog/components/`)
-- Reference host adapters: React [`typescript/adapters/react/src/catalog`](../../typescript/adapters/react/src/catalog) and [`host_registry.ts`](../../typescript/adapters/react/src/host_registry.ts); Angular [`typescript/adapters/angular/src/catalog`](../../typescript/adapters/angular/src/catalog)
+- Reference shared layer: [`typescript/core/web_core/src/universal`](../../typescript/core/web_core/src/universal) (`a2ui-lit-element.ts`, `a2ui-controller.ts`, `render-a2ui-node.ts`, `register_universal_element.ts`, `to_web_component_implementation.ts`, `basic_catalog/components/`)
+- Reference host adapters: React [`typescript/renderers/react/src/catalog`](../../typescript/renderers/react/src/catalog) and [`host_registry.ts`](../../typescript/renderers/react/src/host_registry.ts); Angular [`typescript/renderers/angular/src/catalog`](../../typescript/renderers/angular/src/catalog)
 - Accessibility requirements: [protocol v1.0, Catalog-Agnostic Accessibility Requirements](../../specification/v1_0/docs/a2ui_protocol.md#catalog-agnostic-accessibility-requirements)
 
 ---

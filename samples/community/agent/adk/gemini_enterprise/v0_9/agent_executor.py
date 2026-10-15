@@ -31,16 +31,14 @@ from a2a.utils import (
 )
 from a2a.utils.errors import ServerError
 from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.core.schema import ProtocolVersion
 from agent import A2uiDemoAgent
 
 logger = logging.getLogger(__name__)
 
-# The A2UI v0.9 client-to-server message envelope tags every message with this
-# wire-protocol version string. It is the `version` value in a message shaped
-# like `{"version": "v0.9", "action": {...}}` per the A2UI v0.9 client-to-server
-# spec. Note this wire value ("v0.9") intentionally differs from the a2ui SDK's
-# version constant a2ui.schema.constants.VERSION_0_9 ("0.9").
-A2UI_CLIENT_MESSAGE_VERSION = "v0.9"
+# The A2UI v0.9 client-to-server envelope tags every message with the protocol
+# version, as in `{"version": "v0.9", "action": {...}}`.
+A2UI_CLIENT_MESSAGE_VERSION = ProtocolVersion.V0_9
 
 
 class A2uiDemoAgentExecutor(AgentExecutor):

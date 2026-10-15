@@ -84,6 +84,7 @@ export type {
 } from './inference-formats/direct-json/streaming-types.js';
 export {DirectJsonStreamProcessorImpl} from './inference-formats/direct-json/streaming.js';
 export {DirectJsonPromptGenerator} from './inference-formats/direct-json/prompt-generator.js';
+export type {DirectJsonExamples} from './inference-formats/direct-json/prompt-generator.js';
 export {DirectJsonDecompiler} from './inference-formats/direct-json/decompiler.js';
 
 // Express inference format

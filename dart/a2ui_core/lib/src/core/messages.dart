@@ -15,6 +15,7 @@
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/semver.dart';
+import '../primitives/uax31.dart';
 
 /// Base class for the messages an agent sends a renderer.
 ///
@@ -119,7 +120,6 @@ abstract class AgentToRendererMessage {
           throw A2uiValidationError(
             "Message '$key' is missing required field 'value'; from v1.0 a "
             'deletion sets it to null explicitly.',
-            details: body,
           );
         }
         return UpdateDataModelMessage(
@@ -156,6 +156,18 @@ abstract class AgentToRendererMessage {
   }
 
   Map<String, dynamic> toJson();
+
+  /// The message types an agent may send in [version], such as
+  /// `createSurface`, in the order the version's schema lists them.
+  ///
+  /// Each is the key of a message body on the wire, and the name
+  /// `ValidationConfig.allowedMessages` takes. v1.0 adds
+  /// `callRendererFunction` and `agentFunctionResponse` to the four of v0.9.
+  static List<String> typesFor(A2uiProtocolVersion version) => [
+        ..._agentToRendererBodyKeys,
+        if (version.isAtLeast(A2uiProtocolVersion.v1_0))
+          ..._agentToRendererV1BodyKeys,
+      ];
 }
 
 /// The message bodies an agent-to-renderer envelope may carry in every
@@ -221,7 +233,6 @@ _Envelope _readEnvelope(
 }) {
   final A2uiProtocolVersion version = A2uiProtocolVersion.fromJson(
     json['version'],
-    details: json,
   );
   final bool isV1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
   final allowed = <String>{...bodyKeys, if (isV1) ...v1BodyKeys};
@@ -235,27 +246,23 @@ _Envelope _readEnvelope(
         "Message type '$key' requires protocol version "
         "'${A2uiProtocolVersion.v1_0.jsonValue}'; this message declares "
         "'${version.jsonValue}'.",
-        details: json,
       );
     } else {
       throw A2uiValidationError(
         "Unknown A2UI message type or envelope key '$key'. Expected "
         "'version' and one of: ${allowed.join(', ')}.",
-        details: json,
       );
     }
   }
   if (present.isEmpty) {
     throw A2uiValidationError(
       'Unknown A2UI message type. Expected one of: ${allowed.join(', ')}.',
-      details: json,
     );
   }
   if (present.length > 1) {
     throw A2uiValidationError(
       'A2UI message must contain exactly one of '
       '${allowed.join(', ')}; got ${present.join(', ')}.',
-      details: json,
     );
   }
   final String key = present.single;
@@ -273,7 +280,6 @@ void _checkKeys(
       throw A2uiValidationError(
         "Unknown field '$messageType.$key'. Expected only: "
         '${allowed.join(', ')}.',
-        details: body,
       );
     }
   }
@@ -295,7 +301,6 @@ Map<String, dynamic> _checkedEnvelope(
 ) {
   final A2uiProtocolVersion version = A2uiProtocolVersion.fromJson(
     envelope['version'],
-    details: envelope,
   );
   if (!isCatalogVersionCompatible(
     version.jsonValue,
@@ -304,7 +309,6 @@ Map<String, dynamic> _checkedEnvelope(
     throw A2uiValidationError(
       "Payload declares version '${version.jsonValue}' but this parser "
       "accepts only versions compatible with '${protocolVersion.jsonValue}'.",
-      details: envelope,
     );
   }
   return Map<String, dynamic>.from(envelope);
@@ -337,7 +341,6 @@ List<Map<String, Object?>> _envelopesOf(Object? payload) {
       throw A2uiValidationError(
         'A payload object must have string keys; got '
         '${payload.keys.map((Object? k) => k.runtimeType).toSet().join(', ')}.',
-        details: payload,
       );
     }
     if (!payload.containsKey('messages')) {
@@ -348,7 +351,6 @@ List<Map<String, Object?>> _envelopesOf(Object? payload) {
       throw A2uiValidationError(
         "A payload wrapper's 'messages' must be a list, got "
         '${wrapped.runtimeType}.',
-        details: payload,
       );
     }
     return _envelopesOf(wrapped);
@@ -356,7 +358,6 @@ List<Map<String, Object?>> _envelopesOf(Object? payload) {
   throw A2uiValidationError(
     'A payload must be a message, a list of messages, or an object wrapping a '
     "list of messages under a 'messages' key; got ${payload.runtimeType}.",
-    details: payload,
   );
 }
 
@@ -366,7 +367,6 @@ Map<String, dynamic> _body(Map<String, dynamic> json, String key) {
   if (body is! Map) {
     throw A2uiValidationError(
       "Message body '$key' must be an object.",
-      details: json,
     );
   }
   return body.cast<String, dynamic>();
@@ -385,14 +385,12 @@ T _required<T extends Object>(
   if (value == null) {
     throw A2uiValidationError(
       "Message '$messageType' is missing required field '$field'.",
-      details: body,
     );
   }
   if (value is! T) {
     throw A2uiValidationError(
       "Field '$messageType.$field' must be a $T, got "
       '${value.runtimeType}.',
-      details: body,
     );
   }
   return value;
@@ -410,7 +408,6 @@ T? _optional<T extends Object>(
     throw A2uiValidationError(
       "Field '$messageType.$field' must be a $T, got "
       '${value.runtimeType}.',
-      details: body,
     );
   }
   return value;
@@ -427,13 +424,11 @@ Map<String, dynamic> _object(
     throw A2uiValidationError(
       "Field '$messageType.$field' must be an object, got "
       '${value.runtimeType}.',
-      details: body,
     );
   }
   if (value.keys.any((key) => key is! String)) {
     throw A2uiValidationError(
       "Field '$messageType.$field' must have string keys.",
-      details: body,
     );
   }
   return value.cast<String, dynamic>();
@@ -455,7 +450,6 @@ DateTime _timestamp(
     throw A2uiValidationError(
       "Field '$messageType.$field' must be an ISO 8601 timestamp, got "
       "'$raw'.",
-      details: body,
     );
   }
   return parsed;
@@ -470,7 +464,7 @@ Map<String, dynamic>? _optionalObject(
     body[field] == null ? null : _object(body, field, messageType);
 
 /// Reads an optional v1.0 `metadata` object, which may hold only an
-/// `extensions` object.
+/// `extensions` object whose keys are valid UAX #31 identifiers.
 Map<String, dynamic>? _metadata(Map<String, dynamic> body, String messageType) {
   final Map<String, dynamic>? metadata = _optionalObject(
     body,
@@ -479,7 +473,18 @@ Map<String, dynamic>? _metadata(Map<String, dynamic> body, String messageType) {
   );
   if (metadata == null) return null;
   _checkKeys(metadata, const {'extensions'}, '$messageType.metadata');
-  _optionalObject(metadata, 'extensions', '$messageType.metadata');
+  final Map<String, dynamic>? extensions =
+      _optionalObject(metadata, 'extensions', '$messageType.metadata');
+  if (extensions != null) {
+    for (final String key in extensions.keys) {
+      if (!isValidUax31Identifier(key)) {
+        throw A2uiValidationError(
+          "Extension key '$key' in '$messageType.metadata.extensions' is not "
+          'a valid UAX #31 identifier.',
+        );
+      }
+    }
+  }
   return metadata;
 }
 
@@ -492,13 +497,11 @@ List<Map<String, dynamic>> _components(
   if (raw is! List) {
     throw A2uiValidationError(
       "Field '$messageType.components' must be a list.",
-      details: body,
     );
   }
   if (raw.isEmpty) {
     throw A2uiValidationError(
       "Field '$messageType.components' must hold at least one component.",
-      details: body,
     );
   }
   return [
@@ -509,7 +512,6 @@ List<Map<String, dynamic>> _components(
         throw A2uiValidationError(
           "Field '$messageType.components' must hold objects with string "
           'keys, got ${entry.runtimeType}.',
-          details: body,
         ),
   ];
 }
@@ -554,7 +556,6 @@ A2uiFunctionResponse _functionResponse(
   if (hasValue == hasError) {
     throw A2uiValidationError(
       "Message '$messageType' must carry exactly one of 'value' and 'error'.",
-      details: body,
     );
   }
   if (hasValue) {
@@ -871,7 +872,7 @@ class AgentToRendererMessagePayload {
 /// The body of the renderer-to-agent `action`, and what a surface's
 /// `onAction` emits. [ActionMessage] is the envelope that carries it to the
 /// agent.
-class A2uiClientAction {
+class A2uiRendererAction {
   final String name;
   final String surfaceId;
   final String sourceComponentId;
@@ -886,7 +887,7 @@ class A2uiClientAction {
   /// object.
   final Map<String, Object?>? metadata;
 
-  A2uiClientAction({
+  A2uiRendererAction({
     required this.name,
     required this.surfaceId,
     required this.sourceComponentId,
@@ -905,11 +906,11 @@ class A2uiClientAction {
   /// Throws [A2uiValidationError] for a missing or mistyped field, including a
   /// `timestamp` that is not an ISO 8601 instant, and, from v1.0, for a
   /// `metadata` object holding anything but `extensions`.
-  factory A2uiClientAction.fromJson(
+  factory A2uiRendererAction.fromJson(
     Map<String, dynamic> json, {
     required A2uiProtocolVersion protocolVersion,
   }) =>
-      A2uiClientAction(
+      A2uiRendererAction(
         name: _required<String>(json, 'name', 'action'),
         surfaceId: _required<String>(json, 'surfaceId', 'action'),
         sourceComponentId: _required<String>(
@@ -939,7 +940,7 @@ class A2uiClientAction {
       };
 }
 
-/// Reports a client-side error.
+/// Reports a renderer-side error.
 ///
 /// The body of the renderer-to-agent `error`, and what a surface's `onError`
 /// emits. [ErrorMessage] is the envelope that carries it to the agent.
@@ -950,7 +951,7 @@ class A2uiClientAction {
 /// a generic error: before v1.0 it names a [surfaceId]; from v1.0 it names
 /// exactly one of [surfaceId] and [functionCallId]. A generic error may carry
 /// further fields, kept in [details] and [additionalProperties].
-class A2uiClientError {
+class A2uiRendererError {
   final String code;
 
   /// The surface the error concerns. Null only for a v1.0 generic error that
@@ -964,7 +965,7 @@ class A2uiClientError {
   ///
   /// Required of the path errors, so it is carried rather than folded into
   /// [details]: an agent reading a validation failure needs the field it
-  /// names, and a round trip through [toJson] and [A2uiClientError.fromJson]
+  /// names, and a round trip through [toJson] and [A2uiRendererError.fromJson]
   /// would otherwise lose it.
   final String? path;
 
@@ -978,12 +979,12 @@ class A2uiClientError {
   /// round trip does not lose them.
   final Map<String, Object?> additionalProperties;
 
-  /// Creates a client-side error report.
+  /// Creates a renderer-side error report.
   ///
   /// Throws [A2uiValidationError] when [code] is [validationFailedCode] and
   /// the error names no non-empty [path] or no [surfaceId], or carries
   /// [details] or [additionalProperties].
-  A2uiClientError({
+  A2uiRendererError({
     required this.code,
     this.surfaceId,
     required this.message,
@@ -1044,7 +1045,7 @@ class A2uiClientError {
   /// error that names no `surfaceId` or non-empty `path` or carries any other
   /// field, and for a generic error that names no `surfaceId` before v1.0, or
   /// not exactly one of `surfaceId` and `functionCallId` from v1.0.
-  factory A2uiClientError.fromJson(
+  factory A2uiRendererError.fromJson(
     Map<String, dynamic> json, {
     required A2uiProtocolVersion protocolVersion,
   }) {
@@ -1057,11 +1058,10 @@ class A2uiClientError {
       if (path == null || path.isEmpty) {
         throw A2uiValidationError(
           "Field 'error.path' is required of a '$code' error.",
-          details: json,
         );
       }
       _checkKeys(json, _pathErrorKeys, 'error');
-      return A2uiClientError(
+      return A2uiRendererError(
         code: code,
         surfaceId: _required<String>(json, 'surfaceId', 'error'),
         message: _required<String>(json, 'message', 'error'),
@@ -1078,7 +1078,6 @@ class A2uiClientError {
         throw A2uiValidationError(
           "A '$code' error must name exactly one of 'error.surfaceId' and "
           "'error.functionCallId'.",
-          details: json,
         );
       }
     } else {
@@ -1093,7 +1092,7 @@ class A2uiClientError {
       'details',
       if (isV1) 'functionCallId',
     };
-    return A2uiClientError(
+    return A2uiRendererError(
       code: code,
       surfaceId: surfaceId,
       message: _required<String>(json, 'message', 'error'),
@@ -1122,10 +1121,10 @@ class A2uiClientError {
 ///
 /// The `action` and `error` envelopes, and, from v1.0, the
 /// `callAgentFunction` and `rendererFunctionResponse` envelopes. A renderer
-/// reports a user-initiated action as an [ActionMessage] and a client-side
+/// reports a user-initiated action as an [ActionMessage] and a renderer-side
 /// failure as an [ErrorMessage]. Each wraps the body a surface's event source
-/// already emits, [A2uiClientAction] or [A2uiClientError], so an envelope is
-/// built around the value a listener received rather than from a second
+/// already emits, [A2uiRendererAction] or [A2uiRendererError], so an envelope
+/// is built around the value a listener received rather than from a second
 /// representation of it.
 ///
 /// A whole payload of them is a [RendererToAgentMessagePayload]; the other
@@ -1162,8 +1161,8 @@ abstract class RendererToAgentMessage {
   /// Throws [A2uiValidationError] if `version` is missing or unsupported, if
   /// the envelope does not carry exactly one message body its version
   /// defines, if it carries any other key, or if the body breaks its
-  /// version's rules (see [A2uiClientAction.fromJson] and
-  /// [A2uiClientError.fromJson]).
+  /// version's rules (see [A2uiRendererAction.fromJson] and
+  /// [A2uiRendererError.fromJson]).
   factory RendererToAgentMessage.fromJson(Map<String, dynamic> json) {
     final _Envelope envelope = _readEnvelope(
       json,
@@ -1178,7 +1177,7 @@ abstract class RendererToAgentMessage {
       case 'action':
         return ActionMessage(
           version: version,
-          action: A2uiClientAction.fromJson(
+          action: A2uiRendererAction.fromJson(
             body,
             protocolVersion: protocolVersion,
           ),
@@ -1186,7 +1185,7 @@ abstract class RendererToAgentMessage {
       case 'error':
         return ErrorMessage(
           version: version,
-          error: A2uiClientError.fromJson(
+          error: A2uiRendererError.fromJson(
             body,
             protocolVersion: protocolVersion,
           ),
@@ -1217,7 +1216,7 @@ abstract class RendererToAgentMessage {
 /// Carries a user-initiated action to the agent.
 class ActionMessage extends RendererToAgentMessage {
   /// The action, as a surface's `onAction` emitted it.
-  final A2uiClientAction action;
+  final A2uiRendererAction action;
 
   ActionMessage({required super.version, required this.action});
 
@@ -1228,10 +1227,10 @@ class ActionMessage extends RendererToAgentMessage {
       };
 }
 
-/// Carries a client-side error to the agent.
+/// Carries a renderer-side error to the agent.
 class ErrorMessage extends RendererToAgentMessage {
   /// The error, as a surface's `onError` emitted it.
-  final A2uiClientError error;
+  final A2uiRendererError error;
 
   ErrorMessage({required super.version, required this.error});
 

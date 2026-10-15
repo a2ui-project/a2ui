@@ -53,15 +53,7 @@ void main() {
 const String _noV08 = 'Targets v0.8, which a2ui_core does not implement.';
 
 /// Cases whose expected outcome Dart does not produce, with the reason.
-const Map<String, String> _knownDivergences = {
-  'test_v10_uax31_invalid_argument_name':
-      "Catalog.fromJson reads a map-form function's 'parameters' as a JSON "
-          'schema, so it checks the names under its properties; the case '
-          'writes the argument names directly under parameters.',
-  'test_v10_catalog_from_json_uax31_validation':
-      "Catalog.fromJson rejects function names starting with '@', which are "
-          'reserved for protocol system functions such as @index.',
-};
+const Map<String, String> _knownDivergences = {};
 
 /// The built-in catalogs this package implements, by catalog id.
 final Map<String, CatalogApi> _builtinCatalogs = {
@@ -123,10 +115,9 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
     return;
   }
 
-  final CatalogApi catalog = Catalog.fromJson(
-    input,
-    protocolVersion: version,
-    catalogId: catalogId,
+  final CatalogApi catalog = _withPeers(
+    testCase,
+    Catalog.fromJson(input, protocolVersion: version, catalogId: catalogId),
   );
   final Map<String, Object?> expected =
       (testCase['expect'] as Map?)?.cast<String, Object?>() ?? const {};
@@ -183,7 +174,6 @@ void _runFromJsonCase(Map<String, Object?> testCase) {
       expected.containsKey('invalidComponents')) {
     final validator = PayloadValidator<ComponentApi, FunctionApi>(
       catalog: catalog,
-      protocolVersion: version,
     );
     for (final Object? component in _list(expected['validComponents'])) {
       validator.validateComponent((component! as Map).cast<String, Object?>());
@@ -295,9 +285,9 @@ void _runValidationSchemaCase(Map<String, Object?> testCase) {
     return;
   }
 
-  final Map<String, Object?> document = _load(
+  final Map<String, Object?> document = _withPeers(
     testCase,
-    source,
+    _load(testCase, source),
   ).validationSchema;
   final String goldenPath = resolveConformancePath(
     testCase['expectFile']! as String,
@@ -508,6 +498,18 @@ CatalogApi _load(
       protocolVersion: _version(testCase),
       catalogId: testCase['catalogId'] as String?,
     );
+
+/// [catalog] linked with the catalogs at the case's `peerCatalogPaths`, each
+/// loaded with [Catalog.fromJson], in order; [catalog] itself when the case
+/// lists none.
+CatalogApi _withPeers(Map<String, Object?> testCase, CatalogApi catalog) {
+  final Object? paths = testCase['peerCatalogPaths'];
+  if (paths is! List || paths.isEmpty) return catalog;
+  return catalog.withPeerCatalogs([
+    for (final Object? path in paths)
+      Catalog.fromJson(_document(path), protocolVersion: _version(testCase)),
+  ]);
+}
 
 /// The names under a document's `components`, `functions` or `$defs`, in
 /// either form `functions` takes.

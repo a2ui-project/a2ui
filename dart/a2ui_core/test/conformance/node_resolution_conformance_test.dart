@@ -165,7 +165,7 @@ class _Runner {
     surface = SurfaceModel('s', defaultCatalog: catalog);
     surface.dataModel.set('/', _copy(fixture['data']));
     updateComponents(fixture['components']! as List<Object?>);
-    surface.onAction.addListener((event) {
+    surface.onAction.subscribe((event) {
       events.add({
         'name': event.name,
         'source_component_id': event.sourceComponentId,
@@ -225,7 +225,7 @@ class _Runner {
         }),
       );
       subscribing = false;
-      node.onDestroyed.addListener((_) {
+      node.onDestroyed.subscribe((_) {
         final String path = watched[node]!;
         destroyed.update(path, (count) => count + 1, ifAbsent: () => 1);
         destroyedNodes.add(node);

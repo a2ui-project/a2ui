@@ -21,13 +21,15 @@ import 'package:logging/logging.dart';
 
 import '../core/catalog.dart';
 import '../core/component_model.dart';
-import '../core/contexts.dart';
 import '../core/messages.dart';
 import '../core/surface_model.dart';
 import '../primitives/errors.dart';
+import '../primitives/event_notifier.dart';
 import '../primitives/reactivity.dart';
-import '../rendering/binder.dart';
+import 'component_context.dart';
 import 'component_node.dart';
+import 'data_context.dart';
+import 'generic_binder.dart';
 import 'ref_fields.dart';
 
 final _log = Logger('a2ui_core.resolution');
@@ -41,7 +43,7 @@ typedef _DiagnosticScope = (String componentId, String dataPath);
 // Retain the reservation with the queued diagnostic so dropping an aborted
 // update releases only undelivered codes, not newer or reported scopes.
 class _QueuedError {
-  final A2uiClientError error;
+  final A2uiRendererError error;
   final _DiagnosticScope? scope;
   final Set<String>? codes;
 
@@ -140,8 +142,8 @@ class NodeResolver<T extends ComponentApi> {
   /// Parents holding a placeholder for a component id, awaiting its arrival.
   final Map<String, Set<MutableComponentNode<T>>> _pendingParents = {};
 
-  late final void Function(ComponentModel) _onCreatedListener;
-  late final void Function(String) _onDeletedListener;
+  late final Subscription _onCreatedSub;
+  late final Subscription _onDeletedSub;
   _NodeRecord<T>? _rootRecord;
   bool _disposed = false;
   bool _disposeRequested = false;
@@ -176,14 +178,12 @@ class NodeResolver<T extends ComponentApi> {
         "'${_surface.id}', not catalog '${catalog.id}'.",
       );
     }
-    _onCreatedListener = (component) {
+    _onCreatedSub = _surface.componentsModel.onCreated.subscribe((component) {
       _runUpdate(() => _onComponentCreated(component));
-    };
-    _onDeletedListener = (id) {
+    });
+    _onDeletedSub = _surface.componentsModel.onDeleted.subscribe((id) {
       _runUpdate(() => _onComponentDeleted(id));
-    };
-    _surface.componentsModel.onCreated.addListener(_onCreatedListener);
-    _surface.componentsModel.onDeleted.addListener(_onDeletedListener);
+    });
 
     _runUpdate(() {
       if (_surface.componentsModel.get(_surface.rootId) != null) {
@@ -234,7 +234,7 @@ class NodeResolver<T extends ComponentApi> {
     if (!codes.add(code)) return;
     _pendingErrors.add(
       _QueuedError(
-        A2uiClientError(code: code, surfaceId: _surface.id, message: message),
+        A2uiRendererError(code: code, surfaceId: _surface.id, message: message),
         scope: (componentId, dataPath),
         codes: codes,
       ),
@@ -329,8 +329,8 @@ class NodeResolver<T extends ComponentApi> {
     _disposed = true;
     _disposeRequested = false;
     batch(() {
-      _surface.componentsModel.onCreated.removeListener(_onCreatedListener);
-      _surface.componentsModel.onDeleted.removeListener(_onDeletedListener);
+      _onCreatedSub.unsubscribe();
+      _onDeletedSub.unsubscribe();
       _rootRecord = null;
       _rootNode.value = null;
       for (final MutableComponentNode<T> node in List.of(_records.keys)) {

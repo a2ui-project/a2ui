@@ -14,20 +14,18 @@
 
 /// Behaviour shared by the v0.9 and v1.0 basic catalog functions: value
 /// coercion, the validation rules, logic, `formatString` and `openUrl`.
-///
-/// Semantics follow the TypeScript engine (`basic_functions.ts`).
 library;
 
 import 'dart:async';
 import 'dart:convert';
 
 import '../core/catalog.dart';
-import '../core/contexts.dart';
 import '../core/validation_result.dart';
+import '../expressions/expression_parser.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
-import '../processing/expressions.dart';
+import '../resolution/data_context.dart';
 
 /// Opens [url] on behalf of the basic catalog's `openUrl` function.
 ///
@@ -265,7 +263,7 @@ Object? formatTemplate(Object? template, DataContext context) {
   final List<Object?> sources = [
     for (final Object? part in parts)
       if (part is Map)
-        context.resolveListenable(context.adaptExpressionPart(part))
+        context.resolveSignal(context.adaptExpressionPart(part))
       else
         part,
   ];

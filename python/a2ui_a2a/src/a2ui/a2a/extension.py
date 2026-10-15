@@ -19,6 +19,10 @@ from packaging.version import Version, parse as parse_version
 from a2a.server.agent_execution import RequestContext
 from a2a.types import AgentCard, AgentExtension
 
+from a2ui.core.common import to_protocol_version
+from a2ui.core.schema import ProtocolVersion
+from a2ui.utils import to_version_number
+
 logger = logging.getLogger(__name__)
 
 A2UI_EXTENSION_BASE_URI = "https://a2ui.org/a2a-extension/a2ui"
@@ -26,9 +30,14 @@ AGENT_EXTENSION_SUPPORTED_CATALOG_IDS_KEY = "supportedCatalogIds"
 AGENT_EXTENSION_ACCEPTS_INLINE_CATALOGS_KEY = "acceptsInlineCatalogs"
 
 
-def get_a2ui_extension_uri(version: str) -> str:
-    """Returns the full A2UI extension URI for a given version."""
-    return f"{A2UI_EXTENSION_BASE_URI}/v{version}"
+def get_a2ui_extension_uri(version: ProtocolVersion | str) -> str:
+    """Returns the full A2UI extension URI for a version.
+
+    Args:
+        version: A `ProtocolVersion`, or a version string with or without a
+            leading "v".
+    """
+    return f"{A2UI_EXTENSION_BASE_URI}/v{to_version_number(version)}"
 
 
 def get_a2ui_extension_uri_version(a2ui_extension_uri: str) -> str:
@@ -37,14 +46,15 @@ def get_a2ui_extension_uri_version(a2ui_extension_uri: str) -> str:
 
 
 def get_a2ui_agent_extension(
-    version: str,
+    version: ProtocolVersion | str,
     accepts_inline_catalogs: bool = False,
     supported_catalog_ids: list[str] = [],
 ) -> AgentExtension:
     """Creates the A2UI AgentExtension configuration.
 
     Args:
-        version: The version of the A2UI extension to use.
+        version: The A2UI version to advertise: a `ProtocolVersion`, or a
+            version string with or without a leading "v".
         accepts_inline_catalogs: Whether the agent accepts inline catalogs.
         supported_catalog_ids: All pre-defined catalogs the agent is known to support.
 
@@ -125,23 +135,39 @@ def _select_newest_a2ui_extension(
     return max(matched_extensions, key=_version_key)
 
 
+def _protocol_version_of(a2ui_extension_uri: str) -> ProtocolVersion | None:
+    """Returns the protocol version an extension URI names, or None if it names none."""
+    try:
+        return to_protocol_version(get_a2ui_extension_uri_version(a2ui_extension_uri))
+    except ValueError:
+        return None
+
+
 def try_activate_a2ui_extension(
     context: RequestContext, agent_card: AgentCard
-) -> str | None:
-    """Activates the A2UI extension if requested.
+) -> ProtocolVersion | None:
+    """Activates the newest A2UI extension that the client requests and the agent advertises.
+
+    Only extensions that name a protocol version this SDK defines are
+    considered.
 
     Args:
         context: The request context to check.
         agent_card: The agent card to check supported extensions.
 
     Returns:
-        The version string of the activated A2UI extension, or None if not activated.
+        The protocol version of the activated A2UI extension, or None if no
+        extension was activated.
     """
     requested_extensions = _requested_a2ui_extensions(context)
     if not requested_extensions:
         return None
 
-    agent_advertised_extensions = _agent_extensions(agent_card)
+    agent_advertised_extensions = [
+        uri
+        for uri in _agent_extensions(agent_card)
+        if _protocol_version_of(uri) is not None
+    ]
     if not agent_advertised_extensions:
         return None
 
@@ -150,6 +176,6 @@ def try_activate_a2ui_extension(
     )
     if selected_uri:
         context.add_activated_extension(selected_uri)
-        return get_a2ui_extension_uri_version(selected_uri)
+        return _protocol_version_of(selected_uri)
 
     return None

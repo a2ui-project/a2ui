@@ -2,8 +2,64 @@
 
 ## Unreleased
 
-- The Direct JSON prompt builds its schema from `Catalog.validationSchema`
-  instead of the deprecated `catalogSchema`.
+- Support cross-catalog `$ref` references across peer catalogs in
+  `resolveCatalogs`, `validatePayloads`, `DirectJsonPromptGenerator` (preserving
+  unbundled external `$ref`s in `Catalog.toJson()` while retaining transitive
+  `common_types.json` definitions), and the Express format (`ExpressPromptGenerator`,
+  `ExpressCompiler`, and `ExpressDecompiler`). Each links copies of the
+  catalogs with `linkCatalogs` and never changes the catalogs it is given:
+  `resolveCatalogs` returns linked copies, linked with every registered
+  catalog as declared and as transformed, and `ExpressCompiler.catalogs` and
+  `ExpressDecompiler.catalogs` hold linked copies. An inline catalog the agent
+  does not accept is linked with nothing.
+- `CatalogConfig.transformedCatalog` is computed on first access and then
+  reused, so every request sees the same transformed catalog.
+- Declared the API for protocol v1.0. The SDK reads and writes the protocol
+  version that the active catalogs target, rather than always v0.9:
+  - `FileSystemCatalogProvider` and `InMemoryCatalogProvider` load documents
+    that declare `protocolVersion` `1.0`, and take
+    `A2uiProtocolVersion.v1_0`.
+  - `resolveCatalogs`, and so `A2uiGenerator.createProcessor`, negotiate a
+    protocol version with the renderer. The registered catalogs may target
+    several versions; the latest one the renderer declares capabilities for
+    is used, or the next earlier one when the two have no catalog in common
+    there. `createProcessor` gives each processor the example turns written
+    in its version, and throws `A2uiValidationError` for a turn written in a
+    version no registered catalog targets.
+  - Without capabilities, `resolveCatalogs` throws `A2uiCatalogError` for
+    registered catalogs of different versions, since nothing says which one
+    the renderer reads. Given capabilities, it throws it when no catalog is
+    registered.
+  - The direct JSON prompt already described v1.0 catalogs.
+  - Not implemented yet for v1.0 catalogs, and throwing
+    `UnimplementedError`: the Express prompt, compiling Express and direct
+    JSON, decompiling Express, and checking payloads, which
+    `A2uiRequestProcessor` does for its examples and in `parseResponse`.
+- Exported `ExpressFormat`, `ExpressPromptGenerator`, `ExpressParser`,
+  `ExpressCompiler` and `ExpressDecompiler`, which the agent SDK blueprint
+  lists, as the direct JSON classes are. `ExpressFormat` has a public
+  constructor, as `DirectJsonFormat` does.
+- `DirectJsonFormat` and `ExpressFormatFactory.createFormat` throw
+  `A2uiCatalogError` for two catalogs with the same id, since a `catalogId`
+  could not say which of the two it names.
+- Express prompts, compilers and decompilers, and direct JSON parsers, throw
+  `A2uiCatalogError` for catalogs that target different protocol versions.
+  Catalogs of v0.9 and v0.9.1, which share message shapes, mix as v0.9, there
+  and in `resolveCatalogs`.
+- Payload checks run through `a2ui_core`'s `MessageProcessor.forAgent`.
+- Bump `a2ui_core` dependency to `^0.3.0`.
+- The Direct JSON prompt lists `description` after `type` in the
+  agent-to-renderer and `common_types` schemas it embeds, following the
+  reordered specification files.
+- Align `MessageProcessor.model` and `PayloadValidator` usage with `a2ui_core`.
+- `DirectJsonPromptGenerator` embeds the agent-to-renderer schema, the pruned
+  `common_types` schema, and each active catalog's `Catalog.toJson()` document
+  instead of the deprecated `catalogSchema`, avoiding duplicate inlined common
+  type definitions when multiple catalogs are active.
+- `allowedMessages` of the Direct JSON format accepts only messages: the
+  definitions the agent-to-renderer schema lists in `oneOf` and their envelope
+  keys. Other definitions, such as v1.0's `Component` and `ComponentsList`,
+  throw `ArgumentError`.
 - Payload validation builds its `MessageProcessor` with `defaultVersion`.
 - Payload validation gives `MessageProcessor` the catalog through
   `Catalog.withFunctions`, so a catalog read by `Catalog.fromJson` keeps its

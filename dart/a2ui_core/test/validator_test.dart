@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_core/src/validation/component_graph.dart';
+import 'package:a2ui_core/src/validation/component_graph.dart'
+    show maxFunctionCallArgs, maxFunctionCallDepth;
 import 'package:a2ui_core/src/validation/component_refs.dart';
-import 'package:json_schema_builder/json_schema_builder.dart'
-    hide ValidationResult;
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 
 import 'support/renderer_catalog.dart';
@@ -92,43 +92,9 @@ Map<String, Object?> testCatalogDocument() => {
 
 CatalogApi testCatalog() => Catalog.fromJson(testCatalogDocument());
 
-/// The parts of `common_types.json` this catalog references.
-Map<String, Object?> commonTypes() => {
-      r'$defs': {
-        'ComponentId': {'type': 'string'},
-        'ChildList': {
-          'oneOf': [
-            {
-              'type': 'array',
-              'items': {r'$ref': '#/\$defs/ComponentId'},
-            },
-            {
-              'type': 'object',
-              'properties': {
-                'componentId': {r'$ref': '#/\$defs/ComponentId'},
-                'path': {'type': 'string'},
-              },
-              'required': ['componentId', 'path'],
-              'additionalProperties': false,
-            },
-          ],
-        },
-      },
-    };
-
 /// A validator over [testCatalog].
-///
-/// Overrides the shared types rather than taking the published document, so
-/// these tests exercise the definitions above: an empty map leaves them
-/// unresolvable, which is the case the SDK skips rather than rejects.
-PayloadValidator<ComponentApi, FunctionApi> newValidator({
-  bool withCommonTypes = false,
-}) =>
-    PayloadValidator(
-      catalog: testCatalog(),
-      protocolVersion: A2uiProtocolVersion.v0_9,
-      commonTypesSchema: withCommonTypes ? commonTypes() : const {},
-    );
+PayloadValidator<ComponentApi, FunctionApi> newValidator() =>
+    PayloadValidator(catalog: testCatalog());
 
 /// A processor over [testCatalog], for the payload-level checks.
 ///
@@ -136,14 +102,12 @@ PayloadValidator<ComponentApi, FunctionApi> newValidator({
 /// several catalogs, so they run on the processor rather than on a validator
 /// scoped to one catalog.
 MessageProcessor<ComponentApi> newProcessor({
-  bool withCommonTypes = false,
   ValidationConfig validationConfig = ValidationConfig.strict,
 }) =>
     MessageProcessor<ComponentApi>(
       catalogs: [rendererCatalog(testCatalogDocument())],
       defaultVersion: A2uiProtocolVersion.v0_9,
       validationConfig: validationConfig,
-      commonTypesSchema: withCommonTypes ? commonTypes() : const {},
     );
 
 /// A processor for a surface that arrives across several payloads.
@@ -189,14 +153,6 @@ void main() {
 
   group('PayloadValidator version gating', () {
     test('accepts payloads declaring the supported version', () {
-      final PayloadValidator<ComponentApi, FunctionApi> validator =
-          newValidator();
-
-      expect(validator.checkVersion(createSurface()), A2uiProtocolVersion.v0_9);
-      expect(
-        validator.checkVersion(createSurface(version: 'v0.9.1')),
-        A2uiProtocolVersion.v0_9,
-      );
       expect(parse([createSurface()]).messages, hasLength(1));
       expect(
         parse([createSurface()]).messages.single,
@@ -205,15 +161,7 @@ void main() {
     });
 
     test('rejects payloads declaring another protocol version', () {
-      final PayloadValidator<ComponentApi, FunctionApi> validator =
-          newValidator();
-
       for (final version in ['v0.8', 'v1.0']) {
-        expect(
-          () => validator.checkVersion(createSurface(version: version)),
-          throwsA(isA<A2uiValidationError>()),
-          reason: version,
-        );
         expect(
           () => parse([createSurface(version: version)]),
           throwsA(isA<A2uiValidationError>()),
@@ -223,16 +171,10 @@ void main() {
     });
 
     test('rejects payloads that omit the version', () {
-      final PayloadValidator<ComponentApi, FunctionApi> validator =
-          newValidator();
       final Map<String, Map<String, String>> message = {
         'createSurface': {'surfaceId': 's1', 'catalogId': catalogId},
       };
 
-      expect(
-        () => validator.checkVersion(message),
-        throwsA(isA<A2uiValidationError>()),
-      );
       expect(() => parse([message]), throwsA(isA<A2uiValidationError>()));
     });
 
@@ -241,27 +183,6 @@ void main() {
         () => parse([
           {'version': 'v0.9', 'notAMessage': <String, Object?>{}},
         ]),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('is constructed for a supported version by name', () {
-      expect(
-        PayloadValidator.forVersion(
-          'v0.9',
-          catalog: testCatalog(),
-        ).protocolVersion,
-        A2uiProtocolVersion.v0_9,
-      );
-    });
-
-    test('cannot be constructed for an unsupported version', () {
-      expect(
-        () => PayloadValidator.forVersion('v0.8', catalog: testCatalog()),
-        throwsA(isA<A2uiValidationError>()),
-      );
-      expect(
-        () => PayloadValidator.forVersion(null, catalog: testCatalog()),
         throwsA(isA<A2uiValidationError>()),
       );
     });
@@ -278,8 +199,6 @@ void main() {
     /// three per-item entry points has something to check against.
     PayloadValidator<ComponentApi, FunctionApi> validator() =>
         PayloadValidator<ComponentApi, FunctionApi>(
-          protocolVersion: A2uiProtocolVersion.v0_9,
-          commonTypesSchema: const {},
           catalog: Catalog.fromJson({
             'catalogId': catalogId,
             'components': {
@@ -417,7 +336,7 @@ void main() {
               updateComponents([card('root', 'root')]),
             ]),
           ),
-          throwsA(isA<A2uiRecursionError>()),
+          throwsA(isA<A2uiIntegrityError>()),
         );
       });
 
@@ -530,9 +449,7 @@ void main() {
     });
 
     test('enforces common_types definitions when they are supplied', () {
-      final MessageProcessor<ComponentApi> processor = newProcessor(
-        withCommonTypes: true,
-      );
+      final MessageProcessor<ComponentApi> processor = newProcessor();
       final AgentToRendererMessagePayload messages = parse([
         createSurface(),
         updateComponents([
@@ -549,27 +466,6 @@ void main() {
         () => processor.processMessages(messages),
         throwsA(isA<A2uiValidationError>()),
       );
-    });
-
-    test('treats an unresolvable reference as unconstrained', () {
-      // Given shared types that define no `ChildList`, the reference to it
-      // cannot be resolved. The surrounding constraints still apply, but the
-      // reference itself is skipped rather than failing the payload. The
-      // component `row` it names is never declared, so the graph checks are
-      // relaxed to leave the schema question on its own.
-      final MessageProcessor<ComponentApi> processor = newStreamingProcessor();
-      final AgentToRendererMessagePayload messages = parse([
-        createSurface(),
-        updateComponents([
-          {
-            'id': 'root',
-            'component': 'Column',
-            'children': {'componentId': 'row'},
-          },
-        ]),
-      ]);
-
-      expect(() => processor.processMessages(messages), returnsNormally);
     });
   });
 
@@ -720,7 +616,7 @@ void main() {
         ),
         throwsA(isA<A2uiValidationError>()),
       );
-      expect(processor.groupModel.getSurface('s1'), isNull);
+      expect(processor.model.getSurface('s1'), isNull);
     });
 
     test('rejects a component belonging to another catalog', () {
@@ -901,35 +797,6 @@ Matcher _validationError({String? code, String? path, Object? message}) =>
 
 void v1RulesTests() {
   group('PayloadValidator catalog-driven versioning', () {
-    test('resolves against the common types of the catalog version', () {
-      expect(
-        _versionedValidator('v1.0').commonTypesSchema[r'$id'],
-        'https://a2ui.org/specification/v1_0/common_types.json',
-      );
-      expect(
-        _versionedValidator('1.0').commonTypesSchema[r'$id'],
-        'https://a2ui.org/specification/v1_0/common_types.json',
-      );
-      expect(
-        _versionedValidator('v0.9').commonTypesSchema[r'$id'],
-        'https://a2ui.org/specification/v0_9/common_types.json',
-      );
-      expect(
-        _versionedValidator(null).commonTypesSchema[r'$id'],
-        'https://a2ui.org/specification/v0_9/common_types.json',
-      );
-    });
-
-    test('lets an explicit common types document override the default', () {
-      expect(
-        PayloadValidator<ComponentApi, FunctionApi>(
-          catalog: _versionedCatalog('v1.0'),
-          commonTypesSchema: const {},
-        ).commonTypesSchema,
-        isEmpty,
-      );
-    });
-
     test('Catalog.fromJson keeps the declared protocolVersion', () {
       final CatalogApi catalog = _versionedCatalog('v1.0');
 
@@ -1321,6 +1188,18 @@ void v1RulesTests() {
         ),
         returnsNormally,
       );
+      expect(
+        () => _versionedValidator(
+          'v1.0',
+          config: const ValidationConfig(allowUnknownElements: true),
+        ).validateComponent(
+          _box({
+            '@call': 'nope',
+            'args': {'anything': 1},
+          }),
+        ),
+        returnsNormally,
+      );
     });
 
     test(
@@ -1344,7 +1223,10 @@ void v1RulesTests() {
             'args': {for (var i = 0; i < count; i++) 'a$i': i},
           };
       final PayloadValidator<ComponentApi, FunctionApi> validator =
-          _versionedValidator('v1.0');
+          _versionedValidator(
+        'v1.0',
+        config: const ValidationConfig(allowUnknownElements: true),
+      );
 
       expect(maxFunctionCallArgs, 1000);
       expect(
@@ -1449,6 +1331,66 @@ void v1RulesTests() {
           ),
         );
       });
+    });
+  });
+
+  group('PayloadValidator cross-catalog function calls', () {
+    test(
+        'accepts foreign catalog call even when function name collides '
+        'with local function', () {
+      final PayloadValidator<ComponentApi, FunctionApi> validator =
+          _versionedValidator('v1.0');
+      // Local 'f' requires {'value': <string>}.
+      // A foreign call to 'f' on 'catB' taking different args must pass.
+      expect(
+        () => validator.validateComponent(_box({
+          '@call': 'f',
+          'catalogId': 'catB',
+          'args': {'other': 123},
+        })),
+        returnsNormally,
+      );
+
+      // Even if foreign call's args match local 'f' schema, it must not fail
+      // oneOf.
+      expect(
+        () => validator.validateComponent(_box({
+          '@call': 'f',
+          'catalogId': 'catB',
+          'args': {'value': 'ok'},
+        })),
+        returnsNormally,
+      );
+    });
+
+    test('accepts foreign catalog call under allowUnknownElements', () {
+      final PayloadValidator<ComponentApi, FunctionApi> validator =
+          _versionedValidator(
+        'v1.0',
+        config: ValidationConfig.relaxed,
+      );
+      expect(
+        () => validator.validateComponent(_box({
+          '@call': 'f',
+          'catalogId': 'catB',
+          'args': {'other': 123},
+        })),
+        returnsNormally,
+      );
+    });
+
+    test('rejects foreign-shaped call when catalogId matches local catalog.id',
+        () {
+      final PayloadValidator<ComponentApi, FunctionApi> validator =
+          _versionedValidator('v1.0');
+      expect(
+        () => validator.validateComponent(_box({
+          '@call': 'f',
+          'catalogId': 'versioned',
+          'args': {'other': 123},
+        })),
+        throwsA(isA<A2uiValidationError>()),
+      );
     });
   });
 
