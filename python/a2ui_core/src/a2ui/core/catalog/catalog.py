@@ -2776,13 +2776,11 @@ evaluates functions needs a catalog of ``FunctionImplementation`` instances
 instead.
 """
 
-TCatalog = TypeVar("TCatalog", bound=CatalogApi)
-
 
 def link_catalogs(
-    catalogs: Sequence[TCatalog],
+    catalogs: Sequence[CatalogApi],
     extra_peers: Sequence[CatalogApi] = (),
-) -> list[TCatalog]:
+) -> list[CatalogApi]:
     """Links a collection of catalogs as peers for cross-catalog `$ref` resolution.
 
     Args:
