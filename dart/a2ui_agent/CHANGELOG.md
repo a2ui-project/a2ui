@@ -7,16 +7,26 @@
   - `FileSystemCatalogProvider` and `InMemoryCatalogProvider` load documents
     that declare `protocolVersion` `1.0`, and take
     `A2uiProtocolVersion.v1_0`.
-  - `resolveCatalogs`, and so `A2uiGenerator.createProcessor`, negotiate
-    against the renderer's capabilities for the version of the registered
-    catalogs. They throw `A2uiCatalogError` when the registered catalogs
-    target different versions, and, given capabilities, when no catalog is
+  - `resolveCatalogs`, and so `A2uiGenerator.createProcessor`, negotiate a
+    protocol version with the renderer. The registered catalogs may target
+    several versions; the latest one the renderer declares capabilities for
+    is used, or the next earlier one when the two have no catalog in common
+    there. `createProcessor` gives each processor the example turns written
+    in its version, and throws `A2uiValidationError` for a turn written in a
+    version no registered catalog targets.
+  - Without capabilities, `resolveCatalogs` throws `A2uiCatalogError` for
+    registered catalogs of different versions, since nothing says which one
+    the renderer reads. Given capabilities, it throws it when no catalog is
     registered.
   - The direct JSON prompt already described v1.0 catalogs.
   - Not implemented yet for v1.0 catalogs, and throwing
     `UnimplementedError`: the Express prompt, compiling Express and direct
     JSON, decompiling Express, and checking payloads, which
     `A2uiRequestProcessor` does for its examples and in `parseResponse`.
+- Exported `ExpressFormat`, `ExpressPromptGenerator`, `ExpressParser`,
+  `ExpressCompiler` and `ExpressDecompiler`, which the agent SDK blueprint
+  lists, as the direct JSON classes are. `ExpressFormat` has a public
+  constructor, as `DirectJsonFormat` does.
 - `DirectJsonFormat` and `ExpressFormatFactory.createFormat` throw
   `A2uiCatalogError` for two catalogs with the same id, since a `catalogId`
   could not say which of the two it names.

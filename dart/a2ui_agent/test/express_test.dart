@@ -427,4 +427,36 @@ surface("s1")
       expect(() => parser.parseChunk('<a2ui>'), throwsUnsupportedError);
     });
   });
+
+  group('public API', () {
+    test('builds a format from its parts, as the factory does', () {
+      final format = ExpressFormat(
+        [basic],
+        allowedMessages: ['createSurface', 'updateComponents'],
+      );
+      expect(format.promptGenerator.catalogs, [basic]);
+      expect(
+        format.promptGenerator.generate(),
+        const ExpressFormatFactory(
+          allowedMessages: ['createSurface', 'updateComponents'],
+        ).createFormat([basic]).promptGenerator.generate(),
+      );
+      expect(format.createParser(), isA<ExpressParser>());
+      expect(
+        () => ExpressFormat([basic, basic]),
+        throwsError<A2uiCatalogError>(),
+      );
+    });
+
+    test('compiles and decompiles a block', () {
+      final List<AgentToRendererMessage> messages = ExpressCompiler([
+        basic,
+      ]).compile('root = Text("Hello")');
+      final String block = ExpressDecompiler([basic]).decompile(messages);
+      expect(
+        ExpressParser([basic]).compile(block).map((m) => m.toJson()),
+        messages.map((m) => m.toJson()),
+      );
+    });
+  });
 }

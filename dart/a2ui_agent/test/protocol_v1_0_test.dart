@@ -98,27 +98,14 @@ void main() {
       );
     });
 
-    test('rejects registered catalogs of different versions', () {
-      for (final A2uiRendererCapabilities? capabilities in [
-        A2uiRendererCapabilities(
-          versions: {
-            v1_0: A2uiVersionCapabilities(supportedCatalogIds: [basic.id]),
-            A2uiProtocolVersion.v0_9: A2uiVersionCapabilities(
-              supportedCatalogIds: [v0_9Basic.id],
-            ),
-          },
-        ),
-        null,
-      ]) {
-        expect(
-          () => resolveCatalogs([
-            CatalogConfig(basic),
-            CatalogConfig(v0_9Basic),
-          ], capabilities),
-          throwsA(isA<A2uiCatalogError>()),
-          reason: '$capabilities',
-        );
-      }
+    test('rejects catalogs of different versions without capabilities', () {
+      expect(
+        () => resolveCatalogs([
+          CatalogConfig(basic),
+          CatalogConfig(v0_9Basic),
+        ], null),
+        throwsA(isA<A2uiCatalogError>()),
+      );
     });
 
     test('reads an inline catalog stating no version as v1.0', () {
@@ -140,6 +127,131 @@ void main() {
         acceptsInlineCatalogs: true,
       );
       expect(active.last.protocolVersion, v1_0);
+    });
+  });
+
+  group('negotiation across versions', () {
+    final both = [CatalogConfig(v0_9Basic), CatalogConfig(basic)];
+
+    /// Capabilities declaring [v1Ids] for v1.0 and [v0_9Ids] for v0.9.
+    A2uiRendererCapabilities declaring(
+      List<String> v1Ids,
+      List<String> v0_9Ids,
+    ) => A2uiRendererCapabilities(
+      versions: {
+        v1_0: A2uiVersionCapabilities(supportedCatalogIds: v1Ids),
+        A2uiProtocolVersion.v0_9: A2uiVersionCapabilities(
+          supportedCatalogIds: v0_9Ids,
+        ),
+      },
+    );
+
+    final v0_9Example = [
+      AgentToRendererMessage.fromJson({
+        'version': 'v0.9',
+        'createSurface': {'surfaceId': 's', 'catalogId': v0_9Basic.id},
+      }),
+      AgentToRendererMessage.fromJson({
+        'version': 'v0.9',
+        'updateComponents': {
+          'surfaceId': 's',
+          'components': [
+            {'id': 'root', 'component': 'Text', 'text': 'Hello'},
+          ],
+        },
+      }),
+    ];
+    final List<AgentToRendererMessage> v1_0Example = [message(helloSurface)];
+
+    test('uses the latest version both declare', () {
+      expect(resolveCatalogs(both, declaring([basic.id], [v0_9Basic.id])), [
+        basic,
+      ]);
+      expect(resolveCatalogs(both, supporting([basic.id])), [basic]);
+      expect(
+        resolveCatalogs(
+          both,
+          supporting([v0_9Basic.id], version: A2uiProtocolVersion.v0_9),
+        ),
+        [v0_9Basic],
+      );
+    });
+
+    test('falls back to an earlier version with a catalog in common', () {
+      expect(
+        resolveCatalogs(both, declaring(['renderer/only'], [v0_9Basic.id])),
+        [v0_9Basic],
+      );
+    });
+
+    test('rejects a renderer with no catalog in common in any version', () {
+      expect(
+        () => resolveCatalogs(both, declaring([v0_9Basic.id], [basic.id])),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+    });
+
+    test('takes a catalog id registered for each version from the one '
+        'negotiated', () {
+      Map<String, Object?> document(String? version) => {
+        'catalogId': 'example/catalog',
+        'protocolVersion': ?version,
+        'components': <String, Object?>{},
+      };
+      final CatalogApi v0_9Catalog = Catalog.fromJson(document(null));
+      final CatalogApi v1_0Catalog = Catalog.fromJson(document('1.0'));
+      final registered = [
+        CatalogConfig(v0_9Catalog),
+        CatalogConfig(v1_0Catalog),
+      ];
+      expect(
+        resolveCatalogs(
+          registered,
+          declaring(['example/catalog'], ['example/catalog']),
+        ),
+        [v1_0Catalog],
+      );
+      expect(
+        resolveCatalogs(
+          registered,
+          supporting(['example/catalog'], version: A2uiProtocolVersion.v0_9),
+        ),
+        [v0_9Catalog],
+      );
+    });
+
+    test('gives a processor the examples of the version it negotiated', () {
+      final A2uiRequestProcessor processor =
+          A2uiGenerator(
+            catalogs: both,
+            examples: [v1_0Example, v0_9Example],
+          ).createProcessor(
+            supporting([v0_9Basic.id], version: A2uiProtocolVersion.v0_9),
+          );
+      expect(processor.activeCatalogs, [v0_9Basic]);
+      expect(processor.examples, [v0_9Example]);
+    });
+
+    test('gives a v1.0 processor the v1.0 examples', skip: notImplemented, () {
+      final A2uiRequestProcessor processor = A2uiGenerator(
+        catalogs: both,
+        examples: [v1_0Example, v0_9Example],
+      ).createProcessor(declaring([basic.id], [v0_9Basic.id]));
+      expect(processor.activeCatalogs, [basic]);
+      expect(processor.examples, [v1_0Example]);
+    });
+
+    test('rejects an example of a version no catalog targets', () {
+      expect(
+        () =>
+            A2uiGenerator(
+              catalogs: [CatalogConfig(v0_9Basic)],
+              examples: [v1_0Example],
+            ).createProcessor(
+              supporting([v0_9Basic.id], version: A2uiProtocolVersion.v0_9),
+            ),
+        throwsA(isA<A2uiValidationError>()),
+      );
     });
   });
 

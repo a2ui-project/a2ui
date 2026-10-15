@@ -15,8 +15,6 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../inference_format.dart';
-import '../../parser/parser.dart';
-import '../../prompt/generator.dart';
 import '../../utils/catalogs.dart';
 import 'parser.dart';
 import 'prompt_generator.dart';
@@ -41,33 +39,39 @@ class ExpressFormatFactory extends InferenceFormatFactory {
   InferenceFormat createFormat(
     List<CatalogApi> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
-  }) {
-    checkDistinctIds(catalogs);
-    return ExpressFormat._(
-      List.unmodifiable(catalogs),
-      List.unmodifiable(examples),
-      allowedMessages == null ? null : List.unmodifiable(allowedMessages!),
-    );
-  }
+  }) => ExpressFormat(
+    catalogs,
+    examples: examples,
+    allowedMessages: allowedMessages,
+  );
 }
 
 /// The Express format bound to the catalogs of one request.
 ///
 /// The first catalog is the default for a surface that does not name one.
 class ExpressFormat extends InferenceFormat {
-  ExpressFormat._(this._catalogs, this._examples, this._allowedMessages);
-
-  final List<CatalogApi> _catalogs;
-  final List<List<AgentToRendererMessage>> _examples;
-  final List<String>? _allowedMessages;
+  /// [allowedMessages] names the message types the model may write, such as
+  /// `createSurface`; null allows all of them. The prompt describes only the
+  /// statements that compile to these types.
+  ///
+  /// Throws [A2uiCatalogError] if two of [catalogs] share an id.
+  ExpressFormat(
+    List<CatalogApi> catalogs, {
+    List<List<AgentToRendererMessage>> examples = const [],
+    List<String>? allowedMessages,
+  }) : promptGenerator = ExpressPromptGenerator(
+         List.unmodifiable(catalogs),
+         examples: List.unmodifiable(examples),
+         allowedMessages: allowedMessages == null
+             ? null
+             : List.unmodifiable(allowedMessages),
+       ) {
+    checkDistinctIds(catalogs);
+  }
 
   @override
-  late final PromptGenerator promptGenerator = ExpressPromptGenerator(
-    _catalogs,
-    examples: _examples,
-    allowedMessages: _allowedMessages,
-  );
+  final ExpressPromptGenerator promptGenerator;
 
   @override
-  Parser createParser() => ExpressParser(_catalogs);
+  ExpressParser createParser() => ExpressParser(promptGenerator.catalogs);
 }

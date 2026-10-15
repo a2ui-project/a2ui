@@ -15,7 +15,9 @@ partly implemented; see [Status](#status).
 The protocol version is the one the catalogs target. A v1.0 catalog document
 declares it as `protocolVersion`; a v0.9 document declares none, so a catalog
 provider loading one is given `A2uiProtocolVersion.v0_9`. The catalogs
-registered with one `A2uiGenerator` target one version.
+registered with one `A2uiGenerator` may target several versions: each
+processor negotiates one with its renderer, the latest version in which the
+two have a catalog in common, and shows the model the examples written in it.
 
 ## Status
 
@@ -24,9 +26,10 @@ Implemented:
 - `FileSystemCatalogProvider`, `InMemoryCatalogProvider` and
   `CatalogConfig.fromPath` load catalog documents, checking the catalog id and
   protocol version against the ones the provider is given.
-- `A2uiGenerator.createProcessor` and `resolveCatalogs` pick the registered
-  catalogs the renderer supports, after their transformers, and the inline
-  catalogs it declares when `acceptsInlineCatalogs` is true. For a request
+- `A2uiGenerator.createProcessor` and `resolveCatalogs` negotiate the
+  protocol version, then pick the registered catalogs of that version the
+  renderer supports, after their transformers, and the inline catalogs it
+  declares when `acceptsInlineCatalogs` is true. For a request
   that carries no capabilities, `resolveCatalogs` takes null and activates
   every registered catalog.
 - `ComponentPruningTransformer` and `FunctionPruningTransformer` narrow a
