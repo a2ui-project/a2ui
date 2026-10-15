@@ -33,6 +33,27 @@ public final class NodeResolver: Sendable {
   public let dataModel: DataModel
   public weak var actionHandler: (any ActionHandling)?
   public let protocolVersion: A2UIProtocolVersion?
+  private struct CachedComponentSchema {
+    let propertiesSchema: [String: JSONValue]
+    let classifiedTypes: [String: PropertyType]
+  }
+
+  private struct NodeResolutionRecord {
+    let definitionID: String
+    let instanceID: String
+    let basePath: String?
+    let index: Int?
+    let instanceSuffix: String?
+    var readPaths: Set<String>
+  }
+
+  private var activeNodes: [String: Node] = [:]
+  private var schemaCache: [String: CachedComponentSchema] = [:]
+  private var nodeRecords: [String: NodeResolutionRecord] = [:]
+  private var nodesByReadPath: [String: Set<String>] = [:]
+  private var nodesByAncestorPath: [String: Set<String>] = [:]
+  private var templateArrayCounts: [String: Int] = [:]
+  private var currentNodeReadPaths: Set<String>?
   private var reportedExpressionErrors: Set<String> = []
   private var currentPassExpressionErrors: Set<String> = []
   private var isResolvingTree = false
@@ -173,11 +194,16 @@ public final class NodeResolver: Sendable {
     if !wasResolvingTree {
       isResolvingTree = true
       currentPassExpressionErrors.removeAll()
+      nodeRecords.removeAll()
+      nodesByReadPath.removeAll()
+      nodesByAncestorPath.removeAll()
+      templateArrayCounts.removeAll()
     }
     defer {
       if !wasResolvingTree {
         reportedExpressionErrors = currentPassExpressionErrors
         currentPassExpressionErrors.removeAll()
+        activeNodes = activeNodes.filter { nodeRecords[$0.key] != nil }
         isResolvingTree = false
       }
     }
@@ -189,6 +215,149 @@ public final class NodeResolver: Sendable {
       components: componentsModel.components,
       data: dataModel.data
     )
+  }
+
+  /// Incrementally updates only the nodes affected by a data mutation at `changedPath`.
+  ///
+  /// Falls back to a full `resolveTree()` if no root exists yet or if a template's array count
+  /// changed.
+  func resolveDataChange(at changedPath: String) -> Node? {
+    guard let root = activeNodes["root"] else {
+      return resolveTree()
+    }
+
+    let normalizedChanged = normalizePath(changedPath)
+    let currentData = dataModel.data
+
+    for (templatePath, expectedCount) in templateArrayCounts {
+      if pathsOverlap(templatePath, normalizedChanged) {
+        let currentCount = currentData[templatePath]?.arrayValue?.count ?? 0
+        if currentCount != expectedCount {
+          return resolveTree()
+        }
+      }
+    }
+
+    var affectedNodeIDs = nodesByReadPath[normalizedChanged] ?? []
+    if let subNodes = nodesByAncestorPath[normalizedChanged] {
+      affectedNodeIDs.formUnion(subNodes)
+    }
+    for ancestor in ancestorPaths(of: normalizedChanged) {
+      if let ancNodes = nodesByReadPath[ancestor] {
+        affectedNodeIDs.formUnion(ancNodes)
+      }
+    }
+
+    guard !affectedNodeIDs.isEmpty else {
+      return root
+    }
+
+    let components = componentsModel.components
+    let wasResolvingTree = isResolvingTree
+    let savedPassErrors = currentPassExpressionErrors
+    isResolvingTree = true
+    defer {
+      currentPassExpressionErrors = savedPassErrors
+      isResolvingTree = wasResolvingTree
+    }
+
+    for nodeID in affectedNodeIDs {
+      guard let record = nodeRecords[nodeID], activeNodes[nodeID] != nil else { continue }
+      currentPassExpressionErrors.removeAll()
+      _ = resolveNode(
+        definitionID: record.definitionID,
+        instanceID: record.instanceID,
+        basePath: record.basePath,
+        index: record.index,
+        instanceSuffix: record.instanceSuffix,
+        visited: [],
+        components: components,
+        data: currentData,
+        recurseIntoChildren: false
+      )
+      let prefix = "\(record.instanceID):"
+      reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
+      reportedExpressionErrors.formUnion(currentPassExpressionErrors)
+    }
+    return activeNodes["root"]
+  }
+
+  private func pathsOverlap(_ pathA: String, _ pathB: String) -> Bool {
+    if pathA == pathB || pathA == "/" || pathB == "/" { return true }
+    let prefixA = pathA + "/"
+    let prefixB = pathB + "/"
+    return pathA.hasPrefix(prefixB) || pathB.hasPrefix(prefixA)
+  }
+
+  private func normalizePath(_ path: String) -> String {
+    if path.isEmpty || path == "/" { return "/" }
+    let withLeading = path.hasPrefix("/") ? path : "/" + path
+    if withLeading.count > 1 && withLeading.hasSuffix("/") {
+      return String(withLeading.dropLast())
+    }
+    return withLeading
+  }
+
+  private func ancestorPaths(of normalizedPath: String) -> [String] {
+    guard normalizedPath != "/" else { return [] }
+    var result: [String] = ["/"]
+    var current = ""
+    let parts = normalizedPath.dropFirst().split(separator: "/", omittingEmptySubsequences: false)
+    for part in parts.dropLast() {
+      current += "/" + part
+      result.append(current)
+    }
+    return result
+  }
+
+  private func recordReadPath(_ path: String) {
+    currentNodeReadPaths?.insert(normalizePath(path))
+  }
+
+  private func registerNodeDependencies(_ record: NodeResolutionRecord) {
+    let instanceID = record.instanceID
+    if let oldRecord = nodeRecords[instanceID] {
+      guard oldRecord.readPaths != record.readPaths else { return }
+      for oldPath in oldRecord.readPaths {
+        nodesByReadPath[oldPath]?.remove(instanceID)
+        for ancestor in ancestorPaths(of: oldPath) {
+          nodesByAncestorPath[ancestor]?.remove(instanceID)
+        }
+      }
+    }
+
+    nodeRecords[instanceID] = record
+    for readPath in record.readPaths {
+      nodesByReadPath[readPath, default: []].insert(instanceID)
+      for ancestor in ancestorPaths(of: readPath) {
+        nodesByAncestorPath[ancestor, default: []].insert(instanceID)
+      }
+    }
+  }
+
+  private func cachedSchema(
+    for type: String,
+    catalogID: String?,
+    catalog: AnyCatalog?
+  ) -> CachedComponentSchema {
+    let cacheKey = "\(catalogID ?? ""):\(type)"
+    if let cached = schemaCache[cacheKey] {
+      return cached
+    }
+    let schemaJSON = catalog?.components[type]?.schema.jsonValue ?? .object([:])
+    var propertiesSchema = extractPropertiesSchema(from: schemaJSON)
+    // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
+    if propertiesSchema["accessibility"] == nil {
+      propertiesSchema["accessibility"] = .object([
+        "$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))
+      ])
+    }
+    let entry = CachedComponentSchema(
+      propertiesSchema: propertiesSchema,
+      classifiedTypes: propertiesSchema.mapValues { classifySchema($0) }
+    )
+    schemaCache[cacheKey] = entry
+    return entry
   }
 
   /// Resolves a component definition into a concrete ``Node``.
@@ -209,7 +378,8 @@ public final class NodeResolver: Sendable {
     instanceSuffix: String? = nil,
     visited: Set<String> = [],
     components: [String: ComponentModel],
-    data: JSONValue
+    data: JSONValue,
+    recurseIntoChildren: Bool = true
   ) -> Node? {
     if visited.contains(instanceID) {
       return nil
@@ -221,10 +391,13 @@ public final class NodeResolver: Sendable {
 
     let previousComponentID = currentComponentID
     let previousPropertyPath = currentPropertyPath
+    let previousReadPaths = currentNodeReadPaths
     currentComponentID = instanceID
+    currentNodeReadPaths = []
     defer {
       currentComponentID = previousComponentID
       currentPropertyPath = previousPropertyPath
+      currentNodeReadPaths = previousReadPaths
     }
 
     let type = component.type
@@ -234,26 +407,16 @@ public final class NodeResolver: Sendable {
     var visited = visited
     visited.insert(instanceID)
 
-    let schemaJSON = targetCatalog?.components[type]?.schema.jsonValue ?? .object([:])
-    var propertiesSchema = extractPropertiesSchema(from: schemaJSON)
-    // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
-    if propertiesSchema["accessibility"] == nil {
-      propertiesSchema["accessibility"] = .object([
-        "$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))
-      ])
-    }
+    let cached = cachedSchema(for: type, catalogID: effectiveCatalogID, catalog: targetCatalog)
+    let propertiesSchema = cached.propertiesSchema
 
     var componentChecks: [ResolvedCheck] = []
     var preResolvedChecksByKey: [String: [ResolvedCheck]] = [:]
-    for (key, val) in component.properties {
-      let propSchema = propertiesSchema[key] ?? .boolean(true)
-      let propType = classifySchema(propSchema)
-      if propType == .checks {
-        currentPropertyPath = key
-        let resolved = resolveChecks(val, basePath: basePath, index: index, data: data)
-        preResolvedChecksByKey[key] = resolved
-        componentChecks.append(contentsOf: resolved)
-      }
+    for (key, val) in component.properties where cached.classifiedTypes[key] == .checks {
+      currentPropertyPath = key
+      let resolved = resolveChecks(val, basePath: basePath, index: index, data: data)
+      preResolvedChecksByKey[key] = resolved
+      componentChecks.append(contentsOf: resolved)
     }
 
     var resolvedProperties: [String: any Resolved] = [:]
@@ -263,7 +426,7 @@ public final class NodeResolver: Sendable {
         continue
       }
       let propSchema = propertiesSchema[key] ?? .boolean(true)
-      let propType = classifySchema(propSchema)
+      let propType = cached.classifiedTypes[key] ?? .standard
 
       if let resolvedVal = resolveProperty(
         value: val,
@@ -277,18 +440,39 @@ public final class NodeResolver: Sendable {
         visited: visited,
         components: components,
         data: data,
-        checks: componentChecks
+        checks: componentChecks,
+        recurseIntoChildren: recurseIntoChildren
       ) {
         resolvedProperties[key] = resolvedVal
       }
     }
 
-    return Node(
+    let record = NodeResolutionRecord(
+      definitionID: definitionID,
+      instanceID: instanceID,
+      basePath: basePath,
+      index: index,
+      instanceSuffix: instanceSuffix,
+      readPaths: currentNodeReadPaths ?? []
+    )
+    registerNodeDependencies(record)
+
+    if let existing = activeNodes[instanceID],
+      existing.type == type && existing.catalogID == effectiveCatalogID
+    {
+      let updated = existing.updatingProperties(resolvedProperties)
+      activeNodes[instanceID] = updated
+      return updated
+    }
+
+    let node = Node(
       id: instanceID,
       type: type,
       catalogID: effectiveCatalogID,
       properties: resolvedProperties
     )
+    activeNodes[instanceID] = node
+    return node
   }
 
   // MARK: - Property Classification & Extraction
@@ -427,7 +611,8 @@ public final class NodeResolver: Sendable {
     visited: Set<String>,
     components: [String: ComponentModel],
     data: JSONValue,
-    checks: [ResolvedCheck] = []
+    checks: [ResolvedCheck] = [],
+    recurseIntoChildren: Bool = true
   ) -> (any Resolved)? {
     let previousComponentID = currentComponentID
     let previousPropertyPath = currentPropertyPath
@@ -469,12 +654,16 @@ public final class NodeResolver: Sendable {
         propertyKey: propertyKey,
         visited: visited,
         components: components,
-        data: data
+        data: data,
+        recurseIntoChildren: recurseIntoChildren
       )
     case .componentID:
       guard let childID = value.stringValue else { return nil }
       let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
       let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
+      if !recurseIntoChildren, let existing = activeNodes[childInstanceID] {
+        return existing
+      }
       return resolveNode(
         definitionID: childID,
         instanceID: childInstanceID,
@@ -483,7 +672,8 @@ public final class NodeResolver: Sendable {
         instanceSuffix: effectiveSuffix,
         visited: visited,
         components: components,
-        data: data
+        data: data,
+        recurseIntoChildren: recurseIntoChildren
       )
     case .number:
       return value.doubleValue
@@ -509,7 +699,8 @@ public final class NodeResolver: Sendable {
             visited: visited,
             components: components,
             data: data,
-            checks: checks
+            checks: checks,
+            recurseIntoChildren: recurseIntoChildren
           ) {
             return resolved
           }
@@ -546,7 +737,8 @@ public final class NodeResolver: Sendable {
               visited: visited,
               components: components,
               data: data,
-              checks: checks
+              checks: checks,
+              recurseIntoChildren: recurseIntoChildren
             ) {
               resolvedObj[k] = resVal
             }
@@ -573,6 +765,13 @@ public final class NodeResolver: Sendable {
     basePath: String?,
     index: Int? = nil
   ) -> JSONValue {
+    let previousReadHook = dataModel.onReadPath
+    dataModel.onReadPath = { [weak self] path in
+      self?.recordReadPath(path)
+    }
+    defer {
+      dataModel.onReadPath = previousReadHook
+    }
     let context = DataContext(
       dataModel: dataModel,
       path: basePath ?? "",
@@ -621,6 +820,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      recordReadPath(absPath)
       let resolvedValue = data[absPath]?.boolValue
       return DataBinding<Bool>(
         identity: .path(absPath),
@@ -649,6 +849,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      recordReadPath(absPath)
       let resolvedValue = coerceToString(data[absPath])
       return DataBinding<String>(
         identity: .path(absPath),
@@ -678,6 +879,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      recordReadPath(absPath)
       let resolvedValue = data[absPath]?.doubleValue
       return DataBinding<Double>(
         identity: .path(absPath),
@@ -706,6 +908,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      recordReadPath(absPath)
       let resolvedValue = data[absPath]
       return DataBinding<JSONValue>(
         identity: .path(absPath),
@@ -734,6 +937,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      recordReadPath(absPath)
       let resolvedValue = data[absPath]?.arrayValue?.compactMap { self.coerceToString($0) }
       return DataBinding<[String]>(
         identity: .path(absPath),
@@ -771,6 +975,7 @@ public final class NodeResolver: Sendable {
       let bindingKey = self.atLeastV10 ? "@path" : "path"
       if let dict = conditionJSON.dictionaryValue, let pathStr = dict[bindingKey]?.stringValue {
         let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+        self.recordReadPath(absPath)
         let rawVal = data[absPath]
         if let rawDict = rawVal?.objectValue, let valid = rawDict["valid"]?.boolValue {
           let code = rawDict["code"]?.stringValue
@@ -996,7 +1201,8 @@ public final class NodeResolver: Sendable {
     propertyKey: String,
     visited: Set<String>,
     components: [String: ComponentModel],
-    data: JSONValue
+    data: JSONValue,
+    recurseIntoChildren: Bool = true
   ) -> [Node]? {
     switch value {
     case .array(let arr):
@@ -1005,6 +1211,10 @@ public final class NodeResolver: Sendable {
       for item in arr {
         guard let childID = item.stringValue else { continue }
         let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
+        if !recurseIntoChildren, let existing = activeNodes[childInstanceID] {
+          resolvedNodes.append(existing)
+          continue
+        }
         if let childNode = resolveNode(
           definitionID: childID,
           instanceID: childInstanceID,
@@ -1013,7 +1223,8 @@ public final class NodeResolver: Sendable {
           instanceSuffix: effectiveSuffix,
           visited: visited,
           components: components,
-          data: data
+          data: data,
+          recurseIntoChildren: recurseIntoChildren
         ) {
           resolvedNodes.append(childNode)
         }
@@ -1035,9 +1246,11 @@ public final class NodeResolver: Sendable {
       guard let dataListVal = data[absPath],
         let dataItems = dataListVal.arrayValue
       else {
+        templateArrayCounts[normalizePath(absPath)] = 0
         return []
       }
 
+      templateArrayCounts[normalizePath(absPath)] = dataItems.count
       var expandedNodes: [Node] = []
 
       for (itemIndex, _) in dataItems.enumerated() {
@@ -1046,6 +1259,10 @@ public final class NodeResolver: Sendable {
         let itemID = "\(templateID)_\(itemSuffix)"
         let itemBasePath = "\(absPath)/\(itemIndex)"
 
+        if !recurseIntoChildren, let existing = activeNodes[itemID] {
+          expandedNodes.append(existing)
+          continue
+        }
         if let itemNode = resolveNode(
           definitionID: templateID,
           instanceID: itemID,
@@ -1054,7 +1271,8 @@ public final class NodeResolver: Sendable {
           instanceSuffix: itemSuffix,
           visited: visited,
           components: components,
-          data: data
+          data: data,
+          recurseIntoChildren: recurseIntoChildren
         ) {
           expandedNodes.append(itemNode)
         }
