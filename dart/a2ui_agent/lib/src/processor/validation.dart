@@ -14,6 +14,8 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import '../utils/catalogs.dart';
+
 /// Checks [payloads] the way a renderer holding [catalogs] would, applying
 /// them in order to surfaces that start empty.
 ///
@@ -23,10 +25,18 @@ import 'package:a2ui_core/a2ui_core.dart';
 /// [catalogs], as for anything else a payload names that the catalogs do not
 /// declare, and otherwise the [A2uiError] a renderer would report for the
 /// first message it rejects.
+///
+/// Checking payloads for v1.0 catalogs is not implemented yet and throws
+/// [UnimplementedError].
 void validatePayloads(
   List<CatalogApi> catalogs,
   Iterable<List<AgentToRendererMessage>> payloads,
 ) {
+  if (payloads.every((payload) => payload.isEmpty)) return;
+  if (catalogs.isNotEmpty &&
+      catalogsProtocolVersion(catalogs).isAtLeast(A2uiProtocolVersion.v1_0)) {
+    throw UnimplementedError('Checking payloads of protocol v1.0');
+  }
   for (final payload in payloads) {
     for (final CreateSurfaceMessage message
         in payload.whereType<CreateSurfaceMessage>()) {
@@ -39,8 +49,8 @@ void validatePayloads(
       }
     }
   }
-  final renderer = MessageProcessor<ComponentApi>(
-    catalogs: [for (final CatalogApi catalog in catalogs) _signed(catalog)],
+  final MessageProcessor<ComponentApi> renderer = MessageProcessor.forAgent(
+    catalogs: catalogs,
     defaultVersion: A2uiProtocolVersion.v0_9,
     // A surface may arrive across several messages of one payload, so the
     // checks that span messages wait for the whole payload below. Undeclared
@@ -67,34 +77,4 @@ void validatePayloads(
   } finally {
     renderer.model.dispose();
   }
-}
-
-/// [catalog] as a catalog `MessageProcessor` can hold.
-///
-/// `MessageProcessor` keeps surface state, and a surface invokes functions, so
-/// its catalogs carry [FunctionImplementation]s rather than signatures.
-/// Validation never invokes one, so each function keeps its signature only.
-Catalog<ComponentApi, FunctionImplementation> _signed(CatalogApi catalog) =>
-    catalog.withFunctions(catalog.functions.values.map(_SignatureOnly.new));
-
-class _SignatureOnly extends FunctionImplementation {
-  _SignatureOnly(FunctionApi api)
-    : super(
-        name: api.name,
-        argumentSchema: api.argumentSchema,
-        returnType: api.returnType,
-        description: api.description,
-        allowedCallers: api.declaredAllowedCallers,
-        requiresUserActivation: api.declaredRequiresUserActivation,
-        definition: api.definition,
-      );
-
-  @override
-  Object? execute(
-    Map<String, dynamic> args,
-    DataContext context, [
-    CancellationSignal? cancellationSignal,
-  ]) => throw UnsupportedError(
-    "Function '$name' is a signature only and cannot be invoked.",
-  );
 }

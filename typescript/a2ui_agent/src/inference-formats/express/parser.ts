@@ -110,7 +110,7 @@ export class ExpressParser extends Parser {
   compile(formatContent: string, isFinal = true): AgentToRendererMessage[] {
     const compiler = new ExpressCompiler(this.catalogs, this.version);
     try {
-      return compiler.compile(formatContent, this.surfaceId, '', isFinal);
+      return compiler.compile(formatContent, this.surfaceId, isFinal);
     } catch (e) {
       if (e instanceof ExpressCompilerError) {
         const cause = (e as {cause?: unknown}).cause;

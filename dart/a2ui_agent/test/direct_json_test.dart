@@ -49,6 +49,13 @@ void main() {
     },
   });
 
+  /// A catalog of protocol v1.0, which does not mix with the v0.9 ones.
+  final CatalogApi v1_0Catalog = Catalog.fromJson({
+    'catalogId': 'https://example.com/v1.json',
+    'protocolVersion': '1.0',
+    'components': <String, Object?>{},
+  });
+
   DirectJsonParser parser({
     Set<String> progressiveKeys = const {},
     bool bufferIncompleteComponents = false,
@@ -245,6 +252,17 @@ void main() {
         () => DirectJsonParser([]).compile('[${create('s')}]'),
         throwsError<A2uiCatalogError>(),
       );
+    });
+
+    test('rejects catalogs of different versions, even with no messages', () {
+      final mixed = DirectJsonParser([basic, v1_0Catalog]);
+      for (final payload in ['[]', '[${create('s')}]']) {
+        expect(
+          () => mixed.compile(payload),
+          throwsError<A2uiCatalogError>(),
+          reason: payload,
+        );
+      }
     });
   });
 
@@ -515,6 +533,21 @@ void main() {
           ' <a2ui>root = Text("x")</a2ui>',
         ),
       ]);
+    });
+
+    test('rejects catalogs of different versions as soon as a message '
+        'arrives', () {
+      for (final wrapped in [true, false]) {
+        final mixed = DirectJsonParser([basic, v1_0Catalog]);
+        expect(
+          () => mixed.parseChunk(
+            '${wrapped ? '<a2ui-json>' : ''}[${create('s')}',
+            wrapped: wrapped,
+          ),
+          throwsError<A2uiCatalogError>(),
+          reason: 'wrapped: $wrapped',
+        );
+      }
     });
 
     test('rejects a change of wrapped between chunks', () {

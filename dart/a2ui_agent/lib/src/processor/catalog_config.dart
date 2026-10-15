@@ -20,8 +20,8 @@ import 'catalog_providers.dart';
 /// A catalog the agent supports, registered with an `A2uiGenerator`, and the
 /// transformers applied to it.
 ///
-/// The catalog is registered for protocol v0.9, the only version this SDK
-/// implements.
+/// The catalog is registered for the protocol version it targets, v0.9 or
+/// v1.0. The catalogs registered with one generator target the same one.
 class CatalogConfig {
   /// The catalog as its document declares it, parsed by [Catalog.fromJson] or
   /// loaded by a [CatalogProvider].

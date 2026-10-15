@@ -15,6 +15,7 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../inference_format.dart';
+import '../../utils/catalogs.dart';
 import 'parser.dart';
 import 'prompt_generator.dart';
 
@@ -67,6 +68,8 @@ class DirectJsonFormat extends InferenceFormat {
   ///
   /// [bufferIncompleteComponents] holds a streamed component back until its
   /// JSON object closes; see [DirectJsonParser.bufferIncompleteComponents].
+  ///
+  /// Throws [A2uiCatalogError] if two of [catalogs] share an id.
   DirectJsonFormat(
     List<CatalogApi> catalogs, {
     List<List<AgentToRendererMessage>> examples = const [],
@@ -79,7 +82,9 @@ class DirectJsonFormat extends InferenceFormat {
          allowedMessages: allowedMessages,
        ),
        _progressiveKeys = Set.unmodifiable(progressiveKeys),
-       _bufferIncompleteComponents = bufferIncompleteComponents;
+       _bufferIncompleteComponents = bufferIncompleteComponents {
+    checkDistinctIds(catalogs);
+  }
 
   final Set<String> _progressiveKeys;
 

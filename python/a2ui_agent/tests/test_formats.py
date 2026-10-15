@@ -15,8 +15,8 @@
 
 import pytest
 from a2ui.core import A2uiValidationError, Catalog
-from a2ui.schema import VERSION_0_9
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import (
     DEFAULT_PROGRESSIVE_KEYS,
     DirectJsonFormat,
@@ -48,7 +48,7 @@ def test_catalog():
                 }
             },
         },
-        protocol_version=f"v{VERSION_0_9}",
+        protocol_version=ProtocolVersion.V0_9,
     )
 
 
@@ -57,7 +57,7 @@ def test_schema_strategy_prompt_generation(test_catalog):
 
     config = CatalogConfig(
         InMemoryCatalogProvider(
-            test_catalog.to_json(), protocol_version=VERSION_0_9
+            test_catalog.to_json(), protocol_version=ProtocolVersion.V0_9
         ).load()
     )
     catalogs = resolve_catalogs(
@@ -71,7 +71,9 @@ def test_schema_strategy_prompt_generation(test_catalog):
 
 
 def test_schema_strategy_prompt_shows_the_protocol_schemas_once(test_catalog):
-    direct_json_format = DirectJsonFormat([test_catalog, BasicCatalog(VERSION_0_9)])
+    direct_json_format = DirectJsonFormat(
+        [test_catalog, BasicCatalog(ProtocolVersion.V0_9)]
+    )
 
     prompt = direct_json_format.prompt_generator.generate()
     instructions = direct_json_format.prompt_generator.generate_catalog_instructions()
@@ -150,7 +152,7 @@ def test_supports_streaming_property(test_catalog):
 
     config = CatalogConfig(
         InMemoryCatalogProvider(
-            test_catalog.to_json(), protocol_version=VERSION_0_9
+            test_catalog.to_json(), protocol_version=ProtocolVersion.V0_9
         ).load()
     )
 

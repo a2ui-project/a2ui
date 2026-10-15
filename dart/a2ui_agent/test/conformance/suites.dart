@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Loading the shared agent suites, and moving their cases between the
-/// protocol version they are written against and the one this SDK
-/// implements.
+/// Loading the shared agent suites, and running their cases in each
+/// protocol version this SDK implements.
 ///
-/// The agent suites are written against v1.0 and this SDK implements v0.9,
-/// so a harness lowers what a case hands the SDK to v0.9 and lifts what the
-/// SDK returns back to v1.0 before comparing:
+/// The agent suites are written against v1.0. A harness runs each case twice,
+/// once in each [SuiteVersion]. As written in v1.0, a case that reaches a part
+/// of this SDK that is declared but not implemented yet is skipped; see
+/// [SuiteVersion.run]. Lowered to v0.9, a harness lowers what a case hands the
+/// SDK to v0.9 and lifts what the SDK returns back to v1.0 before comparing:
 ///
 /// - A `version` of `v1.0` becomes `v0.9`, and one of `v0.9` becomes
 ///   `v1.0`. A case written with `v0.9` means a version other than its
@@ -59,6 +60,103 @@ List<Map<String, Object?>> loadSuite(String path) => [
     _plain(node)! as Map<String, Object?>,
 ];
 
+/// The protocol version a harness runs a suite's cases in.
+enum SuiteVersion {
+  /// Each case lowered to v0.9 before this SDK reads it, and what the SDK
+  /// returns lifted back to v1.0, as the library comment describes.
+  v0_9('lowered to v0.9'),
+
+  /// Each case as written, and what this SDK returns as it writes it.
+  v1_0('as written in v1.0');
+
+  const SuiteVersion(this.label);
+
+  /// How a group title names the version.
+  final String label;
+
+  bool get _lowers => this == v0_9;
+
+  /// Runs [body], the body of a case.
+  ///
+  /// As written in v1.0, a case that reaches a part of this SDK that is
+  /// declared but not implemented yet, which throws [UnimplementedError], is
+  /// marked skipped, naming the part. It runs once that part is implemented.
+  void run(void Function() body) {
+    if (_lowers) return body();
+    try {
+      body();
+      // A stub is what throws it, so catching it is how a stub is found.
+      // ignore: avoid_catching_errors
+    } on UnimplementedError catch (error) {
+      markTestSkipped('Not implemented yet: ${error.message}');
+    }
+  }
+
+  /// The catalog a suite names by [entry]; see [catalogConfig].
+  CatalogConfig catalogConfig(Object? entry) =>
+      _catalogConfig(entry, lower: _lowers);
+
+  /// The catalogs a case names in [args]; see [caseCatalogs].
+  List<CatalogApi> catalogs(Map<String, Object?> args) =>
+      caseCatalogs(args, lower: _lowers);
+
+  /// The renderer capabilities [json] states.
+  A2uiRendererCapabilities capabilities(Map<String, Object?> json) => _lowers
+      ? lowerCapabilities(json)
+      : A2uiRendererCapabilities.fromJson(json);
+
+  /// The prompt example at [path], relative to `conformance/`.
+  List<AgentToRendererMessage> example(String path) =>
+      _lowers ? loadExample(path) : loadExampleUnlowered(path);
+
+  /// [json], messages a case starts from.
+  List<AgentToRendererMessage> messages(List<Object?> json) => _lowers
+      ? lowerMessages(json)
+      : [
+          for (final Object? message in json)
+            AgentToRendererMessage.fromJson(
+              Map<String, Object?>.from(message! as Map),
+            ),
+        ];
+
+  /// [text], a payload a model wrote, given [catalogId] in each
+  /// `createSurface` when it is lowered; see [lowerText].
+  String text(String text, {String? catalogId}) =>
+      _lowers ? lowerText(text, catalogId: catalogId) : text;
+
+  /// The catalog a harness names in each `createSurface` of [testCase] when
+  /// it is lowered; see [injectedCatalogId].
+  String? injectedCatalog(Map<String, Object?> testCase) =>
+      _lowers ? injectedCatalogId(testCase) : null;
+
+  /// [messages] as JSON in the vocabulary of the suites; see [liftMessages].
+  List<Object?> messagesJson(
+    List<AgentToRendererMessage> messages, {
+    bool join = false,
+    String? injectedCatalogId,
+  }) => _lowers
+      ? liftMessages(messages, join: join, injectedCatalogId: injectedCatalogId)
+      : messages.map(messageAsWritten).toList();
+
+  /// [parts] in the vocabulary of the suites; see [liftParts].
+  List<Object?> partsJson(
+    List<ResponsePart> parts, {
+    bool join = false,
+    String? injectedCatalogId,
+  }) => _lowers
+      ? liftParts(parts, join: join, injectedCatalogId: injectedCatalogId)
+      : partsAsWritten(parts);
+
+  /// Checks the catalog-level assertions of [expected] against [catalog];
+  /// see [expectCatalog]. As written, the version is checked too.
+  void expectCatalog(CatalogApi catalog, Map<String, Object?> expected) {
+    _expectCatalog(catalog, expected);
+    if (expected['protocol_version'] case final String version when !_lowers) {
+      expect(catalog.protocolVersion?.jsonValue, version);
+    }
+  }
+}
+
 /// Suite-level error categories mapped onto this SDK's exception types.
 final Map<String, Matcher> _errors = {
   'ParseError': isA<A2uiParseError>(),
@@ -66,17 +164,33 @@ final Map<String, Matcher> _errors = {
   'CatalogError': isA<A2uiCatalogError>(),
 };
 
-/// The matcher for a case's `expect_error`.
-Matcher throwsCategory(Object? expectError) {
+/// Expects [body] to throw the error category of a case's `expect_error`.
+///
+/// An [UnimplementedError] is thrown on rather than compared, so that
+/// [SuiteVersion.run] skips a case that reaches a part not implemented yet.
+void expectThrowsCategory(
+  void Function() body,
+  Object? expectError, {
+  String? reason,
+}) {
   final category =
       (expectError! as Map<String, Object?>)['category']! as String;
-  return throwsA(_errors[category]!);
+  try {
+    body();
+    // ignore: avoid_catching_errors
+  } on UnimplementedError {
+    rethrow;
+  } on Object catch (error) {
+    expect(error, _errors[category], reason: reason);
+    return;
+  }
+  fail('Expected a $category, but nothing was thrown. ${reason ?? ''}');
 }
 
 /// The catalog a suite names by [entry]: a path relative to `conformance/`,
-/// or a map with the path under `catalog` and the transformers registered
-/// with it under `transformers`.
-CatalogConfig catalogConfig(Object? entry, {bool lower = true}) =>
+/// a map with the path under `catalog` and the transformers registered with
+/// it under `transformers`, or a catalog document written in the case.
+CatalogConfig _catalogConfig(Object? entry, {required bool lower}) =>
     switch (entry) {
       final String path => CatalogConfig(
         lower ? loadCatalog(path) : loadCatalogUnlowered(path),
@@ -89,6 +203,14 @@ CatalogConfig catalogConfig(Object? entry, {bool lower = true}) =>
             _transformer(transformer),
         ],
       ),
+      final Map<String, Object?> document => CatalogConfig(
+        lower
+            ? _provide(
+                lowerCatalogDocument(document),
+                version: A2uiProtocolVersion.v0_9,
+              )
+            : _provide(document),
+      ),
       _ => throw ArgumentError.value(entry, 'entry', 'Not a catalog entry'),
     };
 
@@ -97,10 +219,10 @@ CatalogConfig catalogConfig(Object? entry, {bool lower = true}) =>
 List<CatalogApi> caseCatalogs(Map<String, Object?> args, {bool lower = true}) =>
     [
       if (args['catalog'] case final Object catalog)
-        catalogConfig(catalog, lower: lower).transformedCatalog,
+        _catalogConfig(catalog, lower: lower).transformedCatalog,
       if (args['catalogs'] case final List<Object?> entries)
         for (final Object? entry in entries)
-          catalogConfig(entry, lower: lower).transformedCatalog,
+          _catalogConfig(entry, lower: lower).transformedCatalog,
     ];
 
 bool _isVersionAtLeast1_0(Object? versionStr) =>
@@ -162,18 +284,31 @@ CatalogApi loadCatalog(String path) => _catalogCache.putIfAbsent(path, () {
   ).load();
 });
 
-/// The catalog document at [path], loaded as written without lowering to v0.9.
+/// The catalog document at [path], loaded as written by a provider.
+///
+/// A document that names no catalog is given its path as its id, and one that
+/// states no version is given v1.0, the version the suites are written in.
 CatalogApi loadCatalogUnlowered(String path) =>
-    _unloweredCatalogCache.putIfAbsent(path, () {
-      final document =
-          jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
-              as Map<String, Object?>;
-      return Catalog.fromJson(
-        document,
-        protocolVersion: A2uiProtocolVersion.v1_0,
-        catalogId: document.containsKey('catalogId') ? null : path,
-      );
-    });
+    _unloweredCatalogCache.putIfAbsent(
+      path,
+      () => _provide(
+        jsonDecode(File('$conformanceRoot/$path').readAsStringSync())
+            as Map<String, Object?>,
+        catalogId: path,
+      ),
+    );
+
+/// [document] loaded by a provider, given [catalogId] when it names no
+/// catalog, and [version] when it states no version.
+CatalogApi _provide(
+  Map<String, Object?> document, {
+  String? catalogId,
+  A2uiProtocolVersion version = A2uiProtocolVersion.v1_0,
+}) => InMemoryCatalogProvider(
+  document,
+  catalogId: document.containsKey('catalogId') ? null : catalogId,
+  protocolVersion: document.containsKey('protocolVersion') ? null : version,
+).load();
 
 /// [document] with a `protocolVersion` of `1.0` or later stated as `0.9`, and
 /// any `validationResult` function return type stated as `boolean`.
@@ -447,11 +582,9 @@ A2uiRendererCapabilities lowerCapabilities(Map<String, Object?> json) =>
         '${swapVersion(entry.key)}': entry.value,
     });
 
-/// Checks the catalog-level assertions of [expected] against [catalog].
-///
-/// A case's `protocol_version` is not checked, because an `a2ui_core`
-/// catalog does not record the version its document declares.
-void expectCatalog(CatalogApi catalog, Map<String, Object?> expected) {
+/// Checks the catalog-level assertions of [expected] against [catalog],
+/// except its `protocol_version`, which a lowered catalog does not have.
+void _expectCatalog(CatalogApi catalog, Map<String, Object?> expected) {
   if (expected['catalog_id'] case final String id) expect(catalog.id, id);
   if (expected['components'] case final List<Object?> names) {
     expect(catalog.components.keys, unorderedEquals(names));
@@ -478,6 +611,30 @@ void expectSnippet(String snippet, Map<String, Object?> expected) {
     }
   }
 }
+
+/// [message] as JSON, less the `sendDataModel: false` a `createSurface`
+/// states, which the suites leave out.
+Map<String, Object?> messageAsWritten(AgentToRendererMessage message) => {
+  for (final MapEntry<String, Object?> entry in message.toJson().entries)
+    entry.key: switch (entry.value) {
+      final Map<String, Object?> body when entry.key == 'createSurface' => {
+        ...body,
+      }..removeWhere((key, value) => key == 'sendDataModel' && value == false),
+      final Object? value => value,
+    },
+};
+
+/// [parts] in the vocabulary of the suites, with messages as this SDK writes
+/// them; see [messageAsWritten].
+List<Object?> partsAsWritten(List<ResponsePart> parts) => [
+  for (final ResponsePart part in parts)
+    switch (part) {
+      TextPart(:final String text) => {'text': text},
+      A2uiPart(:final List<AgentToRendererMessage> a2ui) => {
+        'a2ui': a2ui.map(messageAsWritten).toList(),
+      },
+    },
+];
 
 /// [expected] with `is_final: true` dropped, since a part is final unless it
 /// says otherwise.

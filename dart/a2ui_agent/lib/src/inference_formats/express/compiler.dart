@@ -14,6 +14,7 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import '../../utils/catalogs.dart';
 import 'schema_helper.dart';
 import 'syntax.dart';
 
@@ -25,13 +26,20 @@ const String defaultSurfaceId = 'default_surface';
 String defaultCheckMessage(String check) =>
     '${check.substring(0, 1).toUpperCase()}${check.substring(1)} check failed.';
 
-/// Compiles Express blocks into v0.9 A2UI messages.
+/// Compiles Express blocks into A2UI messages of the protocol version the
+/// catalogs target.
 ///
-/// The rules follow `conformance/agent/express/compiler.yaml`, with the
-/// messages shaped for v0.9: a surface is created by `createSurface` followed
-/// by `updateComponents`, and its initial data by `updateDataModel`. A block
-/// that assigns components but no `root` updates a surface created by an
-/// earlier response, so it compiles to `updateComponents` alone.
+/// The rules follow `conformance/agent/express/compiler.yaml`. For v0.9 a
+/// surface is created by `createSurface` followed by `updateComponents`, and
+/// its initial data by `updateDataModel`. A block that assigns components but
+/// no `root` updates a surface created by an earlier response, so it compiles
+/// to `updateComponents` alone.
+///
+/// For v1.0 the `createSurface` carries the surface's components and initial
+/// data, a component or function call may name its catalog with a
+/// `catalogId` argument, and a standalone function call compiles to
+/// `callRendererFunction`. Compiling for v1.0 is not implemented yet and
+/// throws [UnimplementedError].
 class ExpressCompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
@@ -48,8 +56,9 @@ class ExpressCompiler {
   ///
   /// Throws [A2uiParseError] if [source] is not valid Express,
   /// [A2uiValidationError] if it names anything the catalogs do not declare,
-  /// a component does not match its schema, or the block uses something v0.9
-  /// has no message for, and [A2uiCatalogError] if there are no [catalogs].
+  /// a component does not match its schema, or the block uses something the
+  /// catalogs' version has no message for, and [A2uiCatalogError] if there are
+  /// no [catalogs] or they target different versions.
   List<AgentToRendererMessage> compile(String source) {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('Compiling Express needs at least one catalog.');
@@ -60,6 +69,9 @@ class ExpressCompiler {
         'The Express block has no statements.',
         rawContent: source,
       );
+    }
+    if (catalogsProtocolVersion(catalogs).isAtLeast(A2uiProtocolVersion.v1_0)) {
+      throw UnimplementedError('ExpressCompiler.compile for protocol v1.0');
     }
     final List<Map<String, Object?>> envelopes = [
       for (final Object operation in _operations(statements))

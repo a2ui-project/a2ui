@@ -21,6 +21,7 @@ built in code, and several surfaces and catalogs in one stream.
 
 import pytest
 
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core import A2uiValidationError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats import to_message_dicts
@@ -33,7 +34,6 @@ from a2ui.parser import (
     MSG_TYPE_SURFACE_UPDATE,
     MSG_TYPE_UPDATE_COMPONENTS,
 )
-from a2ui.schema import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 
 CUSTOM_ID = "https://a2ui.org/catalogs/custom"
 

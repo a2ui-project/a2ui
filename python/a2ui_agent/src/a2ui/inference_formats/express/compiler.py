@@ -398,6 +398,21 @@ class ExpressCompiler:
             return name in self.helpers[catalog_id].components
         return bool(catalogs_defining(self.helpers, "component", name))
 
+    def _defines_function(self, name: str, catalog_id: Any) -> bool:
+        """Checks whether a call names a function.
+
+        Args:
+            name: The called name.
+            catalog_id: The `catalogId` written on the call, or None when it
+                has none, in which case every catalog is searched. A
+                `catalogId` that names no active catalog defines nothing.
+        """
+        if catalog_id is not None:
+            if isinstance(catalog_id, str) and catalog_id in self.helpers:
+                return name in self.helpers[catalog_id].functions
+            return False
+        return bool(catalogs_defining(self.helpers, "function", name))
+
     def _resolve(
         self,
         kind: Literal["component", "function"],
@@ -864,13 +879,17 @@ class ExpressCompiler:
         kwargs = dict(ast.get("kwargs", {}))
 
         comp_cat_id = kwargs.pop("catalogId", None)
-        if comp_cat_id is None and not self._defines_component(comp_name, None):
-            # A variable holding a function call, an Event or a template is
-            # inlined wherever it is named rather than emitted as a component.
-            if comp_name in ("Event", "_template") or catalogs_defining(
-                self.helpers, "function", comp_name
-            ):
-                return None
+        # A variable holding a function call, an Event or a template is inlined
+        # wherever it is named rather than emitted as a component. A call that
+        # names its catalog is a function call when that catalog defines it as
+        # a function and not as a component. Events and templates belong to no
+        # catalog, so one that names a catalogId is compiled as a component and
+        # rejected.
+        if not self._defines_component(comp_name, comp_cat_id) and (
+            (comp_name in ("Event", "_template") and comp_cat_id is None)
+            or self._defines_function(comp_name, comp_cat_id)
+        ):
+            return None
         comp_helper, write_cat_id = self._resolve(
             "component",
             comp_name,

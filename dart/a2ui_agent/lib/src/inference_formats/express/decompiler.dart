@@ -14,6 +14,7 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import '../../utils/catalogs.dart';
 import 'compiler.dart';
 import 'schema_helper.dart';
 
@@ -24,7 +25,11 @@ final RegExp _pathSegment = RegExp(r'^[a-zA-Z0-9_]+$');
 /// Words the lexer reads as something other than an identifier.
 const Set<String> _keywords = {'_', 'null', 'true', 'false'};
 
-/// Writes v0.9 messages in Express notation: the inverse of the compiler.
+/// Writes messages of the protocol version the catalogs target in Express
+/// notation: the inverse of the compiler.
+///
+/// Writing v1.0 messages is not implemented yet and throws
+/// [UnimplementedError].
 ///
 /// Positional arguments follow the property order the catalogs declare, so
 /// the decompiler needs the same catalogs the compiler reads with.
@@ -58,8 +63,9 @@ class ExpressDecompiler {
   /// and whole data model `updateDataModel` that follow it for the same
   /// surface, since assigning `root` is how Express creates a surface.
   ///
-  /// Throws [A2uiCatalogError] if there are no [catalogs], and
-  /// [A2uiValidationError] if a message has no Express notation:
+  /// Throws [A2uiCatalogError] if there are no [catalogs] or they target
+  /// different versions, and [A2uiValidationError] if a message has no
+  /// Express notation:
   ///
   /// - a `createSurface` with a theme, with `sendDataModel`, or without an
   ///   `updateComponents` giving the surface its root;
@@ -74,6 +80,9 @@ class ExpressDecompiler {
   String decompile(List<AgentToRendererMessage> messages) {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('Decompiling Express needs at least one catalog.');
+    }
+    if (catalogsProtocolVersion(catalogs).isAtLeast(A2uiProtocolVersion.v1_0)) {
+      throw UnimplementedError('ExpressDecompiler.decompile for protocol v1.0');
     }
     final paragraphs = <String>[];
     final created = <String, CatalogSchemaHelper>{};

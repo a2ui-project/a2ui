@@ -17,11 +17,15 @@
 from collections.abc import Sequence
 import json
 
+from a2ui import constants
 from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.common import to_protocol_version
-from a2ui.schema import constants
-from a2ui.schema.utils import load_agent_to_renderer_schema, load_common_types_schema
-from a2ui.utils import prune_common_types_schema, prune_messages_schema
+from a2ui.utils import (
+    load_agent_to_renderer_schema,
+    load_common_types_schema,
+    prune_common_types_schema,
+    prune_messages_schema,
+)
 
 
 def schema_to_prompt(

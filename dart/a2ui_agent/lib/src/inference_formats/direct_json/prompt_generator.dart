@@ -18,6 +18,7 @@ import 'dart:convert';
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../prompt/generator.dart';
+import '../../utils/catalogs.dart';
 import 'server_to_client.g.dart';
 
 const String _defaultWorkflowRules = '''
@@ -71,17 +72,7 @@ class DirectJsonPromptGenerator extends PromptGenerator {
         'A direct JSON prompt needs at least one catalog.',
       );
     }
-    final Set<A2uiProtocolVersion> versions = {
-      for (final CatalogApi c in catalogs)
-        c.protocolVersion ?? A2uiProtocolVersion.v0_9,
-    };
-    if (versions.length > 1) {
-      throw A2uiCatalogError(
-        "The schema prompt's catalogs target different protocol versions: "
-        '${versions.map((v) => v.semverValue).toList()..sort()}.',
-      );
-    }
-    final A2uiProtocolVersion version = versions.single;
+    final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
     Map<String, Object?> a2rSchema = _loadAgentToRendererSchema(version);
     if (allowedMessages != null) {
       a2rSchema = _pruneMessagesSchema(a2rSchema, allowedMessages!);

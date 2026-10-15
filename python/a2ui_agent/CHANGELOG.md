@@ -1,7 +1,26 @@
 ## Unreleased
 
+- **BREAKING**: Remove the `a2ui.schema` package.
+  - The constants move to `a2ui.constants`. For example,
+    `from a2ui.schema import A2UI_OPEN_TAG` becomes
+    `from a2ui.constants import A2UI_OPEN_TAG`.
+  - `load_examples`, `resolve_examples_path`, `load_agent_to_renderer_schema`
+    and `load_common_types_schema` move to `a2ui.utils`.
+  - `find_repo_root`, `get_spec_dir`, `get_basic_catalog_path`,
+    `get_basic_examples_dir`, `wrap_as_json_array` and `deep_update` are
+    removed. The path helpers only worked in a repository checkout.
+  - The `VERSION_0_8`, `VERSION_0_9`, `VERSION_0_9_1` and `VERSION_1_0`
+    constants are removed. Use the `ProtocolVersion` members from
+    `a2ui.core.schema` instead, such as `ProtocolVersion.V0_9`. Their values
+    carry a leading "v" (`"v0.9"`); `a2ui.utils.to_version_number` returns the
+    bare form (`"0.9"`) for paths and URIs.
+  - The `SPECIFICATION_DIR` constant is removed.
 - **BREAKING**: Move `a2ui.inference_formats.experimental.express` to
   `a2ui.inference_formats.express`.
+- `ExpressCompiler`: a variable holding a function call that names its
+  `catalogId` (`total = formatString("...", catalogId="...")`) is inlined
+  wherever it is used, like any other variable holding a function call.
+  Previously it was compiled as a component and failed with "Unknown component".
 - **BREAKING**: The agent SDK no longer depends on an agent framework. `a2ui.a2a`
   moves to the new `a2ui-a2a` package and `a2ui.adk` to the new `a2ui-adk`
   package, and `a2a-sdk`, `google-adk`, `google-genai` and `nest-asyncio` are no

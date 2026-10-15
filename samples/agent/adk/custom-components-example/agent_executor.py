@@ -34,6 +34,7 @@ from a2a.utils import (
 from a2a.utils.errors import ServerError
 from agent import ContactAgent
 from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.utils import to_version_number
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +63,8 @@ class ContactAgentExecutor(AgentExecutor):
 
         if active_ui_version:
             logger.info(
-                f"--- AGENT_EXECUTOR: A2UI extension is active (v{active_ui_version})."
-                " Using UI runner. ---"
+                "--- AGENT_EXECUTOR: A2UI extension is active"
+                f" (v{to_version_number(active_ui_version)}). Using UI runner. ---"
             )
         else:
             logger.info(

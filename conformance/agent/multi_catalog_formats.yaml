@@ -158,6 +158,81 @@
               args:
                 value: "Total: ${/total}"
 
+- name: test_express_compile_variable_holding_function_call_with_catalog_override
+  description: A variable that holds a function call naming its catalogId is inlined wherever it is used, like any other variable holding a function call, rather than compiled as a component.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Chart([1, 2], total)
+    total = formatString("Total: ${/total}", catalogId="conformance/simplified")
+  expect:
+    - version: "v1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [1, 2]
+            caption:
+              "@call": "formatString"
+              catalogId: "conformance/simplified"
+              args:
+                value: "Total: ${/total}"
+
+- name: test_express_compile_variable_holding_function_call_missing_from_named_catalog_fails
+  description: A variable holding a function call whose catalogId names a catalog that does not define the function fails, even though another active catalog defines it.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Chart([1, 2], total)
+    total = percent(75, catalogId="conformance/simplified")
+  expect_error:
+    category: ValidationError
+    message: "percent"
+
+- name: test_express_compile_variable_holding_function_call_naming_unknown_catalog_fails
+  description: A variable holding a function call whose catalogId names no active catalog fails where it is defined, even when the variable is never used.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Chart([1, 2], "Total")
+    total = formatString("Total", catalogId="conformance/missing")
+  expect_error:
+    category: ValidationError
+    message: "conformance/missing"
+
+- name: test_express_compile_variable_holding_event_with_catalog_id_fails
+  description: Events belong to no catalog, so a variable holding an Event that names a catalogId fails instead of being inlined with the catalogId ignored.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    surface("s1")
+    root = Chart([1, 2], "Total")
+    act = Event("click", catalogId="conformance/simplified")
+  expect_error:
+    category: ValidationError
+    message: "Event"
+
 - name: test_express_compile_standalone_function_catalog_override
   description: A standalone function call with an explicit catalogId keyword argument resolves against that catalog and sets catalogId on callRendererFunction.callFunction.
   action: compile

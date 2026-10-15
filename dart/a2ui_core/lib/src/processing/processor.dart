@@ -23,9 +23,11 @@ import '../core/messages.dart';
 import '../core/renderer_capabilities.dart';
 import '../core/surface_group_model.dart';
 import '../core/surface_model.dart';
+import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/semver.dart';
+import '../resolution/data_context.dart';
 import '../rpc/rpc_handler.dart';
 import '../validation/component_graph.dart';
 import '../validation/component_refs.dart';
@@ -173,6 +175,49 @@ class MessageProcessor<T extends ComponentApi> {
       model.onAction.subscribe(onAction);
     }
   }
+
+  /// A processor an agent checks its own outbound payloads with, holding the
+  /// [catalogs] it negotiated with the renderer.
+  ///
+  /// An agent describes and validates functions but never runs them, so the
+  /// catalogs it holds are [CatalogApi]s, whose functions are signatures. A
+  /// processor holds catalogs of [FunctionImplementation]s, so each function
+  /// is kept as a signature that cannot be invoked.
+  ///
+  /// The processor applies each payload as a renderer would, under
+  /// [validationConfig], which defaults to [ValidationConfig.strict], so an
+  /// agent that keeps it for a session checks each payload against the
+  /// surfaces the earlier ones built.
+  ///
+  /// Nothing runs. A `callRendererFunction` is checked against the signature
+  /// of the function it names, and throws where a renderer would answer it
+  /// with an error, rather than being run and answered. An
+  /// `agentFunctionResponse` answers a call the renderer made, so it settles
+  /// nothing here.
+  ///
+  /// Checking a `callRendererFunction` is not implemented yet and throws
+  /// [UnimplementedError].
+  factory MessageProcessor.forAgent({
+    required List<Catalog<T, FunctionApi>> catalogs,
+    A2uiProtocolVersion? defaultVersion,
+    ValidationConfig? validationConfig = ValidationConfig.strict,
+    VersionAdapterRegistry? adapterRegistry,
+  }) =>
+      MessageProcessor<T>(
+        catalogs: [
+          for (final Catalog<T, FunctionApi> catalog in catalogs)
+            catalog.withFunctions(
+              catalog.functions.values.map(_FunctionSignature.new),
+            ),
+        ],
+        defaultVersion: defaultVersion,
+        validationConfig: validationConfig,
+        adapterRegistry: adapterRegistry,
+      ).._checksOnly = true;
+
+  /// Whether this processor checks the function calls it receives rather
+  /// than running them, as one from [MessageProcessor.forAgent] does.
+  bool _checksOnly = false;
 
   /// The validator for [catalog].
   ///
@@ -399,6 +444,10 @@ class MessageProcessor<T extends ComponentApi> {
         // and the TypeScript and Python SDKs.
         model.deleteSurface(operation.surfaceId);
       case CallRendererFunctionOp():
+        if (_checksOnly) {
+          _checkRendererFunctionCall(operation);
+          return null;
+        }
         return _callRendererFunction(operation, isUserActivated);
       case AgentFunctionResponseOp():
         rpc.handleAgentFunctionResponse(
@@ -410,6 +459,19 @@ class MessageProcessor<T extends ComponentApi> {
     }
     return null;
   }
+
+  /// Checks a `callRendererFunction` an agent is about to send, without
+  /// running it: the surface it names exists, the catalog it names is one
+  /// this processor holds, that catalog declares the function, the agent may
+  /// call it, and its arguments match its signature.
+  ///
+  /// Throws [A2uiValidationError] where a renderer would answer the call
+  /// with an `INVALID_FUNCTION_CALL` error, and [A2uiCatalogError] for a
+  /// catalog this processor does not hold.
+  void _checkRendererFunctionCall(CallRendererFunctionOp operation) =>
+      throw UnimplementedError(
+        'MessageProcessor.forAgent checking a callRendererFunction',
+      );
 
   /// Hands a `callRendererFunction` to [rpc], targeting the surface named by
   /// [CallRendererFunctionOp.surfaceId] when present, or no surface at all
@@ -1075,4 +1137,29 @@ extension SchemaExtension on Schema {
       return MapEntry(key as String, value);
     });
   }
+}
+
+/// A function an agent holds as its signature alone, for a processor from
+/// [MessageProcessor.forAgent], which never runs it.
+class _FunctionSignature extends FunctionImplementation {
+  _FunctionSignature(FunctionApi api)
+      : super(
+          name: api.name,
+          argumentSchema: api.argumentSchema,
+          returnType: api.returnType,
+          description: api.description,
+          allowedCallers: api.declaredAllowedCallers,
+          requiresUserActivation: api.declaredRequiresUserActivation,
+          definition: api.definition,
+        );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) =>
+      throw UnsupportedError(
+        "Function '$name' is a signature only and cannot be invoked.",
+      );
 }

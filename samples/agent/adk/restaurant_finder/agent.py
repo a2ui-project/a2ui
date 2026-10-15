@@ -42,15 +42,12 @@ from a2ui.a2a import (
     parse_response_to_parts,
     stream_response_to_parts,
 )
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    VERSION_0_8,
-    VERSION_0_9,
-)
+from a2ui.utils import to_version_number
 from prompt_builder import (
     ROLE_DESCRIPTION,
     UI_DESCRIPTION,
@@ -78,13 +75,13 @@ class RestaurantAgent:
         self._parsers = OrderedDict()
         self._max_parsers = 1000  # Max active sessions to keep in memory
 
-        for version in [VERSION_0_8, VERSION_0_9]:
+        for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]:
             generator = self._build_generator(version)
             processor = self._build_processor(version, generator)
             self._generators[version] = generator
             self._processors[version] = processor
             agent = self._build_llm_agent(
-                processor, examples_path=f"examples/{version}"
+                processor, examples_path=f"examples/{to_version_number(version)}"
             )
             self._ui_runners[version] = self._build_runner(agent)
 
@@ -101,7 +98,7 @@ class RestaurantAgent:
         self, version: str, generator: A2uiGenerator
     ) -> A2uiRequestProcessor:
         return generator.create_processor({
-            f"v{version}": {
+            f"v{to_version_number(version)}": {
                 "supportedCatalogIds": [
                     c.transformed_catalog.catalog_id for c in generator.catalogs
                 ]
@@ -164,7 +161,7 @@ class RestaurantAgent:
         examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the restaurant agent."""
-        from a2ui.schema import load_examples
+        from a2ui.utils import load_examples
 
         model_env = (
             os.getenv("MODEL_NAME") or os.getenv("LITELLM_MODEL") or "gemini-3.6-flash"

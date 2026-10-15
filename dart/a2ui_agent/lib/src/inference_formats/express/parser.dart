@@ -26,8 +26,12 @@ final RegExp _closeTag = RegExp(r'</a2ui\s*>', caseSensitive: false);
 final RegExp _leadingFence = RegExp(r'^```[a-zA-Z-]*\s*');
 final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
 
-/// Reads Express blocks from an LLM response and compiles them into v0.9
-/// messages.
+/// Reads Express blocks from an LLM response and compiles them into messages
+/// of the protocol version the catalogs target.
+///
+/// Compiling and decompiling for v1.0 catalogs is not implemented yet and
+/// throws [UnimplementedError]; finding, wrapping and unwrapping blocks does
+/// not depend on the version.
 class ExpressParser extends Parser {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.

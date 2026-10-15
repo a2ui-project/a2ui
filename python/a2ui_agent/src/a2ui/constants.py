@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""String constants of the A2UI protocol and the agent SDK.
+
+This module has no dependencies, so callers that only need these constants
+can import it without loading the rest of the SDK.
+"""
+
 CATALOG_COMPONENTS_KEY = "components"
 CATALOG_ID_KEY = "catalogId"
 SURFACE_ID_KEY = "surfaceId"
@@ -49,13 +55,6 @@ A2UI_SURFACE_ID_KEY = "surfaceId"
 A2UI_VERSION_KEY = "version"
 A2UI_CODE_KEY = "code"
 A2UI_MESSAGE_KEY = "message"
-
-VERSION_0_8 = "0.8"
-VERSION_0_9 = "0.9"
-VERSION_0_9_1 = "0.9.1"
-VERSION_1_0 = "1.0"
-
-SPECIFICATION_DIR = "specification"
 
 ENCODING = "utf-8"
 

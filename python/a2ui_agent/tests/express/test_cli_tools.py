@@ -22,12 +22,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 import urllib.error
 
-from a2ui.schema.utils import (
-    find_repo_root,
-    get_basic_catalog_path,
-    get_basic_examples_dir,
-    get_spec_dir,
-)
+from ..repo_paths import find_repo_root
 
 REPO_ROOT = find_repo_root() or os.path.abspath(
     os.path.join(os.path.dirname(__file__), "../../../..")
@@ -44,7 +39,6 @@ import run_prompt_generator
 import run_inference
 
 # Reference paths to real basic catalog and schemas
-SPEC_DIR = get_spec_dir("v1_0")
 CATALOGS_DIR = os.path.join(REPO_ROOT, "catalogs", "basic")
 CATALOG_PATH = os.path.join(CATALOGS_DIR, "v1", "catalog.json")
 EXAMPLES_DIR = os.path.join(CATALOGS_DIR, "v1", "examples")
