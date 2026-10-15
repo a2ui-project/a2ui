@@ -31,6 +31,11 @@ public final class MessageProcessor: ObservableObject {
   /// The validation configuration controlling strictness.
   public let validationConfig: ValidationConfig
 
+  private struct ValidatorCacheKey: Hashable {
+    let catalogID: String
+    let config: ValidationConfig
+  }
+
   let rpcHandler: RPCHandler
   private let registeredCatalogs: [AnyCatalog]
   private let catalogs: [String: AnyCatalog]
@@ -39,7 +44,7 @@ public final class MessageProcessor: ObservableObject {
   private let errorMapper = MessageErrorMapper()
   private let adapterFactory: VersionAdapterFactory
   private var activeRPCTasks: [String: Task<Void, Never>] = [:]
-  private var payloadValidators: [String: PayloadValidator] = [:]
+  private var payloadValidators: [ValidatorCacheKey: PayloadValidator] = [:]
 
   /// Creates a new message processor with an array of catalogs.
   ///
@@ -737,8 +742,7 @@ public final class MessageProcessor: ObservableObject {
     for catalog: AnyCatalog,
     config: ValidationConfig
   ) -> PayloadValidator {
-    let cacheKey =
-      "\(catalog.id)|\(config.allowOrphanComponents)|\(config.allowDanglingReferences)|\(config.allowMissingRoot)|\(config.allowUnknownElements)|\(config.targetVersion ?? "")"
+    let cacheKey = ValidatorCacheKey(catalogID: catalog.id, config: config)
     if let cached = payloadValidators[cacheKey] {
       return cached
     }

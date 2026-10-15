@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /// Configuration parameters controlling the strictness and behavior of A2UI validation.
-public struct ValidationConfig: Sendable, Equatable {
+public struct ValidationConfig: Sendable, Equatable, Hashable {
   /// Whether components not reachable from the root component are permitted.
   public var allowOrphanComponents: Bool
 
@@ -69,11 +69,13 @@ public struct ValidationConfig: Sendable, Equatable {
     allowUnknownElements: Bool = false,
     protocolVersion: A2UIProtocolVersion
   ) {
-    self.allowOrphanComponents = allowOrphanComponents
-    self.allowDanglingReferences = allowDanglingReferences
-    self.allowMissingRoot = allowMissingRoot
-    self.allowUnknownElements = allowUnknownElements
-    self.targetVersion = protocolVersion.rawValue
+    self.init(
+      allowOrphanComponents: allowOrphanComponents,
+      allowDanglingReferences: allowDanglingReferences,
+      allowMissingRoot: allowMissingRoot,
+      allowUnknownElements: allowUnknownElements,
+      targetVersion: protocolVersion.rawValue
+    )
   }
 
   /// Default strict validation rules for complete message trees.
