@@ -1266,6 +1266,7 @@ class Catalog(Generic[TComponent, TFunction]):
         self._peer_catalogs: tuple[Catalog[Any, Any], ...] = tuple(
             p for p in _peer_catalogs if p is not self
         )
+        self._source_catalog: Catalog[Any, Any] | None = None
 
     @property
     def id(self) -> str:
