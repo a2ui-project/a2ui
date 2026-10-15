@@ -60,7 +60,6 @@ export function checkMixedCatalogs(catalogs: CatalogApi[]): string {
   if (catalogs.length === 0) {
     throw new A2uiCatalogError('Express requires at least one catalog.');
   }
-  linkCatalogs(catalogs);
   const version = toWireProtocolVersion(catalogs[0].protocolVersion);
   const line = versionLine(version);
   const seenIds = new Set<string>();
@@ -143,6 +142,9 @@ export function catalogsDefining(
 /**
  * Builds one schema helper per catalog, keyed by catalog id.
  *
+ * The helpers read copies of the catalogs linked to each other, so cross-catalog
+ * `$ref`s resolve; the catalogs passed in are not changed.
+ *
  * @param catalogs The active catalogs.
  * @param version The protocol version the helpers read the schemas for.
  * @returns The helpers, in catalog order.
@@ -151,6 +153,7 @@ export function buildSchemaHelpers(
   catalogs: CatalogApi[],
   version: string,
 ): Map<string, CatalogSchemaHelper> {
-  linkCatalogs(catalogs);
-  return new Map(catalogs.map(catalog => [catalog.id, new CatalogSchemaHelper(catalog, version)]));
+  return new Map(
+    linkCatalogs(catalogs).map(catalog => [catalog.id, new CatalogSchemaHelper(catalog, version)]),
+  );
 }

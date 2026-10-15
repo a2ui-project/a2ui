@@ -15,7 +15,7 @@
  */
 
 import {InferenceFormat, InferenceFormatFactory} from '../../inference-format.js';
-import {CatalogApi, STRICT_VALIDATION} from '../../internal/web-core.js';
+import {CatalogApi, linkCatalogs, STRICT_VALIDATION} from '../../internal/web-core.js';
 import {Parser} from '../../parser/parser.js';
 import {DirectJsonParser} from './parser.js';
 import {DirectJsonExamples, DirectJsonPromptGenerator} from './prompt-generator.js';
@@ -34,14 +34,18 @@ export class DirectJsonFormat implements InferenceFormat {
   // createParser always injects a stream processor.
   readonly supportsStreaming = true;
 
+  /** The active catalogs, linked to each other so cross-catalog `$ref`s resolve. */
+  private readonly catalogs: CatalogApi[];
+
   constructor(
-    private readonly catalogs: CatalogApi[],
+    catalogs: CatalogApi[],
     examples?: DirectJsonExamples,
     private readonly streamProcessorFactory?: DirectJsonStreamProcessorFactory,
     private readonly streamOptions?: DirectJsonStreamProcessorOptions,
   ) {
     checkParserCatalogs(catalogs);
-    this.promptGenerator = new DirectJsonPromptGenerator(catalogs, examples);
+    this.catalogs = linkCatalogs(catalogs);
+    this.promptGenerator = new DirectJsonPromptGenerator(this.catalogs, examples);
   }
 
   createParser(): Parser {

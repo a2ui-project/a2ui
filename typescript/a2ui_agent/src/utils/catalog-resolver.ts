@@ -36,7 +36,9 @@ import {catalogFromDocument} from '../processor/catalog-providers.js';
  *     the request carried none. With no capabilities the renderer stated no preference, so
  *     every registered catalog is active, which is none when nothing is registered.
  * @param acceptsInlineCatalogs Whether the agent accepts inline catalogs from the client.
- * @returns Array of active CatalogApi instances.
+ * @returns Array of active CatalogApi instances. Each catalog that references another
+ *     catalog document is a per-request copy linked to the other active catalogs and to the
+ *     registered catalogs (see `linkCatalogs`); the registered catalogs are not changed.
  * @throws {A2uiCatalogError} If capabilities are given and the agent has no catalogs, if
  *     `inlineCatalogs` is not an array of valid catalogs, or if negotiation leaves no
  *     active catalog.
@@ -49,8 +51,7 @@ export function resolveCatalogs(
   const pristineCatalogs = catalogs.map(c => c.catalog);
   const agentCatalogs = catalogs.map(c => c.transformedCatalog);
   if (!rendererCapabilities) {
-    linkCatalogs([...pristineCatalogs, ...agentCatalogs]);
-    return agentCatalogs;
+    return linkCatalogs(agentCatalogs, pristineCatalogs);
   }
   if (agentCatalogs.length === 0) {
     throw new A2uiCatalogError('Agent has no configured catalogs');
@@ -85,6 +86,9 @@ export function resolveCatalogs(
         'declares no inline catalog the agent accepts.',
     );
   }
-  linkCatalogs([...active, ...pristineCatalogs, ...agentCatalogs, ...inlineCatalogs]);
-  return active;
+  // Accepted inline catalogs are already active, and refused ones are never linked. The
+  // pristine and transformed registered catalogs are further peers, so a pruned catalog still
+  // resolves references into the entries its transformer dropped. Linking returns per-request
+  // copies and leaves the registered catalogs unchanged.
+  return linkCatalogs(active, [...pristineCatalogs, ...agentCatalogs]);
 }

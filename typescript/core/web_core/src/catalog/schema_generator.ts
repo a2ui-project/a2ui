@@ -369,13 +369,15 @@ function collectSourceSubSchemas(
     }
     if (mixinName === undefined && !ref.startsWith('#/') && context.peers.length > 0) {
       if (!visited.has(ref)) {
-        const nextVisited = new Set(visited);
-        nextVisited.add(ref);
+        // `inlinePeerAndLocalRefs` records `ref` itself once it resolves it, so
+        // it is given `visited` without `ref`.
         const resolvedPeer = inlinePeerAndLocalRefs(sub, context.rootDoc, context.peers, {
           inlineLocalDefs: false,
-          visited: nextVisited,
+          visited,
         });
         if (isJsonObject(resolvedPeer) && resolvedPeer['$ref'] !== ref) {
+          const nextVisited = new Set(visited);
+          nextVisited.add(ref);
           local.push(...collectSourceSubSchemas(resolvedPeer, context, nextVisited));
           continue;
         }
