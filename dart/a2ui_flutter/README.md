@@ -207,7 +207,6 @@ theme's primary color. The functions format for the `locale` passed to
 
 Not supported yet:
 
-- `accessibility` attributes.
 - A literal `min` or `max` on DateTimeInput, which the `a2ui_core` validator
   rejects.
 - Measuring a surface's intrinsic size, as `IntrinsicWidth` and an
