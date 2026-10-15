@@ -14,6 +14,8 @@
 
 """Tasks for A2UI evaluation."""
 
+from __future__ import annotations
+
 # pylint: disable=duplicate-code
 
 from google import genai
@@ -23,6 +25,7 @@ from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import TaskState
 
+from a2ui_eval.bridges import normalize_sdk_name
 from a2ui_eval.dataset import load_a2ui_dataset
 from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 from a2ui_eval.strategies import get_solver
@@ -60,6 +63,7 @@ def a2ui_v0_9_1_eval(
     grading_model: str = "google/gemini-3.6-flash",
     strategy: str = "direct",
     dataset: str | list[str] | None = None,
+    sdk: str = "python",
 ) -> Task:
     """Evaluation task for A2UI v0.9.1 protocol generation.
 
@@ -68,6 +72,7 @@ def a2ui_v0_9_1_eval(
         grading_model: The model to use for LLM-as-a-judge grading.
         strategy: The evaluation strategy to use (e.g., 'direct').
         dataset: Specific dataset name or list of dataset names.
+        sdk: The Agent SDK implementation to evaluate ('python', 'ts', or 'dart').
 
     Returns:
         An Inspect Task object configured for A2UI v0.9.1 evaluation.
@@ -89,6 +94,7 @@ def a2ui_v0_9_1_eval(
         )
 
     active_version = "0.9.1"
+    norm_sdk = normalize_sdk_name(sdk)
     default_catalog_path = "specification/v0_9_1/catalogs/basic/catalog.json"
     format_name = (
         strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
@@ -103,13 +109,18 @@ def a2ui_v0_9_1_eval(
 
     return Task(
         dataset=dataset_obj,
-        solver=get_solver(strategy, version=active_version),
+        solver=get_solver(strategy, version=active_version, sdk=norm_sdk),
         scorer=[
-            a2ui_scorer(version=active_version),
+            a2ui_scorer(version=active_version, sdk=norm_sdk),
             measured_model_graded_qa(
                 model=grading_model, instructions=GRADER_INSTRUCTIONS
             ),
         ],
+        metadata={
+            "sdk": norm_sdk,
+            "strategy": strategy,
+            "version": active_version,
+        },
     )
 
 
@@ -119,6 +130,7 @@ def a2ui_v1_0_eval(
     grading_model: str = "google/gemini-3.6-flash",
     strategy: str = "express",
     dataset: str | list[str] | None = None,
+    sdk: str = "python",
 ) -> Task:
     """Evaluation task for A2UI v1.0 protocol generation.
 
@@ -127,6 +139,7 @@ def a2ui_v1_0_eval(
         grading_model: The model to use for LLM-as-a-judge grading.
         strategy: The evaluation strategy to use (e.g., 'express').
         dataset: Specific dataset name or list of dataset names.
+        sdk: The Agent SDK implementation to evaluate ('python', 'ts', or 'dart').
 
     Returns:
         An Inspect Task object configured for A2UI v1.0 evaluation.
@@ -148,6 +161,7 @@ def a2ui_v1_0_eval(
         )
 
     active_version = "1.0"
+    norm_sdk = normalize_sdk_name(sdk)
     default_catalog_path = "catalogs/basic/v1/catalog.json"
     format_name = (
         strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
@@ -162,11 +176,16 @@ def a2ui_v1_0_eval(
 
     return Task(
         dataset=dataset_obj,
-        solver=get_solver(strategy, version=active_version),
+        solver=get_solver(strategy, version=active_version, sdk=norm_sdk),
         scorer=[
-            a2ui_scorer(version=active_version),
+            a2ui_scorer(version=active_version, sdk=norm_sdk),
             measured_model_graded_qa(
                 model=grading_model, instructions=GRADER_INSTRUCTIONS
             ),
         ],
+        metadata={
+            "sdk": norm_sdk,
+            "strategy": strategy,
+            "version": active_version,
+        },
     )

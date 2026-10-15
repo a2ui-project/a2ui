@@ -158,12 +158,17 @@ def generate_markdown_summary(
     eval_spec = log_data.get("eval", {}) or {}
     task_name = eval_spec.get("task", "Unknown Task")
     model_name = eval_spec.get("model", "Unknown Model")
+    task_args = eval_spec.get("task_args", {}) or {}
+    metadata = eval_spec.get("metadata", {}) or {}
+    sdk_name = task_args.get("sdk") or metadata.get("sdk")
 
     status_str = "PASS" if accuracy_percentage >= threshold else "FAIL"
 
     lines = []
     lines.append(f"### Evaluation Summary: {task_name}")
     lines.append(f"- **Status**: {status_str}")
+    if sdk_name:
+        lines.append(f"- **SDK**: `{sdk_name}`")
     lines.append(f"- **Model**: `{model_name}`")
     lines.append(
         f"- **Pass Percentage**: `{accuracy_percentage:.2f}%` (Threshold:"

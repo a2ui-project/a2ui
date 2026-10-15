@@ -355,3 +355,51 @@ async def test_format_system_prompt_with_domain_prompt() -> None:
     )
     res_error = await compile_solver(error_state, dummy_generate)
     assert "Compilation/validation failed:" in res_error.output.completion
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sdk", ["ts", "dart"])
+async def test_format_solvers_multi_sdk(sdk: str) -> None:
+    from a2ui_eval.shared.utils import GIT_ROOT
+    from a2ui_eval.strategies.format import (
+        compile_format_payload,
+        format_system_prompt,
+    )
+    from inspect_ai.model import (
+        ChatCompletionChoice,
+        ChatMessageAssistant,
+        ModelName,
+        ModelOutput,
+    )
+    from inspect_ai.solver import TaskState
+
+    catalog_file = (
+        GIT_ROOT / "specification" / "v0_9_1" / "catalogs" / "basic" / "catalog.json"
+    )
+    prompt_solver = format_system_prompt("express", version="0.9.1", sdk=sdk)
+    state = TaskState(
+        model=ModelName("mock/model"),
+        sample_id=1,
+        epoch=1,
+        input="test",
+        messages=[],
+        metadata={"catalog": str(catalog_file)},
+    )
+    state = await prompt_solver(state, dummy_generate)
+    assert len(state.messages) == 1
+    assert "<a2ui>" in state.messages[0].content
+
+    compile_solver = compile_format_payload("express", version="0.9.1", sdk=sdk)
+    state.output = ModelOutput(
+        model="mock/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content='Intro\n<a2ui>\nroot = Text("Multi SDK")\n</a2ui>\nOutro'
+                )
+            )
+        ],
+    )
+    state = await compile_solver(state, dummy_generate)
+    assert "<a2ui-json>" in state.output.completion
+    assert '"component": "Text"' in state.output.completion

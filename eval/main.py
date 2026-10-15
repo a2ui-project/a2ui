@@ -12,19 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""CLI entrypoint for A2UI evaluations."""
+
+from __future__ import annotations
+
+import argparse
 import os
 import sys
-import argparse
+
 from inspect_ai import eval_set
-from tasks import a2ui_v0_9_1_eval, a2ui_v1_0_eval
+from inspect_ai.dataset import MemoryDataset
+
+from a2ui_eval.bridges import (
+    get_sdk_bridge,
+    normalize_sdk_name,
+    validate_sdk_strategy,
+)
 from a2ui_eval.strategies import STRATEGIES
+from tasks import a2ui_v0_9_1_eval, a2ui_v1_0_eval
 
 # Automatically limit Inspect AI's connection rate-limiter limit and cap model retry backoffs to prevent 503 errors
 os.environ["INSPECT_MAX_CONNECTIONS"] = "10"
 os.environ["INSPECT_MODEL_MAX_BACKOFF"] = "300"
-
-
-from inspect_ai.dataset import MemoryDataset
 
 MODEL_ALIASES: dict[str, str] = {
     # Cloud models
@@ -66,6 +75,27 @@ def resolve_model_name(model_name: str) -> str:
     return stripped
 
 
+def _parse_sdks(raw_sdk: list[str] | None, raw_sdks: str | None) -> list[str]:
+    """Parses and normalizes SDK CLI arguments into a deduplicated list."""
+    combined: list[str] = []
+    if raw_sdk:
+        combined.extend(raw_sdk)
+    if raw_sdks:
+        combined.append(raw_sdks)
+    if not combined:
+        return ["python"]
+
+    selected: list[str] = []
+    for item in combined:
+        for part in item.split(","):
+            cleaned = part.strip()
+            if cleaned:
+                norm = normalize_sdk_name(cleaned)
+                if norm not in selected:
+                    selected.append(norm)
+    return selected or ["python"]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run A2UI evaluations")
     parser.add_argument(
@@ -98,21 +128,28 @@ def main() -> None:
         type=str,
         default="google/gemini-3.6-flash",
         help=(
-            "Model used for grading (default: google/gemini-3.6-flash). Flash models"
-            " must always be used for judging; Gemma should never be used as judge."
+            "Model used for grading (default: google/gemini-3.6-flash). Flash"
+            " models must always be used for judging; Gemma should never be"
+            " used as judge."
         ),
     )
     parser.add_argument(
         "--max-retries", type=int, default=0, help="Maximum number of retries"
     )
     parser.add_argument(
-        "--limit", type=int, default=None, help="Maximum number of samples to evaluate"
+        "--limit",
+        type=int,
+        default=None,
+        help="Maximum number of samples to evaluate",
     )
     parser.add_argument(
         "--log-dir", type=str, default="logs", help="Directory to save logs"
     )
     parser.add_argument(
-        "--sample-shuffle", type=int, default=None, help="Seed for shuffling samples"
+        "--sample-shuffle",
+        type=int,
+        default=None,
+        help="Seed for shuffling samples",
     )
     parser.add_argument(
         "--thinking-budget",
@@ -121,7 +158,10 @@ def main() -> None:
         help="Thinking budget for reasoning models",
     )
     parser.add_argument(
-        "--temperature", type=float, default=None, help="Generation temperature"
+        "--temperature",
+        type=float,
+        default=None,
+        help="Generation temperature",
     )
     parser.add_argument(
         "--max-tasks",
@@ -140,8 +180,35 @@ def main() -> None:
         type=str,
         action="append",
         help=(
-            "Evaluation strategies to run (choices: direct, subagent_tool, express,"
-            " elemental, atom). Can be comma-separated or specified multiple times."
+            "Evaluation strategies to run (choices: direct, subagent_tool,"
+            " express, elemental, atom). Can be comma-separated or specified"
+            " multiple times."
+        ),
+    )
+    parser.add_argument(
+        "--sdk",
+        type=str,
+        action="append",
+        help=(
+            "Agent SDK implementation to evaluate (choices: python, ts, dart)."
+            " Can be comma-separated or specified multiple times. Defaults to"
+            " 'python'."
+        ),
+    )
+    parser.add_argument(
+        "--sdks",
+        type=str,
+        default=None,
+        help="Comma-separated list of Agent SDKs to evaluate (e.g. 'python,ts,dart').",
+    )
+    parser.add_argument(
+        "--version",
+        type=str,
+        choices=["0.9.1", "1.0", "auto"],
+        default="auto",
+        help=(
+            "Protocol version to evaluate ('0.9.1', '1.0', or 'auto')."
+            " Defaults to 'auto'."
         ),
     )
     parser.add_argument(
@@ -167,8 +234,8 @@ def main() -> None:
         family in grading_model.lower() for family in RESTRICTED_GRADING_MODEL_FAMILIES
     ):
         raise ValueError(
-            f"Invalid grading model '{grading_model}'. Gemma models must not be used"
-            " as LLM-as-a-judge; please use a Gemini Flash model (e.g."
+            f"Invalid grading model '{grading_model}'. Gemma models must not be"
+            " used as LLM-as-a-judge; please use a Gemini Flash model (e.g."
             " 'google/gemini-3.6-flash' or 'google/gemini-3.1-flash-lite')."
         )
 
@@ -183,7 +250,7 @@ def main() -> None:
         selected_dataset = args.datasets
 
     # Parse and validate strategies
-    selected_strategies = []
+    selected_strategies: list[str] = []
     raw_strategies = args.strategies if args.strategies else ["direct", "subagent_tool"]
     for item in raw_strategies:
         for s in item.split(","):
@@ -191,38 +258,67 @@ def main() -> None:
             if s_clean and s_clean not in selected_strategies:
                 selected_strategies.append(s_clean)
 
-    tasks = []
+    # Parse and validate SDKs
+    selected_sdks = _parse_sdks(args.sdk, args.sdks)
+
     for strat in selected_strategies:
         if strat not in STRATEGIES:
             raise ValueError(
                 f"Unknown evaluation strategy: {strat}. Valid choices:"
                 f" {', '.join(STRATEGIES.keys())}"
             )
-        task_func = (
-            a2ui_v1_0_eval
-            if strat in ["express", "elemental", "atom", "direct"]
-            else a2ui_v0_9_1_eval
-        )
-        task_obj = task_func(
-            strategy=strat,
-            grading_model=grading_model,
-            dataset=selected_dataset,
-        )
-        if args.prompt:
-            prompt_list = [p.lower() for p in args.prompt]
-            filtered = [
-                s
-                for s in task_obj.dataset
-                if any(
-                    p in str((s.metadata or {}).get("name", "")).lower()
-                    or p in str(s.input).lower()
-                    for p in prompt_list
+        for sdk in selected_sdks:
+            validate_sdk_strategy(sdk, strat)
+
+    for sdk in selected_sdks:
+        get_sdk_bridge(sdk).prepare()
+
+    tasks = []
+    for sdk in selected_sdks:
+        for strat in selected_strategies:
+            if args.version == "0.9.1":
+                task_func = a2ui_v0_9_1_eval
+            elif args.version == "1.0":
+                task_func = a2ui_v1_0_eval
+            elif sdk == "dart":
+                # dart/a2ui_agent natively targets v0.9 / v0.9.1 unless core_v1_0 is requested
+                task_func = (
+                    a2ui_v1_0_eval
+                    if selected_dataset == "core_v1_0"
+                    else a2ui_v0_9_1_eval
                 )
-            ]
-            task_obj.dataset = MemoryDataset(
-                samples=filtered, name=task_obj.dataset.name
-            )
-        tasks.append(task_obj)
+            else:
+                task_func = (
+                    a2ui_v1_0_eval
+                    if strat in ["express", "elemental", "atom", "direct"]
+                    and selected_dataset != "core_v0_9_1"
+                    else a2ui_v0_9_1_eval
+                )
+
+            task_kwargs = {
+                "strategy": strat,
+                "grading_model": grading_model,
+                "dataset": selected_dataset,
+            }
+            if sdk != "python":
+                task_kwargs["sdk"] = sdk
+
+            task_obj = task_func(**task_kwargs)
+            if args.prompt and getattr(task_obj, "dataset", None) is not None:
+                prompt_list = [p.lower() for p in args.prompt]
+                filtered = [
+                    s
+                    for s in task_obj.dataset
+                    if any(
+                        p in str((s.metadata or {}).get("name", "")).lower()
+                        or p in str(s.input).lower()
+                        for p in prompt_list
+                    )
+                ]
+                task_obj.dataset = MemoryDataset(
+                    samples=filtered, name=task_obj.dataset.name
+                )
+            tasks.append(task_obj)
 
     eval_set_kwargs = {
         "tasks": tasks,
@@ -246,8 +342,11 @@ def main() -> None:
         args.max_samples if args.max_samples is not None else 10
     )
 
-    print("Starting evaluation for multiple strategies...")
-    success, logs = eval_set(**eval_set_kwargs)
+    print(
+        f"Starting evaluation for SDKs {selected_sdks} and strategies"
+        f" {selected_strategies}..."
+    )
+    success, _ = eval_set(**eval_set_kwargs)
     if not success:
         print("Evaluation returned failure status!")
         sys.exit(1)

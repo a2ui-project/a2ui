@@ -121,3 +121,52 @@ def test_gemma_model_flag_with_express_strategy():
         call_kwargs = mock_eval_set.call_args.kwargs
         assert call_kwargs["model"] == "google/gemma-4-26b-a4b-it"
         assert mock_v1_eval.call_args.kwargs["strategy"] == "express"
+
+
+def test_main_multi_sdk_selection() -> None:
+    """Verify that specifying --sdks python,ts,dart configures tasks for each SDK."""
+    test_args = [
+        "main.py",
+        "--sdks",
+        "python,ts,dart",
+        "--strategies",
+        "direct,express",
+        "--limit",
+        "1",
+    ]
+    with patch.object(sys, "argv", test_args), patch(
+        "main.eval_set", return_value=(True, [])
+    ) as mock_eval_set, patch("main.get_sdk_bridge") as mock_get_bridge, patch(
+        "main.a2ui_v1_0_eval"
+    ) as mock_v1_eval, patch(
+        "main.a2ui_v0_9_1_eval"
+    ) as mock_v09_eval:
+        main()
+
+        assert mock_eval_set.called
+        assert mock_get_bridge.call_count == 3
+        # Python and TS default to v1.0 for direct and express (4 calls), Dart defaults to v0.9.1 (2 calls)
+        assert mock_v1_eval.call_count == 4
+        assert mock_v09_eval.call_count == 2
+        ts_calls = [
+            c for c in mock_v1_eval.call_args_list if c.kwargs.get("sdk") == "ts"
+        ]
+        dart_calls = [
+            c for c in mock_v09_eval.call_args_list if c.kwargs.get("sdk") == "dart"
+        ]
+        assert len(ts_calls) == 2
+        assert len(dart_calls) == 2
+
+
+def test_main_rejects_unsupported_sdk_strategy() -> None:
+    """Verify that running an experimental Python-only strategy on TS or Dart raises ValueError."""
+    test_args = [
+        "main.py",
+        "--sdk",
+        "ts",
+        "--strategies",
+        "elemental",
+    ]
+    with patch.object(sys, "argv", test_args):
+        with pytest.raises(ValueError, match="not supported by SDK 'ts'"):
+            main()

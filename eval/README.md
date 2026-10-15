@@ -85,6 +85,17 @@ To test across different inference formats (`direct` JSON, `express` XML tags, `
 uv run main.py --dataset multi_turn_conversation_dataset --strategies direct,express,elemental
 ```
 
+To evaluate specific language Agent SDK implementations (`python`, `ts`, `dart`):
+
+```bash
+# Evaluate a single Agent SDK (defaults to python)
+uv run main.py --sdk ts --strategies direct,express
+uv run main.py --sdk dart --strategies direct,express
+
+# Evaluate all three Agent SDKs in a single run
+uv run main.py --sdks python,ts,dart --strategies direct,express
+```
+
 For a quick 2-sample validation using `gemini-3.1-flash-lite`:
 
 ```bash

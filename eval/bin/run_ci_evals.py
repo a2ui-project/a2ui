@@ -77,6 +77,10 @@ def build_main_command(args: argparse.Namespace, seed: str) -> list[str]:
         cmd.extend(["--dataset", args.dataset])
     if getattr(args, "datasets", None):
         cmd.extend(["--datasets", args.datasets])
+    if getattr(args, "sdk", None):
+        cmd.extend(["--sdk", args.sdk])
+    if getattr(args, "sdks", None):
+        cmd.extend(["--sdks", args.sdks])
     if getattr(args, "max_samples", None) and args.max_samples != 0:
         cmd.extend(["--limit", str(args.max_samples)])
     return cmd
@@ -123,6 +127,18 @@ def main() -> None:
         type=str,
         default="google/gemini-3.6-flash",
         help="Model used for grading. Default is google/gemini-3.6-flash.",
+    )
+    parser.add_argument(
+        "--sdk",
+        type=str,
+        default=None,
+        help="Evaluate a specific Agent SDK (python, ts, dart).",
+    )
+    parser.add_argument(
+        "--sdks",
+        type=str,
+        default=None,
+        help="Comma-separated list of Agent SDKs to evaluate (e.g. 'python,ts,dart').",
     )
     args = parser.parse_args()
 

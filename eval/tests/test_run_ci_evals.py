@@ -101,6 +101,19 @@ def test_build_main_command_no_limit() -> None:
     assert "--limit" not in cmd
 
 
+def test_build_main_command_with_sdks() -> None:
+    args = argparse.Namespace(
+        model="google/gemini-3.6-flash",
+        max_samples=10,
+        grading_model="google/gemini-3.6-flash",
+        sdks="python,ts,dart",
+    )
+    seed = "20260507"
+    cmd = build_main_command(args, seed)
+    assert "--sdks" in cmd
+    assert "python,ts,dart" in cmd
+
+
 def test_print_results_summary_valid(capsys: pytest.CaptureFixture[str]) -> None:
     log_data: dict[str, Any] = {
         "samples": [

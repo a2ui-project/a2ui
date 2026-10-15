@@ -14,8 +14,10 @@
 
 """Scorers for A2UI evaluation."""
 
+from __future__ import annotations
+
+import asyncio
 import json
-import os
 import time
 
 from inspect_ai.model._model import sample_model_usage
@@ -29,28 +31,22 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import TaskState
 
-from a2ui.core import (
-    MessageProcessor,
-    MessageProcessorOptions,
-    STRICT_VALIDATION,
-)
-from a2ui.inference_formats import to_message_dicts
-from a2ui.inference_formats.direct_json import DirectJsonParser
-from a2ui.parser import A2uiPart
-from a2ui.processor import CatalogConfig
+from .bridges import get_sdk_bridge, normalize_sdk_name
 from .shared.utils import GIT_ROOT
 
 
 @scorer(metrics=[accuracy()])
-def a2ui_scorer(version: str) -> Scorer:
-    """Scorer for A2UI evaluation using the Python SDK.
+def a2ui_scorer(version: str, sdk: str = "python") -> Scorer:
+    """Scorer for A2UI evaluation using the target Agent SDK.
 
     Args:
         version: The schema version to load (e.g. '0.9.1' or '1.0').
+        sdk: The Agent SDK implementation to use ('python', 'ts', or 'dart').
 
     Returns:
         An Inspect Scorer that validates the response against the schema and integrity rules.
     """
+    norm_sdk = normalize_sdk_name(sdk)
 
     async def score(
         state: TaskState, target: Target
@@ -63,12 +59,6 @@ def a2ui_scorer(version: str) -> Scorer:
 
         catalog_path = state.metadata["catalog"]
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
-
-        catalog_config = CatalogConfig.from_path(
-            resolved_catalog_path, protocol_version=version
-        )
-        catalog = catalog_config.transformed_catalog
-
         answer_text = state.output.completion or ""
 
         if answer_text.strip().startswith("Compilation/validation failed:"):
@@ -78,18 +68,19 @@ def a2ui_scorer(version: str) -> Scorer:
                 explanation="Format compilation/validation failed during solver step.",
             )
 
+        bridge = get_sdk_bridge(norm_sdk)
         try:
-            parser = DirectJsonParser([catalog])
-            if not parser.has_format_content(answer_text, complete=True):
-                raise ValueError(
-                    "A2UI tags '<a2ui-json>' and '</a2ui-json>' not found in response."
-                )
-            parts = parser.parse_response(answer_text)
-            all_messages = []
-            for part in parts:
-                if isinstance(part, A2uiPart):
-                    all_messages.extend(to_message_dicts(part.a2ui))
-
+            res_dict = await asyncio.to_thread(
+                bridge.parse_and_validate,
+                "direct_json",
+                version,
+                resolved_catalog_path,
+                "main",
+                answer_text,
+                0.0 if norm_sdk == "python" else 5.0,
+                True,
+            )
+            all_messages = res_dict.get("compiled_jsons", [])
             if not all_messages:
                 return Score(
                     value=0.0,
@@ -100,14 +91,10 @@ def a2ui_scorer(version: str) -> Scorer:
                 )
 
             answer_text = json.dumps(all_messages, indent=2)
-            MessageProcessor(
-                [catalog],
-                options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
-            ).process_messages(all_messages)
             return Score(
                 value=1.0, answer=answer_text, explanation="Valid A2UI payload"
             )
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             return Score(value=0.0, answer=answer_text, explanation=str(e))
 
     return score

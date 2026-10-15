@@ -30,8 +30,9 @@ CATALOG_PATH_V091 = os.path.abspath(
 
 
 @pytest.mark.asyncio
-async def test_scorer_valid_json_v091() -> None:
-    scorer = a2ui_scorer(version="0.9.1")
+@pytest.mark.parametrize("sdk", ["python", "ts", "dart"])
+async def test_scorer_valid_json_v091(sdk: str) -> None:
+    scorer = a2ui_scorer(version="0.9.1", sdk=sdk)
     valid_json = """
     <a2ui-json>
     [
