@@ -28,6 +28,7 @@ final CatalogImplementation demoCatalog = CatalogImplementation(
   components: [...BasicComponents.all, customGrid, customSlider],
   functions: BasicCatalog.v0_9().functions.values.toList(),
   themeSchema: BasicComponents.api.themeSchema,
+  definitions: BasicComponents.api.definitions,
 );
 
 final Schema _dynamicNumber = Schema.fromMap({
@@ -116,7 +117,7 @@ final ComponentImplementation customSlider = ComponentImplementation(
                   } on A2uiDataError catch (error) {
                     unawaited(
                       surface.dispatchError(
-                        A2uiClientError(
+                        A2uiRendererError(
                           code: error.code,
                           surfaceId: surface.id,
                           message: error.message,

@@ -31,9 +31,8 @@ typedef LogEntry = ({String heading, Map<String, Object?> details});
 /// or deleted, or an entry is logged.
 class ExampleRun extends ChangeNotifier {
   ExampleRun(this.example) : messages = example.messages {
-    final SurfaceGroupModel<ComponentImplementation> group =
-        _processor.groupModel;
-    group.onAction.addListener(
+    final SurfaceGroupModel<ComponentImplementation> group = _processor.model;
+    group.onAction.subscribe(
       (action) => _log((
         heading: action.name,
         details: {
@@ -43,8 +42,8 @@ class ExampleRun extends ChangeNotifier {
         },
       )),
     );
-    group.onSurfaceCreated.addListener((surface) {
-      surface.onError.addListener(
+    group.onSurfaceCreated.subscribe((surface) {
+      surface.onError.subscribe(
         (error) => _log((
           heading: 'Error ${error.code}',
           details: {
@@ -57,7 +56,7 @@ class ExampleRun extends ChangeNotifier {
       _surfaces.add(surface);
       _changed();
     });
-    group.onSurfaceDeleted.addListener((id) {
+    group.onSurfaceDeleted.subscribe((id) {
       _surfaces.removeWhere((surface) => surface.id == id);
       _changed();
     });
@@ -140,7 +139,7 @@ class ExampleRun extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _processor.groupModel.dispose();
+    _processor.model.dispose();
     super.dispose();
   }
 }
