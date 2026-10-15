@@ -80,6 +80,7 @@ public struct A2UISlider: View {
           Text(labelText)
             .font(.subheadline.weight(.medium))
             .foregroundStyle(!node.isValid ? Color.red : Color.secondary)
+            .accessibilityHidden(true)
           Spacer()
           Text(formattedValueText)
             .font(.subheadline.monospacedDigit())
@@ -93,11 +94,13 @@ public struct A2UISlider: View {
           in: minValue...max(minValue + 0.001, maxValue),
           step: stepValue
         )
+        .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
       } else {
         Slider(
           value: sliderBinding,
           in: minValue...max(minValue + 0.001, maxValue)
         )
+        .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
       }
 
       if let firstError = node.validationErrors.first {

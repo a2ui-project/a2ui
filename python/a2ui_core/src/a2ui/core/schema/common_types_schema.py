@@ -35,6 +35,7 @@ from ._json_schema import (
     INLINE_DEF_MARKER,
     SPEC_TITLE_KEY,
     inline_marked_defs,
+    order_spec_schema_keys,
     resolve_ref_markers,
     spec_schema,
 )
@@ -250,13 +251,16 @@ def _build_common_types_schema(release: tuple[int, int]) -> _BuiltCommonTypes:
         for def_name, def_schema in spec_defs.items()
     }
 
-    schema = {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": schema_id,
-        "title": "A2UI Common Types",
-        "description": "Common type definitions used across A2UI schemas.",
-        "$defs": published_defs,
-    }
+    schema = cast(
+        dict[str, Any],
+        order_spec_schema_keys({
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": schema_id,
+            "title": "A2UI Common Types",
+            "description": "Common type definitions used across A2UI schemas.",
+            "$defs": published_defs,
+        }),
+    )
     return _BuiltCommonTypes(
         schema=schema,
         catalog_defs=_strip_const_implied_keywords(

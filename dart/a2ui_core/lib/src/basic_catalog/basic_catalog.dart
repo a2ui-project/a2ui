@@ -12,8 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
+
 import '../core/catalog.dart';
 import '../core/validation_result.dart';
+import '../primitives/cancellation.dart';
+import '../resolution/data_context.dart';
 import 'function_support.dart';
 import 'locale_formatting.dart';
 import 'v0_9/catalog.g.dart';
@@ -110,4 +115,34 @@ abstract final class BasicCatalog {
         ),
     ];
   }
+}
+
+/// The basic catalog's `formatString` function on its own, for catalogs that
+/// want template interpolation without the rest of the basic catalog.
+///
+/// Delegates to the same implementation as [BasicCatalog]: a non-string
+/// `value` is coerced to text, and on a v1.0 context the template's bindings
+/// and calls resolve in their `@path`/`@call` form.
+class FormatStringFunction extends FunctionImplementation {
+  FormatStringFunction()
+      : super(
+          name: 'formatString',
+          returnType: A2uiReturnType.string,
+          argumentSchema: Schema.object(
+            properties: {
+              'value': Schema.string(
+                description: 'The string template to interpolate.',
+              ),
+            },
+            required: ['value'],
+          ),
+        );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) =>
+      formatTemplate(args['value'], context);
 }

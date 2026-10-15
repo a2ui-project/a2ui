@@ -2,6 +2,50 @@
 
 ## Unreleased
 
+- Resolve cross-catalog `$ref` pointers across peer catalogs in
+  `resolvedComponentSchemas`, `validationSchema`, `refMap`, `PayloadValidator`
+  and `MessageProcessor`:
+  - `Catalog.withPeerCatalogs` returns a new linked catalog whose
+    `Catalog.peerCatalogs` lists the given peers (and the catalog a pruned
+    peer was derived from); the receiver is not changed. The linked copy is a
+    `Catalog` even when the receiver is a subclass.
+  - `linkCatalogs` returns linked copies of the catalogs it is given, each
+    linked with the others and with the optional `extraPeers`. A catalog whose
+    document holds no `$ref` into another catalog document is returned as it
+    is.
+  - `MessageProcessor` links copies of the catalogs passed to it and holds
+    those copies in `MessageProcessor.catalogs`; the catalogs passed in, such
+    as a shared basic catalog, are not changed.
+  - A `$ref` names the peer whose `catalogId` or `$id` equals its document
+    part, or of which one is a path suffix of the other, and failing that the
+    peer with the same file name. A bare `catalog.json`, or a path ending in
+    `/catalog.json` that no peer matches exactly, names the catalog itself.
+  - `resolveSchemaRefs` takes an optional `peers` argument and
+    `inlineLocalRefs` an optional fourth `peers` argument: the documents
+    cross-catalog references resolve against.
+- `resolveSchemaRefs` reads only a document named exactly `catalog.json`, or a
+  path ending in `/catalog.json`, as the catalog itself, and only
+  `common_types.json`, or a path ending in `/common_types.json`, as the common
+  types. A reference to any other document that no peer matches, such as
+  `other.json#/components/X` or `mcp_catalog.json#/...`, throws
+  `A2uiCatalogError` instead of leaving the subschema unconstrained, so
+  `PayloadValidator` reports it rather than accepting any value.
+- Added `MessageProcessor.forAgent`, which an agent checks its own outbound
+  payloads with. It takes the negotiated `CatalogApi`s, holds each function
+  as a signature that cannot be invoked, and validates under
+  `ValidationConfig.strict` by default. It checks a `callRendererFunction`
+  instead of running it; that check is declared but not implemented yet, and
+  throws `UnimplementedError`.
+- Added `AgentToRendererMessage.typesFor`, the message types an agent may
+  send in a protocol version.
+- `A2uiRendererCapabilities.fromJson` reads an inline catalog that states no
+  `protocolVersion` as targeting the version of the entry it is declared in.
+  `A2uiVersionCapabilities.fromJson` takes that version as `protocolVersion`.
+
+## 0.3.0
+
+- `Catalog.commonTypesSchema` and the bundled `common_types` schemas list
+  `description` after `type`, following the reordered specification files.
 - Updated documentation comments referencing `typescript/core/web_core`.
 - **Breaking:** Renamed `A2uiClientAction` and `A2uiClientError` to
   `A2uiRendererAction` and `A2uiRendererError`.
@@ -21,6 +65,9 @@
 - **Breaking:** `PayloadValidator` derives its rules and `common_types.json`
   document from `catalog.protocolVersion`; removed `protocolVersion`,
   `commonTypesSchema`, `checkVersion`, and `PayloadValidator.forVersion`.
+  `PayloadValidator` gains a `config` parameter (`ValidationConfig`). Adds
+  `ValidationConfig.allowUnknownElements`, `A2uiValidationError.surfaceId`,
+  and `ComponentApi.allowedParents` / `allowedChildren`.
   Removed `MessageProcessor.commonTypesSchema`, the `version` parameter of
   `MessageProcessor.validatorFor(catalog)`, `A2uiValidationError.details`, and
   `MinimalCatalog`.
@@ -29,6 +76,10 @@
   `A2uiRecursionError` (`RECURSION_ERROR`), reserving `A2uiRecursionError` for
   exceeding the maximum component traversal depth (`maxDepth`) or
   function-call nesting depth (`maxFunctionCallDepth`).
+- Export `GenericBinder`, `Behavior`, `BehaviorNode`, `resolveSchemaRefs`, and
+  `inlineLocalRefs` from `package:a2ui_core/a2ui_core.dart`.
+- `Catalog.fromJson` validates shorthand `parameters` map keys against UAX #31
+  in v1.0 mode and wraps shorthand parameter maps in an object schema.
 - `CallRendererFunctionMessage` and `CallRendererFunctionOp` accept an optional
   `surfaceId` (`String?`). When provided, `MessageProcessor` evaluates the
   function call against that surface's root `DataContext` (returning
@@ -60,12 +111,6 @@
   including components whose schema does not declare `accessibility`.
 - **Behavior change:** Template `ChildList`s in v1.0 surfaces bind their
   `path` with the v1.0 `@path` key, so v1.0 templates expand.
-- `PayloadValidator` takes its rules from the catalog: `Catalog.protocolVersion`
-  (parsed from the document's `protocolVersion`) selects the v1.0 rules for
-  v1.0 and later and the v0.9 rules otherwise, and the embedded
-  `common_types.json` for that version, and the validator gains a `config`. Adds
-  `ValidationConfig.allowUnknownElements`, `A2uiValidationError.surfaceId`,
-  and `ComponentApi.allowedParents` / `allowedChildren`.
 - **Breaking:** `Catalog.protocolVersion` is an `A2uiProtocolVersion?` rather
   than a `String?`. `Catalog.fromJson` reads the document's value as a
   semantic version (`1.0`, `v1.0` and `1.0.0` all name v1.0; pre-release and
@@ -108,9 +153,10 @@
   an unknown function is rejected.
 - **Behavior change:** v1.0 catalogs require UAX #31 identifiers for component
   ids, component and property names, function names and argument names, and
-  `createSurface.metadata.extensions` keys, and reject objects with
-  unrecognized single-`@` keys (code `INVALID_RESERVED_KEY`); `@@name` remains
-  an escaped literal key.
+  `createSurface.metadata.extensions` keys, reject `@`-prefixed function names in
+  `Catalog.fromJson` (reserving `@` for system functions such as `@index`), and
+  reject objects with unrecognized single-`@` keys (code `INVALID_RESERVED_KEY`);
+  `@@name` remains an escaped literal key.
 - **Behavior change:** a `$ref` into a document the SDK holds that names
   nothing now throws `A2uiCatalogError("Unresolvable schema reference:
 '<ref>'")` instead of silently leaving the subschema unconstrained, and
@@ -599,13 +645,11 @@
   traversal/root mutation, and array index bounds), support `DataContext.index`
   and `DataContext.dispose`, and pass the `data_model.yaml` and
   `data_context.yaml` conformance suites.
-- **Breaking:** `GenericBinder`, `Behavior`, `BehaviorNode` and `ComponentContext`
-  are no longer exported. Renderers read components through `NodeResolver` and
-  `ComponentNode`, whose props carry dynamic properties as `ResolvedBinding`
-  values instead of raw values, with no synthesized `set<Property>` setter
-  entries. A property bound to a data path is a `WritableBinding`, even when the
-  path holds no data; writes go through `WritableBinding.set`, and
-  `WritableBinding.path` is the path as authored.
+- **Breaking:** `ComponentNode.props` carries dynamic properties as
+  `ResolvedBinding` values instead of raw values, with no synthesized
+  `set<Property>` setter entries. A property bound to a data path is a
+  `WritableBinding`, even when the path holds no data; writes go through
+  `WritableBinding.set`, and `WritableBinding.path` is the path as authored.
 - **Breaking:** `SurfaceModel.dispatchAction` no longer executes `functionCall`
   payloads and emits an action only for `event` payloads. A node's action runs
   its function call itself.

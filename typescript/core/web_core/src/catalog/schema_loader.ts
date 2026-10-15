@@ -32,8 +32,9 @@ import {
   FunctionCallSchema,
   ChildSchema,
 } from '../types/common-types.js';
-import type {CatalogDocumentOptions, ComponentApi, FunctionApi} from './types.js';
+import type {CatalogDocumentOptions, CatalogInterface, ComponentApi, FunctionApi} from './types.js';
 import {isAtLeastVersion} from '../common/semver.js';
+import {A2uiCatalogError} from '../errors.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 import {
   buildComponentUnion,
@@ -81,6 +82,457 @@ const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
   DataBinding: DataBindingSchema,
   FunctionCall: FunctionCallSchema,
 };
+
+/**
+ * A peer catalog that a cross-catalog `$ref` can resolve against: a catalog,
+ * or a raw catalog document.
+ */
+export type PeerCatalogSource =
+  | CatalogInterface<ComponentApi, FunctionApi>
+  | Readonly<Record<string, unknown>>;
+
+const COMMON_TYPES_DOCUMENT = 'common_types.json';
+const CATALOG_DOCUMENT = 'catalog.json';
+
+/** Whether `doc` is the document `name`, bare or as the last segment of a path. */
+function isDocumentNamed(doc: string, name: string): boolean {
+  return doc === name || doc.endsWith(`/${name}`);
+}
+
+/** Returns the last `/`-separated segment of a path or URI. */
+function lastPathSegment(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1);
+}
+
+/** Splits a `$ref` at its first `#` into its document and fragment. */
+function splitRef(ref: string): {doc: string; fragment: string} {
+  const hashIdx = ref.indexOf('#');
+  return hashIdx < 0
+    ? {doc: ref, fragment: ''}
+    : {doc: ref.slice(0, hashIdx), fragment: ref.slice(hashIdx)};
+}
+
+/**
+ * Where the document part of a `$ref` points: the document that contains the
+ * reference (`self`), the common types document, a peer catalog, or nowhere
+ * known.
+ */
+type RefDocument =
+  | {readonly kind: 'self'}
+  | {readonly kind: 'commonTypes'}
+  | {readonly kind: 'peer'; readonly peer: PeerCatalogSource}
+  | {readonly kind: 'unresolved'};
+
+function isCatalogInstance(
+  peer: PeerCatalogSource,
+): peer is CatalogInterface<ComponentApi, FunctionApi> {
+  return typeof (peer as CatalogInterface<ComponentApi, FunctionApi>).toJson === 'function';
+}
+
+function peerIds(peer: PeerCatalogSource): {id?: string; schemaId?: string} {
+  if (isCatalogInstance(peer)) {
+    return {id: peer.id, schemaId: peer.schemaId};
+  }
+  const cid = peer['catalogId'];
+  const sid = peer['$id'];
+  return {
+    id: typeof cid === 'string' ? cid : undefined,
+    schemaId: typeof sid === 'string' ? sid : undefined,
+  };
+}
+
+/**
+ * Resolves the document part `doc` of a `$ref` with the peer matching rule:
+ *
+ * 1. An empty `doc` is the document that contains the reference.
+ * 2. `common_types.json`, bare or as a path suffix, is the common types
+ *    document.
+ * 3. A bare `catalog.json` is the document that contains the reference.
+ * 4. Otherwise, the first peer whose `catalogId` or `$id` equals `doc`, ends
+ *    with `/` + `doc`, or is a `/`-suffix of `doc`.
+ * 5. Otherwise, a `doc` ending in `/catalog.json` is the document that contains
+ *    the reference.
+ * 6. Otherwise, the first peer whose `$id` or `catalogId` has the same last
+ *    path segment as `doc`.
+ * 7. Otherwise, the reference is unresolved.
+ */
+function resolveRefDocument(doc: string, peers: readonly PeerCatalogSource[]): RefDocument {
+  if (!doc) return {kind: 'self'};
+  if (isDocumentNamed(doc, COMMON_TYPES_DOCUMENT)) return {kind: 'commonTypes'};
+  if (doc === CATALOG_DOCUMENT) return {kind: 'self'};
+
+  for (const peer of peers) {
+    const {id, schemaId} = peerIds(peer);
+    for (const candidate of [id, schemaId]) {
+      if (
+        candidate &&
+        (doc === candidate || candidate.endsWith(`/${doc}`) || doc.endsWith(`/${candidate}`))
+      ) {
+        return {kind: 'peer', peer};
+      }
+    }
+  }
+
+  if (doc.endsWith(`/${CATALOG_DOCUMENT}`)) return {kind: 'self'};
+
+  const base = lastPathSegment(doc);
+  for (const peer of peers) {
+    const {id, schemaId} = peerIds(peer);
+    for (const candidate of [schemaId, id]) {
+      if (candidate && lastPathSegment(candidate) === base) {
+        return {kind: 'peer', peer};
+      }
+    }
+  }
+  return {kind: 'unresolved'};
+}
+
+/**
+ * Whether a JSON document contains a `$ref` into another catalog document: one
+ * whose document part is neither empty, nor the common types document, nor a
+ * bare `catalog.json`.
+ *
+ * @param node A catalog document or a part of one.
+ */
+export function hasCrossDocumentRefs(node: unknown): boolean {
+  if (Array.isArray(node)) return node.some(hasCrossDocumentRefs);
+  if (!node || typeof node !== 'object') return false;
+  for (const [key, value] of Object.entries(node)) {
+    if (key === '$ref' && typeof value === 'string') {
+      const {doc} = splitRef(value);
+      if (doc && doc !== CATALOG_DOCUMENT && !isDocumentNamed(doc, COMMON_TYPES_DOCUMENT)) {
+        return true;
+      }
+    } else if (hasCrossDocumentRefs(value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Stable identities of the documents local `#/...` pointers resolve into. */
+const documentIds = new WeakMap<object, number>();
+let nextDocumentId = 0;
+
+/** Returns a key that identifies `doc` for cycle detection and caching. */
+function documentKey(doc: object): number {
+  let id = documentIds.get(doc);
+  if (id === undefined) {
+    id = nextDocumentId++;
+    documentIds.set(doc, id);
+  }
+  return id;
+}
+
+/** A `$ref` resolved to the document and pointer it targets. */
+interface RefTarget {
+  /** The document the pointer resolves in. */
+  readonly doc: Readonly<Record<string, unknown>>;
+  /** The JSON pointer within `doc`, starting with `#/`. */
+  readonly pointer: string;
+  /**
+   * Key identifying the target for cycle detection and caching: the
+   * document's identity and the pointer for a pointer into the current
+   * document, and the reference itself for a peer.
+   */
+  readonly key: string;
+  /** Whether the target is in a peer catalog rather than the current document. */
+  readonly isPeer: boolean;
+}
+
+/**
+ * The peer catalogs `$ref`s resolve against while converting or inlining one
+ * schema, with each peer's document read once.
+ */
+class PeerScope {
+  private readonly documents = new Map<PeerCatalogSource, Readonly<Record<string, unknown>>>();
+
+  constructor(readonly peers: readonly PeerCatalogSource[] = []) {}
+
+  /** Returns the catalog document of a peer. */
+  documentOf(peer: PeerCatalogSource): Readonly<Record<string, unknown>> {
+    if (!isCatalogInstance(peer)) return peer;
+    let doc = this.documents.get(peer);
+    if (!doc) {
+      doc = peer.toJson();
+      this.documents.set(peer, doc);
+    }
+    return doc;
+  }
+
+  /**
+   * Resolves `ref`, written in `currentDoc`, to the document and pointer it
+   * targets, or returns `undefined` for a reference to the common types, to
+   * an unknown document, or without a JSON pointer fragment.
+   */
+  resolve(ref: string, currentDoc: Readonly<Record<string, unknown>>): RefTarget | undefined {
+    const {doc, fragment} = splitRef(ref);
+    if (!fragment.startsWith('#/')) return undefined;
+    const target = resolveRefDocument(doc, this.peers);
+    if (target.kind === 'self') {
+      return {
+        doc: currentDoc,
+        pointer: fragment,
+        key: `${documentKey(currentDoc)}:${fragment}`,
+        isPeer: false,
+      };
+    }
+    if (target.kind === 'peer') {
+      return {doc: this.documentOf(target.peer), pointer: fragment, key: ref, isPeer: true};
+    }
+    return undefined;
+  }
+
+  /**
+   * Throws if `ref` points into another catalog document that no peer
+   * matches: such a reference is a catalog error, never a schema that accepts
+   * any value.
+   *
+   * @throws {A2uiCatalogError} If `ref` is an unresolvable cross-catalog reference.
+   */
+  assertResolvable(ref: string): void {
+    if (resolveRefDocument(splitRef(ref).doc, this.peers).kind === 'unresolved') {
+      throwUnresolvableRef(ref);
+    }
+  }
+}
+
+/** Reports a reference whose target cannot be found as a catalog error. */
+function throwUnresolvableRef(ref: string): never {
+  throw new A2uiCatalogError(`Unresolvable schema reference: '${ref}'`);
+}
+
+/**
+ * Zod schemas converted for one catalog entry, keyed by the document-scoped
+ * key of the reference they were converted from, together with the peer
+ * catalogs the entry's cross-catalog references resolve against.
+ */
+class ConversionCache extends Map<string, z.ZodTypeAny> {
+  readonly scope: PeerScope;
+
+  constructor(peers: readonly PeerCatalogSource[] = []) {
+    super();
+    this.scope = new PeerScope(peers);
+  }
+}
+
+/**
+ * Builds a JSON-loaded catalog entry linked to the given peer catalogs, by
+ * entry: each entry `fromJson` loads, and each entry rebuilt from one, maps to
+ * the function that built it. The function does not depend on any peers.
+ */
+const entryBuilders = new WeakMap<
+  object,
+  (peers: readonly PeerCatalogSource[]) => ComponentApi | FunctionApi
+>();
+
+/**
+ * Returns a copy of a catalog entry whose Zod schema resolves cross-catalog
+ * `$ref`s against `peers`. An entry `fromJson` loaded is rebuilt from the same
+ * definition; any other entry is returned as is.
+ *
+ * @param entry A component or function.
+ * @param peers The peer catalogs, in matching order.
+ */
+export function linkEntry<E extends ComponentApi | FunctionApi>(
+  entry: E,
+  peers: readonly PeerCatalogSource[],
+): E {
+  const build = entryBuilders.get(entry);
+  return build ? (build(peers) as E) : entry;
+}
+
+function stripEnvelopeFromSubschema(node: Record<string, unknown>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(node)) {
+    if (k === 'unevaluatedProperties' || k === 'additionalProperties' || k === 'title') {
+      continue;
+    }
+    cleaned[k] = v;
+  }
+  if (
+    cleaned.properties &&
+    typeof cleaned.properties === 'object' &&
+    !Array.isArray(cleaned.properties)
+  ) {
+    const nextProps: Record<string, unknown> = {};
+    for (const [pk, pv] of Object.entries(cleaned.properties as Record<string, unknown>)) {
+      if (!isEnvelopeField(pk)) {
+        nextProps[pk] = pv;
+      }
+    }
+    cleaned.properties = nextProps;
+  }
+  if (Array.isArray(cleaned.required)) {
+    cleaned.required = cleaned.required.filter(
+      (r): r is string => typeof r === 'string' && !isEnvelopeField(r),
+    );
+  }
+  if (Array.isArray(cleaned.allOf)) {
+    const specific: unknown[] = [];
+    const inherited: unknown[] = [];
+    for (const item of cleaned.allOf) {
+      if (item && typeof item === 'object' && !Array.isArray(item)) {
+        const itemObj = item as Record<string, unknown>;
+        const itemProps = itemObj.properties;
+        const hasComp =
+          Boolean(itemProps) &&
+          typeof itemProps === 'object' &&
+          !Array.isArray(itemProps) &&
+          'component' in (itemProps as Record<string, unknown>);
+        const strippedItem = stripEnvelopeFromSubschema(itemObj);
+        if (hasComp) {
+          specific.push(strippedItem);
+        } else {
+          inherited.push(strippedItem);
+        }
+      } else {
+        inherited.push(item);
+      }
+    }
+    cleaned.allOf = [...specific, ...inherited];
+  }
+  return cleaned;
+}
+
+function stripReferencedComponentEnvelope(
+  node: Record<string, unknown>,
+  pointer: string,
+): Record<string, unknown> {
+  if (!pointer.startsWith('#/components/')) return node;
+  const parts = pointer.slice(2).split('/');
+  if (parts.length !== 2) return node;
+  return stripEnvelopeFromSubschema(node);
+}
+
+/**
+ * Resolves a `$ref` into a peer catalog to its target, without the component
+ * envelope when the target is a whole component.
+ */
+function resolvePeerTarget(
+  target: RefTarget,
+): {doc: Record<string, unknown>; target: Record<string, unknown>} | undefined {
+  const doc = target.doc as Record<string, unknown>;
+  const raw = resolveJsonPointer(doc, target.pointer);
+  return raw ? {doc, target: stripReferencedComponentEnvelope(raw, target.pointer)} : undefined;
+}
+
+/**
+ * Returns a copy of `node` with local `#/...` and peer catalog `<doc>#/...`
+ * references resolved inline, preserving references to standard common types.
+ *
+ * Documents are matched with the peer matching rule: a reference to a bare
+ * `catalog.json`, or to a document ending in `/catalog.json` that no peer
+ * matches exactly, points into `rootDoc`. References inside an inlined peer
+ * document resolve against the same `peers`, and its local pointers against
+ * that peer's document.
+ *
+ * @param node The schema to inline references in.
+ * @param rootDoc The document `node` belongs to.
+ * @param peers The peer catalogs, in matching order.
+ * @param options `inlineLocalDefs`: whether to inline local `#/$defs/...`
+ *     pointers of `rootDoc` (pointers inside a peer document are always
+ *     inlined). `visited`: keys of the references already being inlined.
+ */
+export function inlinePeerAndLocalRefs(
+  node: unknown,
+  rootDoc: Record<string, unknown>,
+  peers: readonly PeerCatalogSource[] = [],
+  options: {inlineLocalDefs?: boolean; visited?: Set<string>} = {},
+): unknown {
+  return inlineRefs(
+    node,
+    rootDoc,
+    new PeerScope(peers),
+    options.inlineLocalDefs ?? true,
+    options.visited ?? new Set<string>(),
+  );
+}
+
+function inlineRefs(
+  node: unknown,
+  rootDoc: Readonly<Record<string, unknown>>,
+  scope: PeerScope,
+  inlineLocalDefs: boolean,
+  visited: Set<string>,
+): unknown {
+  if (Array.isArray(node)) {
+    return node.map(item => inlineRefs(item, rootDoc, scope, inlineLocalDefs, visited));
+  }
+  if (!node || typeof node !== 'object') {
+    return node;
+  }
+
+  const obj = node as Record<string, unknown>;
+  if (typeof obj.$ref === 'string') {
+    let target = scope.resolve(obj.$ref, rootDoc);
+    if (target && !target.isPeer) {
+      const defName = target.pointer.split('/').pop() ?? '';
+      const isPreservedCommonType =
+        target.pointer.startsWith('#/$defs/') &&
+        (defName in COMMON_TYPE_SCHEMAS || defName === 'ComponentCommon');
+      if (isPreservedCommonType || (!inlineLocalDefs && target.pointer.startsWith('#/$defs/'))) {
+        target = undefined;
+      }
+    }
+
+    if (target && !visited.has(target.key)) {
+      const resolvedTarget = resolveJsonPointer(
+        target.doc as Record<string, unknown>,
+        target.pointer,
+      );
+      if (resolvedTarget) {
+        const nextVisited = new Set(visited);
+        nextVisited.add(target.key);
+        const inlinedTarget = inlineRefs(
+          resolvedTarget,
+          target.doc,
+          scope,
+          target.isPeer ? true : inlineLocalDefs,
+          nextVisited,
+        );
+        if (inlinedTarget && typeof inlinedTarget === 'object' && !Array.isArray(inlinedTarget)) {
+          const stripped = stripReferencedComponentEnvelope(
+            inlinedTarget as Record<string, unknown>,
+            target.pointer,
+          );
+          const res: Record<string, unknown> = {...stripped};
+          for (const [k, v] of Object.entries(obj)) {
+            if (k === '$ref') continue;
+            const inlinedVal = inlineRefs(v, rootDoc, scope, inlineLocalDefs, visited);
+            if (
+              k in res &&
+              res[k] &&
+              typeof res[k] === 'object' &&
+              !Array.isArray(res[k]) &&
+              inlinedVal &&
+              typeof inlinedVal === 'object' &&
+              !Array.isArray(inlinedVal)
+            ) {
+              res[k] = {
+                ...(res[k] as Record<string, unknown>),
+                ...(inlinedVal as Record<string, unknown>),
+              };
+            } else if (Array.isArray(res[k]) && Array.isArray(inlinedVal)) {
+              const existing = res[k] as unknown[];
+              res[k] = [...existing, ...inlinedVal.filter(item => !existing.includes(item))];
+            } else {
+              res[k] = inlinedVal;
+            }
+          }
+          return res;
+        }
+        return inlinedTarget;
+      }
+    }
+  }
+
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    out[k] = inlineRefs(v, rootDoc, scope, inlineLocalDefs, visited);
+  }
+  return out;
+}
 
 /**
  * Resolves a JSON Pointer within a root JSON document.
@@ -186,7 +638,7 @@ function finalizePropertyZod(
   propSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
   visitedPointers?: Set<string>,
-  defCache?: Map<string, z.ZodTypeAny>,
+  defCache?: ConversionCache,
 ): z.ZodTypeAny {
   let result = baseZod;
   if (propSchema.not && typeof propSchema.not === 'object') {
@@ -228,7 +680,7 @@ function convertRefToZod(
   propSchema: Record<string, unknown>,
   rootDoc: Record<string, unknown> | undefined,
   visitedPointers: Set<string>,
-  defCache: Map<string, z.ZodTypeAny>,
+  defCache: ConversionCache,
 ): z.ZodTypeAny | undefined {
   const resolvedProtocol = resolveProtocolRef(ref);
   if (resolvedProtocol) {
@@ -240,9 +692,25 @@ function convertRefToZod(
     return desc ? resolvedProtocol.describe(desc) : resolvedProtocol;
   }
 
-  if (rootDoc && ref.startsWith('#/')) {
-    const localTarget = resolveJsonPointer(rootDoc, ref);
-    if (!localTarget) {
+  if (!rootDoc) return undefined;
+  const target = defCache.scope.resolve(ref, rootDoc);
+  if (!target) {
+    defCache.scope.assertResolvable(ref);
+    return undefined;
+  }
+  let doc: Record<string, unknown>;
+  let schema: Record<string, unknown> | undefined;
+  if (target.isPeer) {
+    const peerResolved = resolvePeerTarget(target);
+    if (!peerResolved) throwUnresolvableRef(ref);
+    ({doc, target: schema} = peerResolved);
+  } else {
+    doc = rootDoc;
+    schema = resolveJsonPointer(rootDoc, target.pointer);
+    if (!schema) {
+      // A pointer written as `catalog.json#/...` that the document cannot
+      // satisfy is left unresolved, as it was before peers were linked.
+      if (!ref.startsWith('#')) return undefined;
       return z.unknown().superRefine((_val, ctx) => {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -250,31 +718,30 @@ function convertRefToZod(
         });
       });
     }
-    if (visitedPointers.has(ref)) {
-      let cached = defCache.get(ref);
-      return z.lazy(() => {
-        if (!cached) {
-          cached =
-            defCache.get(ref) ??
-            convertPropertyToZod(localTarget, rootDoc, new Set([ref]), defCache);
-          defCache.set(ref, cached);
-        }
-        return cached;
-      });
-    }
-    let zodType = defCache.get(ref);
-    if (!zodType) {
-      const nextVisited = new Set(visitedPointers);
-      nextVisited.add(ref);
-      zodType = convertPropertyToZod(localTarget, rootDoc, nextVisited, defCache);
-      defCache.set(ref, zodType);
-    }
-    if (typeof propSchema.description === 'string') {
-      zodType = zodType.describe(propSchema.description);
-    }
-    return zodType;
   }
-  return undefined;
+  const key = target.key;
+  const resolved = schema;
+  if (visitedPointers.has(key)) {
+    let cached = defCache.get(key);
+    return z.lazy(() => {
+      if (!cached) {
+        cached = defCache.get(key) ?? convertPropertyToZod(resolved, doc, new Set([key]), defCache);
+        defCache.set(key, cached);
+      }
+      return cached;
+    });
+  }
+  let zodType = defCache.get(key);
+  if (!zodType) {
+    const nextVisited = new Set(visitedPointers);
+    nextVisited.add(key);
+    zodType = convertPropertyToZod(resolved, doc, nextVisited, defCache);
+    defCache.set(key, zodType);
+  }
+  if (typeof propSchema.description === 'string') {
+    zodType = zodType.describe(propSchema.description);
+  }
+  return zodType;
 }
 
 /**
@@ -294,7 +761,7 @@ function convertUnionToZod(
   propSchema: Record<string, unknown>,
   rootDoc: Record<string, unknown> | undefined,
   visitedPointers: Set<string>,
-  defCache: Map<string, z.ZodTypeAny>,
+  defCache: ConversionCache,
 ): z.ZodTypeAny | undefined {
   const isOneOf = Array.isArray(propSchema.oneOf);
   const rawBranches = (propSchema.oneOf || propSchema.anyOf) as unknown[];
@@ -362,7 +829,7 @@ function convertPropertyToZod(
   propSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
   visitedPointers = new Set<string>(),
-  defCache = new Map<string, z.ZodTypeAny>(),
+  defCache = new ConversionCache(),
 ): z.ZodTypeAny {
   if (!propSchema || typeof propSchema !== 'object') {
     return z.unknown();
@@ -536,7 +1003,7 @@ function convertPropertiesToShape(
   omitEnvelopeFields = false,
   rootDoc?: Record<string, unknown>,
   visitedPointers?: Set<string>,
-  defCache = new Map<string, z.ZodTypeAny>(),
+  defCache = new ConversionCache(),
 ): Record<string, z.ZodTypeAny> {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const [propName, propSchema] of Object.entries(properties)) {
@@ -573,7 +1040,7 @@ function convertPropertiesToShape(
  * type instead.
  */
 type ComponentSubSchema =
-  | {kind: 'json'; schema: Record<string, unknown>}
+  | {kind: 'json'; schema: Record<string, unknown>; rootDoc: Record<string, unknown>}
   | {kind: 'zod'; properties: Record<string, z.ZodTypeAny>};
 
 /**
@@ -589,9 +1056,14 @@ type ComponentSubSchema =
  * that narrows a property it inherits keeps its narrowed schema, and the mixin
  * properties stay first in key order.
  *
+ * A reference into a peer catalog contributes the pieces of its target, whose
+ * own local pointers resolve against the peer's document.
+ *
  * @param schema Component schema definition.
  * @param rootDoc Root schema document containing definition targets.
- * @param visitedPointers Set of reference pointers currently being resolved to prevent cycles.
+ * @param scope Peer catalogs that cross-catalog references resolve against.
+ * @param visitedPointers Document-scoped keys of the references currently being resolved, to
+ *     prevent cycles.
  * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
  * @returns The pieces gathered from the schema and its `allOf` hierarchy, as JSON Schema
  *     fragments or zod mirrors of canonical types, least specific first.
@@ -599,6 +1071,7 @@ type ComponentSubSchema =
 function collectComponentSubSchemas(
   schema: Record<string, unknown>,
   rootDoc: Record<string, unknown>,
+  scope: PeerScope,
   visitedPointers = new Set<string>(),
   isAtLeastV10 = false,
 ): ComponentSubSchema[] {
@@ -622,35 +1095,59 @@ function collectComponentSubSchemas(
             kind: 'zod',
             properties: isAtLeastV10 ? {accessibility, metadata} : {accessibility},
           });
-        } else if (ref.startsWith('#/')) {
-          if (!visitedPointers.has(ref)) {
-            visitedPointers.add(ref);
-            const target = resolveJsonPointer(rootDoc, ref);
-            if (target) {
-              local.push(
-                ...collectComponentSubSchemas(target, rootDoc, visitedPointers, isAtLeastV10),
-              );
-            }
-          }
         } else {
           // Any other external reference, such as common_types.json#/$defs/Checkable.
           // The referenced document is not loaded here, so fall back to the zod mirror of
           // the canonical type. Without this the mixin is dropped with no error, which is
           // how `checks` used to disappear from every Checkable component.
-          const mirror = resolveProtocolRef(ref);
+          const mirror = ref.startsWith('#/') ? undefined : resolveProtocolRef(ref);
+          const target = mirror instanceof z.ZodObject ? undefined : scope.resolve(ref, rootDoc);
           if (mirror instanceof z.ZodObject) {
             mixins.push({kind: 'zod', properties: {...mirror.shape}});
+          } else if (!target) {
+            scope.assertResolvable(ref);
+          } else if (!target.isPeer) {
+            if (!visitedPointers.has(target.key)) {
+              visitedPointers.add(target.key);
+              const resolved = resolveJsonPointer(rootDoc, target.pointer);
+              if (resolved) {
+                local.push(
+                  ...collectComponentSubSchemas(
+                    resolved,
+                    rootDoc,
+                    scope,
+                    visitedPointers,
+                    isAtLeastV10,
+                  ),
+                );
+              }
+            }
+          } else if (!visitedPointers.has(target.key)) {
+            const peerResolved = resolvePeerTarget(target);
+            if (!peerResolved) throwUnresolvableRef(ref);
+            const nextVisited = new Set(visitedPointers).add(target.key);
+            local.push(
+              ...collectComponentSubSchemas(
+                peerResolved.target,
+                peerResolved.doc,
+                scope,
+                nextVisited,
+                isAtLeastV10,
+              ),
+            );
           }
         }
       } else {
-        inline.push(...collectComponentSubSchemas(sub, rootDoc, visitedPointers, isAtLeastV10));
+        inline.push(
+          ...collectComponentSubSchemas(sub, rootDoc, scope, visitedPointers, isAtLeastV10),
+        );
       }
     }
   }
 
   const result = [...mixins, ...local, ...inline];
   if (schema.properties) {
-    result.push({kind: 'json', schema});
+    result.push({kind: 'json', schema, rootDoc});
   }
   return result;
 }
@@ -672,11 +1169,17 @@ function convertComponentJsonSchemaToZod(
   rawSchema: Record<string, unknown>,
   rootDoc: Record<string, unknown>,
   omitEnvelopeFields = true,
-  defCache = new Map<string, z.ZodTypeAny>(),
+  defCache = new ConversionCache(),
   isAtLeastV10 = false,
 ): z.ZodObject<z.ZodRawShape> {
   const shape: Record<string, z.ZodTypeAny> = {};
-  const schemasToMerge = collectComponentSubSchemas(rawSchema, rootDoc, undefined, isAtLeastV10);
+  const schemasToMerge = collectComponentSubSchemas(
+    rawSchema,
+    rootDoc,
+    defCache.scope,
+    undefined,
+    isAtLeastV10,
+  );
 
   const requiredSet = new Set<string>();
   for (const s of schemasToMerge) {
@@ -701,7 +1204,7 @@ function convertComponentJsonSchemaToZod(
       (s.schema.properties as Record<string, unknown>) || {},
       requiredSet,
       omitEnvelopeFields,
-      rootDoc,
+      s.rootDoc,
       undefined,
       defCache,
     );
@@ -719,42 +1222,242 @@ function convertComponentJsonSchemaToZod(
 }
 
 /**
+ * Checks whether an object schema represents a shorthand parameter map (a map
+ * of parameter names to subschemas), rather than a full JSON Schema object or
+ * reference combinator.
+ */
+function isShorthandParameterMap(schema: unknown): boolean {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+    return false;
+  }
+  const s = schema as Record<string, unknown>;
+  return (
+    Object.keys(s).length > 0 &&
+    s.properties === undefined &&
+    typeof s.type !== 'string' &&
+    !('$ref' in s) &&
+    !('allOf' in s) &&
+    !('oneOf' in s) &&
+    !('anyOf' in s) &&
+    !('not' in s) &&
+    Object.values(s).every(v => v !== null && (typeof v === 'object' || typeof v === 'boolean'))
+  );
+}
+
+/**
+ * Checks whether an object schema explicitly permits additional or unevaluated properties.
+ */
+function isExplicitlyOpen(schema: Record<string, unknown>): boolean {
+  return (
+    schema.unevaluatedProperties === true ||
+    (typeof schema.unevaluatedProperties === 'object' && schema.unevaluatedProperties !== null) ||
+    schema.additionalProperties === true ||
+    (typeof schema.additionalProperties === 'object' && schema.additionalProperties !== null)
+  );
+}
+
+/** An object schema gathered from function arguments, with the document it belongs to. */
+interface ArgSubSchema {
+  readonly schema: Record<string, unknown>;
+  readonly doc?: Record<string, unknown>;
+}
+
+/**
+ * Collects sub-schemas and references for function argument definitions.
+ *
+ * Resolves local document pointers (`#/`) and references into peer catalogs,
+ * recurses into `allOf` compositions, and detects unresolvable references or
+ * open combiners (`oneOf`, `anyOf`).
+ */
+function collectArgSubSchemas(
+  schema: Record<string, unknown>,
+  rootDoc: Record<string, unknown> | undefined,
+  scope: PeerScope,
+  visited = new Set<string>(),
+): {schemas: ArgSubSchema[]; hasUnresolvable: boolean} {
+  const result: {schemas: ArgSubSchema[]; hasUnresolvable: boolean} = {
+    schemas: [],
+    hasUnresolvable: false,
+  };
+
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+    return result;
+  }
+
+  if (isShorthandParameterMap(schema)) {
+    result.schemas.push({
+      schema: {
+        type: 'object',
+        properties: schema,
+      },
+      doc: rootDoc,
+    });
+    return result;
+  }
+
+  const addSub = (sub: {schemas: ArgSubSchema[]; hasUnresolvable: boolean}) => {
+    result.schemas.push(...sub.schemas);
+    if (sub.hasUnresolvable) {
+      result.hasUnresolvable = true;
+    }
+  };
+
+  if (typeof schema.$ref === 'string') {
+    const ref = schema.$ref;
+    const target = rootDoc ? scope.resolve(ref, rootDoc) : undefined;
+    if (!target || !rootDoc) {
+      if (rootDoc) scope.assertResolvable(ref);
+      result.hasUnresolvable = true;
+    } else if (!target.isPeer) {
+      if (!visited.has(target.key)) {
+        visited.add(target.key);
+        const resolved = resolveJsonPointer(rootDoc, target.pointer);
+        if (resolved) {
+          addSub(collectArgSubSchemas(resolved, rootDoc, scope, visited));
+        } else {
+          result.hasUnresolvable = true;
+        }
+      }
+    } else if (!visited.has(target.key)) {
+      const peerResolved = resolvePeerTarget(target);
+      if (!peerResolved) throwUnresolvableRef(ref);
+      const nextVisited = new Set(visited).add(target.key);
+      addSub(collectArgSubSchemas(peerResolved.target, peerResolved.doc, scope, nextVisited));
+    }
+  }
+
+  if (Array.isArray(schema.allOf)) {
+    for (const sub of schema.allOf) {
+      if (sub && typeof sub === 'object' && !Array.isArray(sub)) {
+        addSub(collectArgSubSchemas(sub as Record<string, unknown>, rootDoc, scope, visited));
+      }
+    }
+  }
+
+  if (Array.isArray(schema.anyOf) || Array.isArray(schema.oneOf)) {
+    result.hasUnresolvable = true;
+  }
+
+  if (
+    schema.properties ||
+    schema.required ||
+    schema.additionalProperties !== undefined ||
+    schema.unevaluatedProperties !== undefined
+  ) {
+    result.schemas.push({schema, doc: rootDoc});
+  }
+
+  return result;
+}
+
+/**
  * Converts a function argument JSON schema definition into a Zod object schema.
  *
  * Maps function argument schemas to object properties, requiring fields listed in
- * `required` and applying strictness or passthrough based on `additionalProperties`.
+ * `required` and applying strictness or passthrough based on `additionalProperties`
+ * and reference resolution.
  *
  * @param rawSchema Raw function arguments schema.
  * @param rootDoc Optional root schema document for reference resolution.
- * @param defCache Cache mapping reference strings to resolved Zod schemas.
+ * @param defCache Cache mapping reference keys to resolved Zod schemas, and the
+ *     peer catalogs cross-catalog references resolve against.
  * @returns Zod object schema validating function arguments.
  */
 function convertFunctionArgsJsonSchemaToZod(
   rawSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
-  defCache = new Map<string, z.ZodTypeAny>(),
+  defCache = new ConversionCache(),
 ): z.ZodObject<z.ZodRawShape> {
-  const requiredSet = new Set<string>(
-    Array.isArray(rawSchema.required)
-      ? rawSchema.required.filter((r): r is string => typeof r === 'string')
-      : [],
-  );
-  const shape = convertPropertiesToShape(
-    (rawSchema.properties as Record<string, unknown>) || {},
-    requiredSet,
-    false,
-    rootDoc,
-    undefined,
-    defCache,
-  );
+  const collected = collectArgSubSchemas(rawSchema, rootDoc, defCache.scope);
+  const requiredSet = new Set<string>();
+  for (const {schema: s} of collected.schemas) {
+    if (Array.isArray(s.required)) {
+      for (const r of s.required) {
+        if (typeof r === 'string') {
+          requiredSet.add(r);
+        }
+      }
+    }
+  }
+
+  const shape: Record<string, z.ZodTypeAny> = {};
+  for (const {schema: s, doc} of collected.schemas) {
+    if (s.properties && typeof s.properties === 'object' && !Array.isArray(s.properties)) {
+      const propShape = convertPropertiesToShape(
+        s.properties as Record<string, unknown>,
+        requiredSet,
+        false,
+        doc,
+        undefined,
+        defCache,
+      );
+      Object.assign(shape, propShape);
+    }
+  }
+
   const obj = z.object(shape);
   const allowExtra =
-    rawSchema.unevaluatedProperties === true ||
-    (typeof rawSchema.unevaluatedProperties === 'object' &&
-      rawSchema.unevaluatedProperties !== null) ||
-    rawSchema.additionalProperties === true ||
-    (typeof rawSchema.additionalProperties === 'object' && rawSchema.additionalProperties !== null);
+    collected.hasUnresolvable ||
+    collected.schemas.some(({schema: s}) => isExplicitlyOpen(s)) ||
+    isExplicitlyOpen(rawSchema);
   return allowExtra ? obj.passthrough() : obj.strict();
+}
+
+/**
+ * Extracts declared parameter names from a function's argument schema.
+ */
+function functionParameterNames(schema: unknown, rootDoc?: Record<string, unknown>): string[] {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+    return [];
+  }
+  const s = schema as Record<string, unknown>;
+  const names: string[] = [];
+  const visited = new Set<string>();
+
+  const extractProperties = (node: unknown): void => {
+    if (!node || typeof node !== 'object' || Array.isArray(node)) return;
+    const n = node as Record<string, unknown>;
+    if (typeof n.$ref === 'string' && rootDoc && n.$ref.startsWith('#/')) {
+      if (!visited.has(n.$ref)) {
+        visited.add(n.$ref);
+        const target = resolveJsonPointer(rootDoc, n.$ref);
+        if (target) {
+          extractProperties(target);
+        }
+      }
+    }
+    if (
+      n.properties &&
+      typeof n.properties === 'object' &&
+      n.properties !== null &&
+      !Array.isArray(n.properties)
+    ) {
+      names.push(...Object.keys(n.properties as Record<string, unknown>));
+    }
+    if (Array.isArray(n.allOf)) {
+      for (const member of n.allOf) {
+        extractProperties(member);
+      }
+    }
+  };
+
+  if (
+    (s.properties &&
+      typeof s.properties === 'object' &&
+      s.properties !== null &&
+      !Array.isArray(s.properties)) ||
+    Array.isArray(s.allOf) ||
+    typeof s.$ref === 'string'
+  ) {
+    extractProperties(s);
+    return names;
+  }
+
+  if (isShorthandParameterMap(s)) {
+    return Object.keys(s);
+  }
+
+  return [];
 }
 
 /**
@@ -778,37 +1481,38 @@ function parseFunctionDefinitions(
 ): FunctionApi[] {
   const result: FunctionApi[] = [];
   if (!rawFunctions) return result;
-  const defCache = new Map<string, z.ZodTypeAny>();
 
   /** Validates a function's own name and its declared argument names. */
-  const assertFunctionIdentifiers = (name: string, args: unknown): void => {
+  const assertFunctionIdentifiers = (name: string, paramNames: string[]): void => {
     if (!atLeastV10) return;
     assertUax31Identifier(name, `function identifier: '${name}'`);
-    if (args && typeof args === 'object') {
-      for (const argName of Object.keys(args as Record<string, unknown>)) {
-        assertUax31Identifier(argName, `argument identifier: '${argName}' in function '${name}'`);
-      }
+    for (const argName of paramNames) {
+      assertUax31Identifier(argName, `argument identifier: '${argName}' in function '${name}'`);
     }
   };
 
   if (Array.isArray(rawFunctions)) {
     for (const fn of rawFunctions) {
       if (fn && typeof fn === 'object' && typeof fn.name === 'string') {
-        assertFunctionIdentifiers(fn.name, fn.parameters);
+        const paramNames = functionParameterNames(fn.parameters, rootDoc);
+        assertFunctionIdentifiers(fn.name, paramNames);
         if (permittedNames && !permittedNames.has(fn.name)) {
           continue;
         }
-        result.push(
-          new JsonFunctionApi(fn.name, fn as Record<string, unknown>, definition =>
+        const build = (peers: readonly PeerCatalogSource[]): FunctionApi => {
+          const entry = new JsonFunctionApi(fn.name, fn as Record<string, unknown>, definition =>
             definition['parameters'] && typeof definition['parameters'] === 'object'
               ? convertFunctionArgsJsonSchemaToZod(
                   definition['parameters'] as Record<string, unknown>,
                   rootDoc,
-                  defCache,
+                  new ConversionCache(peers),
                 )
               : z.record(z.unknown()),
-          ),
-        );
+          );
+          entryBuilders.set(entry, build);
+          return entry;
+        };
+        result.push(build([]));
       }
     }
     return result;
@@ -817,24 +1521,24 @@ function parseFunctionDefinitions(
   if (typeof rawFunctions === 'object' && rawFunctions !== null) {
     for (const [name, defn] of Object.entries(rawFunctions)) {
       const rawDefn = defn && typeof defn === 'object' ? (defn as Record<string, unknown>) : {};
-      assertFunctionIdentifiers(
-        name,
-        rawDefn.properties && typeof rawDefn.properties === 'object'
-          ? rawDefn.properties
-          : rawDefn.parameters,
-      );
+      const argsSchema = functionArgsSchema(rawDefn);
+      const paramNames = functionParameterNames(argsSchema, rootDoc);
+      assertFunctionIdentifiers(name, paramNames);
       if (permittedNames && !permittedNames.has(name)) {
         continue;
       }
       if (!defn || typeof defn !== 'object') continue;
-      result.push(
-        new JsonFunctionApi(name, defn as Record<string, unknown>, definition => {
+      const build = (peers: readonly PeerCatalogSource[]): FunctionApi => {
+        const entry = new JsonFunctionApi(name, defn as Record<string, unknown>, definition => {
           const argsSchema = functionArgsSchema(definition);
           return argsSchema
-            ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc, defCache)
+            ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc, new ConversionCache(peers))
             : z.record(z.unknown());
-        }),
-      );
+        });
+        entryBuilders.set(entry, build);
+        return entry;
+      };
+      result.push(build([]));
     }
   }
 
@@ -852,24 +1556,25 @@ function parseFunctionDefinitions(
 function functionArgsSchema(
   d: Readonly<Record<string, unknown>>,
 ): Record<string, unknown> | undefined {
-  const props = d.properties as Record<string, unknown> | undefined;
+  const props =
+    d.properties &&
+    typeof d.properties === 'object' &&
+    d.properties !== null &&
+    !Array.isArray(d.properties)
+      ? (d.properties as Record<string, unknown>)
+      : undefined;
   let argsSchema = props?.args ?? d.args ?? d.parameters;
   if (!argsSchema && props && !('call' in props) && !('@call' in props) && !('function' in props)) {
     argsSchema = d;
-  } else if (
-    argsSchema &&
-    typeof argsSchema === 'object' &&
-    !('properties' in argsSchema) &&
-    !('type' in argsSchema)
-  ) {
+  } else if (isShorthandParameterMap(argsSchema)) {
     argsSchema = {
       type: 'object',
-      properties: argsSchema,
+      properties: argsSchema as Record<string, unknown>,
       required: d.required,
       additionalProperties: d.additionalProperties,
     };
   }
-  return argsSchema && typeof argsSchema === 'object'
+  return argsSchema && typeof argsSchema === 'object' && !Array.isArray(argsSchema)
     ? (argsSchema as Record<string, unknown>)
     : undefined;
 }
@@ -917,7 +1622,6 @@ function parseCatalogComponents(
   permittedNames?: Set<string>,
 ): ComponentApi[] {
   const components: ComponentApi[] = [];
-  const defCache = new Map<string, z.ZodTypeAny>();
 
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
     const rawComp = (rawCompSchema as Record<string, unknown>) || {};
@@ -936,17 +1640,20 @@ function parseCatalogComponents(
     if (permittedNames && !permittedNames.has(name)) {
       continue;
     }
-    components.push(
-      new JsonComponentApi(name, rawComp, definition =>
+    const build = (peers: readonly PeerCatalogSource[]): ComponentApi => {
+      const entry = new JsonComponentApi(name, rawComp, definition =>
         convertComponentJsonSchemaToZod(
           definition as Record<string, unknown>,
           catalogSchema,
           true,
-          defCache,
+          new ConversionCache(peers),
           atLeastV10,
         ),
-      ),
-    );
+      );
+      entryBuilders.set(entry, build);
+      return entry;
+    };
+    components.push(build([]));
   }
   return components;
 }

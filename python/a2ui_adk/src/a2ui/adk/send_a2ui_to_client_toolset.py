@@ -110,16 +110,12 @@ from google.adk.tools import tool_context
 from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
 
+from a2ui.constants import A2UI_TOOL_ERROR_KEY, A2UI_TOOL_NAME, A2UI_VALIDATED_JSON_KEY
 from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog, CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat, InferenceFormatFactory
 from a2ui.inference_formats import DirectJsonFormatFactory
 from a2ui.parser import A2uiPart, Parser, to_message_dicts
-from a2ui.schema.constants import (
-    A2UI_TOOL_ERROR_KEY,
-    A2UI_TOOL_NAME,
-    A2UI_VALIDATED_JSON_KEY,
-)
 
 if TYPE_CHECKING:
     from a2ui.adk.a2a import A2uiPartConverter

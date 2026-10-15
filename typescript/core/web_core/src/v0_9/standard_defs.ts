@@ -69,10 +69,10 @@ export const V09_STANDARD_DEFS: Record<string, unknown> = {
     'oneOf': [
       {
         'type': 'array',
+        'description': 'A static list of child component IDs.',
         'items': {
           '$ref': '#/$defs/ComponentId',
         },
-        'description': 'A static list of child component IDs.',
       },
       {
         'type': 'object',
@@ -285,8 +285,8 @@ export const V09_STANDARD_DEFS: Record<string, unknown> = {
     'additionalProperties': false,
   },
   'Checkable': {
-    'description': 'Properties for components that support client-side checks.',
     'type': 'object',
+    'description': 'Properties for components that support client-side checks.',
     'properties': {
       'checks': {
         'type': 'array',

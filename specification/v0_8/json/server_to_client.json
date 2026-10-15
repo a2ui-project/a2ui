@@ -102,8 +102,8 @@
                 "type": "boolean"
               },
               "valueMap": {
-                "description": "Represents a map as an adjacency list.",
                 "type": "array",
+                "description": "Represents a map as an adjacency list.",
                 "items": {
                   "type": "object",
                   "description": "One entry in the map. Exactly one 'value*' property should be provided alongside the key.",

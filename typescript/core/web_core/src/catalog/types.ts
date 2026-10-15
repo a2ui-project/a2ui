@@ -21,7 +21,12 @@ import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {SpecVersion} from '../spec_versions.js';
-import {parseCatalogSchema} from './schema_loader.js';
+import {
+  hasCrossDocumentRefs,
+  inlinePeerAndLocalRefs,
+  linkEntry,
+  parseCatalogSchema,
+} from './schema_loader.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
 import {generateValidationSchema} from './schema_generator.js';
 import {
@@ -39,6 +44,7 @@ import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 
 export type {ComponentChildRefs};
+export {inlinePeerAndLocalRefs};
 
 /**
  * Registry mapping A2UI function return type identifiers to their TypeScript runtime types.
@@ -374,6 +380,15 @@ export declare interface CatalogInterface<
   toJson(): Record<string, unknown>;
   /** Component reference map for child reference extraction and topology validation. */
   readonly componentRefMap: ComponentRefMap;
+  /** Peer catalogs available for resolving cross-catalog `$ref`s. */
+  readonly peerCatalogs?: readonly CatalogInterface<ComponentApi, FunctionApi>[];
+  /**
+   * Returns a catalog linked to `peers` for resolving cross-catalog `$ref`s,
+   * leaving this catalog unchanged.
+   */
+  withPeerCatalogs?(
+    peers: Iterable<CatalogInterface<ComponentApi, FunctionApi>>,
+  ): CatalogInterface<T, F>;
 }
 
 /**
@@ -487,6 +502,84 @@ export class Catalog<
 
   private cachedDocument?: Record<string, unknown>;
 
+  private _peerCatalogs: readonly CatalogInterface<ComponentApi, FunctionApi>[] = [];
+
+  /** The pristine catalog a pruned copy of a catalog was derived from. */
+  private _sourceCatalog?: CatalogInterface<ComponentApi, FunctionApi>;
+
+  /** The unlinked catalog a linked copy was made from. */
+  private _linkedFrom?: CatalogInterface<ComponentApi, FunctionApi>;
+
+  /**
+   * Peer catalogs available for resolving cross-catalog `$ref`s, in matching
+   * order. Each is the unlinked catalog a peer was linked from.
+   */
+  get peerCatalogs(): readonly CatalogInterface<ComponentApi, FunctionApi>[] {
+    return this._peerCatalogs;
+  }
+
+  /**
+   * Returns a copy of this catalog linked to peer catalogs for resolving
+   * cross-catalog `$ref`s. This catalog is left unchanged.
+   *
+   * The copy has the same runtime class, ID, version, entries, theme and
+   * document, and its own derived views (`validationSchema`, `componentRefMap`
+   * and the Zod schemas of entries `fromJson` loaded). Its peers are this
+   * catalog's peers followed by `peers`, each preceded by the pristine catalog
+   * it was pruned from, if any, without duplicates or this catalog. A peer
+   * that is itself a linked copy is recorded as the catalog it was linked
+   * from. When that adds no peer, this catalog is returned.
+   *
+   * @param peers The peer catalogs, in matching order.
+   * @returns A linked copy of this catalog, or this catalog.
+   */
+  withPeerCatalogs(peers: Iterable<CatalogInterface<ComponentApi, FunctionApi>>): this {
+    const origin = linkOrigin(this);
+    const seen = new Set<CatalogInterface<ComponentApi, FunctionApi>>([origin]);
+    const linked: CatalogInterface<ComponentApi, FunctionApi>[] = [];
+    const add = (candidate?: CatalogInterface<ComponentApi, FunctionApi>) => {
+      if (!candidate) return;
+      const candidateOrigin = linkOrigin(candidate);
+      if (!seen.has(candidateOrigin)) {
+        seen.add(candidateOrigin);
+        linked.push(candidateOrigin);
+      }
+    };
+    for (const peer of this._peerCatalogs) {
+      add(peer);
+    }
+    for (const peer of peers) {
+      add((peer as unknown as LinkState)._sourceCatalog);
+      add(peer);
+    }
+    if (
+      linked.length === this._peerCatalogs.length &&
+      linked.every((peer, i) => peer === this._peerCatalogs[i])
+    ) {
+      return this;
+    }
+
+    const components = new Map<string, T>();
+    for (const [name, component] of this.components) {
+      components.set(name, linkEntry(component, linked));
+    }
+    const functions = new Map<string, F>();
+    for (const [name, fn] of this.functions) {
+      functions.set(name, linkEntry(fn, linked));
+    }
+    const copy = Object.create(Object.getPrototypeOf(this)) as this;
+    Object.assign(copy, this, {
+      components,
+      functions,
+      invoker: createCatalogInvoker(this.id, this.protocolVersion, functions),
+      cachedValidationSchema: undefined,
+      _componentRefMap: undefined,
+      _peerCatalogs: Object.freeze(linked),
+      _linkedFrom: origin,
+    });
+    return copy;
+  }
+
   /**
    * Self-contained JSON Schema for validating payloads against this catalog.
    *
@@ -577,7 +670,7 @@ export class Catalog<
           anyFunction: this.unions.anyFunction || functionsChanged,
         }
       : undefined;
-    return new Catalog<T, F>(this.id, this.protocolVersion, components, functions, {
+    const copy = new Catalog<T, F>(this.id, this.protocolVersion, components, functions, {
       themeSchema: this.themeSchema,
       instructions: this.instructions,
       schemaUri: this.schemaUri,
@@ -600,6 +693,8 @@ export class Catalog<
       themeLocation: this.themeLocation,
       defModels: this.defModels,
     });
+    copy._sourceCatalog = this._sourceCatalog ?? linkOrigin(this);
+    return this._peerCatalogs.length > 0 ? copy.withPeerCatalogs(this._peerCatalogs) : copy;
   }
 
   private _componentRefMap?: ComponentRefMap;
@@ -741,6 +836,68 @@ export class Catalog<
  * that executes functions needs a catalog of `FunctionImplementation`s instead.
  */
 export type CatalogApi = Catalog<ComponentApi, FunctionApi>;
+
+/** Linking state a catalog may carry, read structurally from any catalog. */
+interface LinkState {
+  readonly _sourceCatalog?: CatalogInterface<ComponentApi, FunctionApi>;
+  readonly _linkedFrom?: CatalogInterface<ComponentApi, FunctionApi>;
+}
+
+/** Returns the unlinked catalog a catalog was linked from, or the catalog itself. */
+function linkOrigin(
+  catalog: CatalogInterface<ComponentApi, FunctionApi>,
+): CatalogInterface<ComponentApi, FunctionApi> {
+  return (catalog as unknown as LinkState)._linkedFrom ?? catalog;
+}
+
+/**
+ * Whether each catalog's document references another catalog document, by the
+ * catalog it was linked from. Peer independent.
+ */
+const crossDocumentRefs = new WeakMap<object, boolean>();
+
+function referencesOtherCatalogs(catalog: CatalogInterface<ComponentApi, FunctionApi>): boolean {
+  const origin = linkOrigin(catalog);
+  let result = crossDocumentRefs.get(origin);
+  if (result === undefined) {
+    result = hasCrossDocumentRefs(origin.toJson());
+    crossDocumentRefs.set(origin, result);
+  }
+  return result;
+}
+
+/**
+ * Links catalogs as mutual peers so cross-catalog `$ref`s resolve, without
+ * changing any of them.
+ *
+ * Element `i` of the result is `catalogs[i].withPeerCatalogs(...)` with
+ * `extraPeers` followed by the other catalogs as peers. A catalog whose
+ * document has no `$ref` into another catalog document (other than the common
+ * types) does not need peers and is returned as is, as is every catalog when
+ * there are fewer than two catalogs in total.
+ *
+ * @param catalogs The catalogs to link.
+ * @param extraPeers Further peer catalogs, matched before `catalogs`, that are
+ *     not linked themselves.
+ * @returns The linked catalogs, in the order of `catalogs`.
+ */
+export function linkCatalogs<C extends CatalogInterface<ComponentApi, FunctionApi>>(
+  catalogs: Iterable<C>,
+  extraPeers: Iterable<CatalogInterface<ComponentApi, FunctionApi>> = [],
+): C[] {
+  const list = Array.from(catalogs);
+  const extras = Array.from(extraPeers);
+  if (list.length + extras.length < 2) {
+    return list;
+  }
+  return list.map((catalog, i) => {
+    if (typeof catalog.withPeerCatalogs !== 'function' || !referencesOtherCatalogs(catalog)) {
+      return catalog;
+    }
+    const peers = [...extras, ...list.filter((other, j) => j !== i && other !== catalog)];
+    return catalog.withPeerCatalogs(peers) as C;
+  });
+}
 
 /**
  * Whether a value is a Zod schema. Checked structurally so schemas built with

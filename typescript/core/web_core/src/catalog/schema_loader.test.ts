@@ -24,6 +24,7 @@ import {analyzeChildRefSchema} from './reference-map.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {STRICT_VALIDATION} from '../validation/integrity-checker.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
+import {A2uiCatalogError} from '../errors.js';
 
 describe('Catalog.fromJson & schema_loader', () => {
   const basicCatalogPath = resolve(
@@ -197,7 +198,7 @@ describe('Catalog.fromJson & schema_loader', () => {
     }
   });
 
-  it('ignores an external reference that names no canonical protocol type', () => {
+  it('rejects an external reference that names no canonical protocol type or peer', () => {
     const catalog = Catalog.fromJson({
       catalogId: 'test_unknown_external_ref',
       protocolVersion: 'v1.0',
@@ -214,8 +215,13 @@ describe('Catalog.fromJson & schema_loader', () => {
 
     const widget = catalog.components.get('Widget');
     assert.ok(widget);
-    const shape = (widget.schema as z.ZodObject<any>).shape;
-    assert.deepStrictEqual(Object.keys(shape), ['label']);
+    // An unresolvable cross-catalog reference is a catalog error, never silently dropped.
+    assert.throws(
+      () => widget.schema,
+      (err: Error) =>
+        err instanceof A2uiCatalogError &&
+        err.message.includes("'other_document.json#/$defs/NotAProtocolType'"),
+    );
   });
 
   it('is catalog-agnostic and does not inject weight into custom catalogs lacking weight in $defs', () => {
@@ -607,5 +613,165 @@ describe('Catalog.fromJson & schema_loader', () => {
       metadata: {source: 'test'},
       size: 2,
     });
+  });
+
+  it('validates parameter names in object-based functions with shorthand parameter maps', () => {
+    assert.throws(
+      () =>
+        Catalog.fromJson({
+          catalogId: 'https://example.com/test.json',
+          protocolVersion: 'v1.0',
+          functions: {
+            customFunc: {
+              parameters: {
+                'invalid-param': {type: 'string'},
+              },
+            },
+          },
+        }),
+      /UAX #?31/,
+    );
+
+    const catalog = Catalog.fromJson({
+      catalogId: 'https://example.com/test.json',
+      protocolVersion: 'v1.0',
+      functions: {
+        customFunc: {
+          parameters: {
+            valid_param: {type: 'string'},
+          },
+        },
+      },
+    });
+    assert.ok(catalog.functions.has('customFunc'));
+  });
+
+  it('accepts parameters defined with $ref or combiners without treating them as shorthand maps', () => {
+    const catalog = Catalog.fromJson({
+      catalogId: 'https://example.com/test-ref.json',
+      protocolVersion: 'v1.0',
+      $defs: {
+        MyArgs: {
+          type: 'object',
+          properties: {
+            valid_param: {type: 'string'},
+          },
+          required: ['valid_param'],
+        },
+        OpenArgs: {
+          type: 'object',
+          properties: {
+            opt: {type: 'number'},
+          },
+          additionalProperties: true,
+        },
+      },
+      functions: {
+        refFunc: {
+          parameters: {$ref: '#/$defs/MyArgs'},
+          returnType: 'string',
+        },
+        openFunc: {
+          parameters: {$ref: '#/$defs/OpenArgs'},
+          returnType: 'string',
+        },
+        unresolvableFunc: {
+          parameters: {$ref: '#/$defs/MissingArgs'},
+          returnType: 'string',
+        },
+        oneOfFunc: {
+          parameters: {oneOf: [{type: 'string'}, {type: 'number'}]},
+          returnType: 'string',
+        },
+        allOfFunc: {
+          parameters: {
+            allOf: [
+              {$ref: '#/$defs/MyArgs'},
+              {
+                type: 'object',
+                properties: {extra_arg: {type: 'number'}},
+                required: ['extra_arg'],
+              },
+            ],
+          },
+          returnType: 'string',
+        },
+      },
+    });
+
+    // 1. refFunc validates arguments against #/$defs/MyArgs
+    const refFunc = catalog.functions.get('refFunc')!;
+    assert.ok(refFunc);
+    assert.strictEqual(refFunc.schema.safeParse({valid_param: 'hello'}).success, true);
+    assert.strictEqual(refFunc.schema.safeParse({}).success, false);
+    assert.strictEqual(
+      refFunc.schema.safeParse({valid_param: 'hello', unexpected: 123}).success,
+      false,
+    );
+
+    // 2. allOfFunc merges properties and required fields
+    const allOfFunc = catalog.functions.get('allOfFunc')!;
+    assert.ok(allOfFunc);
+    assert.strictEqual(
+      allOfFunc.schema.safeParse({valid_param: 'hello', extra_arg: 42}).success,
+      true,
+    );
+    assert.strictEqual(allOfFunc.schema.safeParse({valid_param: 'hello'}).success, false);
+    assert.strictEqual(allOfFunc.schema.safeParse({extra_arg: 42}).success, false);
+    assert.strictEqual(
+      allOfFunc.schema.safeParse({valid_param: 'hello', extra_arg: 42, extra: true}).success,
+      false,
+    );
+
+    // 3. openFunc allows extra properties
+    const openFunc = catalog.functions.get('openFunc')!;
+    assert.ok(openFunc);
+    assert.strictEqual(openFunc.schema.safeParse({opt: 10, other: 'allowed'}).success, true);
+
+    // 4. unresolvableFunc falls back to passthrough
+    const unresolvableFunc = catalog.functions.get('unresolvableFunc')!;
+    assert.ok(unresolvableFunc);
+    assert.strictEqual(unresolvableFunc.schema.safeParse({anything: 123}).success, true);
+
+    // 5. oneOfFunc falls back to passthrough
+    const oneOfFunc = catalog.functions.get('oneOfFunc')!;
+    assert.ok(oneOfFunc);
+    assert.strictEqual(oneOfFunc.schema.safeParse({anything: 'ok'}).success, true);
+
+    assert.throws(
+      () =>
+        Catalog.fromJson({
+          catalogId: 'https://example.com/test-bad-allof.json',
+          protocolVersion: 'v1.0',
+          functions: {
+            badFunc: {
+              parameters: {
+                allOf: [{properties: {'123bad': {type: 'string'}}}],
+              },
+            },
+          },
+        }),
+      /UAX #?31/,
+    );
+
+    assert.throws(
+      () =>
+        Catalog.fromJson({
+          catalogId: 'https://example.com/test-bad-ref.json',
+          protocolVersion: 'v1.0',
+          $defs: {
+            BadDefs: {
+              type: 'object',
+              properties: {'123bad': {type: 'string'}},
+            },
+          },
+          functions: {
+            badFunc: {
+              parameters: {$ref: '#/$defs/BadDefs'},
+            },
+          },
+        }),
+      /UAX #?31/,
+    );
   });
 });

@@ -286,6 +286,36 @@ void main() {
       );
     });
 
+    test('mixes a v0.9.1 inline catalog with v0.9 registrations', () {
+      final List<CatalogApi> active = resolveCatalogs(
+        registered,
+        A2uiRendererCapabilities.fromJson({
+          'v0.9.1': {
+            'supportedCatalogIds': [a.id],
+            'inlineCatalogs': [inline.toJson()],
+          },
+        }),
+        acceptsInlineCatalogs: true,
+      );
+      expect(active.map((c) => c.protocolVersion), [
+        null,
+        A2uiProtocolVersion.v0_9_1,
+      ]);
+      for (final InferenceFormatFactory format in const [
+        DirectJsonFormatFactory(),
+        ExpressFormatFactory(),
+      ]) {
+        expect(
+          A2uiRequestProcessor(
+            activeCatalogs: active,
+            formatFactory: format,
+          ).promptSnippet,
+          contains(inline.id),
+          reason: '${format.runtimeType}',
+        );
+      }
+    });
+
     test('activates one of two inline catalogs sharing an id', () {
       expect(
         resolveCatalogs(
@@ -301,6 +331,139 @@ void main() {
         ),
         [inline],
       );
+    });
+  });
+
+  group('resolveCatalogs peer linking', () {
+    // Inherits Text from catalog `a`, so it is linked with its peers.
+    final CatalogApi referencing = Catalog.fromJson({
+      'catalogId': 'https://example.com/referencing.json',
+      'components': {
+        'Fancy': {
+          'type': 'object',
+          'allOf': [
+            {r'$ref': 'a.json#/components/Text'},
+          ],
+          'properties': {
+            'component': {'const': 'Fancy'},
+          },
+          'required': ['component'],
+        },
+      },
+    });
+
+    Set<String> properties(CatalogApi catalog) => {
+      ...(catalog.resolvedComponentSchema('Fancy')!.value['properties']!
+              as Map<String, Object?>)
+          .keys,
+    };
+
+    test('computes each transformed catalog once', () {
+      final config = CatalogConfig(
+        a,
+        transformers: [
+          ComponentPruningTransformer(['Card']),
+        ],
+      );
+      expect(config.transformedCatalog, same(config.transformedCatalog));
+      expect(config.transformedCatalog.components.keys, ['Card']);
+    });
+
+    test('links copies and leaves the registered catalogs unchanged', () {
+      final configs = <CatalogConfig>[
+        CatalogConfig(referencing),
+        CatalogConfig(
+          a,
+          transformers: [
+            ComponentPruningTransformer(['Card']),
+          ],
+        ),
+      ];
+      final CatalogApi pruned = configs[1].transformedCatalog;
+      final Map<String, Object?> schema = a.validationSchema;
+
+      for (final A2uiRendererCapabilities? capabilities in [
+        null,
+        A2uiRendererCapabilities.forCatalogIds([referencing.id, a.id]),
+        null,
+      ]) {
+        final List<CatalogApi> active = resolveCatalogs(configs, capabilities);
+        expect(active[0], isNot(same(referencing)));
+        expect(active[1], same(pruned));
+        // The pruned registration's source resolves the Text it dropped.
+        expect(active[0].peerCatalogs, [same(a), same(pruned)]);
+        expect(properties(active[0]), contains('text'));
+      }
+
+      expect(referencing.peerCatalogs, isEmpty);
+      expect(properties(referencing), isNot(contains('text')));
+      expect(a.peerCatalogs, isEmpty);
+      expect(a.validationSchema, same(schema));
+      expect(pruned.peerCatalogs, isEmpty);
+    });
+
+    test('never links a refused inline catalog', () {
+      final CatalogApi inline = _catalog('https://example.com/a.json', [
+        'Text',
+      ]);
+      final List<CatalogApi> active = resolveCatalogs(
+        [CatalogConfig(referencing)],
+        A2uiRendererCapabilities.forCatalogIds(
+          [referencing.id],
+          inlineCatalogs: [inline],
+        ),
+      );
+
+      expect(active.single.peerCatalogs, isEmpty);
+      expect(inline.peerCatalogs, isEmpty);
+    });
+
+    test('links an accepted inline catalog', () {
+      final CatalogApi inline = _catalog('https://example.com/a.json', [
+        'Text',
+      ]);
+      final List<CatalogApi> active = resolveCatalogs(
+        [CatalogConfig(referencing)],
+        A2uiRendererCapabilities.forCatalogIds(
+          [referencing.id],
+          inlineCatalogs: [inline],
+        ),
+        acceptsInlineCatalogs: true,
+      );
+
+      expect(active[0].peerCatalogs, [same(inline)]);
+      expect(active[1], same(inline));
+      expect(inline.peerCatalogs, isEmpty);
+    });
+
+    test('creates processors without accumulating peers', () {
+      final generator = A2uiGenerator(
+        catalogs: [
+          CatalogConfig(referencing),
+          CatalogConfig(
+            a,
+            transformers: [
+              ComponentPruningTransformer(['Card']),
+            ],
+          ),
+        ],
+        inferenceFormatFactory: const DirectJsonFormatFactory(),
+      );
+      final List<int> peerCounts = [
+        for (var i = 0; i < 3; i++)
+          generator
+              .createProcessor(
+                A2uiRendererCapabilities.forCatalogIds([referencing.id, a.id]),
+              )
+              .activeCatalogs
+              .first
+              .peerCatalogs
+              .length,
+      ];
+
+      expect(peerCounts, [2, 2, 2]);
+      expect(referencing.peerCatalogs, isEmpty);
+      expect(a.peerCatalogs, isEmpty);
     });
   });
 

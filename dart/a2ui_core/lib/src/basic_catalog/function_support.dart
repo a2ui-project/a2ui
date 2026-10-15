@@ -20,12 +20,12 @@ import 'dart:async';
 import 'dart:convert';
 
 import '../core/catalog.dart';
-import '../core/contexts.dart';
 import '../core/validation_result.dart';
+import '../expressions/expression_parser.dart';
 import '../primitives/cancellation.dart';
 import '../primitives/errors.dart';
 import '../primitives/reactivity.dart';
-import '../processing/expressions.dart';
+import '../resolution/data_context.dart';
 
 /// Opens [url] on behalf of the basic catalog's `openUrl` function.
 ///

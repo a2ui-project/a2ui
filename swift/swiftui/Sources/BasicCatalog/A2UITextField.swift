@@ -65,6 +65,7 @@ public struct A2UITextField: View {
         Text(labelText)
           .font(.subheadline.weight(.medium))
           .foregroundStyle(hasError ? Color.red : Color.secondary)
+          .accessibilityHidden(true)
       }
 
       inputFieldForVariant
@@ -77,6 +78,7 @@ public struct A2UITextField: View {
               hasError ? Color.red : Color.primary.opacity(0.1), lineWidth: hasError ? 1.5 : 1)
         )
         .accessibilityIdentifier("A2UITextField_\(node.id)")
+        .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
 
       if let firstError = validationErrors.first {
         Text(firstError)

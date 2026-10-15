@@ -31,10 +31,10 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["btn1"]
-          - id: "btn1"
-            component: "Button"
-            title: "Inline Button"
+            children: ["text1"]
+          - id: "text1"
+            component: "Text"
+            text: "Inline Text"
         dataModel:
           counter: 42
   expect:
@@ -45,10 +45,10 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["btn1"]
-          - id: "btn1"
-            component: "Button"
-            title: "Inline Button"
+            children: ["text1"]
+          - id: "text1"
+            component: "Text"
+            text: "Inline Text"
         dataModel:
           counter: 42
 
@@ -337,10 +337,10 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["btn1"]
-          - id: "btn1"
-            component: "Button"
-            title: "Initial"
+            children: ["text1"]
+          - id: "text1"
+            component: "Text"
+            text: "Initial"
     - version: "v1.0"
       updateDataModel:
         surfaceId: "s_pipeline"
@@ -350,9 +350,9 @@
       updateComponents:
         surfaceId: "s_pipeline"
         components:
-          - id: "btn1"
-            component: "Button"
-            title: "Updated"
+          - id: "text1"
+            component: "Text"
+            text: "Updated"
   expect:
     surfaces:
       s_pipeline:
@@ -362,8 +362,8 @@
         components:
           - id: "root"
             component: "Column"
-          - id: "btn1"
-            component: "Button"
+          - id: "text1"
+            component: "Text"
 
 - name: test_batch_duplicate_component_ids_in_same_message_error
   description: Verifies IntegrityError on duplicate component IDs within a single updateComponents message.
@@ -514,8 +514,8 @@
             component: "Column"
             children: []
           - id: "orphan_comp"
-            component: "Button"
-            title: "Unreachable Button"
+            component: "Text"
+            text: "Unreachable Text"
   expect:
     surfaces:
       s_permissive_orphan:
@@ -524,7 +524,7 @@
           - id: "root"
             component: "Column"
           - id: "orphan_comp"
-            component: "Button"
+            component: "Text"
 
 - name: test_permissive_mode_allows_dangling_references
   description: Verifies strictMode false accepts containers referencing uncreated child IDs.
@@ -560,17 +560,17 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["btn_child"]
-          - id: "btn_child"
-            component: "Button"
-            title: "Child Button"
+            children: ["text_child"]
+          - id: "text_child"
+            component: "Text"
+            text: "Child Text"
     - version: "v1.0"
       updateComponents:
         surfaceId: "s_partial_parent"
         components:
-          - id: "btn_child"
-            component: "Button"
-            title: "Updated Child Title"
+          - id: "text_child"
+            component: "Text"
+            text: "Updated Child Text"
   expect:
     surfaces:
       s_partial_parent:
@@ -578,8 +578,8 @@
         components:
           - id: "root"
             component: "Column"
-          - id: "btn_child"
-            component: "Button"
+          - id: "text_child"
+            component: "Text"
 
 - name: test_global_recursion_depth_limit_exceeded_error
   description: Verifies object nesting exceeding limit (>50) raises RecursionError.

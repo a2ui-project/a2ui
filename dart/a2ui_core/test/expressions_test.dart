@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/src/primitives/errors.dart';
-import 'package:a2ui_core/src/processing/expressions.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 void main() {

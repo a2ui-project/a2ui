@@ -20,8 +20,9 @@ from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import VERSION_0_8, VERSION_0_9
+from a2ui.utils import to_version_number
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.planners.built_in_planner import BuiltInPlanner
 from google.genai import types
@@ -106,7 +107,7 @@ def _renderer_capabilities(
     Returns:
         The capabilities for `A2uiGenerator.create_processor`.
     """
-    key = f"v{version}"
+    key = f"v{to_version_number(version)}"
     if not client_ui_capabilities:
         return {key: {"supportedCatalogIds": list(catalog_ids)}}
     raw: Any = client_ui_capabilities
@@ -164,7 +165,7 @@ class RizzchartsAgent:
         self._processors: dict[str, A2uiRequestProcessor] = {}
         self._ui_runners: dict[str, Runner] = {}
 
-        for version in [VERSION_0_8, VERSION_0_9]:
+        for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]:
             generator = self._build_generator(version)
             processor = self._build_default_processor(version, generator)
             self._generators[version] = generator
@@ -204,7 +205,7 @@ class RizzchartsAgent:
     def _build_generator(self, version: str) -> A2uiGenerator:
         rizzcharts_config = CatalogConfig.from_path(
             catalog_path=(
-                f"../catalog_schemas/{version}/rizzcharts_catalog_definition.json"
+                f"../catalog_schemas/{to_version_number(version)}/rizzcharts_catalog_definition.json"
             ),
             protocol_version=version,
         )
@@ -212,8 +213,12 @@ class RizzchartsAgent:
         configs = [rizzcharts_config, basic_config]
         catalogs = [config.transformed_catalog for config in configs]
         self._examples_paths[version] = {
-            catalogs[0].catalog_id: f"../examples/rizzcharts_catalog/{version}",
-            catalogs[1].catalog_id: f"../examples/standard_catalog/{version}",
+            catalogs[0].catalog_id: (
+                f"../examples/rizzcharts_catalog/{to_version_number(version)}"
+            ),
+            catalogs[
+                1
+            ].catalog_id: f"../examples/standard_catalog/{to_version_number(version)}",
         }
         return A2uiGenerator(
             configs,

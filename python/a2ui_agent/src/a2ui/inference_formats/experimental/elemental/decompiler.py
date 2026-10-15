@@ -23,6 +23,7 @@ import json
 import re
 from typing import Any, Literal
 
+from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import (
@@ -33,7 +34,6 @@ from a2ui.inference_formats._shared import (
     coalesce_surface_messages,
 )
 from a2ui.inference_formats.express import SurfaceOperation
-from a2ui.schema.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 
 from .compiler import TAG_PREFIX, UPDATE_ATTR
 

@@ -12,20 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'package:a2ui_core/src/basic_catalog/basic_catalog.dart';
-import 'package:a2ui_core/src/core/catalog.dart';
-import 'package:a2ui_core/src/core/common_schemas.dart';
-import 'package:a2ui_core/src/core/component_model.dart';
-import 'package:a2ui_core/src/core/contexts.dart';
-import 'package:a2ui_core/src/core/messages.dart';
-import 'package:a2ui_core/src/core/renderer_capabilities.dart';
-import 'package:a2ui_core/src/core/surface_model.dart';
-import 'package:a2ui_core/src/primitives/errors.dart';
-import 'package:a2ui_core/src/primitives/protocol_version.dart';
-import 'package:a2ui_core/src/primitives/reactivity.dart';
-import 'package:a2ui_core/src/processing/processor.dart';
-import 'package:a2ui_core/src/resolution/node_resolver.dart';
-import 'package:a2ui_core/src/validation/validation_config.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
 

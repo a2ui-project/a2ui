@@ -1086,18 +1086,22 @@ def test_is_valid_uax31_identifier():
     assert is_valid_uax31_identifier("변수")
     assert is_valid_uax31_identifier("alpha_α")
 
-    # Single leading @
-    assert is_valid_uax31_identifier("@index")
-    assert is_valid_uax31_identifier("@custom")
+    # Single leading @ rejected by default, accepted with allow_leading_at=True
+    assert not is_valid_uax31_identifier("@index")
+    assert not is_valid_uax31_identifier("@custom")
+    assert is_valid_uax31_identifier("@index", allow_leading_at=True)
+    assert is_valid_uax31_identifier("@custom", allow_leading_at=True)
 
     # Bare "@"
     assert not is_valid_uax31_identifier("@")
+    assert not is_valid_uax31_identifier("@", allow_leading_at=True)
 
     # Invalid symbols and leading digits
     assert not is_valid_uax31_identifier("foo-bar")
     assert not is_valid_uax31_identifier("1foo")
     assert not is_valid_uax31_identifier("foo.bar")
     assert not is_valid_uax31_identifier("@@index")
+    assert not is_valid_uax31_identifier("@@index", allow_leading_at=True)
 
     # Keyword names (valid syntactic identifiers)
     assert is_valid_uax31_identifier("class")
@@ -1460,3 +1464,63 @@ def test_from_json_rejects_malformed_functions(functions, message):
             {"catalogId": "inline", "components": {}, "functions": functions},
             protocol_version="0.9",
         )
+
+
+def test_v10_catalog_rejects_at_prefixed_function_names():
+    """@-prefixed function names are reserved for system functions in v1.0+."""
+    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
+        Catalog(
+            catalog_id="https://a2ui.org/v10-reserved-fn",
+            protocol_version="v1.0",
+            functions=[FunctionApi(name="@index", return_type="number")],
+        )
+
+    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 function identifier"):
+        Catalog.from_json({
+            "catalogId": "https://a2ui.org/v10-reserved-fn",
+            "protocolVersion": "v1.0",
+            "functions": {"@index": {"returnType": "number"}},
+        })
+
+
+def test_v10_catalog_accepts_ref_and_combiner_parameters():
+    """Parameters defined with $ref or combiners are not treated as shorthand maps."""
+    cat = Catalog.from_json({
+        "catalogId": "https://a2ui.org/v10-ref-fn",
+        "protocolVersion": "v1.0",
+        "functions": {
+            "refFunc": {
+                "parameters": {"$ref": "#/$defs/MyArgs"},
+                "returnType": "string",
+            },
+            "oneOfFunc": {
+                "parameters": {"oneOf": [{"type": "string"}, {"type": "number"}]},
+                "returnType": "string",
+            },
+            "allOfFunc": {
+                "parameters": {
+                    "allOf": [
+                        {"properties": {"validArg": {"type": "string"}}},
+                    ]
+                },
+                "returnType": "string",
+            },
+        },
+    })
+    assert "refFunc" in cat.functions
+    assert "oneOfFunc" in cat.functions
+    assert "allOfFunc" in cat.functions
+
+    with pytest.raises(A2uiCatalogError, match="Invalid UAX #31 argument identifier"):
+        Catalog.from_json({
+            "catalogId": "https://a2ui.org/v10-invalid-param",
+            "protocolVersion": "v1.0",
+            "functions": {
+                "badFunc": {
+                    "parameters": {
+                        "allOf": [{"properties": {"123bad": {"type": "string"}}}]
+                    },
+                    "returnType": "string",
+                },
+            },
+        })

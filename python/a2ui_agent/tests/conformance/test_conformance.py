@@ -42,8 +42,7 @@ from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
 from a2ui.processor import CatalogConfig
 from a2ui.processor import InMemoryCatalogProvider
-from a2ui.schema import load_examples
-from a2ui.utils import resolve_catalogs
+from a2ui.utils import load_examples, resolve_catalogs
 
 from .conformance_helpers import get_conformance_path
 from .conformance_helpers import load_conformance_json as load_json_file
@@ -665,6 +664,11 @@ def run_format_case(test_case, tmp_path):
             return
         fmt = make_format(args, tmp_path=tmp_path)
         snippet = generate(fmt)
+        if "expect_file" in test_case:
+            with open(
+                get_conformance_path(test_case["expect_file"]), encoding="utf-8"
+            ) as f:
+                assert snippet == f.read()
         _expect_snippet(
             snippet,
             test_case.get("expect_contains", []),

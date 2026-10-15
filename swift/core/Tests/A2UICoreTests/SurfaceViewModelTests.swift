@@ -687,6 +687,68 @@ struct SurfaceViewModelTests {
     #expect(handler.capturedActions.isEmpty)
   }
 
+  /// Components that render one `button` per item of the list at `path`. Each button's event
+  /// sends its item's `id`.
+  private func deleteButtonList(path: String) -> [[String: JSONValue]] {
+    [
+      [
+        "id": "root",
+        "component": "button",
+        "children": ["componentId": "delete", "path": .string(path)],
+      ],
+      [
+        "id": "delete",
+        "component": "button",
+        "onClick": [
+          "event": ["name": "delete", "context": ["id": ["path": "id"]]]
+        ],
+      ],
+    ]
+  }
+
+  @Test func templateActionRebindsWhenTemplatePathChanges() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateDataModel(
+      surfaceID: surface.surfaceID, path: "/inbox", value: [["id": "inbox-0"]])
+    processor.updateDataModel(
+      surfaceID: surface.surfaceID, path: "/archive", value: [["id": "archive-0"]])
+    processor.updateComponents(
+      surfaceID: surface.surfaceID, components: deleteButtonList(path: "/inbox"))
+    let inboxButton = try #require(surface.rootNode?.children(for: "children").first)
+
+    processor.updateComponents(
+      surfaceID: surface.surfaceID, components: deleteButtonList(path: "/archive"))
+    let archiveButton = try #require(surface.rootNode?.children(for: "children").first)
+
+    // Same instance ID but a different data scope, so renderers must see a changed node.
+    #expect(archiveButton.id == inboxButton.id)
+    #expect(archiveButton != inboxButton)
+
+    let action = try #require(archiveButton.action(for: "onClick"))
+    action()
+    let dispatched = try #require(handler.capturedActions.first)
+    guard case .event(_, let context, _) = dispatched.identity else {
+      Issue.record("Expected an event action")
+      return
+    }
+    #expect(context?["id"]?.stringValue == "archive-0")
+  }
+
+  @Test func templateActionStaysEqualWhenDataScopeIsUnchanged() throws {
+    let (processor, surface, _) = try makeProcessor()
+    processor.updateDataModel(
+      surfaceID: surface.surfaceID, path: "/inbox", value: [["id": "inbox-0"]])
+    processor.updateComponents(
+      surfaceID: surface.surfaceID, components: deleteButtonList(path: "/inbox"))
+    let first = try #require(surface.rootNode?.children(for: "children").first)
+
+    processor.updateComponents(
+      surfaceID: surface.surfaceID, components: deleteButtonList(path: "/inbox"))
+    let second = try #require(surface.rootNode?.children(for: "children").first)
+
+    #expect(second == first)
+  }
+
   // MARK: - Expression Errors
 
   /// Returns the generic errors captured by `handler` with code `EXPRESSION_ERROR`.

@@ -103,11 +103,6 @@ void main() {
     '../catalogs/basic/v1/examples',
     BasicCatalog.v1_0,
     A2uiProtocolVersion.v1_0,
-    skips: const {
-      '31_incremental-dashboard.json':
-          "The example's `content-grid` id is not a UAX #31 identifier, "
-              'which v1.0 requires of component ids.',
-    },
   );
 }
 

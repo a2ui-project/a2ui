@@ -35,7 +35,8 @@ from a2ui.inference_formats.express import (
     ExpressDecompiler,
     ExpressValidationError,
 )
-from a2ui.schema.utils import find_repo_root
+
+from ..repo_paths import find_repo_root
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
 EXAMPLE_FILES = sorted(

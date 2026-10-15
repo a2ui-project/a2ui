@@ -20,12 +20,12 @@ from google.adk.tools.tool_context import ToolContext
 import pytest
 
 from a2ui.adk import SendA2uiToClientToolset
+from a2ui.constants import A2UI_SCHEMA_BLOCK_START
 from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_format import InferenceFormatFactory
 from a2ui.inference_formats import ExpressFormatFactory
 from a2ui.parser import to_message_models
-from a2ui.schema.constants import A2UI_SCHEMA_BLOCK_START
 
 _Tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool
 

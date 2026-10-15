@@ -252,10 +252,13 @@ void main() {
         final String content = file.readAsStringSync();
         for (final RegExpMatch match in importPattern.allMatches(content)) {
           final String uri = match.group(1)!;
-          final bool isAllowedException = normalizedPath.endsWith(
-                'lib/src/basic_catalog/function_support.dart',
-              ) &&
-              uri == '../processing/expressions.dart';
+          final bool isAllowedException = (normalizedPath.endsWith(
+                    'lib/src/basic_catalog/basic_catalog.dart',
+                  ) ||
+                  normalizedPath.endsWith(
+                    'lib/src/basic_catalog/function_support.dart',
+                  )) &&
+              uri == '../resolution/data_context.dart';
           if (isAllowedException) continue;
           for (final segment in forbiddenSegments) {
             expect(
@@ -274,7 +277,6 @@ void main() {
           .toList();
       const allowedInboundImporters = <String>{
         'lib/a2ui_core.dart',
-        'lib/src/processing/basic_functions.dart',
       };
       for (final file in allLibFiles) {
         final String normalizedPath = file.path.replaceAll(r'\', '/');

@@ -49,8 +49,8 @@ from a2ui.transformers.macros import (
     macro,
 )
 from a2ui.core import A2uiValidationError, Catalog, CatalogApi
-from a2ui.core.schema import AgentToRendererMessage
-from a2ui.schema.constants import VERSION_0_9_1
+from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
+from a2ui.utils import to_version_number
 from pydantic import TypeAdapter
 
 _message_adapter: TypeAdapter[AgentToRendererMessage] = TypeAdapter(
@@ -63,7 +63,9 @@ CONFORMANCE_DIR = os.path.abspath(
 GOLDEN_DIR = os.path.join(CONFORMANCE_DIR, "golden")
 SUITE_PATH = os.path.join(CONFORMANCE_DIR, "macros.yaml")
 
-PROTOCOL_VERSION = VERSION_0_9_1
+# The catalog definition form of the version, without the leading "v".
+# conformance/agent/macros/macros.yaml expects it back unchanged.
+PROTOCOL_VERSION = to_version_number(ProtocolVersion.V0_9_1)
 
 
 # =============================================================================

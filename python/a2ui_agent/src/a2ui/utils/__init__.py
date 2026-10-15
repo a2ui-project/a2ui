@@ -15,12 +15,20 @@
 """Helpers shared by the inference formats and agent integrations."""
 
 from .catalog_resolver import resolve_catalogs
+from .examples import load_examples, resolve_examples_path
 from .schema_pruning import prune_common_types_schema, prune_messages_schema
+from .schemas import load_agent_to_renderer_schema, load_common_types_schema
 from .validation import validate_payload
+from .versions import to_version_number
 
 __all__ = [
+    "load_agent_to_renderer_schema",
+    "load_common_types_schema",
+    "load_examples",
     "prune_common_types_schema",
     "prune_messages_schema",
     "resolve_catalogs",
+    "resolve_examples_path",
+    "to_version_number",
     "validate_payload",
 ]
