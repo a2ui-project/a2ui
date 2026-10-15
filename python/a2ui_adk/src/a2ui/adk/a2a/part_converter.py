@@ -40,11 +40,12 @@ from google.adk.a2a.converters import part_converter
 from google.adk.utils.feature_decorator import experimental
 from google.genai import types as genai_types
 
+from a2ui import constants
 from a2ui.a2a import create_a2ui_part, parse_content_to_parts
 from a2ui.core import CatalogApi
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.parser import Parser
-from a2ui.schema import constants
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,8 @@ class A2uiPartConverter:
         catalogs: The A2UI catalogs that text-based A2UI is validated against.
         bypass_tool_check: If True, bypass tool validation.
         fallback_text: Optional text to fall back on if parsing fails.
-        version: The A2UI version to use. Defaults to "0.8".
+        version: The A2UI version to use: a `ProtocolVersion`, or a version
+            string with or without a leading "v". Defaults to v0.8.
         parser: Optional parser for text-based A2UI. Defaults to a
             `DirectJsonParser` holding the catalogs.
     """
@@ -71,7 +73,7 @@ class A2uiPartConverter:
         catalogs: Sequence[CatalogApi],
         bypass_tool_check: bool = False,
         fallback_text: str | None = None,
-        version: str = constants.VERSION_0_8,
+        version: ProtocolVersion | str = ProtocolVersion.V0_8,
         parser: Parser | None = None,
     ):
         self._bypass_tool_check = bypass_tool_check

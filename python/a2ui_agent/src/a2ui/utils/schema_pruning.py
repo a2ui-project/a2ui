@@ -82,7 +82,7 @@ def _reachable_defs(
 
 def prune_messages_schema(
     a2r_schema: Mapping[str, Any],
-    protocol_version: str,
+    protocol_version: ProtocolVersion | str,
     allowed_messages: Sequence[str],
 ) -> dict[str, Any]:
     """Returns a copy of an agent-to-renderer schema that admits only some messages.
@@ -93,8 +93,8 @@ def prune_messages_schema(
 
     Args:
         a2r_schema: The agent-to-renderer schema. It is not modified.
-        protocol_version: The protocol version of the schema, for example
-            `"0.9"` or `"v1.0"`.
+        protocol_version: The protocol version of the schema: a
+            `ProtocolVersion`, or a version string such as `"0.9"` or `"v1.0"`.
         allowed_messages: The messages to keep. For v0.8 these are keys of the
             schema's `properties`, for example `beginRendering`. For later
             versions they are names in its `$defs`, for example

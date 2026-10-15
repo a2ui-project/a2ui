@@ -22,17 +22,14 @@ from a2ui.catalog_transformers import (
 )
 from a2ui.core import A2uiCatalogError
 from a2ui.core.basic_catalog import BasicCatalog, v0_8, v0_9, v1_0
+from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import (
     CatalogConfig,
     CatalogProvider,
     FileSystemCatalogProvider,
     InMemoryCatalogProvider,
 )
-from a2ui.schema import (
-    VERSION_0_8,
-    VERSION_0_9,
-    resolve_examples_path,
-)
+from a2ui.utils import resolve_examples_path
 
 
 def test_catalog_provider_is_abstract():
@@ -44,7 +41,7 @@ def test_in_memory_provider_loads_catalog():
     catalog_id = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
     provider = InMemoryCatalogProvider(
         {"catalogId": catalog_id, "components": {}},
-        protocol_version=VERSION_0_8,
+        protocol_version=ProtocolVersion.V0_8,
     )
     catalog = provider.load()
     assert catalog.catalog_id == catalog_id
@@ -54,7 +51,7 @@ def test_in_memory_provider_loads_catalog():
 def test_in_memory_provider_missing_catalog_id_raises_error():
     provider = InMemoryCatalogProvider(
         {"components": {}},
-        protocol_version=VERSION_0_8,
+        protocol_version=ProtocolVersion.V0_8,
     )
     with pytest.raises(A2uiCatalogError, match="no 'catalogId'"):
         provider.load()
@@ -128,7 +125,7 @@ def test_file_system_provider_schemes(tmp_path):
 
 
 def test_catalog_config_transformed_catalog_applies_transformers():
-    base = BasicCatalog(VERSION_0_9)
+    base = BasicCatalog(ProtocolVersion.V0_9)
     config = CatalogConfig(
         base,
         transformers=[
@@ -154,7 +151,9 @@ def test_catalog_config_transforms_the_catalog_once():
             return super().transform(catalog)
 
     transformers = [CountingTransformer(["Text"])]
-    config = CatalogConfig(BasicCatalog(VERSION_0_9), transformers=transformers)
+    config = CatalogConfig(
+        BasicCatalog(ProtocolVersion.V0_9), transformers=transformers
+    )
     # Changing the caller's list afterwards doesn't change the config.
     transformers.append(FunctionPruningTransformer([]))
 
@@ -162,7 +161,7 @@ def test_catalog_config_transforms_the_catalog_once():
     assert len(calls) == 1
     assert len(config.transformers) == 1
     with pytest.raises(dataclasses.FrozenInstanceError):
-        config.catalog = BasicCatalog(VERSION_0_9)  # type: ignore[misc]
+        config.catalog = BasicCatalog(ProtocolVersion.V0_9)  # type: ignore[misc]
 
 
 def test_resolve_examples_path_handling():
@@ -197,12 +196,12 @@ def test_basic_catalog_id_retrieval_methods():
     )
     assert v0_8.BasicCatalog().catalog_id == expected_0_8
     assert BasicCatalog("0.8").catalog_id == expected_0_8
-    assert BasicCatalog(VERSION_0_8).catalog_id == expected_0_8
+    assert BasicCatalog(ProtocolVersion.V0_8).catalog_id == expected_0_8
 
     expected_0_9 = "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
     assert v0_9.BasicCatalog().catalog_id == expected_0_9
     assert BasicCatalog("0.9").catalog_id == expected_0_9
-    assert BasicCatalog(VERSION_0_9).catalog_id == expected_0_9
+    assert BasicCatalog(ProtocolVersion.V0_9).catalog_id == expected_0_9
 
     expected_1_0 = "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
     assert v1_0.BasicCatalog().catalog_id == expected_1_0

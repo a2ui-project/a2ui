@@ -17,9 +17,9 @@
 from collections.abc import Sequence
 import json
 
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import to_message_dicts
-from a2ui.schema.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 
 
 class DirectJsonDecompiler:

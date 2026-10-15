@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Type
 
+from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import check_mixed_catalogs
@@ -30,8 +31,6 @@ from a2ui.parser import Parser
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
-from a2ui.schema.constants import A2UI_INFERENCE_CLOSE_TAG
-from a2ui.schema.constants import A2UI_INFERENCE_OPEN_TAG
 
 from .compiler import ExpressCompiler
 from .decompiler import ExpressDecompiler

@@ -18,7 +18,7 @@ import json
 import os
 from typing import Any
 import yaml
-from a2ui.schema.utils import find_repo_root
+from ..repo_paths import find_repo_root
 
 
 def get_conformance_path(filename: str) -> str:

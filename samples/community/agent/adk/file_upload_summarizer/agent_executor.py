@@ -17,7 +17,7 @@ from typing import override
 from a2a.server.agent_execution import RequestContext
 from a2ui.a2a import try_activate_a2ui_extension
 from a2ui.adk import A2uiEventConverter
-from a2ui.schema import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from google.adk.a2a.converters.request_converter import AgentRunRequest
 from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor, A2aAgentExecutorConfig
 from google.adk.agents.invocation_context import new_invocation_context_id

@@ -29,7 +29,7 @@ from a2ui.inference_formats.express import ExpressFormat
 
 def _find_specification_example_files():
     """Locates all specification v1.0 (and fallback v0.9) JSON example files."""
-    from a2ui.schema.utils import find_repo_root
+    from .repo_paths import find_repo_root
 
     repo_root = find_repo_root()
     # Target v1.0 specification examples first

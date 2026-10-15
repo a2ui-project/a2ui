@@ -3,6 +3,8 @@
 - First release. `a2ui.adk` moves here from `a2ui-agent-sdk`, so the agent SDK
   no longer depends on `google-adk` or `google-genai`. Import paths are
   unchanged.
+- `A2uiPartConverter` takes its `version` as a `ProtocolVersion`, or a version
+  string with or without a leading "v". It defaults to `ProtocolVersion.V0_8`.
 - The ADK-to-A2A converters (`A2uiPartConverter`, `A2uiEventConverter`) and the
   A2A orchestration helpers (`A2uiSubagentMap`, `SurfaceIdAlreadyExistsError`)
   need the `a2a` extra: `pip install "a2ui-adk[a2a]"`. `a2ui.adk` imports them

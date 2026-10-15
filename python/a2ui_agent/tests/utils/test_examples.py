@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for `a2ui.schema.load_examples`."""
+"""Unit tests for `a2ui.utils.load_examples`."""
 
 import json
 from pathlib import Path
@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from a2ui.core import A2uiCatalogError, Catalog
-from a2ui.schema import load_examples
+from a2ui.utils import load_examples
 
 
 def _catalog(catalog_id: str) -> Catalog:

@@ -28,14 +28,12 @@ from a2ui.a2a import (
     get_a2ui_agent_extension,
     parse_response_to_parts,
 )
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.schema import (
-    A2UI_CLOSE_TAG,
-    A2UI_OPEN_TAG,
-    VERSION_0_8,
-)
+from a2ui.utils import to_version_number
 import dotenv
 from google.adk.agents import run_config
 from google.adk.agents.llm_agent import LlmAgent
@@ -66,14 +64,14 @@ class ContactAgent:
         self._processors: dict[str, A2uiRequestProcessor] = {}
         self._ui_runners: dict[str, Runner] = {}
 
-        # Gemini Enerprise only supports VERSION_0_8 for now.
-        for version in [VERSION_0_8]:
+        # Gemini Enerprise only supports ProtocolVersion.V0_8 for now.
+        for version in [ProtocolVersion.V0_8]:
             generator = self._build_generator(version)
             processor = self._build_processor(version, generator)
             self._generators[version] = generator
             self._processors[version] = processor
             examples_path = os.path.join(
-                os.path.dirname(__file__), f"examples/{version}"
+                os.path.dirname(__file__), f"examples/{to_version_number(version)}"
             )
             agent = self._build_llm_agent(processor, examples_path=examples_path)
             self._ui_runners[version] = self._build_runner(agent)
@@ -85,14 +83,14 @@ class ContactAgent:
         return self._agent_card
 
     def _build_generator(self, version: str) -> A2uiGenerator:
-        # Gemini Enerprise only supports VERSION_0_8 for now.
+        # Gemini Enerprise only supports ProtocolVersion.V0_8 for now.
         return A2uiGenerator([CatalogConfig(BasicCatalog(version))])
 
     def _build_processor(
         self, version: str, generator: A2uiGenerator
     ) -> A2uiRequestProcessor:
         return generator.create_processor({
-            f"v{version}": {
+            f"v{to_version_number(version)}": {
                 "supportedCatalogIds": [
                     c.transformed_catalog.catalog_id for c in generator.catalogs
                 ]
@@ -163,7 +161,7 @@ class ContactAgent:
         examples_path: str | None = None,
     ) -> LlmAgent:
         """Builds the LLM agent for the contact agent."""
-        from a2ui.schema import load_examples
+        from a2ui.utils import load_examples
 
         if processor:
             prompt_parts = [

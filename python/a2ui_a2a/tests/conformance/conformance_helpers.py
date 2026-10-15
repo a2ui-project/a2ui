@@ -17,8 +17,20 @@
 import json
 import os
 from typing import Any
+
 import yaml
-from a2ui.schema.utils import find_repo_root
+
+
+def find_repo_root() -> str | None:
+    """Returns the first ancestor of this file that has a `specification` directory."""
+    current = os.path.dirname(os.path.abspath(__file__))
+    while True:
+        if os.path.isdir(os.path.join(current, "specification")):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
 
 
 def get_conformance_path(filename: str) -> str:
