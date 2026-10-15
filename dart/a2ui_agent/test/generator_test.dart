@@ -286,6 +286,36 @@ void main() {
       );
     });
 
+    test('mixes a v0.9.1 inline catalog with v0.9 registrations', () {
+      final List<CatalogApi> active = resolveCatalogs(
+        registered,
+        A2uiRendererCapabilities.fromJson({
+          'v0.9.1': {
+            'supportedCatalogIds': [a.id],
+            'inlineCatalogs': [inline.toJson()],
+          },
+        }),
+        acceptsInlineCatalogs: true,
+      );
+      expect(active.map((c) => c.protocolVersion), [
+        null,
+        A2uiProtocolVersion.v0_9_1,
+      ]);
+      for (final InferenceFormatFactory format in const [
+        DirectJsonFormatFactory(),
+        ExpressFormatFactory(),
+      ]) {
+        expect(
+          A2uiRequestProcessor(
+            activeCatalogs: active,
+            formatFactory: format,
+          ).promptSnippet,
+          contains(inline.id),
+          reason: '${format.runtimeType}',
+        );
+      }
+    });
+
     test('activates one of two inline catalogs sharing an id', () {
       expect(
         resolveCatalogs(

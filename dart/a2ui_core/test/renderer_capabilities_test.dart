@@ -45,6 +45,51 @@ void main() {
       expect(caps.inlineCatalogs.single.components.keys, ['Gauge']);
     });
 
+    test('reads an inline catalog that states no version as the entry\'s', () {
+      final caps = A2uiRendererCapabilities.fromJson({
+        'v1.0': {
+          'supportedCatalogIds': <String>[],
+          'inlineCatalogs': [
+            {
+              'catalogId': 'inline',
+              'components': {
+                'Gauge': {'type': 'object'},
+              },
+            },
+          ],
+        },
+      });
+
+      expect(
+        caps.versions[A2uiProtocolVersion.v1_0]!.inlineCatalogs.single
+            .protocolVersion,
+        A2uiProtocolVersion.v1_0,
+      );
+    });
+
+    test('keeps the version an inline catalog states', () {
+      final caps = A2uiVersionCapabilities.fromJson(
+        {
+          'supportedCatalogIds': <String>[],
+          'inlineCatalogs': [
+            {
+              'catalogId': 'inline',
+              'protocolVersion': '0.9',
+              'components': {
+                'Gauge': {'type': 'object'},
+              },
+            },
+          ],
+        },
+        protocolVersion: A2uiProtocolVersion.v1_0,
+      );
+
+      expect(
+        caps.inlineCatalogs.single.protocolVersion,
+        A2uiProtocolVersion.v0_9,
+      );
+    });
+
     test('rejects an inline catalog that is not an object', () {
       for (final malformed in <Object?>[null, 'nope', 42, <Object?>[]]) {
         expect(

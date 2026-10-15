@@ -30,6 +30,17 @@
   `other.json#/components/X` or `mcp_catalog.json#/...`, throws
   `A2uiCatalogError` instead of leaving the subschema unconstrained, so
   `PayloadValidator` reports it rather than accepting any value.
+- Added `MessageProcessor.forAgent`, which an agent checks its own outbound
+  payloads with. It takes the negotiated `CatalogApi`s, holds each function
+  as a signature that cannot be invoked, and validates under
+  `ValidationConfig.strict` by default. It checks a `callRendererFunction`
+  instead of running it; that check is declared but not implemented yet, and
+  throws `UnimplementedError`.
+- Added `AgentToRendererMessage.typesFor`, the message types an agent may
+  send in a protocol version.
+- `A2uiRendererCapabilities.fromJson` reads an inline catalog that states no
+  `protocolVersion` as targeting the version of the entry it is declared in.
+  `A2uiVersionCapabilities.fromJson` takes that version as `protocolVersion`.
 
 ## 0.3.0
 

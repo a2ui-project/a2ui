@@ -12,27 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// The v0.9 message types, in the order a prompt describes them.
-const List<String> messageTypes = [
-  'createSurface',
-  'updateComponents',
-  'updateDataModel',
-  'deleteSurface',
-];
+import 'package:a2ui_core/a2ui_core.dart';
 
-/// The message types [allowedMessages] names, in [messageTypes] order, or all
-/// of them when [allowedMessages] is null.
+/// The message types [allowedMessages] names, in the order
+/// [AgentToRendererMessage.typesFor] lists the types of [version], or all of
+/// them when [allowedMessages] is null.
 ///
-/// Throws [ArgumentError] if [allowedMessages] names a message type v0.9 does
-/// not have.
-List<String> resolveAllowedMessages(List<String>? allowedMessages) {
+/// Throws [ArgumentError] if [allowedMessages] names a message type [version]
+/// does not have.
+List<String> resolveAllowedMessages(
+  List<String>? allowedMessages,
+  A2uiProtocolVersion version,
+) {
+  final List<String> messageTypes = AgentToRendererMessage.typesFor(version);
   if (allowedMessages == null) return messageTypes;
   for (final String type in allowedMessages) {
     if (!messageTypes.contains(type)) {
       throw ArgumentError.value(
         allowedMessages,
         'allowedMessages',
-        "'$type' is not a v0.9 message type. The types are: "
+        "'$type' is not a ${version.jsonValue} message type. The types are: "
             '${messageTypes.join(', ')}',
       );
     }

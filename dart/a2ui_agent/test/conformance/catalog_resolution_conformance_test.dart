@@ -19,47 +19,51 @@ import 'package:test/test.dart';
 import 'suites.dart';
 
 /// Runs the shared `conformance/agent/catalog_resolution.yaml` suite against
-/// [resolveCatalogs], with the capabilities lowered to v0.9 as `suites.dart`
-/// describes.
+/// [resolveCatalogs], in each [SuiteVersion].
 void main() {
   const path = 'agent/catalog_resolution.yaml';
-  group('conformance $path', () {
-    final List<Map<String, Object?>> cases = loadSuite(path);
-    test('suite is not empty', () => expect(cases, isNotEmpty));
-    for (final testCase in cases) {
-      final args = testCase['args']! as Map<String, Object?>;
-      test(testCase['name']! as String, () {
-        final capabilities =
-            args['renderer_capabilities'] as Map<String, Object?>?;
-        List<CatalogApi> resolve() => resolveCatalogs(
-          [
-            for (final Object? entry in args['catalogs']! as List<Object?>)
-              catalogConfig(entry),
-          ],
-          capabilities == null ? null : lowerCapabilities(capabilities),
-          acceptsInlineCatalogs:
-              args['accepts_inline_catalogs'] as bool? ?? false,
+  for (final SuiteVersion version in SuiteVersion.values) {
+    group('conformance $path ${version.label}', () {
+      final List<Map<String, Object?>> cases = loadSuite(path);
+      test('suite is not empty', () => expect(cases, isNotEmpty));
+      for (final testCase in cases) {
+        test(
+          testCase['name']! as String,
+          () => version.run(() => _runCase(testCase, version)),
         );
+      }
+    });
+  }
+}
 
-        if (testCase['expect_error'] case final Object error) {
-          expect(resolve, throwsCategory(error));
-          return;
-        }
-        final List<CatalogApi> active = resolve();
-        final expected = testCase['expect']! as Map<String, Object?>;
-        expect(
-          active.map((c) => c.id),
-          unorderedEquals(expected['active_catalog_ids']! as List<Object?>),
-        );
-        for (final Object? catalog
-            in expected['catalogs'] as List<Object?>? ?? const []) {
-          final assertion = catalog! as Map<String, Object?>;
-          expectCatalog(
-            active.singleWhere((c) => c.id == assertion['catalog_id']),
-            assertion,
-          );
-        }
-      });
-    }
-  });
+void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
+  final args = testCase['args']! as Map<String, Object?>;
+  final capabilities = args['renderer_capabilities'] as Map<String, Object?>?;
+  List<CatalogApi> resolve() => resolveCatalogs(
+    [
+      for (final Object? entry in args['catalogs']! as List<Object?>)
+        version.catalogConfig(entry),
+    ],
+    capabilities == null ? null : version.capabilities(capabilities),
+    acceptsInlineCatalogs: args['accepts_inline_catalogs'] as bool? ?? false,
+  );
+
+  if (testCase['expect_error'] case final Object error) {
+    expectThrowsCategory(resolve, error);
+    return;
+  }
+  final List<CatalogApi> active = resolve();
+  final expected = testCase['expect']! as Map<String, Object?>;
+  expect(
+    active.map((c) => c.id),
+    unorderedEquals(expected['active_catalog_ids']! as List<Object?>),
+  );
+  for (final Object? catalog
+      in expected['catalogs'] as List<Object?>? ?? const []) {
+    final assertion = catalog! as Map<String, Object?>;
+    version.expectCatalog(
+      active.singleWhere((c) => c.id == assertion['catalog_id']),
+      assertion,
+    );
+  }
 }

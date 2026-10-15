@@ -14,6 +14,8 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import '../../utils/catalogs.dart';
+
 /// The fields each v0.9 message body may carry, from `server_to_client.json`,
 /// which closes both the envelope and the body.
 const Map<String, Set<String>> _bodyFields = {
@@ -32,10 +34,20 @@ const Map<String, Set<String>> _bodyFields = {
 /// else: its components against their catalog's schemas, and the functions
 /// they call against their catalog's signatures. The checks that need the
 /// whole surface, such as a reachable root, are `A2uiRequestProcessor`'s.
+///
+/// Reading the messages of v1.0 catalogs is not implemented yet and throws
+/// [UnimplementedError].
 class MessageReader {
   /// The first of [catalogs] is the one a component is checked against when
   /// its surface is not created by the payload and no catalog declares it.
-  MessageReader(this.catalogs);
+  ///
+  /// Throws [A2uiCatalogError] if [catalogs] is empty or they target
+  /// different versions, and [UnimplementedError] if they target v1.0.
+  MessageReader(this.catalogs) {
+    if (catalogsProtocolVersion(catalogs).isAtLeast(A2uiProtocolVersion.v1_0)) {
+      throw UnimplementedError('Reading direct JSON messages of protocol v1.0');
+    }
+  }
 
   final List<CatalogApi> catalogs;
 
