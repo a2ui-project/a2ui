@@ -146,6 +146,40 @@ describe('ExpressFormat', () => {
       expect(parser.version).toBe('v1.0');
     });
 
+    it('forwards allowedMessages and multi-turn examples to ExpressPromptGenerator', () => {
+      const simplified = loadConformanceCatalog('simplified_catalog_v1_0.json');
+      const factory = new ExpressFormatFactory({
+        allowedMessages: ['createSurface', 'updateComponents'],
+      });
+      const turn1 = [
+        {version: 'v1.0', createSurface: {surfaceId: 's1'}},
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Text', text: 'Turn 1'}],
+          },
+        },
+      ];
+      const turn2 = [
+        {version: 'v1.0', createSurface: {surfaceId: 's2'}},
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 's2',
+            components: [{id: 'root', component: 'Text', text: 'Turn 2'}],
+          },
+        },
+      ];
+      const format = factory.createFormat([simplified], {
+        [simplified.id]: [turn1, turn2] as never,
+      });
+      const snippet = format.promptGenerator.generate();
+      expect(snippet).not.toContain('deleteSurface(');
+      expect(snippet).toContain('root = Text("Turn 1")');
+      expect(snippet).toContain('root = Text("Turn 2")');
+    });
+
     it('factory propagates single-catalog error on invalid catalogs', () => {
       const factory = new ExpressFormatFactory();
       expect(() => factory.createFormat([])).toThrow(A2uiCatalogError);

@@ -466,25 +466,85 @@ describe('ExpressPromptGenerator', () => {
       const rules = generator.generateBaseRules();
 
       expect(rules).toContain('## Multiple Catalogs');
+      expect(rules).toContain(
+        'Several component catalogs are active. Each is identified by its catalog ID, and the signatures below are grouped by catalog:',
+      );
       expect(rules).toContain(`- \`${c1.id}\``);
       expect(rules).toContain(`- \`${c2.id}\``);
       expect(rules).toContain(
-        'No component or function names are shared across the active catalogs; omit `catalogId` on every call.',
+        '16. A surface has no catalog of its own: do not name a catalog on a `surface` line.',
       );
+      expect(rules).toContain(`    widget = ComponentName(..., catalogId="${c2.id}")`);
+      expect(rules).toContain(`    action = functionName(..., catalogId="${c2.id}")`);
+      expect(rules).toContain(`    ?checkName(..., {catalogId: "${c2.id}"})`);
+      expect(rules).not.toContain('These names are defined in several catalogs');
     });
 
-    it('generates Multiple Catalogs rules when 2 overlapping v1.0 catalogs are active', () => {
-      const c1 = loadConformanceCatalog('simplified_catalog_v1_0.json');
-      const c2 = loadConformanceCatalog('forms_catalog_v1_0.json');
+    it('generates Multiple Catalogs rules with sorted shared names when overlapping v1.0 catalogs are active', () => {
+      const c1 = catalogFromTestDocument({
+        catalogId: 'cat/one',
+        protocolVersion: 'v1.0',
+        components: {
+          Zebra: {
+            type: 'object',
+            properties: {component: {const: 'Zebra'}},
+            required: ['component'],
+          },
+          Alpha: {
+            type: 'object',
+            properties: {component: {const: 'Alpha'}},
+            required: ['component'],
+          },
+        },
+        functions: {
+          zFunc: {
+            type: 'object',
+            properties: {call: {const: 'zFunc'}, returnType: {const: 'boolean'}},
+          },
+          aFunc: {
+            type: 'object',
+            properties: {call: {const: 'aFunc'}, returnType: {const: 'boolean'}},
+          },
+        },
+      });
+      const c2 = catalogFromTestDocument({
+        catalogId: 'cat/two',
+        protocolVersion: 'v1.0',
+        components: {
+          Zebra: {
+            type: 'object',
+            properties: {component: {const: 'Zebra'}},
+            required: ['component'],
+          },
+          Alpha: {
+            type: 'object',
+            properties: {component: {const: 'Alpha'}},
+            required: ['component'],
+          },
+        },
+        functions: {
+          zFunc: {
+            type: 'object',
+            properties: {call: {const: 'zFunc'}, returnType: {const: 'boolean'}},
+          },
+          aFunc: {
+            type: 'object',
+            properties: {call: {const: 'aFunc'}, returnType: {const: 'boolean'}},
+          },
+        },
+      });
       const generator = new ExpressPromptGenerator([c1, c2]);
       const rules = generator.generateBaseRules();
 
       expect(rules).toContain('## Multiple Catalogs');
       expect(rules).toContain(
-        'Names defined in more than one active catalog (`catalogId` required):',
-      );
-      expect(rules).toContain(
-        '- Function `required`: `conformance/simplified`, `conformance/forms`',
+        [
+          'These names are defined in several catalogs and need a `catalogId`:',
+          '- Component `Alpha`: `cat/one`, `cat/two`',
+          '- Component `Zebra`: `cat/one`, `cat/two`',
+          '- Function `aFunc`: `cat/one`, `cat/two`',
+          '- Function `zFunc`: `cat/one`, `cat/two`',
+        ].join('\n'),
       );
     });
 
@@ -531,6 +591,74 @@ describe('ExpressPromptGenerator', () => {
       expect(snippet).toContain('surface("s1")');
       expect(snippet).toContain('root = Text("Hello")');
       expect(snippet).toContain('root = Chart([1, 2, 3])');
+    });
+
+    it('decompiles catalog instructions, keyed examples, and markdown examples with the catalog as default when 2+ catalogs are active', () => {
+      const c1Doc = {
+        catalogId: 'conformance/cat_one',
+        protocolVersion: 'v1.0',
+        instructions:
+          'Instruction example:\n```json\n' +
+          JSON.stringify([
+            {version: 'v1.0', createSurface: {surfaceId: 'inst_s'}},
+            {
+              version: 'v1.0',
+              updateComponents: {
+                surfaceId: 'inst_s',
+                components: [{id: 'root', component: 'Label', text: 'FromInstructions'}],
+              },
+            },
+          ]) +
+          '\n```',
+        components: {
+          Label: {
+            type: 'object',
+            properties: {
+              component: {const: 'Label'},
+              text: {type: 'string'},
+            },
+            required: ['component', 'text'],
+          },
+        },
+        functions: {},
+      };
+      const c1 = catalogFromTestDocument(c1Doc);
+      const c2 = loadConformanceCatalog('custom_catalog_v1_0.json');
+
+      const keyedMessages = [
+        {version: 'v1.0', createSurface: {surfaceId: 'keyed_s'}},
+        {
+          version: 'v1.0',
+          updateComponents: {
+            surfaceId: 'keyed_s',
+            components: [{id: 'root', component: 'Label', text: 'FromKeyedExample'}],
+          },
+        },
+      ] as unknown as AgentToRendererMessage[];
+
+      const markdownExample =
+        'Markdown example:\n```json\n' +
+        JSON.stringify([
+          {
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 'md_s',
+              components: [{id: 'root', component: 'Chart', values: [4, 5]}],
+            },
+          },
+        ]) +
+        '\n```';
+
+      const generator = new ExpressPromptGenerator([c1, c2], {
+        [c1.id]: keyedMessages,
+        [c2.id]: markdownExample,
+      });
+      const snippet = generator.generate();
+
+      expect(snippet).not.toContain('```json');
+      expect(snippet).toContain('root = Label("FromInstructions")');
+      expect(snippet).toContain('root = Label("FromKeyedExample")');
+      expect(snippet).toContain('root = Chart([4, 5])');
     });
   });
 });

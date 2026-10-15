@@ -134,6 +134,93 @@ function getSchemaEnum(propSchema: unknown): string[] | undefined {
   return undefined;
 }
 
+function applyDefaultCatalogToValue(val: unknown, defaultCatalogId: string): unknown {
+  if (val instanceof RawNumber || !val || typeof val !== 'object') {
+    return val;
+  }
+  if (Array.isArray(val)) {
+    return val.map(item => applyDefaultCatalogToValue(item, defaultCatalogId));
+  }
+  const obj = val as Record<string, unknown>;
+  const copy: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    copy[k] = applyDefaultCatalogToValue(v, defaultCatalogId);
+  }
+  const isComponent = typeof copy.component === 'string';
+  const isCall = typeof copy.call === 'string' || typeof copy['@call'] === 'string';
+  if ((isComponent || isCall) && !copy.catalogId) {
+    copy.catalogId = defaultCatalogId;
+  }
+  return copy;
+}
+
+/**
+ * Stamps a default `catalogId` on example messages that belong to a catalog but omit it.
+ */
+function withDefaultCatalog(
+  messages: AgentToRendererMessage[],
+  defaultCatalogId?: string,
+): AgentToRendererMessage[] {
+  if (!defaultCatalogId) {
+    return messages;
+  }
+  const createdSurfaces = new Set<string>();
+  return messages.map(rawMsg => {
+    if (!rawMsg || typeof rawMsg !== 'object') {
+      return rawMsg;
+    }
+    const msg = rawMsg as unknown as Record<string, unknown>;
+    const copy: Record<string, unknown> = {...msg};
+
+    if (copy.createSurface && typeof copy.createSurface === 'object') {
+      const cs = copy.createSurface as Record<string, unknown>;
+      const sid =
+        typeof cs.surfaceId === 'string' && cs.surfaceId ? cs.surfaceId : 'default_surface';
+      createdSurfaces.add(sid);
+      if (!cs.catalogId) {
+        copy.createSurface = {...cs, catalogId: defaultCatalogId};
+      }
+    } else if (copy.deleteSurface && typeof copy.deleteSurface === 'object') {
+      const ds = copy.deleteSurface as Record<string, unknown>;
+      const sid =
+        typeof ds.surfaceId === 'string' && ds.surfaceId ? ds.surfaceId : 'default_surface';
+      createdSurfaces.delete(sid);
+    } else if (copy.updateComponents && typeof copy.updateComponents === 'object') {
+      const uc = copy.updateComponents as Record<string, unknown>;
+      const sid =
+        typeof uc.surfaceId === 'string' && uc.surfaceId ? uc.surfaceId : 'default_surface';
+      if (!createdSurfaces.has(sid)) {
+        copy.updateComponents = applyDefaultCatalogToValue(uc, defaultCatalogId);
+      }
+    } else if (copy.updateDataModel && typeof copy.updateDataModel === 'object') {
+      const udm = copy.updateDataModel as Record<string, unknown>;
+      const sid =
+        typeof udm.surfaceId === 'string' && udm.surfaceId ? udm.surfaceId : 'default_surface';
+      if (!createdSurfaces.has(sid)) {
+        copy.updateDataModel = applyDefaultCatalogToValue(udm, defaultCatalogId);
+      }
+    } else if (copy.callRendererFunction && typeof copy.callRendererFunction === 'object') {
+      const crf = copy.callRendererFunction as Record<string, unknown>;
+      if (crf.callFunction && typeof crf.callFunction === 'object') {
+        const cf = crf.callFunction as Record<string, unknown>;
+        if (!cf.catalogId) {
+          copy.callRendererFunction = {
+            ...crf,
+            callFunction: {...cf, catalogId: defaultCatalogId},
+          };
+        }
+      }
+    } else if (copy.callFunction && typeof copy.callFunction === 'object') {
+      const cf = copy.callFunction as Record<string, unknown>;
+      if (!cf.catalogId) {
+        copy.callFunction = {...cf, catalogId: defaultCatalogId};
+      }
+    }
+
+    return copy as unknown as AgentToRendererMessage;
+  });
+}
+
 export class ExpressPromptGenerator extends PromptGenerator {
   private readonly examples?: Record<
     string,
@@ -173,63 +260,51 @@ export class ExpressPromptGenerator extends PromptGenerator {
   }
 
   private multiCatalogRules(): string {
-    const catalogList = this.catalogs.map(c => `- \`${c.id}\``).join('\n');
-    const sharedLines: string[] = [];
-
-    const activeHelpers = new Map<string, CatalogSchemaHelper>();
-    for (const c of this.catalogs) {
-      const h = this.helpers.get(c.id);
-      if (h) {
-        activeHelpers.set(c.id, h);
-      }
-    }
-
-    const seenComponents = new Set<string>();
-    for (const helper of activeHelpers.values()) {
-      for (const name of helper.components.keys()) {
-        if (seenComponents.has(name)) continue;
-        seenComponents.add(name);
-        const defining = catalogsDefining(activeHelpers, 'component', name);
-        if (defining.length > 1) {
-          const ids = defining.map(c => `\`${c}\``).join(', ');
-          sharedLines.push(`- Component \`${name}\`: ${ids}`);
-        }
-      }
-    }
-
-    const seenFunctions = new Set<string>();
-    for (const helper of activeHelpers.values()) {
-      for (const name of helper.functions.keys()) {
-        if (seenFunctions.has(name)) continue;
-        seenFunctions.add(name);
-        const defining = catalogsDefining(activeHelpers, 'function', name);
-        if (defining.length > 1) {
-          const ids = defining.map(c => `\`${c}\``).join(', ');
-          sharedLines.push(`- Function \`${name}\`: ${ids}`);
-        }
-      }
-    }
-
+    const catalogIds = [...this.helpers.keys()];
+    const exampleId = catalogIds[catalogIds.length - 1];
+    const listing = catalogIds.map(catId => `- \`${catId}\``).join('\n');
     const lines = [
       '',
       '## Multiple Catalogs',
       '',
-      'Active catalogs for this request:',
-      catalogList,
+      'Several component catalogs are active. Each is identified by its catalog ID, and the signatures below are grouped by catalog:',
+      listing,
       '',
-      '16. **No Catalog on `surface`**: Write `surface("surface_id")` with no catalog argument. Components from any active catalog may be used in the same surface.',
-      '17. **Catalog Resolution**: A component or function whose name is in only one active catalog needs no `catalogId`. When a name is in more than one active catalog, pass `catalogId="<catalog_id>"` on the component or function call (or `{catalogId: "<catalog_id>"}` on a `?check(...)` call) to choose one.',
+      '16. A surface has no catalog of its own: do not name a catalog on a `surface` line. Each component and function call, including checks, actions, nested function calls and inline child components, is found by its name in whichever catalog defines it.',
+      '',
+      '17. When several catalogs define the same component or function name, you MUST say which one you mean: add a `catalogId` keyword argument to the component or function call, or a `{catalogId: ...}` argument to a check. Do not add `catalogId` to any other name:',
+      `    widget = ComponentName(..., catalogId="${exampleId}")`,
+      `    action = functionName(..., catalogId="${exampleId}")`,
+      `    ?checkName(..., {catalogId: "${exampleId}"})`,
     ];
+
+    const sharedLines: string[] = [];
+    const kinds: ReadonlyArray<['component' | 'function', string]> = [
+      ['component', 'Component'],
+      ['function', 'Function'],
+    ];
+    for (const [kind, label] of kinds) {
+      const names = new Set<string>();
+      for (const helper of this.helpers.values()) {
+        const map = kind === 'component' ? helper.components : helper.functions;
+        for (const name of map.keys()) {
+          names.add(name);
+        }
+      }
+      for (const name of [...names].sort()) {
+        const defining = catalogsDefining(this.helpers, kind, name);
+        if (defining.length > 1) {
+          const ids = defining.map(catId => `\`${catId}\``).join(', ');
+          sharedLines.push(`- ${label} \`${name}\`: ${ids}`);
+        }
+      }
+    }
+
     if (sharedLines.length > 0) {
       lines.push(
         '',
-        'Names defined in more than one active catalog (`catalogId` required):',
+        'These names are defined in several catalogs and need a `catalogId`:',
         ...sharedLines,
-      );
-    } else {
-      lines.push(
-        '',
-        'No component or function names are shared across the active catalogs; omit `catalogId` on every call.',
       );
     }
     return lines.join('\n');
@@ -300,7 +375,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
     if (catalogInstructions) {
       const pattern = /```json\s*\n([\s\S]*?)\n```/g;
       catalogInstructions = catalogInstructions.replace(pattern, (match, jsonContent) =>
-        this.replaceJsonBlockInInstructions(match, jsonContent),
+        this.replaceJsonBlockInInstructions(match, jsonContent, catalog),
       );
     }
 
@@ -325,7 +400,11 @@ export class ExpressPromptGenerator extends PromptGenerator {
     );
   }
 
-  private replaceJsonBlockInInstructions(match: string, jsonContent: string): string {
+  private replaceJsonBlockInInstructions(
+    match: string,
+    jsonContent: string,
+    catalog: CatalogApi,
+  ): string {
     try {
       // Python's json.loads keeps `1500.00` as the float 1500.0, which the decompiler
       // writes as `1500.0`. JS numbers lose that distinction, so integral values written
@@ -358,7 +437,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
         return match;
       }
 
-      const fullDsl = this.decompileMessages(messages as AgentToRendererMessage[]);
+      const fullDsl = this.decompileMessages(messages as AgentToRendererMessage[], catalog);
       return `\`\`\`\n${fullDsl}\n\`\`\``;
     } catch {
       // Mirrors prompt_generator.py:446 (except Exception:)
@@ -515,14 +594,14 @@ export class ExpressPromptGenerator extends PromptGenerator {
       .join('\n');
   }
 
-  transformExamples(rawExamplesMarkdown: string, _catalog?: CatalogApi): string {
+  transformExamples(rawExamplesMarkdown: string, catalog?: CatalogApi): string {
     const pattern = /```json\s*\n([\s\S]*?)\n```/g;
     return rawExamplesMarkdown.replace(pattern, (match, jsonContent) =>
-      this.replaceJsonBlock(match, jsonContent),
+      this.replaceJsonBlock(match, jsonContent, catalog),
     );
   }
 
-  private replaceJsonBlock(match: string, jsonContent: string): string {
+  private replaceJsonBlock(match: string, jsonContent: string, catalog?: CatalogApi): string {
     try {
       const parsed = JSON.parse(jsonContent.trim());
       const messages: unknown[] = Array.isArray(parsed)
@@ -537,7 +616,7 @@ export class ExpressPromptGenerator extends PromptGenerator {
         return match;
       }
 
-      return this.decompileMessages(messages as AgentToRendererMessage[]);
+      return this.decompileMessages(messages as AgentToRendererMessage[], catalog);
     } catch {
       // Mirrors prompt_generator.py:477 (except Exception:)
       return match;
@@ -553,10 +632,12 @@ export class ExpressPromptGenerator extends PromptGenerator {
    * `surface(...)` scope per message, which fails to compile.
    *
    * @param messages The messages of one example.
+   * @param catalog Optional catalog the example belongs to, used as the default catalog.
    */
-  private decompileMessages(messages: AgentToRendererMessage[]): string {
+  private decompileMessages(messages: AgentToRendererMessage[], catalog?: CatalogApi): string {
     const decompiler = new ExpressDecompiler(this.catalogs, this.version);
-    return decompiler.wrapDecompiledBlocks([decompiler.decompile(messages)]);
+    const normalized = withDefaultCatalog(messages, catalog?.id);
+    return decompiler.wrapDecompiledBlocks([decompiler.decompile(normalized)]);
   }
 
   protected renderExamples(catalog: CatalogApi): string {
@@ -574,14 +655,14 @@ export class ExpressPromptGenerator extends PromptGenerator {
         const decompiler = new ExpressDecompiler(this.catalogs, this.version);
         const blocks: string[] = [];
         for (const turn of exampleMessages as AgentToRendererMessage[][]) {
-          const dsl = decompiler.decompile(turn);
+          const dsl = decompiler.decompile(withDefaultCatalog(turn, catalog.id));
           if (dsl) {
             blocks.push(decompiler.wrapDecompiledBlocks([dsl]));
           }
         }
         return blocks.join('\n\n');
       }
-      return this.decompileMessages(exampleMessages as AgentToRendererMessage[]);
+      return this.decompileMessages(exampleMessages as AgentToRendererMessage[], catalog);
     }
 
     return '';
