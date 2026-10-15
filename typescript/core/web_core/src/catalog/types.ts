@@ -21,7 +21,12 @@ import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {SpecVersion} from '../spec_versions.js';
-import {parseCatalogSchema} from './schema_loader.js';
+import {
+  findPeerCatalogDoc,
+  inlinePeerAndLocalRefs,
+  parseCatalogSchema,
+  registerEntryPeerCatalogs,
+} from './schema_loader.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
 import {generateValidationSchema} from './schema_generator.js';
 import {
@@ -39,6 +44,7 @@ import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 
 export type {ComponentChildRefs};
+export {findPeerCatalogDoc, inlinePeerAndLocalRefs};
 
 /**
  * Registry mapping A2UI function return type identifiers to their TypeScript runtime types.
@@ -374,6 +380,8 @@ export declare interface CatalogInterface<
   toJson(): Record<string, unknown>;
   /** Component reference map for child reference extraction and topology validation. */
   readonly componentRefMap: ComponentRefMap;
+  /** Peer catalogs available for resolving cross-catalog `$ref`s. */
+  readonly peerCatalogs?: readonly CatalogInterface<ComponentApi, FunctionApi>[];
 }
 
 /**
@@ -487,6 +495,56 @@ export class Catalog<
 
   private cachedDocument?: Record<string, unknown>;
 
+  private _peerCatalogs: readonly CatalogInterface<ComponentApi, FunctionApi>[] = [];
+  private _sourceCatalog?: CatalogInterface<ComponentApi, FunctionApi>;
+
+  /**
+   * Peer catalogs available for resolving cross-catalog `$ref`s.
+   */
+  get peerCatalogs(): readonly CatalogInterface<ComponentApi, FunctionApi>[] {
+    return this._peerCatalogs;
+  }
+
+  /**
+   * Registers peer catalogs for cross-catalog `$ref` resolution and invalidates
+   * cached derived views (`validationSchema`, `componentRefMap`, and JSON entry
+   * Zod schemas).
+   */
+  withPeerCatalogs(peers: Iterable<CatalogInterface<ComponentApi, FunctionApi>>): this {
+    const selfRef = this as CatalogInterface<ComponentApi, FunctionApi>;
+    const seen = new Set<CatalogInterface<ComponentApi, FunctionApi>>([selfRef]);
+    const filtered: CatalogInterface<ComponentApi, FunctionApi>[] = [];
+    const addCandidate = (cand?: CatalogInterface<ComponentApi, FunctionApi>) => {
+      if (cand && !seen.has(cand)) {
+        seen.add(cand);
+        filtered.push(cand);
+      }
+    };
+    for (const p of this._peerCatalogs) {
+      addCandidate(p);
+    }
+    for (const p of peers) {
+      addCandidate((p as Catalog<ComponentApi, FunctionApi>)._sourceCatalog);
+      addCandidate(p);
+    }
+    const same =
+      filtered.length === this._peerCatalogs.length &&
+      filtered.every((p, i) => p === this._peerCatalogs[i]);
+    if (same) {
+      return this;
+    }
+    this._peerCatalogs = filtered;
+    this.cachedValidationSchema = undefined;
+    this._componentRefMap = undefined;
+    for (const comp of this.components.values()) {
+      registerEntryPeerCatalogs(comp, this._peerCatalogs);
+    }
+    for (const fn of this.functions.values()) {
+      registerEntryPeerCatalogs(fn, this._peerCatalogs);
+    }
+    return this;
+  }
+
   /**
    * Self-contained JSON Schema for validating payloads against this catalog.
    *
@@ -577,7 +635,7 @@ export class Catalog<
           anyFunction: this.unions.anyFunction || functionsChanged,
         }
       : undefined;
-    return new Catalog<T, F>(this.id, this.protocolVersion, components, functions, {
+    const copy = new Catalog<T, F>(this.id, this.protocolVersion, components, functions, {
       themeSchema: this.themeSchema,
       instructions: this.instructions,
       schemaUri: this.schemaUri,
@@ -600,6 +658,12 @@ export class Catalog<
       themeLocation: this.themeLocation,
       defModels: this.defModels,
     });
+    copy._sourceCatalog =
+      this._sourceCatalog ?? (this as CatalogInterface<ComponentApi, FunctionApi>);
+    if (this._peerCatalogs.length > 0) {
+      copy.withPeerCatalogs(this._peerCatalogs);
+    }
+    return copy;
   }
 
   private _componentRefMap?: ComponentRefMap;
@@ -741,6 +805,26 @@ export class Catalog<
  * that executes functions needs a catalog of `FunctionImplementation`s instead.
  */
 export type CatalogApi = Catalog<ComponentApi, FunctionApi>;
+
+/**
+ * Links a collection of catalogs as mutual peers so cross-catalog `$ref`s resolve.
+ */
+export function linkCatalogs<C extends CatalogInterface<ComponentApi, FunctionApi>>(
+  catalogs: Iterable<C>,
+): C[] {
+  const list = Array.from(catalogs);
+  if (list.length > 1) {
+    for (const cat of list) {
+      const maybeCatalog = cat as unknown as {
+        withPeerCatalogs?: (peers: Iterable<CatalogInterface<ComponentApi, FunctionApi>>) => void;
+      };
+      if (typeof maybeCatalog.withPeerCatalogs === 'function') {
+        maybeCatalog.withPeerCatalogs(list);
+      }
+    }
+  }
+  return list;
+}
 
 /**
  * Whether a value is a Zod schema. Checked structurally so schemas built with

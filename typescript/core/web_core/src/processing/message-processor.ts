@@ -16,7 +16,7 @@
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener} from '../state/surface-model.js';
-import {Catalog, ComponentApi} from '../catalog/types.js';
+import {Catalog, ComponentApi, linkCatalogs} from '../catalog/types.js';
 import {cleanSchemaNode} from '../catalog/schema_generator.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
@@ -169,6 +169,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     private actionHandler?: ActionListener,
     options?: MessageProcessorOptions,
   ) {
+    linkCatalogs(this.catalogs);
     this.model = new SurfaceGroupModel<T>();
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
     this.rpc = new RpcHandler({

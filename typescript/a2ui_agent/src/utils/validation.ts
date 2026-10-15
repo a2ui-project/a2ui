@@ -16,6 +16,7 @@
 
 import {
   CatalogApi,
+  linkCatalogs,
   MessageProcessor,
   STRICT_VALIDATION,
   A2uiValidationError,
@@ -34,6 +35,7 @@ export function checkParserCatalogs(catalogs: CatalogApi[]): string {
   if (!catalogs || catalogs.length === 0) {
     throw new A2uiCatalogError('Parser requires at least one catalog.');
   }
+  linkCatalogs(catalogs);
 
   const seenCatalogIds = new Set<string>();
   const releaseLines = new Set<string>();

@@ -21,7 +21,13 @@ from typing import Any, TYPE_CHECKING
 
 from pydantic import BaseModel, ValidationError
 
-from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog, CatalogApi
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiValidationError,
+    Catalog,
+    CatalogApi,
+    link_catalogs,
+)
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import (
     A2uiRendererCapabilities,
@@ -86,9 +92,10 @@ def resolve_catalogs(
       A2uiValidationError: If the capabilities have no valid entry for the
         protocol version of the registered catalogs.
     """
+    pristine = [config.catalog for config in catalogs]
     registered = [config.transformed_catalog for config in catalogs]
     if renderer_capabilities is None:
-        return registered
+        return link_catalogs(registered, extra_peers=pristine)
     if not registered:
         raise A2uiCatalogError(
             "No catalogs are registered, so none of the renderer's catalogs can be"
@@ -132,7 +139,10 @@ def resolve_catalogs(
             "No client-supported catalog found on the agent side. Agent-supported"
             f" catalogs are: {list(registered_by_id)}"
         )
-    return list(active.values())
+    return link_catalogs(
+        list(active.values()),
+        extra_peers=[*pristine, *registered, *inline],
+    )
 
 
 def _capabilities_entry(

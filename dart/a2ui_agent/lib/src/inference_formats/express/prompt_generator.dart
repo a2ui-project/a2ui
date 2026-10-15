@@ -57,6 +57,7 @@ class ExpressPromptGenerator extends PromptGenerator {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
     }
+    linkCatalogs(catalogs);
     final buffer = StringBuffer(
       _rules(resolveAllowedMessages(allowedMessages)),
     );

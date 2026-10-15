@@ -41,7 +41,9 @@ const Set<String> _keywords = {'_', 'null', 'true', 'false'};
 class ExpressDecompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ExpressDecompiler(this.catalogs);
+  ExpressDecompiler(this.catalogs) {
+    linkCatalogs(catalogs);
+  }
 
   final List<CatalogApi> catalogs;
 

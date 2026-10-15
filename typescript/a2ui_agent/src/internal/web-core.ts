@@ -23,7 +23,12 @@
  */
 
 // ./catalog
-export {Catalog} from '@a2ui/web_core/catalog';
+export {
+  Catalog,
+  findPeerCatalogDoc,
+  inlinePeerAndLocalRefs,
+  linkCatalogs,
+} from '@a2ui/web_core/catalog';
 export type {
   CatalogApi,
   CatalogInterface,

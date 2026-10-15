@@ -1,5 +1,12 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
+## Unreleased
+
+- Add `Catalog.peerCatalogs`, `Catalog.withPeerCatalogs`, `linkCatalogs`, and
+  `findPeerCatalogDoc` to resolve cross-catalog `$ref` pointers across peer
+  catalogs in `resolvedComponentSchemas`, `validationSchema`, `refMap`,
+  `PayloadValidator`, and `MessageProcessor`.
+
 ## 0.3.0
 
 - `Catalog.commonTypesSchema` and the bundled `common_types` schemas list

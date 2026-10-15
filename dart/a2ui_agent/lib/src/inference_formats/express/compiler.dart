@@ -35,7 +35,9 @@ String defaultCheckMessage(String check) =>
 class ExpressCompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
-  ExpressCompiler(this.catalogs);
+  ExpressCompiler(this.catalogs) {
+    linkCatalogs(catalogs);
+  }
 
   final List<CatalogApi> catalogs;
 

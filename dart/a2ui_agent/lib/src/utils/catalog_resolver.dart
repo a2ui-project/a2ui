@@ -48,9 +48,14 @@ List<CatalogApi> resolveCatalogs(
   bool acceptsInlineCatalogs = false,
 }) {
   if (rendererCapabilities == null) {
-    return [
+    final List<CatalogApi> active = [
       for (final CatalogConfig config in catalogs) config.transformedCatalog,
     ];
+    linkCatalogs([
+      ...active,
+      for (final CatalogConfig config in catalogs) config.catalog,
+    ]);
+    return active;
   }
   const A2uiProtocolVersion version = A2uiProtocolVersion.v0_9;
   final A2uiVersionCapabilities? capabilities = rendererCapabilities.forVersion(
@@ -86,5 +91,11 @@ List<CatalogApi> resolveCatalogs(
       '${registered.keys.toList()}.',
     );
   }
+  linkCatalogs([
+    ...active,
+    for (final CatalogConfig config in catalogs) config.catalog,
+    for (final CatalogConfig config in catalogs) config.transformedCatalog,
+    if (acceptsInlineCatalogs) ...capabilities.inlineCatalogs,
+  ]);
   return active;
 }

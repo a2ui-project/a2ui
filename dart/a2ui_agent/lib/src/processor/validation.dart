@@ -27,6 +27,7 @@ void validatePayloads(
   List<CatalogApi> catalogs,
   Iterable<List<AgentToRendererMessage>> payloads,
 ) {
+  linkCatalogs(catalogs);
   for (final payload in payloads) {
     for (final CreateSurfaceMessage message
         in payload.whereType<CreateSurfaceMessage>()) {

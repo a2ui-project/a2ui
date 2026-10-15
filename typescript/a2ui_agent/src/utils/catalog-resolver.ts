@@ -15,7 +15,7 @@
  */
 
 import {A2uiCatalogError} from '../errors.js';
-import {CatalogApi, RendererCapabilities} from '../internal/web-core.js';
+import {CatalogApi, linkCatalogs, RendererCapabilities} from '../internal/web-core.js';
 import {CatalogConfig} from '../processor/catalog-config.js';
 import {catalogFromDocument} from '../processor/catalog-providers.js';
 
@@ -46,8 +46,10 @@ export function resolveCatalogs(
   rendererCapabilities: RendererCapabilities | undefined,
   acceptsInlineCatalogs = false,
 ): CatalogApi[] {
+  const pristineCatalogs = catalogs.map(c => c.catalog);
   const agentCatalogs = catalogs.map(c => c.transformedCatalog);
   if (!rendererCapabilities) {
+    linkCatalogs([...pristineCatalogs, ...agentCatalogs]);
     return agentCatalogs;
   }
   if (agentCatalogs.length === 0) {
@@ -83,5 +85,6 @@ export function resolveCatalogs(
         'declares no inline catalog the agent accepts.',
     );
   }
+  linkCatalogs([...active, ...pristineCatalogs, ...agentCatalogs, ...inlineCatalogs]);
   return active;
 }

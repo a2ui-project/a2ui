@@ -25,6 +25,7 @@ import {
   THEME_DOCUMENT_KEYS,
   type CatalogDocumentModel,
 } from './schema_serializer.js';
+import {inlinePeerAndLocalRefs} from './schema_loader.js';
 import {standardDefsForVersion} from './spec_shape.js';
 import type {CatalogInterface, ComponentApi, FunctionApi} from './types.js';
 
@@ -256,6 +257,7 @@ interface SourceContext {
   readonly model: CatalogDocumentModel;
   readonly defs: Readonly<JsonObject>;
   readonly rootDoc: JsonObject;
+  readonly peers: readonly CatalogInterface<ComponentApi, FunctionApi>[];
   readonly isV10: boolean;
 }
 
@@ -365,6 +367,21 @@ function collectSourceSubSchemas(
       }
       continue;
     }
+    if (mixinName === undefined && !ref.startsWith('#/') && context.peers.length > 0) {
+      if (!visited.has(ref)) {
+        const nextVisited = new Set(visited);
+        nextVisited.add(ref);
+        const resolvedPeer = inlinePeerAndLocalRefs(sub, context.rootDoc, context.peers, {
+          inlineLocalDefs: false,
+          visited: nextVisited,
+        });
+        if (isJsonObject(resolvedPeer) && resolvedPeer['$ref'] !== ref) {
+          visited.add(ref);
+          local.push(...collectSourceSubSchemas(resolvedPeer, context, visited));
+          continue;
+        }
+      }
+    }
     const external = EXTERNAL_DEF_REF.exec(ref);
     const name = mixinName ?? (external && !external[2] ? external[1] : undefined);
     const mixin = name !== undefined ? context.standardDefs[name] : undefined;
@@ -407,7 +424,9 @@ function sourceComponentSchema(
   const copied: JsonObject = {};
   for (const [name, schema] of Object.entries(props)) {
     if (COMPONENT_ENVELOPE_KEYS.has(name)) continue;
-    const copy = deepCopyJson(schema);
+    const copy = inlinePeerAndLocalRefs(deepCopyJson(schema), context.rootDoc, context.peers, {
+      inlineLocalDefs: false,
+    });
     restoreSourceRefs(copy, context.standardDefs, true);
     copied[name] = copy;
   }
@@ -744,7 +763,12 @@ function buildFunctionArgsSchema(
   let paramSchemaObj: JsonObject;
   const authored = authoredFunctionArgs(name, context);
   if (authored) {
-    paramSchemaObj = deepCopyJson(authored);
+    paramSchemaObj = inlinePeerAndLocalRefs(
+      deepCopyJson(authored),
+      context.rootDoc,
+      context.peers,
+      {inlineLocalDefs: false},
+    ) as JsonObject;
     restoreSourceRefs(paramSchemaObj, context.standardDefs, false);
   } else if (fn.schema && typeof fn.schema === 'object' && 'safeParse' in fn.schema) {
     const rawZod = zodToJsonSchema(fn.schema, {
@@ -1008,7 +1032,12 @@ export function generateValidationSchema<
     standardDefs,
     model,
     defs: authoredDefs,
-    rootDoc: {$defs: authoredDefs},
+    rootDoc: {
+      $defs: authoredDefs,
+      components: Object.fromEntries(model.components),
+      functions: Object.fromEntries(model.functions),
+    },
+    peers: catalog.peerCatalogs ?? [],
     isV10: Boolean(version) && isAtLeastVersion(version, '1.0'),
   };
 

@@ -61,8 +61,14 @@ Map<String, Object?> resolveSchemaRefs(
   Map<String, Object?> document, {
   Map<String, Object?>? commonTypes,
   Map<String, Object?>? fallbackCommonTypes,
+  List<Map<String, Object?>> peers = const [],
 }) {
-  final resolver = _RefResolver(document, commonTypes, fallbackCommonTypes);
+  final resolver = _RefResolver(
+    document,
+    commonTypes,
+    fallbackCommonTypes,
+    peers,
+  );
   final Map<String, Object?> rewritten = resolver.rewrite(
     schema,
     _DocumentRef(document, 'catalog'),
@@ -75,6 +81,113 @@ Map<String, Object?> resolveSchemaRefs(
       ...resolver.defs,
     },
   };
+}
+
+/// Finds a peer catalog document matching [target] by `catalogId`, `$id`, or
+/// filename suffix.
+Map<String, Object?>? findPeerCatalogDoc(
+  String target,
+  List<Map<String, Object?>> peers,
+) {
+  if (target.isEmpty || target.endsWith(_commonTypesDocument)) {
+    return null;
+  }
+  final String targetBasename = target.split('/').last;
+  for (final peer in peers) {
+    for (final key in const ['catalogId', r'$id']) {
+      final Object? cid = peer[key];
+      if (cid is! String || cid.isEmpty) continue;
+      if (cid == target ||
+          cid.endsWith('/$target') ||
+          cid.split('/').last == targetBasename) {
+        return peer;
+      }
+    }
+  }
+  return null;
+}
+
+Map<String, Object?> _stripEnvelopeFromSubschema(Map<String, Object?> sub) {
+  final copy = <String, Object?>{...sub};
+  final Object? props = copy['properties'];
+  if (props is Map) {
+    final newProps = <String, Object?>{
+      for (final MapEntry<Object?, Object?> entry in props.entries)
+        if (entry.key is String &&
+            entry.key != 'id' &&
+            entry.key != 'component' &&
+            entry.key != 'catalogId')
+          entry.key! as String: entry.value,
+    };
+    if (newProps.isNotEmpty) {
+      copy['properties'] = newProps;
+    } else {
+      copy.remove('properties');
+    }
+  }
+  final Object? req = copy['required'];
+  if (req is List) {
+    final newReq = <Object?>[
+      for (final Object? item in req)
+        if (item != 'id' && item != 'component' && item != 'catalogId') item,
+    ];
+    if (newReq.isNotEmpty) {
+      copy['required'] = newReq;
+    } else {
+      copy.remove('required');
+    }
+  }
+  copy
+    ..remove('unevaluatedProperties')
+    ..remove('additionalProperties')
+    ..remove('title');
+  return copy;
+}
+
+/// Strips component-envelope fields (`id`, `component`, `catalogId`, closure
+/// keywords, `title`) when inlining a top-level component definition as a base
+/// schema.
+Map<String, Object?> stripReferencedComponentEnvelope(
+  Map<String, Object?> schema,
+) {
+  final Map<String, Object?> copy = _stripEnvelopeFromSubschema(schema);
+  final Object? allOf = copy['allOf'];
+  if (allOf is List) {
+    final cleanedAllOf = <Object?>[];
+    final specificSubs = <Map<String, Object?>>[];
+    for (final Object? item in allOf) {
+      if (item is Map) {
+        final Map<String, Object?> cleaned =
+            _stripEnvelopeFromSubschema(item.cast<String, Object?>());
+        if (cleaned.isNotEmpty) {
+          cleanedAllOf.add(cleaned);
+          final Object? ref = cleaned[r'$ref'];
+          if (cleaned.containsKey('properties') &&
+              (ref is! String ||
+                  (!ref.endsWith('/ComponentCommon') &&
+                      !ref.endsWith('/Checkable')))) {
+            specificSubs.add(cleaned);
+          }
+        }
+      } else {
+        cleanedAllOf.add(item);
+      }
+    }
+    copy['allOf'] = cleanedAllOf;
+    if (!copy.containsKey('properties') && specificSubs.isNotEmpty) {
+      final mergedSpecificProps = <String, Object?>{};
+      for (final sub in specificSubs) {
+        final Object? p = sub['properties'];
+        if (p is Map) {
+          mergedSpecificProps.addAll(p.cast<String, Object?>());
+        }
+      }
+      if (mergedSpecificProps.isNotEmpty) {
+        copy['properties'] = mergedSpecificProps;
+      }
+    }
+  }
+  return copy;
 }
 
 /// One of the documents references are resolved against, with a short name
@@ -90,6 +203,7 @@ class _RefResolver {
   final Map<String, Object?> _document;
   final Map<String, Object?>? _commonTypes;
   final Map<String, Object?>? _fallbackCommonTypes;
+  final List<Map<String, Object?>> _peers;
 
   /// Definitions hoisted onto the result, keyed by their `$defs` name.
   final Map<String, Object?> defs = {};
@@ -97,7 +211,12 @@ class _RefResolver {
   /// The `$defs` name already assigned to a document and pointer.
   final Map<String, String> _names = {};
 
-  _RefResolver(this._document, this._commonTypes, this._fallbackCommonTypes);
+  _RefResolver(
+    this._document,
+    this._commonTypes,
+    this._fallbackCommonTypes, [
+    this._peers = const [],
+  ]);
 
   Map<String, Object?> rewrite(Map<String, Object?> node, _DocumentRef base) =>
       _walk(node, base) as Map<String, Object?>;
@@ -145,7 +264,7 @@ class _RefResolver {
     _DocumentRef origin = source;
     final bool localShared = found is! Map &&
         target.isEmpty &&
-        source.name == 'catalog' &&
+        (source.name == 'catalog' || source.name.startsWith('peer_')) &&
         pointer.startsWith(r'/$defs/');
     if (localShared) {
       // Catalogs may spell a shared type as a local `#/$defs/<Name>`, relying
@@ -167,6 +286,11 @@ class _RefResolver {
     }
     if (found is! Map) {
       throw A2uiCatalogError("Unresolvable schema reference: '$ref'");
+    }
+    if (source.name.startsWith('peer_') &&
+        pointer.startsWith('/components/') &&
+        pointer.split('/').length == 3) {
+      found = stripReferencedComponentEnvelope(found.cast<String, Object?>());
     }
 
     final String name = _defName(key);
@@ -197,6 +321,15 @@ class _RefResolver {
     if (target.endsWith(_catalogDocument)) {
       return _DocumentRef(_document, 'catalog');
     }
+    if (_peers.isNotEmpty) {
+      final Map<String, Object?>? peerDoc = findPeerCatalogDoc(target, _peers);
+      if (peerDoc != null) {
+        return _DocumentRef(
+          peerDoc,
+          'peer_${peerDoc['catalogId'] ?? target}',
+        );
+      }
+    }
     return null;
   }
 
@@ -219,6 +352,9 @@ class _RefResolver {
 /// cannot reach them and dropping them would silently widen the schema. They
 /// are resolved later, against the definitions the validator is given.
 ///
+/// When [peers] is provided, cross-catalog references matching a peer catalog's
+/// `catalogId`, `$id`, or filename are also resolved in place.
+///
 /// A pointer already being expanded is left as a reference rather than
 /// followed again, so a recursive definition terminates instead of growing
 /// without bound.
@@ -232,19 +368,60 @@ Object? inlineLocalRefs(
   Object? node,
   Map<String, Object?> rootCatalog, [
   Set<String>? expanding,
+  List<Map<String, Object?>> peers = const [],
 ]) {
   final Set<String> visited = expanding ?? <String>{};
 
   if (node is List) {
     return [
       for (final Object? item in node)
-        inlineLocalRefs(item, rootCatalog, visited),
+        inlineLocalRefs(item, rootCatalog, visited, peers),
     ];
   }
   if (node is! Map) return node;
 
   final Map<String, Object?> object = node.cast<String, Object?>();
   final Object? ref = object[r'$ref'];
+
+  if (ref is String &&
+      !ref.startsWith('#/') &&
+      ref.contains('#/') &&
+      peers.isNotEmpty) {
+    final int hashIdx = ref.indexOf('#');
+    final String targetDocName = ref.substring(0, hashIdx);
+    final String pointer = ref.substring(hashIdx + 1);
+    final Map<String, Object?>? peerDoc =
+        findPeerCatalogDoc(targetDocName, peers);
+    if (peerDoc != null && !visited.contains(ref)) {
+      final Object? target = followJsonPointer(peerDoc, pointer);
+      if (target is Map) {
+        final Object? resolved = inlineLocalRefs(
+          target.cast<String, Object?>(),
+          peerDoc,
+          {...visited, ref},
+          peers,
+        );
+        if (resolved is Map) {
+          Map<String, Object?> resolvedMap = resolved.cast<String, Object?>();
+          if (pointer.startsWith('/components/') &&
+              pointer.split('/').length == 3) {
+            resolvedMap = stripReferencedComponentEnvelope(resolvedMap);
+          }
+          return <String, Object?>{
+            ...resolvedMap,
+            for (final MapEntry<String, Object?> entry in object.entries)
+              if (entry.key != r'$ref')
+                entry.key: inlineLocalRefs(
+                  entry.value,
+                  rootCatalog,
+                  visited,
+                  peers,
+                ),
+          };
+        }
+      }
+    }
+  }
 
   if (ref is String && ref.startsWith('#/')) {
     if (ref.startsWith(r'#/$defs/') &&
@@ -263,6 +440,7 @@ Object? inlineLocalRefs(
       target.cast<String, Object?>(),
       rootCatalog,
       {...visited, ref},
+      peers,
     );
     if (resolved is! Map) return object;
 
@@ -271,13 +449,13 @@ Object? inlineLocalRefs(
       ...resolved.cast<String, Object?>(),
       for (final MapEntry<String, Object?> entry in object.entries)
         if (entry.key != r'$ref')
-          entry.key: inlineLocalRefs(entry.value, rootCatalog, visited),
+          entry.key: inlineLocalRefs(entry.value, rootCatalog, visited, peers),
     };
   }
 
   return <String, Object?>{
     for (final MapEntry<String, Object?> entry in object.entries)
-      entry.key: inlineLocalRefs(entry.value, rootCatalog, visited),
+      entry.key: inlineLocalRefs(entry.value, rootCatalog, visited, peers),
   };
 }
 

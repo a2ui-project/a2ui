@@ -19,7 +19,7 @@
  */
 
 import {A2uiCatalogError} from '../../errors.js';
-import {CatalogApi, compareSemVer} from '../../internal/web-core.js';
+import {CatalogApi, compareSemVer, linkCatalogs} from '../../internal/web-core.js';
 import {toWireProtocolVersion} from '../../utils/protocol-version.js';
 import {CatalogSchemaHelper} from './schema-helper.js';
 
@@ -60,6 +60,7 @@ export function checkMixedCatalogs(catalogs: CatalogApi[]): string {
   if (catalogs.length === 0) {
     throw new A2uiCatalogError('Express requires at least one catalog.');
   }
+  linkCatalogs(catalogs);
   const version = toWireProtocolVersion(catalogs[0].protocolVersion);
   const line = versionLine(version);
   const seenIds = new Set<string>();
@@ -150,5 +151,6 @@ export function buildSchemaHelpers(
   catalogs: CatalogApi[],
   version: string,
 ): Map<string, CatalogSchemaHelper> {
+  linkCatalogs(catalogs);
   return new Map(catalogs.map(catalog => [catalog.id, new CatalogSchemaHelper(catalog, version)]));
 }

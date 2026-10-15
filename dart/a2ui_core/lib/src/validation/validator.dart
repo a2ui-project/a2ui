@@ -821,6 +821,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           _resolutionDocument,
           commonTypes: commonTypesSchema,
           fallbackCommonTypes: _fallbackCommonTypes,
+          peers: [for (final p in catalog.peerCatalogs) p.toJson()],
         ),
       );
 

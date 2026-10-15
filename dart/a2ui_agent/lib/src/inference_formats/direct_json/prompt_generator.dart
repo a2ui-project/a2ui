@@ -71,6 +71,7 @@ class DirectJsonPromptGenerator extends PromptGenerator {
         'A direct JSON prompt needs at least one catalog.',
       );
     }
+    linkCatalogs(catalogs);
     final Set<A2uiProtocolVersion> versions = {
       for (final CatalogApi c in catalogs)
         c.protocolVersion ?? A2uiProtocolVersion.v0_9,
@@ -90,9 +91,28 @@ class DirectJsonPromptGenerator extends PromptGenerator {
     final List<Map<String, Object?>> catalogDocs = [
       for (final CatalogApi c in catalogs) c.toJson(),
     ];
+    final peerResolvedDocs = <Map<String, Object?>>[];
+    for (var i = 0; i < catalogs.length; i++) {
+      final CatalogApi c = catalogs[i];
+      if (c.peerCatalogs.isNotEmpty) {
+        final List<Map<String, Object?>> peerDocs = [
+          for (final Catalog<ComponentApi, FunctionApi> p in c.peerCatalogs)
+            p.toJson(),
+        ];
+        final Object? resolved = inlineLocalRefs(
+          catalogDocs[i],
+          catalogDocs[i],
+          null,
+          peerDocs,
+        );
+        if (resolved is Map<String, Object?>) {
+          peerResolvedDocs.add(resolved);
+        }
+      }
+    }
     final Map<String, Object?> commonTypesSchema = _pruneCommonTypesSchema(
       PayloadValidator.commonTypesFor(version),
-      [...catalogDocs, a2rSchema],
+      [...catalogDocs, ...peerResolvedDocs, a2rSchema],
     );
 
     final schemaSections = <String>[

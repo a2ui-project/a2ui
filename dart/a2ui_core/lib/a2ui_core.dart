@@ -62,6 +62,6 @@ export 'src/resolution/resolved_binding.dart';
 export 'src/rpc/rpc_handler.dart';
 // Payload validation.
 export 'src/validation/schema_resolution.dart'
-    show inlineLocalRefs, resolveSchemaRefs;
+    show findPeerCatalogDoc, inlineLocalRefs, resolveSchemaRefs;
 export 'src/validation/validation_config.dart';
 export 'src/validation/validator.dart';

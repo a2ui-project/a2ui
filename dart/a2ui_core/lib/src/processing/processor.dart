@@ -161,6 +161,7 @@ class MessageProcessor<T extends ComponentApi> {
         model = SurfaceGroupModel<T>(),
         _outboundListener = outboundListener,
         _defaultTimeout = defaultTimeout {
+    linkCatalogs(catalogs);
     final A2uiProtocolVersion? target = validationConfig?.targetVersion;
     final A2uiProtocolVersion? defaultVersion = this.defaultVersion;
     if (target != null && defaultVersion != null && target != defaultVersion) {

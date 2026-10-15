@@ -25,6 +25,7 @@ import type {JsonSchemaObject} from './spec_annotations.js';
  * definition that no longer describes it.
  */
 const definitions = new WeakMap<object, JsonSchemaObject>();
+const viewResetters = new WeakMap<object, Array<() => void>>();
 
 /**
  * Returns the JSON Schema definition of a catalog entry that
@@ -37,13 +38,32 @@ export function loadedDefinition(entry: object): JsonSchemaObject | undefined {
 }
 
 /**
+ * Resets the cached lazy views on a JSON-loaded catalog entry so they are
+ * recomputed on next access (for example after peer catalogs are linked).
+ *
+ * @param entry A component or function.
+ */
+export function resetEntryViews(entry: object): void {
+  const resets = viewResetters.get(entry);
+  if (!resets) return;
+  for (const reset of resets) {
+    reset();
+  }
+}
+
+/**
  * Defines lazily computed, enumerable getters on `target`, so that an object
  * spread of it copies their values.
  */
 function defineViews(target: object, views: Record<string, () => unknown>): void {
+  const resets: Array<() => void> = [];
   for (const [key, compute] of Object.entries(views)) {
     let computed = false;
     let value: unknown;
+    resets.push(() => {
+      computed = false;
+      value = undefined;
+    });
     Object.defineProperty(target, key, {
       enumerable: true,
       get() {
@@ -55,6 +75,7 @@ function defineViews(target: object, views: Record<string, () => unknown>): void
       },
     });
   }
+  viewResetters.set(target, resets);
 }
 
 function isObject(value: unknown): value is Readonly<Record<string, unknown>> {

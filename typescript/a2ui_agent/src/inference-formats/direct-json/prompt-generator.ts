@@ -18,6 +18,8 @@ import {A2uiCatalogError} from '../../errors.js';
 import {
   AgentToRendererMessage,
   CatalogApi,
+  inlinePeerAndLocalRefs,
+  linkCatalogs,
   normalizeVersionString,
 } from '../../internal/web-core.js';
 import {
@@ -59,6 +61,7 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     private readonly allowedMessages?: readonly string[],
   ) {
     super(catalogs);
+    linkCatalogs(catalogs);
     const versions = new Set(catalogs.map(c => normalizeVersionString(c.protocolVersion ?? '0.9')));
     if (versions.size > 1) {
       throw new A2uiCatalogError(
@@ -94,9 +97,17 @@ export class DirectJsonPromptGenerator extends PromptGenerator {
     }
 
     const catalogDocs = targets.map(c => c.toJson());
+    const peerResolvedDocs = targets.map(c => {
+      const doc = c.toJson();
+      const peers = c.peerCatalogs ?? [];
+      return peers.length > 0
+        ? (inlinePeerAndLocalRefs(doc, doc, peers) as Record<string, unknown>)
+        : doc;
+    });
     const commonTypesSchema = pruneCommonTypesSchema(
       loadCommonTypesSchema(version),
       ...catalogDocs,
+      ...peerResolvedDocs,
       a2rSchema,
     );
 
