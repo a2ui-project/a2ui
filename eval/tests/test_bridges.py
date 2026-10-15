@@ -488,6 +488,48 @@ def test_ts_bridge_runner_error_mapping(
         )
 
 
+def test_ts_bridge_normalizes_version_and_shares_prompt_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge = TypeScriptSdkBridge()
+    requests: list[dict[str, Any]] = []
+
+    def fake_invoke(request: dict[str, Any], timeout_sec: float) -> str:
+        requests.append(request)
+        return "prompt"
+
+    monkeypatch.setattr(bridge, "_invoke_runner", fake_invoke)
+
+    first = bridge.generate_prompt("express", "v0.9.1", V091_CATALOG)
+    second = bridge.generate_prompt("express", "0.9.1", V091_CATALOG)
+
+    assert first == second == "prompt"
+    assert [r["version"] for r in requests] == ["0.9.1"]
+
+
+@pytest.mark.parametrize("action", ["generate_prompt", "parse_and_validate"])
+def test_ts_bridge_rejects_unsupported_version_before_running(
+    monkeypatch: pytest.MonkeyPatch, action: str
+) -> None:
+    bridge = TypeScriptSdkBridge()
+
+    def fail_invoke(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("the runner must not start for an unsupported version")
+
+    monkeypatch.setattr(bridge, "_invoke_runner", fail_invoke)
+    with pytest.raises(ValueError, match="not supported by SDK 'ts'"):
+        if action == "generate_prompt":
+            bridge.generate_prompt("express", "0.8", V091_CATALOG)
+        else:
+            bridge.parse_and_validate(
+                format_name="express",
+                version="0.8",
+                resolved_catalog_path=V091_CATALOG,
+                surface_id="main",
+                completion="",
+            )
+
+
 def test_ts_bridge_runner_timeout_maps_to_timeout_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

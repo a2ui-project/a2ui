@@ -23,6 +23,7 @@ don't need the marker.
 
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 import shutil
 
@@ -53,9 +54,19 @@ def _ts_toolchain_available() -> bool:
 
 
 def _dart_toolchain_available() -> bool:
-    has_dart = bool(shutil.which("dart") or shutil.which("flutter"))
+    # Use the bridge's own lookup, so a test is skipped exactly when
+    # DartSdkBridge.prepare() would fail to find a supported Dart SDK.
     package_config = GIT_ROOT / ".dart_tool" / "package_config.json"
-    return has_dart and package_config.is_file()
+    if not package_config.is_file():
+        return False
+    from a2ui_eval.bridges import DartSdkBridge
+
+    dart_bridge = importlib.import_module(DartSdkBridge.__module__)
+    try:
+        dart_bridge.find_dart_binary()
+    except RuntimeError:
+        return False
+    return True
 
 
 _TOOLCHAIN_SKIP_REASONS = {
@@ -64,7 +75,7 @@ _TOOLCHAIN_SKIP_REASONS = {
         " @a2ui/web_core (yarn workspace @a2ui/agent build)."
     ),
     "dart": (
-        "Dart SDK bridge needs dart or flutter and a resolved"
+        "Dart SDK bridge needs a Dart SDK >= 3.10 and a resolved"
         " .dart_tool/package_config.json at the repository root."
     ),
 }

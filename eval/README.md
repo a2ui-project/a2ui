@@ -106,7 +106,7 @@ uv run main.py --sdks python,ts,dart --strategies direct,express
 
 `--sdk` can be repeated or given a comma-separated list. `--sdks` takes a comma-separated list. Each SDK gets its own Inspect task, named with an `_<sdk>` suffix for TypeScript and Dart (for example `a2ui_v1_0_eval_ts`).
 
-Not every SDK supports every strategy or inference format. `main.py` rejects an unsupported combination before it starts any model calls.
+Not every SDK supports every strategy or inference format. When `--strategies` is omitted, `main.py` runs every strategy that the table below lists for the selected SDK. `main.py` rejects an unsupported combination before it starts any model calls. CI passes `--strategies direct,subagent_tool,express` for every SDK, so the experimental Python formats (`elemental`, `atom`) don't gate CI.
 
 | SDK      | Strategies                                                | Inference formats                             | Protocol versions |
 | :------- | :-------------------------------------------------------- | :-------------------------------------------- | :---------------- |

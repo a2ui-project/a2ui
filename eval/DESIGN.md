@@ -38,7 +38,7 @@ The same tasks can run against the TypeScript and Dart Agent SDKs. Each SDK has 
 
 `base.py` lists the strategies, inference formats and protocol versions each SDK supports. `main.py` and `tasks.py` check a run against these lists before any model call. Every bridge uses the same parse timeout, `DEFAULT_PARSE_TIMEOUT_SEC`.
 
-The `subagent_tool` strategy calls `parse_and_validate` with `validate=False`, so the specialist tool only parses. Strict validation runs once, in the Stage 1 scorer, for every strategy.
+The `subagent_tool` strategy calls `parse_and_validate` with `validate=False`, so the specialist tool only parses. For `direct` and `subagent_tool`, strict validation runs once, in the Stage 1 scorer. The format strategies (`express`, `elemental` and `atom`) also validate when the solver compiles the completion with `parse_and_validate`, so their payloads are validated twice: once in the solver and again in the Stage 1 scorer.
 
 ### **Replicating and Enhancing the Eval Lifecycle**
 

@@ -25,7 +25,12 @@ import threading
 from typing import Any
 
 from ..shared.utils import GIT_ROOT
-from .base import DEFAULT_PARSE_TIMEOUT_SEC, AgentSdkBridge, validate_sdk_format
+from .base import (
+    DEFAULT_PARSE_TIMEOUT_SEC,
+    AgentSdkBridge,
+    validate_sdk_format,
+    validate_sdk_version,
+)
 
 TS_RUNNER_PATH = Path(__file__).resolve().parent / "ts_runner.mjs"
 
@@ -195,7 +200,8 @@ class TypeScriptSdkBridge(AgentSdkBridge):
         surface_id: str = "main",
     ) -> str:
         validate_sdk_format(self.sdk_name, format_name)
-        key = (format_name, version, resolved_catalog_path, surface_id)
+        norm_version = validate_sdk_version(self.sdk_name, version)
+        key = (format_name, norm_version, resolved_catalog_path, surface_id)
         cached = self._prompt_cache.get(key)
         if cached is not None:
             return cached
@@ -204,7 +210,7 @@ class TypeScriptSdkBridge(AgentSdkBridge):
                 {
                     "action": "generate_prompt",
                     "format_name": format_name,
-                    "version": version,
+                    "version": norm_version,
                     "resolved_catalog_path": resolved_catalog_path,
                     "surface_id": surface_id,
                 },
@@ -231,11 +237,12 @@ class TypeScriptSdkBridge(AgentSdkBridge):
         A `timeout_sec` of zero or less selects `DEFAULT_PARSE_TIMEOUT_SEC`.
         """
         validate_sdk_format(self.sdk_name, format_name)
+        norm_version = validate_sdk_version(self.sdk_name, version)
         result = self._invoke_runner(
             {
                 "action": "parse_and_validate",
                 "format_name": format_name,
-                "version": version,
+                "version": norm_version,
                 "resolved_catalog_path": resolved_catalog_path,
                 "surface_id": surface_id,
                 "completion": completion,

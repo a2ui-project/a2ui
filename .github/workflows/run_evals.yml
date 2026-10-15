@@ -88,6 +88,9 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'schedule' || needs.changes.outputs.python == 'true') }}
     runs-on: ubuntu-latest
+    # Full runs on main have taken up to two hours; cap a stuck run well
+    # below GitHub's six-hour default.
+    timeout-minutes: 180
     permissions:
       contents: read
       issues: write
@@ -143,7 +146,7 @@ jobs:
         if: ${{ steps.secrets.outputs.evals == 'true' }}
         env:
           GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
-        run: ./bin/run_ci_evals.py --sdk python --threshold 90
+        run: ./bin/run_ci_evals.py --sdk python --strategies direct,subagent_tool,express --threshold 90
 
       - name: Create Issue if evals fail on main branch
         if: failure() && (github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
@@ -156,6 +159,9 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'schedule' || needs.changes.outputs.ts == 'true') }}
     runs-on: ubuntu-latest
+    # Full runs on main have taken up to two hours; cap a stuck run well
+    # below GitHub's six-hour default.
+    timeout-minutes: 180
     permissions:
       contents: read
       issues: write
@@ -217,7 +223,7 @@ jobs:
         if: ${{ steps.secrets.outputs.evals == 'true' }}
         env:
           GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
-        run: ./bin/run_ci_evals.py --sdk ts --threshold 90
+        run: ./bin/run_ci_evals.py --sdk ts --strategies direct,subagent_tool,express --threshold 90
 
       - name: Create Issue if evals fail on main branch
         if: failure() && (github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
@@ -230,6 +236,9 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'schedule' || needs.changes.outputs.dart == 'true') }}
     runs-on: ubuntu-latest
+    # Full runs on main have taken up to two hours; cap a stuck run well
+    # below GitHub's six-hour default.
+    timeout-minutes: 180
     permissions:
       contents: read
       issues: write
@@ -289,14 +298,14 @@ jobs:
 
       - name: Run Unit Tests (Dart SDK)
         working-directory: eval
-        run: uv run python -m pytest tests/test_bridges.py tests/test_scorers.py tests/test_strategies.py tests/test_main.py tests/test_run_ci_evals.py -k "not [ts]"
+        run: uv run python -m pytest tests/test_bridges.py tests/test_dart_bridge.py tests/test_scorers.py tests/test_strategies.py tests/test_main.py tests/test_run_ci_evals.py -k "not [ts]"
 
       - name: Run Evals (Dart SDK)
         working-directory: eval
         if: ${{ steps.secrets.outputs.evals == 'true' }}
         env:
           GEMINI_API_KEY: ${{ secrets.REPO_GEMINI_API_KEY }}
-        run: ./bin/run_ci_evals.py --sdk dart --threshold 90
+        run: ./bin/run_ci_evals.py --sdk dart --strategies direct,subagent_tool,express --threshold 90
 
       - name: Create Issue if evals fail on main branch
         if: failure() && (github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
