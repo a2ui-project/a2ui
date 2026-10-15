@@ -76,6 +76,8 @@ class DirectJsonParser extends Parser {
   /// a data model.
   final bool bufferIncompleteComponents;
 
+  /// Built on first use, since building it checks the catalogs: a parser of
+  /// catalogs it cannot read still wraps, unwraps and reads text.
   late final MessageReader _reader = MessageReader(catalogs);
 
   /// Direct JSON can be read before a block closes, by healing the unfinished
@@ -176,10 +178,12 @@ class DirectJsonParser extends Parser {
         'Compiling direct JSON needs at least one catalog.',
       );
     }
+    // Read before the loop, so that an empty list checks the catalogs too.
+    final MessageReader reader = _reader;
     final surfaces = <String, String>{};
     return [
       for (final Object? envelope in decoded is List ? decoded : [decoded])
-        _reader.read(envelope, surfaces),
+        reader.read(envelope, surfaces),
     ];
   }
 
@@ -216,7 +220,9 @@ class DirectJsonParser extends Parser {
   ///
   /// Throws [ArgumentError] if [wrapped] differs from the first call's,
   /// [A2uiParseError] if a block closes on text that is not JSON, and what
-  /// [compile] throws for a block that closes.
+  /// [compile] throws for a block that closes. What [compile] throws for the
+  /// catalogs, such as [A2uiCatalogError] for catalogs of different versions,
+  /// is thrown as soon as a block holds part of a message.
   @override
   List<ResponsePart> parseChunk(String chunk, {bool wrapped = true}) {
     if (_wrapped == null) {
@@ -291,18 +297,22 @@ class DirectJsonParser extends Parser {
   /// Emits the messages of [block], the start of a block, that read and are
   /// new or changed.
   void _emitReady(List<ResponsePart> parts, String block) {
-    final String content = _cleanStart(block);
-    final surfaces = <String, String>{};
-    final ready = <AgentToRendererMessage>[];
-    for (final Object? envelope in readPartialMessages(
-      content,
+    final List<Object?> envelopes = readPartialMessages(
+      _cleanStart(block),
       progressiveKeys,
       wholeItemKeys: bufferIncompleteComponents
           ? const {'components'}
           : const {},
-    )) {
+    );
+    if (envelopes.isEmpty) return;
+    // Read outside the loop, so that catalogs it cannot read throw rather
+    // than pass for a message that has not arrived in full.
+    final MessageReader reader = _reader;
+    final surfaces = <String, String>{};
+    final ready = <AgentToRendererMessage>[];
+    for (final envelope in envelopes) {
       try {
-        ready.add(_reader.read(envelope, surfaces));
+        ready.add(reader.read(envelope, surfaces));
       } on A2uiError {
         // Not ready, and nothing after it is emitted ahead of it.
         break;

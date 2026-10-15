@@ -9,8 +9,9 @@
     `A2uiProtocolVersion.v1_0`.
   - `resolveCatalogs`, and so `A2uiGenerator.createProcessor`, negotiate
     against the renderer's capabilities for the version of the registered
-    catalogs. They throw `A2uiCatalogError` when no catalog is registered or
-    the registered catalogs target different versions.
+    catalogs. They throw `A2uiCatalogError` when the registered catalogs
+    target different versions, and, given capabilities, when no catalog is
+    registered.
   - The direct JSON prompt already described v1.0 catalogs.
   - Not implemented yet for v1.0 catalogs, and throwing
     `UnimplementedError`: the Express prompt, compiling Express and direct
@@ -21,6 +22,8 @@
   could not say which of the two it names.
 - Express prompts, compilers and decompilers, and direct JSON parsers, throw
   `A2uiCatalogError` for catalogs that target different protocol versions.
+  Catalogs of v0.9 and v0.9.1, which share message shapes, mix as v0.9, there
+  and in `resolveCatalogs`.
 - Payload checks run through `a2ui_core`'s `MessageProcessor.forAgent`.
 - Bump `a2ui_core` dependency to `^0.3.0`.
 - The Direct JSON prompt lists `description` after `type` in the

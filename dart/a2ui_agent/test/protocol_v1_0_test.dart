@@ -99,20 +99,26 @@ void main() {
     });
 
     test('rejects registered catalogs of different versions', () {
-      expect(
-        () => resolveCatalogs(
-          [CatalogConfig(basic), CatalogConfig(v0_9Basic)],
-          A2uiRendererCapabilities(
-            versions: {
-              v1_0: A2uiVersionCapabilities(supportedCatalogIds: [basic.id]),
-              A2uiProtocolVersion.v0_9: A2uiVersionCapabilities(
-                supportedCatalogIds: [v0_9Basic.id],
-              ),
-            },
-          ),
+      for (final A2uiRendererCapabilities? capabilities in [
+        A2uiRendererCapabilities(
+          versions: {
+            v1_0: A2uiVersionCapabilities(supportedCatalogIds: [basic.id]),
+            A2uiProtocolVersion.v0_9: A2uiVersionCapabilities(
+              supportedCatalogIds: [v0_9Basic.id],
+            ),
+          },
         ),
-        throwsA(isA<A2uiCatalogError>()),
-      );
+        null,
+      ]) {
+        expect(
+          () => resolveCatalogs([
+            CatalogConfig(basic),
+            CatalogConfig(v0_9Basic),
+          ], capabilities),
+          throwsA(isA<A2uiCatalogError>()),
+          reason: '$capabilities',
+        );
+      }
     });
 
     test('reads an inline catalog stating no version as v1.0', () {

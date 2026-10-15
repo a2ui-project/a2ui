@@ -22,7 +22,7 @@ import 'catalogs.dart';
 ///
 /// [rendererCapabilities] is null for a request that carries no capabilities.
 /// The renderer has then stated no preference, so every registered catalog
-/// is active, in registration order.
+/// is active, in registration order, and none is when none is registered.
 ///
 /// The registered catalogs target one protocol version, and the renderer's
 /// capabilities for that version decide. Every registered catalog the
@@ -42,29 +42,32 @@ import 'catalogs.dart';
 /// is already active is dropped, so a renderer that names a catalog and also
 /// redefines it gets the agent's registration.
 ///
-/// Throws [A2uiValidationError] if [rendererCapabilities] declares nothing
-/// for the version of the registered catalogs, and [A2uiCatalogError] if no
-/// catalog is registered, the registered catalogs target different versions,
-/// or no catalog is active: the renderer supports none of the registered
-/// catalogs and declares no inline catalog the agent accepts.
+/// Throws [A2uiCatalogError] if the registered catalogs target different
+/// versions, with or without [rendererCapabilities]. Given capabilities, it
+/// also throws [A2uiValidationError] if they declare nothing for the version
+/// of the registered catalogs, and [A2uiCatalogError] if no catalog is
+/// registered or none is active: the renderer supports none of the
+/// registered catalogs and declares no inline catalog the agent accepts.
 List<CatalogApi> resolveCatalogs(
   List<CatalogConfig> catalogs,
   A2uiRendererCapabilities? rendererCapabilities, {
   bool acceptsInlineCatalogs = false,
 }) {
+  final A2uiProtocolVersion? version = catalogs.isEmpty
+      ? null
+      : catalogsProtocolVersion([
+          for (final CatalogConfig config in catalogs) config.catalog,
+        ]);
   if (rendererCapabilities == null) {
     return [
       for (final CatalogConfig config in catalogs) config.transformedCatalog,
     ];
   }
-  if (catalogs.isEmpty) {
+  if (version == null) {
     throw A2uiCatalogError(
       'No catalog is registered with this agent, so none can be active.',
     );
   }
-  final A2uiProtocolVersion version = catalogsProtocolVersion([
-    for (final CatalogConfig config in catalogs) config.catalog,
-  ]);
   final A2uiVersionCapabilities? capabilities = rendererCapabilities.forVersion(
     version,
   );

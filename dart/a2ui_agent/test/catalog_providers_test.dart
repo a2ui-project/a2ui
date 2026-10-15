@@ -75,7 +75,7 @@ void main() {
     });
 
     test('reads each spelling of v1.0 a document may use', () {
-      for (final version in ['1.0', 'v1.0']) {
+      for (final version in ['1.0', 'v1.0', '1.0.0']) {
         final CatalogApi catalog = InMemoryCatalogProvider(
           document(id: 'a', version: version),
           protocolVersion: v1_0,
@@ -107,6 +107,24 @@ void main() {
       }
     });
 
+    test('loads a v0.9 or v0.9.1 document given either version', () {
+      for (final A2uiProtocolVersion given in [
+        v0_9,
+        A2uiProtocolVersion.v0_9_1,
+      ]) {
+        for (final version in ['0.9', '0.9.1']) {
+          expect(
+            InMemoryCatalogProvider(
+              document(id: 'a', version: version),
+              protocolVersion: given,
+            ).load().protocolVersion,
+            A2uiProtocolVersion.tryParseSemVer(version),
+            reason: '$version given ${given.jsonValue}',
+          );
+        }
+      }
+    });
+
     final Map<String, CatalogProvider> rejected = {
       'an id conflicting with the document': InMemoryCatalogProvider(
         document(id: 'a'),
@@ -124,6 +142,14 @@ void main() {
       'a v1.0 document given v0.9': InMemoryCatalogProvider(
         document(id: 'a', version: '1.0'),
         protocolVersion: v0_9,
+      ),
+      'a v0.9 document given v1.0': InMemoryCatalogProvider(
+        document(id: 'a', version: '0.9'),
+        protocolVersion: v1_0,
+      ),
+      'a version that is not a semantic version': InMemoryCatalogProvider(
+        document(id: 'a', version: 'one'),
+        protocolVersion: v1_0,
       ),
       'an id that is not a string': InMemoryCatalogProvider(
         document(id: 7),

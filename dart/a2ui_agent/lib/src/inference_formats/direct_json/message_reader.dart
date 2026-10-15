@@ -40,11 +40,16 @@ const Map<String, Set<String>> _bodyFields = {
 class MessageReader {
   /// The first of [catalogs] is the one a component is checked against when
   /// its surface is not created by the payload and no catalog declares it.
-  MessageReader(this.catalogs);
+  ///
+  /// Throws [A2uiCatalogError] if [catalogs] is empty or they target
+  /// different versions, and [UnimplementedError] if they target v1.0.
+  MessageReader(this.catalogs) {
+    if (catalogsProtocolVersion(catalogs).isAtLeast(A2uiProtocolVersion.v1_0)) {
+      throw UnimplementedError('Reading direct JSON messages of protocol v1.0');
+    }
+  }
 
   final List<CatalogApi> catalogs;
-
-  late final A2uiProtocolVersion _version = catalogsProtocolVersion(catalogs);
 
   late final Map<String, PayloadValidator<ComponentApi, FunctionApi>>
   _validators = {
@@ -60,9 +65,6 @@ class MessageReader {
   /// Throws [A2uiValidationError] if [envelope] is not a v0.9 message, or
   /// names or uses anything the catalogs do not declare.
   AgentToRendererMessage read(Object? envelope, Map<String, String> surfaces) {
-    if (_version.isAtLeast(A2uiProtocolVersion.v1_0)) {
-      throw UnimplementedError('Reading direct JSON messages of protocol v1.0');
-    }
     if (envelope is! Map<String, Object?>) {
       throw A2uiValidationError(
         'A direct JSON payload must be a list of message objects, got '

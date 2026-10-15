@@ -20,24 +20,31 @@ import 'package:a2ui_core/a2ui_core.dart';
 /// A catalog that declares no version predates the field, which v1.0 added,
 /// so it targets v0.9.
 ///
+/// Catalogs of versions that share message shapes, such as v0.9 and v0.9.1,
+/// mix: they target the earliest of their versions, whose messages each of
+/// them accepts (see [isCatalogVersionCompatible]).
+///
 /// Throws [A2uiCatalogError] if [catalogs] is empty, since nothing then
-/// states a version, or if they target different versions, since a payload is
-/// written against one.
+/// states a version, or if they target versions whose messages differ, since
+/// a payload is written against one.
 A2uiProtocolVersion catalogsProtocolVersion(List<CatalogApi> catalogs) {
   if (catalogs.isEmpty) {
     throw A2uiCatalogError('No catalog states a protocol version.');
   }
-  final Set<A2uiProtocolVersion> versions = {
+  final List<A2uiProtocolVersion> versions = {
     for (final CatalogApi catalog in catalogs)
       catalog.protocolVersion ?? A2uiProtocolVersion.v0_9,
-  };
-  if (versions.length > 1) {
+  }.toList()..sort();
+  final A2uiProtocolVersion earliest = versions.first;
+  if (!versions.every(
+    (v) => isCatalogVersionCompatible(v.jsonValue, earliest.jsonValue),
+  )) {
     throw A2uiCatalogError(
       'The catalogs target different protocol versions: '
-      '${versions.map((v) => v.semverValue).toList()..sort()}.',
+      '${versions.map((v) => v.semverValue).toList()}.',
     );
   }
-  return versions.single;
+  return earliest;
 }
 
 /// Checks that no two of [catalogs] share an id.

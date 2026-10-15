@@ -171,8 +171,10 @@ String _settleId(
 /// Checks that the document is written against v0.9 or v1.0, the versions
 /// this SDK implements.
 ///
-/// A document spells its version as the bare number, such as `1.0`; the
-/// wire spelling `v1.0` is accepted too. v0.9.1 shares v0.9's schemas.
+/// A document spells its version as a semantic version, such as `1.0` or
+/// `1.0.0`, and the wire spelling `v1.0` is accepted too, as
+/// `Catalog.fromJson` reads them. v0.9.1 shares v0.9's schemas, so a provider
+/// given either version loads a document declaring the other.
 void _checkVersion(
   Map<String, Object?> document,
   A2uiProtocolVersion? protocolVersion,
@@ -197,25 +199,24 @@ void _checkVersion(
       catalogId: id,
     );
   }
-  final String number = declared.startsWith('v')
-      ? declared.substring(1)
-      : declared;
-  final A2uiProtocolVersion? version = switch (number) {
-    '0.9' || '0.9.1' => A2uiProtocolVersion.v0_9,
-    '1.0' => A2uiProtocolVersion.v1_0,
-    _ => null,
-  };
-  if (protocolVersion != null && version != protocolVersion) {
-    throw A2uiCatalogError(
-      "$source declares protocol version '$declared', but the provider was "
-      "given '${protocolVersion.jsonValue}'.",
-      catalogId: id,
-    );
-  }
+  final A2uiProtocolVersion? version = A2uiProtocolVersion.tryParseSemVer(
+    declared,
+  );
   if (version == null) {
     throw A2uiCatalogError(
       "$source declares protocol version '$declared'; this SDK supports only "
       "'0.9', '0.9.1' and '1.0'.",
+      catalogId: id,
+    );
+  }
+  if (protocolVersion != null &&
+      !isCatalogVersionCompatible(
+        version.jsonValue,
+        protocolVersion.jsonValue,
+      )) {
+    throw A2uiCatalogError(
+      "$source declares protocol version '$declared', but the provider was "
+      "given '${protocolVersion.jsonValue}'.",
       catalogId: id,
     );
   }
