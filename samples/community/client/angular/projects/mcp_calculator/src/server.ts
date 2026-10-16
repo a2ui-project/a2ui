@@ -68,9 +68,14 @@ app.post('/a2a', (req, res) => {
         parts,
         kind: 'message',
         metadata: {
-          // Keyed by A2UI protocol version. The app's renderer registers only
-          // this catalog (see app.config.ts).
-          a2uiClientCapabilities: {'v0.9': {supportedCatalogIds: [MCP_APP_CATALOG_ID]}},
+          a2uiClientCapabilities: {
+            'v0.9': {
+              supportedCatalogIds: [
+                'https://a2ui.org/specification/v0_9/standard_catalog_definition.json',
+                MCP_APP_CATALOG_ID,
+              ],
+            },
+          },
         },
       },
     };

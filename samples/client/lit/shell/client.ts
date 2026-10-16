@@ -55,7 +55,7 @@ export class A2UIClient {
    * @param rendererCapabilities The renderer's capabilities, keyed by protocol
    *   version, which the agent negotiates the request's catalogs from.
    */
-  async send(message: any | string, rendererCapabilities: object): Promise<any[]> {
+  async send(message: any | string, rendererCapabilities: Record<string, unknown>): Promise<any[]> {
     const client = await this.#getClient();
     let parts: Part[] = [];
 
