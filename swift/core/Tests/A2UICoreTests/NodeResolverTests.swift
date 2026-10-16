@@ -514,6 +514,61 @@ struct NodeResolverTests {
     _ = resolver.resolveTree()
     #expect(handler.capturedErrors.count == 4)
   }
+
+  @Test func customComponentResolvesAccessibilityBindings() throws {
+    // Like most custom schemas, this one leaves `accessibility` to `ComponentCommon`.
+    let schema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "ProductCard" },
+            "title": { "$ref": "\(A2UICommonSchema.v10URI(for: "DynamicString"))" }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "shop",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "ProductCard", schema: schema)]
+    ).eraseToAnyCatalog()
+    let dataModel = DataModel(
+      initial: .object(["productName": .string("iPhone 17"), "hidden": .boolean(false)])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "ProductCard",
+          properties: [
+            "title": .string("iPhone"),
+            "accessibility": .object([
+              "label": .object(["@path": .string("/productName")]),
+              "hidden": .object(["@path": .string("/hidden")]),
+              "live": .string("polite"),
+            ]),
+          ]
+        )
+      ]),
+      dataModel: dataModel,
+      protocolVersion: .v10
+    )
+
+    let node = try #require(resolver.resolveTree())
+    #expect(
+      node.explicitAccessibilityAttributes
+        == AccessibilityAttributes(label: "iPhone 17", live: "polite", hidden: false)
+    )
+
+    dataModel.set("/productName", value: .string("iPhone 17 Pro"))
+    let updated = try #require(resolver.resolveTree())
+    #expect(updated.explicitAccessibilityAttributes?.label == "iPhone 17 Pro")
+  }
 }
 
 private final class ExpressionErrorCaptureHandler: ActionHandling, @unchecked Sendable {

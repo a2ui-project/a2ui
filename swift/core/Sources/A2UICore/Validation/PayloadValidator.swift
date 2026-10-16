@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import A2UIJSON
 import Foundation
 import JSONSchema
 import OrderedCollections
@@ -37,6 +38,17 @@ public final class PayloadValidator: Sendable {
     }
     return catalog.isAtLeastV10
   }
+
+  /// `AccessibilityAttributes` from the v0.9.1 and v1.0 common types. Both reference a bundled
+  /// common type, so building them can only fail on a developer error.
+  private static let v09AccessibilitySchema = try! Schema(
+    rawSchema: .object(["$ref": .string(A2UICommonSchema.uri(for: "AccessibilityAttributes"))]),
+    context: A2UISchemaRegistry.makeContext()
+  )
+  private static let v10AccessibilitySchema = try! Schema(
+    rawSchema: .object(["$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))]),
+    context: A2UISchemaRegistry.makeContext()
+  )
 
   /// Creates a payload validator scoped to a single catalog.
   ///
@@ -157,7 +169,17 @@ public final class PayloadValidator: Sendable {
       )
     }
 
-    let instance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: component))
+    // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
+    // When it doesn't, check it against `AccessibilityAttributes` and leave it out of the
+    // component schema check, so a closed schema doesn't reject it.
+    var properties = component
+    if !Self.declaresAccessibility(componentAPI.schema.jsonValue),
+      let accessibility = properties.removeValue(forKey: "accessibility")
+    {
+      try validateAccessibility(accessibility)
+    }
+
+    let instance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: properties))
     let validationResult = componentAPI.schema.validate(instance)
     if !validationResult.isValid {
       var leafErrors: [JSONSchema.ValidationError] = []
@@ -558,6 +580,33 @@ public final class PayloadValidator: Sendable {
   }
 
   // MARK: - Helpers
+
+  /// Whether a component schema declares `accessibility` in its own `properties` or in those of
+  /// an `allOf` member.
+  private static func declaresAccessibility(_ schema: JSONValue) -> Bool {
+    schema["properties"]?.objectValue?["accessibility"] != nil
+      || schema["allOf"]?.arrayValue?.contains { declaresAccessibility($0) } == true
+  }
+
+  /// Checks a component's `accessibility` against `AccessibilityAttributes`.
+  ///
+  /// - Throws: `A2UIValidationError` with a detail per failure, at a path under `accessibility`.
+  private func validateAccessibility(_ accessibility: JSONValue) throws {
+    let isV10 = config.protocolVersion?.isAtLeastV10 ?? catalog.isAtLeastV10
+    let schema = isV10 ? Self.v10AccessibilitySchema : Self.v09AccessibilitySchema
+    let result = schema.validate(accessibility)
+    guard !result.isValid else { return }
+
+    let message = "Field 'accessibility' must match AccessibilityAttributes"
+    let details = (result.errors ?? []).flatMap { extractLeafErrors(from: $0) }.map { leaf in
+      A2UIErrorDetail(
+        path: "accessibility\(leaf.instanceLocation.jsonPointerString)",
+        code: "invalid_value",
+        message: leaf.message.isEmpty ? message : leaf.message
+      )
+    }
+    throw A2UIValidationError(message, details: details)
+  }
 
   private func extractLeafErrors(
     from error: JSONSchema.ValidationError
