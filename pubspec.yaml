@@ -28,6 +28,7 @@ workspace:
   - dart/a2ui_core
   - dart/a2ui_cli
   - dart/a2ui_flutter
+  - dart/a2ui_flutter/a2ui_explorer
 
 flutter:
   uses-material-design: true

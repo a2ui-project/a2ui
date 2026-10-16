@@ -229,6 +229,12 @@ whenever it resolves, not only on a tap, so with a callback the agent can open
 an `http`, `https`, `mailto` or `tel` URL without the user acting. Pass one
 only for an agent you trust.
 
+## Gallery
+
+[a2ui_explorer](a2ui_explorer) is the gallery app. It steps through the v0.9
+basic catalog examples one message at a time, next to each surface's data
+model and the actions and errors it reports.
+
 ## Tests
 
 `test/catalog/basic/examples_test.dart` renders every
