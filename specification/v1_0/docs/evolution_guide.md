@@ -52,6 +52,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added the canonical `"Surface"` container component type in `common_types.json` to represent the top-level container of a surface for `"allowedParents": ["Surface"]` rules. The protocol reserves the `"Surface"` component name. The `createSurface` message implicitly creates `Surface` with `"child": "root"`, and you cannot modify `Surface` using `updateComponents`. These schema additions are catalog-level metadata and do not alter the wire format of component instances in `createSurface` or `updateComponents`.
 - Added static `metadata` (containing `extensions`) property to `ComponentDefinition` inside `catalog_definition.json`.
 - Introduced `x-deprecated-reason` as a human-readable explanation for a deprecated component, function, or property in addition to the standard JSON Schema `deprecated: true`.
+- Allowed cross-catalog `$ref`s to peer catalogs that the agent or renderer already holds locally (for example `<peer catalog $id>#/components/Text`), alongside `common_types.json#/$defs/...`, and specified how the peer document is matched by `catalogId`, `$id` or file name. See "Cross-Catalog References" in the protocol specification.
 
 ### 2.2. Standard catalogs (basic)
 

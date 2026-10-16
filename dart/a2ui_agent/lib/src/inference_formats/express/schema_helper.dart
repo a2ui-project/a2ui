@@ -71,8 +71,7 @@ class CatalogSchemaHelper {
   /// The parameters the function requires.
   List<String> requiredParameters(String function) => [
     for (final Object? name
-        in catalog.functions[function]!.argumentSchema['required']
-                as List<Object?>? ??
+        in _functionArgsSchema(function)['required'] as List<Object?>? ??
             const [])
       name! as String,
   ];
@@ -82,14 +81,26 @@ class CatalogSchemaHelper {
       _parameterSchemas(function)[parameter];
 
   Map<String, Map<String, Object?>> _parameterSchemas(String function) {
-    final Object? properties =
-        catalog.functions[function]!.argumentSchema['properties'];
+    final Object? properties = _functionArgsSchema(function)['properties'];
     if (properties is! Map) return const {};
     return {
       for (final MapEntry<Object?, Object?> entry in properties.entries)
         if (entry.value is Map)
           entry.key! as String: (entry.value! as Map).cast<String, Object?>(),
     };
+  }
+
+  Map<String, Object?> _functionArgsSchema(String function) {
+    final Object? fnMap =
+        (catalog.validationSchema['functions']
+            as Map<Object?, Object?>?)?[function];
+    if (fnMap is Map) {
+      final Object? props = fnMap['properties'];
+      if (props is Map && props['args'] is Map) {
+        return (props['args']! as Map).cast<String, Object?>();
+      }
+    }
+    return catalog.functions[function]!.argumentSchema.value;
   }
 
   _ComponentSignature _signature(String component) =>

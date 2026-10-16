@@ -116,7 +116,7 @@ void main() {
                     'value': {'path': '/zip'},
                   },
                 },
-                'message': 'Required check failed.',
+                'message': 'Required check failed',
               },
               {
                 'condition': {
@@ -152,7 +152,7 @@ void main() {
                     'value': {'path': '/password'},
                   },
                 },
-                'message': 'Required check failed.',
+                'message': 'Required check failed',
               },
             ],
           },
@@ -178,7 +178,7 @@ void main() {
           },
         ]),
       ]);
-      expect(written, contains('[?isOnline("Offline")]'));
+      expect(written, contains('?isOnline("Offline")'));
     });
 
     test('a call stating its return type as the map it compiles from', () {
@@ -362,9 +362,18 @@ void main() {
           {'id': 'root', 'component': 'Text', 'text': 'x'},
         ]),
       ],
-      'an update below the root of the data model': [
+      'an update of an item of a list in the data model': [
         {
-          'updateDataModel': {'surfaceId': 's', 'path': '/name', 'value': 'x'},
+          'updateDataModel': {
+            'surfaceId': 's',
+            'path': '/items/0',
+            'value': 'x',
+          },
+        },
+      ],
+      'a removal below the root of the data model': [
+        {
+          'updateDataModel': {'surfaceId': 's', 'path': '/name'},
         },
       ],
       'a data model key that is not a path segment': [

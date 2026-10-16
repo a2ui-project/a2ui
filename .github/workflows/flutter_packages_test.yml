@@ -116,6 +116,18 @@ jobs:
       - name: Analyze code
         working-directory: ${{ matrix.package.path }}
         run: flutter analyze --fatal-infos
+      # The Java that ANTLR needs comes from the setup-dart action. The ANTLR
+      # jar is cached so that a run does not download it from Maven Central.
+      - name: Cache ANTLR jar
+        if: matrix.package.path == 'dart/a2ui_agent'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.m2/repository/org/antlr/antlr4/4.13.2
+          key: antlr-4.13.2
+      - name: Check generated Express parser
+        if: matrix.package.path == 'dart/a2ui_agent'
+        working-directory: ${{ matrix.package.path }}
+        run: dart run tool/generate_express_parser.dart --check
       - name: Run tests
         working-directory: ${{ matrix.package.path }}
         run: |

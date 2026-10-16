@@ -26,12 +26,25 @@ final RegExp _closeTag = RegExp(r'</a2ui\s*>', caseSensitive: false);
 final RegExp _leadingFence = RegExp(r'^```[a-zA-Z-]*\s*');
 final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
 
+// The tokens of `Express.g4` a close tag can sit inside, strings and comments,
+// and those that hold an `r` or a `//` starting neither. Where several match,
+// the first is the longest, which is the one the lexer reads.
+final RegExp _token = RegExp(
+  r'[rR]"""[\s\S]*?"""' // RAW_TRIPLE_STRING
+  r'|[rR]"[^\r\n"]*"' // RAW_STRING
+  r'|"""(?:\\[\s\S]|[^\\])*?"""' // TRIPLE_STRING
+  r'|"(?:\\[\s\S]|[^\\])*?"' // STANDARD_STRING
+  r'|(?:#|//)[^\r\n]*' // COMMENT
+  r'|/\*[\s\S]*?\*/' // BLOCK_COMMENT
+  r'|\$[a-zA-Z0-9_/]*' // PATH
+  r'|\?[a-zA-Z_][a-zA-Z0-9_]*' // CHECK
+  r'|[a-zA-Z_][a-zA-Z0-9_]*', // IDENTIFIER, and the words the grammar reserves
+);
+
 /// Reads Express blocks from an LLM response and compiles them into messages
 /// of the protocol version the catalogs target.
 ///
-/// Compiling and decompiling for v1.0 catalogs is not implemented yet and
-/// throws [UnimplementedError]; finding, wrapping and unwrapping blocks does
-/// not depend on the version.
+/// Finding, wrapping and unwrapping blocks does not depend on the version.
 class ExpressParser extends Parser {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
@@ -115,42 +128,21 @@ String _clean(String text) => text
 
 /// The index of the close tag ending the block that starts at [start], or
 /// null if the block is not closed.
+///
+/// Strings and comments are read as `Express.g4` reads them, so a close tag
+/// inside one does not end the block.
 int? _blockEnd(String content, int start) {
   var i = start;
   while (i < content.length) {
     if (_closeTag.matchAsPrefix(content, i) != null) return i;
-    final String c = content[i];
-    if (c == '"') {
-      i = _stringEnd(content, i);
-    } else if (c == '#' || content.startsWith('//', i)) {
-      final int end = content.indexOf('\n', i);
-      i = end < 0 ? content.length : end;
-    } else if (content.startsWith('/*', i)) {
-      final int end = content.indexOf('*/', i + 2);
-      i = end < 0 ? content.length : end + 2;
+    if (_token.matchAsPrefix(content, i) case final Match token) {
+      i = token.end;
+    } else if (content.startsWith('"', i) || content.startsWith('/*', i)) {
+      // A string or a block comment that is not closed runs to the end.
+      return null;
     } else {
       i++;
     }
   }
   return null;
-}
-
-/// The index just past the string literal whose opening quote is at [quote].
-int _stringEnd(String content, int quote) {
-  final bool isRaw =
-      quote > 0 &&
-      (content[quote - 1] == 'r' || content[quote - 1] == 'R') &&
-      (quote < 2 || !RegExp('[a-zA-Z0-9_]').hasMatch(content[quote - 2]));
-  final delimiter = content.startsWith('"""', quote) ? '"""' : '"';
-  int i = quote + delimiter.length;
-  while (i < content.length) {
-    if (!isRaw && content[i] == r'\') {
-      i += 2;
-    } else if (content.startsWith(delimiter, i)) {
-      return i + delimiter.length;
-    } else {
-      i++;
-    }
-  }
-  return content.length;
 }

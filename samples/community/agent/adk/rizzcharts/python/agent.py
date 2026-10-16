@@ -29,7 +29,7 @@ from google.genai import types
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
-from agent_executor import get_a2ui_enabled, get_a2ui_catalog, get_a2ui_examples
+from agent_executor import get_a2ui_catalogs, get_a2ui_enabled, get_a2ui_examples
 from google.adk.runners import Runner
 
 try:
@@ -147,7 +147,7 @@ class RizzchartsAgent:
         self._model = model
 
         self._a2ui_enabled_provider = get_a2ui_enabled
-        self._a2ui_catalog_provider = get_a2ui_catalog
+        self._a2ui_catalogs_provider = get_a2ui_catalogs
         self._a2ui_examples_provider = get_a2ui_examples
 
         self._agent_name = "mcp_app_proxy_agent"
@@ -334,7 +334,7 @@ class RizzchartsAgent:
                 get_store_sales,
                 get_sales_data,
                 SendA2uiToClientToolset(
-                    a2ui_catalog=self._a2ui_catalog_provider,
+                    a2ui_catalogs=self._a2ui_catalogs_provider,
                     a2ui_enabled=self._a2ui_enabled_provider,
                     a2ui_examples=self._a2ui_examples_provider,
                 ),

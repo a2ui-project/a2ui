@@ -1,5 +1,20 @@
 ## Unreleased
 
+- Catalogs can reference components, property schemas and functions in peer
+  catalogs with external `$ref`s such as
+  `simplified_catalog_v1_0.json#/components/Text`. `Catalog.peer_catalogs`
+  lists the peers a catalog resolves them against.
+  `Catalog.with_peer_catalogs(peers)` returns a new catalog linked to `peers`
+  and leaves the catalog it is called on unchanged. `link_catalogs` returns
+  the catalogs linked to one another, with optional `extra_peers`: a catalog
+  without cross-catalog references is returned as is, and the others are
+  replaced by linked copies. `inline_local_refs` takes an optional `peers`
+  argument. A reference names its peer by `catalogId` or `$id`, exactly or by
+  path suffix, before falling back to the file name. `common_types.json` and a
+  document named exactly `catalog.json` are never peers, and a path ending in
+  `/catalog.json` that names no peer refers to the catalog itself.
+  `MessageProcessor` links copies of the catalogs passed to it and never
+  modifies them, so shared catalogs such as the basic catalog stay unchanged.
 - `is_valid_uax31_identifier` and `assert_uax31_identifier` no longer strip a
   leading `@` before checking UAX 31 syntax, and `Catalog.from_json` now rejects
   `@`-prefixed catalog function names and validates function parameter names.

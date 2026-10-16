@@ -2,17 +2,67 @@
 
 ## Unreleased
 
+- Resolve cross-catalog `$ref` pointers across peer catalogs in
+  `resolvedComponentSchemas`, `validationSchema`, `refMap`, `PayloadValidator`
+  and `MessageProcessor`:
+  - `Catalog.withPeerCatalogs` returns a new linked catalog whose
+    `Catalog.peerCatalogs` lists the given peers (and the catalog a pruned
+    peer was derived from); the receiver is not changed. The linked copy is a
+    `Catalog` even when the receiver is a subclass.
+  - `linkCatalogs` returns linked copies of the catalogs it is given, each
+    linked with the others and with the optional `extraPeers`. A catalog whose
+    document holds no `$ref` into another catalog document is returned as it
+    is.
+  - `MessageProcessor` links copies of the catalogs passed to it and holds
+    those copies in `MessageProcessor.catalogs`; the catalogs passed in, such
+    as a shared basic catalog, are not changed.
+  - A `$ref` names the peer whose `catalogId` or `$id` equals its document
+    part, or of which one is a path suffix of the other, and failing that the
+    peer with the same file name. A bare `catalog.json`, or a path ending in
+    `/catalog.json` that no peer matches exactly, names the catalog itself.
+  - `resolveSchemaRefs` takes an optional `peers` argument and
+    `inlineLocalRefs` an optional fourth `peers` argument: the documents
+    cross-catalog references resolve against.
+- `resolveSchemaRefs` reads only a document named exactly `catalog.json`, or a
+  path ending in `/catalog.json`, as the catalog itself, and only
+  `common_types.json`, or a path ending in `/common_types.json`, as the common
+  types. A reference to any other document that no peer matches, such as
+  `other.json#/components/X` or `mcp_catalog.json#/...`, throws
+  `A2uiCatalogError` instead of leaving the subschema unconstrained, so
+  `PayloadValidator` reports it rather than accepting any value.
 - Added `MessageProcessor.forAgent`, which an agent checks its own outbound
   payloads with. It takes the negotiated `CatalogApi`s, holds each function
   as a signature that cannot be invoked, and validates under
   `ValidationConfig.strict` by default. It checks a `callRendererFunction`
-  instead of running it; that check is declared but not implemented yet, and
-  throws `UnimplementedError`.
+  instead of running it, and throws `A2uiValidationError` where a renderer
+  would answer it with an error.
+- Added `MessageProcessor.checkRendererFunctionCall`, which checks a
+  `callRendererFunction` as `forAgent` does without looking up its surface,
+  for an agent that checks a call on its own, such as one it streams.
+- Added `PayloadValidator.validateFunctionCallFields`, which rejects a field
+  that `FunctionCall` does not allow on a call written on its own.
+- Exported `checkDuplicateComponentIds`, the check `MessageProcessor` runs on
+  each batch of components, for an agent that checks one message's
+  components in several batches as they stream. Its `earlier` argument
+  takes the ids of the earlier batches.
+- A `MessageProcessor` whose `validationConfig` allows dangling references,
+  and orphan components or a missing root, as an agent checking a payload
+  that is still arriving does, checks each `updateComponents` without
+  walking the whole surface. The surface's component model keeps a bound on
+  its chains of references, and walks only the components the update
+  reaches when the bound shows the surface has no cycle and no chain past
+  the depth limit; otherwise it walks the whole surface as before, so the
+  same updates fail with the same errors. A processor also skips the
+  composition checks when no catalog its surface draws on declares
+  `allowedParents` or `allowedChildren`.
 - Added `AgentToRendererMessage.typesFor`, the message types an agent may
   send in a protocol version.
 - `A2uiRendererCapabilities.fromJson` reads an inline catalog that states no
   `protocolVersion` as targeting the version of the entry it is declared in.
   `A2uiVersionCapabilities.fromJson` takes that version as `protocolVersion`.
+- `ExpressionParser` parses the `null` keyword as an empty string, as the
+  TypeScript and Python parsers do. A template still drops it, so the change
+  shows in function arguments: `${f(x: null)}` now passes `''` instead of null.
 
 ## 0.3.0
 

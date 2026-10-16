@@ -235,7 +235,6 @@ if use_ui:
         self.catalog_configs, capabilities, accepts_inline_catalogs=True
     )
     inference_format = DirectJsonFormat(catalogs, examples_path=self.examples_path)
-    a2ui_catalog = catalogs[0]
     examples = inference_format.prompt_generator.generate_examples(validate=True)
 
     # Save to session (Event contains state_delta)
@@ -245,7 +244,7 @@ if use_ui:
             actions=EventActions(
                 state_delta={
                     _A2UI_ENABLED_KEY: True,
-                    _A2UI_CATALOG_KEY: a2ui_catalog,
+                    _A2UI_CATALOGS_KEY: catalogs,
                     _A2UI_EXAMPLES_KEY: examples,
                 }
             ),
@@ -261,11 +260,11 @@ The Agent uses [SendA2uiToClientToolset](../../../python/a2ui_adk/src/a2ui/adk/s
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.utils import resolve_catalogs
 
-a2ui_catalog = resolve_catalogs(self.catalog_configs, capabilities)[0]
+a2ui_catalogs = resolve_catalogs(self.catalog_configs, capabilities)
 agent.tools = [
     SendA2uiToClientToolset(
         a2ui_enabled=True,
-        a2ui_catalog=a2ui_catalog,
+        a2ui_catalogs=a2ui_catalogs,
         a2ui_examples=examples,
     )
 ]

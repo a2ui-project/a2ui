@@ -246,7 +246,7 @@ public struct ExpressionParser: Sendable {
       return .boolean(false)
     }
     if scanner.matchesKeyword("null") {
-      return .null
+      return .string("")
     }
 
     // 4. Identifiers / Paths / Function calls

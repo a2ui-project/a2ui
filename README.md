@@ -173,7 +173,7 @@ These packages are developed in this repository. Packages marked "Not published 
 | [@a2ui/angular](typescript/renderers/angular/)         | Angular renderer.                                                               | [![npm](https://img.shields.io/npm/v/@a2ui/angular.svg)](https://www.npmjs.com/package/@a2ui/angular)         |
 | [@a2ui/react](typescript/renderers/react/)             | React renderer.                                                                 | [![npm](https://img.shields.io/npm/v/@a2ui/react.svg)](https://www.npmjs.com/package/@a2ui/react)             |
 | [@a2ui/markdown-it](typescript/renderers/markdown-it/) | Markdown rendering with markdown-it and DOMPurify, shared by the web renderers. | [![npm](https://img.shields.io/npm/v/@a2ui/markdown-it.svg)](https://www.npmjs.com/package/@a2ui/markdown-it) |
-| [@a2ui/agent](typescript/a2ui_agent/)                  | Agent SDK for TypeScript and Node.js.                                           | Not published yet                                                                                             |
+| [@a2ui/agent](typescript/agents/a2ui_agent/)           | Agent SDK for TypeScript and Node.js.                                           | Not published yet                                                                                             |
 
 ### Dart and Flutter
 

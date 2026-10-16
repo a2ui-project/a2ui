@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /// Configuration parameters controlling the strictness and behavior of A2UI validation.
-public struct ValidationConfig: Sendable, Equatable {
+public struct ValidationConfig: Sendable, Equatable, Hashable {
   /// Whether components not reachable from the root component are permitted.
   public var allowOrphanComponents: Bool
 
@@ -23,7 +23,15 @@ public struct ValidationConfig: Sendable, Equatable {
   /// Whether missing a component with `id="root"` is permitted.
   public var allowMissingRoot: Bool
 
-  /// Whether unrecognized component types or function names are permitted.
+  /// Whether unknown elements are permitted: component types the catalog doesn't define,
+  /// functions the resolved catalog doesn't declare, and component properties the component
+  /// schema doesn't declare.
+  ///
+  /// An unknown function call is accepted so that a renderer can forward it to the agent; its
+  /// catalog must still resolve, and from v1.0 an unknown reserved `@` name is always rejected.
+  /// An unknown property is one rejected by `additionalProperties` or `unevaluatedProperties`;
+  /// a key rejected by a schema that also has `patternProperties` breaks a key format instead,
+  /// so it is still reported.
   public var allowUnknownElements: Bool
 
   /// The target protocol version (e.g. `"v0.9.1"`), or `nil` when unspecified.
@@ -61,20 +69,26 @@ public struct ValidationConfig: Sendable, Equatable {
     allowUnknownElements: Bool = false,
     protocolVersion: A2UIProtocolVersion
   ) {
-    self.allowOrphanComponents = allowOrphanComponents
-    self.allowDanglingReferences = allowDanglingReferences
-    self.allowMissingRoot = allowMissingRoot
-    self.allowUnknownElements = allowUnknownElements
-    self.targetVersion = protocolVersion.rawValue
+    self.init(
+      allowOrphanComponents: allowOrphanComponents,
+      allowDanglingReferences: allowDanglingReferences,
+      allowMissingRoot: allowMissingRoot,
+      allowUnknownElements: allowUnknownElements,
+      targetVersion: protocolVersion.rawValue
+    )
   }
 
   /// Default strict validation rules for complete message trees.
   public static let strict = ValidationConfig()
 
   /// Relaxed validation rules suitable for streaming or incremental component updates.
+  ///
+  /// This is the default processing mode of ``MessageProcessor``. It also permits unknown
+  /// elements (see ``allowUnknownElements``).
   public static let relaxed = ValidationConfig(
     allowOrphanComponents: true,
     allowDanglingReferences: true,
-    allowMissingRoot: true
+    allowMissingRoot: true,
+    allowUnknownElements: true
   )
 }

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/peer_matching/referencing_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Peer Matching Referencing Catalog (v1.0)",
+  "description": "A catalog whose components inherit Badge from three peer catalogs. Two peers have $ids ending in /catalog.json and one is named mcp_catalog.json, so each reference only resolves to the intended peer under the peer matching rules.",
+  "catalogId": "conformance/peer_matching/referencing",
+  "components": {
+    "BetaBadge": {
+      "type": "object",
+      "description": "Inherits Badge from the beta peer through its full $id.",
+      "allOf": [
+        {
+          "$ref": "https://a2ui.org/conformance/test_data/catalogs/peer_matching/beta/catalog.json#/components/Badge"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "BetaBadge"
+        }
+      },
+      "required": [
+        "component"
+      ]
+    },
+    "AlphaBadge": {
+      "type": "object",
+      "description": "Inherits Badge from the alpha peer through a path suffix of its $id.",
+      "allOf": [
+        {
+          "$ref": "peer_matching/alpha/catalog.json#/components/Badge"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "AlphaBadge"
+        }
+      },
+      "required": [
+        "component"
+      ]
+    },
+    "McpBadge": {
+      "type": "object",
+      "description": "Inherits Badge from the peer named mcp_catalog.json through its file name.",
+      "allOf": [
+        {
+          "$ref": "mcp_catalog.json#/components/Badge"
+        }
+      ],
+      "properties": {
+        "component": {
+          "const": "McpBadge"
+        }
+      },
+      "required": [
+        "component"
+      ]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/BetaBadge"
+        },
+        {
+          "$ref": "#/components/AlphaBadge"
+        },
+        {
+          "$ref": "#/components/McpBadge"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    }
+  }
+}

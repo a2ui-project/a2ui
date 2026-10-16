@@ -7,9 +7,11 @@ description: Contains well-defined rules for creating natural, accurate, and rea
 
 This document outlines strict rules to avoid common "AI-isms": stylistic and structural patterns that language models typically fall into. Follow these rules to produce content that is more understandable, and reads as natural, human-authored text.
 
+The rules are numbered so that reviews can cite them, as in "rule 3.2".
+
 ## 1. Vocabulary & phrasing controls
 
-### The "banned" list
+### 1.1. The "banned" list
 
 Avoid words that are statistically overrepresented in AI text. Use simpler, more direct alternatives.
 
@@ -19,7 +21,7 @@ For nouns, avoid abstract uses of tapestry, landscape, realm, testament, interpl
 
 For adjectives, avoid puffery and vague descriptors like pivotal, crucial, vibrant, intricate, nuanced, unwavering, indelible, uncharted, rapidly evolving, transformative, breathtaking, nestled, dynamic, comprehensive, intuitive, holistic, robust, frictionless, scalable, and synergistic.
 
-### Avoid "copula" substitutions
+### 1.2. Avoid "copula" substitutions
 
 Do not replace simple "is" or "are" verbs with flowery equivalents.
 
@@ -28,18 +30,18 @@ Do not replace simple "is" or "are" verbs with flowery equivalents.
 - Instead of: "The statue _stands as_ a monument to..."
 - Write: "The statue _is_ a monument to..."
 
-### Eliminate "elegant variation"
+### 1.3. Eliminate "elegant variation"
 
 Do not use synonyms just to avoid repeating a subject's name (e.g., "the eponymous character," "the titular protagonist," "the celebrated author"). It is acceptable to repeat the name or use pronouns naturally.
 
-### Prefer literal words to idioms
+### 1.4. Prefer literal words to idioms
 
 Choose the word that states the meaning directly over an idiom whose meaning depends on context. Idioms are harder to read for non-native speakers and for anyone skimming instructions.
 
 - Instead of: "Leave the version _alone_."
 - Write: "Leave the version _untouched_."
 
-### Name things in full for a reader without your context
+### 1.5. Name things in full for a reader without your context
 
 Use the full name of a term when first mentioning it. Shorthand that was clear during development—such as an informal name for a part of the codebase may be meaningless to reviewers and future readers who lack that context.
 
@@ -48,7 +50,7 @@ Use the full name of a term when first mentioning it. Shorthand that was clear d
 
 ## 2. Content & tone
 
-### No "puffery" or forced significance
+### 2.1. No "puffery" or forced significance
 
 Do not inflate the importance of a topic with vague praise. If a subject is important, the facts should demonstrate it without help.
 
@@ -57,7 +59,7 @@ Avoid phrases like "serves as a testament to," "marking a pivotal moment," "unde
 - Instead of: "The founding of the institute marked a pivotal moment in the evolution of regional statistics, representing a significant shift toward independence."
 - Write: "The institute was founded in 1989 to collect regional statistics."
 
-### No superficial analysis
+### 2.2. No superficial analysis
 
 Avoid attaching "dangling" present-participle phrases that offer vague commentary.
 
@@ -66,40 +68,40 @@ Delete clauses starting with "highlighting," "emphasizing," "reflecting," "showc
 - Instead of: "The building uses blue glass, _reflecting the region's natural beauty and symbolizing unity._"
 - Write: "The building uses blue glass."
 
-### Avoid promotional language
+### 2.3. Avoid promotional language
 
 Maintain a neutral tone. Avoid "advertisement" words like boasts, features (as a verb), offers, premier, leading, state-of-the-art, committed to, and dedicated to.
 
 - Instead of: "Nestled in the heart of the city, the hotel boasts a vibrant atmosphere."
 - Write: "The hotel is located in the city center."
 
-### No "challenges and future outlook" formula
+### 2.4. No "challenges and future outlook" formula
 
 Language models often end articles with a generic "Despite challenges... remains important" conclusion. Do not end with a summary paragraph starting with "Despite [X], [Subject] continues to..." or speculating on the future. End with the last fact.
 
 - Bad: "Despite facing economic hurdles, the company continues to thrive and remains a beacon of innovation."
 
-### No "title as proper noun" leads
+### 2.5. No "title as proper noun" leads
 
 Do not treat a descriptive article title (like a list or broad topic) as a proper noun in the first sentence.
 
 - Instead of: "_The List of songs about Mexico_ is a curated compilation..."
 - Write: "This list contains songs about Mexico..."
 
-### No generic "see also" links
+### 2.6. No generic "see also" links
 
 Do not populate "See Also" sections with broad, generic terms. Links must be directly relevant and specific to the subject.
 
 - Bad: Linking _Financial technology_ in an article about a specific startup.
 - Good: Linking a competitor or specific related technology.
 
-### Attribution precision
+### 2.7. Attribution precision
 
 Avoid vague "weasel words" like "Experts argue," "Observers have noted," or "Several sources indicate" unless you cite specific people immediately. Do not claim a subject interacts with a "broader" history or trend unless a source explicitly says so.
 
 ## 3. Sentence structure
 
-### No negative parallelism
+### 3.1. No negative parallelism
 
 Avoid sentences that structure a contrast unnecessarily.
 
@@ -107,14 +109,14 @@ Avoid sentences that structure a contrast unnecessarily.
 - Instead of: "It is _not_ just about X; _it is_ about Y."
 - Write: "It is a painting that represents..."
 
-### No "rule of three"
+### 3.2. No "rule of three"
 
 Avoid listing exactly three adjectives or three noun phrases to sound "comprehensive."
 
 - Bad: "The event brings together _marketers, engineers, and designers_." (Unless those specific three groups are the _only_ ones).
 - Bad: "It is _bold, innovative, and unique_."
 
-### No false ranges
+### 3.3. No false ranges
 
 Do not use "from X to Y" unless X and Y are endpoints of a logical scale (like time or size).
 
@@ -123,23 +125,23 @@ Do not use "from X to Y" unless X and Y are endpoints of a logical scale (like t
 
 ## 4. Structure & formatting
 
-### Headers
+### 4.1. Headers
 
 Use sentence case for headers (e.g., "Early life," not "Early Life"). Do not use title case in headers.
 
-### Formatting avoidance
+### 4.2. Formatting avoidance
 
 Do not use inline-header lists (such as `* **Header:** Description...`). Instead, use prose or simple lists.
 
 Avoid excessive bolding of keywords, "key takeaways," or names in the body text, except for the first mention in the lead.
 
-Do not use emojis (🚀, 🧠) or unusual bullets (`#`, `-`) in lists. Use standard bullets (`*`).
+Use numbered lists (`1.`, `2.`) instead of bullets, so readers can refer to an item by its number, as in "see point 3". Do not use emojis (🚀, 🧠) as list markers.
 
 Avoid creating tables for simple information that easily fits in a sentence.
 
 Ensure markup is context-appropriate; do not use Markdown (like `##`) in formats that do not support it (like Wikitext) unless it is explicitly converted.
 
-### Punctuation
+### 4.3. Punctuation
 
 Use straight quotes (`"`, `'`) and straight apostrophes (`'`). Do not use curly or smart quotes (`“`, `’`).
 
@@ -147,20 +149,20 @@ Use em dashes sparingly, as language models often overuse them for emphasis. Pre
 
 ## 5. Citations & integrity
 
-### No hallucinations
+### 5.1. No hallucinations
 
 Never generate a citation unless you are looking at the source.
 Do not invent URLs or DOIs.
 Do not assume a book exists or contains a specific fact without verification.
 
-### Link what you mention
+### 5.2. Link what you mention
 
 Link everything the reader may want to open: files, functions, test and conformance cases, packages, issues, pull requests, and external pages. How precise a link should be depends on how long the text lives.
 
-- In short-lived text, such as review comments, PR descriptions, and issues, link to the exact lines. Pin the link to a commit SHA rather than a branch, so it keeps pointing at the lines you meant after the branch moves. For a Markdown file, add `?plain=1` so a line anchor such as `#L10-L20` works.
-- In long-lived documents, such as READMEs, documentation, skills, and code comments, link to the file or its section, without line ranges. A line range in one long-lived document has to be updated every time the document it points to changes.
-- Link only to what the reader can see at the link target. If your change is not pushed yet, link to the current version, or post the text after the push.
-- Before posting, check that every link resolves.
+1. In short-lived text, such as review comments, PR descriptions, and issues, link to the exact lines. Pin the link to a commit SHA rather than a branch, so it keeps pointing at the lines you meant after the branch moves. For a Markdown file, add `?plain=1` so a line anchor such as `#L10-L20` works.
+2. In long-lived documents, such as READMEs, documentation, skills, and code comments, link to the file or its section, without line ranges. A line range in one long-lived document has to be updated every time the document it points to changes.
+3. Link only to what the reader can see at the link target. If your change is not pushed yet, link to the current version, or post the text after the push.
+4. Before posting, check that every link resolves.
 
 ## 6. Communication (chat context)
 

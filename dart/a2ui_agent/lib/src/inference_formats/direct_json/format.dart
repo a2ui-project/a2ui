@@ -40,7 +40,8 @@ class DirectJsonFormatFactory extends InferenceFormatFactory {
   /// The string properties each parser shows while their value streams.
   final Set<String> progressiveKeys;
 
-  /// Whether each parser holds a streamed component back until it closes.
+  /// Whether each parser holds a streamed component of catalogs before v1.0
+  /// back until it closes, as it always does for v1.0 catalogs.
   final bool bufferIncompleteComponents;
 
   @override
@@ -66,8 +67,9 @@ class DirectJsonFormat extends InferenceFormat {
   /// properties hold prose depends on the catalog, so there is no built-in
   /// set. Empty turns healing off.
   ///
-  /// [bufferIncompleteComponents] holds a streamed component back until its
-  /// JSON object closes; see [DirectJsonParser.bufferIncompleteComponents].
+  /// [bufferIncompleteComponents] holds a streamed component of catalogs
+  /// before v1.0 back until its JSON object closes, as a parser always does
+  /// for v1.0 catalogs; see [DirectJsonParser.bufferIncompleteComponents].
   ///
   /// Throws [A2uiCatalogError] if two of [catalogs] share an id.
   DirectJsonFormat(

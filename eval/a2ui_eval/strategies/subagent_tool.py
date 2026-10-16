@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Subagent tool evaluation strategy."""
+
+from __future__ import annotations
+
+import asyncio
 import json
 
 from inspect_ai.model import (
@@ -34,10 +39,7 @@ from inspect_ai.solver import (
 from inspect_ai.tool import Tool, tool
 from inspect_ai.util import store
 
-from a2ui.inference_formats import to_message_dicts
-from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.parser import A2uiPart
-from a2ui.processor import CatalogConfig
+from ..bridges import DEFAULT_PARSE_TIMEOUT_SEC, get_sdk_bridge, normalize_sdk_name
 from ..shared.utils import GIT_ROOT, measured_generate
 
 PAYLOAD_STORE_KEY = "a2ui_payload"
@@ -45,22 +47,26 @@ PAYLOAD_STORE_KEY = "a2ui_payload"
 
 @tool
 def a2ui_specialist() -> Tool:
-    async def execute(input: str) -> str:
+    async def execute(input: str) -> str:  # pylint: disable=redefined-builtin
         """Generates strictly compliant A2UI JSON payloads. Call this tool when the user requests a UI layout.
 
         Args:
             input: The UI layout request.
         """
         version = store().get("version", "0.9.1")
+        sdk = store().get("sdk", "python")
         catalog_path = store().get("catalog")
         if not catalog_path:
             raise ValueError("Catalog path is missing from the store.")
         resolved_catalog_path = str(GIT_ROOT / catalog_path)
 
-        catalog_config = CatalogConfig.from_path(
-            resolved_catalog_path, protocol_version=version
+        bridge = get_sdk_bridge(sdk)
+        generated_snippet = await asyncio.to_thread(
+            bridge.generate_prompt,
+            "direct_json",
+            version,
+            resolved_catalog_path,
         )
-        direct_json_format = DirectJsonFormat([catalog_config.transformed_catalog])
 
         role_description = store().get("role_description")
         workflow_description = store().get("workflow_description")
@@ -70,7 +76,7 @@ def a2ui_specialist() -> Tool:
             prompt_parts.append(role_description)
         if workflow_description:
             prompt_parts.append(f"## Workflow Description:\n{workflow_description}")
-        prompt_parts.append(direct_json_format.prompt_generator.generate())
+        prompt_parts.append(generated_snippet)
         system_content = "\n\n".join(prompt_parts)
 
         messages: list[ChatMessage] = [
@@ -81,24 +87,30 @@ def a2ui_specialist() -> Tool:
         output = await get_model().generate(messages)
         if output.completion:
             try:
-                parser = direct_json_format.create_parser()
-                if not parser.has_format_content(output.completion, complete=True):
-                    raise ValueError(
-                        "A2UI tags '<a2ui-json>' and '</a2ui-json>' not found"
-                    )
-                parts = parser.parse_response(output.completion)
-                all_messages = []
-                for part in parts:
-                    if isinstance(part, A2uiPart):
-                        all_messages.extend(to_message_dicts(part.a2ui))
+                # The specialist only parses, as it did before the SDK bridges
+                # existed. Strict validation runs once, in the scorer. Validating
+                # here would return validation errors to the model and let it
+                # retry, so results would not be comparable with older runs.
+                res_dict = await asyncio.to_thread(
+                    bridge.parse_and_validate,
+                    "direct_json",
+                    version,
+                    resolved_catalog_path,
+                    "main",
+                    output.completion,
+                    DEFAULT_PARSE_TIMEOUT_SEC,
+                    True,
+                    validate=False,
+                )
+                all_messages = res_dict.get("compiled_jsons", [])
                 payload = json.dumps(all_messages, indent=2)
                 store().set(PAYLOAD_STORE_KEY, payload)
                 return "Success: The UI has been generated and saved out-of-band."
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 return (
-                    f"Error: Failed to parse A2UI response: {str(e)}. Please make sure"
-                    " your response contains valid A2UI JSON enclosed in"
-                    " <a2ui-json>...</a2ui-json> tags."
+                    f"Error: Failed to parse A2UI response: {str(e)}. Please"
+                    " make sure your response contains valid A2UI JSON enclosed"
+                    " in <a2ui-json>...</a2ui-json> tags."
                 )
 
         return "Error: Failed to generate the UI."
@@ -107,11 +119,13 @@ def a2ui_specialist() -> Tool:
 
 
 @solver
-def push_metadata_to_store(version: str) -> Solver:
+def push_metadata_to_store(version: str, sdk: str = "python") -> Solver:
     """Pushes metadata from the TaskState to the global store for tools to access."""
+    norm_sdk = normalize_sdk_name(sdk)
 
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
         state.store.set("version", version)
+        state.store.set("sdk", norm_sdk)
         state.store.set("catalog", state.metadata.get("catalog"))
         state.store.set("role_description", state.metadata.get("role_description"))
         state.store.set(
@@ -126,7 +140,7 @@ def push_metadata_to_store(version: str) -> Solver:
 def extract_subagent_payload() -> Solver:
     """Extracts the A2UI payload from the tool response messages."""
 
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:  # pylint: disable=unused-argument
         payload = state.store.get(PAYLOAD_STORE_KEY)
 
         if payload is not None and state.output and state.output.choices:
@@ -144,15 +158,16 @@ def extract_subagent_payload() -> Solver:
     return solve
 
 
-def subagent_tool_solver(version: str) -> list[Solver]:
+def subagent_tool_solver(version: str, sdk: str = "python") -> list[Solver]:
     """Returns the solver chain for the 'subagent_tool' evaluation strategy."""
+    norm_sdk = normalize_sdk_name(sdk)
     return [
         system_message(
-            "You are a helpful assistant. To fulfill UI requests, you MUST delegate to"
-            " the `a2ui_specialist` tool."
+            "You are a helpful assistant. To fulfill UI requests, you MUST"
+            " delegate to the `a2ui_specialist` tool."
         ),
         # Tools cannot access TaskState directly, so we must bridge the metadata into the store
-        push_metadata_to_store(version),
+        push_metadata_to_store(version, sdk=norm_sdk),
         use_tools([a2ui_specialist()]),
         measured_generate(),
         extract_subagent_payload(),

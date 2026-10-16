@@ -26,7 +26,9 @@ environment:
 
 dependencies:
   a2ui_core: ^0.3.0
+  antlr4: ">=4.13.2 <4.14.0"
 
 dev_dependencies:
+  crypto: ^3.0.6
   test: ^1.26.2
   yaml: ^3.1.2
