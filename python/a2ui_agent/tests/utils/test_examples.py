@@ -20,6 +20,8 @@ from pathlib import Path
 import pytest
 
 from a2ui.core import A2uiCatalogError, Catalog
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.utils import load_examples
 
 
@@ -106,3 +108,30 @@ def test_example_that_is_not_json_raises_when_validated(tmp_path):
 def test_missing_path_loads_no_examples(tmp_path):
     assert load_examples([_catalog("a")], None) == ""
     assert load_examples([_catalog("a")], str(tmp_path / "*.json")) == ""
+
+
+@pytest.mark.parametrize(
+    ("version", "subdir"),
+    [
+        (ProtocolVersion.V0_8, "0.8"),
+        (ProtocolVersion.V0_9, "0.9"),
+    ],
+)
+def test_restaurant_finder_examples_validate(version: ProtocolVersion, subdir: str):
+    repo_root = Path(__file__).resolve().parents[4]
+    examples_dir = (
+        repo_root
+        / "samples"
+        / "agent"
+        / "adk"
+        / "restaurant_finder"
+        / "examples"
+        / subdir
+    )
+    if not examples_dir.is_dir():
+        pytest.skip(f"Sample directory not present: {examples_dir}")
+
+    examples = load_examples([BasicCatalog(version)], str(examples_dir), validate=True)
+
+    assert "---BEGIN single_column_list---" in examples
+    assert "---BEGIN two_column_list---" in examples
