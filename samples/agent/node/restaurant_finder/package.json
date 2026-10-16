@@ -48,7 +48,15 @@
       "command": "vitest run",
       "dependencies": [
         "build"
-      ]
+      ],
+      "files": [
+        "src/**/*.ts",
+        "tests/**/*.ts",
+        "examples/**/*",
+        "vitest.config.ts",
+        "tsconfig.json"
+      ],
+      "output": []
     },
     "clean": {
       "command": "rm -rf dist .tsbuildinfo .wireit"
