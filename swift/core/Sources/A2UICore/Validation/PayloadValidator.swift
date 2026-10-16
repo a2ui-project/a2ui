@@ -582,10 +582,12 @@ public final class PayloadValidator: Sendable {
   // MARK: - Helpers
 
   /// Whether a component schema declares `accessibility` in its own `properties` or in those of
-  /// an `allOf` member.
+  /// an `allOf`, `anyOf`, or `oneOf` member, as `NodeResolver` reads them.
   private static func declaresAccessibility(_ schema: JSONValue) -> Bool {
     schema["properties"]?.objectValue?["accessibility"] != nil
-      || schema["allOf"]?.arrayValue?.contains { declaresAccessibility($0) } == true
+      || ["allOf", "anyOf", "oneOf"].contains { keyword in
+        schema[keyword]?.arrayValue?.contains { declaresAccessibility($0) } == true
+      }
   }
 
   /// Checks a component's `accessibility` against `AccessibilityAttributes`.
