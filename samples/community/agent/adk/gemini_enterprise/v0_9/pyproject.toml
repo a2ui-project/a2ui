@@ -29,9 +29,10 @@ dependencies = [
     "uvicorn",
     # Required for Vertex AI when GOOGLE_GENAI_USE_VERTEXAI=TRUE (Cloud Run).
     "google-cloud-aiplatform>=1.84",
-    "jsonschema>=4.0.0",
-    # Published A2UI agent SDK (schema manager, catalog loading, parsing).
-    "a2ui-agent-sdk>=0.3.0",
+    # Published A2UI agent SDK (catalog negotiation, prompts, parsing and
+    # validation) and its A2A part helpers.
+    "a2ui-agent-sdk>=0.9.0",
+    "a2ui-a2a>=0.1.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -43,6 +44,13 @@ build-backend = "hatchling.build"
 
 [tool.hatch.metadata]
 allow-direct-references = true
+
+[tool.uv.sources]
+# a2ui-agent-sdk 0.9 and a2ui-a2a aren't published yet, so the sample runs on
+# the SDKs in this repository until they are.
+a2ui-a2a = { path = "../../../../../../python/a2ui_a2a", editable = true }
+a2ui-agent-sdk = { path = "../../../../../../python/a2ui_agent", editable = true }
+a2ui-core = { path = "../../../../../../python/a2ui_core", editable = true }
 
 [[tool.uv.index]]
 url = "https://pypi.org/simple"

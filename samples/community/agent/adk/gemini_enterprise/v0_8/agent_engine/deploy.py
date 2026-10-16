@@ -187,8 +187,8 @@ def main():
             "a2a-sdk==0.3.25",
             "cloudpickle>=3.1.2",
             "pydantic",
-            "jsonschema>=4.0.0",
-            "a2ui-agent-sdk==0.1.2",
+            "a2ui-agent-sdk>=0.9.0",
+            "a2ui-a2a>=0.1.0",
         ],
         "http_options": {
             "api_version": "v1beta1",

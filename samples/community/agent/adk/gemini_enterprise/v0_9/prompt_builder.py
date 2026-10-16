@@ -12,15 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-
 from a2ui.core.schema import ProtocolVersion
-from a2ui.processor import A2uiRequestProcessor, CatalogConfig
-from a2ui.utils import to_version_number
-
-COMPOSITE_CATALOG_PATH = os.path.join(
-    os.path.dirname(__file__), "gemini_enterprise_composite_catalog.json"
-)
+from a2ui.processor import A2uiGenerator, A2uiRequestProcessor
+from a2ui.utils import load_examples, to_version_number
+from catalogs import MATERIAL_CATALOG_ID, build_catalog_configs
 
 ROLE_DESCRIPTION = (
     'You are the "A2UI v0.9 Demo" agent. Your job is to showcase what can be'
@@ -130,29 +125,38 @@ def get_text_prompt() -> str:
     """
 
 
-if __name__ == "__main__":
-    from a2ui.utils import load_examples
+def get_ui_prompt(processor: A2uiRequestProcessor, examples_path: str) -> str:
+    """Constructs the system prompt for one UI request.
 
-    # Example of how to use A2uiRequestProcessor to generate a system prompt.
-    version = ProtocolVersion.V0_9
-    catalog = CatalogConfig.from_path(
-        catalog_path=COMPOSITE_CATALOG_PATH,
-        protocol_version=version,
-    ).transformed_catalog
-    processor = A2uiRequestProcessor([catalog])
-    examples = load_examples(
-        processor.active_catalogs,
-        f"examples/{to_version_number(version)}",
-        validate=True,
-    )
+    Args:
+        processor: The request's processor. The prompt describes the catalogs
+            it negotiated with the client.
+        examples_path: The directory of example responses, which are checked
+            against the processor's catalogs. The examples use the Material
+            catalog, so they are left out for a client that doesn't render it.
+    """
     prompt_parts = [
         ROLE_DESCRIPTION,
         f"## UI Description:\n{UI_DESCRIPTION}",
         processor.prompt_snippet,
     ]
-    if examples:
+    if any(c.catalog_id == MATERIAL_CATALOG_ID for c in processor.active_catalogs):
+        examples = load_examples(
+            processor.active_catalogs, examples_path, validate=True
+        )
         prompt_parts.append(f"### Examples:\n{examples}")
-    demo_prompt = "\n\n".join(prompt_parts)
+    return "\n\n".join(prompt_parts)
+
+
+if __name__ == "__main__":
+    # Builds the prompt for a client that names no catalogs, like Gemini
+    # Enterprise, the way the agent does for each request.
+    version = ProtocolVersion.V0_9
+    generator = A2uiGenerator(build_catalog_configs(version))
+    processor = generator.create_processor(
+        {version.value: {"supportedCatalogIds": [MATERIAL_CATALOG_ID]}}
+    )
+    demo_prompt = get_ui_prompt(processor, f"examples/{to_version_number(version)}")
 
     print(demo_prompt)
 

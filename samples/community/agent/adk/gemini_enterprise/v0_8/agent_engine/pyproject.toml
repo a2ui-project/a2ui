@@ -21,5 +21,13 @@ requires-python = ">=3.10"
 dependencies = [
     "a2a-sdk==0.3.25",
     "google-cloud-aiplatform[adk,agent-engines]>=1.128.0",
-    "a2ui-agent-sdk>=0.1.2",
+    "a2ui-agent-sdk>=0.9.0",
+    "a2ui-a2a>=0.1.0",
 ]
+
+[tool.uv.sources]
+# a2ui-agent-sdk 0.9 and a2ui-a2a aren't published yet, so the sample runs on
+# the SDKs in this repository until they are.
+a2ui-a2a = { path = "../../../../../../../python/a2ui_a2a", editable = true }
+a2ui-agent-sdk = { path = "../../../../../../../python/a2ui_agent", editable = true }
+a2ui-core = { path = "../../../../../../../python/a2ui_core", editable = true }
