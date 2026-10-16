@@ -112,12 +112,14 @@ public final class MessageProcessor: ObservableObject {
       var surfacesDict: OrderedDictionary<String, JSONValue> = [:]
       for (surfaceID, vm) in enabledEntries {
         let catalogCompatible: Bool
-        if let defaultCatID = vm.defaultCatalogID, let defaultCat = vm.catalogs[defaultCatID] {
-          catalogCompatible = isCatalogCompatible(defaultCat, with: version)
+        if let defaultCatalogID = vm.defaultCatalogID,
+          let defaultCatalog = vm.catalogs[defaultCatalogID]
+        {
+          catalogCompatible = isCatalogCompatible(defaultCatalog, with: version)
         } else {
           catalogCompatible = true
         }
-        if areVersionsCompatible(vm.protocolVersion, version) && catalogCompatible {
+        if areVersionsCompatible(vm.protocolVersion, version), catalogCompatible {
           surfacesDict[surfaceID] = vm.dataModel.data
         }
       }
@@ -586,7 +588,7 @@ public final class MessageProcessor: ObservableObject {
         )
       }
       targetCatalog = cat
-    } else if !(op.version ?? .v091).isAtLeastV10 && registeredCatalogs.count == 1 {
+    } else if !(op.version ?? .v091).isAtLeastV10, registeredCatalogs.count == 1 {
       targetCatalog = registeredCatalogs.first
     }
 
@@ -834,23 +836,12 @@ public final class MessageProcessor: ObservableObject {
 
       let componentCatalogID: String?
       if surface.protocolVersion.isAtLeastV10 {
-        if let rawCatID = componentDict["catalogId"] {
-          guard let catIDStr = rawCatID.stringValue else {
-            throw CatalogResolutionErrors.nonStringCatalogID(
-              path: CatalogResolutionErrors.componentCatalogIDPath
-            )
-          }
-          componentCatalogID = catIDStr
-        } else {
-          guard let defaultCatID = surface.defaultCatalogID else {
-            throw CatalogResolutionErrors.noDefaultCatalog(
-              subject: "Component '\(id)'",
-              surfaceID: surface.surfaceID,
-              path: CatalogResolutionErrors.componentCatalogIDPath
-            )
-          }
-          componentCatalogID = defaultCatID
-        }
+        componentCatalogID = try resolveV10CatalogID(
+          componentDict["catalogId"],
+          subject: "Component '\(id)'",
+          on: surface,
+          path: CatalogResolutionErrors.componentCatalogIDPath
+        )
       } else {
         componentCatalogID =
           componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
@@ -992,7 +983,7 @@ public final class MessageProcessor: ObservableObject {
           config: config
         )
       }
-      for (_, childValue) in dict {
+      for childValue in dict.values {
         try validateNestedFunctionCallsInValue(
           childValue,
           componentID: componentID,
@@ -1018,29 +1009,15 @@ public final class MessageProcessor: ObservableObject {
     config: ValidationConfig
   ) throws {
     let catalogIDPath = CatalogResolutionErrors.callCatalogIDPath(functionName: callName)
-    let namedCatalogID: String?
-    if let rawCatID = dict["catalogId"] {
-      guard let catIDStr = rawCatID.stringValue else {
-        throw CatalogResolutionErrors.nonStringCatalogID(path: catalogIDPath)
-      }
-      namedCatalogID = catIDStr
-    } else {
-      namedCatalogID = nil
-    }
-
-    let callCatalogID: String
-    if let namedCatalogID {
-      callCatalogID = namedCatalogID
-    } else {
-      guard let defaultCatID = surface.defaultCatalogID else {
-        throw CatalogResolutionErrors.noDefaultCatalog(
-          subject: "Function call '\(callName)' in component '\(componentID)'",
-          surfaceID: surface.surfaceID,
-          path: catalogIDPath
-        )
-      }
-      callCatalogID = defaultCatID
-    }
+    let callCatalogID = try resolveV10CatalogID(
+      dict["catalogId"],
+      subject: "Function call '\(callName)' in component '\(componentID)'",
+      on: surface,
+      path: catalogIDPath
+    )
+    // `resolveV10CatalogID` has rejected a non-string `catalogId`, so this is nil only when the
+    // call names no catalog.
+    let namedCatalogID = dict["catalogId"]?.stringValue
 
     guard let callCatalog = surface.catalogs[callCatalogID] else {
       throw CatalogResolutionErrors.catalogNotFound(callCatalogID, path: catalogIDPath)
@@ -1070,6 +1047,39 @@ public final class MessageProcessor: ObservableObject {
       args: dict["args"]?.dictionaryValue,
       allowDynamicArgValues: true
     )
+  }
+
+  /// Resolves the catalog that a v1.0 component or function call runs in: the one its
+  /// `catalogId` names, else the surface default catalog.
+  ///
+  /// - Parameters:
+  ///   - rawCatalogID: The value of the `catalogId` key, or nil when the key is absent.
+  ///   - subject: Names the component or call in the error raised when the surface has no
+  ///     default catalog.
+  ///   - surface: The surface whose default catalog is the fallback.
+  ///   - path: The error detail path of the `catalogId` key.
+  /// - Throws: `A2UIValidationError` when `catalogId` is not a string, and `A2UICatalogError`
+  ///   when nothing names a catalog and the surface has no default catalog.
+  private func resolveV10CatalogID(
+    _ rawCatalogID: JSONValue?,
+    subject: String,
+    on surface: SurfaceViewModel,
+    path: String
+  ) throws -> String {
+    if let rawCatalogID {
+      guard let catalogID = rawCatalogID.stringValue else {
+        throw CatalogResolutionErrors.nonStringCatalogID(path: path)
+      }
+      return catalogID
+    }
+    guard let defaultCatalogID = surface.defaultCatalogID else {
+      throw CatalogResolutionErrors.noDefaultCatalog(
+        subject: subject,
+        surfaceID: surface.surfaceID,
+        path: path
+      )
+    }
+    return defaultCatalogID
   }
 
   private func applyComponentsBatch(

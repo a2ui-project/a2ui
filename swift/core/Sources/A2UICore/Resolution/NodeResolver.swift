@@ -148,7 +148,7 @@ public final class NodeResolver: Sendable {
     if let targetCatalogID {
       return catalogs[targetCatalogID]
     }
-    if id == nil && !atLeastV10 && catalogs.count == 1 {
+    if id == nil, !atLeastV10, catalogs.count == 1 {
       return catalogs.values.first
     }
     return nil

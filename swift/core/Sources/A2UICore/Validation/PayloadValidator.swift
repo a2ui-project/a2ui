@@ -107,7 +107,7 @@ public final class PayloadValidator: Sendable {
     try validateComponent(component, componentNamesCatalog: component["catalogId"] != nil)
   }
 
-  internal func validateComponent(
+  func validateComponent(
     _ component: [String: JSONValue],
     componentNamesCatalog: Bool
   ) throws {
@@ -168,7 +168,9 @@ public final class PayloadValidator: Sendable {
       )
     }
 
-    if enforceIdentifiers, let rawCatID = component["catalogId"], rawCatID.stringValue == nil {
+    if enforceIdentifiers, component["catalogId"] != nil,
+      component["catalogId"]?.stringValue == nil
+    {
       throw CatalogResolutionErrors.nonStringCatalogID(
         path: CatalogResolutionErrors.componentCatalogIDPath
       )
@@ -337,26 +339,24 @@ public final class PayloadValidator: Sendable {
     try validateFunctionInternal(name: name, args: args, allowDynamicArgValues: false)
   }
 
-  internal func validateFunctionInternal(
+  func validateFunctionInternal(
     name: String,
     args: [String: JSONValue]?,
     allowDynamicArgValues: Bool
   ) throws {
     try assertFunctionIdentifiers(name: name, args: args)
 
-    let fn: (any FunctionImplementation)?
-    if enforceIdentifiers && name.hasPrefix("@") {
-      fn = name == "@index" ? IndexFunction() : nil
+    let function: (any FunctionImplementation)?
+    if enforceIdentifiers, name.hasPrefix("@") {
+      function = name == "@index" ? IndexFunction() : nil
     } else {
-      fn = catalog.functions[name]
+      function = catalog.functions[name]
     }
 
-    guard let fn else {
+    guard let function else {
       // An unknown reserved `@` name is never accepted: v1.0 defines its system functions.
       let isSystemName = enforceIdentifiers && name.hasPrefix("@")
-      if !isSystemName && config.allowUnknownElements {
-        return
-      }
+      guard isSystemName || !config.allowUnknownElements else { return }
       let msg = "Unrecognized function '\(name)'"
       throw A2UIValidationError(
         msg,
@@ -374,7 +374,7 @@ public final class PayloadValidator: Sendable {
     let argsInstance: JSONValue = .object(OrderedDictionary(uniqueKeysWithValues: normalizedArgs))
 
     if allowDynamicArgValues && containsDynamicExpression(in: normalizedArgs) {
-      let schemaJSON = fn.api.schema.jsonValue
+      let schemaJSON = function.api.schema.jsonValue
       if let requiredKeys = schemaJSON["required"]?.arrayValue?.compactMap(\.stringValue) {
         for reqKey in requiredKeys where normalizedArgs[reqKey] == nil {
           let msg = "Missing required argument '\(reqKey)' for function '\(name)'"
@@ -393,7 +393,7 @@ public final class PayloadValidator: Sendable {
       return
     }
 
-    let result = fn.api.schema.validate(argsInstance)
+    let result = function.api.schema.validate(argsInstance)
     if !result.isValid {
       var leafErrors: [JSONSchema.ValidationError] = []
       if let schemaErrors = result.errors {
@@ -432,7 +432,7 @@ public final class PayloadValidator: Sendable {
     }
   }
 
-  internal func assertFunctionIdentifiers(
+  func assertFunctionIdentifiers(
     name: String,
     args: [String: JSONValue]?
   ) throws {
@@ -552,7 +552,7 @@ public final class PayloadValidator: Sendable {
       if let rawName = callValue?.stringValue,
         enforceIdentifiers || !rawName.isEmpty
       {
-        if enforceIdentifiers, let rawCatID = dict["catalogId"], rawCatID.stringValue == nil {
+        if enforceIdentifiers, dict["catalogId"] != nil, dict["catalogId"]?.stringValue == nil {
           throw CatalogResolutionErrors.nonStringCatalogID(
             path: CatalogResolutionErrors.callCatalogIDPath(functionName: rawName)
           )
@@ -564,7 +564,7 @@ public final class PayloadValidator: Sendable {
         }
         let rawArgs = dict["args"]?.dictionaryValue
 
-        if enforceIdentifiers && rawName.hasPrefix("@") {
+        if enforceIdentifiers, rawName.hasPrefix("@") {
           try assertFunctionIdentifiers(name: rawName, args: rawArgs)
           if dict["catalogId"] != nil {
             let msg =
@@ -602,7 +602,7 @@ public final class PayloadValidator: Sendable {
         }
       }
 
-      for (_, propValue) in dict {
+      for propValue in dict.values {
         try validateNestedFunctions(in: propValue, componentNamesCatalog: componentNamesCatalog)
       }
 
@@ -616,8 +616,8 @@ public final class PayloadValidator: Sendable {
     componentNamesCatalog: Bool
   ) -> Bool {
     if enforceIdentifiers {
-      if let rawCallCatID = callDict["catalogId"] {
-        return rawCallCatID.stringValue == catalog.id
+      if let rawCallCatalogID = callDict["catalogId"] {
+        return rawCallCatalogID.stringValue == catalog.id
       }
       return !componentNamesCatalog
     }
@@ -644,7 +644,7 @@ public final class PayloadValidator: Sendable {
     root: JSONValue,
     visitedRefs: Set<String>
   ) -> Bool {
-    if schema["properties"]?.objectValue?[key] != nil {
+    guard schema["properties"]?.objectValue?[key] == nil else {
       return true
     }
     var visitedRefs = visitedRefs
