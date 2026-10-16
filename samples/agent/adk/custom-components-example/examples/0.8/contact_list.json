@@ -154,7 +154,7 @@
       "path": "/contacts",
       "contents": [
         {
-          "key": "contact1",
+          "key": "0",
           "valueMap": [
             {
               "key": "name",
@@ -183,7 +183,7 @@
           ]
         },
         {
-          "key": "contact2",
+          "key": "1",
           "valueMap": [
             {
               "key": "name",
