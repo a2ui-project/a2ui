@@ -20,6 +20,19 @@ import Testing
 
 /// Runs the shared `conformance/core/expressions.yaml` suite.
 struct ExpressionsConformanceTests {
+  /// `validate` cases that expect a payload error for a malformed template. Swift parses
+  /// `formatString` templates when it renders them, not while it processes the payload, so these
+  /// payloads are accepted.
+  private static let templateValidationGaps: Set<String> = [
+    "test_expression_parser_syntax_error_unclosed_brace",
+    "test_expression_parser_max_depth_exceeded_error",
+  ]
+
+  /// `validate` cases whose output depends on the host locale until #3144 is fixed.
+  private static let hostLocaleDependent: Set<String> = [
+    "test_expression_parser_nested_function_call"
+  ]
+
   private let parser = ExpressionParser()
 
   @Test func expressionsConformance() throws {
@@ -88,6 +101,95 @@ struct ExpressionsConformanceTests {
     }
 
     #expect(executed > 0, "No cases of expressions.yaml could be executed")
+  }
+
+  /// Runs the `validate` cases of `core/expressions.yaml`, which render `formatString` templates
+  /// on a v1.0 surface and compare the resolved component properties.
+  @MainActor
+  @Test func expressionsValidateConformance() throws {
+    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/expressions.yaml")
+    let testCases = ConformanceTestHelper.parseTestCases(from: rawYAML)
+
+    var executed = 0
+
+    for testCase in testCases where testCase.action == "validate" {
+      executed += 1
+      if Self.templateValidationGaps.contains(testCase.name) {
+        withKnownIssue("Swift does not validate formatString templates in payloads") {
+          try runValidateCase(testCase)
+        }
+      } else if Self.hostLocaleDependent.contains(testCase.name) {
+        // Only a locale mismatch is known. Raw directive JSON (`{"call":…}`) in the output is a
+        // real interpolation failure and must still fail the test.
+        try withKnownIssue("#3144: formatCurrency uses the host locale", isIntermittent: true) {
+          try runValidateCase(testCase)
+        } matching: { issue in
+          !String(describing: issue).contains("{\"")
+        }
+      } else {
+        try runValidateCase(testCase)
+      }
+    }
+
+    #expect(executed > 0, "No validate case of expressions.yaml could be executed")
+  }
+
+  @MainActor
+  private func runValidateCase(_ testCase: ConformanceTestCase) throws {
+    let processor = MessageProcessor(
+      catalogs: try ConformanceTestHelper.buildCatalogs(for: testCase),
+      validationConfig: ValidationConfig(targetVersion: "v1.0")
+    )
+
+    for (stepIndex, step) in testCase.steps.enumerated() {
+      guard let payload = step.payload else {
+        continue
+      }
+
+      if let expectedError = step.expectError ?? testCase.expectError {
+        do {
+          try processor.processMessages(payload)
+          Issue.record("\(testCase.name): expected an error at step \(stepIndex)")
+        } catch {
+          let message = (error as? (any A2UIError))?.message ?? error.localizedDescription
+          if let expectedMessage = expectedError.message {
+            #expect(
+              message.localizedCaseInsensitiveContains(expectedMessage),
+              "\(testCase.name): message '\(message)' does not contain '\(expectedMessage)'"
+            )
+          }
+        }
+        continue
+      }
+
+      try processor.processMessages(payload)
+
+      let expectedSurfaces = (step.expect ?? testCase.expect)?["surfaces"]?.objectValue ?? [:]
+      for (surfaceID, expectedSurface) in expectedSurfaces {
+        let surface = try #require(
+          processor.surfaceGroupModel[surfaceID],
+          "\(testCase.name): expected surface '\(surfaceID)'"
+        )
+        let expectedComponents = expectedSurface["components"]?.objectValue ?? [:]
+        for (componentID, expectedComponent) in expectedComponents {
+          let node = try #require(
+            surface.findNode(id: componentID),
+            "\(testCase.name): expected resolved node '\(componentID)'"
+          )
+          for (property, expectedValue) in expectedComponent.objectValue ?? [:]
+          where property != "component" {
+            let binding = try #require(
+              node.properties[property] as? DataBinding<String>,
+              "\(testCase.name): '\(componentID).\(property)' is not a string binding"
+            )
+            #expect(
+              binding.value == expectedValue.stringValue,
+              "\(testCase.name): '\(componentID).\(property)' is '\(binding.value)'"
+            )
+          }
+        }
+      }
+    }
   }
 
   /// Joins adjacent literal strings and drops empty string literals.
