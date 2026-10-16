@@ -29,3 +29,11 @@ This agent pairs with the Angular host application in `samples/community/client/
    ```bash
    uv run . --port 10008
    ```
+
+## How the agent negotiates A2UI
+
+The agent holds an `A2uiGenerator` for v0.9 with the file upload catalog in [`catalogs/0.9`](catalogs/0.9/). The agent card lists the generator's catalogs.
+
+For each request, the executor ([`agent_executor.py`](agent_executor.py)) creates an `A2uiRequestProcessor` from the client's `a2uiClientCapabilities`, and writes the format rules of the processor and the negotiated catalog into the session state. The instruction and the A2UI event converter read them from there.
+
+The capabilities are keyed by protocol version, for example `{"v0.9": {"supportedCatalogIds": [...]}}`, and the agent passes them to `A2uiGenerator.create_processor` unchanged. A client that sends none, or names none of the agent's catalogs, gets text answers. The Angular host application names the file upload catalog in its capabilities.

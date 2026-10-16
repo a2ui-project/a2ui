@@ -13,7 +13,7 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
 1. Navigate to the samples directory:
 
    ```bash
-   cd samples/agent/adk/rizzcharts/python
+   cd samples/community/agent/adk/rizzcharts/python
    ```
 
 2. Create an environment file with your API key:
@@ -28,6 +28,14 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
    ```bash
    uv run .
    ```
+
+## How the agent negotiates A2UI
+
+The agent holds one `A2uiGenerator` for each protocol version (v0.8 and v0.9), with the rizzcharts catalog and the basic catalog. The agent card lists the generator's catalogs.
+
+For each request, the executor ([`agent_executor.py`](agent_executor.py)) creates an `A2uiRequestProcessor` from the client's `a2uiClientCapabilities`. It writes what the request needs into the session state: the format rules of the processor, the client's preferred catalog, and the examples for that catalog. The instruction ([`prompt_builder.py`](prompt_builder.py)) and `SendA2uiToClientToolset` read these values, so the prompt, the schema and the validation of the `send_a2ui_json_to_client` tool all follow the catalogs of the request.
+
+The capabilities are keyed by protocol version, for example `{"v0.9": {"supportedCatalogIds": [...]}}`, and the agent passes them to `A2uiGenerator.create_processor` unchanged. A client that names only the basic catalog gets dashboards built from it and the examples in `../examples/standard_catalog`. A client that sends no capabilities, or names none of the agent's catalogs, gets text answers.
 
 ## Disclaimer
 

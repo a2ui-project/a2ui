@@ -12,26 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Mapping
 import logging
-import re
-from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 
 from a2a.types import AgentCapabilities, AgentCard, AgentSkill
-from a2ui.a2a import get_a2ui_agent_extension
-from a2ui.core import CatalogApi
-from a2ui.core.schema import ProtocolVersion
-from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.utils import to_version_number
 from google.adk.agents.llm_agent import LlmAgent
+from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.planners.built_in_planner import BuiltInPlanner
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
-from tools import get_calculator_app, calculate_via_mcp, get_pong_mcp_app_json, get_pong_app_web_frame_json, get_pong_app_web_frame_srcdoc_json, commentate_pong_game
-from agent_executor import get_a2ui_catalogs, get_a2ui_enabled, get_a2ui_examples
+
+from a2ui.a2a import get_a2ui_agent_extension
+from a2ui.core.schema import ProtocolVersion
+from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
+from a2ui.utils import to_version_number
+from agent_executor import get_a2ui_enabled, get_a2ui_rules
+from tools import (
+    calculate_via_mcp,
+    commentate_pong_game,
+    get_calculator_app,
+    get_pong_app_web_frame_json,
+    get_pong_app_web_frame_srcdoc_json,
+    get_pong_mcp_app_json,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,55 +70,37 @@ UI_DESCRIPTION = """
 Use `McpApp` component to render the external app content.
 """
 
+TEXT_DESCRIPTION = """
+You are an A2UI Proxy Agent. This client can't display apps, so your final output MUST be a text response.
+Do NOT call `get_calculator_app`, `get_pong_mcp_app_json`, `get_pong_app_web_frame_json` or `get_pong_app_web_frame_srcdoc_json`. If the user asks for the Calculator App or the Pong App, tell them that it needs a client that renders A2UI MCP Apps.
+"""
 
-def _renderer_capabilities(
-    version: str,
-    client_ui_capabilities: Mapping[str, Any] | None,
-    catalog_ids: Sequence[str],
-) -> dict[str, Any]:
-    """Returns the client's capabilities keyed by protocol version.
 
-    Clients may send the bare capabilities entry, and may leave out
-    `supportedCatalogIds`, which then names every catalog of the agent.
-    Capabilities that are already keyed by protocol version are only read
-    under the negotiated version's key.
+def get_ui_prompt(base_rules: str) -> str:
+    """Constructs the instruction for one UI request.
 
     Args:
-        version: The negotiated A2UI protocol version.
-        client_ui_capabilities: The capabilities that the client sent.
-        catalog_ids: The ids of the agent's catalogs.
-
-    Returns:
-        The capabilities for `A2uiGenerator.create_processor`.
+        base_rules: The format rules of the request's processor, from
+            `processor.format.prompt_generator.generate_base_rules()`.
     """
-    key = f"v{to_version_number(version)}"
-    if not client_ui_capabilities:
-        return {key: {"supportedCatalogIds": list(catalog_ids)}}
-    raw: Any = client_ui_capabilities
-    if any(_is_version_key(k) for k in client_ui_capabilities):
-        raw = client_ui_capabilities.get(key)
-        if raw is None:
-            return {key: {"supportedCatalogIds": list(catalog_ids)}}
-        if not isinstance(raw, Mapping):
-            # Left for `create_processor` to reject with a validation error.
-            return {key: raw}
-    entry = dict(raw)
-    if "supportedCatalogIds" not in entry and "supported_catalog_ids" not in entry:
-        entry["supportedCatalogIds"] = list(catalog_ids)
-    return {key: entry}
-
-
-def _is_version_key(key: Any) -> bool:
-    """Whether a capabilities key names a protocol version, such as `v0.9`."""
-    return (
-        isinstance(key, str)
-        and key.startswith("v")
-        and bool(re.fullmatch(r"\d+(\.\d+)*", key[1:]))
-    )
+    return "\n\n".join([
+        ROLE_DESCRIPTION,
+        base_rules,
+        WORKFLOW_DESCRIPTION,
+        f"## UI Description:\n{UI_DESCRIPTION}",
+    ])
 
 
 class McpAppProxyAgent:
-    """An agent that proxies MCP Apps."""
+    """An agent that proxies MCP Apps.
+
+    The agent holds one generator for each protocol version it speaks. The
+    executor negotiates a processor for each request from the client's
+    capabilities, and writes what the request needs into the session state:
+    whether it uses A2UI, the format rules and the catalog that A2UI in the
+    response is converted with. The instruction reads them from there, so one
+    runner serves every request.
+    """
 
     SUPPORTED_CONTENT_TYPES: ClassVar[list[str]] = ["text", "text/plain"]
 
@@ -123,10 +112,6 @@ class McpAppProxyAgent:
         self.base_url = base_url
         self._model = model
 
-        self._a2ui_enabled_provider = get_a2ui_enabled
-        self._a2ui_catalogs_provider = get_a2ui_catalogs
-        self._a2ui_examples_provider = get_a2ui_examples
-
         self._agent_name = "mcp_app_proxy_agent"
         self._user_id = "remote_agent"
 
@@ -134,80 +119,54 @@ class McpAppProxyAgent:
         self._memory_service = InMemoryMemoryService()
         self._artifact_service = InMemoryArtifactService()
 
-        self._text_runner: Runner | None = self._build_runner(self._build_llm_agent())
-
-        self._accepts_inline_catalogs = True
-        self._generators: dict[str, A2uiGenerator] = {}
-        self._processors: dict[str, A2uiRequestProcessor] = {}
-        self._ui_runners: dict[str, Runner] = {}
-
-        for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]:
-            generator = self._build_generator(version)
-            processor = self._build_default_processor(version, generator)
-            self._generators[version] = generator
-            self._processors[version] = processor
-            agent = self._build_llm_agent(processor)
-            self._ui_runners[version] = self._build_runner(agent)
-
+        self._generators: dict[ProtocolVersion, A2uiGenerator] = {
+            version: self._build_generator(version)
+            for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]
+        }
+        self._runner = self._build_runner()
         self._agent_card = self._build_agent_card()
 
     @property
     def agent_card(self) -> AgentCard:
         return self._agent_card
 
-    def get_runner(self, version: str | None) -> Runner:
-        if version is None:
-            return self._text_runner
-        return self._ui_runners[version]
-
-    def get_processor(self, version: str | None) -> A2uiRequestProcessor | None:
-        if version is None:
-            return None
-        return self._processors[version]
+    @property
+    def runner(self) -> Runner:
+        """The runner of every request, with or without A2UI."""
+        return self._runner
 
     def create_processor(
-        self, version: str, client_ui_capabilities: Mapping[str, Any] | None
+        self, version: ProtocolVersion, client_ui_capabilities: Mapping[str, Any] | None
     ) -> A2uiRequestProcessor:
-        """Creates an A2uiRequestProcessor negotiated for the client's capabilities."""
-        catalog_ids = [c.catalog_id for c in self._processors[version].active_catalogs]
-        return self._generators[version].create_processor(
-            _renderer_capabilities(version, client_ui_capabilities, catalog_ids)
-        )
+        """Negotiates the processor of one request from the client's capabilities.
 
-    def resolve_catalogs(
-        self, version: str, client_ui_capabilities: Mapping[str, Any] | None
-    ) -> list[CatalogApi]:
-        """Returns the catalogs active for the client's capabilities."""
-        return self.create_processor(version, client_ui_capabilities).active_catalogs
+        Args:
+            version: The negotiated A2UI protocol version.
+            client_ui_capabilities: The `a2uiClientCapabilities` that the client
+                sent, keyed by protocol version, or None if it sent none.
 
-    def _build_generator(self, version: str) -> A2uiGenerator:
+        Raises:
+            A2uiError: If the client sent no capabilities, or they are
+                malformed or name no catalog that the agent can use.
+        """
+        return self._generators[version].create_processor(client_ui_capabilities)
+
+    def _build_generator(self, version: ProtocolVersion) -> A2uiGenerator:
         config = CatalogConfig.from_path(
             catalog_path=f"catalogs/{to_version_number(version)}/mcp_app_catalog.json",
             protocol_version=version,
         )
-        return A2uiGenerator(
-            [config],
-            accepts_inline_catalogs=self._accepts_inline_catalogs,
-        )
-
-    def _build_default_processor(
-        self, version: str, generator: A2uiGenerator
-    ) -> A2uiRequestProcessor:
-        catalog_ids = [c.transformed_catalog.catalog_id for c in generator.catalogs]
-        return generator.create_processor(
-            _renderer_capabilities(version, None, catalog_ids)
-        )
+        return A2uiGenerator([config], accepts_inline_catalogs=True)
 
     def _build_agent_card(self) -> AgentCard:
-        extensions = []
-        if self._processors:
-            for version, processor in self._processors.items():
-                ext = get_a2ui_agent_extension(
-                    version,
-                    self._accepts_inline_catalogs,
-                    [c.catalog_id for c in processor.active_catalogs],
-                )
-                extensions.append(ext)
+        extensions = [
+            get_a2ui_agent_extension(
+                version,
+                generator.accepts_inline_catalogs,
+                [c.transformed_catalog.catalog_id for c in generator.catalogs],
+            )
+            for version, generator in self._generators.items()
+        ]
 
         capabilities = AgentCapabilities(
             streaming=True,
@@ -257,34 +216,23 @@ class McpAppProxyAgent:
             ],
         )
 
-    def _build_runner(self, agent: LlmAgent) -> Runner:
-        return Runner(
-            app_name=self._agent_name,
-            agent=agent,
-            artifact_service=self._artifact_service,
-            session_service=self._session_service,
-            memory_service=self._memory_service,
-        )
+    def _instruction(self, ctx: ReadonlyContext) -> str:
+        """Returns the instruction of the current request.
 
-    def _build_llm_agent(
-        self, processor: A2uiRequestProcessor | None = None
-    ) -> LlmAgent:
-        """Builds the LLM agent for the contact agent."""
-        if processor:
-            instruction = "\n\n".join([
-                ROLE_DESCRIPTION,
-                processor.format.prompt_generator.generate_base_rules(),
-                WORKFLOW_DESCRIPTION,
-                f"## UI Description:\n{UI_DESCRIPTION}",
-            ])
-        else:
-            instruction = ""
+        The executor records in the session state whether the request uses
+        A2UI and the format rules of the request's processor.
+        """
+        if not get_a2ui_enabled(ctx):
+            return TEXT_DESCRIPTION
+        return get_ui_prompt(get_a2ui_rules(ctx))
 
-        return LlmAgent(
+    def _build_runner(self) -> Runner:
+        """Builds the runner, whose instruction follows each request."""
+        agent = LlmAgent(
             model=self._model,
             name=self._agent_name,
             description="An agent that provides access to MCP Apps.",
-            instruction=instruction,
+            instruction=self._instruction,
             tools=[
                 get_calculator_app,
                 calculate_via_mcp,
@@ -299,4 +247,11 @@ class McpAppProxyAgent:
                 )
             ),
             disallow_transfer_to_peers=True,
+        )
+        return Runner(
+            app_name=self._agent_name,
+            agent=agent,
+            artifact_service=self._artifact_service,
+            session_service=self._session_service,
+            memory_service=self._memory_service,
         )
