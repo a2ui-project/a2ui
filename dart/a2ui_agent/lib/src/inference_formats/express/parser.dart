@@ -25,6 +25,8 @@ final RegExp _openTag = RegExp(r'<a2ui(?:\s[^>]*)?>', caseSensitive: false);
 final RegExp _closeTag = RegExp(r'</a2ui\s*>', caseSensitive: false);
 final RegExp _leadingFence = RegExp(r'^```[a-zA-Z-]*\s*');
 final RegExp _trailingFence = RegExp(r'\s*```[a-zA-Z-]*$');
+final RegExp _onlyBackticks = RegExp(r'^`*$');
+final RegExp _edgeBackticks = RegExp(r'^`+|`+$');
 
 // The tokens of `Express.g4` a close tag can sit inside, strings and comments,
 // and those that hold an `r` or a `//` starting neither. Where several match,
@@ -83,7 +85,8 @@ class ExpressParser extends Parser {
   ///
   /// A close tag inside a string or a comment does not end a block. Text is
   /// trimmed and dropped when empty, and markdown fences a model wraps around
-  /// a block are removed. Tags of another format are text. See
+  /// a block are removed, as are the backticks left at a block's edges when a
+  /// model writes the tags as inline code. Tags of another format are text. See
   /// `conformance/agent/express/response_parser.yaml`.
   @override
   List<RawResponsePart> unwrap(String content) {
@@ -97,11 +100,11 @@ class ExpressParser extends Parser {
       final int? end = _blockEnd(content, start);
       if (end == null) {
         parts.add(
-          RawA2uiPart(_clean(content.substring(start)), isFinal: false),
+          RawA2uiPart(_cleanRaw(content.substring(start)), isFinal: false),
         );
         return parts;
       }
-      parts.add(RawA2uiPart(_clean(content.substring(start, end))));
+      parts.add(RawA2uiPart(_cleanRaw(content.substring(start, end))));
       i = _closeTag.matchAsPrefix(content, end)!.end;
     }
     _addText(parts, content.substring(i));
@@ -122,11 +125,22 @@ void _addText(List<RawResponsePart> parts, String text) {
   if (cleaned.isNotEmpty) parts.add(TextPart(cleaned));
 }
 
-String _clean(String text) => text
-    .trim()
-    .replaceFirst(_leadingFence, '')
-    .replaceFirst(_trailingFence, '')
-    .trim();
+/// Trims [text] and removes the markdown fences around it. A run made of
+/// nothing but backticks is left over from tags written as inline code, so it
+/// cleans to an empty string.
+String _clean(String text) {
+  final String cleaned = text
+      .trim()
+      .replaceFirst(_leadingFence, '')
+      .replaceFirst(_trailingFence, '')
+      .trim();
+  return _onlyBackticks.hasMatch(cleaned) ? '' : cleaned;
+}
+
+/// Cleans a block like [_clean], then removes the backticks at its edges. No
+/// Express payload starts or ends with one.
+String _cleanRaw(String text) =>
+    _clean(text).replaceAll(_edgeBackticks, '').trim();
 
 /// The index of the close tag ending the block that starts at [start], or
 /// null if the block is not closed.

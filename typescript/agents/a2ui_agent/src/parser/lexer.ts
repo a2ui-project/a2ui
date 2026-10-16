@@ -77,6 +77,9 @@ export class BlockLexer {
 
   /**
    * Cleans Markdown code block wrappers from either conversational text or inner raw content.
+   *
+   * A run made of nothing but backticks is left over from tags written as inline code, so it is
+   * dropped.
    */
   private cleanMarkdown(text: string): string {
     if (!text) {
@@ -85,7 +88,20 @@ export class BlockLexer {
     let cleaned = text.trim();
     cleaned = cleaned.replace(/^```[a-zA-Z-]*\s*/i, '');
     cleaned = cleaned.replace(/\s*```[a-zA-Z-]*$/i, '');
-    return cleaned.trim();
+    cleaned = cleaned.trim();
+    return /^`*$/.test(cleaned) ? '' : cleaned;
+  }
+
+  /**
+   * Cleans a raw block: Markdown fences, then backticks left at its edges.
+   *
+   * No payload format starts or ends with a backtick, so the ones at the edges are left over from
+   * tags written as inline code, such as `` `<a2ui>` ``.
+   */
+  private cleanRaw(text: string): string {
+    return this.cleanMarkdown(text)
+      .replace(/^`+|`+$/g, '')
+      .trim();
   }
 
   /**
@@ -127,7 +143,7 @@ export class BlockLexer {
         this.closeTagPattern.lastIndex = i;
         const match = this.closeTagPattern.exec(content);
         if (match) {
-          const rawContent = this.cleanMarkdown(currentRaw.join(''));
+          const rawContent = this.cleanRaw(currentRaw.join(''));
           const textPart = this.cleanMarkdown(currentText.join(''));
 
           if (textPart) {
@@ -232,7 +248,7 @@ export class BlockLexer {
       state === LexerState.IN_STRING ||
       state === LexerState.IN_COMMENT
     ) {
-      const rawContent = this.cleanMarkdown(currentRaw.join(''));
+      const rawContent = this.cleanRaw(currentRaw.join(''));
       const textPart = this.cleanMarkdown(currentText.join(''));
 
       if (textPart) {

@@ -93,13 +93,26 @@ class BlockLexer:
         )
 
     def _clean_markdown(self, text: str) -> str:
-        """Cleans Markdown code block wrappers from conversational text or inner raw content."""
+        """Cleans Markdown code block wrappers from conversational text or inner raw content.
+
+        A run made of nothing but backticks is left over from tags written as
+        inline code, so it is dropped.
+        """
         if not text:
             return ""
         text = text.strip()
         text = re.sub(r"^```[a-zA-Z-]*\s*", "", text, flags=re.IGNORECASE)
         text = re.sub(r"\s*```[a-zA-Z-]*$", "", text, flags=re.IGNORECASE)
-        return text.strip()
+        text = text.strip()
+        return "" if not text.strip("`") else text
+
+    def _clean_raw(self, text: str) -> str:
+        """Cleans a raw block: Markdown fences, then backticks left at its edges.
+
+        No payload format starts or ends with a backtick, so the ones at the edges
+        are left over from tags written as inline code, such as `` `<a2ui>` ``.
+        """
+        return self._clean_markdown(text).strip("`").strip()
 
     def tokenize(self, content: str) -> list[RawResponsePart]:
         """Scans response content character-by-character to extract format blocks.
@@ -140,7 +153,7 @@ class BlockLexer:
             if state == LexerState.IN_A2UI:
                 match = self.close_tag_pattern.match(content, i)
                 if match:
-                    raw_content = self._clean_markdown("".join(current_raw))
+                    raw_content = self._clean_raw("".join(current_raw))
                     text_part = self._clean_markdown("".join(current_text))
                     if text_part:
                         parts.append(
@@ -226,7 +239,7 @@ class BlockLexer:
                 continue
 
         if state in (LexerState.IN_A2UI, LexerState.IN_STRING, LexerState.IN_COMMENT):
-            raw_content = self._clean_markdown("".join(current_raw))
+            raw_content = self._clean_raw("".join(current_raw))
             text_part = self._clean_markdown("".join(current_text))
             if text_part:
                 parts.append(

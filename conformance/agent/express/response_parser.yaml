@@ -42,6 +42,10 @@
 # - An empty response unwraps to no parts at all.
 # - A text run is trimmed of leading and trailing whitespace, and a run left
 #   empty by that is dropped. The whitespace between two blocks is not a part.
+# - Backticks at the edges of a block are removed, since no Express payload
+#   starts or ends with one. They are what is left when a model writes the tags
+#   as inline code (`` `<a2ui>` ... `</a2ui>` ``). A text run made of nothing
+#   but backticks is dropped, while a backtick inside other text is kept.
 #
 # The `parse_response` cases compile as well as unwrap, so a compilation failure
 # surfaces through them. `ParseError` is for payload text the format cannot
@@ -153,6 +157,44 @@
     ```
     </a2ui>
   expect:
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_inline_code_tags_stripped
+  description: Tags the model wrote as inline code leave a backtick at each edge of the block and one on each side of it; all of them are removed.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    `<a2ui>`
+    root = Text("Hello")
+    `</a2ui>`
+  expect:
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_inline_code_around_block_stripped
+  description: A block wrapped in a single pair of backticks unwraps to the block alone.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    `<a2ui>
+    root = Text("Hello")
+    </a2ui>`
+  expect:
+    - a2ui_raw: 'root = Text("Hello")'
+
+- name: test_unwrap_express_backtick_in_text_kept
+  description: Only text made of nothing but backticks is dropped; inline code in conversational text is kept.
+  action: unwrap
+  args:
+    format: express
+  input: |-
+    Use `Text` for labels.
+    <a2ui>
+    root = Text("Hello")
+    </a2ui>
+  expect:
+    - text: "Use `Text` for labels."
     - a2ui_raw: 'root = Text("Hello")'
 
 - name: test_unwrap_express_attributes_on_open_tag_tolerated

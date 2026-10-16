@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `ExpressParser.unwrap` removes the backticks left at the edges of a block
+  when a model writes the tags as inline code (`` `<a2ui>` ... `</a2ui>` ``),
+  and drops text made of nothing but backticks. Before, the leftover backtick
+  made the block fail to compile.
 - Support cross-catalog `$ref` references across peer catalogs in
   `resolveCatalogs`, `validatePayloads`, `DirectJsonPromptGenerator` (preserving
   unbundled external `$ref`s in `Catalog.toJson()` while retaining transitive
