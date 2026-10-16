@@ -1,0 +1,32 @@
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "dashboard",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateComponents": {
+      "surfaceId": "dashboard",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["title", "body"]
+        },
+        {
+          "id": "title",
+          "component": "Text",
+          "text": "## No data for [Region]"
+        },
+        {
+          "id": "body",
+          "component": "Text",
+          "text": "I have sales metrics for [KnownRegions]. Which region would you like to see?"
+        }
+      ]
+    }
+  }
+]
