@@ -90,13 +90,13 @@
             type: object
             properties:
               component: {const: "Column"}
-              children: {$ref: "common.json#/$defs/ChildList"}
+              children: {$ref: "common_types.json#/$defs/ChildList"}
             required: ["component", "children"]
           Badge:
             type: object
             properties:
               component: {const: "Badge"}
-              label: {$ref: "common.json#/$defs/DynamicString"}
+              label: {$ref: "common_types.json#/$defs/DynamicString"}
             required: ["component", "label"]
       - catalogId: "conformance/cat_b"
         protocolVersion: "v1.0"
@@ -105,8 +105,8 @@
             type: object
             properties:
               component: {const: "Badge"}
-              count: {$ref: "common.json#/$defs/DynamicNumber"}
-              unit: {$ref: "common.json#/$defs/DynamicString"}
+              count: {$ref: "common_types.json#/$defs/DynamicNumber"}
+              unit: {$ref: "common_types.json#/$defs/DynamicString"}
             required: ["component", "count"]
   input: |
     surface("s1")
@@ -408,7 +408,7 @@
             type: object
             properties:
               component: {const: "Badge"}
-              label: {$ref: "common.json#/$defs/DynamicString"}
+              label: {$ref: "common_types.json#/$defs/DynamicString"}
             required: ["component", "label"]
       - catalogId: "conformance/cat_b"
         protocolVersion: "v1.0"
@@ -417,7 +417,7 @@
             type: object
             properties:
               component: {const: "Badge"}
-              count: {$ref: "common.json#/$defs/DynamicNumber"}
+              count: {$ref: "common_types.json#/$defs/DynamicNumber"}
             required: ["component", "count"]
   messages:
     - version: "v1.0"
