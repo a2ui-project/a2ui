@@ -41,6 +41,9 @@
 - `A2uiRendererCapabilities.fromJson` reads an inline catalog that states no
   `protocolVersion` as targeting the version of the entry it is declared in.
   `A2uiVersionCapabilities.fromJson` takes that version as `protocolVersion`.
+- `ExpressionParser` parses the `null` keyword as an empty string, as the
+  TypeScript and Python parsers do. A template still drops it, so the change
+  shows in function arguments: `${f(x: null)}` now passes `''` instead of null.
 
 ## 0.3.0
 
