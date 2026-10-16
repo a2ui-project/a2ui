@@ -111,27 +111,39 @@ def test_missing_path_loads_no_examples(tmp_path):
 
 
 @pytest.mark.parametrize(
-    ("version", "subdir"),
+    ("version", "rel_dir", "expected_names"),
     [
-        (ProtocolVersion.V0_8, "0.8"),
-        (ProtocolVersion.V0_9, "0.9"),
+        (
+            ProtocolVersion.V0_8,
+            "samples/agent/adk/restaurant_finder/examples/0.8",
+            ("single_column_list", "two_column_list"),
+        ),
+        (
+            ProtocolVersion.V0_9,
+            "samples/agent/adk/restaurant_finder/examples/0.9",
+            ("single_column_list", "two_column_list"),
+        ),
+        (
+            ProtocolVersion.V0_8,
+            "samples/community/agent/adk/gemini_enterprise/v0_8/agent_engine/examples/0.8",
+            ("contact_list",),
+        ),
+        (
+            ProtocolVersion.V0_8,
+            "samples/community/agent/adk/gemini_enterprise/v0_8/cloud_run/examples/0.8",
+            ("contact_list",),
+        ),
     ],
 )
-def test_restaurant_finder_examples_validate(version: ProtocolVersion, subdir: str):
+def test_sample_examples_validate(
+    version: ProtocolVersion, rel_dir: str, expected_names: tuple[str, ...]
+):
     repo_root = Path(__file__).resolve().parents[4]
-    examples_dir = (
-        repo_root
-        / "samples"
-        / "agent"
-        / "adk"
-        / "restaurant_finder"
-        / "examples"
-        / subdir
-    )
+    examples_dir = repo_root / rel_dir
     if not examples_dir.is_dir():
         pytest.skip(f"Sample directory not present: {examples_dir}")
 
     examples = load_examples([BasicCatalog(version)], str(examples_dir), validate=True)
 
-    assert "---BEGIN single_column_list---" in examples
-    assert "---BEGIN two_column_list---" in examples
+    for name in expected_names:
+        assert f"---BEGIN {name}---" in examples
