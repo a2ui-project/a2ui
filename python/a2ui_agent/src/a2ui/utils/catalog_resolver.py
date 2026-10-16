@@ -49,13 +49,8 @@ _CAPABILITIES_ENTRIES: dict[ProtocolVersion, tuple[str, type[BaseModel]]] = {
     ProtocolVersion.V1_0: ("v1.0", v1_0.V10Capabilities),
 }
 _V0_8_KEY = _CAPABILITIES_ENTRIES[ProtocolVersion.V0_8][0]
-# The fields of a capabilities entry, by name and by alias.
-_ENTRY_FIELDS = frozenset({
-    "supportedCatalogIds",
-    "supported_catalog_ids",
-    "inlineCatalogs",
-    "inline_catalogs",
-})
+# The fields of a capabilities entry, as the specification names them.
+_ENTRY_FIELDS = frozenset({"supportedCatalogIds", "inlineCatalogs"})
 
 
 def resolve_catalogs(
@@ -204,6 +199,8 @@ def _capabilities_entry(
 def _is_bare_entry(capabilities: Mapping[str, Any]) -> bool:
     """Whether capabilities are one entry rather than entries keyed by version.
 
-    The v0.8 specification sends `a2uiClientCapabilities` as the entry itself.
+    The v0.8 specification sends `a2uiClientCapabilities` as the entry itself,
+    so capabilities that hold a field of an entry are one. Other fields are
+    left to the entry model, which reports them.
     """
-    return bool(capabilities) and set(capabilities) <= _ENTRY_FIELDS
+    return any(field in capabilities for field in _ENTRY_FIELDS)
