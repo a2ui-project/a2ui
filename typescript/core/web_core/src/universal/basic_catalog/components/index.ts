@@ -21,7 +21,11 @@ export {A2uiCardElement} from './Card.js';
 export {A2uiCheckBoxElement} from './CheckBox.js';
 export {A2uiChoicePickerElement} from './ChoicePicker.js';
 export {A2uiBasicColumnElement} from './Column.js';
-export {A2uiDateTimeInputElement} from './DateTimeInput.js';
+export {
+  A2uiDateTimeInputElement,
+  getLocalIsoDate,
+  normalizeDateTimeValue,
+} from './DateTimeInput.js';
 export {A2uiDividerElement} from './Divider.js';
 export {A2uiIconElement} from './Icon.js';
 export {A2uiImageElement} from './Image.js';

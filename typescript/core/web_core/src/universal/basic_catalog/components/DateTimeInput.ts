@@ -21,7 +21,7 @@ import type {DateTimeInputSupportedApis} from './supported_apis.js';
 /**
  * Returns the current date formatted as YYYY-MM-DD in the user's local timezone.
  */
-function getLocalIsoDate(): string {
+export function getLocalIsoDate(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -34,31 +34,82 @@ function getLocalIsoDate(): string {
  *
  * HTML5 input elements (like type="date", type="time", and type="datetime-local") strictly reject
  * timezone indicators (like "Z" or "+00:00") and trailing seconds/milliseconds in their .value property.
- * If these are present, the browser will reset the input to an empty string. This function strips
- * those specifiers using string splitting and substring manipulation without shifting timezones.
+ * If these are present, the browser will reset the input to an empty string. This function parses
+ * and extracts the date and time components without shifting timezones.
  */
-function normalizeDateTimeValue(value: string | null | undefined, type: string): string {
-  if (!value) return '';
+export function normalizeDateTimeValue(value: unknown, type: string): string {
+  if (value === null || value === undefined || value === '') return '';
 
-  const hasT = value.includes('T');
-  if (hasT) {
-    const [datePart, timePart] = value.split('T');
-    switch (type) {
-      case 'date':
-        return datePart?.substring(0, 10) ?? '';
-      case 'time':
-        return timePart?.substring(0, 5) ?? '';
-      case 'datetime-local':
-        return `${datePart?.substring(0, 10) ?? ''}T${timePart?.substring(0, 5) ?? ''}`;
+  let strValue = '';
+  if (value instanceof Date) {
+    strValue = value.toISOString();
+  } else {
+    strValue = String(value).trim();
+  }
+
+  if (!strValue) return '';
+
+  let datePart = '';
+  let timePart = '';
+
+  // 1. Try literal extraction of YYYY-MM-DD or YYYY/MM/DD (supporting 1 or 2 digit month/day)
+  const dateRegex = /(\d{4})[-/](\d{1,2})[-/](\d{1,2})/;
+  const dateMatch = strValue.match(dateRegex);
+  if (dateMatch) {
+    datePart = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`;
+  }
+
+  // 2. Try literal extraction of HH:mm (supporting 1 or 2 digit hour)
+  const timeRegex = /(?:^|\s|T)(\d{1,2}):(\d{2})(?::(\d{2}))?/;
+  const timeMatch = strValue.match(timeRegex);
+  if (timeMatch) {
+    timePart = `${timeMatch[1].padStart(2, '0')}:${timeMatch[2]}`;
+  }
+
+  // 3. Fallback to Date object parsing if needed
+  const needDate = type === 'date' || type === 'datetime-local';
+  const needTime = type === 'time' || type === 'datetime-local';
+
+  if ((needDate && !datePart) || (needTime && !timePart)) {
+    const isTimestamp = strValue !== '' && !isNaN(Number(strValue));
+    // Only fallback to Date parsing if we don't have a literal datePart,
+    // or if the input is a numeric timestamp.
+    if (!datePart || isTimestamp) {
+      let parsedDate: Date;
+      if (isTimestamp) {
+        parsedDate = new Date(Number(strValue));
+      } else {
+        parsedDate = new Date(strValue);
+      }
+
+      if (!isNaN(parsedDate.getTime())) {
+        if (!datePart) {
+          const y = parsedDate.getFullYear();
+          const m = String(parsedDate.getMonth() + 1).padStart(2, '0');
+          const d = String(parsedDate.getDate()).padStart(2, '0');
+          datePart = `${y}-${m}-${d}`;
+        }
+        if (!timePart) {
+          const h = String(parsedDate.getHours()).padStart(2, '0');
+          const min = String(parsedDate.getMinutes()).padStart(2, '0');
+          timePart = `${h}:${min}`;
+        }
+      }
     }
   }
 
-  // Not ISO with 'T': value might be just date ('YYYY-MM-DD') or just time ('HH:MM')
-  if (type === 'date') {
-    return value.includes('-') ? value.substring(0, 10) : '';
+  // If timePart is empty but we need it and datePart is present, default to '00:00'
+  if (type === 'datetime-local' && datePart && !timePart) {
+    timePart = '00:00';
   }
-  if (type === 'time') {
-    return value.includes(':') ? value.substring(0, 5) : '';
+
+  switch (type) {
+    case 'date':
+      return datePart;
+    case 'time':
+      return timePart;
+    case 'datetime-local':
+      return datePart && timePart ? `${datePart}T${timePart}` : '';
   }
   return '';
 }
@@ -145,11 +196,12 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
     const handleDateChange = (event: Event) => {
       const date = (event.target as HTMLInputElement).value;
       if (enableTime) {
-        const time = rawValue.includes('T')
-          ? rawValue.split('T')[1]
-          : rawValue.includes(':')
-            ? rawValue
-            : '00:00:00';
+        let time = normalizeDateTimeValue(rawValue, 'time');
+        if (!time) {
+          time = '00:00:00';
+        } else if (time.length === 5) {
+          time = `${time}:00`;
+        }
         props.setValue?.(`${date}T${time}`);
       } else {
         props.setValue?.(date);
@@ -159,11 +211,7 @@ export class A2uiDateTimeInputElement extends BasicCatalogA2uiLitElement<DateTim
     const handleTimeChange = (event: Event) => {
       const time = (event.target as HTMLInputElement).value;
       if (enableDate) {
-        const date = rawValue.includes('T')
-          ? rawValue.split('T')[0]
-          : rawValue.includes('-')
-            ? rawValue
-            : getLocalIsoDate();
+        const date = normalizeDateTimeValue(rawValue, 'date') || getLocalIsoDate();
         props.setValue?.(`${date}T${time}:00`);
       } else {
         props.setValue?.(time);
