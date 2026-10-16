@@ -102,3 +102,9 @@ export {
   TextFieldApi,
   VideoApi,
 } from './basic_components.js';
+
+export {
+  A2uiDateTimeInputElement,
+  getLocalIsoDate,
+  normalizeDateTimeValue,
+} from '../../../universal/basic_catalog/components/index.js';

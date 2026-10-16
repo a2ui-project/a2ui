@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
-import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import { Component, computed, ChangeDetectionStrategy } from '@angular/core';
+import { BasicCatalogComponent } from './basic-catalog-component';
+import {
+  DateTimeInputApi,
+  getLocalIsoDate,
+  normalizeDateTimeValue,
+} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI DateTimeInput component (v0.9).
@@ -116,56 +120,39 @@ export class DateTimeInputComponent extends BasicCatalogComponent<typeof DateTim
   private readonly rawMax = computed(() => this.props()['max']?.value() || '');
 
   readonly dateValue = computed(() => {
-    const val = this.rawValue();
-    if (!val) return '';
-    if (val.includes('T')) return val.split('T')[0].substring(0, 10);
-    return val.includes('-') ? val.substring(0, 10) : '';
+    return normalizeDateTimeValue(this.rawValue(), 'date');
   });
 
   readonly timeValue = computed(() => {
-    const val = this.rawValue();
-    if (!val) return '';
-    if (val.includes('T')) return val.split('T')[1].substring(0, 5);
-    return val.includes(':') ? val.substring(0, 5) : '';
+    return normalizeDateTimeValue(this.rawValue(), 'time');
   });
 
   readonly minDate = computed(() => {
-    const val = this.rawMin();
-    if (!val) return '';
-    if (val.includes('T')) return val.split('T')[0].substring(0, 10);
-    return val.includes('-') ? val.substring(0, 10) : '';
+    return normalizeDateTimeValue(this.rawMin(), 'date');
   });
 
   readonly maxDate = computed(() => {
-    const val = this.rawMax();
-    if (!val) return '';
-    if (val.includes('T')) return val.split('T')[0].substring(0, 10);
-    return val.includes('-') ? val.substring(0, 10) : '';
+    return normalizeDateTimeValue(this.rawMax(), 'date');
   });
 
   readonly minTime = computed(() => {
-    const val = this.rawMin();
-    if (!val) return '';
-    if (val.includes('T')) return val.split('T')[1].substring(0, 5);
-    return val.includes(':') ? val.substring(0, 5) : '';
+    return normalizeDateTimeValue(this.rawMin(), 'time');
   });
 
   readonly maxTime = computed(() => {
-    const val = this.rawMax();
-    if (!val) return '';
-    if (val.includes('T')) return val.split('T')[1].substring(0, 5);
-    return val.includes(':') ? val.substring(0, 5) : '';
+    return normalizeDateTimeValue(this.rawMax(), 'time');
   });
 
   handleDateChange(event: Event) {
     const date = (event.target as HTMLInputElement).value;
     const current = this.rawValue();
     if (this.enableTime()) {
-      const time = current.includes('T')
-        ? current.split('T')[1]
-        : current.includes(':')
-          ? current
-          : '00:00:00';
+      let time = normalizeDateTimeValue(current, 'time');
+      if (!time) {
+        time = '00:00:00';
+      } else if (time.length === 5) {
+        time = `${time}:00`;
+      }
       this.props()['value']?.onUpdate(`${date}T${time}`);
     } else {
       this.props()['value']?.onUpdate(date);
@@ -176,11 +163,7 @@ export class DateTimeInputComponent extends BasicCatalogComponent<typeof DateTim
     const time = (event.target as HTMLInputElement).value;
     if (this.enableDate()) {
       const current = this.rawValue();
-      const date = current.includes('T')
-        ? current.split('T')[0]
-        : current.includes('-')
-          ? current
-          : new Date().toISOString().split('T')[0];
+      const date = normalizeDateTimeValue(current, 'date') || getLocalIsoDate();
       this.props()['value']?.onUpdate(`${date}T${time}:00`);
     } else {
       this.props()['value']?.onUpdate(time);

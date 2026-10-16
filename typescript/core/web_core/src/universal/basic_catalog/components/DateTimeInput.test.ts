@@ -29,6 +29,7 @@ import {
   registerUniversalElement,
   type WebComponentImplementation,
 } from '../../index.js';
+import {normalizeDateTimeValue} from './DateTimeInput.js';
 
 describe('DateTimeInput Component', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
@@ -394,5 +395,114 @@ describe('DateTimeInput Component', () => {
     assert.strictEqual(dateInput.getAttribute('max'), '2026-01-31');
     assert.strictEqual(timeInput.getAttribute('min'), '09:00');
     assert.strictEqual(timeInput.getAttribute('max'), '17:00');
+  });
+
+  describe('normalizeDateTimeValue', () => {
+    it('should parse date-only formats without timezone shift', () => {
+      const testCasesDate = [
+        {input: '2026-03-20', expected: '2026-03-20'},
+        {input: '2026-03-20T12:00:00Z', expected: '2026-03-20'},
+        {input: '2026-03-20T12:00:00+05:30', expected: '2026-03-20'},
+        {input: '2026/03/20 12:00:00', expected: '2026-03-20'},
+        {input: '2026-3-2', expected: '2026-03-02'},
+        {input: '2026/3/2', expected: '2026-03-02'},
+      ];
+
+      for (const {input, expected} of testCasesDate) {
+        assert.strictEqual(normalizeDateTimeValue(input, 'date'), expected);
+      }
+    });
+
+    it('should parse time-only formats without timezone shift', () => {
+      const testCasesTime = [
+        {input: '12:00', expected: '12:00'},
+        {input: '12:00:00', expected: '12:00'},
+        {input: '2026-03-20T12:00:00Z', expected: '12:00'},
+        {input: '2026-03-20T12:00:00+05:30', expected: '12:00'},
+        {input: '2026/03/20 12:34:56', expected: '12:34'},
+        {input: '9:05', expected: '09:05'},
+      ];
+
+      for (const {input, expected} of testCasesTime) {
+        assert.strictEqual(normalizeDateTimeValue(input, 'time'), expected);
+      }
+    });
+
+    it('should parse datetime-local formats correctly', () => {
+      const testCasesDateTime = [
+        {input: '2026-03-20T12:00', expected: '2026-03-20T12:00'},
+        {input: '2026-03-20T12:00:00Z', expected: '2026-03-20T12:00'},
+        {input: '2026-03-20T12:00:00+05:30', expected: '2026-03-20T12:00'},
+        {input: '2026/03/20 12:34:56', expected: '2026-03-20T12:34'},
+        {input: '2026-03-20', expected: '2026-03-20T00:00'},
+      ];
+
+      for (const {input, expected} of testCasesDateTime) {
+        assert.strictEqual(normalizeDateTimeValue(input, 'datetime-local'), expected);
+      }
+    });
+
+    it('should handle Date instances', () => {
+      const d = new Date('2026-03-20T12:00:00Z');
+      assert.strictEqual(normalizeDateTimeValue(d, 'date'), '2026-03-20');
+      assert.strictEqual(normalizeDateTimeValue(d, 'time'), '12:00');
+    });
+
+    it('should handle empty, null, or undefined values', () => {
+      assert.strictEqual(normalizeDateTimeValue('', 'date'), '');
+      assert.strictEqual(normalizeDateTimeValue(null, 'date'), '');
+      assert.strictEqual(normalizeDateTimeValue(undefined, 'date'), '');
+      assert.strictEqual(normalizeDateTimeValue('', 'time'), '');
+      assert.strictEqual(normalizeDateTimeValue('', 'datetime-local'), '');
+    });
+  });
+
+  it('should parse different date and time formats in component inputs', async () => {
+    const testCases = [
+      {input: '2026-03-20', expectedDate: '2026-03-20', expectedTime: ''},
+      {input: '2026-03-20T12:00:00Z', expectedDate: '2026-03-20', expectedTime: '12:00'},
+      {input: '2026-03-20T12:00:00+05:30', expectedDate: '2026-03-20', expectedTime: '12:00'},
+      {input: '2026/03/20 12:34:56', expectedDate: '2026-03-20', expectedTime: '12:34'},
+    ];
+
+    for (const {input, expectedDate, expectedTime} of testCases) {
+      processor.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: `dt_parse_${input.replace(/[^a-zA-Z0-9]/g, '_')}`,
+                component: 'DateTimeInput',
+                value: input,
+                enableDate: true,
+                enableTime: true,
+              },
+            ],
+          },
+        },
+      ]);
+
+      const el = document.createElement('a2ui-datetimeinput') as A2uiWebComponentElement;
+      element = el;
+      document.body.appendChild(el);
+
+      const context = new ComponentContext(
+        surface,
+        `dt_parse_${input.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      );
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
+
+      const dateInput = el.querySelector('input[type="date"]') as HTMLInputElement;
+      const timeInput = el.querySelector('input[type="time"]') as HTMLInputElement;
+      assert.strictEqual(dateInput.value, expectedDate);
+      assert.strictEqual(timeInput.value, expectedTime);
+
+      el.remove();
+      element = null;
+    }
   });
 });
