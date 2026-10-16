@@ -15,6 +15,7 @@
  */
 
 import {html, nothing, css} from 'lit';
+import {sanitizeMediaUrl} from '../../index.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {VideoSupportedApis} from './supported_apis.js';
 
@@ -46,11 +47,14 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<VideoSupportedA
     const props = this.controller.props;
     if (!props) return nothing;
 
+    const safeUrl = sanitizeMediaUrl(props.url);
+    const safePosterUrl = 'posterUrl' in props ? sanitizeMediaUrl(props.posterUrl) : undefined;
+
     return html`
       <div class="a2ui-video-container">
         <video
-          src=${props.url || nothing}
-          poster=${('posterUrl' in props && props.posterUrl) || nothing}
+          src=${safeUrl ?? nothing}
+          poster=${safePosterUrl ?? nothing}
           controls
           class="a2ui-video"
         >

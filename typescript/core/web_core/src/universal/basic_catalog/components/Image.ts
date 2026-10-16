@@ -16,6 +16,7 @@
 
 import {html, nothing, css} from 'lit';
 import {styleMap} from 'lit/directives/style-map.js';
+import {sanitizeMediaUrl} from '../../index.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ImageSupportedApis} from './supported_apis.js';
 
@@ -77,9 +78,10 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<ImageSupportedA
     const variant = props.variant || 'default';
     const rawFit = props.fit || 'cover';
     const fit = FIT_MAP[rawFit] ?? rawFit;
+    const safeUrl = sanitizeMediaUrl(props.url);
 
     return html`<img
-      src=${props.url}
+      src=${safeUrl ?? nothing}
       alt=${props.description || ''}
       style=${styleMap({objectFit: fit})}
       class="a2ui-image a2ui-image-${variant}"

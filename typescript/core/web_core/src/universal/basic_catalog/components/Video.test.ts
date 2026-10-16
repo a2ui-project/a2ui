@@ -98,4 +98,81 @@ describe('Video Component', () => {
     assert.strictEqual(video?.getAttribute('src'), 'http://example.com/video.mp4');
     assert.strictEqual(video?.classList.contains('a2ui-video'), true);
   });
+
+  it('should allow data: URLs on Video', async () => {
+    const dataUrl = 'data:video/mp4;base64,AAAA';
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 'comp1',
+              component: 'Video',
+              url: dataUrl,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-video') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    const context = new ComponentContext(surface, 'comp1');
+    await asyncUpdate(el, e => {
+      e.context = context;
+    });
+
+    const video = el.querySelector('video');
+    assert.notStrictEqual(video, null);
+    assert.strictEqual(video?.getAttribute('src'), dataUrl);
+  });
+
+  it('should omit src when url uses a disallowed scheme', async () => {
+    const disallowedUrls = [
+      'javascript:alert(1)',
+      'vbscript:msgbox(1)',
+      'file:///etc/passwd',
+      'blob:https://example.com/123',
+      '//evil.example.com/video.mp4',
+    ];
+
+    const el = document.createElement('a2ui-video') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    for (const badUrl of disallowedUrls) {
+      processor.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'test-surface',
+            components: [
+              {
+                id: 'comp1',
+                component: 'Video',
+                url: badUrl,
+              },
+            ],
+          },
+        },
+      ]);
+
+      const context = new ComponentContext(surface, 'comp1');
+      await asyncUpdate(el, e => {
+        e.context = context;
+      });
+
+      const video = el.querySelector('video');
+      assert.notStrictEqual(video, null);
+      assert.strictEqual(
+        video?.getAttribute('src'),
+        null,
+        `Expected src to be omitted for ${badUrl}`,
+      );
+    }
+  });
 });
