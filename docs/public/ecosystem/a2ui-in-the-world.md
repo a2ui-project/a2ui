@@ -88,7 +88,7 @@ ADK integrated the A2UI v0.8 basic catalog to automatically render spec-complian
 
 - [ADK Documentation](https://google.github.io/adk-docs/)
 - [ADK Web](https://github.com/google/adk-web) (developer UI with A2UI support)
-- [Agent Development Guide](../guides/agent-development.md) (building A2UI agents with ADK)
+- [ADK integration guide](../integrations/adk.md) (building A2UI agents with ADK)
 
 ---
 
@@ -193,7 +193,7 @@ Have you built something with A2UI? [Share it with the community!](community.md)
 For more information, see the following resources:
 
 - [Quickstart Guide](../quickstart.md) - Try the demo.
-- [Agent Development](../guides/agent-development.md) - Build an agent.
+- [Agent Integrations](../integrations/index.md) - Build an agent.
 - [Client Setup](../guides/client-setup.md) - Integrate a renderer.
 - [Community](community.md) - Join the community.
 

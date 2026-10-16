@@ -672,4 +672,4 @@ Message ordering must satisfy the following requirements:
 
 - **[Component Gallery](components.md)**: All available component types
 - **[Data Binding Guide](../concepts/data-binding.md)**: How data binding works
-- **[Agent Development Guide](../guides/agent-development.md)**: Generate valid messages
+- **[Agent Development Guide](../integrations/agent-development.md)**: Generate valid messages

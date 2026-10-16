@@ -44,7 +44,7 @@ Create an agent that generates A2UI responses for any compatible client.
 
 Include the A2UI schema in your LLM prompts, generate JSONL messages, and stream to clients over SSE, WebSockets, or A2A.
 
-**Next:** [Agent Development Guide](../guides/agent-development.md)
+**Next:** [Agent Integrations](../integrations/index.md)
 
 ---
 

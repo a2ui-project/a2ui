@@ -59,4 +59,4 @@ When defining and registering catalogs:
 
 - **[Theming & Styling](theming.md)**: Customize the look and feel of components.
 - **[Component Reference](../reference/components.md)**: Explore standard types that might be available for reuse.
-- **[Agent Development](agent-development.md)**: Build agents that interact with your Catalog.
+- **[Agent Development](../integrations/agent-development.md)**: Build agents that interact with your Catalog.

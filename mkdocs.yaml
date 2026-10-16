@@ -52,10 +52,14 @@ nav:
       - Catalogs: concepts/catalogs.md
       - Transports: concepts/transports.md
       - Actions: concepts/actions.md
+  - Agent Integrations:
+      - integrations/index.md
+      - ADK: integrations/adk.md
+      - Genkit: integrations/genkit.md
+      - CopilotKit: integrations/copilotkit.md
+      - Agent Development: integrations/agent-development.md
   - Guides:
       - Client Setup: guides/client-setup.md
-      - Agent Development: guides/agent-development.md
-      - Use A2UI with Any Agent Framework & Harness: guides/a2ui-with-any-agent-framework.md
       - Renderer Development: guides/renderer-development.md
       - Defining Your Own Catalog: guides/defining-your-own-catalog.md
       - Authoring Universal Components: guides/authoring-universal-components.md
@@ -225,3 +229,6 @@ plugins:
         "introduction/where-is-it-used.md": "ecosystem/a2ui-in-the-world.md"
         "guides/guide_a2ui_dynamic_mcp.md": "guides/a2ui-in-mcp-apps.md"
         "guides/mcp-apps-in-a2ui-surface.md": "guides/mcp-apps-in-a2ui.md"
+        # Agent guides moved into the Agent Integrations section
+        "guides/agent-development.md": "integrations/agent-development.md"
+        "guides/a2ui-with-any-agent-framework.md": "integrations/copilotkit.md"
