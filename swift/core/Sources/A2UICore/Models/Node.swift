@@ -16,6 +16,9 @@ import Combine
 import OrderedJSON
 
 /// A persistent, observable backing store for a resolved component node.
+///
+/// `@unchecked Sendable` is safe because instances are initialized once in `Node.init` and
+/// only ever mutated on `@MainActor` via ``updateProperties(_:)``.
 package final class NodeBox: ObservableObject, @unchecked Sendable {
   let id: String
   let type: String
@@ -37,12 +40,16 @@ package final class NodeBox: ObservableObject, @unchecked Sendable {
 
   /// Updates the box's resolved properties in-place, publishing `objectWillChange`
   /// only when its own non-node properties or child `NodeBox` references (`===`) change.
+  @MainActor
   func updateProperties(_ newProperties: [String: any Resolved]) {
     let changed = !Self.arePropertiesShallowEqual(properties, newProperties)
+    if changed {
+      objectWillChange.send()
+    }
     properties = newProperties
-    guard changed else { return }
-    objectWillChange.send()
-    revision &+= 1
+    if changed {
+      revision &+= 1
+    }
   }
 
   private static func arePropertiesShallowEqual(
@@ -106,6 +113,7 @@ public struct Node: Identifiable, Equatable, Sendable {
 
   /// Updates the backing box's resolved properties in-place and returns a `Node` stamped with
   /// the box's resulting revision.
+  @MainActor
   func updatingProperties(_ newProperties: [String: any Resolved]) -> Node {
     box.updateProperties(newProperties)
     return withCurrentRevision()
