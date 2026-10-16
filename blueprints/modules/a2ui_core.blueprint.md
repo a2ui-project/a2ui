@@ -738,7 +738,9 @@ A shared base class should implement `extractOperations` once, covering payload 
 
 #### Renderer vs. Agent Execution Patterns
 
-In a renderer, `MessageProcessor` receives incoming protocol messages and updates the local layout and data state. In an agent, it is an optional helper for checking model-generated messages against catalogs, verifying data paths, and preparing payloads for transmission. Both reach validation through it, because it is what holds every supported catalog and can therefore resolve the one each item belongs to:
+In a renderer, `MessageProcessor` receives incoming protocol messages and updates the local layout and data state. In an agent, it mirrors the surfaces the renderer holds, so that model-generated messages are checked against everything the renderer has already received before they are sent. Both reach validation through it, because it is what holds every supported catalog and can therefore resolve the one each item belongs to.
+
+An agent does not drive `MessageProcessor` directly. The [Agent SDK](a2ui_agent.blueprint.md)'s `RendererState` owns one, and adds what checking outbound messages needs on top of it: atomic application with rollback, a tree check once a response is complete, and a lifetime the agent chooses (one state per chat turn, or one per canvas conversation). Core supplies the pieces it builds on: `SurfaceGroupModel.addSurface` and `deleteSurface` to restore a surface, `SurfaceComponentsModel.getAll` and `validateTopology` for the tree check, and a `ValidationConfig` that defers the graph checks.
 
 ```typescript
 // 1. Renderer Usage (Updates layout state and routes UI action events)
@@ -748,24 +750,37 @@ const rendererProcessor = new MessageProcessor({
 });
 rendererProcessor.processMessages(incomingMessagesFromAgent);
 
-// 2. Agent Usage (Optional helper: validates model output and prepares payloads)
+// 2. Agent Usage (wrapped by the Agent SDK's RendererState)
 const agentProcessor = new MessageProcessor({
-  catalogs: [negotiatedCatalog], // Single negotiated catalog enforces catalog compliance
+  catalogs: negotiatedCatalogs, // The catalogs negotiated for the request
   actionHandler: undefined, // Agent does not render DOM elements or handle clicks
+  // A component may name a child that a later message of the response adds, so
+  // the graph checks wait until the response is complete.
+  validationConfig: {
+    allowDanglingReferences: true,
+    allowMissingRoot: true,
+    allowOrphanComponents: true,
+  },
 });
-// Same entry point as the renderer: the processor is kept for the session, so
-// each payload is checked against the state the previous ones built.
+// Same entry point as the renderer: each payload is checked against the state
+// the previous ones built, for as long as the agent keeps the processor.
 agentProcessor.processMessages(AgentToRendererMessage.parseAll(parsedModelPayload));
+// Once the response is complete, the tree of each surface it touched is checked:
+// the root and every reference. The Agent SDK checks itself that the components
+// the response added are reachable, since an update may leave older ones detached.
+agentProcessor.model
+  .getSurface(surfaceId)
+  ?.componentsModel.validateTopology({...STRICT_VALIDATION, allowOrphanComponents: true});
 ```
 
-| Execution Aspect              | Renderer                                                                                                          | Agent                                                                      |
-| :---------------------------- | :---------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
-| **Architectural Role**        | Processes inbound messages and updates surface state.                                                             | Optional helper for checking and converting outbound messages.             |
-| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.               | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).        |
-| **Entry Point**               | `processMessages` — applies the payload and checks each message against the surface it joins.                     | `processMessages`, under the default strict `ValidationConfig`.            |
-| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                       |
-| **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if model generates payload referencing un-negotiated catalog.        |
-| **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies model-generated payloads and data path references before sending. |
+| Execution Aspect              | Renderer                                                                                                          | Agent                                                                                                  |
+| :---------------------------- | :---------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------- |
+| **Architectural Role**        | Processes inbound messages and updates surface state.                                                             | Mirrors the renderer's surfaces to check outbound messages, inside the Agent SDK's `RendererState`.    |
+| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.               | Passes the catalogs negotiated for the request.                                                        |
+| **Entry Point**               | `processMessages` — applies the payload and checks each message against the surface it joins.                     | `processMessages` with the graph checks deferred, then `validateTopology` once a response is complete. |
+| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                                                   |
+| **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if model generates payload referencing un-negotiated catalog.                                    |
+| **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies model-generated payloads and data path references before sending.                             |
 
 ---
 
