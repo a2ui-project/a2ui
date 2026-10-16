@@ -469,6 +469,10 @@ describe('BASIC_FUNCTIONS', () => {
         const validCases = [
           {input: 'https://example.com', expected: 'https://example.com/'},
           {input: 'http://example.com/path', expected: 'http://example.com/path'},
+          {input: 'mailto:someone@example.com', expected: 'mailto:someone@example.com'},
+          {input: 'MAILTO:someone@example.com', expected: 'mailto:someone@example.com'},
+          {input: 'tel:+15555550100', expected: 'tel:+15555550100'},
+          {input: 'TEL:+15555550100', expected: 'tel:+15555550100'},
           {
             input: 'https://sub.domain.co.uk:8080/p?q=1',
             expected: 'https://sub.domain.co.uk:8080/p?q=1',
