@@ -406,112 +406,22 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   }) =>
       _checkArgs(name, _jsonMap(args), componentId: componentId);
 
-  /// Checks [call], a v1.0 function call written on its own rather than
-  /// nested in a component, such as the `callFunction` of a
-  /// `callRendererFunction`.
+  /// Rejects a field of [call], a v1.0 function call of [catalog], that
+  /// `FunctionCall` does not evaluate: one other than `@call`, `catalogId`,
+  /// `args` and the properties the definition of its function in [catalog]
+  /// declares.
   ///
-  /// The call runs in [catalog] unless its `catalogId` names another, which
-  /// [validatorFor] returns the validator for and which throws for a catalog
-  /// the caller does not hold. The call, and each call nested in its
-  /// arguments, may hold only `@call`, `catalogId`, `args` and the other
-  /// properties its function's definition declares, as `FunctionCall` in
-  /// `common_types.json` allows. The call is checked as [validateFunction]
-  /// checks it, together with the nested calls that run in its catalog. A
-  /// nested call that names another catalog is checked with
-  /// [validateFunctionArgs] on the validator [validatorFor] returns for that
-  /// catalog.
+  /// For a call written on its own, such as the `callFunction` of a
+  /// `callRendererFunction`, which no component schema checks. Its arguments
+  /// are left to [validateFunction] or [validateFunctionArgs].
   ///
-  /// Throws [A2uiValidationError] if a call breaks any of those rules.
-  void validateFunctionCall(
-    Map<String, Object?> call, {
-    required PayloadValidator<ComponentApi, FunctionApi> Function(
-      String catalogId,
-    ) validatorFor,
-  }) {
+  /// Throws [A2uiValidationError] for such a field, or if [call] has no
+  /// string `@call`.
+  void validateFunctionCallFields(Map<Object?, Object?> call) {
     final Object? name = call['@call'];
     if (name is! String) {
       throw A2uiValidationError("A function call has no string '@call'.");
     }
-    _ownerOf(call, name, validatorFor)._validateCall(call, name, validatorFor);
-  }
-
-  /// Checks [call], a call to [name] that runs in [catalog], as
-  /// [validateFunctionCall] does.
-  void _validateCall(
-    Map<String, Object?> call,
-    String name,
-    PayloadValidator<ComponentApi, FunctionApi> Function(String catalogId)
-        validatorFor,
-  ) {
-    final Map<String, Object?> args = _callArgs(call, name);
-    _checkCallKeys(call, name);
-    validateFunction(name, args);
-
-    void visit(Object? node) {
-      switch (node) {
-        case final List<Object?> items:
-          items.forEach(visit);
-        case final Map<Object?, Object?> map:
-          if (map['@call'] case final String nested) {
-            final PayloadValidator<ComponentApi, FunctionApi> owner =
-                _ownerOf(map, nested, validatorFor);
-            owner._checkCallKeys(map, nested);
-            // validateFunction has checked the arguments of a call that runs
-            // in this catalog.
-            if (!identical(owner, this)) {
-              owner.validateFunctionArgs(nested, _callArgs(map, nested));
-            }
-          }
-          map.values.forEach(visit);
-      }
-    }
-
-    args.values.forEach(visit);
-  }
-
-  /// The validator of the catalog [call], a call to [name], runs in: the one
-  /// [validatorFor] returns for the catalog its `catalogId` names, or this
-  /// one for a call that names [catalog] or no catalog, or that calls an `@`
-  /// function, which belongs to no catalog.
-  ///
-  /// Throws [A2uiValidationError] if the call's `catalogId` is not a string.
-  PayloadValidator<ComponentApi, FunctionApi> _ownerOf(
-    Map<Object?, Object?> call,
-    String name,
-    PayloadValidator<ComponentApi, FunctionApi> Function(String catalogId)
-        validatorFor,
-  ) {
-    final Object? catalogId = call['catalogId'];
-    if (catalogId != null && catalogId is! String) {
-      throw A2uiValidationError(
-        "Function call '$name' has a non-string 'catalogId'.",
-      );
-    }
-    if (catalogId is! String ||
-        catalogId == catalog.id ||
-        name.startsWith('@')) {
-      return this;
-    }
-    return validatorFor(catalogId);
-  }
-
-  /// The arguments of [call], a call to [name], or none.
-  static Map<String, Object?> _callArgs(
-    Map<Object?, Object?> call,
-    String name,
-  ) =>
-      switch (call['args']) {
-        null => const <String, Object?>{},
-        final Map<Object?, Object?> map => map.cast<String, Object?>(),
-        _ => throw A2uiValidationError(
-            "Function call '$name' has non-object 'args'.",
-          ),
-      };
-
-  /// Rejects a field of [call], a call to [name], that `FunctionCall` does
-  /// not evaluate: one other than `@call`, `catalogId`, `args` and the
-  /// properties the definition of [name] in [catalog] declares.
-  void _checkCallKeys(Map<Object?, Object?> call, String name) {
     final Object? declared = catalog.functions[name]?.definition?['properties'];
     for (final Object? key in call.keys) {
       if (_functionCallKeys.contains(key) ||

@@ -438,29 +438,39 @@ void main() {
       );
     });
 
-    test('compiles a call only the renderer may make, which a response may '
-        'not hold', () {
+    test('rejects a call only the renderer may make, in compile and as it '
+        'streams', () {
       final String block = jsonBlock([
         callRendererFunction('formatString', {'value': 'Hello'}),
       ]);
-      final Parser parser = const DirectJsonFormatFactory().createFormat([
-        basic,
-      ]).createParser();
-      expect(
-        parser.compile(
-          parser.unwrap(block).whereType<RawA2uiPart>().single.a2uiRaw,
+      Parser parser() =>
+          const DirectJsonFormatFactory().createFormat([basic]).createParser();
+      final Matcher rendererOnly = throwsA(
+        isA<A2uiValidationError>().having(
+          (e) => e.message,
+          'message',
+          contains('rendererOnly'),
         ),
-        [isA<CallRendererFunctionMessage>()],
       );
       expect(
-        () => processor().parseResponse(block),
-        throwsA(
-          isA<A2uiValidationError>().having(
-            (e) => e.message,
-            'message',
-            contains('rendererOnly'),
-          ),
+        () => parser().compile(
+          parser().unwrap(block).whereType<RawA2uiPart>().single.a2uiRaw,
         ),
+        rendererOnly,
+      );
+      expect(() => processor().parseResponse(block), rendererOnly);
+      // The call has closed, but it is never emitted, and the block fails
+      // when it closes.
+      final Parser streaming = parser();
+      expect(
+        streaming
+            .parseChunk(block.substring(0, block.lastIndexOf(']')))
+            .whereType<A2uiPart>(),
+        isEmpty,
+      );
+      expect(
+        () => streaming.parseChunk(block.substring(block.lastIndexOf(']'))),
+        rendererOnly,
       );
     });
 
@@ -514,7 +524,7 @@ void main() {
 
     test('streams a callRendererFunction once, after its object closes', () {
       final Parser parser = const DirectJsonFormatFactory().createFormat([
-        basic,
+        callable,
       ]).createParser();
       // The surface id comes last, so the call reads before it arrives.
       final String response = jsonBlock([
@@ -629,7 +639,7 @@ void main() {
 
   group('direct JSON across catalogs', () {
     Parser parser() => const DirectJsonFormatFactory().createFormat([
-      basic,
+      callable,
       custom,
     ]).createParser();
 
@@ -789,7 +799,7 @@ void main() {
     List<Map<String, Object?>> compile(
       String block, [
       List<CatalogApi>? catalogs,
-    ]) => json(ExpressCompiler(catalogs ?? [basic]).compile(block));
+    ]) => json(ExpressCompiler(catalogs ?? [callable]).compile(block));
 
     test('teaches the catalog', () {
       expect(express().promptSnippet, contains('Text('));
@@ -906,6 +916,22 @@ void main() {
       );
     });
 
+    test('rejects a standalone call only the renderer may make', () {
+      expect(
+        () => const ExpressFormatFactory()
+            .createFormat([basic])
+            .createParser()
+            .compile('formatString("Hello")'),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains('rendererOnly'),
+          ),
+        ),
+      );
+    });
+
     test('numbers standalone calls, unless one names its id', () {
       expect(
         compile(
@@ -978,7 +1004,7 @@ void main() {
     });
 
     test('decompiles a renderer call into a standalone call and back', () {
-      final parser = ExpressParser([basic]);
+      final parser = ExpressParser([callable]);
       final List<AgentToRendererMessage> messages = [
         message({
           'callRendererFunction': {

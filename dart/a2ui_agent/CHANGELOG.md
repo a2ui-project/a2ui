@@ -36,10 +36,11 @@
     written as a statement of its own compiles to `callRendererFunction`.
   - The Express prompt explains how to name a catalog, lists the functions
     the agent may call, and carries each catalog's `instructions`.
-  - `parseResponse` accepts a `callRendererFunction` only to a function
-    whose `allowedCallers` lets the agent call it and that needs no user
-    activation. A parser's `compile` and `parseChunk` check only the call's
-    arguments.
+  - A `callRendererFunction` may call only a function whose `allowedCallers`
+    lets the agent call it and that needs no user activation. `compile`,
+    `parseChunk` and `parseResponse` all check it through `a2ui_core`'s
+    `MessageProcessor.checkRendererFunctionCall`, so a streamed call the
+    renderer would reject is never emitted.
   - The direct JSON parser holds a streamed v1.0 component back until it
     closes; `bufferIncompleteComponents` applies only before v1.0.
 - Exported `ExpressFormat`, `ExpressPromptGenerator`, `ExpressParser`,

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/agent_functions_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance Agent Functions Catalog (v1.0)",
+  "description": "A catalog whose function the agent may call, for the cases that compile a callRendererFunction. The functions of the other fixtures declare no allowedCallers, so only the renderer may call them.",
+  "catalogId": "conformance/agent_functions",
+  "components": {},
+  "functions": {
+    "notify": {
+      "type": "object",
+      "description": "Shows the user a short message.",
+      "returnType": "void",
+      "allowedCallers": "rendererOrAgent",
+      "properties": {
+        "@call": {
+          "const": "notify"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "$ref": "common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": [
+            "message"
+          ],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ]
+    }
+  },
+  "$defs": {
+    "anyFunction": {
+      "oneOf": [
+        {
+          "$ref": "#/functions/notify"
+        }
+      ]
+    }
+  }
+}

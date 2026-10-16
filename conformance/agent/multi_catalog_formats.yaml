@@ -238,18 +238,18 @@
     format: express
     catalogs:
       - "test_data/catalogs/simplified_catalog_v1_0.json"
-      - "test_data/catalogs/custom_catalog_v1_0.json"
+      - "test_data/catalogs/agent_functions_catalog_v1_0.json"
   input: |
-    percent(75, catalogId="conformance/custom")
+    notify("Saved", catalogId="conformance/agent_functions")
   expect:
     - version: "v1.0"
       callRendererFunction:
         functionCallId: "call_1"
         callFunction:
-          catalogId: "conformance/custom"
-          "@call": "percent"
+          catalogId: "conformance/agent_functions"
+          "@call": "notify"
           args:
-            value: 75
+            message: "Saved"
 
 - name: test_express_compile_unknown_component_catalog_override_fails
   description: A component with a catalogId override naming an unregistered catalog fails validation.

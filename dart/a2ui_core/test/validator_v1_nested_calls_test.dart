@@ -686,92 +686,39 @@ void main() {
     });
   });
 
-  group('PayloadValidator v1.0 validateFunctionCall', () {
-    final extra = PayloadValidator<ComponentApi, FunctionApi>(
-      catalog: Catalog<ComponentApi, FunctionApi>(
-        id: 'extra',
-        components: [ComponentApi(name: 'Box', schema: Schema.object())],
-        functions: [_ShoutFunction()],
-      ),
-      protocolVersion: A2uiProtocolVersion.v1_0,
-      commonTypesSchema: commonTypes,
-    );
-    PayloadValidator<ComponentApi, FunctionApi> held(String id) => id == 'extra'
-        ? extra
-        : throw A2uiValidationError("Catalog '$id' is not held.");
-
-    test('rejects a non-string catalogId on the call', () {
+  group('PayloadValidator v1.0 validateFunctionCallFields', () {
+    test('accepts the fields FunctionCall allows', () {
       expect(
-        () => validator().validateFunctionCall({
+        () => validator().validateFunctionCallFields({
           '@call': 'formatString',
-          'catalogId': 123,
-          'args': {'value': 'hi'},
-        }, validatorFor: held),
-        throwsA(
-          isA<A2uiValidationError>().having(
-            (e) => e.message,
-            'message',
-            contains("non-string 'catalogId'"),
-          ),
-        ),
-      );
-    });
-
-    test('checks a call naming another catalog against that catalog', () {
-      expect(
-        () => validator().validateFunctionCall({
-          '@call': 'shout',
-          'catalogId': 'extra',
-          'args': {'value': 'hi'},
-        }, validatorFor: held),
+          'catalogId': 'elsewhere',
+          'args': {'value': 3},
+        }),
         returnsNormally,
       );
+    });
+
+    test('rejects a field FunctionCall does not allow', () {
       expect(
-        () => validator().validateFunctionCall({
-          '@call': 'shout',
-          'catalogId': 'extra',
-          'args': {'value': 3},
-        }, validatorFor: held),
-        throwsA(
-          isA<A2uiValidationError>().having(
-            (e) => e.message,
-            'message',
-            contains("catalog 'extra'"),
-          ),
-        ),
-      );
-      expect(
-        () => validator().validateFunctionCall({
-          '@call': 'shout',
-          'catalogId': 'missing',
+        () => validator().validateFunctionCallFields({
+          '@call': 'formatString',
           'args': {'value': 'hi'},
-        }, validatorFor: held),
+          'unknown': 1,
+        }),
         throwsA(
           isA<A2uiValidationError>().having(
             (e) => e.message,
             'message',
-            contains("'missing' is not held"),
+            contains("no field 'unknown'"),
           ),
         ),
       );
     });
 
-    test('checks the calls nested in a routed call against its catalog', () {
+    test('rejects a call with no string @call', () {
       expect(
-        () => validator().validateFunctionCall({
-          '@call': 'shout',
-          'catalogId': 'extra',
-          'args': {
-            'value': {'@call': 'formatString'},
-          },
-        }, validatorFor: held),
-        throwsA(
-          isA<A2uiValidationError>().having(
-            (e) => e.message,
-            'message',
-            contains("'formatString'"),
-          ),
-        ),
+        () => validator().validateFunctionCallFields({'@call': 3}),
+        throwsA(isA<A2uiValidationError>()),
       );
     });
   });

@@ -25,50 +25,77 @@ import 'package:a2ui_core/a2ui_core.dart';
 /// messages are left to `MessageReader`, as are function calls and
 /// responses, which a renderer answers rather than applies.
 ///
-/// [finish] then checks each created surface whole: it has a root, no
-/// reference to a missing component, and nothing the root does not reach.
+/// [check] then checks each created surface of a whole payload: it has a
+/// root, no reference to a missing component, and nothing the root does not
+/// reach.
 class PayloadChecker {
-  /// A checker for messages of the protocol version [catalogs] target.
+  /// A checker of a payload still arriving, for messages of the protocol
+  /// version [catalogs] target.
   ///
-  /// When [created] holds the surfaces the whole payload creates, a message
-  /// for one of them that comes before its `createSurface` throws. A checker
-  /// of a payload still arriving is given none, and skips such a message,
-  /// since a renderer would see it only once the payload is whole.
-  PayloadChecker(
+  /// It skips a message for a surface before the surface's `createSurface`,
+  /// since a renderer would see the message only once the payload is whole.
+  PayloadChecker(List<CatalogApi> catalogs, A2uiProtocolVersion version)
+    : this._(catalogs, version, const {});
+
+  PayloadChecker._(
     List<CatalogApi> catalogs,
-    A2uiProtocolVersion version, {
-    this.created = const {},
-  }) : _processor = MessageProcessor.forAgent(
-         catalogs: catalogs,
-         defaultVersion: version,
-         // A surface may arrive across several messages, so the checks that
-         // span them wait for finish.
-         validationConfig: const ValidationConfig(
-           allowOrphanComponents: true,
-           allowDanglingReferences: true,
-           allowMissingRoot: true,
-         ),
-       );
+    A2uiProtocolVersion version,
+    this._created,
+  ) : _processor = MessageProcessor.forAgent(
+        catalogs: catalogs,
+        defaultVersion: version,
+        // A surface may arrive across several messages, so the checks that
+        // span them wait for finish.
+        validationConfig: const ValidationConfig(
+          allowOrphanComponents: true,
+          allowDanglingReferences: true,
+          allowMissingRoot: true,
+        ),
+      );
+
+  /// Checks [messages], a whole payload of the protocol version [catalogs]
+  /// target, as a renderer holding [catalogs] would apply them.
+  ///
+  /// Throws [A2uiIntegrityError] for a message that comes before the
+  /// `createSurface` of its surface, or for a created surface with no root,
+  /// a reference to a component it does not hold, or a component the root
+  /// does not reach, and otherwise the [A2uiError] a renderer would report
+  /// for the first message it rejects.
+  static void check(
+    List<CatalogApi> catalogs,
+    A2uiProtocolVersion version,
+    List<AgentToRendererMessage> messages,
+  ) {
+    final checker = PayloadChecker._(catalogs, version, {
+      for (final CreateSurfaceMessage message
+          in messages.whereType<CreateSurfaceMessage>())
+        message.surfaceId,
+    });
+    try {
+      messages.forEach(checker.add);
+      for (final String surfaceId in checker._created) {
+        checker._processor.model
+            .getSurface(surfaceId)
+            ?.componentsModel
+            .validateTopology(ValidationConfig.strict);
+      }
+    } finally {
+      checker.dispose();
+    }
+  }
 
   /// The surfaces the whole payload creates, or none for a payload still
   /// arriving.
-  final Set<String> created;
+  final Set<String> _created;
 
   final MessageProcessor<ComponentApi> _processor;
-
-  /// The surfaces of [messages] that a `createSurface` among them creates.
-  static Set<String> createdBy(Iterable<AgentToRendererMessage> messages) => {
-    for (final CreateSurfaceMessage message
-        in messages.whereType<CreateSurfaceMessage>())
-      message.surfaceId,
-  };
 
   /// Applies [message] if it is for a surface this payload has created.
   ///
   /// Throws [A2uiIntegrityError] for a message other than a `deleteSurface`
-  /// for a surface in [created] that comes before its `createSurface`, and
-  /// otherwise the [A2uiError] a
-  /// renderer would report for the message.
+  /// that comes before the `createSurface` of a surface the whole payload
+  /// creates, and otherwise the [A2uiError] a renderer would report for the
+  /// message.
   void add(AgentToRendererMessage message) {
     final String? surfaceId = switch (message) {
       CreateSurfaceMessage(:final String surfaceId) ||
@@ -82,7 +109,7 @@ class PayloadChecker {
         _processor.model.getSurface(surfaceId) == null) {
       // Deleting a surface that does not exist does nothing, as a renderer
       // treats it.
-      if (created.contains(surfaceId) && message is! DeleteSurfaceMessage) {
+      if (_created.contains(surfaceId) && message is! DeleteSurfaceMessage) {
         throw A2uiIntegrityError(
           "A message for surface '$surfaceId' comes before the createSurface "
           'that creates it.',
@@ -93,24 +120,6 @@ class PayloadChecker {
     _processor.processMessages([message]);
   }
 
-  /// Checks that each surface in [created] is complete, and releases the
-  /// surfaces.
-  ///
-  /// Throws [A2uiIntegrityError] for a surface with no root, a reference to
-  /// a component it does not hold, or a component the root does not reach.
-  void finish() {
-    try {
-      for (final String surfaceId in created) {
-        _processor.model
-            .getSurface(surfaceId)
-            ?.componentsModel
-            .validateTopology(ValidationConfig.strict);
-      }
-    } finally {
-      dispose();
-    }
-  }
-
-  /// Releases the surfaces, without the checks of [finish].
+  /// Releases the surfaces.
   void dispose() => _processor.model.dispose();
 }

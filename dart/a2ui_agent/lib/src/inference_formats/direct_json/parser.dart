@@ -200,18 +200,7 @@ class DirectJsonParser extends Parser {
       for (final Object? envelope in decoded is List ? decoded : [decoded])
         reader.read(envelope, surfaces),
     ];
-    final checker = PayloadChecker(
-      reader.catalogs,
-      reader.version,
-      created: PayloadChecker.createdBy(messages),
-    );
-    try {
-      messages.forEach(checker.add);
-    } on Object {
-      checker.dispose();
-      rethrow;
-    }
-    checker.finish();
+    PayloadChecker.check(reader.catalogs, reader.version, messages);
     return messages;
   }
 

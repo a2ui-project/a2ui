@@ -71,27 +71,22 @@ List<PartialMessage> readPartialMessages(
   int start = 0,
   int? end,
 }) {
+  List<PartialMessage> read(String text, _ReadState? state) => _Reader(
+    text,
+    progressiveKeys,
+    wholeItemKeys,
+    state,
+    start,
+    end,
+  ).messages();
+
   try {
-    return _Reader(
-      text,
-      progressiveKeys,
-      wholeItemKeys,
-      cache?._plain,
-      start,
-      end,
-    ).messages();
+    return read(text, cache?._plain);
   } on FormatException {
     final String straight = _straightenQuotes(text);
     if (straight == text) return const [];
     try {
-      return _Reader(
-        straight,
-        progressiveKeys,
-        wholeItemKeys,
-        cache?._straight,
-        start,
-        end,
-      ).messages();
+      return read(straight, cache?._straight);
     } on FormatException {
       return const [];
     }

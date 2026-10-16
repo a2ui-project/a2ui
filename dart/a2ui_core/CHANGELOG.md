@@ -36,9 +36,11 @@
   `ValidationConfig.strict` by default. It checks a `callRendererFunction`
   instead of running it, and throws `A2uiValidationError` where a renderer
   would answer it with an error.
-- Added `PayloadValidator.validateFunctionCall`, which checks a function call
-  written on its own and the calls nested in it, and made
-  `PayloadValidator.validateFunctionArgs` public.
+- Added `MessageProcessor.checkRendererFunctionCall`, which checks a
+  `callRendererFunction` as `forAgent` does without looking up its surface,
+  for an agent that checks a call on its own, such as one it streams.
+- Added `PayloadValidator.validateFunctionCallFields`, which rejects a field
+  that `FunctionCall` does not allow on a call written on its own.
 - Exported `checkDuplicateComponentIds`, the check `MessageProcessor` runs on
   each batch of components, for an agent that checks one message's
   components in several batches as they stream. Its `earlier` argument

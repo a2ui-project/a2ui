@@ -55,11 +55,10 @@ What v1.0 adds to both formats:
   describes. In Express, a name that several catalogs declare takes a
   `catalogId` argument.
 - A `callRendererFunction` asks the renderer to run a function.
-  `processor.parseResponse` accepts a call only to a function whose
-  `allowedCallers` lets the agent call it and that needs no user activation,
-  as `a2ui_core`'s `MessageProcessor.forAgent` checks. A parser's `compile`
-  and `parseChunk` check only the call's arguments, so check a streamed call
-  before delivering it. In Express it is a
+  A parser and `processor.parseResponse` accept a call only to a function
+  whose `allowedCallers` lets the agent call it and that needs no user
+  activation, as `a2ui_core`'s `MessageProcessor.forAgent` checks, so
+  `parseChunk` never emits a call the renderer would reject. In Express it is a
   function call written as a statement of its own, and the prompt names the
   functions that can be called this way.
 - The direct JSON parser holds a streamed component back until its object

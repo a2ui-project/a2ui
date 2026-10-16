@@ -281,6 +281,63 @@ void main() {
       );
     });
 
+    group('checkRendererFunctionCall', () {
+      CallRendererFunctionMessage message(Map<String, Object?> json) =>
+          AgentToRendererMessage.parseAll(
+            [json],
+            protocolVersion: A2uiProtocolVersion.v1_0,
+          ).messages.single as CallRendererFunctionMessage;
+
+      test('accepts a call on a surface the processor does not hold', () {
+        forAgent(catalogs: [callable]).checkRendererFunctionCall(
+          message({
+            'version': 'v1.0',
+            'callRendererFunction': {
+              'surfaceId': 'earlier',
+              'functionCallId': 'call_1',
+              'callFunction': {
+                'catalogId': catalog.id,
+                '@call': 'formatString',
+                'args': {'value': 'Hello'},
+              },
+            },
+          }),
+        );
+      });
+
+      test('rejects a call to a function only the renderer may call', () {
+        expect(
+          () => forAgent().checkRendererFunctionCall(message(formatHello)),
+          throwsA(
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              contains('rendererOnly'),
+            ),
+          ),
+        );
+      });
+
+      test('rejects a call needing a user activation without one', () {
+        final MessageProcessor<ComponentApi> processor = forAgent(
+          catalogs: [
+            declaring('openUrl', {'allowedCallers': 'rendererOrAgent'}),
+          ],
+        );
+        final CallRendererFunctionMessage openUrl = message(
+          callRendererFunction({
+            '@call': 'openUrl',
+            'args': {'url': 'https://example.com'},
+          }),
+        );
+        expect(
+          () => processor.checkRendererFunctionCall(openUrl),
+          throwsA(isA<A2uiValidationError>()),
+        );
+        processor.checkRendererFunctionCall(openUrl, isUserActivated: true);
+      });
+    });
+
     test('rejects a field a function call does not have', () {
       expect(
         () => forAgent(catalogs: [callable]).processMessages([
@@ -339,6 +396,78 @@ void main() {
             }),
           ]),
           throwsA(isA<A2uiValidationError>()),
+        );
+      });
+
+      test('runs one naming no catalog in the catalog of the call', () {
+        final CatalogApi shouting = Catalog.fromJson({
+          ...document,
+          r'$id': 'https://example.com/shouting.json',
+          'catalogId': 'example/shouting',
+          'functions': {
+            ...document['functions']! as Map<String, Object?>,
+            'shout': {
+              'type': 'object',
+              'allowedCallers': 'rendererOrAgent',
+              'properties': {
+                '@call': {'const': 'shout'},
+                'args': {
+                  'type': 'object',
+                  'properties': {
+                    'value': {
+                      r'$ref': r'common_types.json#/$defs/DynamicString'
+                    },
+                  },
+                  'required': ['value'],
+                },
+              },
+              'returnType': 'string',
+            },
+          },
+          r'$defs': {
+            ...document[r'$defs']! as Map<String, Object?>,
+            'anyFunction': {
+              'oneOf': [
+                {r'$ref': '#/functions/formatString'},
+                {r'$ref': '#/functions/shout'},
+              ],
+            },
+          },
+        });
+        Map<String, Object?> shoutingNested(Map<String, Object?> nested) => {
+              'version': 'v1.0',
+              'callRendererFunction': {
+                'functionCallId': 'call_1',
+                'callFunction': {
+                  'catalogId': shouting.id,
+                  '@call': 'shout',
+                  'args': {'value': nested},
+                },
+              },
+            };
+        final MessageProcessor<ComponentApi> processor = forAgent(
+          catalogs: [callable, shouting],
+        );
+        processor.processMessages([
+          shoutingNested({
+            '@call': 'shout',
+            'args': {'value': 'Hello'},
+          }),
+        ]);
+        expect(
+          () => processor.processMessages([
+            nesting({
+              '@call': 'shout',
+              'args': {'value': 'Hello'},
+            }),
+          ]),
+          throwsA(
+            isA<A2uiValidationError>().having(
+              (e) => e.message,
+              'message',
+              contains("'shout'"),
+            ),
+          ),
         );
       });
 

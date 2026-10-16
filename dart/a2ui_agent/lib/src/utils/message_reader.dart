@@ -16,15 +16,6 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 import 'catalogs.dart';
 
-/// The fields each v0.9 message body may carry, from `server_to_client.json`,
-/// which closes both the envelope and the body.
-const Map<String, Set<String>> _bodyFields = {
-  'createSurface': {'surfaceId', 'catalogId', 'theme', 'sendDataModel'},
-  'updateComponents': {'surfaceId', 'components'},
-  'updateDataModel': {'surfaceId', 'path', 'value'},
-  'deleteSurface': {'surfaceId'},
-};
-
 /// The keys of a component that are not its properties, so that no function
 /// call is nested in them.
 const Set<String> _envelopeKeys = {'id', 'component', 'catalogId', 'metadata'};
@@ -69,6 +60,14 @@ class MessageReader {
       catalog.id: PayloadValidator(catalog: catalog),
   };
 
+  /// Checks each `callRendererFunction` as a renderer holding [catalogs]
+  /// would, the function's `allowedCallers` included. It holds no surface,
+  /// so the surface a call names is not looked up.
+  late final MessageProcessor<ComponentApi> _calls = MessageProcessor.forAgent(
+    catalogs: catalogs,
+    defaultVersion: version,
+  );
+
   /// Reads [envelope], the next message of a payload.
   ///
   /// [surfaces] maps each surface the payload created so far to its catalog
@@ -90,7 +89,6 @@ class MessageReader {
     if (_v1) {
       _checkV1(message, surfaces);
     } else {
-      _checkFields(envelope);
       _checkV0_9(message, surfaces);
     }
     return message;
@@ -101,30 +99,19 @@ class MessageReader {
     Map<String, String?> surfaces,
   ) {
     switch (message) {
-      case CreateSurfaceMessage():
-        final String catalogId =
-            message.catalogId ??
-            (throw A2uiValidationError(
-              "Surface '${message.surfaceId}' names no catalogId.",
-            ));
+      case CreateSurfaceMessage(:final String surfaceId, :final catalogId?):
         _validator(
           catalogId,
-          "Surface '${message.surfaceId}'",
+          "Surface '$surfaceId'",
         ).validateTheme(message.theme);
-        surfaces[message.surfaceId] = catalogId;
+        surfaces[surfaceId] = catalogId;
       case UpdateComponentsMessage():
-        if (message.components.isEmpty) {
-          throw A2uiValidationError(
-            "The update of surface '${message.surfaceId}' has no components.",
-          );
-        }
         for (final Map<String, Object?> component in message.components) {
           final PayloadValidator<ComponentApi, FunctionApi> validator =
               _validators[surfaces[message.surfaceId] ??
                   _declaring(component['component'], components: true) ??
                   catalogs.first.id]!;
           validator.validateComponent(component);
-          _checkCalls(component, validator);
         }
       case DeleteSurfaceMessage():
         surfaces.remove(message.surfaceId);
@@ -149,16 +136,8 @@ class MessageReader {
         }
       case DeleteSurfaceMessage():
         surfaces.remove(message.surfaceId);
-      case CallRendererFunctionMessage(:final callFunction):
-        final Object? name = callFunction['@call'];
-        _validator(
-          callFunction['catalogId']! as String,
-          "Function call '$name'",
-        ).validateFunctionCall(
-          callFunction,
-          validatorFor: (String id) =>
-              _validator(id, "A call nested in function call '$name'"),
-        );
+      case CallRendererFunctionMessage():
+        _calls.checkRendererFunctionCall(message);
       default:
         break;
     }
@@ -270,57 +249,3 @@ Map<String, Object?> _args(Map<Object?, Object?> call) =>
         "The 'args' of a call to '${call['@call']}' must be an object.",
       ),
     };
-
-/// Rejects a field the envelope or its body does not declare.
-void _checkFields(Map<String, Object?> envelope) {
-  final String type = envelope.keys.firstWhere(_bodyFields.containsKey);
-  for (final String key in envelope.keys) {
-    if (key != 'version' && key != type) {
-      throw A2uiValidationError("A '$type' message has no field '$key'.");
-    }
-  }
-  final Set<String> allowed = _bodyFields[type]!;
-  for (final Object? key in (envelope[type]! as Map).keys) {
-    if (!allowed.contains(key)) {
-      throw A2uiValidationError(
-        "A '$type' message has no field '$type.$key'. Its fields are: "
-        '${allowed.join(', ')}.',
-      );
-    }
-  }
-}
-
-/// Checks each v0.9 function call in [value] against the catalog of
-/// [validator].
-void _checkCalls(
-  Object? value,
-  PayloadValidator<ComponentApi, FunctionApi> validator,
-) {
-  switch (value) {
-    case {'call': final String name}:
-      if (!validator.catalog.functions.containsKey(name)) {
-        throw A2uiValidationError(
-          "Catalog '${validator.catalog.id}' declares no function named "
-          "'$name'.",
-        );
-      }
-      final Object args = value['args'] ?? const <String, Object?>{};
-      if (args is! Map<String, Object?>) {
-        throw A2uiValidationError(
-          "The 'args' of a call to '$name' must be an object.",
-        );
-      }
-      validator.validateFunction(name, args);
-      for (final Object? arg in args.values) {
-        _checkCalls(arg, validator);
-      }
-    case Map():
-      for (final Object? child in value.values) {
-        _checkCalls(child, validator);
-      }
-    case List():
-      for (final Object? child in value) {
-        _checkCalls(child, validator);
-      }
-  }
-}
