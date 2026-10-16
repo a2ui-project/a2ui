@@ -437,36 +437,31 @@
   {
     "dataModelUpdate": {
       "surfaceId": "org-chart-view",
-      "path": "/",
+      "path": "/hierarchy",
       "contents": [
         {
-          "key": "hierarchy",
+          "key": "0",
           "valueMap": [
             {
-              "key": "0",
-              "valueMap": [
-                {
-                  "key": "title",
-                  "valueString": "CEO"
-                },
-                {
-                  "key": "name",
-                  "valueString": "Jane Doe"
-                }
-              ]
+              "key": "title",
+              "valueString": "CEO"
             },
             {
-              "key": "1",
-              "valueMap": [
-                {
-                  "key": "title",
-                  "valueString": "VP Marketing"
-                },
-                {
-                  "key": "name",
-                  "valueString": "John Smith"
-                }
-              ]
+              "key": "name",
+              "valueString": "Jane Doe"
+            }
+          ]
+        },
+        {
+          "key": "1",
+          "valueMap": [
+            {
+              "key": "title",
+              "valueString": "VP Marketing"
+            },
+            {
+              "key": "name",
+              "valueString": "John Smith"
             }
           ]
         }

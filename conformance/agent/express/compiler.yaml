@@ -920,12 +920,12 @@
     category: "ValidationError"
 
 - name: test_compile_express_binding_a_static_property_is_a_validation_error
-  description: A path given to a property typed as a plain string is a validation error, because a renderer reading that property will not resolve it. Only a property typed DynamicString admits a binding.
+  description: A path given to a property with a static type, such as a plain number, is a validation error, because a renderer reading that property will not resolve it. Only a dynamic type, such as DynamicString or DynamicNumber, admits a binding.
   action: compile
   args:
     format: express
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
-  input: "root = Chart([1, 2], $/caption)"
+  input: "root = Gauge($/value)"
   expect_error:
     category: "ValidationError"
 

@@ -22,6 +22,10 @@
     carry a leading "v" (`"v0.9"`); `a2ui.utils.to_version_number` returns the
     bare form (`"0.9"`) for paths and URIs.
   - The `SPECIFICATION_DIR` constant is removed.
+- `resolve_catalogs` and `A2uiGenerator.create_processor` read v0.8
+  capabilities in the shape the v0.8 specification defines, the entry itself
+  (`{"supportedCatalogIds": [...]}`), as well as keyed by `"v0.8"`. From v0.9
+  the capabilities must be keyed by protocol version.
 - **BREAKING**: Move `a2ui.inference_formats.experimental.express` to
   `a2ui.inference_formats.express`.
 - `ExpressCompiler`: a variable holding a function call that names its
