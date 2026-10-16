@@ -217,22 +217,22 @@ public final class PayloadValidator: Sendable {
     let schemaErrors = validationResult.errors ?? []
     var leafErrors: [JSONSchema.ValidationError] = []
     for schemaError in schemaErrors {
-      if config.allowUnknownElements {
-        leafErrors.append(
-          contentsOf: Self.leafErrorsIgnoringUnknownProperties(
-            from: schemaError,
-            componentSchema: componentAPI.schema.jsonValue
-          )
-        )
-      } else {
+      guard config.allowUnknownElements else {
         leafErrors.append(contentsOf: extractLeafErrors(from: schemaError))
+        continue
       }
+      leafErrors.append(
+        contentsOf: Self.leafErrorsIgnoringUnknownProperties(
+          from: schemaError,
+          componentSchema: componentAPI.schema.jsonValue
+        )
+      )
     }
     // With allowUnknownElements, a component whose only schema errors name unknown properties
     // is accepted.
     let onlyUnknownProperties =
       config.allowUnknownElements && !schemaErrors.isEmpty && leafErrors.isEmpty
-    if !validationResult.isValid && !onlyUnknownProperties {
+    if !validationResult.isValid, !onlyUnknownProperties {
       let leafMessages = leafErrors.map(\.message)
       let errorMessage =
         leafMessages.isEmpty
@@ -713,7 +713,7 @@ public final class PayloadValidator: Sendable {
     from error: JSONSchema.ValidationError,
     componentSchema: JSONValue
   ) -> [JSONSchema.ValidationError] {
-    if isUnknownPropertyError(error, componentSchema: componentSchema) {
+    guard !isUnknownPropertyError(error, componentSchema: componentSchema) else {
       return []
     }
     if let nested = error.errors, !nested.isEmpty {

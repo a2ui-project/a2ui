@@ -262,5 +262,4 @@ struct PayloadValidatorCatalogScopeTests {
       )
     }
   }
-
 }
