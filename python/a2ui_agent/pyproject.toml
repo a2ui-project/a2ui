@@ -30,6 +30,12 @@ dependencies = [
   "pyyaml>=6.0"
 ]
 
+[project.urls]
+Homepage = "https://a2ui.org/"
+Repository = "https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_agent"
+Changelog = "https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_agent/CHANGELOG.md"
+Issues = "https://github.com/a2ui-project/a2ui/issues"
+
 [project.scripts]
 pyink = "pyink:patched_main"
 
