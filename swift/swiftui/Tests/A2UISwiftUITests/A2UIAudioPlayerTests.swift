@@ -32,7 +32,7 @@ struct A2UIAudioPlayerTests {
       ]
     )
 
-    let view = A2UIAudioPlayer(node: node)
+    let view = A2UIAudioPlayer(componentNode: ComponentNode(node: node))
     #expect(node.string(for: "url") == "https://example.com/podcast.mp3")
     #expect(node.string(for: "description") == "Episode 1: Introduction")
     _ = view.body
@@ -47,7 +47,7 @@ struct A2UIAudioPlayerTests {
       ]
     )
 
-    let view = A2UIAudioPlayer(node: node)
+    let view = A2UIAudioPlayer(componentNode: ComponentNode(node: node))
     _ = view.body
   }
 
@@ -63,7 +63,8 @@ struct A2UIAudioPlayerTests {
       ]
     )
 
-    let rendered = Surface.render(node: node, using: [catalog.id: catalog])
+    let rendered = Surface.render(
+      componentNode: ComponentNode(node: node), using: [catalog.id: catalog])
     #expect(rendered != nil)
   }
 }

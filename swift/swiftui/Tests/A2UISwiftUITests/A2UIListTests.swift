@@ -35,7 +35,7 @@ struct A2UIListTests {
       ]
     )
 
-    let view = A2UIList(node: node)
+    let view = A2UIList(componentNode: ComponentNode(node: node))
     #expect(node.string(for: "direction") == "vertical")
     #expect(node.string(for: "align") == "center")
     #expect(node.children(for: "children").count == 2)
@@ -54,7 +54,7 @@ struct A2UIListTests {
       ]
     )
 
-    let view = A2UIList(node: node)
+    let view = A2UIList(componentNode: ComponentNode(node: node))
     #expect(node.string(for: "direction") == "horizontal")
     #expect(node.string(for: "align") == "start")
     _ = view.body
@@ -74,7 +74,8 @@ struct A2UIListTests {
       ]
     )
 
-    let rendered = Surface.render(node: node, using: [catalog.id: catalog])
+    let rendered = Surface.render(
+      componentNode: ComponentNode(node: node), using: [catalog.id: catalog])
     #expect(rendered != nil)
   }
 }

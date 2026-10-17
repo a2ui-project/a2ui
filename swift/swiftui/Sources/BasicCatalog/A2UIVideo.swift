@@ -23,8 +23,8 @@ import SwiftUI
 
 @MainActor
 extension BasicCatalogImplementation {
-  public static let video = ComponentImplementation(api: BasicCatalogComponents.video) { node in
-    A2UIVideo(node: node)
+  public static let video = ComponentImplementation(api: BasicCatalogComponents.video) {
+    A2UIVideo(componentNode: $0)
   }
 }
 
@@ -32,13 +32,17 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `Video` component.
 public struct A2UIVideo: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
+
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
+  }
   @State private var player: AVPlayer?
   @State private var isShowingPoster: Bool = true
-
-  public init(node: Node) {
-    self.node = node
-  }
 
   private var urlString: String {
     node.string(for: "url") ?? ""

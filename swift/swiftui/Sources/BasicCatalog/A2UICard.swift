@@ -22,8 +22,8 @@ import SwiftUI
 
 @MainActor
 extension BasicCatalogImplementation {
-  public static let card = ComponentImplementation(api: BasicCatalogComponents.card) { node in
-    A2UICard(node: node)
+  public static let card = ComponentImplementation(api: BasicCatalogComponents.card) {
+    A2UICard(componentNode: $0)
   }
 }
 
@@ -31,10 +31,14 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `Card` container component.
 public struct A2UICard: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
 
-  public init(node: Node) {
-    self.node = node
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
   }
 
   private var childNode: Node? {
@@ -44,7 +48,7 @@ public struct A2UICard: View {
   public var body: some View {
     VStack(alignment: .leading, spacing: 0) {
       if let childNode {
-        ComponentNodeView(node: childNode)
+        ComponentNodeView(componentNode: .child(for: childNode, in: componentNode))
       }
     }
     .padding(16)

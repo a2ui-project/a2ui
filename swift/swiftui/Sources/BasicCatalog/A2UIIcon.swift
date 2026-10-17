@@ -22,8 +22,8 @@ import SwiftUI
 
 @MainActor
 extension BasicCatalogImplementation {
-  public static let icon = ComponentImplementation(api: BasicCatalogComponents.icon) { node in
-    A2UIIcon(node: node)
+  public static let icon = ComponentImplementation(api: BasicCatalogComponents.icon) {
+    A2UIIcon(componentNode: $0)
   }
 }
 
@@ -253,10 +253,14 @@ public enum SVGPathParser {
 
 /// SwiftUI component view for the A2UI Basic Catalog `Icon` component.
 public struct A2UIIcon: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
 
-  public init(node: Node) {
-    self.node = node
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
   }
 
   public enum IconSource: Equatable {

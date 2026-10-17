@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import A2UICore
+import Combine
 import SwiftUI
 
 /// The root SwiftUI view for a single A2UI surface.
@@ -59,14 +60,11 @@ public struct Surface: View {
   }
 
   public var body: some View {
-    if let rootNode = viewModel.rootNode {
-      ComponentNodeView(node: rootNode)
-        .environment(\.a2uiTheme, viewModel.theme)
-        .environment(\.a2uiCatalogs, catalogs)
-        .environment(\.a2uiDefaultCatalogID, defaultCatalogID)
-    } else {
-      ProgressView()
-    }
+    SurfaceContent(viewModel: viewModel)
+      .id(ObjectIdentifier(viewModel))
+      .environment(\.a2uiTheme, viewModel.theme)
+      .environment(\.a2uiCatalogs, catalogs)
+      .environment(\.a2uiDefaultCatalogID, defaultCatalogID)
   }
 }
 
@@ -74,31 +72,74 @@ extension Surface {
   /// Resolves the view builder for a node from available component catalogs and invokes it to render.
   ///
   /// - Parameters:
-  ///   - node: The resolved engine node to render.
+  ///   - componentNode: The view model of the component to render.
   ///   - catalogs: The dictionary of available component catalogs.
   ///   - defaultCatalogID: The fallback default catalog ID if the node has no catalog ID.
   /// - Returns: The rendered `AnyView`, or `nil` if no corresponding view builder was found.
   public static func render(
-    node: Node,
+    componentNode: ComponentNode,
     using catalogs: [String: Catalog<ComponentImplementation>],
     defaultCatalogID: String? = nil
   ) -> AnyView? {
-    if let catalogID = node.catalogID, let catalog = catalogs[catalogID],
-      let component = catalog.components[node.type]
+    if let catalogID = componentNode.node.catalogID, let catalog = catalogs[catalogID],
+      let component = catalog.components[componentNode.node.type]
     {
-      return component.builder(node)
+      return component.builder(componentNode)
     }
-    let targetCatalogID = node.catalogID ?? defaultCatalogID
+    let targetCatalogID = componentNode.node.catalogID ?? defaultCatalogID
     if let targetCatalogID, let catalog = catalogs[targetCatalogID],
-      let component = catalog.components[node.type]
+      let component = catalog.components[componentNode.node.type]
     {
-      return component.builder(node)
+      return component.builder(componentNode)
     }
     for catalog in catalogs.values {
-      if let component = catalog.components[node.type] {
-        return component.builder(node)
+      if let component = catalog.components[componentNode.node.type] {
+        return component.builder(componentNode)
       }
     }
     return nil
+  }
+}
+
+/// Renders the root view model of a surface.
+private struct SurfaceContent: View {
+  @StateObject private var root: SurfaceRoot
+
+  init(viewModel: SurfaceViewModel) {
+    _root = StateObject(wrappedValue: SurfaceRoot(viewModel: viewModel))
+  }
+
+  var body: some View {
+    if let componentNode = root.componentNode {
+      ComponentNodeView(componentNode: componentNode)
+    } else {
+      ProgressView()
+    }
+  }
+}
+
+/// Holds the root view model of a surface and passes it every root node the surface publishes.
+@MainActor
+private final class SurfaceRoot: ObservableObject {
+  @Published private(set) var componentNode: ComponentNode?
+
+  private var cancellable: AnyCancellable?
+
+  init(viewModel: SurfaceViewModel) {
+    cancellable = viewModel.$rootNode.sink { [weak self] rootNode in
+      self?.update(rootNode)
+    }
+  }
+
+  private func update(_ rootNode: Node?) {
+    guard let rootNode else {
+      componentNode = nil
+      return
+    }
+    if let componentNode, componentNode.id == rootNode.id {
+      componentNode.update(rootNode)
+    } else {
+      componentNode = ComponentNode(node: rootNode)
+    }
   }
 }

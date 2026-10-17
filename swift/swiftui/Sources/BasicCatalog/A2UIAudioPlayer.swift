@@ -25,8 +25,8 @@ import SwiftUI
 extension BasicCatalogImplementation {
   public static let audioPlayer = ComponentImplementation(
     api: BasicCatalogComponents.audioPlayer
-  ) { node in
-    A2UIAudioPlayer(node: node)
+  ) {
+    A2UIAudioPlayer(componentNode: $0)
   }
 }
 
@@ -152,12 +152,16 @@ final class AudioPlayerModel: ObservableObject {
 
 /// SwiftUI component view for the A2UI Basic Catalog `AudioPlayer` component.
 public struct A2UIAudioPlayer: View {
-  public let node: Node
-  @StateObject private var model = AudioPlayerModel()
+  @ObservedObject private var componentNode: ComponentNode
 
-  public init(node: Node) {
-    self.node = node
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
   }
+
+  private var node: Node {
+    componentNode.node
+  }
+  @StateObject private var model = AudioPlayerModel()
 
   private var urlString: String {
     node.string(for: "url") ?? ""

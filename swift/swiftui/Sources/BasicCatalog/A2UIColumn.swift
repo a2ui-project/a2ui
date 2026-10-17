@@ -22,8 +22,8 @@ import SwiftUI
 
 @MainActor
 extension BasicCatalogImplementation {
-  public static let column = ComponentImplementation(api: BasicCatalogComponents.column) { node in
-    A2UIColumn(node: node)
+  public static let column = ComponentImplementation(api: BasicCatalogComponents.column) {
+    A2UIColumn(componentNode: $0)
   }
 }
 
@@ -31,10 +31,14 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `Column` layout component.
 public struct A2UIColumn: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
 
-  public init(node: Node) {
-    self.node = node
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
   }
 
   private var children: [Node] {
@@ -62,7 +66,7 @@ public struct A2UIColumn: View {
       }
 
       ForEach(Array(children.enumerated()), id: \.element.id) { index, childNode in
-        ComponentNodeView(node: childNode)
+        ComponentNodeView(componentNode: .child(for: childNode, in: componentNode))
           .frame(maxWidth: align == "stretch" ? .infinity : nil, alignment: childAlignment)
 
         if justify == "spaceBetween" && index < children.count - 1 {

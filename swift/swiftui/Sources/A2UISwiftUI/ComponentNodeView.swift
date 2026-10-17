@@ -15,8 +15,12 @@
 import A2UICore
 import SwiftUI
 
-/// Renders a single resolved A2UI engine node by looking up its view builder
-/// from the active component catalogs in the SwiftUI environment.
+/// Renders a component's view model by looking up its view builder from the active component
+/// catalogs in the SwiftUI environment.
+///
+/// The view observes the ``ComponentNode`` and re-renders when it publishes. Containers render
+/// each child with the child view model they hold, so a component's view keeps observing the same
+/// view model across updates.
 ///
 /// The rendered view gets the node's `accessibility` attributes applied through
 /// ``A2UIAccessibilityModifier``. When the component applied the label and hint to its own
@@ -25,22 +29,23 @@ public struct ComponentNodeView: View {
   @Environment(\.a2uiCatalogs) private var catalogs
   @Environment(\.a2uiDefaultCatalogID) private var defaultCatalogID
 
+  @ObservedObject private var componentNode: ComponentNode
+
   /// Whether the rendered component reported applying its label and hint to its own control.
   @State private var controlCarriesLabel = false
 
-  public let node: Node
-
-  public init(node: Node) {
-    self.node = node
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
   }
 
   public var body: some View {
     if let renderedView = Surface.render(
-      node: node, using: catalogs, defaultCatalogID: defaultCatalogID)
+      componentNode: componentNode, using: catalogs, defaultCatalogID: defaultCatalogID)
     {
       renderedView
         .modifier(
-          A2UIAccessibilityModifier(node: node, appliesLabelAndHint: !controlCarriesLabel)
+          A2UIAccessibilityModifier(
+            node: componentNode.node, appliesLabelAndHint: !controlCarriesLabel)
         )
         .onPreferenceChange(A2UIAccessibilityControlKey.self) { carriesLabel in
           // SwiftUI delivers preference changes on the main thread. Updating synchronously avoids
@@ -59,7 +64,7 @@ public struct ComponentNodeView: View {
   }
 
   private var fallbackView: some View {
-    print("[A2UI] Component view builder not found for type: \(node.type)")
+    print("[A2UI] Component view builder not found for type: \(componentNode.node.type)")
     return EmptyView()
   }
 }

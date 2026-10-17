@@ -24,8 +24,8 @@ import SwiftUI
 extension BasicCatalogImplementation {
   public static let dateTimeInput = ComponentImplementation(
     api: BasicCatalogComponents.dateTimeInput
-  ) { node in
-    A2UIDateTimeInput(node: node)
+  ) {
+    A2UIDateTimeInput(componentNode: $0)
   }
 }
 
@@ -33,13 +33,17 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `DateTimeInput` component.
 public struct A2UIDateTimeInput: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
+
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
+  }
 
   @State private var internalDate: Date = Date()
-
-  public init(node: Node) {
-    self.node = node
-  }
 
   private var labelText: String {
     node.string(for: "label") ?? ""
