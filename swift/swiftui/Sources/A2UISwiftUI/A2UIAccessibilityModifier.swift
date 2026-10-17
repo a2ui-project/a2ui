@@ -21,9 +21,10 @@ import SwiftUI
 
 /// Maps a node's A2UI `accessibility` attributes to the SwiftUI accessibility API.
 ///
-/// ``ComponentNodeView`` applies this modifier to every rendered component, so custom component
-/// implementations get the mapping without extra work. Only values the agent set explicitly are
-/// applied; otherwise SwiftUI keeps the label it infers from the component's visible content.
+/// ``ComponentNode/makeView()`` applies this modifier to every rendered component, so custom
+/// component implementations get the mapping without extra work. Only values the agent set
+/// explicitly are applied; otherwise SwiftUI keeps the label it infers from the component's
+/// visible content.
 ///
 /// - `label` becomes `accessibilityLabel`.
 /// - `description` becomes `accessibilityHint`. SwiftUI only keeps a hint on a single
@@ -39,8 +40,8 @@ import SwiftUI
 public struct A2UIAccessibilityModifier: ViewModifier {
   public let node: Node
 
-  /// Whether this modifier applies the label and hint. ``ComponentNodeView`` turns this off when
-  /// the component applied them to its own control.
+  /// Whether this modifier applies the label and hint. ``ComponentNode/makeView()`` turns this off
+  /// when the component applied them to its own control.
   let appliesLabelAndHint: Bool
 
   public init(node: Node) {

@@ -45,7 +45,7 @@ public struct SurfacePreviewPane: View {
             .frame(minWidth: 100, minHeight: 100)
             .padding()
 
-            if surfaceVM.rootNode == nil {
+            if surfaceVM.componentsModel.get("root") == nil {
               VStack(spacing: 8) {
                 Image(systemName: "rectangle.dashed")
                   .font(.system(size: 32))

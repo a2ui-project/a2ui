@@ -24,8 +24,8 @@ import SwiftUI
 extension BasicCatalogImplementation {
   public static let choicePicker = ComponentImplementation(
     api: BasicCatalogComponents.choicePicker
-  ) { node in
-    A2UIChoicePicker(node: node)
+  ) {
+    A2UIChoicePicker(componentNode: $0)
   }
 }
 
@@ -84,14 +84,18 @@ struct FlowLayout: Layout {
 
 /// SwiftUI component view for the A2UI Basic Catalog `ChoicePicker` selection component.
 public struct A2UIChoicePicker: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
+
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
+  }
 
   @State private var filterText = ""
   @State private var fallbackSelections: [String] = []
-
-  public init(node: Node) {
-    self.node = node
-  }
 
   public struct OptionItem: Identifiable, Equatable {
     public let id: String
@@ -217,6 +221,10 @@ public struct A2UIChoicePicker: View {
   }
 
   public var body: some View {
+    content.a2uiWeight(node)
+  }
+
+  @ViewBuilder private var content: some View {
     VStack(alignment: .leading, spacing: 10) {
       if !labelText.isEmpty {
         Text(labelText)

@@ -21,17 +21,31 @@ public struct Node: Identifiable, Equatable, Sendable {
   public let catalogID: String?
   public let properties: [String: any Resolved]
 
+  /// Where the node sits in the tree, or `nil` for a node a ``NodeResolver`` didn't produce.
+  ///
+  /// Not part of equality.
+  public let context: NodeContext?
+
+  /// The data the node read while resolving its own properties.
+  ///
+  /// Not part of equality.
+  public let dependencies: NodeDependencies
+
   /// Creates a new resolved component node.
   public init(
     id: String,
     type: String,
     catalogID: String? = nil,
-    properties: [String: any Resolved]
+    properties: [String: any Resolved],
+    context: NodeContext? = nil,
+    dependencies: NodeDependencies = NodeDependencies()
   ) {
     self.id = id
     self.type = type
     self.catalogID = catalogID
     self.properties = properties
+    self.context = context
+    self.dependencies = dependencies
   }
 
   public static func == (lhs: Node, rhs: Node) -> Bool {

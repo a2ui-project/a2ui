@@ -130,6 +130,7 @@ let package = Package(
         "A2UICore",
         "BasicCatalog",
         "BasicCatalogSwiftUI",
+        .product(name: "Yams", package: "Yams"),
       ],
       path: "swift/swiftui/Tests/A2UISwiftUITests"
     ),

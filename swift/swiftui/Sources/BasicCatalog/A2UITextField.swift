@@ -24,8 +24,8 @@ import SwiftUI
 extension BasicCatalogImplementation {
   public static let textField = ComponentImplementation(
     api: BasicCatalogComponents.textField
-  ) { node in
-    A2UITextField(node: node)
+  ) {
+    A2UITextField(componentNode: $0)
   }
 }
 
@@ -33,10 +33,14 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `TextField` input component.
 public struct A2UITextField: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
 
-  public init(node: Node) {
-    self.node = node
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
   }
 
   private var labelText: String {
@@ -80,6 +84,10 @@ public struct A2UITextField: View {
   }
 
   public var body: some View {
+    content.a2uiWeight(node)
+  }
+
+  @ViewBuilder private var content: some View {
     VStack(alignment: .leading, spacing: 4) {
       if !labelText.isEmpty {
         Text(labelText)

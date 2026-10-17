@@ -31,7 +31,7 @@ struct A2UIVideoTests {
       ]
     )
 
-    let view = A2UIVideo(node: node)
+    let view = A2UIVideo(componentNode: ComponentNode(node: node))
     #expect(node.string(for: "url") == "https://example.com/movie.mp4")
     _ = view.body
   }
@@ -43,7 +43,7 @@ struct A2UIVideoTests {
       properties: [:]
     )
 
-    let view = A2UIVideo(node: node)
+    let view = A2UIVideo(componentNode: ComponentNode(node: node))
     #expect(node.string(for: "url") == nil)
     _ = view.body
   }
@@ -59,7 +59,8 @@ struct A2UIVideoTests {
       ]
     )
 
-    let rendered = Surface.render(node: node, using: [catalog.id: catalog])
+    let rendered = Surface.render(
+      componentNode: ComponentNode(node: node), using: [catalog.id: catalog])
     #expect(rendered != nil)
   }
 
@@ -83,11 +84,12 @@ struct A2UIVideoTests {
       ]
     )
 
-    let view = A2UIVideo(node: node)
+    let view = A2UIVideo(componentNode: ComponentNode(node: node))
     #expect(view.posterURLString == "https://example.com/poster.jpg")
     _ = view.body
 
-    let rendered = Surface.render(node: node, using: [v10Catalog.id: v10Catalog])
+    let rendered = Surface.render(
+      componentNode: ComponentNode(node: node), using: [v10Catalog.id: v10Catalog])
     #expect(rendered != nil)
   }
 }

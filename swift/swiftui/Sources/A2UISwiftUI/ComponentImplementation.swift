@@ -18,7 +18,7 @@ import OrderedJSON
 import SwiftUI
 
 /// A closure that constructs a SwiftUI view from a resolved engine node.
-public typealias ComponentViewBuilder = @MainActor (Node) -> AnyView
+public typealias ComponentViewBuilder = @MainActor (ComponentNode) -> AnyView
 
 /// A concrete component implementation for SwiftUI rendering.
 ///
@@ -59,7 +59,7 @@ public struct ComponentImplementation: ComponentAPI, @unchecked Sendable {
     allowedParents: [String]? = nil,
     allowedChildren: [String]? = nil,
     metadata: [String: JSONValue]? = nil,
-    builder: @escaping @MainActor (Node) -> Content
+    builder: @escaping @MainActor (ComponentNode) -> Content
   ) {
     self.name = name
     self.schema = schema
@@ -76,7 +76,7 @@ public struct ComponentImplementation: ComponentAPI, @unchecked Sendable {
   ///   - builder: The view builder closure constructing the component's SwiftUI view.
   public init<Content: View>(
     api: any ComponentAPI,
-    builder: @escaping @MainActor (Node) -> Content
+    builder: @escaping @MainActor (ComponentNode) -> Content
   ) {
     self.init(
       name: api.name,

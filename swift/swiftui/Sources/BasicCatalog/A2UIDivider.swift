@@ -22,8 +22,8 @@ import SwiftUI
 
 @MainActor
 extension BasicCatalogImplementation {
-  public static let divider = ComponentImplementation(api: BasicCatalogComponents.divider) { node in
-    A2UIDivider(node: node)
+  public static let divider = ComponentImplementation(api: BasicCatalogComponents.divider) {
+    A2UIDivider(componentNode: $0)
   }
 }
 
@@ -31,10 +31,14 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `Divider` component.
 public struct A2UIDivider: View {
-  public let node: Node
+  @ObservedObject private var componentNode: ComponentNode
 
-  public init(node: Node) {
-    self.node = node
+  public init(componentNode: ComponentNode) {
+    self.componentNode = componentNode
+  }
+
+  private var node: Node {
+    componentNode.node
   }
 
   private var axis: String {
@@ -42,6 +46,10 @@ public struct A2UIDivider: View {
   }
 
   public var body: some View {
+    content.a2uiWeight(node)
+  }
+
+  @ViewBuilder private var content: some View {
     if axis == "vertical" {
       Divider()
         .frame(width: 1)

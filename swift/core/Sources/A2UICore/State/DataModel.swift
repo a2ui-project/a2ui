@@ -29,6 +29,16 @@ public final class DataModel: ObservableObject {
   private let dataSubject: CurrentValueSubject<JSONValue, Never>
   private var listeners: [String: [(id: UUID, callback: (JSONValue?) -> Void)]] = [:]
 
+  /// For each path, the watched paths below it, so a write only visits the listeners it affects.
+  private var watchedPathsByAncestor: [String: Set<String>] = [:]
+
+  /// The parsed components of each watched path.
+  private var watchedComponents: [String: [String]] = [:]
+
+  /// Called with the normalized path of each read through ``getThrowing(_:)``. ``NodeResolver``
+  /// sets it while resolving to record the data each node depends on.
+  var readObserver: ((String) -> Void)?
+
   /// The current data tree.
   public var data: JSONValue {
     dataSubject.value
@@ -53,6 +63,7 @@ public final class DataModel: ObservableObject {
   /// Resolves a JSON Pointer path to a value, throwing `A2UIDataError` if the path contains forbidden segments.
   public func getThrowing(_ path: String) throws -> JSONValue? {
     let components = try JSONValue.parsePathThrowing(path)
+    readObserver?(Self.buildPointer(components))
     if components.isEmpty {
       return dataSubject.value
     }
@@ -77,9 +88,8 @@ public final class DataModel: ObservableObject {
       return
     }
 
-    let oldValues = Dictionary(
-      uniqueKeysWithValues: listeners.keys.map { ($0, get($0)) }
-    )
+    let affectedPaths = watchedPaths(affectedByChangeAt: components)
+    let oldData = dataSubject.value
 
     var current = dataSubject.value
     if components.isEmpty {
@@ -104,7 +114,7 @@ public final class DataModel: ObservableObject {
 
     objectWillChange.send()
     dataSubject.send(current)
-    notifyListeners(changedComponents: components, oldValues: oldValues)
+    notifyListeners(of: affectedPaths, oldData: oldData)
   }
 
   /// Sets a value at the given JSON Pointer path.
@@ -127,12 +137,25 @@ public final class DataModel: ObservableObject {
     let components = try JSONValue.parsePathThrowing(path)
     let normalized = Self.buildPointer(components)
     let id = UUID()
+    if listeners[normalized] == nil {
+      watchedComponents[normalized] = components
+      for ancestor in Self.ancestorPointers(of: components) {
+        watchedPathsByAncestor[ancestor, default: []].insert(normalized)
+      }
+    }
     listeners[normalized, default: []].append((id: id, callback: listener))
     return AnyCancellable { [weak self] in
       guard let self else { return }
       self.listeners[normalized]?.removeAll { $0.id == id }
       if self.listeners[normalized]?.isEmpty == true {
         self.listeners.removeValue(forKey: normalized)
+        self.watchedComponents.removeValue(forKey: normalized)
+        for ancestor in Self.ancestorPointers(of: components) {
+          self.watchedPathsByAncestor[ancestor]?.remove(normalized)
+          if self.watchedPathsByAncestor[ancestor]?.isEmpty == true {
+            self.watchedPathsByAncestor.removeValue(forKey: ancestor)
+          }
+        }
       }
     }
   }
@@ -140,6 +163,13 @@ public final class DataModel: ObservableObject {
   /// Clears all path listeners.
   public func dispose() {
     listeners.removeAll()
+    watchedPathsByAncestor.removeAll()
+    watchedComponents.removeAll()
+  }
+
+  /// Returns `path` in the form ``watch(_:_:)`` keys listeners by, or `nil` if it's invalid.
+  static func normalizedPath(_ path: String) -> String? {
+    (try? JSONValue.parsePathThrowing(path)).map(buildPointer)
   }
 
   private static func buildPointer(_ components: [String]) -> String {
@@ -151,26 +181,38 @@ public final class DataModel: ObservableObject {
     return "/" + escaped.joined(separator: "/")
   }
 
-  private func notifyListeners(
-    changedComponents: [String],
-    oldValues: [String: JSONValue?]
-  ) {
-    let changedPath = Self.buildPointer(changedComponents)
-    let changedPrefix = changedPath == "/" ? "/" : "\(changedPath)/"
-    let snapshot = listeners
+  /// Returns the watched paths a change at `components` affects: the changed path, its
+  /// ancestors, and the paths below it.
+  ///
+  /// Ancestors come first, so listeners on a path hear about a change before the listeners below
+  /// it.
+  private func watchedPaths(affectedByChangeAt components: [String]) -> [String] {
+    var paths = watchedPathsByAncestor[Self.buildPointer(components)] ?? []
+    for length in 0...components.count {
+      let path = Self.buildPointer(Array(components.prefix(length)))
+      if listeners[path] != nil {
+        paths.insert(path)
+      }
+    }
+    return paths.sorted { $0.utf8.count < $1.utf8.count }
+  }
+
+  /// The pointers of the paths above `components`, from the root down.
+  private static func ancestorPointers(of components: [String]) -> [String] {
+    components.indices.map { buildPointer(Array(components.prefix($0))) }
+  }
+
+  /// Notifies the listeners of each of `paths` whose value differs from its value in `oldData`.
+  private func notifyListeners(of paths: [String], oldData: JSONValue) {
+    let newData = dataSubject.value
+    let snapshot = paths.compactMap { path in listeners[path].map { (path, $0) } }
     for (watchedPath, callbacks) in snapshot {
-      let watchedPrefix = watchedPath == "/" ? "/" : "\(watchedPath)/"
-      if changedPath == watchedPath
-        || watchedPath.hasPrefix(changedPrefix)
-        || changedPath.hasPrefix(watchedPrefix)
-      {
-        let newVal = get(watchedPath)
-        let oldVal = oldValues[watchedPath] ?? nil
-        if newVal != oldVal {
-          let callbacksSnapshot = callbacks
-          for entry in callbacksSnapshot {
-            entry.callback(newVal)
-          }
+      let components = watchedComponents[watchedPath] ?? []
+      let newVal = components.isEmpty ? newData : newData[components]
+      let oldVal = components.isEmpty ? oldData : oldData[components]
+      if newVal != oldVal {
+        for entry in callbacks {
+          entry.callback(newVal)
         }
       }
     }
