@@ -1,5 +1,12 @@
 ## Unreleased
 
+- Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
+  processor after it is built. The processor links the new catalog and the
+  catalogs it holds to one another, as the constructor does, and leaves the
+  catalog passed in unchanged. `createSurface` messages, renderer function
+  calls and `get_renderer_capabilities` see the catalog from then on; surfaces
+  created before the call keep the catalogs they were created with. A catalog
+  whose ID the processor already holds is rejected with `A2uiCatalogError`.
 - Catalogs can reference components, property schemas and functions in peer
   catalogs with external `$ref`s such as
   `simplified_catalog_v1_0.json#/components/Text`. `Catalog.peer_catalogs`

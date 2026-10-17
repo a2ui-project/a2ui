@@ -1,0 +1,127 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: test_add_catalog_resolves_later_create_surface
+  description: A createSurface naming a catalog the processor does not hold fails with CatalogError, and succeeds once addCatalog has added that catalog.
+  action: process_messages
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_late"
+            catalogId: "conformance/custom"
+      expectError:
+        category: "CatalogError"
+    - addCatalogPaths:
+        - "conformance/test_data/catalogs/custom_catalog_v1_0.json"
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_late"
+            catalogId: "conformance/custom"
+  expect:
+    surfaces:
+      s_late:
+        exists: true
+
+- name: test_add_catalog_links_held_catalog_to_added_peer
+  description: addCatalog links a held catalog to the added catalog its cross-catalog $refs point into, so its components validate against the definitions they inherit. A CustomText inherits a required text from the peer's Text.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "conformance/test_data/catalogs/cross_ref_catalog_v1_0.json"
+  steps:
+    - addCatalogPaths:
+        - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_peer"
+            catalogId: "conformance/cross_ref"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s_peer"
+            components:
+              - id: "root"
+                component: "CustomText"
+                badge: "NEW"
+                text: "Quarterly Revenue"
+    - messages:
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s_peer"
+            components:
+              - id: "root"
+                component: "CustomText"
+                badge: "NEW"
+      expectError:
+        category: "ValidationError"
+  expect:
+    surfaces:
+      s_peer:
+        exists: true
+
+- name: test_add_catalog_links_added_catalog_to_held_peer
+  description: addCatalog links the added catalog to the held catalog its cross-catalog $refs point into, so its components validate against the definitions they inherit. A CustomText inherits a required text from the peer's Text.
+  action: process_messages
+  protocolVersion: "v1.0"
+  strictMode: true
+  catalogPaths:
+    - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - addCatalogPaths:
+        - "conformance/test_data/catalogs/cross_ref_catalog_v1_0.json"
+      messages:
+        - version: "v1.0"
+          createSurface:
+            surfaceId: "s_peer"
+            catalogId: "conformance/cross_ref"
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s_peer"
+            components:
+              - id: "root"
+                component: "CustomText"
+                badge: "NEW"
+                text: "Quarterly Revenue"
+    - messages:
+        - version: "v1.0"
+          updateComponents:
+            surfaceId: "s_peer"
+            components:
+              - id: "root"
+                component: "CustomText"
+                badge: "NEW"
+      expectError:
+        category: "ValidationError"
+  expect:
+    surfaces:
+      s_peer:
+        exists: true
+
+- name: test_add_catalog_rejects_held_catalog_id
+  description: addCatalog fails with CatalogError for a catalog whose id the processor already holds.
+  action: process_messages
+  protocolVersion: "v1.0"
+  catalogPaths:
+    - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - addCatalogPaths:
+        - "conformance/test_data/catalogs/simplified_catalog_v1_0.json"
+      expectError:
+        category: "CatalogError"

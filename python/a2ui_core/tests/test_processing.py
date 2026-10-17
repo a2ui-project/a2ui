@@ -22,7 +22,7 @@ from a2ui.core.catalog import (
     FunctionImplementation,
     ModelComponentApi,
 )
-from a2ui.core.exceptions import A2uiValidationError
+from a2ui.core.exceptions import A2uiCatalogError, A2uiValidationError
 from a2ui.core.processing import (
     CapabilitiesOptions,
     MessageProcessor,
@@ -215,6 +215,93 @@ def test_message_processor_custom_catalog_component_validation():
 def test_message_processor_empty_catalogs_throws():
     with pytest.raises(ValueError, match="At least one catalog must be provided"):
         MessageProcessor(catalogs=[])
+
+
+def test_message_processor_add_catalog_resolves_later_create_surface():
+    processor = MessageProcessor(
+        catalogs=[Catalog(catalog_id="cat1", protocol_version="v1.0", components=[])]
+    )
+    create_msg = {
+        "version": "v1.0",
+        "createSurface": {"surfaceId": "s1", "catalogId": "late"},
+    }
+    with pytest.raises(A2uiCatalogError):
+        processor.process_messages([create_msg])
+
+    processor.add_catalog(
+        Catalog(catalog_id="late", protocol_version="v1.0", components=[])
+    )
+    processor.process_messages([create_msg])
+
+    surface = processor.model.get_surface("s1")
+    assert surface is not None
+    assert surface.default_catalog.catalog_id == "late"
+
+
+def test_message_processor_add_catalog_rejects_held_catalog_id():
+    processor = MessageProcessor(
+        catalogs=[Catalog(catalog_id="cat1", protocol_version="v1.0", components=[])]
+    )
+
+    with pytest.raises(A2uiCatalogError):
+        processor.add_catalog(
+            Catalog(catalog_id="cat1", protocol_version="v1.0", components=[])
+        )
+
+
+def test_message_processor_add_catalog_lists_it_in_renderer_capabilities():
+    processor = MessageProcessor(
+        catalogs=[Catalog(catalog_id="cat1", protocol_version="v1.0", components=[])]
+    )
+    processor.add_catalog(
+        Catalog(catalog_id="late", protocol_version="v1.0", components=[])
+    )
+
+    caps = processor.get_renderer_capabilities(CapabilitiesOptions(versions=["v1.0"]))
+
+    assert caps["v1.0"]["supportedCatalogIds"] == ["cat1", "late"]
+
+
+@pytest.mark.asyncio
+async def test_message_processor_add_catalog_resolves_call_renderer_function():
+    class GreetArgs(BaseModel):
+        user: str
+
+    processor = MessageProcessor(
+        catalogs=[Catalog(catalog_id="cat1", protocol_version="v1.0", components=[])]
+    )
+    processor.add_catalog(
+        Catalog(
+            catalog_id="late",
+            protocol_version="v1.0",
+            components=[],
+            functions=[
+                FunctionImplementation(
+                    name="greet",
+                    schema=GreetArgs,
+                    execute=lambda args, context=None, abort_signal=None: (
+                        f"Hi {args['user']}"
+                    ),
+                    allowed_callers="rendererOrAgent",
+                )
+            ],
+        )
+    )
+
+    resp = await processor.process_messages_async([{
+        "version": "v1.0",
+        "callRendererFunction": {
+            "functionCallId": "rpc-1",
+            "callFunction": {
+                "call": "greet",
+                "catalogId": "late",
+                "args": {"user": "Alice"},
+            },
+        },
+    }])
+
+    assert len(resp) == 1
+    assert resp[0]["rendererFunctionResponse"]["value"] == "Hi Alice"
 
 
 def test_message_processor_pydantic_model_payload(mock_catalog):
