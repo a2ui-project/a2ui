@@ -478,6 +478,14 @@ class MessageProcessor<T extends ComponentApi> {
     options?: MessageProcessorOptions,
   );
 
+  /**
+   * Adds a catalog after construction, linked with the held catalogs as the
+   * constructor links its catalogs. Surfaces created afterwards can use it, and
+   * getRendererCapabilities lists it. Throws A2uiCatalogError for an id the
+   * processor already holds.
+   */
+  addCatalog(catalog: Catalog<T>): void;
+
   // Synchronous and asynchronous message processing
   processMessages(messages: AgentToRendererMessagePayload): void;
   processMessagesAsync(messages: AgentToRendererMessagePayload): Promise<void>;

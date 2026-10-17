@@ -142,6 +142,34 @@ def test_message_processor_does_not_mutate_shared_catalogs() -> None:
     assert "text" in _props(linked_cross_ref, "CustomText")
 
 
+def test_add_catalog_links_the_held_catalogs_to_an_added_peer() -> None:
+    processor = MessageProcessor([_load("cross_ref_catalog_v1_0.json")])
+
+    processor.add_catalog(_load("simplified_catalog_v1_0.json"))
+
+    assert "text" in _props(processor.catalogs[0], "CustomText")
+
+
+def test_add_catalog_links_an_added_catalog_to_the_held_peers() -> None:
+    processor = MessageProcessor([_load("simplified_catalog_v1_0.json")])
+
+    processor.add_catalog(_load("cross_ref_catalog_v1_0.json"))
+
+    assert "text" in _props(processor.catalogs[1], "CustomText")
+
+
+def test_add_catalog_does_not_mutate_the_added_catalog() -> None:
+    cross_ref = _load("cross_ref_catalog_v1_0.json")
+    cross_ref_schema = cross_ref.validation_schema
+    processor = MessageProcessor([_load("simplified_catalog_v1_0.json")])
+
+    processor.add_catalog(cross_ref)
+
+    assert cross_ref.peer_catalogs == ()
+    assert cross_ref.validation_schema == cross_ref_schema
+    assert processor.catalogs[1] is not cross_ref
+
+
 def test_peer_matching_prefers_exact_id_over_catalog_json_file_name() -> None:
     base = "https://example.com/catalogs"
     alpha = _catalog(

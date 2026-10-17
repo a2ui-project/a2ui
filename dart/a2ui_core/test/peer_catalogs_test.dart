@@ -383,6 +383,86 @@ void main() {
       expect(basic.validationSchema, same(basicSchema));
       expect(referencing.peerCatalogs, isEmpty);
     });
+
+    group('addCatalog', () {
+      Catalog<ComponentApi, FunctionImplementation> peer() =>
+          _peer('https://example.com/peer.json')
+              .withFunctions(const <FunctionImplementation>[]);
+      Catalog<ComponentApi, FunctionImplementation> referencing() =>
+          _referencing('peer.json')
+              .withFunctions(const <FunctionImplementation>[]);
+
+      MessageProcessor<ComponentApi> processorOver(
+        List<Catalog<ComponentApi, FunctionImplementation>> catalogs,
+      ) {
+        final processor = MessageProcessor<ComponentApi>(catalogs: catalogs);
+        addTearDown(processor.dispose);
+        return processor;
+      }
+
+      test('links the catalogs it holds to an added peer', () {
+        final MessageProcessor<ComponentApi> processor =
+            processorOver([referencing()]);
+
+        processor.addCatalog(peer());
+
+        expect(_properties(processor.catalogs[0], 'Fancy'), contains('label'));
+      });
+
+      test('links an added catalog to the peers it holds', () {
+        final MessageProcessor<ComponentApi> processor =
+            processorOver([peer()]);
+
+        processor.addCatalog(referencing());
+
+        expect(_properties(processor.catalogs[1], 'Fancy'), contains('label'));
+      });
+
+      test('leaves the added catalog unchanged', () {
+        final Catalog<ComponentApi, FunctionImplementation> added =
+            referencing();
+        final MessageProcessor<ComponentApi> processor =
+            processorOver([peer()]);
+
+        processor.addCatalog(added);
+
+        expect(processor.catalogs[1], isNot(same(added)));
+        expect(added.peerCatalogs, isEmpty);
+      });
+
+      test('validates against a relinked catalog it validated against before',
+          () {
+        final MessageProcessor<ComponentApi> processor =
+            processorOver([referencing()]);
+        processor.validatorFor(processor.catalogs.single);
+
+        processor.addCatalog(peer());
+        processor.processMessages(
+          AgentToRendererMessagePayload([
+            CreateSurfaceMessage(
+              version: 'v0.9',
+              surfaceId: 's1',
+              catalogId: 'https://example.com/referencing.json',
+            ),
+          ]),
+        );
+
+        expect(
+          () => processor.processMessages(
+            AgentToRendererMessagePayload([
+              UpdateComponentsMessage(
+                version: 'v0.9',
+                surfaceId: 's1',
+                components: [
+                  {'id': 'root', 'component': 'Fancy'},
+                ],
+              ),
+            ]),
+          ),
+          throwsA(isA<A2uiValidationError>()),
+        );
+      });
+    });
   });
 }
 
