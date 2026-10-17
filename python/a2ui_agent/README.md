@@ -10,7 +10,7 @@ The following directories contain the base protocol logic, parsing, and schema o
 ### Processor & Catalog Configuration (`src/a2ui/processor`)
 
 - **`generator.py`**: Defines `A2uiGenerator`, the main entry point for configuring an agent's catalogs and default inference format factory.
-- **`processor.py`**: Defines `A2uiRequestProcessor`, which binds the active catalogs negotiated for a request to an inference format and exposes prompt generation and response parsing.
+- **`processor.py`**: Defines `A2uiRequestProcessor`, which binds the active catalogs negotiated for a request to an inference format and exposes prompt generation and response parsing. An agent creates one for each request with `A2uiGenerator.create_processor`, from the capabilities that the client sent.
 - **`catalog_config.py`**: Defines `CatalogConfig`, which binds a `Catalog` (or loads one from a path via `CatalogConfig.from_path`) with an optional sequence of `CatalogTransformer` instances into `transformed_catalog`.
 - **`catalog_providers.py`**: Defines `CatalogProvider`, `FileSystemCatalogProvider`, and `InMemoryCatalogProvider` for loading catalogs.
 
@@ -44,14 +44,18 @@ The following directories contain the base protocol logic, parsing, and schema o
   `prune_common_types_schema` reduce the protocol schemas to the allowed
   messages and the common types that are referenced.
 - **`renderer_state.py`**: `RendererState` is the agent's mirror of the
-  surfaces a renderer holds, and checks each outbound message against
-  everything sent before it. `validate_payload` checks one payload the way a
-  renderer holding the catalogs would, on a short-lived `RendererState`, and
-  raises `A2uiValidationError` if the renderer would reject it.
+  surfaces a renderer holds. It wraps one `MessageProcessor` and checks each
+  outbound message against everything sent before it. A chat agent uses a new
+  state per turn, which is what a parser does when it is given none. A canvas
+  agent keeps one state for the whole conversation. `validate_payload` checks
+  one payload the way a renderer holding the catalogs would, on a short-lived
+  `RendererState`, and raises `A2uiValidationError` if the renderer would
+  reject it.
 
 ### Parser (`src/a2ui/parser`)
 
-- **`parser.py`**: Defines the `Parser` abstract base class (`wrap`, `unwrap`, `compile`, `decompile`, `parse_response`, and `parse_chunk` for formats whose `supports_streaming` is true).
+- **`parser.py`**: Defines the `Parser` abstract base class. A format implements `compile` and `decompile`, which translate between its notation and A2UI messages, and `wrap` and `unwrap`, which handle its tags. The base class reads model responses with `parse_response` and, for formats whose `supports_streaming` is true, `open_stream`; both check every message against a `RendererState`. A parser holds no per-response state, so one parser can be reused across turns.
+- **`response_stream.py`**: Defines the `ResponseStream` that `open_stream` returns.
 - **`response_part.py`**: Defines `ResponsePart` (`TextPart` / `A2uiPart`) and `RawResponsePart` (`RawA2uiPart`).
 - **`lexer.py`**: Defines `BlockLexer` for sentinel-tag tokenization (`<a2ui-json>...</a2ui-json>`).
 - **`errors.py`**: Defines `A2uiParseError` and `A2uiTargetNotFoundError`.
@@ -63,7 +67,7 @@ The following directories contain the base protocol logic, parsing, and schema o
 
 - **`prompt/generator.py`**: Defines the `PromptGenerator` (`A2uiPromptGenerator`) abstract base class (`generate_base_rules`, `generate_catalog_instructions`, `generate_examples`, `generate`).
 - **`inference_format.py`**: Defines `InferenceFormat` and `InferenceFormatFactory`.
-- **`inference_formats/`**: Format implementations and factories for Direct JSON (`direct_json/`), Express (`express/`), and experimental Elemental and Atom (`experimental/`) formats. Direct JSON is the format that streams: `DirectJsonParser.parse_chunk` heals the partial JSON of each chunk (`direct_json/json_reader.py`) and emits the messages that are ready.
+- **`inference_formats/`**: Format implementations and factories for Direct JSON (`direct_json/`), Express (`express/`), and experimental Elemental and Atom (`experimental/`) formats. Direct JSON is the format that streams: the stream from `DirectJsonParser.open_stream` heals the partial JSON of each chunk (`direct_json/json_reader.py`) and emits the messages that are ready.
 
 ## Agent framework integrations
 
