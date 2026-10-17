@@ -134,21 +134,22 @@ class MessageProcessor<T extends ComponentApi> {
   /// Pass an empty map to leave the shared types unchecked.
   final Map<String, Object?>? commonTypesSchema;
 
-  /// One validator per catalog and protocol version, built on first use.
+  /// Each catalog's validators, by protocol version, built on first use.
   ///
-  /// This and the caches below are keyed by catalog instance rather than id:
-  /// [addCatalog] can replace a held catalog with a newly linked copy while
-  /// surfaces created earlier keep the previous one.
-  final Map<(Catalog<T, FunctionImplementation>, A2uiProtocolVersion),
-      PayloadValidator<T, FunctionImplementation>> _validators = {};
+  /// This and the caches below belong to the catalog instance rather than its
+  /// id: [addCatalog] can replace a held catalog with a newly linked copy while
+  /// surfaces created earlier keep the previous one. An [Expando] does not keep
+  /// its key alive, so a copy no surface uses any more is collected with its
+  /// entries.
+  final Expando<
+          Map<A2uiProtocolVersion, PayloadValidator<T, FunctionImplementation>>>
+      _validators = Expando();
 
   /// Each catalog's child-reference fields, built on first use.
-  final Map<Catalog<T, FunctionImplementation>, Map<String, ComponentRefFields>>
-      _refFields = {};
+  final Expando<Map<String, ComponentRefFields>> _refFields = Expando();
 
   /// Each catalog's composition constraints, built on first use.
-  final Map<Catalog<T, FunctionImplementation>, Map<String, CompositionRule>>
-      _compositionRules = {};
+  final Expando<Map<String, CompositionRule>> _compositionRules = Expando();
 
   /// The RPC layer: it answers the `callRendererFunction` messages this
   /// processor receives, settles its `agentFunctionResponse`s, and sends the
@@ -282,8 +283,8 @@ class MessageProcessor<T extends ComponentApi> {
     Catalog<T, FunctionImplementation> catalog, {
     A2uiProtocolVersion version = A2uiProtocolVersion.v0_9,
   }) =>
-      _validators.putIfAbsent(
-        (catalog, version),
+      (_validators[catalog] ??= {}).putIfAbsent(
+        version,
         () => PayloadValidator<T, FunctionImplementation>(
           catalog: catalog,
           commonTypesSchema: commonTypesSchema,
@@ -795,12 +796,10 @@ class MessageProcessor<T extends ComponentApi> {
 
     final merged = <String, ComponentRefFields>{};
     for (final catalog in involved) {
-      _refFields
-          .putIfAbsent(catalog, () => extractComponentRefFields(catalog))
-          .forEach(
-            (String type, ComponentRefFields fields) =>
-                merged.putIfAbsent(type, () => fields),
-          );
+      (_refFields[catalog] ??= extractComponentRefFields(catalog)).forEach(
+        (String type, ComponentRefFields fields) =>
+            merged.putIfAbsent(type, () => fields),
+      );
     }
     return merged;
   }
@@ -832,10 +831,7 @@ class MessageProcessor<T extends ComponentApi> {
   Map<String, CompositionRule> _rulesOf(
     Catalog<T, FunctionImplementation> catalog,
   ) =>
-      _compositionRules.putIfAbsent(
-        catalog,
-        () => extractCompositionRules(catalog),
-      );
+      _compositionRules[catalog] ??= extractCompositionRules(catalog);
 
   SurfaceModel<T> _surfaceFor(String surfaceId) {
     final SurfaceModel<T>? surface = model.getSurface(surfaceId);
