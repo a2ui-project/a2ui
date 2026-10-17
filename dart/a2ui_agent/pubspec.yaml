@@ -22,7 +22,11 @@ repository: https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_agent
 resolution: workspace
 
 environment:
-  sdk: ">=3.10.0 <4.0.0"
+  # Lower than the bound of a2ui_flutter on purpose. a2ui_agent is plain Dart,
+  # used by agents on servers that do not run Flutter, so it allows every SDK
+  # its own code compiles with. 3.8 is the lowest one, because the code uses
+  # null-aware elements (`{'key': ?value}`).
+  sdk: ">=3.8.0 <4.0.0"
 
 dependencies:
   a2ui_core: ^0.3.0
