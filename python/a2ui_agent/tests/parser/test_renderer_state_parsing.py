@@ -33,6 +33,7 @@ from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.inference_formats.express import ExpressParser
 from a2ui.parser import A2uiPart, ResponsePart, TextPart
+from a2ui.processor import A2uiRequestProcessor
 from a2ui.utils import RendererState, validate_payload
 
 _BASIC = BasicCatalog("0.9")
@@ -231,6 +232,30 @@ def test_feed_after_close_is_an_error():
         stream.feed("more")
 
 
+def test_request_processor_parses_canvas_turns_against_its_state():
+    processor = A2uiRequestProcessor([_BASIC])
+    state = processor.create_state()
+    processor.parse_response(
+        _block(_CREATE, _update(_column("a"), _text("a"))), state=state
+    )
+
+    stream = processor.open_stream(state=state)
+    stream.feed(_block(_update(_column("a", "b"), _text("b"))))
+    stream.close()
+
+    assert _component_ids(state) == {"root", "a", "b"}
+    with pytest.raises(A2uiIntegrityError, match="Dangling reference"):
+        processor.parse_response(_block(_update(_column("missing"))), state=state)
+
+
+def test_request_processor_rejects_a_state_for_other_catalogs():
+    processor = A2uiRequestProcessor([_BASIC])
+    other = RendererState([Catalog(catalog_id="other", protocol_version="0.9")])
+
+    with pytest.raises(A2uiCatalogError, match="active catalogs"):
+        processor.parse_response(_block(_CREATE), state=other)
+
+
 def test_every_version_a_stream_emitted_rebuilds_its_state():
     parser = DirectJsonParser([_BASIC], progressive_keys={"text"})
     state = RendererState([_BASIC])
@@ -282,6 +307,36 @@ def test_a_response_may_reference_a_component_a_later_block_adds():
     # A block parsed on its own is checked as a whole response.
     with pytest.raises(A2uiIntegrityError, match="Dangling reference"):
         parser.parse_response(first)
+
+
+def test_a_bound_state_is_used_when_a_call_passes_none():
+    state = RendererState([_BASIC])
+    processor = A2uiRequestProcessor([_BASIC], state=state)
+
+    processor.parse_response(_block(_CREATE, _update(_column("a"), _text("a"))))
+    stream = processor.open_stream()
+    stream.feed(_block(_update(_column("a", "b"), _text("b"))))
+    stream.close()
+
+    assert processor.state is state
+    assert _component_ids(state) == {"root", "a", "b"}
+
+
+def test_a_bound_state_for_other_catalogs_is_rejected():
+    other = RendererState([Catalog(catalog_id="other", protocol_version="0.9")])
+
+    with pytest.raises(A2uiCatalogError, match="active catalogs"):
+        A2uiRequestProcessor([_BASIC], state=other)
+
+
+def test_a_bound_state_normalizes_protocol_version_spelling():
+    raw = Catalog(catalog_id=_BASIC.catalog_id, protocol_version="0.9")
+    prefixed = Catalog(catalog_id=_BASIC.catalog_id, protocol_version="v0.9")
+    state = RendererState([raw])
+
+    processor = A2uiRequestProcessor([prefixed], state=state)
+
+    assert processor.state is state
 
 
 def test_a_stream_that_raises_has_ended():

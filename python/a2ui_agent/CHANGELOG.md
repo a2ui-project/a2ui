@@ -62,10 +62,20 @@
   raises `A2uiParseError` if a block is still open, and checks the tree of an
   unwrapped stream. `ResponseStream` is exported from `a2ui.parser` and
   `DirectJsonResponseStream` from `a2ui.inference_formats.direct_json`.
+- `A2uiRequestProcessor.parse_response` and the new
+  `A2uiRequestProcessor.open_stream` take an optional `state`.
+  `A2uiRequestProcessor.create_state` creates an empty one, and
+  `A2uiRequestProcessor(state=...)` and
+  `A2uiGenerator.create_processor(..., state=...)` bind one so that calls
+  need not pass it. A state that holds other catalogs than the processor is
+  rejected with `A2uiCatalogError`.
 - **BREAKING**: A parser holds no state, and the APIs that assumed one parser
   per response are removed. To migrate:
   - `Parser.parse_chunk(chunk, wrapped)`: open a stream with
     `parser.open_stream(wrapped=...)` and call `feed(chunk)`, then `close()`.
+  - `A2uiRequestProcessor.create_parser()`: use the `processor.parser`
+    property, which returns the one parser the processor reuses, or
+    `processor.parse_response` and `processor.open_stream`.
   - The `parser` property of `DirectJsonFormat`, `ExpressFormat`,
     `ElementalFormat` and `AtomFormat`: use `create_parser()`.
   - `validate_payload(..., surface_catalog_ids=...)`: check the payload
