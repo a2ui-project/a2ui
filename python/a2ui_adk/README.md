@@ -23,10 +23,11 @@ Available with the base install:
 
 - `SendA2uiToClientToolset` is an ADK toolset that lets an agent send A2UI
   to the client through a tool call. It takes the list of active catalogs,
-  describes all of them to the model, and validates each payload against
-  them before it is sent. `A2uiEnabledProvider`,
-  `A2uiCatalogsProvider` and `A2uiExamplesProvider` are the callback types it
-  accepts.
+  optional examples (as markdown or structured example turns such as
+  `processor.examples`), and an optional `RendererState` for Canvas UIs,
+  describes the catalogs to the model, and validates each payload before it is
+  sent. `A2uiEnabledProvider`, `A2uiCatalogsProvider`, `A2uiExamplesProvider`,
+  and `A2uiStateProvider` are the callback types it accepts.
 - `GenAIFileResolver` is a
   [`FileResolver`](../a2ui_agent/src/a2ui/extensions/file_resolve) that
   returns `google.genai.types.Part` objects. Its `as_tool_decorator` injects
