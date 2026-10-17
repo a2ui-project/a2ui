@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.1.0 (2026-10-17)
+
 - First release. `a2ui.a2a` moves here from `a2ui-agent-sdk`, so the agent SDK
   no longer depends on `a2a-sdk`. Import paths are unchanged.
 - **BREAKING**: `try_activate_a2ui_extension` returns the `ProtocolVersion` of
