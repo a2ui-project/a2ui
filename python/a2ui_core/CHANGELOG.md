@@ -1,5 +1,14 @@
 ## Unreleased
 
+- A function defined without an argument schema (`FunctionApi` or
+  `FunctionImplementation` without `schema`) is described as taking any args:
+  `validation_schema` records it as `{}` rather than `None`, and
+  `Catalog.to_json` writes it as a call whose `args` may be any object.
+  `to_json` no longer raises `TypeError` for a catalog that holds such a
+  function, and neither do the paths that call it: `link_catalogs`, and so a
+  `MessageProcessor` of two or more catalogs, and `get_renderer_capabilities`
+  with v1.0 inline catalogs.
+
 ## 0.4.0 (2026-10-17)
 
 - Catalogs can reference components, property schemas and functions in peer
