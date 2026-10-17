@@ -15,6 +15,7 @@
 import 'dart:convert';
 
 import 'package:a2ui_agent/a2ui_agent.dart';
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 import 'suites.dart';
@@ -55,15 +56,6 @@ void main() {
 
 /// Cases this SDK does not pass yet, with the reason for each.
 const Map<String, String> _knownGaps = {
-  'test_compile_express_checks_on_uncheckable_component_is_a_validation_error':
-      'Does not reject check lists on components without checks '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_compile_express_inline_array_id_collision_is_a_validation_error':
-      'Does not reject inline array child IDs colliding with variables '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
-  'test_compile_express_inline_id_collision_is_a_validation_error':
-      'Does not reject inline child IDs colliding with variables '
-      '(https://github.com/a2ui-project/a2ui/issues/3100).',
   'test_decompile_express_check_with_arg_omits_default_message':
       'Wraps single check rules in brackets [?check] instead of bare ?check '
       '(https://github.com/a2ui-project/a2ui/issues/3100).',
@@ -176,7 +168,7 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       ];
     case 'compile':
       return version.messagesJson(
-        format.createParser().compile(input!),
+        compileChecked(format.createParser(), input!),
         join: true,
       );
     case 'decompile':
@@ -232,22 +224,18 @@ void _checkDecompiled(
       in (testCase['expect_contains'] as List<Object?>?) ?? const []) {
     expect(output, contains(text));
   }
+  List<AgentToRendererMessage> recompile() =>
+      compileChecked(_format(testCase, version).createParser(), output);
   if (testCase['expect_round_trip'] == true) {
     expect(
-      version.messagesJson(
-        _format(testCase, version).createParser().compile(output),
-        join: true,
-      ),
+      version.messagesJson(recompile(), join: true),
       testCase['messages'],
       reason: 'Express written:\n$output',
     );
   }
   if (testCase['expect_recompiled'] case final Object expected) {
     expect(
-      version.messagesJson(
-        _format(testCase, version).createParser().compile(output),
-        join: true,
-      ),
+      version.messagesJson(recompile(), join: true),
       expected,
       reason: 'Express written:\n$output',
     );

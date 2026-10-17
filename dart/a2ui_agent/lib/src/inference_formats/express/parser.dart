@@ -44,6 +44,10 @@ final RegExp _token = RegExp(
 /// Reads Express blocks from an LLM response and compiles them into messages
 /// of the protocol version the catalogs target.
 ///
+/// The compiler checks each component against the schema it reads the
+/// component's arguments with. [parseResponse] checks the messages against a
+/// renderer state, as for any format.
+///
 /// Compiling and decompiling for v1.0 catalogs is not implemented yet and
 /// throws [UnimplementedError]; finding, wrapping and unwrapping blocks does
 /// not depend on the version.
@@ -51,8 +55,12 @@ class ExpressParser extends Parser {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
   ExpressParser(List<CatalogApi> catalogs)
-    : _compiler = ExpressCompiler(catalogs),
+    : catalogs = List.unmodifiable(catalogs),
+      _compiler = ExpressCompiler(catalogs),
       _decompiler = ExpressDecompiler(catalogs);
+
+  @override
+  final List<CatalogApi> catalogs;
 
   final ExpressCompiler _compiler;
   final ExpressDecompiler _decompiler;

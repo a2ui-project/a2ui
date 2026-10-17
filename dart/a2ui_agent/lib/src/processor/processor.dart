@@ -16,7 +16,9 @@ import 'package:a2ui_core/a2ui_core.dart';
 
 import '../inference_format.dart';
 import '../inference_formats/direct_json/format.dart';
+import '../parser/parser.dart';
 import '../parser/response_part.dart';
+import '../parser/response_stream.dart';
 import '../utils/renderer_state.dart';
 import '../utils/validation.dart';
 
@@ -24,6 +26,13 @@ import '../utils/validation.dart';
 /// prompt snippet describing them, and parsing of the LLM's response.
 ///
 /// Usually obtained from `A2uiGenerator.createProcessor`.
+///
+/// Each response is checked against a [RendererState]. A chat agent, whose
+/// turns each show new UI, passes none, and each call checks the response
+/// against a new, empty state. A canvas agent, whose turns update the
+/// surfaces earlier turns built, keeps one state for the conversation:
+/// [createState] creates it, and a processor given a [state] uses it for
+/// every call that passes none.
 ///
 /// Every message is written against the protocol version the active catalogs
 /// target. For v1.0 catalogs, checking examples and payloads is not
@@ -41,6 +50,9 @@ class A2uiRequestProcessor {
   /// The format the LLM writes payloads in.
   final InferenceFormatFactory formatFactory;
 
+  /// The renderer state bound to this processor, if any.
+  final RendererState? state;
+
   final InferenceFormat _format;
 
   /// Checks each of [examples] on its own with [validatePayload], and then
@@ -49,18 +61,25 @@ class A2uiRequestProcessor {
   /// An example may update a surface it does not create, which is assumed
   /// to exist.
   ///
+  /// [state] is the renderer state a canvas agent keeps for the
+  /// conversation, which [parseResponse] and [openStream] use when a call
+  /// passes none.
+  ///
   /// Throws the [A2uiValidationError] a renderer would report for the first
   /// message it rejects, such as one for a component the catalogs do not
-  /// declare, and the [A2uiValidationError] the format reports for an
-  /// example it cannot write.
+  /// declare, the [A2uiValidationError] the format reports for an example it
+  /// cannot write, and [A2uiCatalogError] if [state] holds other catalogs
+  /// than [activeCatalogs].
   A2uiRequestProcessor({
     required this.activeCatalogs,
     this.examples = const [],
     this.formatFactory = const DirectJsonFormatFactory(),
+    this.state,
   }) : _format = formatFactory.createFormat(
          activeCatalogs,
          examples: examples,
        ) {
+    _checkState(state);
     for (final List<AgentToRendererMessage> example in examples) {
       validatePayload(activeCatalogs, example);
     }
@@ -79,37 +98,74 @@ class A2uiRequestProcessor {
   String get promptSnippet =>
       _promptSnippet ??= _format.promptGenerator.generate();
 
+  /// The parser for the format, bound to [activeCatalogs].
+  ///
+  /// A parser holds no state, so the processor creates one and reuses it.
+  late final Parser parser = _format.createParser();
+
+  /// Creates an empty renderer state that holds [activeCatalogs].
+  ///
+  /// A canvas agent keeps the state for the whole conversation and passes it
+  /// to [parseResponse] or [openStream] on every turn, or binds it to the
+  /// processor.
+  RendererState createState() => RendererState(activeCatalogs);
+
   /// Parses a complete LLM response into text and A2UI messages of the
   /// active catalogs' protocol version, in the order the LLM emitted them.
   ///
-  /// Each payload block becomes one [A2uiPart]. The response is checked as
-  /// a whole against a new [RendererState] holding [activeCatalogs], as a
-  /// chat turn that shows new UI: a block may refer to components an earlier
-  /// block added, and the trees of the surfaces the response touches are
-  /// checked once every block is applied.
+  /// Each payload block becomes one [A2uiPart]. The response is checked as a
+  /// whole against [state], or the state bound to the processor, and applied
+  /// to it all or nothing; with neither, it is checked against a new, empty
+  /// state, so an update to a surface the response does not create is
+  /// rejected. See [Parser.parseResponse]. When [wrapped] is false,
+  /// [content] is a single payload without sentinel tags.
   ///
-  /// Throws [A2uiParseError] if a block cannot be read, and
+  /// Throws [A2uiParseError] if a block cannot be read,
   /// [A2uiValidationError] if a renderer would reject the messages, such as
   /// one for a component the catalogs do not declare, or an
-  /// [A2uiIntegrityError] for an update to a surface the response does not
-  /// create or a component nothing reaches from `root`.
-  List<ResponsePart> parseResponse(String content) {
-    final List<ResponsePart> parts = _format.createParser().parseResponse(
-      content,
-    );
-    final List<A2uiPart> blocks = parts.whereType<A2uiPart>().toList();
-    if (blocks.every((A2uiPart block) => block.a2ui.isEmpty)) return parts;
-    final state = RendererState(activeCatalogs);
-    try {
-      state.transaction(() {
-        final touched = <String>{
-          for (final A2uiPart block in blocks) ...state.apply(block.a2ui),
-        };
-        state.checkTopology(touched);
-      });
-    } finally {
-      state.dispose();
+  /// [A2uiIntegrityError] for a component nothing reaches from `root`, and
+  /// [A2uiCatalogError] if [state] holds other catalogs than the processor.
+  List<ResponsePart> parseResponse(
+    String content, {
+    bool wrapped = true,
+    RendererState? state,
+  }) => parser.parseResponse(
+    content,
+    wrapped: wrapped,
+    state: _resolveState(state),
+  );
+
+  /// Opens a stream that reads one LLM response chunk by chunk.
+  ///
+  /// Messages are checked against [state], or the state bound to the
+  /// processor, and applied to it as the stream emits them; with neither,
+  /// against a new, empty state. See [Parser.openStream].
+  ///
+  /// Throws [A2uiCatalogError] if [state] holds other catalogs than the
+  /// processor, and [UnsupportedError] if the format cannot be read chunk by
+  /// chunk.
+  ResponseStream openStream({bool wrapped = true, RendererState? state}) =>
+      parser.openStream(wrapped: wrapped, state: _resolveState(state));
+
+  RendererState? _resolveState(RendererState? state) {
+    if (state == null) return this.state;
+    _checkState(state);
+    return state;
+  }
+
+  void _checkState(RendererState? state) {
+    if (state == null) return;
+    List<String> describe(List<CatalogApi> catalogs) => [
+      for (final CatalogApi catalog in catalogs)
+        '${catalog.id} (${catalog.protocolVersion?.jsonValue})',
+    ];
+    final List<String> held = describe(state.catalogs);
+    final List<String> active = describe(activeCatalogs);
+    if (held.join('\n') != active.join('\n')) {
+      throw A2uiCatalogError(
+        'The renderer state holds catalogs $held, but the processor\'s '
+        'active catalogs are $active.',
+      );
     }
-    return parts;
   }
 }
