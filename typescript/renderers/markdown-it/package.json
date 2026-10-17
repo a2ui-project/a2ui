@@ -44,8 +44,8 @@
     "clean": "wireit"
   },
   "dependencies": {
-    "dompurify": "3.4.11",
-    "markdown-it": "^14.2.0"
+    "dompurify": "3.4.16",
+    "markdown-it": "^14.3.1"
   },
   "devDependencies": {
     "@a2ui/web_core": "workspace:*",

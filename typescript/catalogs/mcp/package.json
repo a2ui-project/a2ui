@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@a2ui/web_core": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.0.1",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
