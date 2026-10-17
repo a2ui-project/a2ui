@@ -1969,6 +1969,9 @@ class Catalog(Generic[TComponent, TFunction]):
             s = resolved.functions[name]
             if isinstance(s, type) and hasattr(s, "model_json_schema"):
                 s = s.model_json_schema()
+            elif s is None:
+                # A function without an argument schema takes any args.
+                s = {}
             flat_functions[name] = s
             if isinstance(s, dict) and isinstance(s.get("$defs"), dict):
                 for def_name, def_schema in s["$defs"].items():
