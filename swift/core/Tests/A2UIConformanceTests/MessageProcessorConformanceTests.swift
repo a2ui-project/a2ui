@@ -32,8 +32,8 @@ private final class ConformanceActionCaptureHandler: ActionHandling,
   }
 }
 
-/// Runs the shared `conformance/core/message_processor_v0_9.yaml` and
-/// `conformance/core/message_processor_v1_0.yaml` suites.
+/// Runs the shared `conformance/core/message_processor_v0_9.yaml`,
+/// `conformance/core/message_processor_v1_0.yaml` and `conformance/core/add_catalog.yaml` suites.
 @MainActor
 struct MessageProcessorConformanceTests {
   /// `process_messages` cases whose payload is accepted but reports an error when it renders.
@@ -70,6 +70,13 @@ struct MessageProcessorConformanceTests {
   @Test func messageProcessorV10Conformance() throws {
     try runMessageProcessorSuite(
       filename: "core/message_processor_v1_0.yaml",
+      defaultVersion: "v1.0"
+    )
+  }
+
+  @Test func addCatalogConformance() throws {
+    try runMessageProcessorSuite(
+      filename: "core/add_catalog.yaml",
       defaultVersion: "v1.0"
     )
   }
@@ -135,29 +142,7 @@ struct MessageProcessorConformanceTests {
     }
     if !catalogPaths.isEmpty {
       catalogs = try catalogPaths.map { path in
-        let catalogSchema = try ConformanceTestHelper.loadRepositoryJSON(path: path)
-        // A published catalog states its protocol version; fall back to the path for any
-        // catalog that does not.
-        let pathVersion: String?
-        if let declaredVersion = catalogSchema["protocolVersion"]?.stringValue {
-          pathVersion =
-            A2UIProtocolVersion(lenientRawValue: declaredVersion)?.rawValue ?? declaredVersion
-        } else if path.contains("v0_9_1") {
-          pathVersion = "v0.9.1"
-        } else if path.contains("v0_9") {
-          pathVersion = "v0.9"
-        } else {
-          pathVersion = explicitVer
-        }
-        let pathCommonTypes =
-          (try? ConformanceTestHelper.commonTypesSchema(
-            forProtocolVersion: pathVersion ?? pVer
-          )) ?? commonTypes
-        return ConformanceTestHelper.buildCatalog(
-          catalogSchema: catalogSchema,
-          commonTypes: pathCommonTypes,
-          protocolVersion: pathVersion
-        )
+        try loadCatalog(path: path, of: testCase, defaultVersion: defaultVersion)
       }
     }
 
@@ -282,9 +267,13 @@ struct MessageProcessorConformanceTests {
     }
 
     var rawMessages = extractRawMessages(from: testCase)
+    // A catalog a step adds is missing until that step runs, so it gets no stand-in.
+    var addedIDs = Set<String>()
     if let steps = testCase["steps"] as? [[String: Any]] {
       for step in steps {
         rawMessages.append(contentsOf: extractRawMessages(from: step))
+        let added = try stepCatalogs(step, of: testCase, defaultVersion: defaultVersion)
+        addedIDs.formUnion(added.map(\.id))
       }
     }
     var neededIDs = Set<String>()
@@ -304,7 +293,7 @@ struct MessageProcessorConformanceTests {
     }
 
     let existingIDs = Set(catalogs.map { $0.id })
-    for neededID in neededIDs where !existingIDs.contains(neededID) {
+    for neededID in neededIDs.subtracting(addedIDs) where !existingIDs.contains(neededID) {
       if let base = catalogs.first {
         catalogs.append(
           Catalog(
@@ -319,6 +308,65 @@ struct MessageProcessorConformanceTests {
     }
 
     return catalogs
+  }
+
+  /// Loads the catalog at the repository-relative `path` for `testCase`.
+  private func loadCatalog(
+    path: String,
+    of testCase: [String: Any],
+    defaultVersion: String
+  ) throws -> AnyCatalog {
+    let explicitVer = testCase["protocolVersion"] as? String
+    let pVer = explicitVer ?? defaultVersion
+    let commonTypes = try? ConformanceTestHelper.commonTypesSchema(forProtocolVersion: pVer)
+    let catalogSchema = try ConformanceTestHelper.loadRepositoryJSON(path: path)
+    // A published catalog states its protocol version; fall back to the path for any
+    // catalog that does not.
+    let pathVersion: String?
+    if let declaredVersion = catalogSchema["protocolVersion"]?.stringValue {
+      pathVersion =
+        A2UIProtocolVersion(lenientRawValue: declaredVersion)?.rawValue ?? declaredVersion
+    } else if path.contains("v0_9_1") {
+      pathVersion = "v0.9.1"
+    } else if path.contains("v0_9") {
+      pathVersion = "v0.9"
+    } else {
+      pathVersion = explicitVer
+    }
+    let pathCommonTypes =
+      (try? ConformanceTestHelper.commonTypesSchema(
+        forProtocolVersion: pathVersion ?? pVer
+      )) ?? commonTypes
+    return ConformanceTestHelper.buildCatalog(
+      catalogSchema: catalogSchema,
+      commonTypes: pathCommonTypes,
+      protocolVersion: pathVersion
+    )
+  }
+
+  /// The catalogs a `process_messages` step adds with `MessageProcessor.addCatalog(_:)`, from
+  /// its `addCatalogPaths`.
+  private func stepCatalogs(
+    _ step: [String: Any],
+    of testCase: [String: Any],
+    defaultVersion: String
+  ) throws -> [AnyCatalog] {
+    let paths = step["addCatalogPaths"] as? [String] ?? []
+    return try paths.map { try loadCatalog(path: $0, of: testCase, defaultVersion: defaultVersion) }
+  }
+
+  /// Adds `catalogs` to `processor`, then processes the step's messages, if it has any.
+  private func runStep(
+    _ step: [String: Any],
+    adding catalogs: [AnyCatalog],
+    on processor: MessageProcessor
+  ) throws {
+    for catalog in catalogs {
+      try processor.addCatalog(catalog)
+    }
+    if let messages = step["messages"] {
+      try processor.processMessages(ConformanceTestHelper.toJSONValue(messages))
+    }
   }
 
   private func extractRawMessages(from testCase: [String: Any]) -> [[String: Any]] {
@@ -357,10 +405,10 @@ struct MessageProcessorConformanceTests {
     }
 
     for step in steps {
+      let addedCatalogs = try stepCatalogs(step, of: testCase, defaultVersion: defaultVersion)
       if let expectError = step["expectError"] as? [String: Any] {
-        let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
         do {
-          try processor.processMessages(payload)
+          try runStep(step, adding: addedCatalogs, on: processor)
           Issue.record("[\(name)] Expected error to be thrown for invalid message")
         } catch {
           if let category = expectError["category"] as? String {
@@ -386,9 +434,8 @@ struct MessageProcessorConformanceTests {
         continue
       }
 
-      let payload = ConformanceTestHelper.toJSONValue(step["messages"] ?? [:])
       handler.capturedErrors.removeAll()
-      try processor.processMessages(payload)
+      try runStep(step, adding: addedCatalogs, on: processor)
       if let expected = expectedRuntimeError {
         #expect(
           !handler.capturedErrors.isEmpty,
@@ -424,6 +471,15 @@ struct MessageProcessorConformanceTests {
         (expectedDict["surfaces"] as? [String: Any])
         ?? (step["expectedSurfaces"] as? [String: Any])
       try verifyExpectedSurfaces(expectedSurfaces, on: processor, name: name)
+    }
+
+    // The case's own `expect` holds once every step has run.
+    if testCase["steps"] != nil, let caseExpect = testCase["expect"] as? [String: Any] {
+      try verifyExpectedSurfaces(
+        caseExpect["surfaces"] as? [String: Any],
+        on: processor,
+        name: name
+      )
     }
   }
 

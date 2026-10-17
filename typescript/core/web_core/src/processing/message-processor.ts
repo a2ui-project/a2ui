@@ -161,6 +161,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   readonly rpc: RpcHandler;
   private readonly adapterRegistry: VersionAdapterResolver;
   private readonly validationConfig?: ValidationConfig;
+  private readonly catalogs: Catalog<any>[];
   /**
    * What the last check of each surface's components found, under a config
    * that defers the reference and reachability checks, with the number of
@@ -171,15 +172,19 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   /**
    * Initializes a new `MessageProcessor` instance.
    *
+   * The processor keeps its own copy of `catalogs`, which `addCatalog` adds
+   * to; the array passed in is not changed.
+   *
    * @param catalogs List of available component catalogs.
    * @param actionHandler Global handler for actions dispatched from all surfaces.
    * @param options Configuration options for the processor.
    */
   constructor(
-    private catalogs: Catalog<any>[],
+    catalogs: Catalog<any>[],
     private actionHandler?: ActionListener,
     options?: MessageProcessorOptions,
   ) {
+    this.catalogs = [...catalogs];
     this.model = new SurfaceGroupModel<T>();
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
     this.rpc = new RpcHandler({
@@ -201,6 +206,25 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
+  }
+
+  /**
+   * Adds a catalog to the ones this processor holds.
+   *
+   * `createSurface` messages, renderer function calls and
+   * `getRendererCapabilities` see the catalog from this call on. Surfaces
+   * created before the call keep the catalogs they were created with.
+   *
+   * @param catalog The catalog to add.
+   * @throws {A2uiCatalogError} If the processor already holds a catalog with
+   *     the same id.
+   */
+  addCatalog(catalog: Catalog<any>): void {
+    if (this.catalogs.some(c => c.id === catalog.id)) {
+      throw new A2uiCatalogError(`Catalog already registered: ${catalog.id}`);
+    }
+    // The RPC handler holds this same array, so it is updated in place.
+    this.catalogs.push(catalog);
   }
 
   /**
@@ -1019,7 +1043,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   ): Catalog<T> {
     if (catalogId !== undefined && !surface.availableCatalogs.has(catalogId)) {
       const known = this.catalogs.find(c => c.id === catalogId);
-      if (known) {
+      if (known && !isCatalogVersionCompatible(known.protocolVersion, surface.protocolVersion)) {
         throw new A2uiCatalogError(
           `${subject} names catalog '${catalogId}', whose specification version (${known.protocolVersion}) does not match surface '${surface.id}' version (${surface.protocolVersion}).`,
         );

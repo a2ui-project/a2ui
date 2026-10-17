@@ -586,6 +586,92 @@ describe('MessageProcessor', () => {
     });
   });
 
+  describe('addCatalog', () => {
+    it('resolves a later createSurface naming the added catalog', () => {
+      const createSurface = {
+        version: 'v0.9' as const,
+        createSurface: {surfaceId: 's1', catalogId: 'late-catalog'},
+      };
+      assert.throws(() => processor.processMessages([createSurface]), A2uiCatalogError);
+
+      processor.addCatalog(new Catalog('late-catalog', '0.9', []));
+      processor.processMessages([createSurface]);
+
+      assert.strictEqual(processor.getSurface('s1')?.defaultCatalog?.id, 'late-catalog');
+    });
+
+    it('rejects a catalog whose id the processor already holds', () => {
+      assert.throws(
+        () => processor.addCatalog(new Catalog('test-catalog', '0.9', [])),
+        A2uiCatalogError,
+      );
+    });
+
+    it('lists the added catalog in the renderer capabilities', () => {
+      processor.addCatalog(new Catalog('late-catalog', '0.9', []));
+
+      const caps = processor.getRendererCapabilities({versions: ['v0.9']});
+
+      assert.deepStrictEqual((caps['v0.9'] as any).supportedCatalogIds, [
+        'test-catalog',
+        'late-catalog',
+      ]);
+    });
+
+    it('resolves callRendererFunction against the added catalog', async () => {
+      const processor = new MessageProcessor([new Catalog('cat-basic', '1.0', [])]);
+      processor.addCatalog(
+        new Catalog(
+          'cat-fn',
+          '1.0',
+          [],
+          [
+            {
+              name: 'computeGreeting',
+              returnType: 'string',
+              allowedCallers: 'rendererOrAgent',
+              schema: z.object({user: z.string()}),
+              execute: args => `Hi ${args.user}`,
+            },
+          ],
+        ),
+      );
+
+      const responses = await processor.processMessagesAsync({
+        version: 'v1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-1',
+          callFunction: {'@call': 'computeGreeting', catalogId: 'cat-fn', args: {user: 'Alice'}},
+        },
+      });
+
+      assert.strictEqual(responses.length, 1);
+      assert.strictEqual(responses[0].rendererFunctionResponse.value, 'Hi Alice');
+    });
+
+    it('reports an added catalog a surface created before it does not have as not found', () => {
+      const processor = new MessageProcessor([new Catalog('cat-basic', '1.0', [])]);
+      processor.processMessages([
+        {version: 'v1.0', createSurface: {surfaceId: 's1', catalogId: 'cat-basic'}},
+      ]);
+      processor.addCatalog(new Catalog('cat-late', '1.0', []));
+
+      assert.throws(
+        () =>
+          processor.processMessages([
+            {
+              version: 'v1.0',
+              updateComponents: {
+                surfaceId: 's1',
+                components: [{id: 'root', component: 'Text', catalogId: 'cat-late'}],
+              },
+            },
+          ]),
+        {name: 'A2uiCatalogError', message: 'Catalog not found: cat-late'},
+      );
+    });
+  });
+
   describe('MessageProcessor Full Pipeline & Validation Integration', () => {
     const basicCatalog = new Catalog('https://a2ui.org/catalog', '1.0', BASIC_COMPONENTS);
 

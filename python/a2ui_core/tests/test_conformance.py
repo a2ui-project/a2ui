@@ -226,8 +226,20 @@ def load_conformance_cases() -> list[tuple[str, str, dict[str, Any]]]:
     return cases
 
 
+def _load_step_catalogs(step: dict[str, Any]) -> list[Any]:
+    """Loads the catalogs a process_messages step adds with add_catalog."""
+    return [_load_catalog_path(p) for p in step.get("addCatalogPaths") or []]
+
+
 def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
     catalogs_map: dict[str, Any] = {}
+    # A catalog a step adds is missing until that step runs, so nothing stands
+    # in for it.
+    step_catalog_ids = {
+        c.catalog_id
+        for step in case.get("steps") or []
+        for c in _load_step_catalogs(step)
+    }
 
     for cat in ALL_CATALOGS:
         if hasattr(cat, "catalog_id"):
@@ -260,6 +272,8 @@ def get_catalogs_for_test_case(case: dict[str, Any]) -> list[Any]:
         catalogs_map["basic"] = v10_basic_alias
 
     def add_catalog_id(cat_id: str, ver: str | None = None):
+        if cat_id in step_catalog_ids:
+            return
         if cat_id and (
             cat_id not in catalogs_map
             or not any(
@@ -954,8 +968,15 @@ def validate_process_messages_case(case: dict[str, Any]) -> None:
         messages = step.get("messages") or step.get("payload")
         if not messages and "message" in step:
             messages = [step["message"]]
-        if not messages:
+        step_catalogs = _load_step_catalogs(step)
+        if not messages and not step_catalogs:
             continue
+
+        def run_step() -> None:
+            for catalog in step_catalogs:
+                processor.add_catalog(catalog)
+            if messages:
+                processor.process_messages(messages)
 
         expect_error = step.get("expectError") or (
             case.get("expectError") if step is steps[-1] else None
@@ -963,9 +984,9 @@ def validate_process_messages_case(case: dict[str, Any]) -> None:
 
         if expect_error:
             with assert_raises(expect_error):
-                processor.process_messages(messages)
+                run_step()
         else:
-            processor.process_messages(messages)
+            run_step()
             expected = step.get("expect") or (
                 case.get("expect") if step is steps[-1] else {}
             )

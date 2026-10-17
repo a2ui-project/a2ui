@@ -94,6 +94,11 @@ typedef _CheckedBatch = ({
 /// arrive across several messages in any order; see [ValidationConfig].
 class MessageProcessor<T extends ComponentApi> {
   final SurfaceGroupModel<T> model;
+
+  /// The catalogs this processor supports, in the order given.
+  ///
+  /// This is the processor's own copy of the list passed to the constructor,
+  /// which [addCatalog] adds to.
   final List<Catalog<T, FunctionImplementation>> catalogs;
 
   /// The protocol version this processor targets by default, or null for
@@ -156,7 +161,7 @@ class MessageProcessor<T extends ComponentApi> {
   /// agent, and [defaultTimeout] bounds how long [callAgentFunction] waits
   /// for an answer; see [RpcHandler].
   MessageProcessor({
-    required this.catalogs,
+    required List<Catalog<T, FunctionImplementation>> catalogs,
     this.defaultVersion,
     this.validationConfig,
     this.commonTypesSchema,
@@ -164,7 +169,8 @@ class MessageProcessor<T extends ComponentApi> {
     void Function(A2uiRendererAction)? onAction,
     OutboundMessageListener? outboundListener,
     Duration defaultTimeout = const Duration(seconds: 30),
-  })  : adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
+  })  : catalogs = List.of(catalogs),
+        adapterRegistry = adapterRegistry ?? VersionAdapterRegistry.standard(),
         model = SurfaceGroupModel<T>(),
         _outboundListener = outboundListener,
         _defaultTimeout = defaultTimeout {
@@ -220,6 +226,25 @@ class MessageProcessor<T extends ComponentApi> {
   /// Whether this processor checks the function calls it receives rather
   /// than running them, as one from [MessageProcessor.forAgent] does.
   bool _checksOnly = false;
+
+  /// Adds [catalog] to the ones this processor holds.
+  ///
+  /// `createSurface` messages, renderer function calls and
+  /// [getRendererCapabilities] see the catalog from this call on. Surfaces
+  /// created before the call keep the catalogs they were created with.
+  ///
+  /// Throws [A2uiCatalogError] when this processor already holds a catalog
+  /// with the same id.
+  void addCatalog(Catalog<T, FunctionImplementation> catalog) {
+    if (catalogs.any((held) => held.id == catalog.id)) {
+      throw A2uiCatalogError(
+        "Catalog '${catalog.id}' is already registered.",
+        catalogId: catalog.id,
+      );
+    }
+    // The RPC handler holds this same list, so it is updated in place.
+    catalogs.add(catalog);
+  }
 
   /// The validator for [catalog].
   ///

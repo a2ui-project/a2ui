@@ -298,6 +298,105 @@ struct MessageProcessorTests {
     #expect(handler.capturedErrors.count == 1)
   }
 
+  // MARK: - addCatalog
+
+  @Test func addCatalogResolvesLaterCreateSurfaceNamingIt() throws {
+    let (processor, handler) = try makeProcessor()
+    let createSurface = try parse(
+      """
+      {
+        "version": "v0.9.1",
+        "createSurface": {
+          "surfaceId": "s1",
+          "catalogId": "late"
+        }
+      }
+      """)
+    processor.process(message: createSurface)
+    #expect(processor.surfaceGroupModel["s1"] == nil)
+    #expect(handler.capturedErrors.count == 1)
+
+    try processor.addCatalog(AnyCatalog(id: "late", components: []))
+    processor.process(message: createSurface)
+
+    #expect(processor.surfaceGroupModel["s1"]?.defaultCatalogID == "late")
+    #expect(handler.capturedErrors.count == 1)
+  }
+
+  @Test func addCatalogRejectsHeldCatalogID() throws {
+    let (processor, _) = try makeProcessor()
+    #expect(throws: A2UICatalogError.self) {
+      try processor.addCatalog(AnyCatalog(id: "default", components: []))
+    }
+  }
+
+  @Test func addCatalogListsItInRendererCapabilities() throws {
+    let (processor, _) = try makeProcessor()
+    try processor.addCatalog(AnyCatalog(id: "late", components: []))
+
+    let caps = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(protocolVersion: .v091)
+    )
+
+    let ids = caps["v0.9.1"]?["supportedCatalogIds"]?.arrayValue?.compactMap(\.stringValue)
+    #expect(ids == ["default", "late"])
+  }
+
+  @Test func addCatalogResolvesCallRendererFunction() async throws {
+    let processor = MessageProcessor(
+      catalogs: [AnyCatalog(id: "basic", protocolVersion: .v10, components: [])]
+    )
+    var capturedOutbound: [RendererToAgentMessage] = []
+    processor.outboundListener = { msg in
+      MainActor.assumeIsolated {
+        capturedOutbound.append(msg)
+      }
+    }
+    let echoSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "text": { "type": "string" }
+          }
+        }
+        """
+    )
+    try processor.addCatalog(
+      AnyCatalog(
+        id: "late",
+        protocolVersion: .v10,
+        components: [],
+        functions: [TestEchoFunction(schema: echoSchema)]
+      )
+    )
+
+    processor.process(
+      message: try parse(
+        """
+        {
+          "version": "v1.0",
+          "callRendererFunction": {
+            "functionCallId": "rpc-1",
+            "callFunction": {
+              "@call": "echo",
+              "catalogId": "late",
+              "args": { "text": "Hi Alice" }
+            }
+          }
+        }
+        """))
+
+    try await Task.sleep(nanoseconds: 20_000_000)
+    #expect(capturedOutbound.count == 1)
+    if case .rendererFunctionResponse(let resp) = capturedOutbound.first {
+      #expect(resp.functionCallID == "rpc-1")
+      #expect(resp.value == .string("Hi Alice"))
+    } else {
+      Issue.record("Expected .rendererFunctionResponse")
+    }
+  }
+
   // MARK: - getRendererCapabilities
 
   @Test func getRendererCapabilitiesReturnsSupportedCatalogIDs() throws {

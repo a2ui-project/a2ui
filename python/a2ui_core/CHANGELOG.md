@@ -1,5 +1,12 @@
 ## Unreleased
 
+- Add `MessageProcessor.add_catalog(catalog)`, which adds a catalog to a
+  processor after it is built. `createSurface` messages, renderer function
+  calls and `get_renderer_capabilities` see the catalog from then on; surfaces
+  created before the call keep the catalogs they were created with. A catalog
+  whose ID the processor already holds is rejected with `A2uiCatalogError`.
+  `MessageProcessor.catalogs` is the processor's own list, which `add_catalog`
+  appends to; the sequence passed to the constructor is not changed.
 - (v1_0) `DataContext` reads a `ValidationResult` dict that a function argument
   resolves to by its `valid` boolean wherever the function's argument schema
   types that argument as `DynamicBoolean`, as the specification defines the

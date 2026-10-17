@@ -450,6 +450,13 @@
         "payload": {
           "description": "Payload or messages for this step."
         },
+        "addCatalogPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Repository-relative paths of catalogs that a process_messages step adds to the processor. The harness loads each with fromJson and passes it to addCatalog before it processes the step's messages, and gives the case no stand-in catalog under the id of a catalog that a step adds."
+        },
         "chunk": {
           "type": "string",
           "description": "Stream chunk string."

@@ -174,17 +174,38 @@ class MessageProcessor:
         """
         if not catalogs:
             raise ValueError("At least one catalog must be provided.")
-        self.catalogs = catalogs
+        # A list of its own, which add_catalog appends to, so the sequence
+        # passed in is not changed.
+        self.catalogs = list(catalogs)
         self.model = SurfaceGroupModel()
         opts = options or MessageProcessorOptions()
         self.validation_config = opts.validation_config
         self.rpc = RpcHandler(
-            catalogs=catalogs,
+            catalogs=self.catalogs,
             outbound_listener=opts.outbound_listener,
             default_timeout_ms=opts.default_timeout_ms,
         )
         if action_handler:
             self.model.on_action.subscribe(action_handler)
+
+    def add_catalog(self, catalog: CatalogApi) -> None:
+        """Adds a catalog to the ones this processor holds.
+
+        `createSurface` messages, renderer function calls and
+        `get_renderer_capabilities` see the catalog from this call on. Surfaces
+        created before the call keep the catalogs they were created with.
+
+        Args:
+            catalog: The catalog to add.
+
+        Raises:
+            A2uiCatalogError: If the processor already holds a catalog with the
+                same ID.
+        """
+        if any(c.catalog_id == catalog.catalog_id for c in self.catalogs):
+            raise A2uiCatalogError(f"Catalog already registered: {catalog.catalog_id}")
+        # The RPC handler holds this same list, so it is updated in place.
+        self.catalogs.append(catalog)
 
     def _extract_operations(
         self, messages: AgentToRendererMessagePayload
@@ -734,21 +755,24 @@ class MessageProcessor:
                 comp_cat_id is not None if surface_at_least_v10 else bool(comp_cat_id)
             )
             if names_catalog:
-                comp_catalog = self._resolve_catalog(comp_cat_id)
-                if not comp_catalog:
+                # A component runs in a catalog its surface holds, so a catalog
+                # added after the surface was created is not found.
+                comp_catalog = surface.available_catalogs.get(cast(str, comp_cat_id))
+                if comp_catalog is None:
+                    known = self._resolve_catalog(comp_cat_id)
+                    comp_ver = getattr(known, "protocol_version", None)
+                    surface_ver = surface.protocol_version
+                    if (
+                        comp_ver
+                        and surface_ver
+                        and not is_catalog_version_compatible(comp_ver, surface_ver)
+                    ):
+                        raise A2uiCatalogError(
+                            f"Component {c_id} catalog '{comp_cat_id}' has different"
+                            f" protocol version {_version_label(comp_ver)} than"
+                            f" surface {surface_id} ({_version_label(surface_ver)})."
+                        )
                     raise A2uiCatalogError(f"Catalog not found: {comp_cat_id}")
-                comp_ver = getattr(comp_catalog, "protocol_version", None)
-                surface_ver = surface.protocol_version
-                if (
-                    comp_ver
-                    and surface_ver
-                    and not is_catalog_version_compatible(comp_ver, surface_ver)
-                ):
-                    raise A2uiCatalogError(
-                        f"Component {c_id} catalog '{comp_cat_id}' has different"
-                        f" protocol version {_version_label(comp_ver)} than"
-                        f" surface {surface_id} ({_version_label(surface_ver)})."
-                    )
             elif (
                 existing
                 and not surface_at_least_v10
@@ -907,7 +931,12 @@ class MessageProcessor:
         try:
             catalog = surface.resolve_catalog(catalog_id, subject=subject)
         except A2uiCatalogError:
-            if catalog_id is not None and self._resolve_catalog(catalog_id) is not None:
+            known = (
+                self._resolve_catalog(catalog_id) if catalog_id is not None else None
+            )
+            if known is not None and not is_catalog_version_compatible(
+                getattr(known, "protocol_version", None), surface.protocol_version
+            ):
                 raise A2uiCatalogError(
                     f"Catalog '{catalog_id}' is not available on surface"
                     f" {surface.id}: its protocol version does not match the"

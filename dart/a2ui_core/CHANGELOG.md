@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added `MessageProcessor.addCatalog`, which adds a catalog to a processor
+  after it is built. `createSurface` messages, renderer function calls and
+  `getRendererCapabilities` see the catalog from then on; surfaces created
+  before the call keep the catalogs they were created with. A catalog whose id
+  the processor already holds is rejected with `A2uiCatalogError`.
+  `MessageProcessor.catalogs` is the processor's own copy of the list passed
+  to the constructor, which `addCatalog` adds to.
 - **Breaking:** Removed cross-catalog `$ref` resolution across peer
   catalogs ([#3232](https://github.com/a2ui-project/a2ui/issues/3232),
   [#3575](https://github.com/a2ui-project/a2ui/pull/3575)). A catalog's
