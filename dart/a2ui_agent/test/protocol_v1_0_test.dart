@@ -362,10 +362,9 @@ void main() {
         ).createFormat([basic]).createParser();
         final String response = jsonBlock([helloSurface]);
         final int cut = response.indexOf('Hello');
-        expect(parser.parseChunk(response.substring(0, cut)), isEmpty);
-        final List<ResponsePart> parts = parser.parseChunk(
-          response.substring(cut),
-        );
+        final ResponseStream stream = parser.openStream();
+        expect(stream.feed(response.substring(0, cut)), isEmpty);
+        final List<ResponsePart> parts = stream.feed(response.substring(cut));
         expect(parts.whereType<A2uiPart>(), isNotEmpty);
       },
     );

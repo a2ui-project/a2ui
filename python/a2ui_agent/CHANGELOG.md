@@ -1,5 +1,10 @@
 ## Unreleased
 
+- `A2uiRequestProcessor.prompt_snippet` is cached on the processor instance, and
+  `A2uiGenerator.create_processor` caches example validation, format creation,
+  `prompt_snippet`, and the stateless `Parser` per negotiated catalog set and
+  format factory so repeated requests do not re-validate static examples or
+  rebuild the prompt snippet from scratch.
 - `resolve_catalogs`, `validate_payload`, and the Direct JSON and Express
   formats resolve cross-catalog `$ref`s between the catalogs they are given.
   `resolve_catalogs` also resolves references into registered catalogs that

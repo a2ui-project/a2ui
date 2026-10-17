@@ -2,8 +2,79 @@
 
 ## Unreleased
 
+- `A2uiGenerator.createProcessor` caches example validation, `promptSnippet`,
+  and the stateless `Parser` per negotiated catalog list and format factory so
+  repeated requests do not re-validate static examples or rebuild the prompt
+  snippet from scratch.
+- Add `RendererState`, the agent's mirror of the surfaces a renderer holds.
+  It wraps one `MessageProcessor` for its whole life and checks each message
+  against everything applied before it, so an agent that keeps one state for
+  a conversation catches a reference to a component no turn sent, a cycle
+  with components from an earlier turn, or a new component that nothing
+  reaches.
+  - `apply` checks messages and applies them. The call is atomic: if a
+    message is rejected, the state is left as it was. An update to a surface
+    the state never saw created is rejected, as a renderer would reject it.
+  - `transaction` makes several calls atomic.
+  - `checkTopology` checks the trees of the given surfaces: the root exists,
+    every reference resolves, and every component added or replaced since
+    the last check is reachable from the root. A component that an update
+    detached, by rewriting its parent's children, is accepted, since the
+    protocol has no message that removes one component.
+  - `dispose` releases the surfaces the state holds.
+  - Checking messages of v1.0 catalogs is not implemented yet and throws
+    `UnimplementedError`.
+- Add `validatePayload`, which checks one payload with no record of earlier
+  ones, such as the argument of a tool call. It runs on a short-lived
+  `RendererState` that assumes a surface the payload only updates exists, and
+  replaces the processor that payload checks built for every call.
+- Breaking: `Parser.parseResponse` and `A2uiRequestProcessor.parseResponse`
+  take an optional `state` and check every message they compile against it.
+  Without one, a call checks the response against a new, empty state, as a
+  chat turn that shows new UI, so an update to a surface the response does
+  not create is rejected; `Parser.parseResponse` accepted it before. A
+  canvas agent keeps one state for the conversation and passes it on every
+  turn. The response is applied to the state all or nothing, and the trees of
+  every surface it touches, including surfaces it only updates, are checked
+  once every block is applied, unless a block is cut off by the end of the
+  response. Express output is checked the same way, which rejects inline
+  child ids that collide with assigned variables and check lists on
+  components that declare none.
+- Breaking: a parser holds no state, so one parser reads every response of a
+  request. `Parser.parseChunk` is removed: open a stream for each response
+  with `parser.openStream(wrapped: ...)`, call `feed(chunk)` for each chunk,
+  and `close()` after the last one. `Parser.openStream` and
+  `A2uiRequestProcessor.openStream` return a `ResponseStream`, and the direct
+  JSON parser a `DirectJsonResponseStream`:
+  - Each message the stream emits is checked against the stream's state and
+    applied to it as it is emitted, so the state mirrors what the renderer
+    received even when the response fails part way.
+  - When a block closes, the trees of the surfaces it touched are checked,
+    which a streamed response skipped before: a component nothing reaches, a
+    dangling reference or a cycle now throws.
+  - A `createSurface` or `deleteSurface` is held until its object closes, so
+    it is emitted once. A message for a surface that does not exist yet is
+    held back, as a renderer would reject it, and the block throws when it
+    closes.
+  - `close` emits the text held back as a possible tag, throws
+    `A2uiParseError` if a block is still open, and checks the tree of an
+    unwrapped stream.
+  - A stream that throws has ended: `feed` then throws `StateError`, and
+    `close` returns nothing.
+- Breaking: `Parser.compile` only translates a block into messages. It
+  reports what the notation gets wrong, but `DirectJsonParser.compile` no
+  longer checks components, function calls, themes or catalog ids against the
+  catalogs; `parseResponse(block, wrapped: false)` compiles and checks one
+  block. A `Parser` subclass implements the new `catalogs` getter.
+- `A2uiRequestProcessor` reuses one parser, which its `parser` getter
+  returns. `createState` creates an empty `RendererState` for the active
+  catalogs. A processor can be bound to a state, through its `state`
+  constructor parameter or `A2uiGenerator.createProcessor(..., state: ...)`,
+  so that `parseResponse` and `openStream` use it when a call passes none.
+  A state for other catalogs throws `A2uiCatalogError`.
+  `A2uiRequestProcessor.parseResponse` also takes `wrapped`.
 - Support cross-catalog `$ref` references across peer catalogs in
-  `resolveCatalogs`, `validatePayloads`, `DirectJsonPromptGenerator` (preserving
+  `resolveCatalogs`, payload checks, `DirectJsonPromptGenerator` (preserving
   unbundled external `$ref`s in `Catalog.toJson()` while retaining transitive
   `common_types.json` definitions), and the Express format (`ExpressPromptGenerator`,
   `ExpressCompiler`, and `ExpressDecompiler`). Each links copies of the
@@ -78,10 +149,12 @@
   Express component signatures (after component-specific properties) so
   positional arguments map to component properties while supporting common
   properties via keyword arguments; previously they were omitted.
-- `A2uiRequestProcessor` checks each example as one render: a surface may
-  arrive across several `updateComponents` messages of the example, and must
-  have a root, resolved references and every component reachable from the
-  root once the whole example is applied. Undeclared component types,
+- `A2uiRequestProcessor` checks each example with `validatePayload`, as one
+  render: a surface the example creates may arrive across several
+  `updateComponents` messages, and must have a root, resolved references and
+  every component reachable from the root once the whole example is applied.
+  An example may also update a surface it does not create, which is assumed
+  to exist; such an example was rejected before. Undeclared component types,
   duplicate ids, cycles and malformed data-model paths are still rejected per
   message.
 - `DirectJsonParser`, `DirectJsonFormat` and `DirectJsonFormatFactory` take

@@ -35,7 +35,8 @@ Object? readJson(String text) {
 }
 
 /// The messages of a direct JSON payload of which [text] is the start,
-/// healed so that each reads as the message it is so far.
+/// healed so that each reads as the message it is so far, each with whether
+/// its object has closed.
 ///
 /// [text] is a list of messages, or a single one. Each message closed by
 /// [text] is returned as written. The message still arriving is healed if
@@ -51,7 +52,7 @@ Object? readJson(String text) {
 /// than healed.
 ///
 /// Returns no messages if [text] cannot be the start of a JSON document.
-List<Object?> readPartialMessages(
+List<(Object?, bool)> readPartialMessageItems(
   String text,
   Set<String> progressiveKeys, {
   Set<String> wholeItemKeys = const {},
@@ -110,21 +111,24 @@ class _Reader {
     return value;
   }
 
-  List<Object?> messages() {
+  /// Each message [text] holds, and whether its object closed.
+  List<(Object?, bool)> messages() {
     _skipSpace();
     if (_atEnd) return const [];
     if (text[_i] != '[') {
       try {
+        _cut = false;
         final Object? message = _value(healable: false);
+        final bool closed = !_cut;
         _skipSpace();
         if (!_atEnd) _fail('unexpected text after the JSON value');
-        return [message];
+        return [(message, closed)];
       } on _Unfinished {
         return const [];
       }
     }
     _i++;
-    final messages = <Object?>[];
+    final messages = <(Object?, bool)>[];
     while (true) {
       _skipSpace();
       if (_atEnd) return messages;
@@ -135,7 +139,9 @@ class _Reader {
         return messages;
       }
       try {
-        messages.add(_value(healable: false));
+        _cut = false;
+        final Object? message = _value(healable: false);
+        messages.add((message, !_cut));
       } on _Unfinished {
         return messages;
       }

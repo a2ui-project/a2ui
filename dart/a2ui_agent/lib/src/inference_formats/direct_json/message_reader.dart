@@ -25,46 +25,30 @@ const Map<String, Set<String>> _bodyFields = {
   'deleteSurface': {'surfaceId'},
 };
 
-/// Reads the decoded messages of one direct JSON payload into v0.9 messages,
-/// checking each the way a renderer holding [catalogs] would check it on its
-/// own.
+/// Reads the decoded messages of a direct JSON payload into messages of the
+/// protocol version its catalogs target.
 ///
-/// A payload may update a surface created by an earlier response, so a
-/// message is checked against the surfaces the payload creates and nothing
-/// else: its components against their catalog's schemas, and the functions
-/// they call against their catalog's signatures. The checks that need the
-/// whole surface, such as a reachable root, are `A2uiRequestProcessor`'s.
+/// Reading translates: it rejects what is not a message of that version, or
+/// carries a field the message does not define, which a typed message could
+/// not hold. Checking the messages against the catalogs and the surfaces a
+/// renderer holds is `RendererState`'s.
 ///
 /// Reading the messages of v1.0 catalogs is not implemented yet and throws
 /// [UnimplementedError].
 class MessageReader {
-  /// The first of [catalogs] is the one a component is checked against when
-  /// its surface is not created by the payload and no catalog declares it.
-  ///
   /// Throws [A2uiCatalogError] if [catalogs] is empty or they target
   /// different versions, and [UnimplementedError] if they target v1.0.
-  MessageReader(this.catalogs) {
+  MessageReader(List<CatalogApi> catalogs) {
     if (catalogsProtocolVersion(catalogs).isAtLeast(A2uiProtocolVersion.v1_0)) {
       throw UnimplementedError('Reading direct JSON messages of protocol v1.0');
     }
   }
 
-  final List<CatalogApi> catalogs;
-
-  late final Map<String, PayloadValidator<ComponentApi, FunctionApi>>
-  _validators = {
-    for (final CatalogApi catalog in catalogs)
-      catalog.id: PayloadValidator(catalog: catalog),
-  };
-
-  /// Reads [envelope], the next message of a payload.
-  ///
-  /// [surfaces] maps each surface the payload created so far to its catalog
-  /// id, and is updated with this message.
+  /// Reads [envelope], one message of a payload.
   ///
   /// Throws [A2uiValidationError] if [envelope] is not a v0.9 message, or
-  /// names or uses anything the catalogs do not declare.
-  AgentToRendererMessage read(Object? envelope, Map<String, String> surfaces) {
+  /// carries a field the message does not define.
+  AgentToRendererMessage read(Object? envelope) {
     if (envelope is! Map<String, Object?>) {
       throw A2uiValidationError(
         'A direct JSON payload must be a list of message objects, got '
@@ -75,55 +59,12 @@ class MessageReader {
       envelope,
     ], protocolVersion: A2uiProtocolVersion.v0_9).messages.single;
     _checkFields(envelope);
-    switch (message) {
-      case CreateSurfaceMessage():
-        final String catalogId =
-            message.catalogId ??
-            (throw A2uiValidationError(
-              "Surface '${message.surfaceId}' names no catalogId.",
-            ));
-        final PayloadValidator<ComponentApi, FunctionApi> validator =
-            _validators[catalogId] ??
-            (throw A2uiValidationError(
-              "Surface '${message.surfaceId}' names catalog "
-              "'$catalogId', which is not active. Active catalogs: "
-              '${_validators.keys.join(', ')}.',
-            ));
-        validator.validateTheme(message.theme);
-        surfaces[message.surfaceId] = catalogId;
-      case UpdateComponentsMessage():
-        if (message.components.isEmpty) {
-          throw A2uiValidationError(
-            "The update of surface '${message.surfaceId}' has no components.",
-          );
-        }
-        for (final Map<String, Object?> component in message.components) {
-          final PayloadValidator<ComponentApi, FunctionApi> validator =
-              _validatorFor(component, surfaces[message.surfaceId]);
-          validator.validateComponent(component);
-          _checkCalls(component, validator);
-        }
-      case DeleteSurfaceMessage():
-        surfaces.remove(message.surfaceId);
-      default:
-        break;
+    if (message case CreateSurfaceMessage(catalogId: null)) {
+      throw A2uiValidationError(
+        "Surface '${message.surfaceId}' names no catalogId.",
+      );
     }
     return message;
-  }
-
-  /// The validator for the catalog [component] belongs to: its surface's,
-  /// else the first catalog declaring its type, else the first catalog.
-  PayloadValidator<ComponentApi, FunctionApi> _validatorFor(
-    Map<String, Object?> component,
-    String? surfaceCatalogId,
-  ) {
-    if (surfaceCatalogId != null) return _validators[surfaceCatalogId]!;
-    for (final CatalogApi catalog in catalogs) {
-      if (catalog.components.containsKey(component['component'])) {
-        return _validators[catalog.id]!;
-      }
-    }
-    return _validators[catalogs.first.id]!;
   }
 }
 
@@ -143,39 +84,5 @@ void _checkFields(Map<String, Object?> envelope) {
         '${allowed.join(', ')}.',
       );
     }
-  }
-}
-
-/// Checks each function call in [value] against the catalog of [validator].
-void _checkCalls(
-  Object? value,
-  PayloadValidator<ComponentApi, FunctionApi> validator,
-) {
-  switch (value) {
-    case {'call': final String name}:
-      if (!validator.catalog.functions.containsKey(name)) {
-        throw A2uiValidationError(
-          "Catalog '${validator.catalog.id}' declares no function named "
-          "'$name'.",
-        );
-      }
-      final Object args = value['args'] ?? const <String, Object?>{};
-      if (args is! Map<String, Object?>) {
-        throw A2uiValidationError(
-          "The 'args' of a call to '$name' must be an object.",
-        );
-      }
-      validator.validateFunction(name, args);
-      for (final Object? arg in args.values) {
-        _checkCalls(arg, validator);
-      }
-    case Map():
-      for (final Object? child in value.values) {
-        _checkCalls(child, validator);
-      }
-    case List():
-      for (final Object? child in value) {
-        _checkCalls(child, validator);
-      }
   }
 }

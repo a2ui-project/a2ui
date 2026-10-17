@@ -155,3 +155,49 @@ def test_processor_validates_examples_against_active_catalogs():
     ])
     with pytest.raises(A2uiValidationError):
         A2uiRequestProcessor(catalogs=[pruned], examples=[bad_example])
+
+
+def test_processor_and_generator_cache_prompt_snippet_and_example_validation(
+    monkeypatch,
+):
+    from unittest.mock import patch
+
+    basic = BasicCatalog("v1.0")
+    example_turn = to_message_models([
+        {
+            "version": "v1.0",
+            "createSurface": {
+                "surfaceId": "s1",
+                "catalogId": basic.catalog_id,
+            },
+        },
+        {
+            "version": "v1.0",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [{"id": "root", "component": "Text", "text": "Example"}],
+            },
+        },
+    ])
+    generator = A2uiGenerator(
+        catalogs=[CatalogConfig(basic)],
+        examples=[example_turn],
+    )
+    caps = {"v1.0": {"supportedCatalogIds": [basic.catalog_id]}}
+
+    with patch("a2ui.processor.generator.validate_payload") as mock_validate:
+        p1 = generator.create_processor(caps)
+        p2 = generator.create_processor(caps)
+        assert mock_validate.call_count == 1
+
+    with patch.object(
+        p1.format.prompt_generator,
+        "generate",
+        wraps=p1.format.prompt_generator.generate,
+    ) as mock_generate:
+        s1 = p1.prompt_snippet
+        s2 = p1.prompt_snippet
+        s3 = p2.prompt_snippet
+        assert s1 == s2 == s3
+        assert mock_generate.call_count == 1
+    assert p1.parser is p2.parser

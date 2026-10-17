@@ -31,6 +31,17 @@ __all__ = [
 ]
 
 
+class _ProcessorCacheEntry:
+    """Shared per-(catalogs, format) resources cached by A2uiGenerator."""
+
+    __slots__ = ("format", "parser", "prompt_snippet")
+
+    def __init__(self, fmt: InferenceFormat) -> None:
+        self.format = fmt
+        self.parser: Parser | None = None
+        self.prompt_snippet: str | None = None
+
+
 class A2uiRequestProcessor:
     """Central request processor facade unifying multi-catalog capability resolution, prompt rendering, parser creation, and validation."""
 
@@ -41,6 +52,7 @@ class A2uiRequestProcessor:
         format_factory: InferenceFormatFactory | None = None,
         *,
         state: RendererState | None = None,
+        _cache_entry: _ProcessorCacheEntry | None = None,
     ):
         """Initializes A2uiRequestProcessor, resolving active catalogs and instantiating validator and format strategy.
 
@@ -64,17 +76,26 @@ class A2uiRequestProcessor:
         self._examples = (
             [list(turn) for turn in examples] if examples is not None else None
         )
-        if self._examples:
-            for turn in self._examples:
-                validate_payload(self._active_catalogs, turn)
-        factory = (
-            format_factory if format_factory is not None else DirectJsonFormatFactory()
-        )
-        self._format: InferenceFormat = factory.create_format(
-            catalogs=self._active_catalogs,
-            examples=self._examples,
-        )
-        self._parser: Parser | None = None
+        self._cache_entry = _cache_entry
+        if _cache_entry is not None:
+            self._format: InferenceFormat = _cache_entry.format
+            self._parser: Parser | None = _cache_entry.parser
+            self._prompt_snippet: str | None = _cache_entry.prompt_snippet
+        else:
+            if self._examples:
+                for turn in self._examples:
+                    validate_payload(self._active_catalogs, turn)
+            factory = (
+                format_factory
+                if format_factory is not None
+                else DirectJsonFormatFactory()
+            )
+            self._format = factory.create_format(
+                catalogs=self._active_catalogs,
+                examples=self._examples,
+            )
+            self._parser = None
+            self._prompt_snippet = None
         self._check_state(state)
         self._state = state
 
@@ -103,7 +124,17 @@ class A2uiRequestProcessor:
     @property
     def prompt_snippet(self) -> str:
         """Format-specific system prompt instruction snippet."""
-        return self._format.prompt_generator.generate()
+        if self._prompt_snippet is None:
+            if (
+                self._cache_entry is not None
+                and self._cache_entry.prompt_snippet is not None
+            ):
+                self._prompt_snippet = self._cache_entry.prompt_snippet
+            else:
+                self._prompt_snippet = self._format.prompt_generator.generate()
+                if self._cache_entry is not None:
+                    self._cache_entry.prompt_snippet = self._prompt_snippet
+        return self._prompt_snippet
 
     @property
     def parser(self) -> Parser:
@@ -112,7 +143,12 @@ class A2uiRequestProcessor:
         A parser holds no state, so the processor creates one and reuses it.
         """
         if self._parser is None:
-            self._parser = self._format.create_parser()
+            if self._cache_entry is not None and self._cache_entry.parser is not None:
+                self._parser = self._cache_entry.parser
+            else:
+                self._parser = self._format.create_parser()
+                if self._cache_entry is not None:
+                    self._cache_entry.parser = self._parser
         return self._parser
 
     def create_state(self) -> RendererState:

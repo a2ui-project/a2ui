@@ -18,6 +18,7 @@ import '../inference_format.dart';
 import '../inference_formats/direct_json/format.dart';
 import '../utils/catalog_resolver.dart';
 import '../utils/catalogs.dart';
+import '../utils/renderer_state.dart';
 import 'catalog_config.dart';
 import 'processor.dart';
 
@@ -45,6 +46,8 @@ class A2uiGenerator {
   /// another.
   final InferenceFormatFactory inferenceFormatFactory;
 
+  final Map<_CacheKey, ProcessorCacheEntry> _processorCache = {};
+
   A2uiGenerator({
     required this.catalogs,
     this.examples = const [],
@@ -56,26 +59,35 @@ class A2uiGenerator {
   /// The active catalogs are those [resolveCatalogs] returns, which does not
   /// accept inline catalogs here, and the examples are the turns written in
   /// their protocol version. [inferenceFormatFactory] overrides the
-  /// generator's format for this processor.
+  /// generator's format for this processor. [state] is the renderer state a
+  /// canvas agent keeps for the conversation, bound to the processor so that
+  /// its `parseResponse` and `openStream` use it.
   ///
   /// Throws [A2uiValidationError] if [rendererCapabilities] declares nothing
   /// for any version of the registered catalogs, or an example turn is
   /// written in a version none of them targets; [A2uiCatalogError] if the
-  /// renderer supports none of the registered catalogs; and the [A2uiError] a
-  /// renderer would report for an example the active catalogs cannot render.
+  /// renderer supports none of the registered catalogs, or [state] holds
+  /// other catalogs than the active ones; and the [A2uiError] a renderer
+  /// would report for an example the active catalogs cannot render.
   A2uiRequestProcessor createProcessor(
     A2uiRendererCapabilities rendererCapabilities, {
     InferenceFormatFactory? inferenceFormatFactory,
+    RendererState? state,
   }) {
     final List<CatalogApi> active = resolveCatalogs(
       catalogs,
       rendererCapabilities,
     );
-    return A2uiRequestProcessor(
-      activeCatalogs: active,
-      examples: _examplesIn(catalogsProtocolVersion(active)),
-      formatFactory: inferenceFormatFactory ?? this.inferenceFormatFactory,
-    );
+    final InferenceFormatFactory factory =
+        inferenceFormatFactory ?? this.inferenceFormatFactory;
+    final key = _CacheKey(active, factory);
+    final ProcessorCacheEntry entry = _processorCache[key] ??=
+        ProcessorCacheEntry(
+          activeCatalogs: active,
+          examples: _examplesIn(catalogsProtocolVersion(active)),
+          formatFactory: factory,
+        );
+    return A2uiRequestProcessor.fromCache(entry, state: state);
   }
 
   /// The turns of [examples] written in [version]: those whose every message
@@ -109,4 +121,35 @@ class A2uiGenerator {
     }
     return kept;
   }
+}
+
+class _CacheKey {
+  final List<CatalogApi> catalogs;
+  final InferenceFormatFactory formatFactory;
+
+  const _CacheKey(this.catalogs, this.formatFactory);
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! _CacheKey ||
+        other.formatFactory != formatFactory ||
+        other.catalogs.length != catalogs.length) {
+      return false;
+    }
+    for (var i = 0; i < catalogs.length; i++) {
+      if (catalogs[i].id != other.catalogs[i].id ||
+          catalogs[i].protocolVersion != other.catalogs[i].protocolVersion) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    formatFactory,
+    Object.hashAll([
+      for (final c in catalogs) Object.hash(c.id, c.protocolVersion),
+    ]),
+  );
 }

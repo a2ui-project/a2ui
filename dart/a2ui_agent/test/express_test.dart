@@ -502,7 +502,7 @@ surface("s1")
 
     test('does not stream', () {
       expect(parser.supportsStreaming, isFalse);
-      expect(() => parser.parseChunk('<a2ui>'), throwsUnsupportedError);
+      expect(parser.openStream, throwsUnsupportedError);
     });
   });
 

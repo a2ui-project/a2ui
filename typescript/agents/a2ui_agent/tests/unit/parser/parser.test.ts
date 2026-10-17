@@ -14,22 +14,35 @@
  * limitations under the License.
  */
 
-import {describe, it, expect} from 'vitest';
-import {Parser} from '../../../src/parser/parser.js';
-import {RawResponsePart, ResponsePart} from '../../../src/parser/response-part.js';
-import {AgentToRendererMessage} from '../../../src/internal/web-core.js';
+import {describe, expect, it} from 'vitest';
 
+import {
+  A2uiCompilationError,
+  AgentToRendererMessage,
+  Parser,
+  RawResponsePart,
+  RendererState,
+} from '../../../src/index.js';
+import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
+
+const BASIC = loadBasicCatalog('v1.0');
+
+/** A parser whose blocks each name the surface their `createSurface` creates. */
 class TestParser extends Parser {
-  unwrap(content: string): RawResponsePart[] {
-    return [{type: 'text', text: content, isFinal: true}];
+  readonly catalogs = [BASIC];
+  unwrapped: RawResponsePart[] = [];
+
+  unwrap(_content: string): RawResponsePart[] {
+    return this.unwrapped;
   }
 
   compile(formatContent: string, _isFinal?: boolean): AgentToRendererMessage[] {
+    if (formatContent === 'throw') throw new Error('broken notation');
     return [
       {
         version: 'v1.0',
-        createSurface: {surfaceId: formatContent + ' (compiled)'},
-      } as unknown as AgentToRendererMessage,
+        createSurface: {surfaceId: formatContent, catalogId: BASIC.id},
+      } as AgentToRendererMessage,
     ];
   }
 
@@ -38,11 +51,7 @@ class TestParser extends Parser {
   }
 
   wrap(blocks: RawResponsePart[]): string {
-    return blocks.map(b => (b.type === 'text' ? b.text : b.a2uiRaw)).join('') + ' (wrapped)';
-  }
-
-  override parseChunk(chunk: string, wrapped = true): ResponsePart[] {
-    return [{type: 'text', text: chunk + `(wrapped=${wrapped})`}];
+    return blocks.map(b => (b.type === 'text' ? b.text : b.a2uiRaw)).join('');
   }
 
   hasFormatContent(content: string): boolean {
@@ -51,100 +60,80 @@ class TestParser extends Parser {
 }
 
 describe('Parser', () => {
-  it('parseResponse delegates to unwrap and compile when wrapped = true', () => {
+  it('compiles each block that unwrap finds and keeps the text in place', () => {
     const parser = new TestParser();
+    parser.unwrapped = [
+      {type: 'text', text: 'Before', isFinal: true},
+      {type: 'a2ui', a2uiRaw: 'a', isFinal: true},
+      {type: 'text', text: 'After', isFinal: true},
+    ];
 
-    // Mock unwrap to return an a2ui part to test compile flow
-    parser.unwrap = c => [{type: 'a2ui', a2uiRaw: c, isFinal: true}];
+    const parts = parser.parseResponse('ignored');
 
-    const result = parser.parseResponse('hello');
-    expect(result).toHaveLength(1);
-    expect(result[0].type).toBe('a2ui');
-
-    if (result[0].type === 'a2ui') {
-      expect(
-        (result[0].a2ui[0] as {createSurface?: {surfaceId: string}}).createSurface?.surfaceId,
-      ).toBe('hello (compiled)');
-    }
+    expect(parts.map(p => p.type)).toEqual(['text', 'a2ui', 'text']);
+    expect(parts[1]).toEqual({
+      type: 'a2ui',
+      a2ui: [{version: 'v1.0', createSurface: {surfaceId: 'a', catalogId: BASIC.id}}],
+    });
   });
 
-  it('parseResponse compiles whole content when wrapped = false', () => {
-    const parser = new TestParser();
-    const result = parser.parseResponse('hello', false);
-    expect(result).toHaveLength(1);
-    expect(result[0].type).toBe('a2ui');
+  it('compiles the whole content as one block when it is not wrapped', () => {
+    const parts = new TestParser().parseResponse('whole', {wrapped: false});
 
-    if (result[0].type === 'a2ui') {
-      expect(
-        (result[0].a2ui[0] as {createSurface?: {surfaceId: string}}).createSurface?.surfaceId,
-      ).toBe('hello (compiled)');
-    }
+    expect(parts).toEqual([
+      {
+        type: 'a2ui',
+        a2ui: [{version: 'v1.0', createSurface: {surfaceId: 'whole', catalogId: BASIC.id}}],
+      },
+    ]);
   });
 
-  it('parseStream yields correctly and propagates wrapped flag', async () => {
-    const parser = new TestParser();
+  it('applies the messages to the state it is given', () => {
+    const state = new RendererState([BASIC]);
 
-    async function* getChunks() {
-      yield 'hello';
-      yield ' world';
-    }
+    new TestParser().parseResponse('s', {wrapped: false, state});
 
-    const results: ResponsePart[][] = [];
-    for await (const chunks of parser.parseStream(getChunks(), false)) {
-      results.push(chunks);
-    }
-
-    expect(results).toHaveLength(2);
-    expect((results[0][0] as import('../../../src/parser/response-part.js').TextPart).text).toBe(
-      'hello(wrapped=false)',
-    );
-    expect((results[1][0] as import('../../../src/parser/response-part.js').TextPart).text).toBe(
-      ' world(wrapped=false)',
-    );
+    expect(state.surfaceIds).toEqual(['s']);
   });
 
-  it('supportsStreaming defaults to false when not overridden', () => {
-    const parser = new NonStreamingParser();
+  it('applies a response all or nothing', () => {
+    const parser = new TestParser();
+    const state = new RendererState([BASIC]);
+    // The second block creates the surface the first one created.
+    parser.unwrapped = [
+      {type: 'a2ui', a2uiRaw: 's', isFinal: true},
+      {type: 'a2ui', a2uiRaw: 's', isFinal: true},
+    ];
+
+    expect(() => parser.parseResponse('ignored', {state})).toThrow(/already exists/);
+    expect(state.surfaceIds).toEqual([]);
+  });
+
+  it('raises a failure to compile as a compilation error with the parts read before it', () => {
+    const parser = new TestParser();
+    parser.unwrapped = [
+      {type: 'text', text: 'Before', isFinal: true},
+      {type: 'a2ui', a2uiRaw: 'throw', isFinal: true},
+    ];
+
+    let error: unknown;
+    try {
+      parser.parseResponse('ignored');
+    } catch (e) {
+      error = e;
+    }
+
+    expect(error).toBeInstanceOf(A2uiCompilationError);
+    expect((error as A2uiCompilationError).message).toContain('broken notation');
+    expect((error as A2uiCompilationError).partialResults).toEqual([
+      {type: 'text', text: 'Before'},
+    ]);
+  });
+
+  it('does not support streaming unless a format overrides it', () => {
+    const parser = new TestParser();
+
     expect(parser.supportsStreaming).toBe(false);
-  });
-
-  it('parseChunk throws expected error when not overridden', () => {
-    const parser = new NonStreamingParser();
-    expect(() => parser.parseChunk('x')).toThrow(
-      'Streaming is not supported by NonStreamingParser',
-    );
-  });
-
-  it('consuming parseStream of a one-chunk async iterable rejects with the same error', async () => {
-    const parser = new NonStreamingParser();
-    async function* singleChunk() {
-      yield 'x';
-    }
-    const generator = parser.parseStream(singleChunk());
-    await expect(generator.next()).rejects.toThrow(
-      'Streaming is not supported by NonStreamingParser',
-    );
+    expect(() => parser.openStream()).toThrow('Streaming is not supported by TestParser');
   });
 });
-
-class NonStreamingParser extends Parser {
-  unwrap(_content: string): RawResponsePart[] {
-    return [];
-  }
-
-  compile(_formatContent: string, _isFinal?: boolean): AgentToRendererMessage[] {
-    return [];
-  }
-
-  decompile(_a2uiPayload: AgentToRendererMessage[]): string {
-    return '';
-  }
-
-  wrap(_blocks: RawResponsePart[]): string {
-    return '';
-  }
-
-  hasFormatContent(_content: string): boolean {
-    return false;
-  }
-}
