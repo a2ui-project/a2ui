@@ -1,5 +1,9 @@
 ## Unreleased
 
+- `resolve_catalogs` reads the capabilities of v0.9 and v0.9.1 catalogs from
+  the `v0.9.1` entry, and falls back to the `v0.9` entry when there is none. It
+  read only `v0.9`, so it rejected the `v0.9.1` entry that web_core and the
+  Python core renderer write for v0.9.1.
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.4.0,<0.5.0`.
 - `resolve_catalogs`, `validate_payload`, and the Direct JSON and Express
   formats resolve cross-catalog `$ref`s between the catalogs they are given.
