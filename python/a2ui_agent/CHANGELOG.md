@@ -27,6 +27,22 @@
   capabilities in the shape the v0.8 specification defines, the entry itself
   (`{"supportedCatalogIds": [...]}`), as well as keyed by `"v0.8"`. From v0.9
   the capabilities must be keyed by protocol version.
+- Add `RendererState` to `a2ui.utils`. A `RendererState` is the agent's
+  mirror of the surfaces a renderer holds: it wraps one `MessageProcessor`
+  and checks each outbound message against everything sent before it, so a
+  canvas agent that keeps one state for the conversation catches a reference
+  to a component no turn sent, a cycle with components from an earlier turn,
+  or a new component that nothing reaches. A component that an update leaves
+  unreachable by rewriting its parent's children is accepted, since the
+  protocol has no message that removes one component. `apply` is atomic,
+  `transaction` extends that to several calls, and `check_topology` checks
+  the trees of the surfaces a response touched. An update to a surface the
+  state never saw created is rejected, as the renderer would reject it. The
+  state holds the surfaces as they now stand, not the messages that built
+  them.
+- `validate_payload` runs the payload through a short-lived `RendererState`
+  instead of building a new `MessageProcessor` for each surface and
+  candidate catalog. Its results are unchanged.
 - **BREAKING**: Move `a2ui.inference_formats.experimental.express` to
   `a2ui.inference_formats.express`.
 - `ExpressCompiler`: a variable holding a function call that names its
