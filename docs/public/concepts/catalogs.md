@@ -169,7 +169,7 @@ A reference into a peer has the form `<peer document>#/components/<Name>` (a who
 }
 ```
 
-The SDKs resolve such references at runtime against the other catalogs you register or pass in (`linkCatalogs` / `link_catalogs`, `withPeerCatalogs` / `with_peer_catalogs`; the agent SDKs and `MessageProcessor` link the catalogs they are given). Peers are matched in this order, and the first match wins:
+The SDKs resolve such references at runtime against the other catalogs you register or pass in (`linkCatalogs` / `link_catalogs`, `withPeerCatalogs` / `with_peer_catalogs`; the agent SDKs and `MessageProcessor` link the catalogs they are given, including one added later with `addCatalog` / `add_catalog`). Peers are matched in this order, and the first match wins:
 
 1. `common_types.json` always means the protocol's common types, and a document named exactly `catalog.json` means the referencing catalog itself.
 2. A peer whose `catalogId` or `$id` equals the document or ends with it as a path suffix.

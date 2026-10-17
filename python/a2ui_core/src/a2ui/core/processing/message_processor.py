@@ -189,6 +189,28 @@ class MessageProcessor:
         if action_handler:
             self.model.on_action.subscribe(action_handler)
 
+    def add_catalog(self, catalog: CatalogApi) -> None:
+        """Adds a catalog to the ones this processor holds.
+
+        The processor links the new catalog and the catalogs it holds to one
+        another, as the constructor does (see `link_catalogs`); the catalog
+        passed in is not changed. `createSurface` messages, renderer function
+        calls and `get_renderer_capabilities` see the catalog from this call
+        on. Surfaces created before the call keep the catalogs they were
+        created with.
+
+        Args:
+            catalog: The catalog to add.
+
+        Raises:
+            A2uiCatalogError: If the processor already holds a catalog with the
+                same ID.
+        """
+        if any(c.catalog_id == catalog.catalog_id for c in self.catalogs):
+            raise A2uiCatalogError(f"Catalog already registered: {catalog.catalog_id}")
+        # The RPC handler holds this same list, so it is updated in place.
+        self.catalogs[:] = link_catalogs([*self.catalogs, catalog])
+
     def _extract_operations(
         self, messages: AgentToRendererMessagePayload
     ) -> list[InternalOperation]:

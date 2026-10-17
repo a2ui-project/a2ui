@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Added `MessageProcessor.addCatalog`, which adds a catalog to a processor
+  after it is built. The processor links the new catalog and the catalogs it
+  holds to each other, as the constructor does, and leaves the catalog passed
+  in unchanged. `createSurface` messages, renderer function calls and
+  `getRendererCapabilities` see the catalog from then on; surfaces created
+  before the call keep the catalogs they were created with. A catalog whose id
+  the processor already holds is rejected with `A2uiCatalogError`.
+  `validatorFor` now builds one validator per catalog instance and protocol
+  version rather than per catalog id, since a linked copy replaces a held
+  catalog of the same id.
 - Resolve cross-catalog `$ref` pointers across peer catalogs in
   `resolvedComponentSchemas`, `validationSchema`, `refMap`, `PayloadValidator`
   and `MessageProcessor`:
