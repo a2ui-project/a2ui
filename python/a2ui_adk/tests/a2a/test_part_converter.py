@@ -151,28 +151,34 @@ def test_converter_class_convert_text_with_a2ui():
 
 
 def test_converter_class_convert_text_with_a2ui_v0_9_1():
-    converter = A2uiPartConverter(
-        [BasicCatalog(ProtocolVersion.V0_9_1)], version=ProtocolVersion.V0_9_1
-    )
-    valid_a2ui = [{
-        "version": "v0.9.1",
-        "updateComponents": {
-            "surfaceId": "main",
-            "components": [{"id": "root", "component": "Text", "text": "Hello"}],
+    catalog = BasicCatalog(ProtocolVersion.V0_9_1)
+    converter = A2uiPartConverter([catalog], version=ProtocolVersion.V0_9_1)
+    valid_a2ui = [
+        {
+            "version": "v0.9.1",
+            "createSurface": {"surfaceId": "main", "catalogId": catalog.catalog_id},
         },
-    }]
+        {
+            "version": "v0.9.1",
+            "updateComponents": {
+                "surfaceId": "main",
+                "components": [{"id": "root", "component": "Text", "text": "Hello"}],
+            },
+        },
+    ]
     text = (
         f"Here is the UI:\n{A2UI_OPEN_TAG}\n{json.dumps(valid_a2ui)}\n{A2UI_CLOSE_TAG}"
     )
     part = genai_types.Part(text=text)
     a2a_parts = converter.convert(part)
 
-    # Expect 2 parts: TextPart and A2UI DataPart
-    assert len(a2a_parts) == 2
+    # Expect a TextPart and one A2UI DataPart per message
+    assert len(a2a_parts) == 3
     assert a2a_parts[0].root.text == "Here is the UI:"
-    assert a2a_parts[1] == create_a2ui_part(
-        valid_a2ui[0], version=ProtocolVersion.V0_9_1
-    )
+    assert a2a_parts[1:] == [
+        create_a2ui_part(message, version=ProtocolVersion.V0_9_1)
+        for message in valid_a2ui
+    ]
 
 
 def test_converter_class_convert_text_empty_leading():

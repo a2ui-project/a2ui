@@ -43,6 +43,46 @@
 - `validate_payload` runs the payload through a short-lived `RendererState`
   instead of building a new `MessageProcessor` for each surface and
   candidate catalog. Its results are unchanged.
+- `Parser.parse_response` and `Parser.open_stream` take an optional
+  `RendererState`. Without one, a call checks the response against an empty
+  state, as a chat turn that shows new UI: **BREAKING**, an update to a
+  surface the response does not create is now rejected, by
+  `A2uiRequestProcessor.parse_response` too. `validate_payload`, which checks
+  one payload with no record of earlier ones, still assumes such a surface
+  exists.
+- `parse_response` applies a response to the state all or nothing, and checks
+  the trees of the surfaces it touches once every block is applied, so a
+  component may name a child that a later block of the response adds.
+- Add `Parser.open_stream`, which returns a `ResponseStream` for one
+  response, with `feed` and `close`. Messages the stream emits are applied to
+  its state as they are emitted, and the stream checks each message against
+  the state instead of building a new `MessageProcessor` for every message on
+  every chunk. A `deleteSurface` is held until its object closes, like
+  `createSurface`. `close` emits text still held back as a possible tag,
+  raises `A2uiParseError` if a block is still open, and checks the tree of an
+  unwrapped stream. `ResponseStream` is exported from `a2ui.parser` and
+  `DirectJsonResponseStream` from `a2ui.inference_formats.direct_json`.
+- **BREAKING**: A parser holds no state, and the APIs that assumed one parser
+  per response are removed. To migrate:
+  - `Parser.parse_chunk(chunk, wrapped)`: open a stream with
+    `parser.open_stream(wrapped=...)` and call `feed(chunk)`, then `close()`.
+  - The `parser` property of `DirectJsonFormat`, `ExpressFormat`,
+    `ElementalFormat` and `AtomFormat`: use `create_parser()`.
+  - `validate_payload(..., surface_catalog_ids=...)`: check the payload
+    against a `RendererState` that saw the surfaces created.
+- **BREAKING**: `Parser.compile` only translates a block into messages: it
+  reports what the notation gets wrong, but does not check the messages
+  against the catalogs or a renderer state. `parse_response` and
+  `open_stream` compile and check, and `parse_response(block, wrapped=False)`
+  compiles and checks one block, which is what `compile` did before. A
+  `Parser` subclass also implements the `catalogs` property.
+  `_compile_raw_part` is removed.
+- **BREAKING**: Express, Elemental and Atom output is checked against the
+  catalogs and the surface trees like Direct JSON output. This rejects inline
+  child ids that collide with assigned variables, check lists on components
+  that declare none, and a function call given to a property with a static
+  type. Elemental output whose top-level element has no `id="root"` is
+  rejected, as its prompt requires.
 - **BREAKING**: Move `a2ui.inference_formats.experimental.express` to
   `a2ui.inference_formats.express`.
 - `ExpressCompiler`: a variable holding a function call that names its

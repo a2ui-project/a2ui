@@ -52,17 +52,10 @@ const KNOWN_FAILURES = new Map<string, string>([
   ...group(
     'a message is emitted only once the block closes, not as soon as it reads, and an unwrapped stream is not read',
     [
-      'test_chunk_boundary_inside_a_string_literal',
       'test_chunk_close_tag_and_trailing_text_in_one_chunk',
       'test_chunk_close_tag_split_across_chunks_does_not_re_emit',
-      'test_chunk_key_outside_the_progressive_set_withholds',
-      'test_chunk_partial_child_list_template_withholds',
       'test_chunk_partial_child_reference_withholds',
       'test_chunk_partial_children_list_withholds',
-      'test_chunk_partial_component_name_withholds',
-      'test_chunk_partial_data_binding_path_withholds',
-      'test_chunk_payload_withheld_until_it_parses',
-      'test_chunk_progressive_key_inside_a_component_waits',
       'test_chunk_progressive_keys_name_the_healable_properties',
       'test_chunk_string_holding_a_close_tag_split_across_chunks',
       'test_chunk_unwrapped_stream_compiles_the_body',

@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for DirectJsonParser.parse_chunk across protocol versions.
+"""Unit tests for streaming Direct JSON responses across protocol versions.
 
 The shared suite `conformance/agent/direct_json/response_streaming.yaml` fixes
 what each chunk yields. These tests cover what it cannot state: catalogs
 built in code, and several surfaces and catalogs in one stream.
 """
 
+import json
+
 import pytest
 
-from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core import A2uiValidationError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats import to_message_dicts
@@ -34,6 +35,8 @@ from a2ui.parser import (
     MSG_TYPE_SURFACE_UPDATE,
     MSG_TYPE_UPDATE_COMPONENTS,
 )
+from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
+from a2ui.utils import RendererState
 
 CUSTOM_ID = "https://a2ui.org/catalogs/custom"
 
@@ -96,12 +99,13 @@ def _item_catalog(catalog_id, required):
     )
 
 
-def _stream(parser, chunks):
+def _stream(parser, chunks, state=None):
     """Returns the A2UI messages the chunks yield, in order."""
+    stream = parser.open_stream(state=state)
     return [
         message
         for chunk in chunks
-        for part in parser.parse_chunk(chunk)
+        for part in stream.feed(chunk)
         if isinstance(part, A2uiPart)
         for message in to_message_dicts(part.a2ui)
     ]
@@ -139,6 +143,60 @@ def test_create_surface_streamed_in_pieces_is_emitted_once():
             "theme": {"primaryColor": "#FF0000"},
         },
     }]
+
+
+def test_chunk_that_fails_after_applying_a_block_leaves_the_state_unchanged():
+    """A chunk that raises returns no parts, so the state keeps none of it."""
+    catalog = BasicCatalog("v0.9")
+    parser = DirectJsonParser([catalog])
+    state = RendererState([catalog])
+
+    def block(surface_id, text_component):
+        return (
+            A2UI_OPEN_TAG
+            + json.dumps([
+                {
+                    "version": "v0.9",
+                    "createSurface": {
+                        "surfaceId": surface_id,
+                        "catalogId": catalog.catalog_id,
+                    },
+                },
+                {
+                    "version": "v0.9",
+                    "updateComponents": {
+                        "surfaceId": surface_id,
+                        "components": [{"id": "root", **text_component}],
+                    },
+                },
+            ])
+            + A2UI_CLOSE_TAG
+        )
+
+    stream = parser.open_stream(state=state)
+    chunk = block("s1", {"component": "Text", "text": "Hi"}) + block(
+        "s2", {"component": "Text"}
+    )
+
+    with pytest.raises(A2uiValidationError):
+        stream.feed(chunk)
+
+    assert state.surface_ids == []
+
+
+def test_fenced_block_streamed_one_character_at_a_time_is_read_whole():
+    """A Markdown fence that arrives in pieces is stripped, not read as JSON."""
+    catalog = BasicCatalog("v0.9")
+    parser = DirectJsonParser([catalog])
+    create = {
+        "version": "v0.9",
+        "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
+    }
+    response = (
+        A2UI_OPEN_TAG + "```json\n[" + json.dumps(create) + "]\n```" + A2UI_CLOSE_TAG
+    )
+
+    assert _stream(parser, list(response)) == [create]
 
 
 def test_v10_surfaces_use_their_own_catalogs(basic_catalog_v10, custom_catalog_v10):
@@ -263,14 +321,14 @@ def test_v10_invalid_component_raises_when_it_closes(basic_catalog_v10):
     A closed component can't become valid later, so the parser doesn't hold
     back the components after it until the block ends.
     """
-    parser = DirectJsonParser([basic_catalog_v10])
+    stream = DirectJsonParser([basic_catalog_v10]).open_stream()
 
-    parser.parse_chunk(
+    stream.feed(
         A2UI_OPEN_TAG
         + '[{"version": "v1.0", "createSurface": {"surfaceId": "main",'
         f' "catalogId": "{basic_catalog_v10.catalog_id}"}}}}, '
     )
-    parts = parser.parse_chunk(
+    parts = stream.feed(
         '{"version": "v1.0", "updateComponents": {"surfaceId": "main",'
         ' "components": [{"id": "root", "component": "Column",'
         ' "children": ["a", "b"]}, '
@@ -284,25 +342,25 @@ def test_v10_invalid_component_raises_when_it_closes(basic_catalog_v10):
     assert "root" in [c["id"] for c in _components_for(messages, "main")]
 
     with pytest.raises(A2uiValidationError, match="Unrecognized component type"):
-        parser.parse_chunk('{"id": "a", "component": "Bogus"}, ')
+        stream.feed('{"id": "a", "component": "Bogus"}, ')
 
 
 def test_v10_components_before_surface_id_waits_for_surface_id(basic_catalog_v10):
     """When components arrive before surfaceId in updateComponents, the parser waits."""
-    parser = DirectJsonParser([basic_catalog_v10])
+    stream = DirectJsonParser([basic_catalog_v10]).open_stream()
 
-    parser.parse_chunk(
+    stream.feed(
         A2UI_OPEN_TAG
         + '[{"version": "v1.0", "createSurface": {"surfaceId": "main",'
         f' "catalogId": "{basic_catalog_v10.catalog_id}"}}}}, '
     )
-    parts = parser.parse_chunk(
+    parts = stream.feed(
         '{"version": "v1.0", "updateComponents": {"components": [{"id": "root",'
         ' "component": "Text", "text": "hi"}], '
     )
     assert parts == []
 
-    parts = parser.parse_chunk('"surfaceId": "main"}}]' + A2UI_CLOSE_TAG)
+    parts = stream.feed('"surfaceId": "main"}}]' + A2UI_CLOSE_TAG)
     messages = [
         message
         for part in parts
@@ -442,6 +500,12 @@ def test_url_value_under_a_progressive_key_is_not_healed(value, healed):
     """A cut string that starts as a URL waits, since a shorter URL is a broken one."""
     catalog = BasicCatalog("v1.0")
     parser = DirectJsonParser([catalog], progressive_keys=frozenset({"greeting"}))
+    create = {
+        "version": "v1.0",
+        "createSurface": {"surfaceId": "s1", "catalogId": catalog.catalog_id},
+    }
+    state = RendererState([catalog])
+    state.apply(create)
 
     messages = _stream(
         parser,
@@ -450,6 +514,7 @@ def test_url_value_under_a_progressive_key_is_not_healed(value, healed):
             + '[{"version": "v1.0", "updateDataModel": {"surfaceId": "s1", "value":'
             f' {{"greeting": "{value}'
         ],
+        state=state,
     )
 
     expected = {

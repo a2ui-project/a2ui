@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **BREAKING**: `A2uiPartConverter` checks text-based A2UI as a response that
+  shows new UI, so a response that updates a surface it does not create is
+  rejected and logged instead of converted. Tool-based A2UI from
+  `SendA2uiToClientToolset` is still checked with `validate_payload`, which
+  assumes such a surface exists.
 - First release. `a2ui.adk` moves here from `a2ui-agent-sdk`, so the agent SDK
   no longer depends on `google-adk` or `google-genai`. Import paths are
   unchanged.
