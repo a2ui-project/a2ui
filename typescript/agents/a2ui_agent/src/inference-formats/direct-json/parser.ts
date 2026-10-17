@@ -23,7 +23,8 @@ import {A2UI_OPEN_TAG, A2UI_CLOSE_TAG} from '../../parser/constants.js';
 import {DirectJsonStreamProcessor} from './streaming-types.js';
 import {AgentToRendererMessage, CatalogApi, linkCatalogs} from '../../internal/web-core.js';
 import {DirectJsonDecompiler} from './decompiler.js';
-import {checkParserCatalogs, validatePayload} from '../../utils/validation.js';
+import {checkParserCatalogs} from '../../utils/catalog-checks.js';
+import {validatePayload} from '../../utils/validation.js';
 
 export class DirectJsonParser extends Parser {
   /**
