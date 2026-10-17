@@ -1,5 +1,18 @@
 ## Unreleased
 
+- `SendA2uiToClientToolset` accepts structured example turns (such as
+  `processor.examples`) or `None` in addition to markdown strings, deduplicates
+  schema and example instructions when already present in the agent's system
+  instruction, and accepts an optional `a2ui_state` (`RendererState` or
+  `A2uiStateProvider`) to validate and apply tool payloads against a Canvas
+  state.
+- `A2uiPartConverter` accepts an optional `processor` (`A2uiRequestProcessor`)
+  and `state` (`RendererState`), and infers `version` from the active catalogs'
+  `protocol_version` when `version` is omitted.
+- `A2uiEventConverter` reads `system:a2ui_processor`, `system:a2ui_state`, and
+  `system:a2ui_stream` from session state in addition to `system:a2ui_catalogs`,
+  reuses `A2uiPartConverter` across events, and supports incremental streaming
+  via `ResponseStream` on partial ADK events.
 - **BREAKING**: `A2uiPartConverter` checks text-based A2UI as a response that
   shows new UI, so a response that updates a surface it does not create is
   rejected and logged instead of converted. Tool-based A2UI from

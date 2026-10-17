@@ -35,6 +35,7 @@ from .send_a2ui_to_client_toolset import (
     A2uiCatalogsProvider,
     A2uiEnabledProvider,
     A2uiExamplesProvider,
+    A2uiStateProvider,
     SendA2uiToClientToolset,
 )
 
@@ -98,6 +99,7 @@ __all__ = [
     "A2uiEventConverter",
     "A2uiExamplesProvider",
     "A2uiPartConverter",
+    "A2uiStateProvider",
     "A2uiSubagentMap",
     "GenAIFileResolver",
     "SendA2uiToClientToolset",

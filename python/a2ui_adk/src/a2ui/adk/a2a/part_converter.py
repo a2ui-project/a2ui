@@ -42,12 +42,27 @@ from google.genai import types as genai_types
 
 from a2ui import constants
 from a2ui.a2a import create_a2ui_part, parse_content_to_parts
-from a2ui.core import CatalogApi
+from a2ui.core import A2uiCatalogError, CatalogApi
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.parser import Parser
+from a2ui.processor import A2uiRequestProcessor
+from a2ui.utils import RendererState, to_version_number
 
 logger = logging.getLogger(__name__)
+
+
+def _infer_version(catalogs: Sequence[CatalogApi]) -> ProtocolVersion:
+    if catalogs:
+        raw_version = getattr(catalogs[0], "protocol_version", None)
+        if isinstance(raw_version, ProtocolVersion):
+            return raw_version
+        if isinstance(raw_version, str):
+            try:
+                return ProtocolVersion(f"v{to_version_number(raw_version)}")
+            except ValueError:
+                pass
+    return ProtocolVersion.V0_8
 
 
 @experimental
@@ -56,30 +71,66 @@ class A2uiPartConverter:
 
     This converter handles both tool-based A2UI (via `send_a2ui_json_to_client`)
     and text-based A2UI (via A2UI delimiter tags). It uses the provided
-    catalogs to validate and fix JSON payloads.
+    catalogs or request processor to validate and fix JSON payloads.
 
     Args:
         catalogs: The A2UI catalogs that text-based A2UI is validated against.
+            Optional when `processor` or `parser` is provided.
         bypass_tool_check: If True, bypass tool validation.
         fallback_text: Optional text to fall back on if parsing fails.
         version: The A2UI version to use: a `ProtocolVersion`, or a version
-            string with or without a leading "v". Defaults to v0.8.
-        parser: Optional parser for text-based A2UI. Defaults to a
+            string with or without a leading "v". Defaults to the protocol
+            version of the active catalogs, or v0.8 if unavailable.
+        parser: Optional parser for text-based A2UI. Defaults to
+            `processor.parser` when `processor` is given, or a
             `DirectJsonParser` holding the catalogs.
+        processor: Optional `A2uiRequestProcessor` supplying the active
+            catalogs, format parser, and bound renderer state.
+        state: Optional `RendererState` for Canvas UI turns. Defaults to
+            `processor.state` when `processor` is given.
     """
 
     def __init__(
         self,
-        catalogs: Sequence[CatalogApi],
+        catalogs: Sequence[CatalogApi] | None = None,
         bypass_tool_check: bool = False,
         fallback_text: str | None = None,
-        version: ProtocolVersion | str = ProtocolVersion.V0_8,
+        version: ProtocolVersion | str | None = None,
         parser: Parser | None = None,
+        *,
+        processor: A2uiRequestProcessor | None = None,
+        state: RendererState | None = None,
     ):
+        if catalogs is not None:
+            resolved_catalogs = list(catalogs)
+        elif processor is not None:
+            resolved_catalogs = processor.active_catalogs
+        elif parser is not None:
+            resolved_catalogs = list(parser.catalogs)
+        else:
+            raise A2uiCatalogError(
+                "A2uiPartConverter requires catalogs, a processor, or a parser."
+            )
+
         self._bypass_tool_check = bypass_tool_check
         self._fallback_text = fallback_text
-        self._version = version
-        self._parser = parser or DirectJsonParser(catalogs)
+        self._version: ProtocolVersion | str = (
+            version if version is not None else _infer_version(resolved_catalogs)
+        )
+        self._parser: Parser = (
+            parser
+            if parser is not None
+            else (
+                processor.parser
+                if processor is not None
+                else DirectJsonParser(resolved_catalogs)
+            )
+        )
+        self._state: RendererState | None = (
+            state
+            if state is not None
+            else (processor.state if processor is not None else None)
+        )
 
     def convert(self, part: genai_types.Part) -> list[a2a_types.Part]:
         """Converts a GenAI part to A2A parts, with A2UI validation.
@@ -129,6 +180,7 @@ class A2uiPartConverter:
                         parser=self._parser,
                         fallback_text=self._fallback_text,
                         version=self._version,
+                        state=self._state,
                     )
 
         # 2. Handle Tool Calls (FunctionCall) - Skip sending to client
@@ -145,6 +197,7 @@ class A2uiPartConverter:
                     parser=self._parser,
                     fallback_text=self._fallback_text,
                     version=self._version,
+                    state=self._state,
                 )
 
         # 4. Default conversion for other parts

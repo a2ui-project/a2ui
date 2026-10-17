@@ -98,15 +98,18 @@ from google.genai import types as genai_types
 from a2ui import constants
 from a2ui.constants import A2UI_TOOL_ERROR_KEY, A2UI_TOOL_NAME, A2UI_VALIDATED_JSON_KEY
 from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog, CatalogApi
-from a2ui.inference_formats.direct_json import schema_to_prompt
+from a2ui.core.common import to_protocol_version
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats.direct_json import DirectJsonDecompiler, schema_to_prompt
 from a2ui.parser import parse_and_fix
-from a2ui.utils import validate_payload
+from a2ui.utils import RendererState, validate_payload
 
 if TYPE_CHECKING:
     from a2ui.adk.a2a import A2uiPartConverter
 
 logger = logging.getLogger(__name__)
 
+A2uiExamplesValue: TypeAlias = str | Sequence[Sequence[AgentToRendererMessage]] | None
 A2uiEnabledProvider: TypeAlias = Callable[
     [readonly_context.ReadonlyContext], bool | Awaitable[bool]
 ]
@@ -115,7 +118,12 @@ A2uiCatalogsProvider: TypeAlias = Callable[
     Sequence[CatalogApi] | Awaitable[Sequence[CatalogApi]],
 ]
 A2uiExamplesProvider: TypeAlias = Callable[
-    [readonly_context.ReadonlyContext], str | Awaitable[str]
+    [readonly_context.ReadonlyContext],
+    A2uiExamplesValue | Awaitable[A2uiExamplesValue],
+]
+A2uiStateProvider: TypeAlias = Callable[
+    [readonly_context.ReadonlyContext],
+    RendererState | None | Awaitable[RendererState | None],
 ]
 
 
@@ -127,7 +135,9 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         self,
         a2ui_enabled: bool | A2uiEnabledProvider,
         a2ui_catalogs: Sequence[CatalogApi] | A2uiCatalogsProvider,
-        a2ui_examples: str | A2uiExamplesProvider,
+        a2ui_examples: A2uiExamplesValue | A2uiExamplesProvider = None,
+        *,
+        a2ui_state: RendererState | A2uiStateProvider | None = None,
     ):
         """Initializes the toolset.
 
@@ -138,12 +148,18 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
               them per context. The catalogs must share a protocol version. The
               schema prompt describes every catalog, and a payload is validated
               against the catalog each surface names.
-            a2ui_examples: The A2UI examples, or a provider that returns them
-              per context.
+            a2ui_examples: The A2UI examples (a markdown string, a sequence of
+              example turns such as `processor.examples`, or `None`), or a
+              provider that returns them per context.
+            a2ui_state: Optional `RendererState`, or a provider that returns one
+              per context, for Canvas agents whose tool calls update surfaces
+              across turns.
         """
         super().__init__()
         self._a2ui_enabled = a2ui_enabled
-        self._ui_tool = self._SendA2uiJsonToClientTool(a2ui_catalogs, a2ui_examples)
+        self._ui_tool = self._SendA2uiJsonToClientTool(
+            a2ui_catalogs, a2ui_examples, a2ui_state=a2ui_state
+        )
         self._ui_tools: list[base_tool.BaseTool] = [self._ui_tool]
 
     async def _resolve_a2ui_enabled(
@@ -207,6 +223,9 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         from a2ui.adk import A2uiPartConverter
 
         catalogs = await self._ui_tool._resolve_a2ui_catalogs(ctx)
+        state = await self._ui_tool._resolve_a2ui_state(ctx)
+        if state is not None:
+            return A2uiPartConverter(catalogs, state=state)
         return A2uiPartConverter(catalogs)
 
     class _SendA2uiJsonToClientTool(base_tool.BaseTool):
@@ -218,7 +237,9 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
         def __init__(
             self,
             a2ui_catalogs: Sequence[CatalogApi] | A2uiCatalogsProvider,
-            a2ui_examples: str | A2uiExamplesProvider,
+            a2ui_examples: A2uiExamplesValue | A2uiExamplesProvider = None,
+            *,
+            a2ui_state: RendererState | A2uiStateProvider | None = None,
         ):
             self._a2ui_catalogs: list[CatalogApi] | A2uiCatalogsProvider = (
                 a2ui_catalogs
@@ -226,6 +247,7 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                 else self._to_catalog_list(a2ui_catalogs)
             )
             self._a2ui_examples = a2ui_examples
+            self._a2ui_state = a2ui_state
             super().__init__(
                 name=self.TOOL_NAME,
                 description=(
@@ -255,6 +277,28 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                 ),
             )
 
+        def _format_examples(self, examples: A2uiExamplesValue) -> str:
+            """Formats examples as a string for the LLM prompt."""
+            if examples is None:
+                return ""
+            if isinstance(examples, str):
+                return examples
+            if isinstance(examples, Sequence) and not isinstance(
+                examples, (str, bytes)
+            ):
+                if not examples:
+                    return ""
+                decompiler = DirectJsonDecompiler()
+                blocks = [
+                    f"<a2ui-json>\n{decompiler.decompile(turn)}\n</a2ui-json>"
+                    for turn in examples
+                ]
+                return "### Examples:\n" + "\n\n".join(blocks)
+            raise TypeError(
+                f"Tool {self.TOOL_NAME} expects examples as a string, a sequence"
+                f" of example turns, or None, got {type(examples).__name__}."
+            )
+
         async def _resolve_a2ui_examples(
             self, ctx: readonly_context.ReadonlyContext
         ) -> str:
@@ -266,13 +310,51 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             Returns:
                 The A2UI examples string.
             """
-            if isinstance(self._a2ui_examples, str):
-                return self._a2ui_examples
-            else:
+            if callable(self._a2ui_examples):
                 a2ui_examples = self._a2ui_examples(ctx)
                 if inspect.isawaitable(a2ui_examples):
                     a2ui_examples = await a2ui_examples
-                return a2ui_examples
+                return self._format_examples(a2ui_examples)
+            return self._format_examples(self._a2ui_examples)
+
+        async def _resolve_a2ui_state(
+            self, ctx: readonly_context.ReadonlyContext
+        ) -> RendererState | None:
+            """Resolves the optional RendererState for Canvas validation."""
+            if self._a2ui_state is None or isinstance(self._a2ui_state, RendererState):
+                return self._a2ui_state
+            if callable(self._a2ui_state):
+                state = self._a2ui_state(ctx)
+                if inspect.isawaitable(state):
+                    state = await state
+                if state is not None and not isinstance(state, RendererState):
+                    raise TypeError(
+                        f"Tool {self.TOOL_NAME} expects a RendererState or None,"
+                        f" got {type(state).__name__}."
+                    )
+                return state
+            raise TypeError(
+                f"Tool {self.TOOL_NAME} expects a RendererState or provider,"
+                f" got {type(self._a2ui_state).__name__}."
+            )
+
+        @staticmethod
+        def _check_state_catalogs(
+            state: RendererState, catalogs: Sequence[CatalogApi]
+        ) -> None:
+            held = [
+                (c.catalog_id, to_protocol_version(c.protocol_version).value)
+                for c in state.catalogs
+            ]
+            active = [
+                (c.catalog_id, to_protocol_version(c.protocol_version).value)
+                for c in catalogs
+            ]
+            if held != active:
+                raise A2uiCatalogError(
+                    f"The renderer state holds catalogs {held}, but the tool's"
+                    f" active catalogs are {active}."
+                )
 
         def _to_catalog_list(self, catalogs: Iterable[CatalogApi]) -> list[CatalogApi]:
             """Checks catalogs and returns them as a list.
@@ -339,7 +421,19 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
             instruction = schema_to_prompt(a2ui_catalogs)
             examples = await self._resolve_a2ui_examples(tool_context)
 
-            llm_request.append_instructions([instruction, examples])
+            existing_instruction = getattr(
+                getattr(llm_request, "config", None), "system_instruction", None
+            )
+            existing_text = (
+                existing_instruction if isinstance(existing_instruction, str) else ""
+            )
+            instructions_to_append = [
+                part
+                for part in (instruction, examples)
+                if part and part not in existing_text
+            ]
+            if instructions_to_append:
+                llm_request.append_instructions(instructions_to_append)
 
             logger.info("Added A2UI schema and examples to system instructions")
 
@@ -355,8 +449,15 @@ class SendA2uiToClientToolset(base_toolset.BaseToolset):
                     )
 
                 a2ui_catalogs = await self._resolve_a2ui_catalogs(tool_context)
+                state = await self._resolve_a2ui_state(tool_context)
                 a2ui_json_payload = parse_and_fix(a2ui_json)
-                validate_payload(a2ui_catalogs, a2ui_json_payload)
+                if state is not None:
+                    self._check_state_catalogs(state, a2ui_catalogs)
+                    with state.transaction():
+                        touched = state.apply(a2ui_json_payload)
+                        state.check_topology(touched)
+                else:
+                    validate_payload(a2ui_catalogs, a2ui_json_payload)
 
                 logger.info(
                     f"Validated call to tool {self.TOOL_NAME} with"

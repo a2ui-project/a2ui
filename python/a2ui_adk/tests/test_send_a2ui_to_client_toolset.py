@@ -442,4 +442,135 @@ async def test_send_tool_run_async_rejects_invalid_payload_for_real_catalog():
     assert "'text' is a required property" in result["error"]
 
 
+@pytest.mark.asyncio
+async def test_send_tool_accepts_processor_examples_and_none():
+    from a2ui.inference_formats import to_message_models
+    from a2ui.processor import A2uiRequestProcessor
+
+    catalog = BasicCatalog("0.9")
+    turn = to_message_models([
+        {
+            "version": "v0.9",
+            "createSurface": {
+                "surfaceId": "s1",
+                "catalogId": catalog.catalog_id,
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [{"id": "root", "component": "Text", "text": "Hello"}],
+            },
+        },
+    ])
+    processor = A2uiRequestProcessor([catalog], examples=[turn])
+
+    toolset = SendA2uiToClientToolset(
+        a2ui_enabled=True,
+        a2ui_catalogs=processor.active_catalogs,
+        a2ui_examples=processor.examples,
+    )
+    ctx = MagicMock(spec=ReadonlyContext)
+    resolved = await toolset._ui_tool._resolve_a2ui_examples(ctx)
+    assert "### Examples:" in resolved
+    assert "<a2ui-json>" in resolved
+    assert '"surfaceId": "s1"' in resolved
+
+    # Also accepts None when processor has no examples
+    empty_processor = A2uiRequestProcessor([catalog])
+    empty_toolset = SendA2uiToClientToolset(
+        a2ui_enabled=True,
+        a2ui_catalogs=empty_processor.active_catalogs,
+        a2ui_examples=empty_processor.examples,
+    )
+    assert await empty_toolset._ui_tool._resolve_a2ui_examples(ctx) == ""
+
+
+@pytest.mark.asyncio
+async def test_send_tool_deduplicates_when_prompt_snippet_already_in_instruction():
+    from a2ui.inference_formats import to_message_models
+    from a2ui.processor import A2uiRequestProcessor
+
+    catalog = BasicCatalog("0.9")
+    turn = to_message_models([
+        {
+            "version": "v0.9",
+            "createSurface": {
+                "surfaceId": "s1",
+                "catalogId": catalog.catalog_id,
+            },
+        },
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": "s1",
+                "components": [{"id": "root", "component": "Text", "text": "Hello"}],
+            },
+        },
+    ])
+    processor = A2uiRequestProcessor([catalog], examples=[turn])
+    toolset = SendA2uiToClientToolset(
+        a2ui_enabled=True,
+        a2ui_catalogs=processor.active_catalogs,
+        a2ui_examples=processor.examples,
+    )
+    llm_request_mock = MagicMock()
+    llm_request_mock.config.system_instruction = processor.prompt_snippet
+
+    await toolset._ui_tool.process_llm_request(
+        tool_context=MagicMock(spec=ToolContext), llm_request=llm_request_mock
+    )
+    llm_request_mock.append_instructions.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_send_tool_run_async_validates_and_updates_renderer_state():
+    from a2ui.utils import RendererState
+
+    catalog = BasicCatalog("0.9")
+    state = RendererState([catalog])
+    toolset = SendA2uiToClientToolset(
+        a2ui_enabled=True,
+        a2ui_catalogs=[catalog],
+        a2ui_state=state,
+    )
+    tool = toolset._ui_tool
+    tool_context_mock = MagicMock(spec=ToolContext)
+    tool_context_mock.state = {}
+    tool_context_mock.actions = MagicMock(skip_summarization=False)
+
+    # Updating an unknown surface is rejected by the Canvas RendererState
+    bad_args = {
+        tool.A2UI_JSON_ARG_NAME: json.dumps(_update_text_payload({"text": "Hi"}))
+    }
+    bad_result = await tool.run_async(args=bad_args, tool_context=tool_context_mock)
+    assert tool.TOOL_ERROR_KEY in bad_result
+
+    # Creating the surface and root succeeds and updates state
+    create_and_update = [
+        {
+            "version": "v0.9",
+            "createSurface": {
+                "surfaceId": "s1",
+                "catalogId": catalog.catalog_id,
+            },
+        },
+        *_update_text_payload({"text": "Created"}),
+    ]
+    ok_result = await tool.run_async(
+        args={tool.A2UI_JSON_ARG_NAME: json.dumps(create_and_update)},
+        tool_context=tool_context_mock,
+    )
+    assert ok_result == {tool.VALIDATED_A2UI_JSON_KEY: create_and_update}
+
+    # Turn 2: updating the existing surface in state now succeeds
+    turn2_payload = _update_text_payload({"text": "Updated"})
+    turn2_result = await tool.run_async(
+        args={tool.A2UI_JSON_ARG_NAME: json.dumps(turn2_payload)},
+        tool_context=tool_context_mock,
+    )
+    assert turn2_result == {tool.VALIDATED_A2UI_JSON_KEY: turn2_payload}
+
+
 # endregion

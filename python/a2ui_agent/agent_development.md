@@ -470,21 +470,19 @@ async def _prepare_session(self, context, run_request, runner):
   #    for example {"v0.9": {"supportedCatalogIds": [...]}}
   capabilities = context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
 
-  # 2. Negotiate a request processor for the client capabilities and load examples
+  # 2. Negotiate a request processor for the client capabilities
   processor = self.generator.create_processor(capabilities)
-  examples = load_examples(
-      processor.active_catalogs, "path/to/examples", validate=True
-  )
 
-  # 3. Store in session state for tool access
+  # 3. Store in session state for tool and converter access
   await runner.session_service.append_event(
       session,
       Event(
           actions=EventActions(
               state_delta={
                   "system:a2ui_enabled": True,
+                  "system:a2ui_processor": processor,
                   "system:a2ui_catalogs": processor.active_catalogs,
-                  "system:a2ui_examples": examples,
+                  "system:a2ui_examples": processor.examples,
               }
           ),
       ),
@@ -495,7 +493,9 @@ async def _prepare_session(self, context, run_request, runner):
 #### 2b. Accessing Catalogs via Providers
 
 The `SendA2uiToClientToolset` can use **Providers**—callables that retrieve the
-active catalogs and examples from the current context state at runtime.
+active catalogs, examples, and optional Canvas `RendererState` from the current
+context state at runtime. `a2ui_examples` accepts a markdown string, a sequence
+of example turns (such as `processor.examples`), or `None`.
 
 ```python
 # Providers that read from context state
@@ -507,11 +507,16 @@ def get_a2ui_examples(ctx: ReadonlyContext):
   return ctx.state.get("system:a2ui_examples")
 
 
+def get_a2ui_state(ctx: ReadonlyContext):
+  return ctx.state.get("system:a2ui_state")
+
+
 # Initialize the toolset with providers
 ui_toolset = SendA2uiToClientToolset(
     a2ui_enabled=True,
     a2ui_catalogs=get_a2ui_catalogs,
     a2ui_examples=get_a2ui_examples,
+    a2ui_state=get_a2ui_state,
 )
 ```
 
@@ -520,11 +525,13 @@ ui_toolset = SendA2uiToClientToolset(
 When the LLM calls the UI tool, the toolset uses the dynamic catalogs to:
 
 1. **Generate Instructions**: Inject the specific schema and examples into the
-   LLM's system prompt for that turn.
+   LLM's system prompt for that turn (skipping any section already present in
+   the agent's system instruction).
 2. **Parse and Fix Payloads**: Parse and fix the LLM's generated JSON using the
    parser and payload-fixer.
-3. **Validate Payloads**: Validate the LLM's generated JSON against the specific
-   active `Catalog` objects with `a2ui.utils.validate_payload`.
+3. **Validate Payloads**: Validate the LLM's generated JSON against the active
+   `RendererState` when provided (for Canvas UIs), or with
+   `a2ui.utils.validate_payload` when stateless.
 
 ### 3. Multiple Version Support
 
