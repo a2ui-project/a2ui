@@ -150,6 +150,34 @@ describe('publish_npm script integration test', () => {
     assert.ok(hasMdInstall, 'Should run yarn install in markdown-it');
   });
 
+  it('should resolve agent package and topologically sort web_core before agent', async () => {
+    const executedCommands = [];
+    const mocks = {
+      runCommand: (cmd, args, options) => {
+        executedCommands.push(
+          `${cmd} ${args.join(' ')} (in ${options?.cwd ? options.cwd.split('/').pop() : 'root'})`,
+        );
+      },
+      execSync: cmd => {
+        if (cmd.includes('npm info')) return '{"version":"0.0.0"}\n';
+        return '';
+      },
+    };
+
+    await main(['--package=agent', '--skip-tests', '--no-dry-run'], mocks);
+
+    const webCorePublishIndex = executedCommands.findIndex(
+      cmd => cmd.includes('publish:package') && cmd.includes('web_core'),
+    );
+    const agentPublishIndex = executedCommands.findIndex(
+      cmd => cmd.includes('publish:package') && cmd.includes('a2ui_agent'),
+    );
+
+    assert.ok(webCorePublishIndex !== -1, 'Should include web_core as a dependency of agent');
+    assert.ok(agentPublishIndex !== -1, 'Should publish a2ui_agent');
+    assert.ok(webCorePublishIndex < agentPublishIndex, 'web_core must be published before agent');
+  });
+
   it('should throw an error when no packages are specified', async () => {
     await assert.rejects(
       () => main([]),

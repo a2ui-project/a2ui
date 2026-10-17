@@ -106,10 +106,12 @@ describe('upload_manifest script integration test', () => {
     );
   });
 
-  it('should resolve web_core and renderer packages under typescript directory', async () => {
+  it('should resolve web_core, agent, and renderer packages under typescript directory', async () => {
     const graph = getPackageGraph();
     assert.ok(graph['@a2ui/web_core']);
     assert.match(graph['@a2ui/web_core'].dir, /\/typescript\/core\/web_core$/);
+    assert.ok(graph['@a2ui/agent']);
+    assert.match(graph['@a2ui/agent'].dir, /\/typescript\/agents\/a2ui_agent$/);
     assert.ok(graph['@a2ui/lit']);
     assert.match(graph['@a2ui/lit'].dir, /\/typescript\/renderers\/lit$/);
     assert.ok(graph['@a2ui/angular']);
@@ -125,11 +127,12 @@ describe('upload_manifest script integration test', () => {
       },
     };
 
-    await main(['--package=web_core'], mocks);
+    await main(['--package=web_core', '--package=agent'], mocks);
 
     assert.ok(writtenFileContent, 'Should have written manifest file');
     const manifest = JSON.parse(writtenFileContent);
-    assert.strictEqual(manifest.publishing_groups[0].packages.length, 1);
+    assert.strictEqual(manifest.publishing_groups[0].packages.length, 2);
     assert.strictEqual(manifest.publishing_groups[0].packages[0].name, 'web_core');
+    assert.strictEqual(manifest.publishing_groups[0].packages[1].name, 'agent');
   });
 });
