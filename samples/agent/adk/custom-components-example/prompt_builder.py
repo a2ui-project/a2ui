@@ -16,7 +16,7 @@ from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiRequestProcessor, CatalogConfig
-from a2ui.utils import to_version_number
+from a2ui.utils import load_examples, to_version_number
 
 ROLE_DESCRIPTION = (
     "You are a helpful contact lookup assistant. Your final output MUST be a a2ui UI"
@@ -31,7 +31,7 @@ UI_DESCRIPTION = f"""
 -   **For finding contacts (e.g., "Who is Alex Jordan?"):**
     a.  You MUST call the `get_contact_info` tool.
     b.  If the tool returns a **single contact**, you MUST use the `MULTI_SURFACE_EXAMPLE` template. Provide BOTH the Contact Card and the Org Chart in a single response.
-    c.  If the tool returns **multiple contacts**, you MUST use the `CONTACT_LIST_EXAMPLE` template. Populate the `dataModelUpdate.contents` (v0.8) or `updateDataModel.value` (v0.9+) with the list of contacts for the "contacts" key.
+    c.  If the tool returns **multiple contacts**, you MUST use the `CONTACT_LIST_EXAMPLE` template. Populate the list of contacts under the "contacts" key: in v0.8, a `dataModelUpdate` with `"path": "/contacts"` whose `contents` has one `valueMap` entry per contact (v0.8 allows only one level of `valueMap`); in v0.9+, the `updateDataModel.value`.
     d.  If the tool returns an **empty list**, respond with text only and an empty JSON list: "I couldn't find anyone by that name.{A2UI_OPEN_TAG}[]{A2UI_CLOSE_TAG}"
 
 -   **For handling a profile view (e.g., "WHO_IS: Alex Jordan..."):**
@@ -69,9 +69,16 @@ def get_ui_prompt(
     *,
     validate_examples: bool = False,
 ) -> str:
-    """Constructs the full system prompt for the UI agent."""
-    from a2ui.utils import load_examples
+    """Constructs the system prompt for one UI request.
 
+    Args:
+        processor: The request's processor. The prompt describes the catalogs
+            it negotiated with the client.
+        examples_path: The directory of example responses.
+        validate_examples: Whether to check the examples against the
+            processor's catalogs. The examples use the inline catalog, which a
+            client may not send, so the agent leaves this off.
+    """
     prompt_parts = [ROLE_DESCRIPTION]
     if WORKFLOW_DESCRIPTION:
         prompt_parts.append(f"## Workflow Description:\n{WORKFLOW_DESCRIPTION}")
@@ -87,19 +94,15 @@ def get_ui_prompt(
 
 
 if __name__ == "__main__":
-    from a2ui.utils import load_examples
-
-    # Example of how to use A2uiRequestProcessor to generate a system prompt
-    my_base_url = "http://localhost:8000"
+    # Builds the prompt for a client that renders the basic catalog and sends
+    # the inline catalog, whose catalogs the request's processor holds.
     my_version = ProtocolVersion.V0_9
-    inline_catalog_path = f"inline_catalog_{to_version_number(my_version)}.json"
     inline_catalog = CatalogConfig.from_path(
-        catalog_path=inline_catalog_path,
+        catalog_path=f"inline_catalog_{to_version_number(my_version)}.json",
         protocol_version=my_version,
     ).transformed_catalog
-    # The examples target both the basic catalog and the inline catalog.
     basic_catalog = CatalogConfig(BasicCatalog(my_version)).transformed_catalog
-    processor = A2uiRequestProcessor([inline_catalog, basic_catalog])
+    processor = A2uiRequestProcessor([basic_catalog, inline_catalog])
     contact_prompt = get_ui_prompt(
         processor,
         examples_path=f"examples/{to_version_number(my_version)}",
@@ -109,14 +112,6 @@ if __name__ == "__main__":
     with open("generated_prompt.txt", "w") as f:
         f.write(contact_prompt)
     print("\nGenerated prompt saved to generated_prompt.txt")
-
-    request_prompt = processor.format.prompt_generator.generate_catalog_instructions(
-        catalog=inline_catalog
-    )
-    print(request_prompt)
-    with open("request_prompt.txt", "w") as f:
-        f.write(request_prompt)
-    print("\nGenerated request prompt saved to request_prompt.txt")
 
     examples = load_examples(
         processor.active_catalogs,

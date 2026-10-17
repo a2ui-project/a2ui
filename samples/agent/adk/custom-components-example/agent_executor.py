@@ -59,7 +59,6 @@ class ContactAgentExecutor(AgentExecutor):
             f"--- Client requested extensions: {context.requested_extensions} ---"
         )
         active_ui_version = try_activate_a2ui_extension(context, self._agent.agent_card)
-        processor = self._agent.get_processor(active_ui_version)
 
         if active_ui_version:
             logger.info(
@@ -72,6 +71,13 @@ class ContactAgentExecutor(AgentExecutor):
                 " runner. ---"
             )
 
+        # Renderers send their capabilities in the message metadata, or in the
+        # metadata of a DataPart, which is read below.
+        if active_ui_version and context.message and context.message.metadata:
+            client_ui_capabilities = context.message.metadata.get(
+                "a2uiClientCapabilities"
+            )
+
         if context.message and context.message.parts:
             logger.info(
                 f"--- AGENT_EXECUTOR: Processing {len(context.message.parts)} message"
@@ -81,8 +87,7 @@ class ContactAgentExecutor(AgentExecutor):
                 if isinstance(part.root, DataPart):
                     # Extract client UI capabilities from any DataPart that has them
                     if (
-                        processor
-                        and self._agent.accepts_inline_catalogs
+                        active_ui_version
                         and "metadata" in part.root.data
                         and "a2uiClientCapabilities" in part.root.data["metadata"]
                     ):
@@ -155,25 +160,6 @@ class ContactAgentExecutor(AgentExecutor):
             if not query:
                 logger.info("No a2ui UI event part found. Falling back to text input.")
                 query = context.get_user_input()
-
-        # Inject client UI capabilities into the query if found
-        if (
-            client_ui_capabilities is not None
-            and "query" in locals()
-            and query
-            and active_ui_version
-            and processor
-        ):
-            request_processor = self._agent.create_processor(
-                active_ui_version, client_ui_capabilities
-            )
-            catalog_schema_str = (
-                request_processor.format.prompt_generator.generate_catalog_instructions()
-            )
-            query += (
-                "\n\n[SYSTEM: The client supports the following custom components:"
-                f" {catalog_schema_str}]"
-            )
 
         logger.info(f"--- AGENT_EXECUTOR: Final query for LLM: '{query}' ---")
 

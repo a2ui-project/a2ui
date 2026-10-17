@@ -69,6 +69,13 @@ class RestaurantAgentExecutor(AgentExecutor):
                 " agent. ---"
             )
 
+        # Renderers send their capabilities in the message metadata.
+        client_ui_capabilities = None
+        if active_ui_version and context.message and context.message.metadata:
+            client_ui_capabilities = context.message.metadata.get(
+                "a2uiClientCapabilities"
+            )
+
         use_streaming = True
         if context.message and context.message.parts:
             logger.info(
@@ -141,7 +148,11 @@ class RestaurantAgentExecutor(AgentExecutor):
         updater = TaskUpdater(event_queue, task.id, task.context_id)
 
         async for item in self._agent.stream(
-            query, task.context_id, active_ui_version, use_streaming=use_streaming
+            query,
+            task.context_id,
+            active_ui_version,
+            client_ui_capabilities,
+            use_streaming=use_streaming,
         ):
             is_task_complete = item["is_task_complete"]
             if not is_task_complete:

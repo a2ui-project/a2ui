@@ -42,6 +42,24 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
    USE_MCP_SANDBOX=false uv run .
    ```
 
+## How it works
+
+- The agent holds one `A2uiGenerator` for each protocol version it speaks
+  (v0.8 and v0.9), with the basic catalog, and accepts inline catalogs. The
+  agent card lists the generators' catalogs.
+- Each request gets its own `A2uiRequestProcessor`, negotiated from the
+  `a2uiClientCapabilities` that the client sent, keyed by protocol version.
+  A client that sends none gets a text answer. The system prompt is built from that
+  processor, so it describes the client's inline catalog too, such as the
+  `OrgChart` and `WebFrame` components.
+- Later turns update the surfaces that earlier turns created, for example the
+  contact card after a click on the org chart. The agent keeps a
+  `RendererState` for each conversation, and checks every response against it
+  with `processor.open_stream(state=...)`. Invalid messages are never sent:
+  the stream raises, and the agent asks the model to try again.
+- The UI that simulated actions show, like the floor plan, is checked against
+  the same state.
+
 ## Disclaimer
 
 Important: The sample code provided is for demonstration purposes and illustrates the mechanics of the Agent-to-Agent (A2A) protocol. When building production applications, it is critical to treat any agent operating outside of your direct control as a potentially untrusted entity.

@@ -16,9 +16,9 @@ import json
 import logging
 import os
 from pathlib import Path
-from a2ui.core.schema import ProtocolVersion
 
-import jsonschema
+from a2ui.core.schema import ProtocolVersion
+from a2ui.utils import to_version_number
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +167,9 @@ def load_send_message_example(contact_name: str, version: str | None = None) -> 
     """Constructs the JSON string for the send message confirmation."""
     from pathlib import Path
 
-    examples_dir = Path(os.path.dirname(__file__)) / "examples" / version
+    examples_dir = (
+        Path(os.path.dirname(__file__)) / "examples" / to_version_number(version)
+    )
     action_file = examples_dir / "action_confirmation.json"
 
     if action_file.exists():

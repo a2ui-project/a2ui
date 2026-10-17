@@ -57,6 +57,23 @@ This sample is featured in [Quickstart: Run A2UI in 5 Minutes](https://a2ui.org/
        }'
      ```
 
+## How it works
+
+- The agent holds one `A2uiGenerator` for each protocol version it speaks
+  (v0.8 and v0.9), with the basic catalog and the example responses in
+  `examples/<version>/`. The agent card lists the generators' catalogs.
+- Each request gets its own `A2uiRequestProcessor`, negotiated from the
+  `a2uiClientCapabilities` in the message metadata, keyed by protocol version.
+  The sample clients under [`samples/client`](../../../client) send the catalogs
+  that their renderer registers. A client that sends none gets a text answer.
+  Creating the processor checks the examples against the request's catalogs.
+- The system prompt is built from that processor. Its prompt snippet
+  describes the catalogs and lists the examples in the format's notation.
+- Each response shows new UI, so it is checked on its own. When streaming,
+  `processor.open_stream()` validates each message before it is sent;
+  otherwise `processor.parse_response()` validates the whole response. On an
+  error the agent asks the model to try again.
+
 ## Disclaimer
 
 Important: The sample code provided is for demonstration purposes and illustrates the mechanics of A2UI and the Agent-to-Agent (A2A) protocol. When building production applications, it is critical to treat any agent operating outside of your direct control as a potentially untrusted entity.
