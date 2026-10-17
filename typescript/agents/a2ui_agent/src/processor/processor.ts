@@ -14,62 +14,48 @@
  * limitations under the License.
  */
 
-import {
-  AgentToRendererMessage,
-  Catalog,
-  CatalogApi,
-  ComponentApi,
-  FunctionImplementation,
-  MessageProcessor,
-  type ValidationConfig,
-} from '../internal/web-core.js';
-import {InferenceFormatFactory, InferenceFormat} from '../inference-format.js';
-import {ResponsePart} from '../parser/response-part.js';
+import {InferenceFormat, InferenceFormatFactory} from '../inference-format.js';
 import {DirectJsonFormatFactory} from '../inference-formats/direct-json/format.js';
-import {Parser} from '../parser/parser.js';
+import {A2uiCatalogError, AgentToRendererMessage, CatalogApi} from '../internal/web-core.js';
+import {ParseOptions, Parser} from '../parser/parser.js';
+import {ResponsePart} from '../parser/response-part.js';
+import {ResponseStream} from '../parser/response-stream.js';
+import {toWireProtocolVersion} from '../utils/protocol-version.js';
+import {RendererState} from '../utils/renderer-state.js';
 
-/**
- * Validation applied to model output in `parseResponse`.
- *
- * Every component type and function call must be declared by the catalog it
- * resolves to (or be a reserved system function such as `@index`), so the
- * agent rejects model output that the renderer could not run. Topology is not
- * enforced: a response may legitimately update part of a surface, so a
- * missing root, orphans and references to components sent later are allowed.
- */
-const MODEL_OUTPUT_VALIDATION: ValidationConfig = Object.freeze({
-  allowUnknownElements: false,
-  allowMissingRoot: true,
-  allowOrphanComponents: true,
-  allowDanglingReferences: true,
-});
+/** Options for a request processor. */
+export interface A2uiRequestProcessorOptions {
+  /**
+   * The renderer state a canvas agent keeps for the conversation. `parseResponse` and
+   * `openStream` use it when a call passes none. Without one, each call checks the response
+   * against a new state, as a chat agent wants.
+   */
+  state?: RendererState;
+}
 
 /** Request-scoped facade over the negotiated catalogs, prompt, parser, and validation. */
 export class A2uiRequestProcessor {
   private readonly _format: InferenceFormat;
-  private readonly _parser: Parser;
-  private readonly _messageProcessor: MessageProcessor;
+  private _parser?: Parser;
+  private readonly _state?: RendererState;
 
+  /**
+   * @param catalogs The negotiated catalogs active for this request.
+   * @param _examples Prompt examples, keyed by name.
+   * @param formatFactory The inference format. Direct JSON by default.
+   * @param options The renderer state to bind, if any.
+   * @throws {A2uiCatalogError} If `options.state` holds other catalogs than `catalogs`.
+   */
   constructor(
     private readonly catalogs: CatalogApi[],
     private readonly _examples?: Record<string, AgentToRendererMessage[] | string>,
     formatFactory?: InferenceFormatFactory,
+    options: A2uiRequestProcessorOptions = {},
   ) {
     const factory = formatFactory || new DirectJsonFormatFactory();
     this._format = factory.createFormat(catalogs, _examples);
-    this._parser = this._format.createParser();
-
-    // TEMPORARY: MessageProcessor in web_core enforces Catalog<any, FunctionImplementation>
-    // even though it doesn't execute functions when initialized without an actionHandler.
-    // TODO(web_core): Relax the generic constraint on MessageProcessor or allow omitting FunctionImplementation.
-    //
-    // No protocol version is configured: MessageProcessor picks the adapter for each message
-    // from the message's own `version` field.
-    this._messageProcessor = new MessageProcessor(
-      catalogs as unknown as Catalog<ComponentApi, FunctionImplementation>[],
-      undefined,
-      {validationConfig: MODEL_OUTPUT_VALIDATION},
-    );
+    this.checkState(options.state);
+    this._state = options.state;
   }
 
   /** The negotiated catalogs active for this request. */
@@ -79,6 +65,11 @@ export class A2uiRequestProcessor {
 
   get examples(): Record<string, AgentToRendererMessage[] | string> | undefined {
     return this._examples;
+  }
+
+  /** The renderer state bound to this processor, if any. */
+  get state(): RendererState | undefined {
+    return this._state;
   }
 
   /**
@@ -91,16 +82,68 @@ export class A2uiRequestProcessor {
     return this._format.promptGenerator.generate();
   }
 
-  /** Parses and validates a model response. */
-  parseResponse(content: string): ResponsePart[] {
-    const parts = this._parser.parseResponse(content);
+  /**
+   * The parser for the format, bound to the active catalogs.
+   *
+   * A parser holds no state, so the processor creates one and reuses it.
+   */
+  get parser(): Parser {
+    this._parser ??= this._format.createParser();
+    return this._parser;
+  }
 
-    for (const part of parts) {
-      if (part.type === 'a2ui') {
-        this._messageProcessor.processMessages(part.a2ui);
-      }
+  /**
+   * Creates an empty renderer state that holds the active catalogs.
+   *
+   * A canvas agent keeps the state for the whole conversation and passes it to
+   * `parseResponse` or `openStream` on every turn, or binds it to the processor.
+   */
+  createState(): RendererState {
+    return new RendererState(this.catalogs);
+  }
+
+  /**
+   * Parses a model response and checks it against a renderer state.
+   *
+   * @param content The response text.
+   * @param options Whether the response is wrapped in tags, and the renderer state to check
+   *     the response against and apply it to. The state defaults to the one bound to the
+   *     processor. With neither, the response is checked on its own, against a new state.
+   * @throws {A2uiCatalogError} If the state holds other catalogs than the processor.
+   * @throws {A2uiError} If a block cannot be read or a message is rejected.
+   */
+  parseResponse(content: string, options: ParseOptions = {}): ResponsePart[] {
+    return this.parser.parseResponse(content, {...options, state: this.resolveState(options)});
+  }
+
+  /**
+   * Opens a stream that reads one model response chunk by chunk.
+   *
+   * @param options Whether the response is wrapped in tags, and the renderer state to check
+   *     the response against and apply it to, as for `parseResponse`.
+   * @throws {A2uiCatalogError} If the state holds other catalogs than the processor.
+   * @throws {Error} If the format cannot be read incrementally.
+   */
+  openStream(options: ParseOptions = {}): ResponseStream {
+    return this.parser.openStream({...options, state: this.resolveState(options)});
+  }
+
+  private resolveState(options: ParseOptions): RendererState | undefined {
+    if (options.state === undefined) return this._state;
+    this.checkState(options.state);
+    return options.state;
+  }
+
+  private checkState(state: RendererState | undefined): void {
+    if (state === undefined) return;
+    const describe = (catalogs: CatalogApi[]) =>
+      catalogs.map(c => `${c.id} (${toWireProtocolVersion(c.protocolVersion)})`).join(', ');
+    const held = describe(state.catalogs);
+    const active = describe(this.catalogs);
+    if (held !== active) {
+      throw new A2uiCatalogError(
+        `The renderer state holds catalogs [${held}], but the processor's active catalogs are [${active}].`,
+      );
     }
-
-    return parts;
   }
 }

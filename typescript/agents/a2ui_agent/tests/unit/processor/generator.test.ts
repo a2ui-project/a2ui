@@ -93,6 +93,28 @@ describe('A2uiGenerator', () => {
     expect(() => generator.createProcessor(missing)).toThrow(/renderer capabilities/);
   });
 
+  test('checks an example that creates a surface in full', () => {
+    const config = new CatalogConfig(basicCatalogV10);
+    const examples = {
+      'dangling_turn': [
+        {
+          version: 'v1.0' as const,
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: basicCatalogV10.id,
+            components: [{id: 'root', component: 'Column', children: ['missing']}],
+          },
+        },
+      ],
+    };
+    const generator = new A2uiGenerator([config], examples);
+
+    expect(() => generator.createProcessor(mockCapabilities)).toThrow(A2uiValidationError);
+    expect(() => generator.createProcessor(mockCapabilities)).toThrow(
+      /Example 'dangling_turn' is invalid.*Dangling reference 'missing'/,
+    );
+  });
+
   test('throws a validation error when an example message is not an object', () => {
     const config = new CatalogConfig(basicCatalogV10);
     // Examples loaded from JSON bypass the type, so a null entry can reach the generator.

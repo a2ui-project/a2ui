@@ -15,10 +15,10 @@
  */
 
 import {describe, test, expect} from 'vitest';
-import {A2uiRequestProcessor} from '../../../src/processor/processor.js';
+
+import {A2uiIntegrityError, A2uiRequestProcessor, A2uiValidationError} from '../../../src/index.js';
 import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 import {loadConformanceCatalog} from '../../helpers/conformance-catalogs.js';
-import {A2uiIntegrityError, A2uiValidationError} from '../../../src/errors.js';
 
 const basicCatalogV10 = loadBasicCatalog('v1.0');
 
@@ -50,9 +50,10 @@ describe('A2uiRequestProcessor', () => {
     expect(() => processor.parseResponse(v1Payload)).toThrow(A2uiValidationError);
   });
 
-  test('accrues state across parseResponse calls and throws on duplicate surface creation', () => {
+  test('keeps state across calls only in a renderer state', () => {
     const catalog = basicCatalogV10;
     const processor = new A2uiRequestProcessor([catalog]);
+    const state = processor.createState();
 
     const payload = `
 <a2ui-json>
@@ -74,12 +75,13 @@ describe('A2uiRequestProcessor', () => {
 ]
 </a2ui-json>`;
 
-    // First parse succeeds, creating the surface in the processor's internal MessageProcessor state.
+    // Without a state, each call checks the response against a new, empty one.
+    expect(() => processor.parseResponse(payload)).not.toThrow();
     expect(() => processor.parseResponse(payload)).not.toThrow();
 
-    // Second parse throws because the surface 'test_surface_id' already exists in the same processor.
-    // This pins down the latent behavior that parseResponse is stateful across calls.
-    expect(() => processor.parseResponse(payload)).toThrow(A2uiIntegrityError);
+    // A state keeps the surface, so creating it again is rejected.
+    expect(() => processor.parseResponse(payload, {state})).not.toThrow();
+    expect(() => processor.parseResponse(payload, {state})).toThrow(A2uiIntegrityError);
   });
 
   test('promptSnippet includes the configured examples', () => {
@@ -181,19 +183,28 @@ describe('A2uiRequestProcessor', () => {
       );
     });
 
-    test('still accepts a response that updates only part of a surface', () => {
+    test('accepts a response that updates part of a surface in its state', () => {
       const processor = new A2uiRequestProcessor([basicCatalogV10]);
-      processor.parseResponse(responseWithRoot({component: 'Text', text: 'hello'}));
-      const update = {
-        version: 'v1.0',
-        updateComponents: {
-          surfaceId: 's',
-          components: [{id: 'root', component: 'Column', children: ['later']}],
-        },
-      };
-      const response = `<a2ui-json>${JSON.stringify([update])}</a2ui-json>`;
+      const state = processor.createState();
+      processor.parseResponse(responseWithRoot({component: 'Text', text: 'hello'}), {state});
+      const update = (children: string[], ...components: Array<Record<string, unknown>>) =>
+        `<a2ui-json>${JSON.stringify([
+          {
+            version: 'v1.0',
+            updateComponents: {
+              surfaceId: 's',
+              components: [{id: 'root', component: 'Column', children}, ...components],
+            },
+          },
+        ])}</a2ui-json>`;
 
-      expect(() => processor.parseResponse(response)).not.toThrow();
+      expect(() =>
+        processor.parseResponse(update(['a'], {id: 'a', component: 'Text', text: 'a'}), {state}),
+      ).not.toThrow();
+      // A reference to a component that no response sent is rejected.
+      expect(() => processor.parseResponse(update(['a', 'later']), {state})).toThrow(
+        /Dangling reference 'later'/,
+      );
     });
   });
 });
