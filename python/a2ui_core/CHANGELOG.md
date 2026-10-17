@@ -15,6 +15,14 @@
   `/catalog.json` that names no peer refers to the catalog itself.
   `MessageProcessor` links copies of the catalogs passed to it and never
   modifies them, so shared catalogs such as the basic catalog stay unchanged.
+- A function defined without an argument schema (`FunctionApi` or
+  `FunctionImplementation` without `schema`) is described as taking any args:
+  `validation_schema` records it as `{}` rather than `None`, and
+  `Catalog.to_json` writes it as a call whose `args` may be any object.
+  `to_json` no longer raises `TypeError` for a catalog that holds such a
+  function, and neither do the paths that call it: `link_catalogs`, and so a
+  `MessageProcessor` of two or more catalogs, and `get_renderer_capabilities`
+  with v1.0 inline catalogs.
 - `is_valid_uax31_identifier` and `assert_uax31_identifier` no longer strip a
   leading `@` before checking UAX 31 syntax, and `Catalog.from_json` now rejects
   `@`-prefixed catalog function names and validates function parameter names.
