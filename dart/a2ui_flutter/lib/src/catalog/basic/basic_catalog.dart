@@ -180,3 +180,34 @@ abstract final class BasicComponents {
     ),
   );
 }
+
+/// SPIKE: the v1.0 basic catalog, with the same widget builders as
+/// [basicCatalog] and the v1.0 document's component schemas and functions.
+CatalogImplementation basicCatalogV1_0({
+  String locale = 'en-US',
+  OpenUrlCallback? openUrl,
+}) {
+  final Catalog<ComponentApi, FunctionImplementation> api = BasicCatalog.v1_0(
+    locale: locale,
+    openUrl: openUrl,
+  );
+  return CatalogImplementation(
+    id: api.id,
+    components: [
+      for (final ComponentImplementation c in BasicComponents.all)
+        ComponentImplementation(
+          name: c.name,
+          schema: api.components[c.name]!.schema,
+          builder: c.builder,
+        ),
+    ],
+    functions: api.functions.values.toList(),
+    themeSchema: api.themeSchema,
+    schemaId: api.schemaId,
+    title: api.title,
+    description: api.description,
+    protocolVersion: api.protocolVersion,
+    instructions: api.instructions,
+    definitions: api.definitions,
+  );
+}

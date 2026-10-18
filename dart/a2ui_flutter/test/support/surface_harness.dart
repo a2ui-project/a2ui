@@ -91,9 +91,12 @@ Widget unboundedWidthHost(List<Widget> surfaces) => SingleChildScrollView(
 ///
 /// [actions] and [errors] collect what every surface reports, in order.
 class SurfaceHarness {
-  SurfaceHarness._(this._tester, this.processor);
+  SurfaceHarness._(this._tester, this.version, this.processor);
 
   final WidgetTester _tester;
+
+  /// The protocol version messages are parsed as.
+  final A2uiProtocolVersion version;
 
   /// The processor the messages go through.
   final MessageProcessor<ComponentImplementation> processor;
@@ -125,7 +128,7 @@ class SurfaceHarness {
     processor.processMessages(
       AgentToRendererMessagePayload.fromJson(
         messages,
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        protocolVersion: version,
       ),
     );
   }
@@ -151,12 +154,14 @@ Future<SurfaceHarness> pumpSurface(
   CatalogImplementation? catalog,
   ValidationConfig? validationConfig = ValidationConfig.strict,
   SurfaceHost host = scrollingHost,
+  A2uiProtocolVersion version = A2uiProtocolVersion.v0_9,
 }) async {
   final harness = SurfaceHarness._(
     tester,
+    version,
     MessageProcessor<ComponentImplementation>(
       catalogs: [catalog ?? fixtureCatalog()],
-      defaultVersion: A2uiProtocolVersion.v0_9,
+      defaultVersion: version,
       validationConfig: validationConfig,
     ),
   );
