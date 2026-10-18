@@ -108,6 +108,11 @@
           "$ref": "#/$defs/Catalog",
           "description": "Inlined catalog definition object."
         },
+        "peerCatalogPaths": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Repository-relative paths of peer catalogs. The harness loads each with fromJson and links them to the case's catalog with withPeerCatalogs, in the listed order, before checking the catalog that call returns."
+        },
         "catalogs": {
           "type": "array",
           "items": {

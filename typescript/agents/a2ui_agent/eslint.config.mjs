@@ -1,0 +1,65 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import preset from '../../../eslint.preset.mjs';
+
+export default [
+  ...preset,
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@a2ui/agent', '@a2ui/agent/*'],
+              message:
+                'Use relative imports within @a2ui/agent instead of self-importing the package.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['tests/**/*.ts', 'vitest.config.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: 'tsconfig.check.json',
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
+    files: ['**/*.ts'],
+    ignores: ['src/internal/web-core.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@a2ui/web_core/v0_9', '@a2ui/web_core/v0_9/**', '@a2ui/web_core/v0_9*'],
+              message:
+                'Importing version-specific web_core subpaths outside src/internal/web-core.ts is prohibited.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+];

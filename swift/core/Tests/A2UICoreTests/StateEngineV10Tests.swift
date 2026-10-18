@@ -123,10 +123,11 @@ struct StateEngineV10Tests {
     let resolver = NodeResolver(
       surfaceID: "surf1",
       catalogs: [catalog.eraseToAnyCatalog()],
+      defaultCatalogID: catalog.id,
       componentsModel: componentsModel,
       dataModel: dataModel
     )
-    #expect(resolver.isV10 == true)
+    #expect(resolver.atLeastV10 == true)
 
     let rootNode = try #require(resolver.resolveTree())
     let children = rootNode.children(for: "children")
@@ -198,10 +199,11 @@ struct StateEngineV10Tests {
     let resolver = NodeResolver(
       surfaceID: "surf1",
       catalogs: [catalog.eraseToAnyCatalog()],
+      defaultCatalogID: catalog.id,
       componentsModel: componentsModel,
       dataModel: dataModel
     )
-    #expect(resolver.isV10 == true)
+    #expect(resolver.atLeastV10 == true)
 
     let rootNode = resolver.resolveTree()
     #expect(rootNode?.isValid == false)
@@ -489,6 +491,7 @@ struct StateEngineV10Tests {
     let resolver = NodeResolver(
       surfaceID: "s1",
       catalogs: [catalog],
+      defaultCatalogID: catalog.id,
       componentsModel: componentsModel,
       dataModel: dataModel,
       protocolVersion: .v10

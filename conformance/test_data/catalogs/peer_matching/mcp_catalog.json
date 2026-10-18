@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/peer_matching/mcp_catalog.json",
+  "protocolVersion": "1.0",
+  "title": "Peer Matching MCP Catalog (v1.0)",
+  "description": "A peer catalog whose file name ends in catalog.json without being catalog.json. Its Badge requires a string icon.",
+  "catalogId": "conformance/peer_matching/mcp",
+  "components": {
+    "Badge": {
+      "type": "object",
+      "description": "A badge that requires `icon`.",
+      "properties": {
+        "component": {
+          "const": "Badge"
+        },
+        "icon": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "component",
+        "icon"
+      ]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/Badge"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    }
+  }
+}

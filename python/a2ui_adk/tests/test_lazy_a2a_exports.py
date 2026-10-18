@@ -93,7 +93,7 @@ def test_unrelated_import_errors_are_not_masked(
 
 def test_get_part_converter_explains_missing_extra(adk_without_a2a) -> None:
     toolset = adk_without_a2a.SendA2uiToClientToolset(
-        a2ui_enabled=True, a2ui_catalog=MagicMock(), a2ui_examples=""
+        a2ui_enabled=True, a2ui_catalogs=[MagicMock()], a2ui_examples=""
     )
     with pytest.raises(ImportError, match=r'pip install "a2ui-adk\[a2a\]"'):
         asyncio.run(toolset.get_part_converter(MagicMock()))

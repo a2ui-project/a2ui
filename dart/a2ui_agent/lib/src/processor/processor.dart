@@ -25,9 +25,7 @@ import 'validation.dart';
 /// Usually obtained from `A2uiGenerator.createProcessor`.
 ///
 /// Every message is written against the protocol version the active catalogs
-/// target. For v1.0 catalogs, checking examples and payloads is not
-/// implemented yet and throws [UnimplementedError], as do the Express format
-/// and reading direct JSON messages.
+/// target.
 class A2uiRequestProcessor {
   /// The catalogs negotiated for this request, in the renderer's preference
   /// order.

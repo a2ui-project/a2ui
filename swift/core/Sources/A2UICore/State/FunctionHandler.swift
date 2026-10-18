@@ -16,8 +16,20 @@
 public protocol FunctionHandler: AnyObject, Sendable {
   func function(named: String, catalogID: String?) -> (any FunctionImplementation)?
   func handleFunctionError(_ error: any Error, functionName: String)
+
+  /// Checks that the catalog a v1.0 function call runs in resolves: the catalog the call names,
+  /// or the default catalog when it names none.
+  ///
+  /// ``DataContext`` calls this from v1.0 before looking up a catalog function, so that an
+  /// unresolvable catalog is reported as a catalog fault rather than a missing function. The
+  /// default implementation accepts every catalog.
+  ///
+  /// - Throws: An error, typically `A2UICatalogError`, if the catalog can't be resolved.
+  func validateFunctionCatalog(id catalogID: String?, functionName: String) throws
 }
 
 extension FunctionHandler {
   public func handleFunctionError(_ error: any Error, functionName: String) {}
+
+  public func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {}
 }

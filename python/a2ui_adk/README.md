@@ -22,9 +22,10 @@ The `a2a` extra installs [`a2ui-a2a`](../a2ui_a2a/README.md) and
 Available with the base install:
 
 - `SendA2uiToClientToolset` is an ADK toolset that lets an agent send A2UI
-  to the client through a tool call. It validates the payload against the
-  active catalog before it is sent. `A2uiEnabledProvider`,
-  `A2uiCatalogProvider` and `A2uiExamplesProvider` are the callback types it
+  to the client through a tool call. It takes the list of active catalogs,
+  describes all of them to the model, and validates each payload against
+  them before it is sent. `A2uiEnabledProvider`,
+  `A2uiCatalogsProvider` and `A2uiExamplesProvider` are the callback types it
   accepts.
 - `GenAIFileResolver` is a
   [`FileResolver`](../a2ui_agent/src/a2ui/extensions/file_resolve) that

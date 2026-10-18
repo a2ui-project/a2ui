@@ -20,6 +20,8 @@ from pathlib import Path
 import pytest
 
 from a2ui.core import A2uiCatalogError, Catalog
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.utils import load_examples
 
 
@@ -106,3 +108,42 @@ def test_example_that_is_not_json_raises_when_validated(tmp_path):
 def test_missing_path_loads_no_examples(tmp_path):
     assert load_examples([_catalog("a")], None) == ""
     assert load_examples([_catalog("a")], str(tmp_path / "*.json")) == ""
+
+
+@pytest.mark.parametrize(
+    ("version", "rel_dir", "expected_names"),
+    [
+        (
+            ProtocolVersion.V0_8,
+            "samples/agent/adk/restaurant_finder/examples/0.8",
+            ("single_column_list", "two_column_list"),
+        ),
+        (
+            ProtocolVersion.V0_9,
+            "samples/agent/adk/restaurant_finder/examples/0.9",
+            ("single_column_list", "two_column_list"),
+        ),
+        (
+            ProtocolVersion.V0_8,
+            "samples/community/agent/adk/gemini_enterprise/v0_8/agent_engine/examples/0.8",
+            ("contact_list",),
+        ),
+        (
+            ProtocolVersion.V0_8,
+            "samples/community/agent/adk/gemini_enterprise/v0_8/cloud_run/examples/0.8",
+            ("contact_list",),
+        ),
+    ],
+)
+def test_sample_examples_validate(
+    version: ProtocolVersion, rel_dir: str, expected_names: tuple[str, ...]
+):
+    repo_root = Path(__file__).resolve().parents[4]
+    examples_dir = repo_root / rel_dir
+    if not examples_dir.is_dir():
+        pytest.skip(f"Sample directory not present: {examples_dir}")
+
+    examples = load_examples([BasicCatalog(version)], str(examples_dir), validate=True)
+
+    for name in expected_names:
+        assert f"---BEGIN {name}---" in examples

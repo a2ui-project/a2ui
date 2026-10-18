@@ -21,7 +21,13 @@ from typing import Any, TYPE_CHECKING
 
 from pydantic import BaseModel, ValidationError
 
-from a2ui.core import A2uiCatalogError, A2uiValidationError, Catalog, CatalogApi
+from a2ui.core import (
+    A2uiCatalogError,
+    A2uiValidationError,
+    Catalog,
+    CatalogApi,
+    link_catalogs,
+)
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import (
     A2uiRendererCapabilities,
@@ -42,6 +48,9 @@ _CAPABILITIES_ENTRIES: dict[ProtocolVersion, tuple[str, type[BaseModel]]] = {
     ProtocolVersion.V0_9_1: ("v0.9", v0_9.V09Capabilities),
     ProtocolVersion.V1_0: ("v1.0", v1_0.V10Capabilities),
 }
+_V0_8_KEY = _CAPABILITIES_ENTRIES[ProtocolVersion.V0_8][0]
+# The fields of a capabilities entry, as the specification names them.
+_ENTRY_FIELDS = frozenset({"supportedCatalogIds", "inlineCatalogs"})
 
 
 def resolve_catalogs(
@@ -66,6 +75,8 @@ def resolve_catalogs(
         transformed.
       renderer_capabilities: The capabilities that the renderer sent, keyed by
         protocol version, for example `{"v1.0": {"supportedCatalogIds": [...]}}`.
+        The v0.8 specification sends the entry itself, as
+        `{"supportedCatalogIds": [...]}`, so v0.8 catalogs read that shape too.
         Either a mapping or a capabilities model from `a2ui.core`. `None`, for a
         request that carries no capabilities, activates every registered
         catalog in registration order, and returns an empty list if none is
@@ -86,9 +97,10 @@ def resolve_catalogs(
       A2uiValidationError: If the capabilities have no valid entry for the
         protocol version of the registered catalogs.
     """
+    pristine = [config.catalog for config in catalogs]
     registered = [config.transformed_catalog for config in catalogs]
     if renderer_capabilities is None:
-        return registered
+        return link_catalogs(registered, extra_peers=pristine)
     if not registered:
         raise A2uiCatalogError(
             "No catalogs are registered, so none of the renderer's catalogs can be"
@@ -132,7 +144,11 @@ def resolve_catalogs(
             "No client-supported catalog found on the agent side. Agent-supported"
             f" catalogs are: {list(registered_by_id)}"
         )
-    return list(active.values())
+    # Inactive registered catalogs stay resolvable as peers. Inline catalogs
+    # are peers only when active, so a refused one never affects the prompt or
+    # validation. Linking returns per-request copies and leaves the registered
+    # catalogs, which live as long as the agent, unchanged.
+    return link_catalogs(list(active.values()), extra_peers=[*pristine, *registered])
 
 
 def _capabilities_entry(
@@ -155,6 +171,9 @@ def _capabilities_entry(
             f"Renderer capabilities must be a mapping, got {type(capabilities)}."
         )
     entry = capabilities.get(key)
+    if entry is None and key == _V0_8_KEY and _is_bare_entry(capabilities):
+        # v0.8 capabilities aren't keyed by protocol version.
+        entry = capabilities
     if entry is None:
         raise A2uiValidationError(
             f"The renderer capabilities have no '{key}' entry, which the registered"
@@ -175,3 +194,13 @@ def _capabilities_entry(
                 f"Invalid inline catalog in '{key}' renderer capabilities: {e}"
             ) from e
         raise A2uiValidationError(f"Invalid '{key}' renderer capabilities: {e}") from e
+
+
+def _is_bare_entry(capabilities: Mapping[str, Any]) -> bool:
+    """Whether capabilities are one entry rather than entries keyed by version.
+
+    The v0.8 specification sends `a2uiClientCapabilities` as the entry itself,
+    so capabilities that hold a field of an entry are one. Other fields are
+    left to the entry model, which reports them.
+    """
+    return any(field in capabilities for field in _ENTRY_FIELDS)

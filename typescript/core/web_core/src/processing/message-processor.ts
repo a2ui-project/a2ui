@@ -16,7 +16,7 @@
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener} from '../state/surface-model.js';
-import {Catalog, ComponentApi} from '../catalog/types.js';
+import {Catalog, ComponentApi, linkCatalogs} from '../catalog/types.js';
 import {cleanSchemaNode} from '../catalog/schema_generator.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
@@ -156,19 +156,25 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   readonly rpc: RpcHandler;
   private readonly adapterRegistry: VersionAdapterResolver;
   private readonly validationConfig?: ValidationConfig;
+  private readonly catalogs: Catalog<any>[];
 
   /**
    * Initializes a new `MessageProcessor` instance.
+   *
+   * The processor works with copies of `catalogs` linked to each other, so
+   * that cross-catalog `$ref`s resolve (see `linkCatalogs`); the catalogs
+   * passed in are not changed.
    *
    * @param catalogs List of available component catalogs.
    * @param actionHandler Global handler for actions dispatched from all surfaces.
    * @param options Configuration options for the processor.
    */
   constructor(
-    private catalogs: Catalog<any>[],
+    catalogs: Catalog<any>[],
     private actionHandler?: ActionListener,
     options?: MessageProcessorOptions,
   ) {
+    this.catalogs = linkCatalogs(catalogs);
     this.model = new SurfaceGroupModel<T>();
     this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
     this.rpc = new RpcHandler({

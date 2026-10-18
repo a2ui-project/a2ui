@@ -5,6 +5,7 @@
   "workspaces": [
     "catalogs/*",
     "typescript/*",
+    "typescript/agents/*",
     "typescript/catalogs/*",
     "typescript/core/*",
     "typescript/renderers/*",

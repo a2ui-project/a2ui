@@ -324,7 +324,6 @@ async def _prepare_session(self, context, run_request, runner):
 
   # 2. Negotiate a request processor for the client capabilities and load examples
   processor = self.generator.create_processor(capabilities)
-  a2ui_catalog = processor.active_catalogs[0]
   examples = load_examples(
       processor.active_catalogs, "path/to/examples", validate=True
   )
@@ -336,7 +335,7 @@ async def _prepare_session(self, context, run_request, runner):
           actions=EventActions(
               state_delta={
                   "system:a2ui_enabled": True,
-                  "system:a2ui_catalog": a2ui_catalog,
+                  "system:a2ui_catalogs": processor.active_catalogs,
                   "system:a2ui_examples": examples,
               }
           ),
@@ -348,12 +347,12 @@ async def _prepare_session(self, context, run_request, runner):
 #### 2b. Accessing Catalogs via Providers
 
 The `SendA2uiToClientToolset` can use **Providers**—callables that retrieve the
-catalog and examples from the current context state at runtime.
+active catalogs and examples from the current context state at runtime.
 
 ```python
 # Providers that read from context state
-def get_a2ui_catalog(ctx: ReadonlyContext):
-  return ctx.state.get("system:a2ui_catalog")
+def get_a2ui_catalogs(ctx: ReadonlyContext):
+  return ctx.state.get("system:a2ui_catalogs") or []
 
 
 def get_a2ui_examples(ctx: ReadonlyContext):
@@ -363,21 +362,21 @@ def get_a2ui_examples(ctx: ReadonlyContext):
 # Initialize the toolset with providers
 ui_toolset = SendA2uiToClientToolset(
     a2ui_enabled=True,
-    a2ui_catalog=get_a2ui_catalog,
+    a2ui_catalogs=get_a2ui_catalogs,
     a2ui_examples=get_a2ui_examples,
 )
 ```
 
 #### 2c. Runtime Validation
 
-When the LLM calls the UI tool, the toolset uses the dynamic catalog to:
+When the LLM calls the UI tool, the toolset uses the dynamic catalogs to:
 
 1. **Generate Instructions**: Inject the specific schema and examples into the
    LLM's system prompt for that turn.
 2. **Parse and Fix Payloads**: Parse and fix the LLM's generated JSON using the
    parser and payload-fixer.
 3. **Validate Payloads**: Validate the LLM's generated JSON against the specific
-   `Catalog` object with `a2ui.utils.validate_payload`.
+   active `Catalog` objects with `a2ui.utils.validate_payload`.
 
 ### 3. Multiple Version Support
 

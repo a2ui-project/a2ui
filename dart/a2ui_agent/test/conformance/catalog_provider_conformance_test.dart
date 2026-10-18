@@ -41,7 +41,7 @@ void main() {
       test('suite is not empty', () => expect(cases, isNotEmpty));
       for (final testCase in cases) {
         final name = testCase['name']! as String;
-        test(name, () => version.run(() => _runCase(testCase, version, temp)));
+        test(name, () => _runCase(testCase, version, temp));
       }
     });
   }

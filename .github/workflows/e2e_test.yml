@@ -20,7 +20,9 @@ on:
   # them otherwise. A manual run does not file an issue when it fails.
   workflow_dispatch:
   schedule:
-    - cron: "0 0 * * *" # daily
+    # Staggered from run_evals.yml (00:00 UTC) so the two workflows do not
+    # compete for per-minute quota on the shared REPO_GEMINI_API_KEY.
+    - cron: "30 1 * * *" # daily at 01:30 UTC
 
 permissions:
   contents: read

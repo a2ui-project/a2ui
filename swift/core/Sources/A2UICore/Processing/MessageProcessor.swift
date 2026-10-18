@@ -31,6 +31,11 @@ public final class MessageProcessor: ObservableObject {
   /// The validation configuration controlling strictness.
   public let validationConfig: ValidationConfig
 
+  private struct ValidatorCacheKey: Hashable {
+    let catalogID: String
+    let config: ValidationConfig
+  }
+
   let rpcHandler: RPCHandler
   private let registeredCatalogs: [AnyCatalog]
   private let catalogs: [String: AnyCatalog]
@@ -39,7 +44,7 @@ public final class MessageProcessor: ObservableObject {
   private let errorMapper = MessageErrorMapper()
   private let adapterFactory: VersionAdapterFactory
   private var activeRPCTasks: [String: Task<Void, Never>] = [:]
-  private var payloadValidators: [String: PayloadValidator] = [:]
+  private var payloadValidators: [ValidatorCacheKey: PayloadValidator] = [:]
 
   /// Creates a new message processor with an array of catalogs.
   ///
@@ -111,9 +116,15 @@ public final class MessageProcessor: ObservableObject {
     if let version {
       var surfacesDict: OrderedDictionary<String, JSONValue> = [:]
       for (surfaceID, vm) in enabledEntries {
-        if areVersionsCompatible(vm.protocolVersion, version)
-          && isCatalogCompatible(vm.catalog, with: version)
+        let catalogCompatible: Bool
+        if let defaultCatalogID = vm.defaultCatalogID,
+          let defaultCatalog = vm.catalogs[defaultCatalogID]
         {
+          catalogCompatible = isCatalogCompatible(defaultCatalog, with: version)
+        } else {
+          catalogCompatible = true
+        }
+        if areVersionsCompatible(vm.protocolVersion, version), catalogCompatible {
           surfacesDict[surfaceID] = vm.dataModel.data
         }
       }
@@ -582,7 +593,7 @@ public final class MessageProcessor: ObservableObject {
         )
       }
       targetCatalog = cat
-    } else if registeredCatalogs.count == 1 {
+    } else if !(op.version ?? .v091).isAtLeastV10, registeredCatalogs.count == 1 {
       targetCatalog = registeredCatalogs.first
     }
 
@@ -731,8 +742,7 @@ public final class MessageProcessor: ObservableObject {
     for catalog: AnyCatalog,
     config: ValidationConfig
   ) -> PayloadValidator {
-    let cacheKey =
-      "\(catalog.id)|\(config.allowOrphanComponents)|\(config.allowDanglingReferences)|\(config.allowMissingRoot)|\(config.allowUnknownElements)|\(config.targetVersion ?? "")"
+    let cacheKey = ValidatorCacheKey(catalogID: catalog.id, config: config)
     if let cached = payloadValidators[cacheKey] {
       return cached
     }
@@ -815,7 +825,7 @@ public final class MessageProcessor: ObservableObject {
         )
       }
 
-      guard componentDict["id"]?.stringValue != nil else {
+      guard let id = componentDict["id"]?.stringValue else {
         throw A2UIValidationError(
           "Missing required key 'id'",
           details: [
@@ -828,40 +838,56 @@ public final class MessageProcessor: ObservableObject {
         )
       }
 
-      let componentCatalogID =
-        componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
+      let componentCatalogID: String?
+      if surface.protocolVersion.isAtLeastV10 {
+        componentCatalogID = try resolveV10CatalogID(
+          componentDict["catalogId"],
+          subject: "Component '\(id)'",
+          on: surface,
+          path: CatalogResolutionErrors.componentCatalogIDPath
+        )
+      } else {
+        componentCatalogID =
+          componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
+      }
+
       let resolvedCatalogID = componentCatalogID ?? "default"
       guard let targetCatalog = surface.getCatalog(id: componentCatalogID) else {
-        throw A2UICatalogError(
-          "Catalog not found: \(resolvedCatalogID)",
-          details: [
-            A2UIErrorDetail(
-              path: "/catalogId",
-              code: "CATALOG_NOT_FOUND",
-              message: "Catalog not found: \(resolvedCatalogID)"
-            )
-          ]
+        throw CatalogResolutionErrors.catalogNotFound(
+          resolvedCatalogID,
+          path: CatalogResolutionErrors.componentCatalogIDPath
         )
       }
 
       guard isCatalogCompatible(targetCatalog, with: surface.protocolVersion) else {
-        let catVerStr = targetCatalog.protocolVersion ?? "v0.9"
-        let msg =
-          "Catalog '\(resolvedCatalogID)' (version \(catVerStr)) is incompatible with surface version \(surface.protocolVersion.rawValue)."
-        throw A2UICatalogError(
-          msg,
-          details: [
-            A2UIErrorDetail(
-              path: "/catalogId",
-              code: "INCOMPATIBLE_CATALOG_VERSION",
-              message: msg
-            )
-          ]
+        throw CatalogResolutionErrors.incompatibleCatalog(
+          resolvedCatalogID,
+          catalog: targetCatalog,
+          surfaceVersion: surface.protocolVersion,
+          path: CatalogResolutionErrors.componentCatalogIDPath
         )
       }
 
       let validator = payloadValidator(for: targetCatalog, config: effectiveConfig)
-      try validator.validateComponent(componentDict)
+      if surface.protocolVersion.isAtLeastV10 {
+        // The validator takes a component that names no catalogId to be in the surface default
+        // catalog, so it names one only when the component's catalog isn't the default.
+        let componentInDefault = targetCatalog.id == surface.defaultCatalogID
+        try validator.validateComponent(
+          componentDict,
+          componentNamesCatalog: !componentInDefault
+        )
+        try validateNestedFunctionCalls(
+          in: componentDict,
+          componentID: id,
+          componentCatalog: targetCatalog,
+          componentInDefault: componentInDefault,
+          on: surface,
+          config: effectiveConfig
+        )
+      } else {
+        try validator.validateComponent(componentDict)
+      }
     }
 
     if !components.isEmpty {
@@ -898,6 +924,166 @@ public final class MessageProcessor: ObservableObject {
         defaultCatalogID: surface.defaultCatalogID
       )
     }
+  }
+
+  /// Resolves the catalog of every v1.0 function call nested in a component's properties.
+  ///
+  /// A call runs in the catalog it names, else in the surface default catalog, which is not
+  /// necessarily the component's own. This pass raises `A2UICatalogError` when a call's catalog
+  /// can't be resolved or belongs to another protocol version, and checks the arguments of the
+  /// calls that the component's validator left to identifier checks against the catalog they
+  /// resolve to. Reserved `@` names are left to the validator.
+  private func validateNestedFunctionCalls(
+    in componentDict: [String: JSONValue],
+    componentID: String,
+    componentCatalog: AnyCatalog,
+    componentInDefault: Bool,
+    on surface: SurfaceViewModel,
+    config: ValidationConfig
+  ) throws {
+    for (key, value) in componentDict
+    where key != "id" && key != "component" && key != "catalogId" && key != "metadata" {
+      try validateNestedFunctionCallsInValue(
+        value,
+        componentID: componentID,
+        componentCatalog: componentCatalog,
+        componentInDefault: componentInDefault,
+        on: surface,
+        config: config
+      )
+    }
+  }
+
+  private func validateNestedFunctionCallsInValue(
+    _ value: JSONValue,
+    componentID: String,
+    componentCatalog: AnyCatalog,
+    componentInDefault: Bool,
+    on surface: SurfaceViewModel,
+    config: ValidationConfig
+  ) throws {
+    switch value {
+    case .array(let items):
+      for item in items {
+        try validateNestedFunctionCallsInValue(
+          item,
+          componentID: componentID,
+          componentCatalog: componentCatalog,
+          componentInDefault: componentInDefault,
+          on: surface,
+          config: config
+        )
+      }
+
+    case .object(let dict):
+      if let callName = dict["@call"]?.stringValue, !callName.hasPrefix("@") {
+        try validateNestedFunctionCall(
+          named: callName,
+          in: dict,
+          componentID: componentID,
+          componentCatalog: componentCatalog,
+          componentInDefault: componentInDefault,
+          on: surface,
+          config: config
+        )
+      }
+      for childValue in dict.values {
+        try validateNestedFunctionCallsInValue(
+          childValue,
+          componentID: componentID,
+          componentCatalog: componentCatalog,
+          componentInDefault: componentInDefault,
+          on: surface,
+          config: config
+        )
+      }
+
+    default:
+      break
+    }
+  }
+
+  private func validateNestedFunctionCall(
+    named callName: String,
+    in dict: OrderedDictionary<String, JSONValue>,
+    componentID: String,
+    componentCatalog: AnyCatalog,
+    componentInDefault: Bool,
+    on surface: SurfaceViewModel,
+    config: ValidationConfig
+  ) throws {
+    let catalogIDPath = CatalogResolutionErrors.callCatalogIDPath(functionName: callName)
+    let callCatalogID = try resolveV10CatalogID(
+      dict["catalogId"],
+      subject: "Function call '\(callName)' in component '\(componentID)'",
+      on: surface,
+      path: catalogIDPath
+    )
+    // `resolveV10CatalogID` has rejected a non-string `catalogId`, so this is nil only when the
+    // call names no catalog.
+    let namedCatalogID = dict["catalogId"]?.stringValue
+
+    guard let callCatalog = surface.catalogs[callCatalogID] else {
+      throw CatalogResolutionErrors.catalogNotFound(callCatalogID, path: catalogIDPath)
+    }
+
+    guard isCatalogCompatible(callCatalog, with: surface.protocolVersion) else {
+      throw CatalogResolutionErrors.incompatibleCatalog(
+        callCatalogID,
+        catalog: callCatalog,
+        surfaceVersion: surface.protocolVersion,
+        path: catalogIDPath
+      )
+    }
+
+    // The component's validator fully checks a call that names its catalog, or names none
+    // while the component is in the surface default catalog; same predicate as the validator.
+    let checkedByComponentValidator =
+      namedCatalogID.map { $0 == componentCatalog.id } ?? componentInDefault
+    guard !checkedByComponentValidator else { return }
+
+    if let rawArgs = dict["args"], rawArgs != .null, rawArgs.objectValue == nil {
+      throw CatalogResolutionErrors.nonObjectArguments(functionName: callName)
+    }
+    let callValidator = payloadValidator(for: callCatalog, config: config)
+    try callValidator.validateFunctionInternal(
+      name: callName,
+      args: dict["args"]?.dictionaryValue,
+      allowDynamicArgValues: true
+    )
+  }
+
+  /// Resolves the catalog that a v1.0 component or function call runs in: the one its
+  /// `catalogId` names, else the surface default catalog.
+  ///
+  /// - Parameters:
+  ///   - rawCatalogID: The value of the `catalogId` key, or nil when the key is absent.
+  ///   - subject: Names the component or call in the error raised when the surface has no
+  ///     default catalog.
+  ///   - surface: The surface whose default catalog is the fallback.
+  ///   - path: The error detail path of the `catalogId` key.
+  /// - Throws: `A2UIValidationError` when `catalogId` is not a string, and `A2UICatalogError`
+  ///   when nothing names a catalog and the surface has no default catalog.
+  private func resolveV10CatalogID(
+    _ rawCatalogID: JSONValue?,
+    subject: String,
+    on surface: SurfaceViewModel,
+    path: String
+  ) throws -> String {
+    if let rawCatalogID {
+      guard let catalogID = rawCatalogID.stringValue else {
+        throw CatalogResolutionErrors.nonStringCatalogID(path: path)
+      }
+      return catalogID
+    }
+    guard let defaultCatalogID = surface.defaultCatalogID else {
+      throw CatalogResolutionErrors.noDefaultCatalog(
+        subject: subject,
+        surfaceID: surface.surfaceID,
+        path: path
+      )
+    }
+    return defaultCatalogID
   }
 
   private func applyComponentsBatch(

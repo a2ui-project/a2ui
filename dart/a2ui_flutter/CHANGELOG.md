@@ -18,4 +18,5 @@
 
 ## Unreleased
 
+- Ignore `deprecated_member_use` warnings on `package:flutter/material.dart` imports on Flutter beta (#3235).
 - Initial version.

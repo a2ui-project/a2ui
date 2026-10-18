@@ -53,9 +53,19 @@ class CatalogConfig {
 
   /// [catalog] after each of [transformers] in turn, each seeing the previous
   /// result.
-  CatalogApi get transformedCatalog => transformers.fold(
-    catalog,
-    (CatalogApi current, CatalogTransformer transformer) =>
-        transformer.transform(current),
-  );
+  ///
+  /// Computed on first access and then reused, so every request sees the
+  /// same instance and its cached schemas.
+  CatalogApi get transformedCatalog =>
+      _transformedCatalogs[this] ??= transformers.fold<CatalogApi>(
+        catalog,
+        (CatalogApi current, CatalogTransformer transformer) =>
+            transformer.transform(current),
+      );
 }
+
+/// Each [CatalogConfig.transformedCatalog], by config, kept outside the config
+/// so its constructor stays `const`.
+final Expando<CatalogApi> _transformedCatalogs = Expando(
+  'CatalogConfig.transformedCatalog',
+);

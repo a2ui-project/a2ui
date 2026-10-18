@@ -47,7 +47,7 @@ def test_adk_extensions_conformance(name, test_case):
         catalog_mock = MagicMock(spec=Catalog)
 
         tool = SendA2uiToClientToolset._SendA2uiJsonToClientTool(
-            catalog_mock, "examples"
+            [catalog_mock], "examples"
         )
 
         tool_context_mock = MagicMock()

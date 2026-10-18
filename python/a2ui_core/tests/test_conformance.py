@@ -1078,7 +1078,9 @@ def validate_from_json_case(case: dict[str, Any]) -> None:
         with assert_raises(expect_err):
             Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
     else:
-        cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
+        cat = _with_case_peers(
+            Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver), case
+        )
         expected = case.get("expect", {})
         unknown_keys = set(expected) - _FROM_JSON_EXPECT_KEYS
         assert (
@@ -1147,6 +1149,27 @@ def sdk_catalog(catalog_id: Any) -> CatalogApi | None:
     return None
 
 
+def _with_case_peers(catalog: CatalogApi, case: dict[str, Any]) -> CatalogApi:
+    """Links the catalogs that a case lists in `peerCatalogPaths` to `catalog`.
+
+    Returns the catalog that `with_peer_catalogs` returns, which resolves
+    cross-catalog references into the peers.
+    """
+    paths = case.get("peerCatalogPaths")
+    if not paths:
+        return catalog
+    peers: list[CatalogApi] = []
+    for path in paths:
+        full_p = os.path.abspath(os.path.join(CONFORMANCE_ROOT, "../", path))
+        with open(full_p, "r", encoding="utf-8") as f:
+            peers.append(
+                Catalog.from_json(
+                    json.load(f), protocol_version=catalog.protocol_version
+                )
+            )
+    return catalog.with_peer_catalogs(peers)
+
+
 def _load_case_catalog(case: dict[str, Any]) -> tuple[Any, str | None]:
     """Returns the catalog document of a case and the path it was read from."""
     c_path = case.get("catalogPath") or case.get("catalogFile")
@@ -1183,7 +1206,9 @@ def validate_validation_schema_case(case: dict[str, Any]) -> None:
                 c_schema, catalog_id=c_id, protocol_version=p_ver
             ).validation_schema
         return
-    cat = Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver)
+    cat = _with_case_peers(
+        Catalog.from_json(c_schema, catalog_id=c_id, protocol_version=p_ver), case
+    )
 
     expect_file = case.get("expectFile")
     assert expect_file, "validation_schema cases require expectFile or expectError"

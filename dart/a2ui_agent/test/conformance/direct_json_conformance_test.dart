@@ -25,7 +25,8 @@ import 'suites.dart';
 /// it and lifts what the parser returns, as `suites.dart` describes. The
 /// direct JSON suites write each message on its own, so nothing is joined. A
 /// case whose catalog declares v1.0 runs with `bufferIncompleteComponents`
-/// on, as a v1.0 agent configures it. A streaming case whose catalog declares
+/// on, so that a v0.9 parser holds components back as a v1.0 parser always
+/// does. A streaming case whose catalog declares
 /// v0.9 already speaks that version and runs as written, and one whose
 /// catalog declares v0.8 is skipped, since this SDK does not implement it.
 ///
@@ -47,7 +48,7 @@ void main() {
           if (version == SuiteVersion.v1_0 && !_targetsV1(testCase)) continue;
           test(
             testCase['name']! as String,
-            () => version.run(() => _runCase(testCase, version)),
+            () => _runCase(testCase, version),
             skip: _skipReason(testCase, version),
           );
         }
@@ -67,35 +68,13 @@ const Set<String> _v1OnlyStreamingCases = {
   'test_stream_catalog_id_split_across_chunks_v10',
 };
 
-/// Streaming cases this SDK does not pass yet, each with the behavior it
-/// lacks.
-const Map<String, String> _knownStreamingGaps = {
-  'test_stream_incremental_yielding_v09': _createHeld,
-  'test_stream_create_surface_held_until_closed_v09': _createHeld,
-  'test_stream_orphan_component_fails_v09': _treeChecked,
-  'test_stream_circular_reference_fails_v09': _treeChecked,
-  'test_stream_self_reference_fails_v09': _treeChecked,
-  'test_stream_update_before_create_surface_fails_v09': _surfaceFirst,
-  'test_stream_data_model_before_create_surface_fails_v09': _surfaceFirst,
+/// Streaming cases that state a rule of v1.0 alone, which a v0.9 parser
+/// does not follow, so they run as written in v1.0 only.
+const Map<String, String> _v1StreamingRules = {
   'test_stream_component_without_catalog_uses_surface_catalog_v10':
-      _invalidComponentWithheld,
-  'test_stream_cut_surrogate_pair_v09':
-      'Known gap: a string cut inside an escaped surrogate pair is healed '
-      'with U+FFFD rather than cut before the pair.',
+      'Raising on the chunk that closes an invalid component is a v1.0 rule; '
+      'before v1.0 the error is raised when the block closes.',
 };
-
-const String _createHeld =
-    'Known gap: a createSurface is emitted before its object closes, so it '
-    'is emitted again as it grows.';
-const String _treeChecked =
-    'Known gap: a streamed tree is not checked for orphans and cycles when '
-    'the block closes.';
-const String _surfaceFirst =
-    'Known gap: a message for a surface the block has not created yet is '
-    'not rejected when the block closes.';
-const String _invalidComponentWithheld =
-    'Known gap: an invalid component is withheld until the block closes '
-    'rather than raising on the chunk that closes it.';
 
 /// Whether the catalogs of [testCase] target v1.0, as most cases' do.
 bool _targetsV1(Map<String, Object?> testCase) =>
@@ -114,12 +93,15 @@ String? _skipReason(Map<String, Object?> testCase, SuiteVersion version) {
     if (_v1OnlyStreamingCases.contains(testCase['name'])) {
       return 'v0.9 cannot state what the case streams.';
     }
+    if (_v1StreamingRules[testCase['name']] case final String reason) {
+      return reason;
+    }
     if (testCase['action'] == 'generate_prompt_snippet') {
       return 'The snippet embeds the schemas of the catalogs\' version, so '
           'the case runs as written in v1.0 only.';
     }
   }
-  return _knownStreamingGaps[testCase['name']];
+  return null;
 }
 
 void _runCase(Map<String, Object?> testCase, SuiteVersion version) {

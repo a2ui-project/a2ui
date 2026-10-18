@@ -67,11 +67,14 @@ class DirectJsonPromptGenerator extends PromptGenerator {
   /// message type.
   @override
   String generate() {
-    if (catalogs.isEmpty) {
+    if (this.catalogs.isEmpty) {
       throw A2uiCatalogError(
         'A direct JSON prompt needs at least one catalog.',
       );
     }
+    // Linked copies resolve cross-catalog references; [catalogs] stay as
+    // they are.
+    final List<CatalogApi> catalogs = linkCatalogs(this.catalogs);
     final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
     Map<String, Object?> a2rSchema = _loadAgentToRendererSchema(version);
     if (allowedMessages != null) {
@@ -81,9 +84,28 @@ class DirectJsonPromptGenerator extends PromptGenerator {
     final List<Map<String, Object?>> catalogDocs = [
       for (final CatalogApi c in catalogs) c.toJson(),
     ];
+    final peerResolvedDocs = <Map<String, Object?>>[];
+    for (var i = 0; i < catalogs.length; i++) {
+      final CatalogApi c = catalogs[i];
+      if (c.peerCatalogs.isNotEmpty) {
+        final List<Map<String, Object?>> peerDocs = [
+          for (final Catalog<ComponentApi, FunctionApi> p in c.peerCatalogs)
+            p.toJson(),
+        ];
+        final Object? resolved = inlineLocalRefs(
+          catalogDocs[i],
+          catalogDocs[i],
+          null,
+          peerDocs,
+        );
+        if (resolved is Map<String, Object?>) {
+          peerResolvedDocs.add(resolved);
+        }
+      }
+    }
     final Map<String, Object?> commonTypesSchema = _pruneCommonTypesSchema(
       PayloadValidator.commonTypesFor(version),
-      [...catalogDocs, a2rSchema],
+      [...catalogDocs, ...peerResolvedDocs, a2rSchema],
     );
 
     final schemaSections = <String>[
