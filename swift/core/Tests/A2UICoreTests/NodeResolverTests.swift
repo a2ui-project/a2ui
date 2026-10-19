@@ -569,6 +569,259 @@ struct NodeResolverTests {
     let updated = try #require(resolver.resolveTree())
     #expect(updated.explicitAccessibilityAttributes?.label == "iPhone 17 Pro")
   }
+
+  @Test func incrementalScopedBindingWriteAndNoOpDataSet() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: [
+            "children": .object([
+              "componentId": .string("personText"),
+              "path": .string("/people"),
+            ])
+          ]
+        ),
+        "personText": ComponentModel(
+          id: "personText",
+          type: "Text",
+          properties: ["text": .object(["path": .string("name")])]
+        ),
+      ]
+    )
+    let dataModel = DataModel(
+      initial: .object([
+        "people": .array([
+          .object(["name": .string("Ada")]),
+          .object(["name": .string("Lin")]),
+        ])
+      ])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 3)
+    let children = root.children(for: "children")
+    #expect(children.count == 2)
+    let item0 = children[0]
+    let item1 = children[1]
+
+    // Write through item0's scoped DataBinding: only item0 should resolve.
+    let binding0 = try #require(item0.properties["text"] as? DataBinding<String>)
+    binding0.set("Grace")
+    let rootAfterWrite = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(rootAfterWrite.box === root.box)
+    #expect(rootAfterWrite.box.revision == 0)
+    #expect(item0.box.revision == 1)
+    #expect(item0.string(for: "text") == "Grace")
+    #expect(item1.box.revision == 0)
+    #expect(item1.string(for: "text") == "Lin")
+
+    // Setting /people/0/name to the same value "Grace" is a no-op for resolution.
+    dataModel.set("/people/0/name", value: .string("Grace"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 0)
+    #expect(item0.box.revision == 1)
+  }
+
+  @Test func incrementalTemplateDefinitionUpdateAndMiddleInsertion() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: [
+            "children": .object([
+              "componentId": .string("personText"),
+              "path": .string("/people"),
+            ])
+          ]
+        ),
+        "personText": ComponentModel(
+          id: "personText",
+          type: "Text",
+          properties: ["text": .object(["path": .string("name")])]
+        ),
+      ]
+    )
+    let dataModel = DataModel(
+      initial: .object([
+        "people": .array([
+          .object(["name": .string("Ada")]),
+          .object(["name": .string("Lin")]),
+        ])
+      ])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let initialChildren = root.children(for: "children")
+    let item0 = initialChildren[0]
+    let item1 = initialChildren[1]
+
+    // 1. Update shared template definition to a literal: both instances resolve, root stays silent.
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "personText",
+        type: "Text",
+        properties: ["text": .string("Fixed")]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 2)
+    #expect(root.box.revision == 0)
+    #expect(item0.box.revision == 1)
+    #expect(item1.box.revision == 1)
+    #expect(item0.string(for: "text") == "Fixed")
+    #expect(item1.string(for: "text") == "Fixed")
+
+    // Restore path binding on template definition.
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "personText",
+        type: "Text",
+        properties: ["text": .object(["path": .string("name")])]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 2)
+    let rev0BeforeInsert = item0.box.revision
+    let rev1BeforeInsert = item1.box.revision
+
+    // 2. Insert "New" at index 1 ([Ada, Lin] -> [Ada, New, Lin]):
+    // root resolves (count 2 -> 3), item0 is untouched ("Ada" == "Ada"),
+    // item1 updates ("Lin" -> "New"), and item2 is created ("Lin").
+    dataModel.set(
+      "/people",
+      value: .array([
+        .object(["name": .string("Ada")]),
+        .object(["name": .string("New")]),
+        .object(["name": .string("Lin")]),
+      ])
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 3)
+    #expect(root.box.revision == 1)
+    #expect(item0.box.revision == rev0BeforeInsert)
+    #expect(item1.box.revision == rev1BeforeInsert + 1)
+    #expect(item1.string(for: "text") == "New")
+    let afterInsertChildren = root.children(for: "children")
+    #expect(afterInsertChildren.count == 3)
+    #expect(afterInsertChildren[0].box === item0.box)
+    #expect(afterInsertChildren[1].box === item1.box)
+    #expect(afterInsertChildren[2].string(for: "text") == "Lin")
+
+    // 3. Shrink /people to 1 item ([Ada]): only root resolves, and pruned items ignore later writes.
+    dataModel.set(
+      "/people",
+      value: .array([
+        .object(["name": .string("Ada")])
+      ])
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(root.children(for: "children").count == 1)
+
+    // Writing to pruned item1's path does not resolve any node.
+    dataModel.set("/people/0/name", value: .string("Ada"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 0)
+  }
+
+  @Test func incrementalDelayedChildArrivalTypeChangeAndRemoval() throws {
+    let catalog = try makeCatalog()
+    // Start with root referencing "greeting", which has not arrived yet.
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["child": .string("greeting")]
+        )
+      ]
+    )
+    let dataModel = DataModel(initial: .object(["msg": .string("Hello")]))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(root.child(for: "child") == nil)
+
+    // 1. Delayed arrival of "greeting": root and greeting resolve, root keeps identity.
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "greeting",
+        type: "Text",
+        properties: ["text": .object(["path": .string("/msg")])]
+      )
+    )
+    let rootAfterArrival = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 2)
+    #expect(rootAfterArrival.box === root.box)
+    let greetingText = try #require(root.child(for: "child"))
+    #expect(greetingText.type == "Text")
+    #expect(greetingText.string(for: "text") == "Hello")
+
+    // 2. Type change on child ("Text" -> "Container"): root keeps identity, child gets a new NodeBox.
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "greeting",
+        type: "Container",
+        properties: [:]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 2)
+    let greetingContainer = try #require(root.child(for: "child"))
+    #expect(greetingContainer.type == "Container")
+    #expect(greetingContainer.box !== greetingText.box)
+
+    // 3. Remove "greeting": only root resolves, child becomes nil, and old /msg dependency is pruned.
+    componentsModel.removeComponent("greeting")
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(root.child(for: "child") == nil)
+
+    dataModel.set("/msg", value: .string("Updated"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 0)
+
+    // 4. Remove "root" and re-add: tree becomes nil then resolves fresh root.
+    componentsModel.removeComponent("root")
+    #expect(resolver.resolveTree() == nil)
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Text",
+        properties: ["text": .string("Reborn")]
+      )
+    )
+    let rebornRoot = try #require(resolver.resolveTree())
+    #expect(rebornRoot.box !== root.box)
+    #expect(rebornRoot.string(for: "text") == "Reborn")
+  }
 }
 
 private final class ExpressionErrorCaptureHandler: ActionHandling, @unchecked Sendable {

@@ -183,9 +183,9 @@ public final class SurfaceViewModel: ObservableObject {
       }
       .store(in: &cancellables)
 
-    dataModel.pathChangeSubject
-      .sink { [weak self] changedPath in
-        self?.handleDataChange(at: changedPath)
+    dataModel.dataPublisher
+      .sink { [weak self] _ in
+        self?.rebuildTree()
       }
       .store(in: &cancellables)
   }
@@ -195,14 +195,6 @@ public final class SurfaceViewModel: ObservableObject {
   /// Rebuilds the node tree and publishes the new root only if the root node identity changed.
   private func rebuildTree() {
     let newRoot = nodeResolver.resolveTree()
-    if self.rootNode?.box !== newRoot?.box {
-      self.rootNode = newRoot
-    }
-  }
-
-  /// Incrementally updates only the nodes affected by a data model change at `changedPath`.
-  private func handleDataChange(at changedPath: String) {
-    let newRoot = nodeResolver.resolveDataChange(at: changedPath)
     if self.rootNode?.box !== newRoot?.box {
       self.rootNode = newRoot
     }

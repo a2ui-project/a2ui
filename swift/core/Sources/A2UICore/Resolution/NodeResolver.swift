@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import A2UIJSON
+import Combine
 import Foundation
 import OrderedJSON
 
@@ -33,9 +34,15 @@ public final class NodeResolver: Sendable {
   public let dataModel: DataModel
   public weak var actionHandler: (any ActionHandling)?
   public let protocolVersion: A2UIProtocolVersion?
+
   private struct CachedComponentSchema {
     let propertiesSchema: [String: JSONValue]
     let classifiedTypes: [String: PropertyType]
+  }
+
+  private struct ComponentIdentity: Equatable {
+    let type: String
+    let catalogID: String?
   }
 
   private struct NodeResolutionRecord {
@@ -44,21 +51,41 @@ public final class NodeResolver: Sendable {
     let basePath: String?
     let index: Int?
     let instanceSuffix: String?
-    var readPaths: Set<String>
+    let visited: Set<String>
+    var componentSnapshot: ComponentModel
+    var childIdentities: [String: ComponentIdentity?]
+    var readValues: [String: JSONValue?]
+    var templateCounts: [String: Int]
+    var directChildInstances: Set<String>
   }
+
+  /// The number of `resolveNode` invocations executed during the most recent `resolveTree()` pass.
+  package private(set) var lastResolvedNodeCount = 0
 
   private var activeNodes: [String: Node] = [:]
   private var schemaCache: [String: CachedComponentSchema] = [:]
   private var nodeRecords: [String: NodeResolutionRecord] = [:]
+  private var nodesByDefinitionID: [String: Set<String>] = [:]
+  private var parentsByChildDefinitionID: [String: Set<String>] = [:]
+  private var parentsByChildInstanceID: [String: Set<String>] = [:]
   private var nodesByReadPath: [String: Set<String>] = [:]
-  private var nodesByAncestorPath: [String: Set<String>] = [:]
-  private var templateArrayCounts: [String: Int] = [:]
-  private var currentNodeReadPaths: Set<String>?
+  private var readPathsByAncestorPath: [String: Set<String>] = [:]
+  private var nodesByTemplatePath: [String: Set<String>] = [:]
+  private var dirtyComponentIDs: Set<String> = []
+  private var forcedComponentIDs: Set<String> = []
+  private var dirtyDataPaths: Set<String> = []
+  private var needsFullResolve = false
+  private var resolvedInCurrentPass: Set<String> = []
+  private var currentNodeReadValues: [String: JSONValue?]?
+  private var currentNodeTemplateCounts: [String: Int]?
+  private var currentNodeChildIdentities: [String: ComponentIdentity?]?
+  private var currentNodeDirectChildren: Set<String>?
   private var reportedExpressionErrors: Set<String> = []
   private var currentPassExpressionErrors: Set<String> = []
   private var isResolvingTree = false
   private var currentComponentID: String?
   private var currentPropertyPath: String?
+  private var modelCancellables = Set<AnyCancellable>()
 
   /// Whether this resolver follows v1.0 rules.
   ///
@@ -117,10 +144,24 @@ public final class NodeResolver: Sendable {
     } else {
       self.defaultCatalogID = nil
     }
-    self.componentsModel = componentsModel ?? SurfaceComponentsModel()
-    self.dataModel = dataModel ?? DataModel()
+    let resolvedComponentsModel = componentsModel ?? SurfaceComponentsModel()
+    let resolvedDataModel = dataModel ?? DataModel()
+    self.componentsModel = resolvedComponentsModel
+    self.dataModel = resolvedDataModel
     self.actionHandler = actionHandler
     self.protocolVersion = protocolVersion
+
+    resolvedComponentsModel.changedIDsSubject
+      .sink { [weak self] ids in
+        self?.dirtyComponentIDs.formUnion(ids)
+      }
+      .store(in: &modelCancellables)
+
+    resolvedDataModel.pathChangeSubject
+      .sink { [weak self] path in
+        self?.dirtyDataPaths.insert(path)
+      }
+      .store(in: &modelCancellables)
   }
 
   public convenience init(
@@ -180,106 +221,220 @@ public final class NodeResolver: Sendable {
   /// Clears previously reported expression errors so subsequent evaluations re-emit.
   public func clearReportedExpressionErrors(forComponentID componentID: String? = nil) {
     if let componentID {
-      let prefix = "\(componentID):"
-      reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
+      let directPrefix = "\(componentID):"
+      let instancePrefixes = (nodesByDefinitionID[componentID] ?? []).map { "\($0):" }
+      reportedExpressionErrors = reportedExpressionErrors.filter { key in
+        guard !key.hasPrefix(directPrefix) else { return false }
+        return !instancePrefixes.contains { key.hasPrefix($0) }
+      }
+      forcedComponentIDs.insert(componentID)
     } else {
       reportedExpressionErrors.removeAll()
+      needsFullResolve = true
     }
   }
 
   /// Resolves the component tree starting from the root component ("root")
   /// using the stored component and data models.
   public func resolveTree() -> Node? {
-    let wasResolvingTree = isResolvingTree
-    if !wasResolvingTree {
-      isResolvingTree = true
-      currentPassExpressionErrors.removeAll()
-      nodeRecords.removeAll()
-      nodesByReadPath.removeAll()
-      nodesByAncestorPath.removeAll()
-      templateArrayCounts.removeAll()
+    if isResolvingTree {
+      return resolveNode(
+        definitionID: "root",
+        instanceID: "root",
+        basePath: nil,
+        visited: [],
+        components: componentsModel.components,
+        data: dataModel.data,
+        recurseIntoChildren: true
+      )
     }
+
+    lastResolvedNodeCount = 0
+    let components = componentsModel.components
+    guard components["root"] != nil else {
+      resetResolutionState()
+      return nil
+    }
+
+    if activeNodes["root"] != nil && !needsFullResolve {
+      return resolveIncrementalChanges(components: components, currentData: dataModel.data)
+    }
+
+    resetResolutionState()
+    isResolvingTree = true
     defer {
-      if !wasResolvingTree {
-        reportedExpressionErrors = currentPassExpressionErrors
-        currentPassExpressionErrors.removeAll()
-        activeNodes = activeNodes.filter { nodeRecords[$0.key] != nil }
-        isResolvingTree = false
-      }
+      resolvedInCurrentPass.removeAll()
+      isResolvingTree = false
     }
     return resolveNode(
       definitionID: "root",
       instanceID: "root",
       basePath: nil,
       visited: [],
-      components: componentsModel.components,
-      data: dataModel.data
+      components: components,
+      data: dataModel.data,
+      recurseIntoChildren: true
     )
   }
 
-  /// Incrementally updates only the nodes affected by a data mutation at `changedPath`.
-  ///
-  /// Falls back to a full `resolveTree()` if no root exists yet or if a template's array count
-  /// changed.
-  func resolveDataChange(at changedPath: String) -> Node? {
-    guard let root = activeNodes["root"] else {
-      return resolveTree()
+  private func resetResolutionState() {
+    activeNodes.removeAll()
+    nodeRecords.removeAll()
+    nodesByDefinitionID.removeAll()
+    parentsByChildDefinitionID.removeAll()
+    parentsByChildInstanceID.removeAll()
+    nodesByReadPath.removeAll()
+    readPathsByAncestorPath.removeAll()
+    nodesByTemplatePath.removeAll()
+    dirtyComponentIDs.removeAll()
+    forcedComponentIDs.removeAll()
+    dirtyDataPaths.removeAll()
+    needsFullResolve = false
+    resolvedInCurrentPass.removeAll()
+    reportedExpressionErrors.removeAll()
+    currentPassExpressionErrors.removeAll()
+  }
+
+  private func resolveIncrementalChanges(
+    components: [String: ComponentModel],
+    currentData: JSONValue
+  ) -> Node? {
+    let changedCompIDs = dirtyComponentIDs
+    let forcedCompIDs = forcedComponentIDs
+    let changedDataPaths = dirtyDataPaths
+    dirtyComponentIDs.removeAll()
+    forcedComponentIDs.removeAll()
+    dirtyDataPaths.removeAll()
+
+    guard !changedCompIDs.isEmpty || !forcedCompIDs.isEmpty || !changedDataPaths.isEmpty else {
+      return activeNodes["root"]
     }
 
-    let normalizedChanged = normalizePath(changedPath)
-    let currentData = dataModel.data
+    var affectedNodeIDs: Set<String> = []
 
-    for (templatePath, expectedCount) in templateArrayCounts {
-      if pathsOverlap(templatePath, normalizedChanged) {
-        let currentCount = currentData[templatePath]?.arrayValue?.count ?? 0
-        if currentCount != expectedCount {
-          return resolveTree()
+    for compID in changedCompIDs {
+      let currentComp = components[compID]
+      let currentIdentity = componentIdentity(for: compID, in: components)
+
+      if let instances = nodesByDefinitionID[compID] {
+        for instanceID in instances {
+          guard let record = nodeRecords[instanceID] else { continue }
+          if record.componentSnapshot != currentComp || forcedCompIDs.contains(compID) {
+            let previousIdentity = ComponentIdentity(
+              type: record.componentSnapshot.type,
+              catalogID: record.componentSnapshot.catalogID ?? defaultCatalogID
+            )
+            if currentIdentity == previousIdentity || instanceID == "root" {
+              affectedNodeIDs.insert(instanceID)
+            }
+          }
+        }
+      }
+
+      if let parentInstances = parentsByChildDefinitionID[compID] {
+        for parentInstanceID in parentInstances {
+          guard let parentRecord = nodeRecords[parentInstanceID] else { continue }
+          if let recordedIdentity = parentRecord.childIdentities[compID],
+            recordedIdentity != currentIdentity
+          {
+            affectedNodeIDs.insert(parentInstanceID)
+          }
         }
       }
     }
 
-    var affectedNodeIDs = nodesByReadPath[normalizedChanged] ?? []
-    if let subNodes = nodesByAncestorPath[normalizedChanged] {
-      affectedNodeIDs.formUnion(subNodes)
+    for compID in forcedCompIDs where !changedCompIDs.contains(compID) {
+      if let instances = nodesByDefinitionID[compID] {
+        affectedNodeIDs.formUnion(instances)
+      }
     }
-    for ancestor in ancestorPaths(of: normalizedChanged) {
-      if let ancNodes = nodesByReadPath[ancestor] {
-        affectedNodeIDs.formUnion(ancNodes)
+
+    var candidateReadPaths: Set<String> = []
+    for rawChanged in changedDataPaths {
+      let normChanged = normalizePath(rawChanged)
+
+      if nodesByReadPath[normChanged] != nil {
+        candidateReadPaths.insert(normChanged)
+      }
+      for ancestor in ancestorPaths(of: normChanged) where nodesByReadPath[ancestor] != nil {
+        candidateReadPaths.insert(ancestor)
+      }
+      if let subReadPaths = readPathsByAncestorPath[normChanged] {
+        candidateReadPaths.formUnion(subReadPaths)
+      }
+
+      for (templatePath, templateNodes) in nodesByTemplatePath
+      where pathsOverlap(templatePath, normChanged) {
+        let currentCount = currentData[templatePath]?.arrayValue?.count ?? 0
+        for instanceID in templateNodes {
+          if nodeRecords[instanceID]?.templateCounts[templatePath] != currentCount {
+            affectedNodeIDs.insert(instanceID)
+          }
+        }
+      }
+    }
+
+    for readPath in candidateReadPaths {
+      let currentVal = currentData[readPath]
+      if let readers = nodesByReadPath[readPath] {
+        for instanceID in readers {
+          if let record = nodeRecords[instanceID],
+            let recordedVal = record.readValues[readPath],
+            recordedVal != currentVal
+          {
+            affectedNodeIDs.insert(instanceID)
+          }
+        }
       }
     }
 
     guard !affectedNodeIDs.isEmpty else {
-      return root
+      return activeNodes["root"]
     }
 
-    let components = componentsModel.components
-    let wasResolvingTree = isResolvingTree
-    let savedPassErrors = currentPassExpressionErrors
+    let sortedAffected = affectedNodeIDs.sorted {
+      (nodeRecords[$0]?.visited.count ?? 0) < (nodeRecords[$1]?.visited.count ?? 0)
+    }
+
     isResolvingTree = true
+    resolvedInCurrentPass.removeAll()
     defer {
-      currentPassExpressionErrors = savedPassErrors
-      isResolvingTree = wasResolvingTree
+      resolvedInCurrentPass.removeAll()
+      isResolvingTree = false
     }
 
-    for nodeID in affectedNodeIDs {
-      guard let record = nodeRecords[nodeID], activeNodes[nodeID] != nil else { continue }
-      currentPassExpressionErrors.removeAll()
+    for nodeID in sortedAffected {
+      guard !resolvedInCurrentPass.contains(nodeID),
+        let record = nodeRecords[nodeID],
+        activeNodes[nodeID] != nil
+      else {
+        continue
+      }
       _ = resolveNode(
         definitionID: record.definitionID,
         instanceID: record.instanceID,
         basePath: record.basePath,
         index: record.index,
         instanceSuffix: record.instanceSuffix,
-        visited: [],
+        visited: record.visited,
         components: components,
         data: currentData,
         recurseIntoChildren: false
       )
-      let prefix = "\(record.instanceID):"
-      reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
-      reportedExpressionErrors.formUnion(currentPassExpressionErrors)
     }
+
     return activeNodes["root"]
+  }
+
+  private func componentIdentity(
+    for definitionID: String,
+    in components: [String: ComponentModel]
+  ) -> ComponentIdentity? {
+    guard let comp = components[definitionID] else { return nil }
+    return ComponentIdentity(
+      type: comp.type,
+      catalogID: comp.catalogID ?? defaultCatalogID
+    )
   }
 
   private func pathsOverlap(_ pathA: String, _ pathB: String) -> Bool {
@@ -310,27 +465,108 @@ public final class NodeResolver: Sendable {
     return result
   }
 
-  private func recordReadPath(_ path: String) {
-    currentNodeReadPaths?.insert(normalizePath(path))
+  private func recordReadPath(_ path: String, in data: JSONValue) {
+    let normalized = normalizePath(path)
+    currentNodeReadValues?.updateValue(data[normalized], forKey: normalized)
+  }
+
+  private func readData(_ absPath: String, from data: JSONValue) -> JSONValue? {
+    let normalized = normalizePath(absPath)
+    let value = data[normalized]
+    currentNodeReadValues?.updateValue(value, forKey: normalized)
+    return value
   }
 
   private func registerNodeDependencies(_ record: NodeResolutionRecord) {
     let instanceID = record.instanceID
+    var removedChildren: Set<String> = []
+
     if let oldRecord = nodeRecords[instanceID] {
-      guard oldRecord.readPaths != record.readPaths else { return }
-      for oldPath in oldRecord.readPaths {
-        nodesByReadPath[oldPath]?.remove(instanceID)
-        for ancestor in ancestorPaths(of: oldPath) {
-          nodesByAncestorPath[ancestor]?.remove(instanceID)
+      if oldRecord.definitionID != record.definitionID {
+        nodesByDefinitionID[oldRecord.definitionID]?.remove(instanceID)
+      }
+      for oldChildDefID in oldRecord.childIdentities.keys
+      where !record.childIdentities.keys.contains(oldChildDefID) {
+        parentsByChildDefinitionID[oldChildDefID]?.remove(instanceID)
+      }
+      for oldReadPath in oldRecord.readValues.keys
+      where !record.readValues.keys.contains(oldReadPath) {
+        nodesByReadPath[oldReadPath]?.remove(instanceID)
+        if nodesByReadPath[oldReadPath]?.isEmpty == true {
+          nodesByReadPath.removeValue(forKey: oldReadPath)
+          for ancestor in ancestorPaths(of: oldReadPath) {
+            readPathsByAncestorPath[ancestor]?.remove(oldReadPath)
+          }
         }
+      }
+      for oldTemplatePath in oldRecord.templateCounts.keys
+      where !record.templateCounts.keys.contains(oldTemplatePath) {
+        nodesByTemplatePath[oldTemplatePath]?.remove(instanceID)
+      }
+
+      removedChildren = oldRecord.directChildInstances.subtracting(record.directChildInstances)
+      let addedChildren = record.directChildInstances.subtracting(oldRecord.directChildInstances)
+      for addedChild in addedChildren {
+        parentsByChildInstanceID[addedChild, default: []].insert(instanceID)
+      }
+    } else {
+      for child in record.directChildInstances {
+        parentsByChildInstanceID[child, default: []].insert(instanceID)
       }
     }
 
     nodeRecords[instanceID] = record
-    for readPath in record.readPaths {
+    nodesByDefinitionID[record.definitionID, default: []].insert(instanceID)
+    for childDefID in record.childIdentities.keys {
+      parentsByChildDefinitionID[childDefID, default: []].insert(instanceID)
+    }
+    for readPath in record.readValues.keys {
       nodesByReadPath[readPath, default: []].insert(instanceID)
       for ancestor in ancestorPaths(of: readPath) {
-        nodesByAncestorPath[ancestor, default: []].insert(instanceID)
+        readPathsByAncestorPath[ancestor, default: []].insert(readPath)
+      }
+    }
+    for templatePath in record.templateCounts.keys {
+      nodesByTemplatePath[templatePath, default: []].insert(instanceID)
+    }
+
+    for removedChild in removedChildren {
+      parentsByChildInstanceID[removedChild]?.remove(instanceID)
+      if parentsByChildInstanceID[removedChild]?.isEmpty ?? true {
+        parentsByChildInstanceID.removeValue(forKey: removedChild)
+        pruneSubtree(removedChild)
+      }
+    }
+  }
+
+  private func pruneSubtree(_ instanceID: String) {
+    activeNodes.removeValue(forKey: instanceID)
+    let prefix = "\(instanceID):"
+    reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
+    guard let record = nodeRecords.removeValue(forKey: instanceID) else { return }
+
+    nodesByDefinitionID[record.definitionID]?.remove(instanceID)
+    for childDefID in record.childIdentities.keys {
+      parentsByChildDefinitionID[childDefID]?.remove(instanceID)
+    }
+    for readPath in record.readValues.keys {
+      nodesByReadPath[readPath]?.remove(instanceID)
+      if nodesByReadPath[readPath]?.isEmpty == true {
+        nodesByReadPath.removeValue(forKey: readPath)
+        for ancestor in ancestorPaths(of: readPath) {
+          readPathsByAncestorPath[ancestor]?.remove(readPath)
+        }
+      }
+    }
+    for templatePath in record.templateCounts.keys {
+      nodesByTemplatePath[templatePath]?.remove(instanceID)
+    }
+
+    for childInstanceID in record.directChildInstances {
+      parentsByChildInstanceID[childInstanceID]?.remove(instanceID)
+      if parentsByChildInstanceID[childInstanceID]?.isEmpty ?? true {
+        parentsByChildInstanceID.removeValue(forKey: childInstanceID)
+        pruneSubtree(childInstanceID)
       }
     }
   }
@@ -389,15 +625,36 @@ public final class NodeResolver: Sendable {
       return nil
     }
 
+    lastResolvedNodeCount += 1
+    resolvedInCurrentPass.insert(instanceID)
+
+    let ancestorVisited = visited
     let previousComponentID = currentComponentID
     let previousPropertyPath = currentPropertyPath
-    let previousReadPaths = currentNodeReadPaths
+    let previousReadValues = currentNodeReadValues
+    let previousTemplateCounts = currentNodeTemplateCounts
+    let previousChildIdentities = currentNodeChildIdentities
+    let previousDirectChildren = currentNodeDirectChildren
+    let previousPassErrors = currentPassExpressionErrors
     currentComponentID = instanceID
-    currentNodeReadPaths = []
+    currentNodeReadValues = [:]
+    currentNodeTemplateCounts = [:]
+    currentNodeChildIdentities = [:]
+    currentNodeDirectChildren = []
+    currentPassExpressionErrors = []
     defer {
+      if isResolvingTree {
+        let prefix = "\(instanceID):"
+        reportedExpressionErrors = reportedExpressionErrors.filter { !$0.hasPrefix(prefix) }
+        reportedExpressionErrors.formUnion(currentPassExpressionErrors)
+      }
       currentComponentID = previousComponentID
       currentPropertyPath = previousPropertyPath
-      currentNodeReadPaths = previousReadPaths
+      currentNodeReadValues = previousReadValues
+      currentNodeTemplateCounts = previousTemplateCounts
+      currentNodeChildIdentities = previousChildIdentities
+      currentNodeDirectChildren = previousDirectChildren
+      currentPassExpressionErrors = previousPassErrors
     }
 
     let type = component.type
@@ -453,7 +710,12 @@ public final class NodeResolver: Sendable {
       basePath: basePath,
       index: index,
       instanceSuffix: instanceSuffix,
-      readPaths: currentNodeReadPaths ?? []
+      visited: ancestorVisited,
+      componentSnapshot: component,
+      childIdentities: currentNodeChildIdentities ?? [:],
+      readValues: currentNodeReadValues ?? [:],
+      templateCounts: currentNodeTemplateCounts ?? [:],
+      directChildInstances: currentNodeDirectChildren ?? []
     )
     registerNodeDependencies(record)
 
@@ -473,6 +735,58 @@ public final class NodeResolver: Sendable {
     )
     activeNodes[instanceID] = node
     return node
+  }
+
+  private func resolveChildReference(
+    definitionID childID: String,
+    instanceID childInstanceID: String,
+    basePath: String?,
+    index: Int?,
+    instanceSuffix: String?,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    recurseIntoChildren: Bool
+  ) -> Node? {
+    let childIdentity = componentIdentity(for: childID, in: components)
+    currentNodeChildIdentities?.updateValue(childIdentity, forKey: childID)
+
+    guard !visited.contains(childInstanceID), let childIdentity else {
+      return nil
+    }
+
+    let existingRecord = nodeRecords[childInstanceID]
+    if !recurseIntoChildren,
+      let existing = activeNodes[childInstanceID],
+      let existingRecord,
+      existingRecord.definitionID == childID,
+      existingRecord.basePath == basePath,
+      existingRecord.index == index,
+      existing.type == childIdentity.type && existing.catalogID == childIdentity.catalogID
+    {
+      currentNodeDirectChildren?.insert(childInstanceID)
+      return existing
+    }
+
+    let shouldRecurse =
+      recurseIntoChildren
+      || (existingRecord != nil
+        && (existingRecord?.basePath != basePath || existingRecord?.index != index))
+    if let childNode = resolveNode(
+      definitionID: childID,
+      instanceID: childInstanceID,
+      basePath: basePath,
+      index: index,
+      instanceSuffix: instanceSuffix,
+      visited: visited,
+      components: components,
+      data: data,
+      recurseIntoChildren: shouldRecurse
+    ) {
+      currentNodeDirectChildren?.insert(childInstanceID)
+      return childNode
+    }
+    return nil
   }
 
   // MARK: - Property Classification & Extraction
@@ -661,10 +975,7 @@ public final class NodeResolver: Sendable {
       guard let childID = value.stringValue else { return nil }
       let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
       let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
-      if !recurseIntoChildren, let existing = activeNodes[childInstanceID] {
-        return existing
-      }
-      return resolveNode(
+      return resolveChildReference(
         definitionID: childID,
         instanceID: childInstanceID,
         basePath: basePath,
@@ -765,9 +1076,10 @@ public final class NodeResolver: Sendable {
     basePath: String?,
     index: Int? = nil
   ) -> JSONValue {
+    let currentData = dataModel.data
     let previousReadHook = dataModel.onReadPath
     dataModel.onReadPath = { [weak self] path in
-      self?.recordReadPath(path)
+      self?.recordReadPath(path, in: currentData)
     }
     defer {
       dataModel.onReadPath = previousReadHook
@@ -820,8 +1132,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      recordReadPath(absPath)
-      let resolvedValue = data[absPath]?.boolValue
+      let resolvedValue = readData(absPath, from: data)?.boolValue
       return DataBinding<Bool>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -849,8 +1160,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      recordReadPath(absPath)
-      let resolvedValue = coerceToString(data[absPath])
+      let resolvedValue = coerceToString(readData(absPath, from: data))
       return DataBinding<String>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -879,8 +1189,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      recordReadPath(absPath)
-      let resolvedValue = data[absPath]?.doubleValue
+      let resolvedValue = readData(absPath, from: data)?.doubleValue
       return DataBinding<Double>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -908,8 +1217,7 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      recordReadPath(absPath)
-      let resolvedValue = data[absPath]
+      let resolvedValue = readData(absPath, from: data)
       return DataBinding<JSONValue>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -937,8 +1245,9 @@ public final class NodeResolver: Sendable {
       let pathStr = dict[bindingKey]?.stringValue
     {
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-      recordReadPath(absPath)
-      let resolvedValue = data[absPath]?.arrayValue?.compactMap { self.coerceToString($0) }
+      let resolvedValue = readData(absPath, from: data)?.arrayValue?.compactMap {
+        self.coerceToString($0)
+      }
       return DataBinding<[String]>(
         identity: .path(absPath),
         value: resolvedValue,
@@ -975,8 +1284,7 @@ public final class NodeResolver: Sendable {
       let bindingKey = self.atLeastV10 ? "@path" : "path"
       if let dict = conditionJSON.dictionaryValue, let pathStr = dict[bindingKey]?.stringValue {
         let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
-        self.recordReadPath(absPath)
-        let rawVal = data[absPath]
+        let rawVal = self.readData(absPath, from: data)
         if let rawDict = rawVal?.objectValue, let valid = rawDict["valid"]?.boolValue {
           let code = rawDict["code"]?.stringValue
           let msg = rawDict["message"]?.stringValue ?? fallbackMessage
@@ -1211,11 +1519,7 @@ public final class NodeResolver: Sendable {
       for item in arr {
         guard let childID = item.stringValue else { continue }
         let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
-        if !recurseIntoChildren, let existing = activeNodes[childInstanceID] {
-          resolvedNodes.append(existing)
-          continue
-        }
-        if let childNode = resolveNode(
+        if let childNode = resolveChildReference(
           definitionID: childID,
           instanceID: childInstanceID,
           basePath: basePath,
@@ -1242,28 +1546,29 @@ public final class NodeResolver: Sendable {
       }
 
       let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
+      let normalizedTemplatePath = normalizePath(absPath)
+      currentNodeChildIdentities?.updateValue(
+        componentIdentity(for: templateID, in: components),
+        forKey: templateID
+      )
 
-      guard let dataListVal = data[absPath],
+      guard let dataListVal = data[normalizedTemplatePath],
         let dataItems = dataListVal.arrayValue
       else {
-        templateArrayCounts[normalizePath(absPath)] = 0
+        currentNodeTemplateCounts?[normalizedTemplatePath] = 0
         return []
       }
 
-      templateArrayCounts[normalizePath(absPath)] = dataItems.count
+      currentNodeTemplateCounts?[normalizedTemplatePath] = dataItems.count
       var expandedNodes: [Node] = []
 
       for (itemIndex, _) in dataItems.enumerated() {
         let itemSuffix =
           instanceSuffix.map { "\($0)_\(itemIndex)" } ?? "\(itemIndex)"
         let itemID = "\(templateID)_\(itemSuffix)"
-        let itemBasePath = "\(absPath)/\(itemIndex)"
+        let itemBasePath = "\(normalizedTemplatePath)/\(itemIndex)"
 
-        if !recurseIntoChildren, let existing = activeNodes[itemID] {
-          expandedNodes.append(existing)
-          continue
-        }
-        if let itemNode = resolveNode(
+        if let itemNode = resolveChildReference(
           definitionID: templateID,
           instanceID: itemID,
           basePath: itemBasePath,

@@ -24,7 +24,7 @@ package final class NodeBox: ObservableObject, @unchecked Sendable {
   let type: String
   let catalogID: String?
   private(set) var properties: [String: any Resolved]
-  private(set) var revision: UInt64 = 0
+  package private(set) var revision: UInt64 = 0
 
   init(
     id: String,

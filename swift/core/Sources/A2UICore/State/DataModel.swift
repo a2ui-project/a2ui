@@ -108,8 +108,8 @@ public final class DataModel: ObservableObject {
     }
 
     objectWillChange.send()
-    dataSubject.send(current)
     pathChangeSubject.send(Self.buildPointer(components))
+    dataSubject.send(current)
     notifyListeners(changedComponents: components, oldValues: oldValues)
   }
 
