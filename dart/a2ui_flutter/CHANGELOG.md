@@ -18,6 +18,9 @@
 
 ## Unreleased
 
+- An `accessibility.live` of `polite` or `assertive` makes a component a live
+  region, and an `accessibility.hidden` that is true excludes it and its
+  subtree from semantics.
 - `ComponentProps.asBoolean` reads a validation result as its validity.
 - `ComponentProps.validationResults` holds the failing checks, and the basic
   inputs other than Button show one of `warning` or `info` severity as a
