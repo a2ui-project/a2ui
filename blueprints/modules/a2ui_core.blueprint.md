@@ -743,9 +743,9 @@ In a renderer, `MessageProcessor` receives incoming protocol messages and update
 An agent does not drive `MessageProcessor` directly. The [Agent SDK](a2ui_agent.blueprint.md)'s `RendererState` owns one, and adds what checking outbound messages needs on top of it: atomic application with rollback, a tree check once a response is complete, and a lifetime the agent chooses (one state per chat turn, or one per canvas conversation). Core supplies the pieces it builds on:
 
 1. `processMessages` checks a message whole before it changes a surface, so a message it rejects leaves the surface as it was.
-2. `SurfaceComponentsModel.get` and `removeComponent`, and `DataModel.get`, `set` and `delete`, through which a state reverts what an applied message replaced. A deleted surface is restored by replaying its components and data model through `processMessages`, which also restores the children its components find through other catalogs. A state does not copy surfaces.
+2. `SurfaceComponentsModel.get` and `removeComponent`, and `DataModel.get`, `set` and `delete`, through which a state reverts what an applied message replaced. `processMessages` updates a component in place when a message names an existing id with the same type and catalog, so a state records a copy of the previous properties. A deleted surface is restored by replaying its components and data model through `processMessages`, which also restores the children its components find through other catalogs. A state does not copy surfaces.
 3. `validateTopology`, and `detectCycles`, which returns the components the root reaches, for the tree check.
-4. A `ValidationConfig` that defers the graph checks. Under a config that allows dangling references, and orphans or a missing root, a processor checks each `updateComponents` against the components it changes rather than walking the whole surface, so a surface that arrives in many small messages takes time in proportion to its size.
+4. A `ValidationConfig` that defers the graph checks. Under a config that allows dangling references, and orphans or a missing root, a processor must check each `updateComponents` against the components it changes. It must not copy the surface's components or walk the whole surface for each message, so a surface that arrives in many small messages takes time in proportion to its size. The Dart processor does this; the Python and TypeScript processors still copy every component and check the whole graph on each `updateComponents`, which is a gap to fix.
 
 Applying a response message by message, as a stream does, therefore costs time in proportion to the response. `conformance/core/message_processor_scaling.yaml` times it.
 
@@ -775,9 +775,14 @@ agentProcessor.processMessages(AgentToRendererMessage.parseAll(parsedModelPayloa
 // Once the response is complete, the tree of each surface it touched is checked:
 // the root and every reference. The Agent SDK checks itself that the components
 // the response added are reachable, since an update may leave older ones detached.
-agentProcessor.model
-  .getSurface(surfaceId)
-  ?.componentsModel.validateTopology({...STRICT_VALIDATION, allowOrphanComponents: true});
+// validateTopology roots the check at `rootId`, which defaults to 'root', so the
+// surface's own root is passed, as the processor itself does.
+const surface = agentProcessor.model.getSurface(surfaceId);
+surface?.componentsModel.validateTopology({
+  ...STRICT_VALIDATION,
+  rootId: surface.rootId,
+  allowOrphanComponents: true,
+});
 ```
 
 | Execution Aspect              | Renderer                                                                                                          | Agent                                                                                                  |
