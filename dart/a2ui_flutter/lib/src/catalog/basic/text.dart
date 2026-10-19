@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:math' as math;
+
 import 'package:a2ui_core/a2ui_core.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
@@ -24,6 +26,12 @@ import 'markdown.dart';
 /// with the font size and weight of the style its `variant` names from the
 /// ambient [TextTheme], or, for the `body` variant, through the enclosing
 /// [A2uiMarkdown] when there is one.
+///
+/// A Text the [A2uiMarkdown] does not build shows its text without common
+/// Markdown markers: heading and quote markers, link and image syntax,
+/// emphasis, strikethrough and code delimiters, and backslash escapes. A
+/// `body` Text that is one Markdown heading line takes the style of the
+/// variant of that level, `h5` for level 6.
 Widget buildText(
   BuildContext context,
   ComponentNode<ComponentImplementation> node,
@@ -32,7 +40,7 @@ Widget buildText(
 ) {
   final String text = props.string('text') ?? '';
   final TextTheme theme = Theme.of(context).textTheme;
-  final TextStyle? style = switch (props.string('variant')) {
+  TextStyle? styleOf(String? variant) => switch (variant) {
     'h1' => theme.headlineLarge,
     'h2' => theme.headlineMedium,
     'h3' => theme.headlineSmall,
@@ -41,15 +49,88 @@ Widget buildText(
     'caption' => theme.bodySmall,
     _ => null,
   };
+  TextStyle? style = styleOf(props.string('variant'));
   if (style == null) {
     if (A2uiMarkdown.maybeOf(context) case final A2uiMarkdownBuilder markdown) {
       return markdown(context, text, DefaultTextStyle.of(context).style);
     }
   }
+  final String line = text.trim();
+  final RegExpMatch? heading = style == null && !line.contains('\n')
+      ? _heading.firstMatch(line)
+      : null;
+  if (heading != null) {
+    style = styleOf('h${math.min(heading[1]!.length, 5)}');
+  }
   return Text(
-    text,
+    _withoutMarkers(
+      heading == null ? text : _withoutClosingHashes(heading[2] ?? ''),
+    ),
     style: style == null
         ? null
         : TextStyle(fontSize: style.fontSize, fontWeight: style.fontWeight),
+  );
+}
+
+/// A line that is a Markdown heading: its `#` markers in group 1, and its
+/// text, if any, in group 2.
+final RegExp _heading = RegExp(r'^ {0,3}(#{1,6})(?:[ \t]+(.*))?$');
+
+/// [heading] without trailing whitespace or its closing sequence, a run of
+/// `#` at its end that is the whole text or follows whitespace.
+String _withoutClosingHashes(String heading) {
+  final String text = heading.trimRight();
+  int start = text.length;
+  while (start > 0 && text[start - 1] == '#') {
+    start--;
+  }
+  if (start == text.length) return text;
+  if (start == 0) return '';
+  return switch (text[start - 1]) {
+    ' ' || '\t' => text.substring(0, start).trimRight(),
+    _ => text,
+  };
+}
+
+/// A code span, its text in group 1.
+final RegExp _codeSpan = RegExp(r'`([^`\n]+)`');
+
+/// A backslash escape, the escaped ASCII punctuation in group 1.
+final RegExp _escape = RegExp(r'\\([!-/:-@\[-`{-~])');
+
+/// Stands for the protected text whose index is in group 1.
+final RegExp _placeholder = RegExp('\uE000(\\d+)\uE001');
+
+/// The markers [_withoutMarkers] removes, each with the group of the text
+/// it keeps, or null to keep nothing. None of the patterns backtracks over
+/// more than one line.
+final List<(RegExp, int?)> _markers = [
+  (RegExp(r'^ {0,3}(?:#{1,6}[ \t]+|>[ \t]?)', multiLine: true), null),
+  (RegExp(r'!?\[([^\[\]\n]*)\]\([^()\[\]\n]*\)'), 1),
+  (RegExp(r'\*\*(.+?)\*\*'), 1),
+  (RegExp(r'__(.+?)__'), 1),
+  (RegExp(r'~~(.+?)~~'), 1),
+  (RegExp(r'(?<![\w*])\*(?![\s*])([^*\n]+?)(?<![\s*])\*(?![\w*])'), 1),
+  (RegExp(r'(?<!\w)_(?![\s_])([^_\n]+?)(?<![\s_])_(?!\w)'), 1),
+];
+
+/// [markdown] with the [_markers] removed. The text of code spans and
+/// backslash escapes is kept as written.
+String _withoutMarkers(String markdown) {
+  final protected = <String>[];
+  String protect(Match match) {
+    protected.add(match[1]!);
+    return '\uE000${protected.length - 1}\uE001';
+  }
+
+  String text = markdown
+      .replaceAllMapped(_codeSpan, protect)
+      .replaceAllMapped(_escape, protect);
+  for (final (RegExp marker, int? kept) in _markers) {
+    text = text.replaceAllMapped(marker, (m) => kept == null ? '' : m[kept]!);
+  }
+  return text.replaceAllMapped(
+    _placeholder,
+    (m) => protected.elementAtOrNull(int.tryParse(m[1]!) ?? -1) ?? m[0]!,
   );
 }
