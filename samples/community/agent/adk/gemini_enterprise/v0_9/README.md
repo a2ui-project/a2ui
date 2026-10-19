@@ -52,9 +52,9 @@ with these notable differences:
   `a2uiClientCapabilities`. Gemini Enterprise doesn't name the catalogs it
   renders, so a request without capabilities gets
   `GEMINI_ENTERPRISE_CAPABILITIES` in `agent.py`, which name the Material
-  catalog. Other clients' capabilities are passed through unchanged. A client that
-  names only the composite catalog gets a prompt without the examples, which
-  use the Material catalog.
+  catalog. Other clients' capabilities are passed through unchanged. A client
+  that names only the composite catalog gets a prompt without the examples,
+  which use the Material catalog.
 - The system prompt is built for each request from that processor
   (`get_ui_prompt` in `prompt_builder.py`), and each request runs its own LLM
   agent with that prompt. All runners share one session service, so a
@@ -62,7 +62,11 @@ with these notable differences:
 - The response is validated with the same processor: `processor.parse_response`
   for a whole response, or `processor.open_stream` with
   `stream_response_to_parts` when streaming. Invalid output raises `A2uiError`,
-  and the agent asks the model to try again.
+  and the agent asks the model to try again. It doesn't retry an empty response
+  or a streamed response that already sent parts, and sends an error message
+  instead.
+- The agent's final item holds the whole response, also when streaming, because
+  Gemini Enterprise renders only the parts of the final message.
 
 ## Prerequisites
 

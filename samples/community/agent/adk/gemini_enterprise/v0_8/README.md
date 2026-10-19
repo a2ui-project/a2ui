@@ -25,9 +25,10 @@ methods:
   catalog for A2UI v0.8, and the agent card lists the generator's catalog ids.
   Each request negotiates its own `A2uiRequestProcessor` from the client's
   `a2uiClientCapabilities`. Gemini Enterprise sends none, so a request without
-  them gets `GEMINI_ENTERPRISE_CAPABILITIES`, which name the basic catalog. The processor builds the request's system prompt and
-  validates the response with `processor.parse_response`, and the agent retries
-  when the response isn't valid A2UI.
+  them gets `GEMINI_ENTERPRISE_CAPABILITIES`, which name the basic catalog. The
+  processor builds the request's system prompt and validates the response with
+  `processor.parse_response`, and the agent retries when the response isn't
+  valid A2UI.
 - `prompt_builder.py`: Provides prompts including Role, Workflow, and UI
   descriptions, and `get_ui_prompt`, which builds the prompt of a request from
   its processor.
