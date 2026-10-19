@@ -21,6 +21,7 @@ import 'package:a2ui_flutter/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'example.dart';
 import 'example_run.dart';
@@ -361,10 +362,15 @@ class _JsonView extends StatelessWidget {
   );
 }
 
-/// Renders a Text's [markdown] with `flutter_markdown_plus`, in [style].
+/// Renders a Text's [markdown] with `flutter_markdown_plus`, in [style], and
+/// opens a tapped link with `url_launcher`.
 Widget _markdown(BuildContext context, String markdown, TextStyle style) =>
     MarkdownBody(
       data: markdown,
+      onTapLink: (text, href, title) {
+        final Uri? uri = href == null ? null : Uri.tryParse(href);
+        if (uri != null) launchUrl(uri).ignore();
+      },
       styleSheet: MarkdownStyleSheet.fromTheme(
         Theme.of(context),
       ).copyWith(p: style),

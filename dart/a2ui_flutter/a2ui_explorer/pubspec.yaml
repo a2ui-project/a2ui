@@ -31,6 +31,7 @@ dependencies:
     sdk: flutter
   flutter_markdown_plus: ^1.0.7
   json_schema_builder: ^0.1.7
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
