@@ -1,0 +1,203 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# How the time to parse a direct JSON payload grows with the payload.
+#
+# The other suites fix what a parser returns, and none of them notices a parser
+# that returns the right parts slowly. A parser that reads the whole block again
+# on every chunk, or checks every message it has read again, still passes them,
+# while the time it takes to stream a payload grows with the square of the
+# payload's size.
+#
+# A `measure_growth` case times one operation on a payload written at the two
+# `sizes`, n and 4n. Its `max_ratio` is the largest value allowed for the time
+# at 4n divided by the time at n, and the case fails above it. A cost that
+# grows in proportion to the payload gives a ratio of about 4, and one that
+# grows with its square a ratio of about 16, so a `max_ratio` of 8 tells the
+# two apart with room for noise. CI machines differ in speed and load too much
+# for a limit in milliseconds, but two times taken on the same machine moments
+# apart can be compared.
+#
+# A `measure_overhead` case times streaming a payload against compiling it
+# whole, at one `size`. Its `max_ratio` is the largest value allowed for the
+# time to stream divided by the time to compile. Streaming reads what each
+# chunk adds and checks what it changes, so it does more work than compiling,
+# but that work should stay a fixed multiple of it. A `max_ratio` of 10 is
+# loose, and catches a parser that does far more on each chunk than the chunk
+# needs.
+#
+# `payload` is a template, written out at each size as `PayloadTemplate` in
+# `conformance_schema.json` describes. `parse_chunk` streams the response
+# `<a2ui-json>`, payload, `</a2ui-json>` in chunks of `chunk_size` characters,
+# about the size of a few tokens, and `compile` reads the payload whole. The
+# payloads are ASCII, so a chunk of 16 characters is 16 bytes in any encoding.
+#
+# A harness times a case as follows:
+#
+# 1. It builds the format before the timing starts. Each timed run creates a
+#    parser from it and runs the operation to the end of the payload.
+# 2. It runs each size once before timing either, so that a runtime that
+#    compiles code on first use has done so.
+# 3. It then runs the sizes in turn, at least five times each, and compares the
+#    medians, so that one slow run cannot fail the case.
+#
+# The cases are slow and depend on the machine, so a harness runs them apart
+# from its other tests and one at a time. The Dart SDKs run them in a CI job of
+# their own.
+#
+# The sizes are those of payloads a model writes, from a few kilobytes to a few
+# tens of kilobytes. A cost that grows with the square of the payload but is
+# small for each byte, such as copying the text received so far on every chunk,
+# stays below the limit at these sizes.
+#
+# A component healed as it arrives has to satisfy its catalog each time a chunk
+# changes it, so it is checked again whole on that chunk. A component that
+# itself grows with n, such as a root naming n children, therefore costs time
+# that grows with the square of n. The v0.9 case adds its components to a
+# surface an earlier response created, so that none of them names the others.
+# In v1.0 a component is held until it closes, and is checked once.
+
+# --- Components ---
+
+- name: test_scaling_stream_components_v10
+  description: Streaming a surface of n components in small chunks takes about four times as long at 4n, since each chunk reads and checks only what it adds.
+  action: measure_growth
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  operation: parse_chunk
+  chunk_size: 16
+  payload:
+    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
+    - repeat: '"item_{i}"'
+      separator: ", "
+    - "]}, "
+    - repeat: '{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}'
+      separator: ", "
+    - "]}}]"
+  sizes: [100, 400]
+  max_ratio: 8
+
+- name: test_scaling_stream_components_healed_v09
+  description: Streaming n components healed as their text arrives takes about four times as long at 4n, since each chunk checks again only the component it changes.
+  action: measure_growth
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
+    progressive_keys: ["text"]
+  operation: parse_chunk
+  chunk_size: 16
+  payload:
+    - '[{"version": "v0.9", "updateComponents": {"surfaceId": "s1", "components": ['
+    - repeat: '{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}'
+      separator: ", "
+    - "]}}]"
+  sizes: [100, 400]
+  max_ratio: 8
+
+- name: test_scaling_stream_single_component_messages_v10
+  description: Streaming n messages of one component each takes about four times as long at 4n, since a message that has closed is not read or checked again.
+  action: measure_growth
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  operation: parse_chunk
+  chunk_size: 16
+  payload:
+    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
+    - repeat: '"item_{i}"'
+      separator: ", "
+    - "]}]}}, "
+    - repeat: '{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}]}}'
+      separator: ", "
+    - "]"
+  sizes: [100, 400]
+  max_ratio: 8
+
+- name: test_scaling_compile_components_v10
+  description: Compiling a surface of n components takes about four times as long at 4n.
+  action: measure_growth
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  operation: compile
+  payload:
+    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
+    - repeat: '"item_{i}"'
+      separator: ", "
+    - "]}, "
+    - repeat: '{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}'
+      separator: ", "
+    - "]}}]"
+  sizes: [200, 800]
+  max_ratio: 8
+
+- name: test_scaling_compile_single_component_messages_v10
+  description: Compiling n messages of one component each takes about four times as long at 4n, since applying a message checks what it changes rather than the whole surface.
+  action: measure_growth
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  operation: compile
+  payload:
+    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
+    - repeat: '"item_{i}"'
+      separator: ", "
+    - "]}]}}, "
+    - repeat: '{"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}]}}'
+      separator: ", "
+    - "]"
+  sizes: [200, 800]
+  max_ratio: 8
+
+# --- Data model ---
+
+- name: test_scaling_stream_data_model_v10
+  description: Streaming a data model of n items, its strings healed as they arrive, takes about four times as long at 4n, since each chunk checks only what the value gains.
+  action: measure_growth
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: ["name", "description"]
+  operation: parse_chunk
+  chunk_size: 16
+  payload:
+    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": {"@path": "/items/0/name"}}]}}, {"version": "v1.0", "updateDataModel": {"surfaceId": "s1", "path": "/items", "value": ['
+    - repeat: '{"name": "Item number {i}", "description": "The item listed at position {i}", "price": {i}}'
+      separator: ", "
+    - "]}}]"
+  sizes: [100, 400]
+  max_ratio: 8
+
+# --- Streaming against compiling ---
+
+- name: test_scaling_stream_over_compile_v10
+  description: Streaming a surface in small chunks costs at most a fixed multiple of compiling it whole.
+  action: measure_overhead
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  operation: parse_chunk
+  baseline: compile
+  chunk_size: 16
+  payload:
+    - '[{"version": "v1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "v1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ['
+    - repeat: '"item_{i}"'
+      separator: ", "
+    - "]}, "
+    - repeat: '{"id": "item_{i}", "component": "Text", "text": "Item number {i}"}'
+      separator: ", "
+    - "]}}]"
+  size: 400
+  max_ratio: 10

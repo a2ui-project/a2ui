@@ -120,6 +120,22 @@ class PayloadChecker {
     _processor.processMessages([message]);
   }
 
+  /// Checks [message], an `updateDataModel` that has grown from [grownFrom],
+  /// without applying it. [grownFrom] passed [add] or this check before.
+  ///
+  /// Only the depth of the value depends on the value, so only the lists and
+  /// maps it has gained are checked, and only for a surface [add] applies
+  /// messages to.
+  ///
+  /// Throws [A2uiRecursionError] if the value nests too deep.
+  void checkGrown(
+    UpdateDataModelMessage message, {
+    required UpdateDataModelMessage grownFrom,
+  }) {
+    if (_processor.model.getSurface(message.surfaceId) == null) return;
+    checkPathsAndRecursion(message, grownFrom: grownFrom);
+  }
+
   /// Releases the surfaces.
   void dispose() => _processor.model.dispose();
 }

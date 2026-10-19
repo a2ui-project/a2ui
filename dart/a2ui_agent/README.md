@@ -127,6 +127,11 @@ something v0.9 or this API does not have are skipped with the reason.
 [conformance/agent/multi_catalog_formats.yaml](../../conformance/agent/multi_catalog_formats.yaml)
 runs as written in v1.0 only.
 
+The `scaling.yaml` suites time parsing rather than check what it returns, and
+a slow or loaded machine can fail them, so their tests are tagged
+`performance` and [dart_test.yaml](dart_test.yaml) skips them. Run them with
+`dart test -P performance`. CI runs them in a job of their own.
+
 The other tests cover what the suites do not: the published basic catalogs,
 decisions of this package, errors, and a round trip of every basic catalog
 example through both formats.
