@@ -34,7 +34,8 @@ dependencies = [
     "starlette",
     "python-multipart>=0.0.12",
     "httpx",
-    "anyio"
+    "anyio",
+    "typing-extensions>=4.4.0",
 ]
 
 [project.scripts]

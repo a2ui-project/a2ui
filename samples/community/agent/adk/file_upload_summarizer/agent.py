@@ -147,6 +147,17 @@ class FileUploadSummarizerAgent:
         """
         return self._generators[version].create_processor(client_ui_capabilities)
 
+    def surface_catalog_ids(self, version: ProtocolVersion) -> set[str]:
+        """Returns the ids of every catalog that the uploader surface uses.
+
+        A v0.9 surface uses the file upload catalog alone. A v1.0 surface
+        defaults to the basic catalog, and its FileUpload component names the
+        file upload catalog.
+        """
+        return {
+            c.transformed_catalog.catalog_id for c in self._generators[version].catalogs
+        }
+
     def _build_generator(self, version: ProtocolVersion) -> A2uiGenerator:
         config = CatalogConfig.from_path(
             catalog_path=(

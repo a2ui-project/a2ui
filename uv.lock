@@ -1508,6 +1508,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "starlette" },
+    { name = "typing-extensions" },
     { name = "uvicorn" },
 ]
 
@@ -1526,6 +1527,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "python-multipart", specifier = ">=0.0.12" },
     { name = "starlette" },
+    { name = "typing-extensions", specifier = ">=4.4.0" },
     { name = "uvicorn" },
 ]
 

@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import hashlib
+import json
 import logging
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, Any
 
 from a2a.server.agent_execution import RequestContext
 from google.adk.a2a.converters.request_converter import AgentRunRequest
@@ -26,11 +28,15 @@ from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.events.event import Event
 from google.adk.events.event_actions import EventActions
 from google.adk.runners import Runner
+from typing_extensions import override
 
 from a2ui.a2a import try_activate_a2ui_extension
 from a2ui.adk import A2uiEventConverter
-from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
-from a2ui.core import A2uiError
+from a2ui.constants import (
+    A2UI_CLIENT_CAPABILITIES_KEY,
+    A2UI_RENDERER_CAPABILITIES_KEY,
+)
+from a2ui.core import A2uiError, CatalogApi
 from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiRequestProcessor
 from file_resolution import STATE_KEY_BASE_URL
@@ -42,10 +48,9 @@ logger = logging.getLogger(__name__)
 
 _A2UI_ENABLED_KEY = "system:a2ui_enabled"
 _A2UI_CATALOGS_KEY = "system:a2ui_catalogs"
-_A2UI_EXAMPLES_KEY = "system:a2ui_examples"
 _A2UI_RULES_KEY = "system:a2ui_rules"
 _A2UI_VERSION_KEY = "system:a2ui_version"
-_A2UI_RENDERER_CAPABILITIES_KEY = "a2uiRendererCapabilities"
+_A2UI_NEGOTIATION_KEY = "system:a2ui_negotiation"
 
 
 def _capabilities_key(version: ProtocolVersion) -> str:
@@ -55,7 +60,35 @@ def _capabilities_key(version: ProtocolVersion) -> str:
     """
     if version in (ProtocolVersion.V0_8, ProtocolVersion.V0_9):
         return A2UI_CLIENT_CAPABILITIES_KEY
-    return _A2UI_RENDERER_CAPABILITIES_KEY
+    return A2UI_RENDERER_CAPABILITIES_KEY
+
+
+def _negotiation_key(version: ProtocolVersion | None, capabilities: Any | None) -> str:
+    """Returns a digest of what the request's A2UI session state follows from.
+
+    The state follows from the negotiated version and the client's
+    capabilities alone, so two requests with the same digest get the same
+    state.
+    """
+    negotiation = [version.value if version else None, capabilities]
+    return hashlib.sha256(
+        json.dumps(negotiation, sort_keys=True, default=str).encode()
+    ).hexdigest()
+
+
+def get_a2ui_catalogs(ctx: ReadonlyContext) -> list[CatalogApi]:
+    """Retrieves the negotiated A2UI catalogs of the current request.
+
+    The tools validate their A2UI messages against them.
+
+    Args:
+        ctx: The ReadonlyContext for resolving the catalogs.
+
+    Returns:
+        The negotiated catalogs, or an empty list if the request doesn't use
+        A2UI.
+    """
+    return ctx.state.get(_A2UI_CATALOGS_KEY) or []
 
 
 def get_a2ui_enabled(ctx: ReadonlyContext) -> bool:
@@ -129,10 +162,21 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
         # The processor lives for this request only. What the request needs
         # from it replaces the values of the previous request, so a request
         # without A2UI doesn't get the UI instruction or catalog of an earlier
-        # one.
+        # one. A request that negotiates as the previous one did finds its
+        # values in the session state already, so it adds no event to the
+        # session.
+        capabilities = self._client_capabilities(context, active_ui_version)
+        negotiation = _negotiation_key(active_ui_version, capabilities)
+        if (
+            session.state.get(_A2UI_NEGOTIATION_KEY) == negotiation
+            and STATE_KEY_BASE_URL in session.state
+        ):
+            return session
         state_delta = self._a2ui_state(
-            active_ui_version, self._create_processor(context, active_ui_version)
+            active_ui_version,
+            self._create_processor(active_ui_version, capabilities),
         )
+        state_delta[_A2UI_NEGOTIATION_KEY] = negotiation
         if STATE_KEY_BASE_URL not in session.state:
             state_delta[STATE_KEY_BASE_URL] = self._base_url
         await runner.session_service.append_event(
@@ -146,8 +190,22 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
 
         return session
 
+    @staticmethod
+    def _client_capabilities(
+        context: RequestContext, version: ProtocolVersion | None
+    ) -> Any | None:
+        """Returns the capabilities that the client sent for `version`, if any."""
+        if not version:
+            return None
+        metadata = (
+            context.message.metadata
+            if context.message and context.message.metadata
+            else {}
+        )
+        return metadata.get(_capabilities_key(version))
+
     def _create_processor(
-        self, context: RequestContext, version: ProtocolVersion | None
+        self, version: ProtocolVersion | None, capabilities: Any | None
     ) -> A2uiRequestProcessor | None:
         """Negotiates the request's processor from the client's capabilities.
 
@@ -157,12 +215,6 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
         """
         if not version:
             return None
-        metadata = (
-            context.message.metadata
-            if context.message and context.message.metadata
-            else {}
-        )
-        capabilities = metadata.get(_capabilities_key(version))
         try:
             return self._agent.create_processor(version, capabilities)
         except A2uiError as e:
@@ -172,19 +224,38 @@ class FileUploadSummarizerAgentExecutor(A2aAgentExecutor):
     def _a2ui_state(
         self, version: ProtocolVersion | None, processor: A2uiRequestProcessor | None
     ) -> dict[str, Any]:
-        """Returns the session state that the instruction, tools and converter read."""
+        """Returns the session state that the instruction, tools and converter read.
+
+        The request is answered in text if it doesn't use A2UI, or if the
+        client lacks a catalog that the uploader surface uses, such as a v1.0
+        client that names only one of the basic and file upload catalogs.
+        """
+        text_state = {
+            _A2UI_ENABLED_KEY: False,
+            _A2UI_VERSION_KEY: "",
+            _A2UI_CATALOGS_KEY: [],
+            _A2UI_RULES_KEY: "",
+        }
         if version is None or processor is None:
-            return {
-                _A2UI_ENABLED_KEY: False,
-                _A2UI_VERSION_KEY: "",
-                _A2UI_CATALOGS_KEY: [],
-                _A2UI_EXAMPLES_KEY: "",
-                _A2UI_RULES_KEY: "",
-            }
+            return text_state
+        catalog_ids = [c.catalog_id for c in processor.active_catalogs]
+        missing = self._agent.surface_catalog_ids(version) - set(catalog_ids)
+        if missing:
+            logger.warning(
+                f"The client lacks the A2UI catalogs {sorted(missing)} that the"
+                " uploader surface uses, answering in text."
+            )
+            return text_state
+        try:
+            rules = processor.format.prompt_generator.generate_base_rules()
+        except A2uiError as e:
+            logger.warning(
+                f"Cannot build the A2UI format rules, answering in text: {e}"
+            )
+            return text_state
         return {
             _A2UI_ENABLED_KEY: True,
             _A2UI_VERSION_KEY: version.value,
             _A2UI_CATALOGS_KEY: processor.active_catalogs,
-            _A2UI_EXAMPLES_KEY: "",
-            _A2UI_RULES_KEY: processor.format.prompt_generator.generate_base_rules(),
+            _A2UI_RULES_KEY: rules,
         }

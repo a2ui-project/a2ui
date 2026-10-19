@@ -21,8 +21,11 @@ import uuid
 from google.adk.tools import ToolContext
 from google.genai import Client, types
 
+from a2ui.constants import A2UI_TOOL_ERROR_KEY, A2UI_VALIDATED_JSON_KEY
+from a2ui.core import A2uiError
 from a2ui.core.schema import ProtocolVersion
-from agent_executor import get_a2ui_version
+from a2ui.utils import validate_payload
+from agent_executor import get_a2ui_catalogs, get_a2ui_version
 from file_resolution import resolve_files
 
 logger = logging.getLogger(__name__)
@@ -79,6 +82,23 @@ def _binding(version: ProtocolVersion, path: str) -> dict[str, Any]:
     if version == ProtocolVersion.V1_0:
         return {"@path": path}
     return {"path": path}
+
+
+def _a2ui_response(
+    tool_context: ToolContext, messages: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Returns the tool response that sends `messages` to the client.
+
+    The A2UI event converter sends tool responses on without validating them,
+    so the messages are validated here against the request's catalogs. A
+    response with an error instead sends nothing, and tells the model why.
+    """
+    try:
+        validate_payload(get_a2ui_catalogs(tool_context), messages)
+    except A2uiError as e:
+        logger.warning(f"Not sending invalid A2UI messages: {e}")
+        return {A2UI_TOOL_ERROR_KEY: f"The client can't render this UI: {e}"}
+    return {A2UI_VALIDATED_JSON_KEY: messages}
 
 
 async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = False):
@@ -145,8 +165,9 @@ async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = Fa
             },
         },
     ]
-    tool_context.actions.skip_summarization = True
-    return {"validated_a2ui_json": messages}
+    response = _a2ui_response(tool_context, messages)
+    tool_context.actions.skip_summarization = A2UI_TOOL_ERROR_KEY not in response
+    return response
 
 
 async def update_upload_context_tool(
@@ -166,9 +187,13 @@ async def update_upload_context_tool(
             "value": files,
         },
     }]
+    response = _a2ui_response(tool_context, messages)
+    if A2UI_TOOL_ERROR_KEY in response:
+        tool_context.actions.skip_summarization = False
+        return response
     tool_context.actions.skip_summarization = True
     return {
-        "validated_a2ui_json": messages,
+        **response,
         "instruction_to_model": (
             "SUCCESS. The data model is updated. You MUST STOP NOW. Do NOT proactively"
             " call summarize_file_tool. Wait for the user to click the summarize"
