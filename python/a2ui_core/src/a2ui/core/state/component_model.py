@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+from collections.abc import Container
 from typing import Any, Final, Iterator
 from ..common.events import EventSource
 from ..catalog import CatalogApi
@@ -50,7 +51,7 @@ V0_8_LIST_REF_FIELDS: Final[set[str]] = {
 def is_v0_8_heuristic_child_prop_key(
     key: str,
     val: Any = None,
-    known_ids: set[str] | None = None,
+    known_ids: Container[str] | None = None,
 ) -> bool:
     """Heuristically checks if a property key represents a child component.
 
@@ -184,7 +185,7 @@ class ComponentModel:
 
     def get_child_references(
         self,
-        known_component_ids: set[str] | None = None,
+        known_component_ids: Container[str] | None = None,
         catalog: CatalogApi | None = None,
     ) -> Iterator[tuple[str, str]]:
         """Recursively extracts referenced child ComponentIds and their property paths from properties.
