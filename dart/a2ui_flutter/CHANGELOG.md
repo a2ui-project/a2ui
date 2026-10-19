@@ -18,6 +18,9 @@
 
 ## Unreleased
 
+- A Text that no `A2uiMarkdown` renders shows its text without common
+  Markdown markers, and a body Text that is one Markdown heading line takes
+  the style of its level.
 - The v1.0 Video shows its `posterUrl` until playback starts.
 - The v1.0 Slider moves in its `steps`.
 - The v1.0 TextField shows its `placeholder`.

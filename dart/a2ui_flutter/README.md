@@ -122,6 +122,11 @@ A2uiMarkdown(
 );
 ```
 
+A Text that no `A2uiMarkdown` renders, which includes every heading and
+caption Text, shows its text without common Markdown markers. A body Text
+that is one heading line, such as `## Summary`, also takes the style of that
+heading level.
+
 ## Defining Custom Components
 
 A v1.0 surface draws on several catalogs, so put your components in a catalog
