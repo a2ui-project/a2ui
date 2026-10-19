@@ -360,15 +360,27 @@ bool _isFunctionCall(
 
 /// Checks data-model paths and nesting depth anywhere inside a message body.
 ///
+/// [grownFrom], if given, is an earlier form of [data] that passed this
+/// check, such as a message that a stream has since extended. A list or map
+/// in [data] that is identical to the one at the same place in [grownFrom]
+/// is not checked again, so checking a message that grew costs what it
+/// gained. Neither may have been changed since [grownFrom] was checked.
+///
 /// Throws [A2uiValidationError] for a malformed path and [A2uiRecursionError]
 /// when nesting or chained function calls run past their caps.
-void checkPathsAndRecursion(Object? data, {A2uiProtocolVersion? version}) {
+void checkPathsAndRecursion(
+  Object? data, {
+  A2uiProtocolVersion? version,
+  Object? grownFrom,
+}) {
   final bool usesDirectives = version != null
       ? version.isAtLeast(A2uiProtocolVersion.v1_0)
       : _inferUsesDirectives(data);
 
+  // [before] is what [grownFrom] holds at the place of [node], or null.
   void traverse(
     Object? node,
+    Object? before,
     int depth,
     int callDepth, {
     required bool inDataValue,
@@ -380,17 +392,32 @@ void checkPathsAndRecursion(Object? data, {A2uiProtocolVersion? version}) {
     }
 
     if (node is List) {
-      for (final Object? item in node) {
-        traverse(item, depth + 1, callDepth, inDataValue: inDataValue);
+      if (identical(node, before)) return;
+      final List<Object?>? items = before is List ? before : null;
+      for (var i = 0; i < node.length; i++) {
+        traverse(
+          node[i],
+          items != null && i < items.length ? items[i] : null,
+          depth + 1,
+          callDepth,
+          inDataValue: inDataValue,
+        );
       }
       return;
     }
 
-    if (node is! Map) return;
+    if (node is! Map || identical(node, before)) return;
+    final Map<Object?, Object?>? entries = before is Map ? before : null;
 
     if (inDataValue) {
-      for (final Object? value in node.values) {
-        traverse(value, depth + 1, callDepth, inDataValue: true);
+      for (final MapEntry<Object?, Object?> entry in node.entries) {
+        traverse(
+          entry.value,
+          entries?[entry.key],
+          depth + 1,
+          callDepth,
+          inDataValue: true,
+        );
       }
       return;
     }
@@ -405,9 +432,11 @@ void checkPathsAndRecursion(Object? data, {A2uiProtocolVersion? version}) {
           "Invalid path syntax: '$udmPath'",
         );
       }
+      final Object? udmBefore = entries?['updateDataModel'];
       for (final MapEntry<Object?, Object?> entry in udm.entries) {
         traverse(
           entry.value,
+          udmBefore is Map ? udmBefore[entry.key] : null,
           depth + 2,
           callDepth,
           inDataValue: entry.key == 'value',
@@ -437,6 +466,11 @@ void checkPathsAndRecursion(Object? data, {A2uiProtocolVersion? version}) {
       for (final MapEntry<Object?, Object?> entry in object.entries) {
         traverse(
           entry.value,
+          entries != null &&
+                  (entry.key != 'args' ||
+                      _isFunctionCall(entries, usesDirectives: usesDirectives))
+              ? entries[entry.key]
+              : null,
           depth + 1,
           entry.key == 'args' ? callDepth + 1 : callDepth,
           inDataValue: false,
@@ -445,8 +479,14 @@ void checkPathsAndRecursion(Object? data, {A2uiProtocolVersion? version}) {
       return;
     }
 
-    for (final Object? value in object.values) {
-      traverse(value, depth + 1, callDepth, inDataValue: false);
+    for (final MapEntry<Object?, Object?> entry in object.entries) {
+      traverse(
+        entry.value,
+        entries?[entry.key],
+        depth + 1,
+        callDepth,
+        inDataValue: false,
+      );
     }
   }
 
@@ -457,16 +497,28 @@ void checkPathsAndRecursion(Object? data, {A2uiProtocolVersion? version}) {
         "Invalid path syntax: '$udmPath'",
       );
     }
-    traverse(data.value, 2, 0, inDataValue: true);
+    traverse(
+      data.value,
+      grownFrom is UpdateDataModelMessage ? grownFrom.value : null,
+      2,
+      0,
+      inDataValue: true,
+    );
     return;
   }
 
   if (data is AgentToRendererMessage) {
-    traverse(data.toJson(), 0, 0, inDataValue: false);
+    traverse(
+      data.toJson(),
+      grownFrom is AgentToRendererMessage ? grownFrom.toJson() : grownFrom,
+      0,
+      0,
+      inDataValue: false,
+    );
     return;
   }
 
-  traverse(data, 0, 0, inDataValue: false);
+  traverse(data, grownFrom, 0, 0, inDataValue: false);
 }
 
 bool _inferUsesDirectives(Object? data) {

@@ -190,11 +190,14 @@ class DirectJsonParser(Parser):
                     break
                 close_match = _CLOSE_TAG_RE.match(self._block, close_start)
                 assert close_match is not None
+                block_content = self._block[:close_start]
                 input_str = self._block[close_match.end() :]
-                self._emit_changed(parts, self.compile(self._block[:close_start]))
                 self._in_block = False
                 self._block = ""
-                self._emitted_json.clear()
+                try:
+                    self._emit_changed(parts, self.compile(block_content))
+                finally:
+                    self._emitted_json.clear()
                 continue
 
             open_match = _OPEN_TAG_RE.search(input_str)
@@ -226,6 +229,9 @@ class DirectJsonParser(Parser):
 
     def _emit_ready(self, parts: list[ResponsePart], block: str) -> None:
         content = self._clean_start(block)
+        v09_or_later = is_at_least_version(
+            self._catalogs[0].protocol_version, ProtocolVersion.V0_9
+        )
         v10 = is_at_least_version(
             self._catalogs[0].protocol_version, ProtocolVersion.V1_0
         )
@@ -236,6 +242,7 @@ class DirectJsonParser(Parser):
         )
         ready: list[AgentToRendererMessage] = []
         surfaces: dict[str, str] = {}
+        deleted_surfaces: set[str] = set()
         for envelope, closed in candidates:
             try:
                 if not isinstance(envelope, dict):
@@ -245,6 +252,15 @@ class DirectJsonParser(Parser):
                 # it grows. The messages after it wait with it.
                 if not closed and any(key in envelope for key in _CREATE_KEYS):
                     break
+                if v09_or_later:
+                    update_target = envelope.get("updateComponents") or envelope.get(
+                        "updateDataModel"
+                    )
+                    if (
+                        isinstance(update_target, dict)
+                        and update_target.get("surfaceId") in deleted_surfaces
+                    ):
+                        break
                 trial_surfaces = dict(surfaces)
                 validate_payload(
                     self._catalogs,
@@ -257,15 +273,19 @@ class DirectJsonParser(Parser):
                 if isinstance(create_body, dict):
                     sid = create_body.get("surfaceId")
                     cid = create_body.get("catalogId")
-                    if isinstance(sid, str) and isinstance(cid, str):
-                        trial_surfaces[sid] = cid
+                    if isinstance(sid, str):
+                        deleted_surfaces.discard(sid)
+                        if isinstance(cid, str):
+                            trial_surfaces[sid] = cid
                 delete_body = envelope.get("deleteSurface")
                 if isinstance(delete_body, dict):
                     sid = delete_body.get("surfaceId")
                     if isinstance(sid, str):
                         trial_surfaces.pop(sid, None)
+                        deleted_surfaces.add(sid)
                 elif isinstance(delete_body, str):
                     trial_surfaces.pop(delete_body, None)
+                    deleted_surfaces.add(delete_body)
                 models = to_message_models([envelope])
                 surfaces = trial_surfaces
                 ready.extend(models)

@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.9.0 (2026-10-17)
+
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.4.0,<0.5.0`.
 - `resolve_catalogs`, `validate_payload`, and the Direct JSON and Express
   formats resolve cross-catalog `$ref`s between the catalogs they are given.
