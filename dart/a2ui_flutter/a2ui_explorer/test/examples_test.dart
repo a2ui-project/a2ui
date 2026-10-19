@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:a2ui_explorer/src/example.dart';
@@ -30,6 +31,23 @@ void main() {
           '`dart run tool/generate_examples.dart` from '
           'dart/a2ui_flutter/a2ui_explorer.',
     );
+  });
+
+  test('render escapes names and descriptions', () {
+    final Directory directory = Directory.systemTemp.createTempSync();
+    addTearDown(() => directory.deleteSync(recursive: true));
+    File('${directory.path}/example.json').writeAsStringSync(
+      jsonEncode({
+        'name': r"It's $5",
+        'description': 'Line one\nline two\r',
+        'messages': <Object?>[],
+      }),
+    );
+
+    final String library = generator.render(directory);
+
+    expect(library, contains(r"    name: 'It\'s \$5',"));
+    expect(library, contains(r"    description: 'Line one\nline two\r',"));
   });
 
   test('every example has messages', () {
