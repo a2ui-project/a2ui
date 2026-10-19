@@ -247,6 +247,16 @@ void main() {
       }
     });
 
+    test('rejects a number out of range with a parse error', () {
+      expect(
+        () => compile(
+          '[{"version": "v0.9", "updateDataModel": '
+          '{"surfaceId": "s", "path": "/x", "value": 1e400}}]',
+        ),
+        throwsError<A2uiParseError>(),
+      );
+    });
+
     test('rejects a payload without catalogs', () {
       expect(
         () => DirectJsonParser([]).compile('[${create('s')}]'),
@@ -610,6 +620,23 @@ void main() {
           reason: 'wrapped: $wrapped',
         );
       }
+    });
+
+    test('emits nothing for a number out of range until the block closes '
+        'with a parse error', () {
+      final DirectJsonParser reader = parser();
+      expect(
+        reader.parseChunk(
+          '<a2ui-json>[${create('s')}, {"version": "v0.9", '
+          '"updateDataModel": {"surfaceId": "s", "path": "/x", "value": 1e400',
+        ),
+        [isA<A2uiPart>()],
+      );
+      expect(reader.parseChunk('}}'), isEmpty);
+      expect(
+        () => reader.parseChunk(']</a2ui-json>'),
+        throwsError<A2uiParseError>(),
+      );
     });
 
     test('rejects a change of wrapped between chunks', () {
