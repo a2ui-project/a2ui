@@ -215,6 +215,30 @@ void main() {
   });
 
   group('basic components', () {
+    testWidgets('TextField does not check validationRegexp', (tester) async {
+      await _pump(
+        tester,
+        [
+          {
+            'id': 'root',
+            'component': 'TextField',
+            'label': 'Zip',
+            'value': _bind('/zip'),
+            'validationRegexp': '[0-9]{5}',
+          },
+        ],
+        dataModel: {'zip': ''},
+      );
+
+      await tester.enterText(find.byType(TextField), 'abc');
+      await tester.pump();
+
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).decoration!.errorText,
+        isNull,
+      );
+    });
+
     testWidgets('Icon follows a bound svgPath', (tester) async {
       final SurfaceHarness harness = await _pump(
         tester,
