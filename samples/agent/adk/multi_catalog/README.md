@@ -91,6 +91,7 @@ uv run prompt_builder.py
    Creating the processor checks the examples against the negotiated catalogs.
    The examples use both catalogs, so a client must support both. Otherwise the
    agent answers with a text message.
+
 3. The system prompt is built from `processor.prompt_snippet`, which describes
    both catalogs and lists the examples. The dashboard catalog's `instructions`
    and the sample's UI description tell the model to set `catalogId` on each
@@ -106,6 +107,7 @@ uv run prompt_builder.py
 
    On a validation error the agent asks the model to try again, unless it has
    already sent part of the response.
+
 5. The **Refresh** button sends the `refresh_dashboard` action with the region in
    its context. The agent asks the model to show the region's dashboard again.
 
