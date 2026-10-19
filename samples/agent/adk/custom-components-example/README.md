@@ -44,9 +44,10 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
 
 6. (Optional) Ask for UI with A2UI v1.0. The `X-A2A-Extensions` header
    activates the v1.0 extension, and the message metadata carries the
-   renderer's catalogs under `a2uiRendererCapabilities`, keyed by version. To
-   render the `OrgChart` and `WebFrame` components, the renderer also sends
-   [`inline_catalog_1.0.json`](inline_catalog_1.0.json) in `inlineCatalogs`:
+   renderer's catalogs under `a2uiRendererCapabilities`, keyed by version. The
+   renderer names the basic catalog in `supportedCatalogIds` and sends
+   [`inline_catalog_1.0.json`](inline_catalog_1.0.json), which defines only the
+   `OrgChart` and `WebFrame` components, in `inlineCatalogs`:
 
    ```bash
    jq -n --slurpfile inline inline_catalog_1.0.json '{
@@ -78,11 +79,18 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
   `a2uiClientCapabilities` for v0.8 and v0.9, `a2uiRendererCapabilities` for
   v1.0. A client that sends none gets a text answer. The system prompt is built
   from that processor, so it describes the client's inline catalog too, such as
-  the `OrgChart` and `WebFrame` components. The examples in
-  `examples/<version>/` use the catalog `inline_catalog`, which
-  [`inline_catalog_0.9.json`](inline_catalog_0.9.json) and
-  [`inline_catalog_1.0.json`](inline_catalog_1.0.json) define for v0.9 and
-  v1.0.
+  the `OrgChart` and `WebFrame` components.
+- In v0.9, a surface uses one catalog, so the inline catalog
+  [`inline_catalog_0.9.json`](inline_catalog_0.9.json) repeats the basic
+  components next to `OrgChart` and `WebFrame`, and the surfaces in
+  `examples/0.9/` that show them use `inline_catalog`.
+- v1.0 mixes catalogs on one surface. The inline catalog
+  [`inline_catalog_1.0.json`](inline_catalog_1.0.json) defines only `OrgChart`
+  and `WebFrame`. The surfaces in `examples/1.0/` use the basic catalog as
+  their default catalog, and each `OrgChart` or `WebFrame` names the inline
+  catalog in its `catalogId`. The floor plan
+  ([`examples/1.0/floor_plan.json`](examples/1.0/floor_plan.json)) shows it: a
+  basic `Card`, `Column`, `Text` and `Button` around a custom `WebFrame`.
 - Later turns update the surfaces that earlier turns created, for example the
   contact card after a click on the org chart. The agent keeps a
   `RendererState` for each conversation, and checks every response against it

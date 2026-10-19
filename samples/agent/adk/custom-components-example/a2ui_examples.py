@@ -24,6 +24,12 @@ logger = logging.getLogger(__name__)
 
 FLOOR_PLAN_FILE = "floor_plan.json"
 LOCATION_SURFACE_ID = "location-surface"
+# The v1.0 surfaces use the basic catalog as their default catalog, and the
+# custom components name the catalog that `inline_catalog_1.0.json` defines.
+BASIC_CATALOG_ID_V1_0 = (
+    "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+)
+CUSTOM_CATALOG_ID_V1_0 = "https://a2ui.org/samples/agent/adk/custom-components-example/inline_catalog_1.0.json"
 
 
 def load_floor_plan_example(
@@ -125,7 +131,7 @@ def load_floor_plan_example(
             },
         ]
 
-    if version in (ProtocolVersion.V0_9, ProtocolVersion.V1_0):
+    if version == ProtocolVersion.V0_9:
         return [
             {
                 "version": version.value,
@@ -145,6 +151,40 @@ def load_floor_plan_example(
                         "height": 400,
                         "html": html_content,
                     }],
+                },
+            },
+        ]
+
+    if version == ProtocolVersion.V1_0:
+        # v1.0 mixes catalogs on one surface: the basic catalog is the
+        # surface's default, and the WebFrame names the custom catalog.
+        return [
+            {
+                "version": version.value,
+                "createSurface": {
+                    "surfaceId": LOCATION_SURFACE_ID,
+                    "catalogId": BASIC_CATALOG_ID_V1_0,
+                },
+            },
+            {
+                "version": version.value,
+                "updateComponents": {
+                    "surfaceId": LOCATION_SURFACE_ID,
+                    "components": [
+                        {
+                            "id": "root",
+                            "component": "Card",
+                            "child": "floor_plan_comp",
+                        },
+                        {
+                            "id": "floor_plan_comp",
+                            "component": "WebFrame",
+                            "catalogId": CUSTOM_CATALOG_ID_V1_0,
+                            "interactionMode": "interactive",
+                            "height": 400,
+                            "html": html_content,
+                        },
+                    ],
                 },
             },
         ]
@@ -204,11 +244,32 @@ def load_send_message_example(contact_name: str, version: str | None = None) -> 
     if version == ProtocolVersion.V1_0:
         # The v1.0 basic Modal has no `open` property, and component ids are
         # UAX #31 identifiers.
-        return (
-            '[{ "version": "v1.0", "createSurface": { "surfaceId": "action-modal",'
-            ' "catalogId": "inline_catalog" } }, { "version": "v1.0",'
-            ' "updateComponents": { "surfaceId": "action-modal", "components": [ {'
-            ' "id": "root", "component": "Modal", "trigger": "hidden", "content":'
-            ' "msg" }, { "id": "hidden", "component": "Text", "text": " " }, { "id":'
-            ' "msg", "component": "Text", "text": "Message Sent (Fallback)" } ] } } ]'
-        )
+        return json.dumps([
+            {
+                "version": "v1.0",
+                "createSurface": {
+                    "surfaceId": "action-modal",
+                    "catalogId": BASIC_CATALOG_ID_V1_0,
+                },
+            },
+            {
+                "version": "v1.0",
+                "updateComponents": {
+                    "surfaceId": "action-modal",
+                    "components": [
+                        {
+                            "id": "root",
+                            "component": "Modal",
+                            "trigger": "hidden",
+                            "content": "msg",
+                        },
+                        {"id": "hidden", "component": "Text", "text": " "},
+                        {
+                            "id": "msg",
+                            "component": "Text",
+                            "text": "Message Sent (Fallback)",
+                        },
+                    ],
+                },
+            },
+        ])

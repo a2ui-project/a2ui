@@ -10,7 +10,7 @@
     "version": "v1.0",
     "createSurface": {
       "surfaceId": "org-chart-view",
-      "catalogId": "inline_catalog"
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
     }
   },
   {
@@ -285,6 +285,7 @@
         {
           "id": "org_chart",
           "component": "OrgChart",
+          "catalogId": "https://a2ui.org/samples/agent/adk/custom-components-example/inline_catalog_1.0.json",
           "chain": {
             "@path": "/hierarchy"
           },
