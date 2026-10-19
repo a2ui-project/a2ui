@@ -17,6 +17,10 @@ import 'dart:convert';
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_explorer/src/example.dart';
 import 'package:a2ui_explorer/src/example_run.dart';
+import 'package:a2ui_explorer/src/examples.g.dart';
+import 'package:a2ui_flutter/a2ui_flutter.dart';
+// ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// A run of an example made of [messages].
@@ -40,6 +44,32 @@ const Map<String, Object?> _createSurface = {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('runs and renders every example without an error', (
+    tester,
+  ) async {
+    for (final Example example in examples) {
+      final run = ExampleRun(example)..runAll();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: Column(
+                children: [
+                  for (final surface in run.surfaces)
+                    A2uiSurface(key: ObjectKey(surface), surface: surface),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(run.log, isEmpty, reason: example.fileName);
+      await tester.pumpWidget(const SizedBox());
+      run.dispose();
+    }
+  });
 
   test('logs a message the processor rejects, with its number', () {
     final ExampleRun run = _run([

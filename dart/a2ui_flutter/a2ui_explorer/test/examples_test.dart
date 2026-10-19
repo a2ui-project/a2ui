@@ -38,7 +38,7 @@ void main() {
     addTearDown(() => directory.deleteSync(recursive: true));
     File('${directory.path}/example.json').writeAsStringSync(
       jsonEncode({
-        'name': r"It's $5",
+        'name': r"It's $5 \ off",
         'description': 'Line one\nline two\r',
         'messages': <Object?>[],
       }),
@@ -46,7 +46,7 @@ void main() {
 
     final String library = generator.render(directory);
 
-    expect(library, contains(r"    name: 'It\'s \$5',"));
+    expect(library, contains(r"    name: 'It\'s \$5 \\ off',"));
     expect(library, contains(r"    description: 'Line one\nline two\r',"));
   });
 

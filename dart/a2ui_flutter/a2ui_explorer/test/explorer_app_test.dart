@@ -36,6 +36,7 @@ Future<void> _open(WidgetTester tester, String fileName) async {
       matching: find.byType(Scrollable),
     ),
   );
+  await tester.pump();
   await tester.tap(item);
   await tester.pump();
 }
