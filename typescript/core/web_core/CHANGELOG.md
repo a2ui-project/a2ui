@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Under a `validationConfig` that allows dangling references and orphans or a missing root, as an agent's renderer state configures it, `MessageProcessor` checks an `updateComponents` against the components it changes, instead of copying every component of the surface and checking the whole surface again. It records what the last check found (each component's references, the components referencing it, and a bound on the longest chain below it) and checks cycles, depth and the `allowedParents` and `allowedChildren` constraints of the components the message affects. When that record cannot show the message passes, or the components changed outside the processor since, it checks the whole surface as before, so a message that fails reports the same error. A surface sent as n messages of one component each now takes time in proportion to n rather than n squared. Under any other config the checks are unchanged. The composition check is skipped when no catalog the surface's components come from declares `allowedParents` or `allowedChildren`, since it then has nothing to check.
 - Add `yarn test:timing`, which runs the timing cases of `conformance/core/message_processor_scaling.yaml` apart from `yarn test`.
 
 ## 0.14.0
