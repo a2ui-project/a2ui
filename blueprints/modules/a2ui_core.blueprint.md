@@ -740,7 +740,14 @@ A shared base class should implement `extractOperations` once, covering payload 
 
 In a renderer, `MessageProcessor` receives incoming protocol messages and updates the local layout and data state. In an agent, it mirrors the surfaces the renderer holds, so that model-generated messages are checked against everything the renderer has already received before they are sent. Both reach validation through it, because it is what holds every supported catalog and can therefore resolve the one each item belongs to.
 
-An agent does not drive `MessageProcessor` directly. The [Agent SDK](a2ui_agent.blueprint.md)'s `RendererState` owns one, and adds what checking outbound messages needs on top of it: atomic application with rollback, a tree check once a response is complete, and a lifetime the agent chooses (one state per chat turn, or one per canvas conversation). Core supplies the pieces it builds on: `SurfaceGroupModel.addSurface` and `deleteSurface` to restore a surface, `SurfaceComponentsModel.getAll` and `validateTopology` for the tree check, and a `ValidationConfig` that defers the graph checks.
+An agent does not drive `MessageProcessor` directly. The [Agent SDK](a2ui_agent.blueprint.md)'s `RendererState` owns one, and adds what checking outbound messages needs on top of it: atomic application with rollback, a tree check once a response is complete, and a lifetime the agent chooses (one state per chat turn, or one per canvas conversation). Core supplies the pieces it builds on:
+
+1. `processMessages` checks a message whole before it changes a surface, so a message it rejects leaves the surface as it was.
+2. `SurfaceComponentsModel.get` and `removeComponent`, and `DataModel.get`, `set` and `delete`, through which a state reverts what an applied message replaced. A deleted surface is restored by replaying its components and data model through `processMessages`, which also restores the children its components find through other catalogs. A state does not copy surfaces.
+3. `validateTopology`, and `detectCycles`, which returns the components the root reaches, for the tree check.
+4. A `ValidationConfig` that defers the graph checks. Under a config that allows dangling references, and orphans or a missing root, a processor checks each `updateComponents` against the components it changes rather than walking the whole surface, so a surface that arrives in many small messages takes time in proportion to its size.
+
+Applying a response message by message, as a stream does, therefore costs time in proportion to the response. `conformance/core/message_processor_scaling.yaml` times it.
 
 ```typescript
 // 1. Renderer Usage (Updates layout state and routes UI action events)
@@ -1465,4 +1472,4 @@ export class A2uiExpressionError extends A2uiError {
 
 See [Conformance README](../../conformance/README.md) for setup and schema definitions.
 
-`conformance/core/` covers this module.
+`conformance/core/` covers this module. `message_processor_scaling.yaml` times `processMessages` rather than checking what it returns: a surface that arrives in many small messages must take time in proportion to its size.

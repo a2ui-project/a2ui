@@ -405,6 +405,9 @@ class ResponseStream(ABC):
     no other message has, so the state mirrors what a renderer that received the emitted
     parts holds. A streamed response cannot be rolled back, since the renderer has already
     received what was emitted.
+
+    Each chunk is read and checked for what it adds, so a stream takes time in proportion
+    to the response; see "Cost of a response".
     """
 
     @property
@@ -418,7 +421,8 @@ class ResponseStream(ABC):
         """Reads the next chunk and returns the parts that became ready since the last one.
 
         If it raises, the stream has ended: a response cannot be read further once part of
-        it is rejected, and a later feed raises too.
+        it is rejected, and a later feed raises too. A chunk that raises returns nothing, so
+        what it applied is undone and the state holds only what earlier chunks emitted.
 
         Raises:
             A2uiParseError: If a block cannot be read.
@@ -509,7 +513,8 @@ class RendererState:
         and component ids and cycles against the surface's components. References, the root
         and reachability are left to check_topology, since a component may name a child that
         a later message adds. The call is atomic: if a message is rejected, the state is left
-        as it was before the call.
+        as it was before the call. Being atomic costs what the messages change, not the size
+        of the surfaces they touch.
 
         Returns:
             The ids of the surfaces the messages create, update or delete, in the order the
@@ -521,7 +526,9 @@ class RendererState:
         """Applies everything inside the block atomically.
 
         If the block raises, the state is restored to what it was when the block started.
-        Languages without context managers take a synchronous callback instead.
+        Opening a transaction copies nothing, and undoing one costs what was applied inside
+        it. Transactions nest. Languages without context managers take a synchronous callback
+        instead.
         """
         pass
 
@@ -538,7 +545,15 @@ class RendererState:
         pass
 ```
 
-The processor inside the state applies messages with references, a missing root and orphans allowed, and unknown components and functions still rejected; `check_topology` runs the graph checks the protocol requires once a response is complete. A rollback restores copies of the surfaces that the frame changed.
+The processor inside the state applies messages with references, a missing root and orphans allowed, and unknown components and functions still rejected; `check_topology` runs the graph checks the protocol requires once a response is complete.
+
+Undoing costs what the undone messages changed, not the size of the surfaces they touched:
+
+1. The processor checks a message whole before it changes a surface, so a rejected message changes nothing.
+2. Each applied message records what it replaced: the components it added or replaced, and the data model value at its path. A failed transaction or `apply` reverts those records in reverse order.
+3. A deleted surface is the one change recorded whole. It is restored by replaying it through the processor, which also restores the children its components find through other catalogs.
+
+A state must not copy a surface each time a message is applied or a transaction opens. A stream applies each message on its own and reads each chunk inside a transaction, so such a copy makes a response of n messages to one surface take time that grows with the square of n.
 
 An update to a surface the state never saw created is rejected, as the renderer would reject it. A v0.8 renderer buffers the updates that arrive before `beginRendering`, so a v0.8 state holds such updates and checks them once the surface begins rendering.
 
@@ -562,6 +577,16 @@ How long a state lives is the one difference between the two ways an agent shows
 2. In a canvas, turns update the surfaces earlier turns created. The agent creates one state per conversation, typically with `A2uiRequestProcessor.create_state()`, and passes it on every turn, streamed or not.
 
 A whole response is applied inside a transaction. A streamed response applies each message as it is emitted, so the state matches what the client received even when the response fails part way.
+
+#### Cost of a response
+
+Parsing a response whole, and streaming it in chunks of a few tokens, take time in proportion to the response, in a chat turn on a new state and in a canvas turn alike. Streaming costs at most a fixed multiple of parsing the same response whole. The timing suites `conformance/agent/direct_json/scaling.yaml`, `conformance/agent/express/scaling.yaml` and `conformance/core/message_processor_scaling.yaml` check this. It holds when:
+
+1. A stream reads each chunk once. The scan for the close tag and the read of the open block resume where the previous chunk left them, and a message that has closed is not read or checked again.
+2. A message that grows in place is checked for what it gains: an `updateComponents` for the components it adds, and an `updateDataModel` for the lists and maps its value gains. The `updateDataModel` is applied again once it closes.
+3. `apply` and `transaction` cost what they change, as `RendererState` describes.
+4. The core processor checks an `updateComponents` against what it changes rather than walking the whole surface; see [`a2ui_core.blueprint.md`](a2ui_core.blueprint.md).
+5. Only `check_topology` walks a whole surface: once for a response parsed whole, and once for each block of a stream that touches the surface.
 
 ---
 
@@ -1100,7 +1125,9 @@ class DirectJsonParser(Parser):
         pass
 ```
 
-`DirectJsonResponseStream` heals the partial JSON of each chunk, healing the values of `progressive_keys` in real time, and emits the messages that read whole and that its state accepts. It checks each message against the state rather than building a processor per message, and keeps no copy of the surfaces of its own. A `createSurface` or `deleteSurface` is held until its object closes, so it is emitted once, and a message for a surface that does not exist yet is held back, as a renderer would reject it. When a block closes, the trees of the surfaces it touched are checked.
+`DirectJsonResponseStream` heals the partial JSON of each chunk, healing the values of `progressive_keys` in real time. It emits a message once the message reads and its state accepts it, and again each time a later chunk changes it. Only `updateComponents` and `updateDataModel` are emitted while they grow. Any other message, such as `createSurface`, `deleteSurface` or `callRendererFunction`, is held until its object closes, so it is emitted once. A message the state rejects, such as an update to a surface that does not exist yet, is held back with the messages after it, and the block raises when it closes. From v1.0 a component is held until its object closes, so an `updateComponents` whose components have closed cannot change, and the chunk that closes a rejected one raises.
+
+The stream checks each message against the state rather than building a processor per message, and keeps no copy of the surfaces of its own. It reads each chunk once, as "Cost of a response" requires: it resumes after the last message that closed, and checks a growing message for what it gains. When a block closes, the messages it holds are applied in full and the trees of the surfaces it touched are checked.
 
 ---
 
@@ -1191,6 +1218,7 @@ The suites covering this document live under `conformance/agent/`:
 | `<format>/response_parser.yaml`       | `Parser.wrap`, `unwrap` and `parse_response`: where a payload begins and ends                   |
 | `<format>/prompt_generator.yaml`      | `PromptGenerator.generate`: what the system prompt snippet has to tell the model                |
 | `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream`, for the one format that streams                      |
+| `<format>/scaling.yaml`               | How the time to parse or stream a payload grows with the payload; see "Cost of a response"      |
 | `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                    |
 | `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs` |
 
