@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 from a2a import types as a2a_types
 from google.genai import types as genai_types
 
-from a2ui.a2a import create_a2ui_part
+from a2ui.a2a import A2UI_MIME_TYPE, create_a2ui_part
 from a2ui.adk import SendA2uiToClientToolset
 from a2ui.adk.a2a import A2uiPartConverter
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
@@ -71,6 +71,28 @@ def test_converter_class_convert_valid_tool_response_v0_9_1():
     a2a_parts = converter.convert(part)
     assert len(a2a_parts) == 1
     assert a2a_parts[0] == create_a2ui_part(valid_a2ui, version=ProtocolVersion.V0_9_1)
+
+
+def test_converter_class_tags_parts_with_the_catalogs_version():
+    catalog_mock = MagicMock(
+        spec=Catalog, catalog_id="test_catalog", protocol_version="v1.0"
+    )
+    converter = A2uiPartConverter([catalog_mock])
+
+    valid_a2ui = {"version": "v1.0", "deleteSurface": {"surfaceId": "s"}}
+    function_response = genai_types.FunctionResponse(
+        name=SendA2uiToClientToolset._SendA2uiJsonToClientTool.TOOL_NAME,
+        response={
+            SendA2uiToClientToolset._SendA2uiJsonToClientTool.VALIDATED_A2UI_JSON_KEY: [
+                valid_a2ui
+            ]
+        },
+    )
+    part = genai_types.Part(function_response=function_response)
+
+    a2a_parts = converter.convert(part)
+    assert len(a2a_parts) == 1
+    assert a2a_parts[0].root.metadata == {"mimeType": A2UI_MIME_TYPE}
 
 
 def test_converter_class_convert_tool_error_response():

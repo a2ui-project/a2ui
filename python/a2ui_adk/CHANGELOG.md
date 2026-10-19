@@ -1,5 +1,10 @@
 ## Unreleased
 
+- `A2uiPartConverter` defaults its `version` to the protocol version of its
+  catalogs, so `A2uiEventConverter` and
+  `SendA2uiToClientToolset.get_part_converter` tag v1.0 parts with the
+  `application/a2ui+json` MIME type. Without catalogs it still defaults to
+  v0.8.
 - **BREAKING**: `A2uiPartConverter` checks text-based A2UI as a response that
   shows new UI, so a response that updates a surface it does not create is
   rejected and logged instead of converted. Tool-based A2UI from
