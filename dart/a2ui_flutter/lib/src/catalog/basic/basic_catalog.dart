@@ -60,6 +60,41 @@ CatalogImplementation basicCatalog({
   definitions: BasicComponents.api.definitions,
 );
 
+/// The v1.0 basic catalog: every basic component, checked against the v1.0
+/// schemas, and the functions of [BasicCatalog.v1_0] formatting for [locale],
+/// under the v1.0 basic catalog's id, title, description, protocol version
+/// and instructions.
+///
+/// An `openUrl` call fails without [openUrl], and outside a user action such
+/// as a tap.
+CatalogImplementation basicCatalogV1_0({
+  String locale = 'en-US',
+  OpenUrlCallback? openUrl,
+}) {
+  final Catalog<ComponentApi, FunctionImplementation> api = BasicCatalog.v1_0(
+    locale: locale,
+    openUrl: openUrl,
+  );
+  return CatalogImplementation(
+    id: api.id,
+    components: [
+      for (final ComponentImplementation component in BasicComponents.all)
+        ComponentImplementation(
+          name: component.name,
+          schema: api.components[component.name]!.schema,
+          builder: component.builder,
+        ),
+    ],
+    functions: api.functions.values.toList(),
+    schemaId: api.schemaId,
+    title: api.title,
+    description: api.description,
+    protocolVersion: api.protocolVersion,
+    instructions: api.instructions,
+    definitions: api.definitions,
+  );
+}
+
 /// The v0.9 basic catalog's component implementations.
 abstract final class BasicComponents {
   /// The basic catalog's specification: every component and function schema
@@ -178,36 +213,5 @@ abstract final class BasicComponents {
     builder: (context, node, props, buildChild) => BasicTheme(
       builder: (context) => builder(context, node, props, buildChild),
     ),
-  );
-}
-
-/// SPIKE: the v1.0 basic catalog, with the same widget builders as
-/// [basicCatalog] and the v1.0 document's component schemas and functions.
-CatalogImplementation basicCatalogV1_0({
-  String locale = 'en-US',
-  OpenUrlCallback? openUrl,
-}) {
-  final Catalog<ComponentApi, FunctionImplementation> api = BasicCatalog.v1_0(
-    locale: locale,
-    openUrl: openUrl,
-  );
-  return CatalogImplementation(
-    id: api.id,
-    components: [
-      for (final ComponentImplementation c in BasicComponents.all)
-        ComponentImplementation(
-          name: c.name,
-          schema: api.components[c.name]!.schema,
-          builder: c.builder,
-        ),
-    ],
-    functions: api.functions.values.toList(),
-    themeSchema: api.themeSchema,
-    schemaId: api.schemaId,
-    title: api.title,
-    description: api.description,
-    protocolVersion: api.protocolVersion,
-    instructions: api.instructions,
-    definitions: api.definitions,
   );
 }

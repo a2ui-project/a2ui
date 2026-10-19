@@ -71,12 +71,13 @@ final List<ComponentImplementation> _customComponents = [
 
 /// One spec example: its messages and the custom components it names.
 class _Example {
-  _Example(File file)
+  _Example(File file, this._basicCatalog)
     : name = file.uri.pathSegments.last,
       _document = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
 
   final String name;
   final Map<String, Object?> _document;
+  final CatalogImplementation Function() _basicCatalog;
 
   List<Map<String, Object?>> get messages => [
     for (final Object? message in _document['messages']! as List)
@@ -88,7 +89,7 @@ class _Example {
     final Set<String> custom = {
       ...?(_document['customComponents'] as List?)?.cast<String>(),
     };
-    final CatalogImplementation basic = basicCatalog();
+    final CatalogImplementation basic = _basicCatalog();
     if (custom.isEmpty) return basic;
     return basic.copyWith(
       components: [
@@ -99,8 +100,8 @@ class _Example {
   }
 }
 
-/// Processes [example]'s messages as one payload, as an agent sends them,
-/// then pumps the surface and lets its images load.
+/// Processes [example]'s messages at [version] as one payload, as an agent
+/// sends them, then pumps the surface and lets its images load.
 ///
 /// Each message is checked on its own, so the graph checks a surface built
 /// across several messages cannot pass yet are relaxed: a missing root,
@@ -108,11 +109,16 @@ class _Example {
 /// unreachable, since v0.9 cannot remove a component. Fails on any other
 /// processing error, an exception while rendering or an error the surface
 /// reports.
-Future<void> _render(WidgetTester tester, _Example example) async {
+Future<void> _render(
+  WidgetTester tester,
+  _Example example,
+  A2uiProtocolVersion version,
+) async {
   final SurfaceHarness harness = await pumpSurface(
     tester,
     example.messages,
     catalog: example.catalog,
+    version: version,
     validationConfig: const ValidationConfig(
       allowOrphanComponents: true,
       allowDanglingReferences: true,
@@ -130,23 +136,43 @@ Future<void> _render(WidgetTester tester, _Example example) async {
 }
 
 void main() {
-  final List<_Example> examples = [
-    for (final File file in Directory(
-      '../../specification/v0_9/catalogs/basic/examples',
-    ).listSync().whereType<File>().where((f) => f.path.endsWith('.json')))
-      _Example(file),
-  ]..sort((a, b) => a.name.compareTo(b.name));
-
   setUp(() => FakeVideoPlayerPlatform().install());
 
-  test('finds the examples', () => expect(examples, isNotEmpty));
+  for (final (
+        A2uiProtocolVersion version,
+        String directory,
+        CatalogImplementation Function() catalog,
+      )
+      in [
+        (
+          A2uiProtocolVersion.v0_9,
+          '../../specification/v0_9/catalogs/basic/examples',
+          basicCatalog,
+        ),
+        (
+          A2uiProtocolVersion.v1_0,
+          '../../catalogs/basic/v1/examples',
+          basicCatalogV1_0,
+        ),
+      ]) {
+    group(version.jsonValue, () {
+      final List<_Example> examples = [
+        for (final File file in Directory(
+          directory,
+        ).listSync().whereType<File>())
+          if (file.path.endsWith('.json')) _Example(file, catalog),
+      ]..sort((a, b) => a.name.compareTo(b.name));
 
-  for (final example in examples) {
-    testWidgets('renders ${example.name}', (tester) async {
-      await withImageServer(
-        ImageServer({}, fallback: widePng),
-        () => _render(tester, example),
-      );
+      test('finds the examples', () => expect(examples, isNotEmpty));
+
+      for (final example in examples) {
+        testWidgets('renders ${example.name}', (tester) async {
+          await withImageServer(
+            ImageServer({}, fallback: widePng),
+            () => _render(tester, example, version),
+          );
+        });
+      }
     });
   }
 }

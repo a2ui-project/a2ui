@@ -192,18 +192,20 @@ a `ChildWidgetBuilder`:
 ## Basic Catalog Components
 
 `package:a2ui_flutter/basic_catalog.dart` implements the
-[v0.9 basic catalog](../../specification/v0_9/catalogs/basic/catalog.json)
-with Material widgets. `basicCatalog()` builds all of it, and
-`BasicComponents` holds each component for a catalog of your own.
+[v0.9](../../specification/v0_9/catalogs/basic/catalog.json) and
+[v1.0](../../catalogs/basic/v1/catalog.json) basic catalogs with Material
+widgets. `basicCatalog()` builds the v0.9 catalog and `basicCatalogV1_0()` the
+v1.0 one. `BasicComponents` holds each component for a v0.9 catalog of your
+own.
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
 - **Content**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`
 - **Input**: `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`,
   `DateTimeInput`
 
-The components take the surface theme's `primaryColor` as the Material
-theme's primary color. The functions format for the `locale` passed to
-`basicCatalog()`, `en-US` by default.
+On a v0.9 surface, the components take the surface theme's `primaryColor` as
+the Material theme's primary color. The functions format for the `locale`
+passed to the catalog, `en-US` by default.
 
 Not supported yet:
 
@@ -224,12 +226,14 @@ Not supported yet:
 > degrade the app.
 
 `openUrl` fails unless the app passes a callback, such as `url_launcher`'s
-`launchUrl`: `basicCatalog(openUrl: launchUrl)`. A bound `openUrl` call runs
-whenever it resolves, not only on a tap, so with a callback the agent can open
-an `http`, `https`, `mailto` or `tel` URL without the user acting. Pass one
-only for an agent you trust.
+`launchUrl`: `basicCatalog(openUrl: launchUrl)`. On a v0.9 surface, a bound
+`openUrl` call runs whenever it resolves, not only on a tap, so with a callback
+the agent can open an `http`, `https`, `mailto` or `tel` URL without the user
+acting. Pass one only for an agent you trust. On a v1.0 surface, `openUrl` runs
+only for a user action.
 
 ## Tests
 
 `test/catalog/basic/examples_test.dart` renders every
-[v0.9 basic catalog example](../../specification/v0_9/catalogs/basic/examples).
+[v0.9](../../specification/v0_9/catalogs/basic/examples) and
+[v1.0](../../catalogs/basic/v1/examples) basic catalog example.

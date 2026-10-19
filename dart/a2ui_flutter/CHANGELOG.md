@@ -18,5 +18,6 @@
 
 ## Unreleased
 
+- Add the v1.0 basic catalog, `basicCatalogV1_0()`.
 - Ignore `deprecated_member_use` warnings on `package:flutter/material.dart` imports on Flutter beta (#3235).
 - Initial version.

@@ -62,6 +62,15 @@ Map<String, Object?> deleteSurface({String surfaceId = testSurfaceId}) => {
   'deleteSurface': {'surfaceId': surfaceId},
 };
 
+/// [messages] with their `version` set to [version].
+List<Map<String, Object?>> atVersion(
+  A2uiProtocolVersion version,
+  List<Map<String, Object?>> messages,
+) => [
+  for (final Map<String, Object?> message in messages)
+    {...message, 'version': version.jsonValue},
+];
+
 /// Lays out the surface widgets as the test app's body.
 typedef SurfaceHost = Widget Function(List<Widget> surfaces);
 
@@ -144,7 +153,8 @@ class SurfaceHarness {
 /// processes [messages], and pumps an app that renders every surface the
 /// processor creates, in creation order, each in an [A2uiSurface].
 ///
-/// A null [validationConfig] builds the processor without one.
+/// A null [validationConfig] builds the processor without one. The processor
+/// parses [messages] at [version].
 ///
 /// [host] lays the surfaces out as a `Scaffold` body inside a `MaterialApp`;
 /// the default scrolls. The processor is disposed when the test ends.
@@ -200,7 +210,8 @@ Future<SurfaceHarness> pumpSurface(
 }
 
 /// Creates a surface on [catalog], sets its data model to [data] when given,
-/// adds [components], and pumps it, as [pumpSurface] does.
+/// adds [components], and pumps it, as [pumpSurface] does, with every message
+/// at [version].
 Future<SurfaceHarness> pumpComponents(
   WidgetTester tester,
   List<Map<String, Object?>> components, {
@@ -208,17 +219,19 @@ Future<SurfaceHarness> pumpComponents(
   Map<String, Object?>? data,
   ValidationConfig? validationConfig = ValidationConfig.strict,
   SurfaceHost host = scrollingHost,
+  A2uiProtocolVersion version = A2uiProtocolVersion.v0_9,
 }) {
   final CatalogImplementation resolved = catalog ?? fixtureCatalog();
   return pumpSurface(
     tester,
-    [
+    atVersion(version, [
       createSurface(resolved.id),
       if (data != null) updateDataModel(data),
       updateComponents(components),
-    ],
+    ]),
     catalog: resolved,
     validationConfig: validationConfig,
     host: host,
+    version: version,
   );
 }

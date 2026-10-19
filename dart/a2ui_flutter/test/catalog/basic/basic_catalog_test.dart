@@ -38,4 +38,21 @@ void main() {
     expect(catalog.components.values, unorderedEquals(BasicComponents.all));
     expect(catalog.functions.keys, unorderedEquals(spec.functions.keys));
   });
+
+  test('basicCatalogV1_0 carries the v1.0 catalog and the shared builders', () {
+    final Catalog<ComponentApi, FunctionImplementation> v1 =
+        BasicCatalog.v1_0();
+    final CatalogImplementation catalog = basicCatalogV1_0();
+    expect(catalog.id, BasicCatalog.v1_0Id);
+    expect(catalog.protocolVersion, A2uiProtocolVersion.v1_0);
+    expect(catalog.schemaId, v1.schemaId);
+    expect(catalog.instructions, v1.instructions);
+    expect(catalog.themeSchema, isNull);
+    expect(catalog.functions.keys, unorderedEquals(v1.functions.keys));
+    for (final ComponentImplementation basic in BasicComponents.all) {
+      final ComponentImplementation component = catalog.components[basic.name]!;
+      expect(component.builder, same(basic.builder));
+      expect(component.schema.value, v1.components[basic.name]!.schema.value);
+    }
+  });
 }
