@@ -27,7 +27,9 @@ This installs `a2ui-agent-sdk` and `a2a-sdk` as dependencies.
   `stream_response_to_parts` reads a streamed response through a
   `ResponseStream`, such as one from `A2uiRequestProcessor.open_stream()`.
   Both leave validation errors to the caller. `parse_content_to_parts`
-  parses a whole response with a `Parser` and logs and drops one that fails.
+  parses a whole response with a `Parser`, such as
+  `A2uiRequestProcessor.parser`, and logs and drops one that fails. A canvas
+  agent passes it the `RendererState` it keeps with `state=`.
 
 ```python
 from a2ui.a2a import create_a2ui_part, get_a2ui_agent_extension
