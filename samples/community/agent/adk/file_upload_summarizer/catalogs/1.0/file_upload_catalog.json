@@ -3,81 +3,10 @@
   "$id": "https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/1.0/file_upload_catalog.json",
   "protocolVersion": "1.0",
   "title": "File upload catalog (v1.0)",
-  "description": "Layout components and a FileUpload component for the file upload sample.",
+  "description": "The FileUpload component of the file upload sample.",
   "catalogId": "https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/1.0/file_upload_catalog.json",
+  "instructions": "This catalog holds only the FileUpload component. Build the rest of the UI from the basic catalog, which is the surface's default catalog in `createSurface`. Each FileUpload component MUST set `catalogId` to this catalog's id.",
   "components": {
-    "Column": {
-      "type": "object",
-      "properties": {
-        "component": {
-          "const": "Column"
-        },
-        "alignment": {
-          "type": "string"
-        },
-        "distribution": {
-          "type": "string"
-        },
-        "children": {
-          "type": "array",
-          "items": {
-            "$ref": "common_types.json#/$defs/ComponentId"
-          }
-        }
-      },
-      "required": ["component"]
-    },
-    "Text": {
-      "type": "object",
-      "properties": {
-        "component": {
-          "const": "Text"
-        },
-        "text": {
-          "$ref": "common_types.json#/$defs/DynamicString"
-        },
-        "variant": {
-          "type": "string"
-        }
-      },
-      "required": ["component", "text"]
-    },
-    "Button": {
-      "type": "object",
-      "properties": {
-        "component": {
-          "const": "Button"
-        },
-        "child": {
-          "$ref": "common_types.json#/$defs/ComponentId"
-        },
-        "variant": {
-          "type": "string"
-        },
-        "action": {
-          "type": "object"
-        },
-        "checks": {
-          "type": "array"
-        }
-      },
-      "required": ["component"]
-    },
-    "Card": {
-      "type": "object",
-      "properties": {
-        "component": {
-          "const": "Card"
-        },
-        "title": {
-          "$ref": "common_types.json#/$defs/DynamicString"
-        },
-        "content": {
-          "$ref": "common_types.json#/$defs/DynamicString"
-        }
-      },
-      "required": ["component"]
-    },
     "FileUpload": {
       "type": "object",
       "properties": {
@@ -103,60 +32,6 @@
         }
       },
       "required": ["component"]
-    }
-  },
-  "functions": {
-    "required": {
-      "type": "object",
-      "description": "Checks that the value is not null, undefined, or empty.",
-      "returnType": "validationResult",
-      "properties": {
-        "@call": {
-          "const": "required"
-        },
-        "args": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "description": "The value to check."
-            }
-          },
-          "required": ["value"],
-          "unevaluatedProperties": false
-        }
-      },
-      "required": ["@call", "args"]
-    }
-  },
-  "$defs": {
-    "anyComponent": {
-      "oneOf": [
-        {
-          "$ref": "#/components/Column"
-        },
-        {
-          "$ref": "#/components/Text"
-        },
-        {
-          "$ref": "#/components/Button"
-        },
-        {
-          "$ref": "#/components/Card"
-        },
-        {
-          "$ref": "#/components/FileUpload"
-        }
-      ],
-      "discriminator": {
-        "propertyName": "component"
-      }
-    },
-    "anyFunction": {
-      "oneOf": [
-        {
-          "$ref": "#/functions/required"
-        }
-      ]
     }
   }
 }

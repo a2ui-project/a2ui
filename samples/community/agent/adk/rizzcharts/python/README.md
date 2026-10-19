@@ -33,9 +33,22 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
 
 The agent holds one `A2uiGenerator` for each protocol version (v0.8, v0.9 and v1.0), with the rizzcharts catalog of that version (in [`../catalog_schemas`](../catalog_schemas/)) and the basic catalog. The agent card lists the generators' catalogs, one A2UI extension per version.
 
-For each request, the executor ([`agent_executor.py`](agent_executor.py)) creates an `A2uiRequestProcessor` from the client's capabilities: the `a2uiClientCapabilities` message metadata for v0.8 and v0.9, and `a2uiRendererCapabilities` for v1.0. It writes what the request needs into the session state: the format rules of the processor, the client's preferred catalog, and the examples for that catalog. The instruction ([`prompt_builder.py`](prompt_builder.py)) and `SendA2uiToClientToolset` read these values, so the prompt, the schema and the validation of the `send_a2ui_json_to_client` tool all follow the catalogs of the request.
+For each request, the executor ([`agent_executor.py`](agent_executor.py)) creates an `A2uiRequestProcessor` from the client's capabilities: the `a2uiClientCapabilities` message metadata for v0.8 and v0.9, and `a2uiRendererCapabilities` for v1.0. It writes what the request needs into the session state: the format rules of the processor, the catalogs, and the examples for the client's preferred catalog. The instruction ([`prompt_builder.py`](prompt_builder.py)) and `SendA2uiToClientToolset` read these values, so the prompt, the schema and the validation of the `send_a2ui_json_to_client` tool all follow the catalogs of the request.
 
-The capabilities are keyed by protocol version, for example `{"v1.0": {"supportedCatalogIds": [...]}}`, and the agent passes them to `A2uiGenerator.create_processor` unchanged. The examples of each version are in `../examples/<catalog>/<version>`. A client that names only the basic catalog gets dashboards built from it and the examples in `../examples/standard_catalog`. A client that sends no capabilities, or names none of the agent's catalogs, gets text answers.
+The capabilities are keyed by protocol version, and the agent passes them to `A2uiGenerator.create_processor` unchanged. A v1.0 request names both catalogs:
+
+```json
+{
+  "v1.0": {
+    "supportedCatalogIds": [
+      "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/1.0/rizzcharts_catalog_definition.json",
+      "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    ]
+  }
+}
+```
+
+v1.0 mixes catalogs on one surface, so the v1.0 rizzcharts catalog holds only the Canvas, Chart and GoogleMap components. A v1.0 dashboard uses the basic catalog as the surface's default (`createSurface.catalogId`), and each rizzcharts component names the rizzcharts catalog in its own `catalogId`; the prompt and validation get both catalogs. A v0.8 or v0.9 surface uses one catalog, so the rizzcharts catalog of those versions also contains every basic component, and only that catalog is passed on. The examples of each version are in `../examples/<catalog>/<version>`. A client that names only the basic catalog gets dashboards built from it and the examples in `../examples/standard_catalog`. A client that sends no capabilities, or names none of the agent's catalogs, gets text answers.
 
 To print the prompt of a version and validate its examples, run `uv run prompt_builder.py 1.0` (or `0.9`).
 

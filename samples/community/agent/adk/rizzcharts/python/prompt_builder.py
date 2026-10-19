@@ -136,7 +136,13 @@ if __name__ == "__main__":
     )
     prompt_parts = [
         get_ui_prompt(processor.format.prompt_generator.generate_base_rules()),
-        schema_to_prompt([rizzcharts_catalog]),
+        # A v1.0 surface mixes the rizzcharts components into a basic
+        # surface, so its prompt describes both catalogs.
+        schema_to_prompt(
+            processor.active_catalogs
+            if version == ProtocolVersion.V1_0
+            else [rizzcharts_catalog]
+        ),
     ]
     if rizzcharts_examples:
         prompt_parts.append(rizzcharts_examples)

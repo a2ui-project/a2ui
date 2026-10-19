@@ -37,7 +37,10 @@ create a simple "MCP Apps Proxy" agent that is hosted as an A2A server.
 
 The agent holds one `A2uiGenerator` for each protocol version (v0.8, v0.9 and
 v1.0), each with the MCP App catalog of that version in
-[`catalogs/`](catalogs/). The agent card lists the generators' catalogs.
+[`catalogs/`](catalogs/). The agent card lists the generators' catalogs. Every
+component on this agent's surfaces comes from the MCP App catalog, so a v1.0
+surface needs no other catalog, and the v1.0 catalog drops the `Column` that the
+v0.9 catalog carries.
 
 For each request, the executor ([`agent_executor.py`](agent_executor.py))
 creates an `A2uiRequestProcessor` from the client's capabilities: the

@@ -27,6 +27,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from a2ui.a2a import get_a2ui_agent_extension
+from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import to_version_number
@@ -153,7 +154,16 @@ class FileUploadSummarizerAgent:
             ),
             protocol_version=version,
         )
-        return A2uiGenerator([config], accepts_inline_catalogs=True)
+        if version == ProtocolVersion.V0_9:
+            # A v0.9 surface uses one catalog, which holds the layout
+            # components next to FileUpload.
+            return A2uiGenerator([config], accepts_inline_catalogs=True)
+        # A v1.0 surface mixes catalogs: the basic catalog is its default, and
+        # the FileUpload component names the file upload catalog.
+        return A2uiGenerator(
+            [CatalogConfig(BasicCatalog(version)), config],
+            accepts_inline_catalogs=True,
+        )
 
     def _build_agent_card(self) -> AgentCard:
         extensions = [

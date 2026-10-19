@@ -27,15 +27,19 @@ from file_resolution import resolve_files
 
 logger = logging.getLogger(__name__)
 
-# The catalog of each protocol version that the tools write messages in.
-_CATALOG_IDS = {
+# The surface's default catalog in each protocol version that the tools write
+# messages in. A v0.9 surface uses the file upload catalog alone. A v1.0
+# surface defaults to the basic catalog, and its FileUpload component names
+# the file upload catalog.
+_SURFACE_CATALOG_IDS = {
     ProtocolVersion.V0_9: (
         "https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/0.9/file_upload_catalog.json"
     ),
     ProtocolVersion.V1_0: (
-        "https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/1.0/file_upload_catalog.json"
+        "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
     ),
 }
+_FILE_UPLOAD_CATALOG_ID_V1_0 = "https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/1.0/file_upload_catalog.json"
 
 
 def _message_version(tool_context: ToolContext) -> ProtocolVersion:
@@ -46,6 +50,13 @@ def _message_version(tool_context: ToolContext) -> ProtocolVersion:
     if get_a2ui_version(tool_context) == ProtocolVersion.V1_0:
         return ProtocolVersion.V1_0
     return ProtocolVersion.V0_9
+
+
+def _file_upload_catalog(version: ProtocolVersion) -> dict[str, str]:
+    """Returns the `catalogId` that a v1.0 FileUpload component names."""
+    if version == ProtocolVersion.V1_0:
+        return {"catalogId": _FILE_UPLOAD_CATALOG_ID_V1_0}
+    return {}
 
 
 def _required_check(version: ProtocolVersion, path: str) -> dict[str, Any]:
@@ -83,7 +94,7 @@ async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = Fa
             "version": version.value,
             "createSurface": {
                 "surfaceId": surface_id,
-                "catalogId": _CATALOG_IDS[version],
+                "catalogId": _SURFACE_CATALOG_IDS[version],
             },
         },
         {
@@ -102,6 +113,7 @@ async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = Fa
                     {
                         "id": "doc_uploader",
                         "component": "FileUpload",
+                        **_file_upload_catalog(version),
                         "label": "Upload a document to Mock Drive for summarization",
                         "accept": ".txt,.md,.pdf,.csv,.json",
                         "maxSize": 10485760,

@@ -3,7 +3,7 @@
     "version": "v1.0",
     "createSurface": {
       "surfaceId": "la-map-view",
-      "catalogId": "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/1.0/rizzcharts_catalog_definition.json"
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
     }
   },
   {
@@ -14,6 +14,7 @@
         {
           "id": "root",
           "component": "Canvas",
+          "catalogId": "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/1.0/rizzcharts_catalog_definition.json",
           "children": ["map_layout_container"]
         },
         {
@@ -30,6 +31,7 @@
         {
           "id": "location_map",
           "component": "GoogleMap",
+          "catalogId": "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/1.0/rizzcharts_catalog_definition.json",
           "center": {
             "@path": "/mapConfig.center"
           },

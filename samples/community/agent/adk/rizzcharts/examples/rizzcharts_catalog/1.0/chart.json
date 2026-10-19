@@ -3,7 +3,7 @@
     "version": "v1.0",
     "createSurface": {
       "surfaceId": "sales-dashboard",
-      "catalogId": "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/1.0/rizzcharts_catalog_definition.json"
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
     }
   },
   {
@@ -14,6 +14,7 @@
         {
           "id": "root",
           "component": "Canvas",
+          "catalogId": "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/1.0/rizzcharts_catalog_definition.json",
           "children": ["chart_container"]
         },
         {
@@ -25,6 +26,7 @@
         {
           "id": "sales_chart",
           "component": "Chart",
+          "catalogId": "https://a2ui.org/samples/community/agent/adk/rizzcharts/catalog_schemas/1.0/rizzcharts_catalog_definition.json",
           "type": "doughnut",
           "title": {
             "@path": "/chart.title"

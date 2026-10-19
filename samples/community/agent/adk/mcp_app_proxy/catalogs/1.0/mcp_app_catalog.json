@@ -3,30 +3,10 @@
   "$id": "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/1.0/mcp_app_catalog.json",
   "protocolVersion": "1.0",
   "title": "MCP App catalog (v1.0)",
-  "description": "Components that embed MCP Apps and web apps, and the Pong demo layout.",
+  "description": "Components that embed MCP Apps and web apps, and the Pong demo layout. Every component on the surfaces of the mcp_app_proxy sample comes from this catalog, so it is the surface's default catalog.",
   "catalogId": "https://a2ui.org/samples/community/agent/adk/mcp_app_proxy/catalogs/1.0/mcp_app_catalog.json",
+  "instructions": "This catalog holds the components that embed MCP Apps and web apps and the Pong demo layout. Every component on this agent's surfaces comes from it, so name it as the surface's default catalog in `createSurface.catalogId`.",
   "components": {
-    "Column": {
-      "type": "object",
-      "properties": {
-        "component": {
-          "const": "Column"
-        },
-        "alignment": {
-          "type": "string"
-        },
-        "distribution": {
-          "type": "string"
-        },
-        "children": {
-          "type": "array",
-          "items": {
-            "$ref": "common_types.json#/$defs/ComponentId"
-          }
-        }
-      },
-      "required": ["component"]
-    },
     "McpApp": {
       "type": "object",
       "properties": {
@@ -223,33 +203,6 @@
         }
       },
       "required": ["component"]
-    }
-  },
-  "$defs": {
-    "anyComponent": {
-      "oneOf": [
-        {
-          "$ref": "#/components/Column"
-        },
-        {
-          "$ref": "#/components/McpApp"
-        },
-        {
-          "$ref": "#/components/WebAppFrameUrl"
-        },
-        {
-          "$ref": "#/components/WebAppFrameSrcdoc"
-        },
-        {
-          "$ref": "#/components/PongScoreBoard"
-        },
-        {
-          "$ref": "#/components/PongLayout"
-        }
-      ],
-      "discriminator": {
-        "propertyName": "component"
-      }
     }
   }
 }

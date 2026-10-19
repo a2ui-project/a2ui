@@ -32,8 +32,10 @@ This agent pairs with the Angular host application in `samples/community/client/
 
 ## How the agent negotiates A2UI
 
-The agent holds one `A2uiGenerator` for each protocol version (v0.9 and v1.0), each with the file upload catalog of that version in [`catalogs/`](catalogs/). The agent card lists the generators' catalogs.
+The agent holds one `A2uiGenerator` for each protocol version: v0.9 with the file upload catalog in [`catalogs/0.9`](catalogs/0.9/), and v1.0 with the basic catalog and the file upload catalog in [`catalogs/1.0`](catalogs/1.0/). The agent card lists the generators' catalogs.
+
+v1.0 mixes catalogs on one surface, so the v1.0 file upload catalog holds only the `FileUpload` component. The v1.0 surface uses the basic catalog as its default (`createSurface.catalogId`) for the layout, the button and its `required` check, and the `FileUpload` component names the file upload catalog in its own `catalogId`. A v0.9 surface uses one catalog, so the v0.9 file upload catalog also holds the layout components.
 
 For each request, the executor ([`agent_executor.py`](agent_executor.py)) creates an `A2uiRequestProcessor` from the client's capabilities: the `a2uiClientCapabilities` message metadata for v0.9, and `a2uiRendererCapabilities` for v1.0. It writes the negotiated version, the format rules of the processor and the negotiated catalog into the session state. The instruction and the A2UI event converter read them from there, and the tools write their A2UI messages in the negotiated version.
 
-The capabilities are keyed by protocol version, for example `{"v1.0": {"supportedCatalogIds": [...]}}`, and the agent passes them to `A2uiGenerator.create_processor` unchanged. A client that sends none, or names none of the agent's catalogs, gets text answers. The Angular host application names the file upload catalog in its capabilities.
+The capabilities are keyed by protocol version, for example `{"v1.0": {"supportedCatalogIds": ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json", "https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/1.0/file_upload_catalog.json"]}}` for v1.0, which names both catalogs, and the agent passes them to `A2uiGenerator.create_processor` unchanged. A client that sends none, or names none of the agent's catalogs, gets text answers. The Angular host application names the file upload catalog in its capabilities.

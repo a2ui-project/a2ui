@@ -186,10 +186,16 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
                 _A2UI_EXAMPLES_KEY: "",
                 _A2UI_RULES_KEY: "",
             }
-        # The rizzcharts catalog already contains every basic component, so
-        # passing the basic catalog too would repeat those schemas in the
-        # prompt. Use only the preferred catalog, which the examples match.
-        a2ui_catalogs = processor.active_catalogs[:1]
+        # A v1.0 surface mixes catalogs: the basic catalog is its default and
+        # the rizzcharts components name their own catalog, so the prompt and
+        # validation need every negotiated catalog. Up to v0.9 a surface uses
+        # one catalog, and the rizzcharts catalog already contains every basic
+        # component, so only the preferred catalog, which the examples match,
+        # is passed on. Either way the examples follow the preferred catalog.
+        if version in (ProtocolVersion.V0_8, ProtocolVersion.V0_9):
+            a2ui_catalogs = processor.active_catalogs[:1]
+        else:
+            a2ui_catalogs = processor.active_catalogs
         examples = load_examples(
             processor.active_catalogs,
             self._agent.get_examples_path(version, a2ui_catalogs[0].catalog_id),
