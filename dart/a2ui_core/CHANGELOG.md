@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Extracted `ComponentGraphBound` for incremental `SurfaceComponentsModel`
+  component graph checks and optimized its initial height traversal to linear
+  time.
 - Exported `checkPathsAndRecursion`, the check of data-model paths and
   nesting depth that `MessageProcessor` runs on each message under a
   validation config. Its new `grownFrom` argument takes an earlier form of
