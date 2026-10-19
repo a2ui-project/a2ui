@@ -25,17 +25,19 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'example.dart';
 import 'example_run.dart';
-import 'examples.g.dart';
 
 /// The gallery app of the A2UI Flutter renderer.
 class ExplorerApp extends StatelessWidget {
-  const ExplorerApp({super.key});
+  const ExplorerApp({super.key, required this.examples});
+
+  /// The examples to list.
+  final List<Example> examples;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'A2UI Explorer',
     theme: ThemeData(colorSchemeSeed: Colors.indigo),
-    home: const ExplorerPage(),
+    home: ExplorerPage(examples: examples),
   );
 }
 
@@ -46,14 +48,17 @@ class ExplorerApp extends StatelessWidget {
 /// with none processed. Below 1120 logical pixels wide, the columns scroll
 /// horizontally.
 class ExplorerPage extends StatefulWidget {
-  const ExplorerPage({super.key});
+  const ExplorerPage({super.key, required this.examples});
+
+  /// The examples to list. Must not be empty.
+  final List<Example> examples;
 
   @override
   State<ExplorerPage> createState() => _ExplorerPageState();
 }
 
 class _ExplorerPageState extends State<ExplorerPage> {
-  ExampleRun _run = ExampleRun(examples.first)..runAll();
+  late ExampleRun _run = ExampleRun(widget.examples.first)..runAll();
 
   /// Starts [example] over in a new run, with all of its messages processed
   /// when [runAll] is true. The previous run is disposed after the frame that
@@ -108,9 +113,9 @@ class _ExplorerPageState extends State<ExplorerPage> {
     title: 'Examples',
     child: ListView.builder(
       key: const Key('examples'),
-      itemCount: examples.length,
+      itemCount: widget.examples.length,
       itemBuilder: (context, index) {
-        final Example example = examples[index];
+        final Example example = widget.examples[index];
         return ListTile(
           key: ValueKey(example.fileName),
           title: Text(example.name),

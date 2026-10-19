@@ -30,12 +30,6 @@ flutter test
 
 ## Examples
 
-`lib/src/examples.g.dart` holds a copy of the examples, because a Flutter
-build does not ship assets declared from outside the app's directory. After
-the examples change, regenerate it from this directory:
-
-```bash
-dart run tool/generate_examples.dart
-```
-
-`test/examples_test.dart` fails while the copy is stale.
+`assets/examples` links to the specification's examples, so the app bundles
+them as they are. On Windows, the link needs a clone made with
+`git clone -c core.symlinks=true` and Developer Mode turned on.

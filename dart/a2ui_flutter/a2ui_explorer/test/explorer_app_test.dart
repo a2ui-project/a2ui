@@ -12,12 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:a2ui_explorer/src/example.dart';
 import 'package:a2ui_explorer/src/explorer_app.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+late final List<Example> _examples;
 
 /// Pumps the app in a window wide enough for its three columns, and selects
 /// the example in [fileName], which processes all of its messages.
@@ -25,7 +29,7 @@ Future<void> _open(WidgetTester tester, String fileName) async {
   tester.view.physicalSize = const Size(1600, 1200);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  await tester.pumpWidget(const ExplorerApp());
+  await tester.pumpWidget(ExplorerApp(examples: _examples));
 
   final Finder item = find.byKey(ValueKey(fileName));
   await tester.scrollUntilVisible(
@@ -62,6 +66,11 @@ Finder _logged(String text) => _inPane('action-log', find.textContaining(text));
 Finder get _noAction => _inPane('action-log', find.text('No action yet.'));
 
 void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    _examples = await loadExamples(rootBundle);
+  });
+
   testWidgets('Simple Text renders its text', (tester) async {
     await _open(tester, '00_simple-text.json');
 

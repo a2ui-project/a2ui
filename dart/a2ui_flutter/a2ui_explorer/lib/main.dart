@@ -12,8 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'src/example.dart';
 import 'src/explorer_app.dart';
 
-void main() => runApp(const ExplorerApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(ExplorerApp(examples: await loadExamples(rootBundle)));
+}
