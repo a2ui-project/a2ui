@@ -300,3 +300,22 @@ def test_nested_rollbacks_restore_the_outer_snapshot():
     component = surface.components_model.get("a")
     assert component is not None
     assert component.properties["text"] == "Hi"
+
+
+def test_mark_checked_stops_holding_changed_components_against_checks():
+    state = _canvas()
+    state.apply(_update(_text("orphan")))
+
+    state.mark_checked(["s"])
+
+    state.check_topology(["s"])
+
+
+def test_mark_checked_still_reports_a_dangling_reference():
+    state = _canvas()
+    state.apply(_update(_column("a", "missing")))
+
+    state.mark_checked(["s"])
+
+    with pytest.raises(A2uiIntegrityError, match="Dangling reference"):
+        state.check_topology(["s"])

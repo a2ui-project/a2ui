@@ -284,10 +284,23 @@ class RendererState:
                 raise A2uiIntegrityError(
                     f"Component '{unreachable[0]}' is not reachable from '{root_id}'"
                 )
-        for surface_id in surface_ids:
-            # An assumed surface was not checked, so what changed on it stays
-            # recorded for the check after its v0.8 `beginRendering`.
-            if surface_id not in self._assumed and self._changed.get(surface_id):
+        # An assumed surface was not checked, so what changed on it stays
+        # recorded for the check after its v0.8 `beginRendering`.
+        self.mark_checked(s for s in surface_ids if s not in self._assumed)
+
+    def mark_checked(self, surface_ids: Iterable[str]) -> None:
+        """Stops holding the components each surface changed against later checks.
+
+        `check_topology` calls this for the surfaces it checks. A caller calls
+        it for the surfaces of messages the renderer received that failed a
+        check, such as a stream that failed after it emitted them: no message
+        removes a component, so a component the renderer already holds can't
+        be made reachable later, and the later turns are not held to it.
+        Dangling references and a missing root are still reported, since
+        `check_topology` checks those on the whole surface.
+        """
+        for surface_id in dict.fromkeys(surface_ids):
+            if self._changed.get(surface_id):
                 self._save(surface_id)
                 self._changed.pop(surface_id, None)
 

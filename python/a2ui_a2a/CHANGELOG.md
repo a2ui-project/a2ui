@@ -24,3 +24,6 @@
 - `to_a2a_parts(response_parts, version=None)` converts parsed response parts
   into A2A parts: a `TextPart` for each text part and a `DataPart` for each
   A2UI message.
+- `parse_content_to_parts` takes a keyword-only `state`, the `RendererState` a
+  canvas agent keeps, so a response that updates a surface from an earlier
+  turn is checked against it instead of dropped.

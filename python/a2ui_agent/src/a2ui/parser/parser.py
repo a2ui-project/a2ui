@@ -124,11 +124,21 @@ class Parser(ABC):
         once every block is applied. The messages are applied to the state all
         or nothing: if any check fails, the state is left as it was.
 
+        A block cut off at the end of the response, which formats other than
+        Direct JSON compile as far as it goes, is applied too, but the trees of
+        the surfaces it touches are not checked.
+
         Args:
           content: The response text.
           wrapped: False if the whole response is one block, without tags.
           state: The state to check and apply the messages against. A new
             state for this call when None.
+
+        Raises:
+          A2uiError: If a block cannot be read or the state rejects it. The
+            error's `partial_results` holds the parts before the failing block,
+            or only the text when a tree check fails, since that check spans
+            every block. None of them is applied to the state.
         """
         target = state if state is not None else self._empty_state()
         response_parts: list[ResponsePart] = []
@@ -156,12 +166,29 @@ class Parser(ABC):
                         touched.update(dict.fromkeys(block_touched))
                         if not raw_part.is_final:
                             incomplete.update(block_touched)
+            except A2uiError as e:
+                setattr(e, "partial_results", response_parts)
+                raise
+            try:
                 complete = [s for s in touched if s not in incomplete]
                 if complete:
                     target.check_topology(complete)
             except A2uiError as e:
-                setattr(e, "partial_results", response_parts)
+                # The tree check spans every block, so no block is known to be
+                # good: only the text is kept.
+                setattr(
+                    e,
+                    "partial_results",
+                    [p for p in response_parts if isinstance(p, TextPart)],
+                )
                 raise
+            # A truncated block's messages are kept, as the renderer the caller
+            # sends them to will hold them, but its trees are not checked: a
+            # cut-off block is missing what it would have added. Its components
+            # are marked checked, so a later turn is not required to make them
+            # reachable; its dangling references and a missing root are still
+            # reported when a later turn checks the surface.
+            target.mark_checked(incomplete)
         return response_parts
 
     def _apply_block(

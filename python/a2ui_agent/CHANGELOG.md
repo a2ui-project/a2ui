@@ -53,7 +53,15 @@
   exists.
 - `parse_response` applies a response to the state all or nothing, and checks
   the trees of the surfaces it touches once every block is applied, so a
-  component may name a child that a later block of the response adds.
+  component may name a child that a later block of the response adds. When
+  that check fails, the error's `partial_results` holds only the text, since
+  the check spans every block.
+- Add `RendererState.mark_checked(surface_ids)`, which stops holding the
+  components each surface changed against later `check_topology` calls. A
+  stream that fails after emitting messages, and a block cut off at the end
+  of a response, mark their surfaces checked: the renderer holds those
+  components and no message removes one, so later turns aren't required to
+  make them reachable.
 - Add `Parser.open_stream`, which returns a `ResponseStream` for one
   response, with `feed` and `close`. Messages the stream emits are applied to
   its state as they are emitted, and the stream checks each message against
