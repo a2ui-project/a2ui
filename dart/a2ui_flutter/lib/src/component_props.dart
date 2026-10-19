@@ -41,10 +41,11 @@ extension type const ComponentProps(NodeProps _props) implements NodeProps {
     _ => null,
   };
 
-  /// [value], unwrapped, as a bool, or null if it is not a bool.
+  /// [value], unwrapped, as a bool. A validation result, such as a v1.0
+  /// validation rule returns, gives its validity. Other values give null.
   static bool? asBoolean(Object? value) => switch (unwrap(value)) {
     final bool b => b,
-    _ => null,
+    final Object? other => ValidationResult.validityOf(other),
   };
 
   static String _numberToString(num n) {
