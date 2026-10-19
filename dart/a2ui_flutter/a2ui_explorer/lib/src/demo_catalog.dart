@@ -49,14 +49,12 @@ final ComponentImplementation customGrid = ComponentImplementation(
     final List<ComponentNode<ComponentImplementation>> children = props
         .children('children');
     Widget cell(int index) => index < children.length
-        ? KeyedSubtree(
+        ? Expanded(
             key: NodeKey(children[index].instanceId),
-            child: Expanded(
-              child: Card.outlined(
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: buildChild(children[index]),
-                ),
+            child: Card.outlined(
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: buildChild(children[index]),
               ),
             ),
           )
