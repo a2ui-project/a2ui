@@ -152,7 +152,7 @@ to publish `0.1.0`. Before its first release, complete two one-time setup steps:
 
 1. Add the package name to the OSS Exit Gate allowlist for `a2ui/pypi` (see
    `go/a2ui-release#pypi`).
-2. Sign in to https://pypi.org/manage/account/publishing/ with the shared PyPI
+2. Sign in to `https://pypi.org/manage/account/publishing/` with the shared PyPI
    publisher account (credentials in `go/a2ui-release#pypi`). Under the
    **Google** tab, register a **Pending Publisher** for the new package name
    with email `a2ui-py@oss-exit-gate-prod.iam.gserviceaccount.com` and an empty
@@ -162,7 +162,7 @@ When signing in to PyPI, you can generate the 6-digit MFA code from the MFA
 setup key on the command line:
 
 ```bash
-oathtool --totp -b '<MFA_SETUP_KEY>'
+oathtool --totp -b "YOUR_MFA_SETUP_KEY"
 ```
 
 When PyPI reports an "unrecognized device", look up the verification email in
