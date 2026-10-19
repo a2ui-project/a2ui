@@ -289,7 +289,7 @@ struct SurfaceRedrawTests {
     #expect(counter.count(for: "sibling3") == 0)
   }
 
-  @Test func pathological2000EntryListUpdateOnlyRedrawsTargetLeaf() throws {
+  @Test func large2000EntryListUpdateOnlyRedrawsTargetLeaf() throws {
     let itemCount = 2000
     let counter = RedrawCounter()
     let swiftUICatalog = makeInstrumentedCatalog(counter: counter)
@@ -413,12 +413,14 @@ struct SurfaceRedrawTests {
     }
     print(
       "[2000-Entry] 2. Update /query: setDuration=\(querySetDuration), totalDuration=\(queryDuration), "
+        + "resolvedNodes=\(viewModel.nodeResolver.lastResolvedNodeCount), "
         + "Surface=\(counter.count(for: "Surface")), "
         + "root=\(counter.count(for: "root")), "
         + "searchField=\(counter.count(for: "searchField")), "
         + "itemsContainer=\(counter.count(for: "itemsContainer")), "
         + "totalComponentRedraws=\(counter.totalComponentRedraws)"
     )
+    #expect(viewModel.nodeResolver.lastResolvedNodeCount == 1)
     #expect(counter.count(for: "Surface") == 0)
     #expect(counter.count(for: "root") == 0)
     #expect(counter.count(for: "searchField") == 1)
@@ -440,6 +442,7 @@ struct SurfaceRedrawTests {
     }
     print(
       "[2000-Entry] 3. Update /items/3/name: setDuration=\(itemSetDuration), totalDuration=\(itemUpdateDuration), "
+        + "resolvedNodes=\(viewModel.nodeResolver.lastResolvedNodeCount), "
         + "Surface=\(counter.count(for: "Surface")), "
         + "root=\(counter.count(for: "root")), "
         + "itemsContainer=\(counter.count(for: "itemsContainer")), "
@@ -447,6 +450,7 @@ struct SurfaceRedrawTests {
         + "itemText_3=\(counter.count(for: "itemText_3")), "
         + "totalComponentRedraws=\(counter.totalComponentRedraws)"
     )
+    #expect(viewModel.nodeResolver.lastResolvedNodeCount == 1)
     #expect(counter.count(for: "Surface") == 0)
     #expect(counter.count(for: "root") == 0)
     #expect(counter.count(for: "itemsContainer") == 0)
@@ -469,10 +473,104 @@ struct SurfaceRedrawTests {
     }
     print(
       "[2000-Entry] 4. Update /unused: setDuration=\(unusedSetDuration), totalDuration=\(unusedDuration), "
+        + "resolvedNodes=\(viewModel.nodeResolver.lastResolvedNodeCount), "
         + "Surface=\(counter.count(for: "Surface")), "
         + "totalComponentRedraws=\(counter.totalComponentRedraws)"
     )
+    #expect(viewModel.nodeResolver.lastResolvedNodeCount == 0)
     #expect(counter.count(for: "Surface") == 0)
     #expect(counter.totalComponentRedraws == 0)
+
+    // 5. Update only searchField's label in componentsModel (only searchField resolves & redraws).
+    counter.reset()
+    var compUpdateSetDuration: Duration = .zero
+    let compUpdateDuration = clock.measure {
+      compUpdateSetDuration = clock.measure {
+        viewModel.componentsModel.addComponent(
+          ComponentModel(
+            id: "searchField",
+            type: "TextField",
+            properties: [
+              "label": .string("Filter Items"),
+              "value": .object(["path": .string("/query")]),
+            ]
+          )
+        )
+      }
+      #if canImport(AppKit)
+        flushLayout(in: window, hostingView: hostingView)
+      #elseif canImport(UIKit)
+        flushLayout(in: window, hostingView: hostingController.view)
+      #endif
+    }
+    print(
+      "[2000-Entry] 5. Update searchField component: setDuration=\(compUpdateSetDuration), totalDuration=\(compUpdateDuration), "
+        + "resolvedNodes=\(viewModel.nodeResolver.lastResolvedNodeCount), "
+        + "Surface=\(counter.count(for: "Surface")), "
+        + "searchField=\(counter.count(for: "searchField")), "
+        + "totalComponentRedraws=\(counter.totalComponentRedraws)"
+    )
+    #expect(viewModel.nodeResolver.lastResolvedNodeCount == 1)
+    #expect(counter.count(for: "Surface") == 0)
+    #expect(counter.count(for: "searchField") == 1)
+    #expect(counter.totalComponentRedraws == 1)
+
+    // 6. Append one item (/items/2000) -> only itemsContainer, itemCard_2000, itemText_2000 resolve & draw.
+    counter.reset()
+    var appendSetDuration: Duration = .zero
+    let appendDuration = clock.measure {
+      appendSetDuration = clock.measure {
+        viewModel.dataModel.set(
+          "/items/\(itemCount)", value: .object(["name": .string("Item 2000")]))
+      }
+      #if canImport(AppKit)
+        flushLayout(in: window, hostingView: hostingView)
+      #elseif canImport(UIKit)
+        flushLayout(in: window, hostingView: hostingController.view)
+      #endif
+    }
+    print(
+      "[2000-Entry] 6. Append /items/2000: setDuration=\(appendSetDuration), totalDuration=\(appendDuration), "
+        + "resolvedNodes=\(viewModel.nodeResolver.lastResolvedNodeCount), "
+        + "Surface=\(counter.count(for: "Surface")), "
+        + "itemsContainer=\(counter.count(for: "itemsContainer")), "
+        + "itemCard_2000=\(counter.count(for: "itemCard_2000")), "
+        + "itemText_2000=\(counter.count(for: "itemText_2000")), "
+        + "totalComponentRedraws=\(counter.totalComponentRedraws)"
+    )
+    #expect(viewModel.nodeResolver.lastResolvedNodeCount == 3)
+    #expect(counter.count(for: "Surface") == 0)
+    #expect(counter.count(for: "itemsContainer") == 1)
+    #expect(counter.count(for: "itemCard_2000") == 1)
+    #expect(counter.count(for: "itemText_2000") == 1)
+    #expect(counter.totalComponentRedraws == 3)
+
+    // 7. Replace /items with a shorter array (2001 -> 1999) -> only itemsContainer resolves & redraws.
+    counter.reset()
+    let shorterItems: [JSONValue] = (0..<(itemCount - 1)).map { i in
+      .object(["name": .string(i == 3 ? "Updated Item 3" : "Item \(i)")])
+    }
+    var shrinkSetDuration: Duration = .zero
+    let shrinkDuration = clock.measure {
+      shrinkSetDuration = clock.measure {
+        viewModel.dataModel.set("/items", value: .array(shorterItems))
+      }
+      #if canImport(AppKit)
+        flushLayout(in: window, hostingView: hostingView)
+      #elseif canImport(UIKit)
+        flushLayout(in: window, hostingView: hostingController.view)
+      #endif
+    }
+    print(
+      "[2000-Entry] 7. Shrink /items (2001 -> 1999): setDuration=\(shrinkSetDuration), totalDuration=\(shrinkDuration), "
+        + "resolvedNodes=\(viewModel.nodeResolver.lastResolvedNodeCount), "
+        + "Surface=\(counter.count(for: "Surface")), "
+        + "itemsContainer=\(counter.count(for: "itemsContainer")), "
+        + "totalComponentRedraws=\(counter.totalComponentRedraws)"
+    )
+    #expect(viewModel.nodeResolver.lastResolvedNodeCount == 1)
+    #expect(counter.count(for: "Surface") == 0)
+    #expect(counter.count(for: "itemsContainer") == 1)
+    #expect(counter.totalComponentRedraws == 1)
   }
 }
