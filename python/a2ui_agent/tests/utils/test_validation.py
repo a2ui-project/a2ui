@@ -365,6 +365,17 @@ def test_surface_deleted_earlier_in_the_payload_is_not_assumed_again():
         )
 
 
+def test_update_before_the_payload_creates_its_surface_is_not_found():
+    with pytest.raises(A2uiValidationError, match="Surface not found"):
+        validate_payload(
+            [_BASIC],
+            [
+                _update(_COLUMN, _TEXT),
+                _create(_BASIC.catalog_id),
+            ],
+        )
+
+
 def test_surface_recreated_after_a_delete_in_the_payload_is_accepted():
     validate_payload(
         [_BASIC],

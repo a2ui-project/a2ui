@@ -47,11 +47,38 @@ SAMPLE_CONFIGS = [
         "validate": True,
     },
     {
+        "name": "custom-components-example (v1.0)",
+        "path": SAMPLES_DIR / "custom-components-example",
+        "catalogs": [
+            (
+                lambda: CatalogConfig.from_path(
+                    catalog_path="inline_catalog_1.0.json",
+                    protocol_version=ProtocolVersion.V1_0,
+                ),
+                f"examples/{to_version_number(ProtocolVersion.V1_0)}",
+            ),
+            (
+                lambda: CatalogConfig(BasicCatalog(ProtocolVersion.V1_0)),
+                None,
+            ),
+        ],
+        "validate": True,
+    },
+    {
         "name": "restaurant_finder",
         "path": SAMPLES_DIR / "restaurant_finder",
         "catalogs": [(
             lambda: CatalogConfig(BasicCatalog(ProtocolVersion.V0_9)),
-            "examples/0.9",
+            f"examples/{to_version_number(ProtocolVersion.V0_9)}",
+        )],
+        "validate": True,
+    },
+    {
+        "name": "restaurant_finder (v1.0)",
+        "path": SAMPLES_DIR / "restaurant_finder",
+        "catalogs": [(
+            lambda: CatalogConfig(BasicCatalog(ProtocolVersion.V1_0)),
+            f"examples/{to_version_number(ProtocolVersion.V1_0)}",
         )],
         "validate": True,
     },

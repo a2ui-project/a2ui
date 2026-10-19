@@ -22,13 +22,19 @@ requires-python = ">=3.10"
 # Framework integrations live in their own distributions (a2ui-a2a, a2ui-adk).
 # tests/test_framework_agnostic.py enforces this.
 dependencies = [
-  "a2ui-core>=0.3.0,<0.4.0",
+  "a2ui-core>=0.4.0,<0.5.0",
   "antlr4-python3-runtime>=4.13.0,<4.14.0",
   "httpx>=0.27.0",
   "jsonschema>=4.0.0",
   "pydantic>=2.11.0",
   "pyyaml>=6.0"
 ]
+
+[project.urls]
+Homepage = "https://a2ui.org/"
+Repository = "https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_agent"
+Changelog = "https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_agent/CHANGELOG.md"
+Issues = "https://github.com/a2ui-project/a2ui/issues"
 
 [project.scripts]
 pyink = "pyink:patched_main"

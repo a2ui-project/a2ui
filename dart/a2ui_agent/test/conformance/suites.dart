@@ -16,10 +16,9 @@
 /// protocol version this SDK implements.
 ///
 /// The agent suites are written against v1.0. A harness runs each case twice,
-/// once in each [SuiteVersion]. As written in v1.0, a case that reaches a part
-/// of this SDK that is declared but not implemented yet is skipped; see
-/// [SuiteVersion.run]. Lowered to v0.9, a harness lowers what a case hands the
-/// SDK to v0.9 and lifts what the SDK returns back to v1.0 before comparing:
+/// once in each [SuiteVersion]. Lowered to v0.9, a harness lowers what a case
+/// hands the SDK to v0.9 and lifts what the SDK returns back to v1.0 before
+/// comparing:
 ///
 /// - A `version` of `v1.0` becomes `v0.9`, and one of `v0.9` becomes
 ///   `v1.0`. A case written with `v0.9` means a version other than its
@@ -75,22 +74,6 @@ enum SuiteVersion {
   final String label;
 
   bool get _lowers => this == v0_9;
-
-  /// Runs [body], the body of a case.
-  ///
-  /// As written in v1.0, a case that reaches a part of this SDK that is
-  /// declared but not implemented yet, which throws [UnimplementedError], is
-  /// marked skipped, naming the part. It runs once that part is implemented.
-  void run(void Function() body) {
-    if (_lowers) return body();
-    try {
-      body();
-      // A stub is what throws it, so catching it is how a stub is found.
-      // ignore: avoid_catching_errors
-    } on UnimplementedError catch (error) {
-      markTestSkipped('Not implemented yet: ${error.message}');
-    }
-  }
 
   /// The catalog a suite names by [entry]; see [catalogConfig].
   CatalogConfig catalogConfig(Object? entry) =>
@@ -165,9 +148,6 @@ final Map<String, Matcher> _errors = {
 };
 
 /// Expects [body] to throw the error category of a case's `expect_error`.
-///
-/// An [UnimplementedError] is thrown on rather than compared, so that
-/// [SuiteVersion.run] skips a case that reaches a part not implemented yet.
 void expectThrowsCategory(
   void Function() body,
   Object? expectError, {
@@ -175,16 +155,7 @@ void expectThrowsCategory(
 }) {
   final category =
       (expectError! as Map<String, Object?>)['category']! as String;
-  try {
-    body();
-    // ignore: avoid_catching_errors
-  } on UnimplementedError {
-    rethrow;
-  } on Object catch (error) {
-    expect(error, _errors[category], reason: reason);
-    return;
-  }
-  fail('Expected a $category, but nothing was thrown. ${reason ?? ''}');
+  expect(body, throwsA(_errors[category]), reason: reason);
 }
 
 /// The catalog a suite names by [entry]: a path relative to `conformance/`,

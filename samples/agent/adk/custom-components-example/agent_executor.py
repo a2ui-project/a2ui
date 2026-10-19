@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Mapping
 import logging
-import time
+from typing import Any
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
 from a2a.types import (
     DataPart,
-    Part,
     Task,
     TaskState,
     TextPart,
@@ -32,11 +32,47 @@ from a2a.utils import (
     new_task,
 )
 from a2a.utils.errors import ServerError
-from agent import ContactAgent
+
 from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.constants import (
+    A2UI_ACTIONS_KEY,
+    A2UI_CLIENT_CAPABILITIES_KEY,
+    A2UI_RENDERER_CAPABILITIES_KEY,
+    A2UI_VERSION_KEY,
+)
+from a2ui.core.schema import ProtocolVersion
 from a2ui.utils import to_version_number
+from agent import ContactAgent
 
 logger = logging.getLogger(__name__)
+
+# The versions whose renderers send `{"version": ..., "action": {...}}`.
+_ACTION_VERSIONS = (ProtocolVersion.V0_9, ProtocolVersion.V1_0)
+
+
+def _find_ui_event(data: Any) -> Mapping[str, Any] | None:
+    """Returns the action that a renderer sent in a DataPart's data, if any.
+
+    A v0.8 renderer sends `{"userAction": {...}}`, and later renderers send
+    `{"version": ..., "action": {...}}`. The v1.0 A2A extension sends a list
+    of messages, or `{"messages": [...]}` where the transport needs an
+    object; the first message with an action is used.
+    """
+    if isinstance(data, Mapping) and isinstance(data.get("messages"), list):
+        data = data["messages"]
+    messages = data if isinstance(data, list) else [data]
+    for message in messages:
+        if not isinstance(message, Mapping):
+            continue
+        action = message.get(A2UI_ACTIONS_KEY)
+        if message.get(A2UI_VERSION_KEY) in _ACTION_VERSIONS and isinstance(
+            action, Mapping
+        ):
+            return action
+        user_action = message.get("userAction")
+        if isinstance(user_action, Mapping):
+            return user_action
+    return None
 
 
 class ContactAgentExecutor(AgentExecutor):
@@ -72,12 +108,17 @@ class ContactAgentExecutor(AgentExecutor):
             )
 
         # Renderers send their capabilities in the message metadata, or in the
-        # metadata of a DataPart, which is read below.
+        # metadata of a DataPart, which is read below. The v1.0 A2A extension
+        # renamed the key.
+        capabilities_key = (
+            A2UI_RENDERER_CAPABILITIES_KEY
+            if active_ui_version == ProtocolVersion.V1_0
+            else A2UI_CLIENT_CAPABILITIES_KEY
+        )
         if active_ui_version and context.message and context.message.metadata:
-            client_ui_capabilities = context.message.metadata.get(
-                "a2uiClientCapabilities"
-            )
+            client_ui_capabilities = context.message.metadata.get(capabilities_key)
 
+        use_streaming = True
         if context.message and context.message.parts:
             logger.info(
                 f"--- AGENT_EXECUTOR: Processing {len(context.message.parts)} message"
@@ -85,22 +126,27 @@ class ContactAgentExecutor(AgentExecutor):
             )
             for i, part in enumerate(context.message.parts):
                 if isinstance(part.root, DataPart):
+                    if "useStreaming" in part.root.data:
+                        use_streaming = part.root.data["useStreaming"]
+                        logger.info(f"  Part {i}: Found useStreaming={use_streaming}")
+
                     # Extract client UI capabilities from any DataPart that has them
                     if (
                         active_ui_version
                         and "metadata" in part.root.data
-                        and "a2uiClientCapabilities" in part.root.data["metadata"]
+                        and capabilities_key in part.root.data["metadata"]
                     ):
                         logger.info(
-                            f"  Part {i}: Found 'a2uiClientCapabilities' in DataPart."
+                            f"  Part {i}: Found '{capabilities_key}' in DataPart."
                         )
                         client_ui_capabilities = part.root.data["metadata"][
-                            "a2uiClientCapabilities"
+                            capabilities_key
                         ]
 
-                    if "userAction" in part.root.data:
-                        logger.info(f"  Part {i}: Found a2ui UI ClientEvent payload.")
-                        ui_event_part = part.root.data["userAction"]
+                    found_event = _find_ui_event(part.root.data)
+                    if found_event is not None:
+                        logger.info(f"  Part {i}: Found a2ui action payload.")
+                        ui_event_part = found_event
                     elif "request" in part.root.data:
                         logger.info(f"  Part {i}: Found 'request' in DataPart.")
                         query = part.root.data["request"]
@@ -171,7 +217,11 @@ class ContactAgentExecutor(AgentExecutor):
         updater = TaskUpdater(event_queue, task.id, task.context_id)
 
         async for item in self._agent.stream(
-            query, task.context_id, client_ui_capabilities, active_ui_version
+            query,
+            task.context_id,
+            active_ui_version,
+            client_ui_capabilities,
+            use_streaming=use_streaming,
         ):
             is_task_complete = item["is_task_complete"]
             if not is_task_complete:

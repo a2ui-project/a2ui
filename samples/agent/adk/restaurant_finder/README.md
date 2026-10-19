@@ -57,22 +57,72 @@ This sample is featured in [Quickstart: Run A2UI in 5 Minutes](https://a2ui.org/
        }'
      ```
 
+   - ask for UI with A2UI v1.0. The `X-A2A-Extensions` header activates the
+     v1.0 extension, and the message metadata carries the renderer's
+     catalogs under `a2uiRendererCapabilities`, keyed by version (v0.8 and
+     v0.9 clients send `a2uiClientCapabilities` instead):
+
+     ```bash
+     curl http://localhost:10002 \
+       -H 'Content-Type: application/json' \
+       -H 'X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v1.0' \
+       -d '{
+         "jsonrpc": "2.0",
+         "id": 1,
+         "method": "message/send",
+         "params": {
+           "message": {
+             "role": "user",
+             "parts": [{"text": "Find me 3 Italian restaurants in New York"}],
+             "messageId": "2",
+             "metadata": {
+               "a2uiRendererCapabilities": {
+                 "v1.0": {
+                   "supportedCatalogIds": [
+                     "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                   ]
+                 }
+               }
+             }
+           }
+         }
+       }'
+     ```
+
+     The A2UI messages arrive as data parts with `"version": "v1.0"`. By
+     default the agent streams them in `working` status updates, so with
+     `message/send` they are in the task's `history`. Add a data part
+     `{"useStreaming": false}` to the message to get them in the final status
+     message instead. Button clicks come back as data parts of the form
+     `{"version": "v1.0", "action": {...}}`, or as a list of such messages
+     wrapped in `{"messages": [...]}`.
+
 ## How it works
 
 - The agent holds one `A2uiGenerator` for each protocol version it speaks
-  (v0.8 and v0.9), with the basic catalog and the example responses in
+  (v0.8, v0.9 and v1.0), with the basic catalog and the example responses in
   `examples/<version>/`. The agent card lists the generators' catalogs.
 - Each request gets its own `A2uiRequestProcessor`, negotiated from the
-  `a2uiClientCapabilities` in the message metadata, keyed by protocol version.
-  The sample clients under [`samples/client`](../../../client) send the catalogs
-  that their renderer registers. A client that sends none gets a text answer.
-  Creating the processor checks the examples against the request's catalogs.
+  renderer capabilities in the message metadata, keyed by protocol version:
+  `a2uiClientCapabilities` for v0.8 and v0.9, `a2uiRendererCapabilities` for
+  v1.0. The sample clients under [`samples/client`](../../../client) send the
+  catalogs that their renderer registers. A client that sends none, or none
+  that the agent can use, gets a text answer. Creating the processor checks
+  the examples against the request's catalogs.
 - The system prompt is built from that processor. Its prompt snippet
   describes the catalogs and lists the examples in the format's notation.
 - Each response shows new UI, so it is checked on its own. When streaming,
   `processor.open_stream()` validates each message before it is sent;
   otherwise `processor.parse_response()` validates the whole response. On an
-  error the agent asks the model to try again.
+  error, or if the response has no A2UI messages, the agent asks the model to
+  try again.
+- The responses use fixed surface ids, such as `default` for the results, and
+  from v0.9 on, creating a surface that the client already holds is an error.
+  The agent remembers which surfaces each conversation's client holds, and
+  sends `deleteSurface` before a response creates one of them again, for
+  example when the user searches a second time. When a streamed attempt fails
+  after some of its messages were sent, the agent deletes the surfaces that
+  attempt created before it retries.
 
 ## Disclaimer
 

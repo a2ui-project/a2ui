@@ -16,24 +16,24 @@ from __future__ import annotations
 
 from collections.abc import Collection
 from collections.abc import Sequence
-from typing import Any
 
 from a2ui.core import A2uiParseError
 from a2ui.core import CatalogApi
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import check_catalogs
+from a2ui.inference_formats._shared import to_message_models
 from a2ui.parser import Parser
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
 from a2ui.utils import RendererState
 
-from .blocks import add_text
-from .blocks import clean
 from .blocks import CLOSE_TAG
 from .blocks import CLOSE_TAG_RE
 from .blocks import OPEN_TAG
 from .blocks import OPEN_TAG_RE
+from .blocks import add_text
+from .blocks import clean
 from .blocks import scan_block
 from .decompiler import DirectJsonDecompiler
 from .json_reader import read_json
@@ -116,9 +116,20 @@ class DirectJsonParser(Parser):
         add_text(parts, content[i:])
         return parts
 
-    def compile(self, format_content: str, *, is_final: bool = True) -> list[Any]:
-        """Reads a block as a JSON message or a JSON array of messages."""
-        del is_final
+    def compile(
+        self, format_content: str, *, is_final: bool = True
+    ) -> list[AgentToRendererMessage]:
+        """Reads a block as a JSON message or a JSON array of messages.
+
+        Raises:
+          A2uiParseError: If the block is cut off, empty or not JSON.
+          A2uiValidationError: If a message does not match any protocol
+            version's message schema.
+        """
+        if not is_final:
+            raise A2uiParseError(
+                f"The response ended inside an unclosed {OPEN_TAG} block."
+            )
         cleaned = clean(format_content)
         if not cleaned:
             raise A2uiParseError("The direct JSON block is empty.")
@@ -126,7 +137,7 @@ class DirectJsonParser(Parser):
             decoded = read_json(cleaned)
         except ValueError as e:
             raise A2uiParseError(f"The direct JSON block is not JSON: {e}") from e
-        return decoded if isinstance(decoded, list) else [decoded]
+        return to_message_models(decoded if isinstance(decoded, list) else [decoded])
 
     def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
         return self._decompiler.decompile(a2ui_payload)

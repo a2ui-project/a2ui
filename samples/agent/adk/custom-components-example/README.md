@@ -42,23 +42,76 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
    USE_MCP_SANDBOX=false uv run .
    ```
 
+6. (Optional) Ask for UI with A2UI v1.0. The `X-A2A-Extensions` header
+   activates the v1.0 extension, and the message metadata carries the
+   renderer's catalogs under `a2uiRendererCapabilities`, keyed by version. The
+   renderer names the basic catalog in `supportedCatalogIds` and sends
+   [`inline_catalog_1.0.json`](inline_catalog_1.0.json), which defines only the
+   `OrgChart` and `WebFrame` components, in `inlineCatalogs`:
+
+   ```bash
+   jq -n --slurpfile inline inline_catalog_1.0.json '{
+     jsonrpc: "2.0", id: 1, method: "message/send",
+     params: {message: {
+       role: "user", messageId: "1",
+       parts: [{text: "Who is Casey Smith?"}],
+       metadata: {a2uiRendererCapabilities: {"v1.0": {
+         supportedCatalogIds: ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"],
+         inlineCatalogs: $inline
+       }}}
+     }}
+   }' | curl http://localhost:10004 \
+     -H 'Content-Type: application/json' \
+     -H 'X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v1.0' \
+     -d @-
+   ```
+
+   The A2UI messages arrive as data parts with `"version": "v1.0"`. By
+   default the agent streams them in `working` status updates, so with
+   `message/send` they are in the task's `history`. Add a data part
+   `{"useStreaming": false}` to the message to get them in the final status
+   message instead. Button clicks come back as data parts of the form
+   `{"version": "v1.0", "action": {...}}`, or as a list of such messages
+   wrapped in `{"messages": [...]}`.
+
 ## How it works
 
 - The agent holds one `A2uiGenerator` for each protocol version it speaks
-  (v0.8 and v0.9), with the basic catalog, and accepts inline catalogs. The
-  agent card lists the generators' catalogs.
+  (v0.8, v0.9 and v1.0), with the basic catalog, and accepts inline catalogs.
+  The agent card lists the generators' catalogs.
 - Each request gets its own `A2uiRequestProcessor`, negotiated from the
-  `a2uiClientCapabilities` that the client sent, keyed by protocol version.
-  A client that sends none gets a text answer. The system prompt is built from that
-  processor, so it describes the client's inline catalog too, such as the
-  `OrgChart` and `WebFrame` components.
+  renderer capabilities that the client sent, keyed by protocol version:
+  `a2uiClientCapabilities` for v0.8 and v0.9, `a2uiRendererCapabilities` for
+  v1.0. A client that sends none, or none that the agent can use, gets a text
+  answer. The system prompt is built from that processor, so it describes the
+  client's inline catalog too, such as the `OrgChart` and `WebFrame`
+  components.
+- In v0.9, a surface uses one catalog, so the inline catalog
+  [`inline_catalog_0.9.json`](inline_catalog_0.9.json) repeats the basic
+  components next to `OrgChart` and `WebFrame`, and the surfaces in
+  `examples/0.9/` that show them use `inline_catalog`.
+- v1.0 mixes catalogs on one surface. The inline catalog
+  [`inline_catalog_1.0.json`](inline_catalog_1.0.json) defines only `OrgChart`
+  and `WebFrame`. The surfaces in `examples/1.0/` use the basic catalog as
+  their default catalog, and each `OrgChart` or `WebFrame` names the inline
+  catalog in its `catalogId`. The floor plan
+  ([`examples/1.0/floor_plan.json`](examples/1.0/floor_plan.json)) shows it: a
+  basic `Card`, `Column`, `Text` and `Button` around a custom `WebFrame`.
 - Later turns update the surfaces that earlier turns created, for example the
   contact card after a click on the org chart. The agent keeps a
   `RendererState` for each conversation, and checks every response against it
-  with `processor.open_stream(state=...)`. Invalid messages are never sent:
-  the stream raises, and the agent asks the model to try again.
+  with `processor.open_stream(state=...)`, or with
+  `processor.parse_response(..., state=...)` when the client doesn't stream.
+  Invalid messages are never sent: the agent asks the model to try again.
+- Creating a surface that the client already shows is an error, so the
+  system prompt and the retry message list the surfaces in the state. The
+  model updates one of them with `updateComponents` or `updateDataModel`, or
+  sends `deleteSurface` before it creates it again, for example when the user
+  looks up a second person.
 - The UI that simulated actions show, like the floor plan, is checked against
-  the same state.
+  the same state. An action deletes its surface before it creates it again,
+  so a second "send message" works, and closing the floor plan sends nothing
+  when it isn't open.
 
 ## Disclaimer
 

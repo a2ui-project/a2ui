@@ -16,11 +16,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 import contextlib
 import copy
-import dataclasses
-from typing import Any, ClassVar, cast
+import re
+from typing import Any, ClassVar, TypeAlias, cast
 
 from pydantic import BaseModel
 
@@ -31,7 +31,6 @@ from a2ui.core import (
     A2uiValidationError,
     CatalogApi,
     ComponentModel,
-    DataModel,
     MessageProcessor,
     MessageProcessorOptions,
     STRICT_VALIDATION,
@@ -40,6 +39,14 @@ from a2ui.core import (
     link_catalogs,
 )
 from a2ui.core.common import to_protocol_version
+from a2ui.core.processing import (
+    InternalCreateSurfaceOp,
+    InternalDeleteSurfaceOp,
+    InternalOperation,
+    InternalUpdateComponentsOp,
+    InternalUpdateDataModelOp,
+    VersionAdapterFactory,
+)
 from a2ui.core.schema import (
     AgentToRendererMessage,
     AgentToRendererMessagePayload,
@@ -51,6 +58,10 @@ __all__ = [
     "RendererState",
     "validate_payload",
 ]
+
+_MessagePayload: TypeAlias = (
+    AgentToRendererMessagePayload | Iterable[AgentToRendererMessage | Mapping[str, Any]]
+)
 
 # The `version` values that messages for each protocol version's catalogs
 # state, spelled as the specification spells them. A v0.8 message has no
@@ -83,21 +94,11 @@ _IN_PROGRESS_VALIDATION = ValidationConfig(
 )
 
 
-@dataclasses.dataclass(frozen=True)
-class _SurfaceSnapshot:
-    """A surface as it was before a frame first changed it."""
+# Undoes one change to a state. The state's undo log is a list of these.
+_Undo: TypeAlias = Callable[[], None]
 
-    surface: SurfaceModel | None
-    assumed: bool
-    pending: tuple[dict[str, Any], ...] | None
-    changed: frozenset[str] | None
-
-
-@dataclasses.dataclass
-class _Frame:
-    """What a failed `apply` or transaction restores."""
-
-    surfaces: dict[str, _SurfaceSnapshot] = dataclasses.field(default_factory=dict)
+# A list index in a JSON Pointer, as `DataModel` reads one.
+_INDEX = re.compile(r"^(?:0|[1-9][0-9]*)$")
 
 
 class RendererState:
@@ -122,13 +123,25 @@ class RendererState:
     applied all or nothing. A streamed response cannot be rolled back, since
     the renderer has already received what was emitted.
 
+    Rolling back costs what the undone messages changed, not the size of the
+    surfaces they touched. The state keeps an undo log: each applied message
+    records what it replaced (the components it added or replaced, with a
+    copy of the properties of a component updated in place, and the data
+    model value at its path), and so does each change to the state's own
+    bookkeeping. A deleted surface is recorded whole and restored by
+    replaying it through the processor. An `apply` or transaction is a
+    position in the log, and a failed one reverts the log to its position.
+    No surface is copied when a message is applied or a transaction opens.
+
     The state holds the surfaces as they now stand, not the messages that
     built them.
 
     An update to a surface the state never saw created is rejected, as the
     renderer would reject it. A v0.8 renderer buffers the updates that arrive
     before `beginRendering`, so v0.8 updates are accepted and checked again
-    once the surface begins rendering.
+    once the surface begins rendering. A v0.8 renderer also accepts a second
+    `beginRendering` for a surface it holds, but the state rejects it, so a
+    v0.8 canvas must begin each surface once.
 
     The state is authoritative for surfaces and their components. The data
     model values it holds can drift from the renderer's, since the user edits
@@ -181,7 +194,11 @@ class RendererState:
         # The components each surface added or replaced since its tree was
         # last checked.
         self._changed: dict[str, set[str]] = {}
-        self._frames: list[_Frame] = []
+        # What each change made inside an open `apply` or transaction
+        # replaced, in the order of the changes. An `apply` or transaction is
+        # a position in the log, and undoing one reverts the log to it.
+        self._log: list[_Undo] = []
+        self._open = 0
 
     @property
     def catalogs(self) -> list[CatalogApi]:
@@ -190,20 +207,14 @@ class RendererState:
 
     @property
     def surface_ids(self) -> list[str]:
-        """The ids of the surfaces the renderer holds."""
+        """The ids of the surfaces the renderer holds, in no particular order."""
         return list(self._processor.model.surfaces)
 
     def get_surface(self, surface_id: str) -> SurfaceModel | None:
         """Returns the surface with the id, or None. Callers must not modify it."""
         return self._processor.model.get_surface(surface_id)
 
-    def apply(
-        self,
-        payload: (
-            AgentToRendererMessagePayload
-            | Iterable[AgentToRendererMessage | Mapping[str, Any]]
-        ),
-    ) -> list[str]:
+    def apply(self, payload: _MessagePayload) -> list[str]:
         """Checks the messages against the state and applies them.
 
         Each message must state a `version` that the catalogs' protocol
@@ -215,6 +226,8 @@ class RendererState:
         child that a later message adds.
 
         The call is atomic: if a message is rejected, none of them is applied.
+        Undoing a rejected call costs what its messages changed, not the size
+        of the surfaces they touched.
 
         Args:
           payload: One message or an iterable of messages, as parsed JSON
@@ -250,8 +263,12 @@ class RendererState:
         children, is accepted: the protocol has no message that removes one
         component, so replacing part of a canvas always leaves such
         components behind. A surface with no components yet passes, since its
-        components may arrive later. Surfaces that are deleted or assumed are
-        skipped.
+        components may arrive later. Surfaces that are deleted are skipped.
+
+        A v0.8 surface whose updates are still buffered, waiting for its
+        `beginRendering`, is rejected, as a v0.9 update to a surface that was
+        never created is. `validate_payload` is the exception: it assumes such
+        a surface and skips its tree.
 
         Cycles are already rejected when each message is applied, so the tree
         is walked once, from the root, to find what it reaches.
@@ -262,6 +279,11 @@ class RendererState:
         surface_ids = list(dict.fromkeys(surface_ids))
         for surface_id in surface_ids:
             if surface_id in self._assumed:
+                if not self._assumes_unknown_surfaces:
+                    raise A2uiIntegrityError(
+                        f"Surface '{surface_id}' received updates but no"
+                        " beginRendering."
+                    )
                 continue
             surface = self._processor.model.get_surface(surface_id)
             if surface is None:
@@ -284,75 +306,292 @@ class RendererState:
                 raise A2uiIntegrityError(
                     f"Component '{unreachable[0]}' is not reachable from '{root_id}'"
                 )
-        for surface_id in surface_ids:
-            if self._changed.get(surface_id):
-                self._save(surface_id)
-                self._changed.pop(surface_id, None)
+        # An assumed surface was not checked, so what changed on it stays
+        # recorded for the check after its v0.8 `beginRendering`.
+        self.mark_checked(s for s in surface_ids if s not in self._assumed)
+
+    def mark_checked(self, surface_ids: Iterable[str]) -> None:
+        """Stops holding the components each surface changed against later checks.
+
+        `check_topology` calls this for the surfaces it checks. A caller calls
+        it for the surfaces of messages the renderer received that failed a
+        check, such as a stream that failed after it emitted them: no message
+        removes a component, so a component the renderer already holds can't
+        be made reachable later, and the later turns are not held to it.
+        Dangling references and a missing root are still reported, since
+        `check_topology` checks those on the whole surface. Like any other
+        change, it is undone when the transaction it was made in fails.
+        """
+        for surface_id in dict.fromkeys(surface_ids):
+            self._forget_changed(surface_id)
 
     @contextlib.contextmanager
     def transaction(self) -> Iterator[RendererState]:
         """Applies everything inside the block atomically.
 
         If the block raises, the state is restored to what it was when the
-        block started, and the error propagates.
+        block started, and the error propagates. Opening a transaction copies
+        nothing, and undoing one costs what was applied inside it.
+        Transactions nest: an inner transaction that fails restores the state
+        to where the inner one started.
         """
         with self._frame():
             yield self
 
     @contextlib.contextmanager
     def _frame(self) -> Iterator[None]:
-        frame = _Frame()
-        self._frames.append(frame)
+        """Undoes what the block changed if it raises.
+
+        The frame is a position in the undo log. A failure reverts the log to
+        it, so a failed inner frame undoes only what was changed inside it.
+        Once the outermost frame ends, nothing can be undone any more, and the
+        log is cleared.
+        """
+        mark = len(self._log)
+        self._open += 1
         try:
             yield
         except BaseException:
-            self._rollback(frame)
+            self._revert(mark)
             raise
         finally:
-            self._frames.pop()
+            self._open -= 1
+            if not self._open:
+                self._log.clear()
 
-    def _rollback(self, frame: _Frame) -> None:
-        model = self._processor.model
-        for surface_id, snapshot in frame.surfaces.items():
-            model.delete_surface(surface_id)
-            if snapshot.surface is not None:
-                # The snapshot may be shared with an outer frame, so a copy of
-                # it goes live and the snapshot itself stays as it was.
-                model.add_surface(_clone_surface(snapshot.surface))
-            if snapshot.assumed:
-                self._assumed.add(surface_id)
-            else:
-                self._assumed.discard(surface_id)
-            if snapshot.pending is None:
+    def _revert(self, mark: int) -> None:
+        """Undoes the changes logged after a position, latest first."""
+        while len(self._log) > mark:
+            self._log.pop()()
+
+    def _record(self, undo: _Undo) -> None:
+        """Logs how to undo a change, if an `apply` or transaction is open."""
+        if self._open:
+            self._log.append(undo)
+
+    # The state's own bookkeeping. Each change goes through one of these, so
+    # that it is logged.
+
+    def _set_assumed(self, surface_id: str, assumed: bool) -> None:
+        was_assumed = surface_id in self._assumed
+        if was_assumed == assumed:
+            return
+        if assumed:
+            self._assumed.add(surface_id)
+            self._record(lambda: self._assumed.discard(surface_id))
+        else:
+            self._assumed.discard(surface_id)
+            self._record(lambda: self._assumed.add(surface_id))
+
+    def _set_pending(
+        self, surface_id: str, pending: list[dict[str, Any]] | None
+    ) -> list[dict[str, Any]] | None:
+        """Sets or clears a surface's v0.8 buffer and returns the one it had."""
+        previous = self._pending.pop(surface_id, None)
+        if pending is not None:
+            self._pending[surface_id] = pending
+
+        def undo() -> None:
+            if previous is None:
                 self._pending.pop(surface_id, None)
             else:
-                self._pending[surface_id] = list(snapshot.pending)
-            if snapshot.changed is None:
-                self._changed.pop(surface_id, None)
-            else:
-                self._changed[surface_id] = set(snapshot.changed)
+                self._pending[surface_id] = previous
 
-    def _save(self, surface_id: str) -> None:
-        """Snapshots a surface for every open frame, before the surface changes."""
-        frames = [f for f in self._frames if surface_id not in f.surfaces]
-        if not frames:
-            return
-        surface = self._processor.model.get_surface(surface_id)
-        pending = self._pending.get(surface_id)
+        self._record(undo)
+        return previous
+
+    def _buffer(self, surface_id: str, message: dict[str, Any]) -> None:
+        """Appends an update to a v0.8 surface's buffer."""
+        pending = self._pending[surface_id]
+        pending.append(message)
+        self._record(lambda: _discard(pending.pop()))
+
+    def _note_changed(self, surface_id: str, component_ids: set[str]) -> None:
+        """Records components a surface added or replaced since its last check."""
         changed = self._changed.get(surface_id)
-        snapshot = _SurfaceSnapshot(
-            surface=_clone_surface(surface) if surface is not None else None,
-            assumed=surface_id in self._assumed,
-            pending=tuple(pending) if pending is not None else None,
-            changed=frozenset(changed) if changed is not None else None,
-        )
-        for frame in frames:
-            frame.surfaces[surface_id] = snapshot
+        if changed is None:
+            changed = self._changed[surface_id] = set()
+            self._record(lambda: _discard(self._changed.pop(surface_id, None)))
+        added = component_ids - changed
+        if added:
+            changed.update(added)
+            self._record(lambda: changed.difference_update(added))
 
-    def _process(self, messages: list[dict[str, Any]]) -> None:
-        """Runs messages through the processor."""
+    def _forget_changed(self, surface_id: str) -> None:
+        """Stops holding what a surface changed against its next check."""
+        changed = self._changed.pop(surface_id, None)
+        if changed is not None:
+            self._record(lambda: self._changed.__setitem__(surface_id, changed))
+
+    def _process(self, messages: list[dict[str, Any]], *, log: bool = True) -> None:
+        """Runs messages through the processor, logging what each one replaces.
+
+        Args:
+          messages: The messages, which state one protocol version.
+          log: False for a trial whose surface is deleted right after, which
+            needs no undo.
+        """
         with _as_validation_error():
-            self._processor.process_messages(messages)
+            adapter = VersionAdapterFactory.resolve_from_payload(messages)
+            for op in adapter.extract_operations(messages):
+                if log:
+                    self._process_operation(op)
+                else:
+                    self._processor.process_operation(op)
+
+    def _process_operation(self, op: InternalOperation) -> None:
+        """Applies one operation and logs how to undo it.
+
+        The processor checks an operation before it changes a surface, so a
+        rejected operation leaves nothing to undo. The exceptions are a
+        `createSurface` whose components or data model are rejected after the
+        surface is added, and a data model path that fails part way, so those
+        are undone at once.
+        """
+        model = self._processor.model
+        if isinstance(op, InternalCreateSurfaceOp):
+            existed = model.get_surface(op.surface_id) is not None
+            surface_id = op.surface_id
+
+            def undo() -> None:
+                model.delete_surface(surface_id)
+
+            try:
+                self._processor.process_operation(op)
+            except BaseException:
+                if not existed:
+                    undo()
+                raise
+            self._record(undo)
+        elif isinstance(op, InternalDeleteSurfaceOp):
+            self._delete_surface(op.surface_id)
+        elif isinstance(op, InternalUpdateComponentsOp):
+            undo = self._components_undo(op)
+            self._processor.process_operation(op)
+            self._record(undo)
+        elif isinstance(op, InternalUpdateDataModelOp):
+            undo = self._data_model_undo(op)
+            try:
+                self._processor.process_operation(op)
+            except BaseException:
+                undo()
+                raise
+            self._record(undo)
+        else:
+            # Function calls and responses change no surface.
+            self._processor.process_operation(op)
+
+    def _components_undo(self, op: InternalUpdateComponentsOp) -> _Undo:
+        """Records the components an `updateComponents` adds or replaces.
+
+        The core updates a component in place when the update keeps its type
+        and catalog, so the record holds a copy of the component's previous
+        properties, not the object the update changes.
+        """
+        model = self._processor.model
+        surface_id = op.surface_id
+        surface = model.get_surface(surface_id)
+        if surface is None:
+            return lambda: None
+        components_model = surface.components_model
+        previous: list[tuple[str, ComponentModel | None, dict[str, Any] | None]] = []
+        for comp in op.components:
+            comp_id = comp.get("id") if isinstance(comp, Mapping) else None
+            if not isinstance(comp_id, str):
+                continue
+            existing = components_model.get(comp_id)
+            properties = (
+                copy.deepcopy(existing.properties) if existing is not None else None
+            )
+            previous.append((comp_id, existing, properties))
+
+        def undo() -> None:
+            # Found again by id: undoing a later delete replays the surface
+            # into new objects.
+            surface = model.get_surface(surface_id)
+            if surface is None:
+                return
+            components_model = surface.components_model
+            for comp_id, existing, properties in reversed(previous):
+                current = components_model.get(comp_id)
+                if existing is None:
+                    components_model.remove_component(comp_id)
+                elif current is existing:
+                    existing.properties = cast(dict[str, Any], properties)
+                else:
+                    # The update replaced the component with one of another
+                    # type or catalog, and the core disposed of the old one.
+                    components_model.remove_component(comp_id)
+                    components_model.add_component(
+                        ComponentModel(
+                            comp_id, existing.type, existing.catalog, properties
+                        )
+                    )
+
+        return undo
+
+    def _data_model_undo(self, op: InternalUpdateDataModelOp) -> _Undo:
+        """Records the data model value an `updateDataModel` replaces.
+
+        Setting a path creates the containers above it that are missing, and
+        pads a list up to the index it sets, so the record is taken at the
+        first segment of the path that does not exist yet, if any.
+        """
+        model = self._processor.model
+        surface_id = op.surface_id
+        surface = model.get_surface(surface_id)
+        if surface is None:
+            return lambda: None
+        data_model = surface.data_model
+        tokens = _pointer_tokens(op.path or "/")
+        if not tokens:
+            root = copy.deepcopy(data_model.get("/"))
+
+            def undo() -> None:
+                surface = model.get_surface(surface_id)
+                if surface is not None:
+                    surface.data_model.set("/", root)
+
+            return undo
+        parent: Any = data_model.get("/")
+        for depth, token in enumerate(tokens):
+            exists, child = _child(parent, token)
+            if exists and depth < len(tokens) - 1 and isinstance(child, (dict, list)):
+                parent = child
+                continue
+            if not isinstance(parent, (dict, list)):
+                # Setting the path fails before it changes anything.
+                break
+            return _child_restorer(
+                lambda: model.get_surface(surface_id),
+                tokens[:depth],
+                parent,
+                token,
+                exists,
+                child,
+            )
+        return lambda: None
+
+    def _delete_surface(self, surface_id: str) -> None:
+        """Deletes a surface, logging it whole.
+
+        A deleted surface is the one change recorded whole. It is restored by
+        replaying it through the processor, which keeps each component's own
+        catalog. The v0.8 buffer and the bookkeeping are restored by their own
+        records.
+        """
+        model = self._processor.model
+        surface = model.get_surface(surface_id)
+        if surface is None:
+            return
+        replay = _replay_operations(surface)
+        model.delete_surface(surface_id)
+
+        def undo() -> None:
+            for op in replay:
+                self._processor.process_operation(op)
+
+        self._record(undo)
 
     def _apply_message(self, payload: list[dict[str, Any]], index: int) -> str | None:
         """Applies the message at an index and returns the surface it targets."""
@@ -362,34 +601,32 @@ class RendererState:
             self._process([message])
             return None
 
-        self._save(surface_id)
         model = self._processor.model
         if creates:
-            pending = self._pending.pop(surface_id, None)
+            pending = self._set_pending(surface_id, None)
             if pending is not None:
                 # A v0.8 renderer applies the updates it buffered for the
                 # surface once `beginRendering` arrives.
-                model.delete_surface(surface_id)
-                self._assumed.discard(surface_id)
+                self._delete_surface(surface_id)
+                self._set_assumed(surface_id, False)
                 self._process([message, *pending])
             else:
                 self._process([message])
         elif "deleteSurface" in message:
             self._process([message])
-            self._assumed.discard(surface_id)
-            self._pending.pop(surface_id, None)
-            self._changed.pop(surface_id, None)
+            self._set_assumed(surface_id, False)
+            self._set_pending(surface_id, None)
+            self._forget_changed(surface_id)
         elif model.get_surface(surface_id) is None and self._assumes(
             surface_id, payload, index
         ):
             self._assume_surface(surface_id, payload, index)
         else:
             self._process([message])
-            pending = self._pending.get(surface_id)
-            if pending is not None:
-                pending.append(message)
+            if surface_id in self._pending:
+                self._buffer(surface_id, message)
         if "deleteSurface" not in message:
-            self._changed.setdefault(surface_id, set()).update(_component_ids(message))
+            self._note_changed(surface_id, _component_ids(message))
         return surface_id
 
     def _assumes(
@@ -400,14 +637,25 @@ class RendererState:
         A v0.8 renderer buffers updates to a surface until its
         `beginRendering`, even after the surface is deleted. A payload state
         assumes a surface the payload never named before, but not one that an
-        earlier message of the payload deleted: a renderer rejects updates to
-        it.
+        earlier message of the payload deleted, nor one that a later message
+        creates before any message deletes it: a renderer rejects updates to
+        either, since the surface does not exist yet when they arrive.
         """
         if self._protocol_version is ProtocolVersion.V0_8:
             return True
-        return self._assumes_unknown_surfaces and all(
-            _target(m)[0] != surface_id for m in payload[:index]
-        )
+        if not self._assumes_unknown_surfaces:
+            return False
+        if any(_target(m)[0] == surface_id for m in payload[:index]):
+            return False
+        for later in payload[index + 1 :]:
+            target, creates = _target(later)
+            if target != surface_id:
+                continue
+            if creates:
+                return False
+            if "deleteSurface" in later:
+                break
+        return True
 
     def _assume_surface(
         self, surface_id: str, payload: list[dict[str, Any]], index: int
@@ -428,16 +676,18 @@ class RendererState:
         for catalog in self._placeholder_catalogs(surface_id, updates):
             placeholder = self._placeholder(surface_id, catalog, message)
             try:
-                self._process([placeholder, *updates])
+                # A trial: the surface is deleted right after, so nothing it
+                # changes needs undoing.
+                self._process([placeholder, *updates], log=False)
             except A2uiValidationError as e:
                 errors.append(e)
                 continue
             finally:
                 self._processor.model.delete_surface(surface_id)
             self._process([placeholder, message])
-            self._assumed.add(surface_id)
+            self._set_assumed(surface_id, True)
             if self._protocol_version is ProtocolVersion.V0_8:
-                self._pending[surface_id] = [message]
+                self._set_pending(surface_id, [message])
             return
         raise errors[0]
 
@@ -496,7 +746,7 @@ class _PayloadState(RendererState):
 
 def validate_payload(
     catalogs: Sequence[CatalogApi],
-    payload: AgentToRendererMessagePayload,
+    payload: _MessagePayload,
 ) -> None:
     """Checks a payload the way a renderer holding the catalogs would.
 
@@ -512,7 +762,8 @@ def validate_payload(
     surface passes if one such catalog accepts it.
 
     To check a payload against what earlier payloads sent, keep a
-    `RendererState` and call its `apply` and `check_topology` instead.
+    `RendererState` and call its `apply` and `check_topology` inside
+    `with state.transaction():`, so a rejected response is rolled back whole.
 
     Each message must state a `version` that the catalogs' protocol version
     accepts, spelled as the specification spells it: none for v0.8, `v0.9` or
@@ -551,37 +802,119 @@ def _as_validation_error() -> Iterator[None]:
         raise A2uiValidationError(str(e), details=e.details) from e
 
 
-def _clone_surface(surface: SurfaceModel) -> SurfaceModel:
-    """Copies a surface's state into a new surface that shares its catalogs.
+def _replay_operations(surface: SurfaceModel) -> list[InternalOperation]:
+    """The operations that build a surface again through the processor.
 
-    `ComponentModel` deep-copies the properties it is given, so the clone's
-    components share no mutable state with the surface's.
+    A component whose catalog is not the surface's default names its own, so
+    a surface whose components come from several catalogs comes back as it
+    was. The properties and the data model are copied, since deleting the
+    surface disposes of it.
     """
-    clone = SurfaceModel(
-        surface_id=surface.id,
-        default_catalog=surface.default_catalog,
-        available_catalogs=surface.available_catalogs,
-        theme=copy.deepcopy(surface.theme),
-        send_data_model=surface.send_data_model,
-        data_model=DataModel(copy.deepcopy(surface.data_model.get("/"))),
-        root_id=surface.root_id,
-        protocol_version=surface.protocol_version,
-    )
+    default_catalog = surface.default_catalog
+    version = surface.protocol_version
+    operations: list[InternalOperation] = [
+        InternalCreateSurfaceOp(
+            surface_id=surface.id,
+            catalog_id=(
+                default_catalog.catalog_id if default_catalog is not None else None
+            ),
+            theme=copy.deepcopy(surface.theme) or None,
+            send_data_model=surface.send_data_model,
+            root=surface.root_id,
+            version=str(getattr(version, "value", version)) if version else None,
+        )
+    ]
+    components: list[dict[str, Any]] = []
     for component in surface.components_model.values:
-        clone.components_model.add_component(
-            ComponentModel(
-                component.id, component.type, component.catalog, component.properties
+        item = {
+            **copy.deepcopy(component.properties),
+            "id": component.id,
+            "component": component.type,
+        }
+        if component.catalog is not default_catalog:
+            item["catalogId"] = component.catalog.catalog_id
+        components.append(item)
+    if components:
+        operations.append(
+            InternalUpdateComponentsOp(surface_id=surface.id, components=components)
+        )
+    data = surface.data_model.get("/")
+    if data:
+        operations.append(
+            InternalUpdateDataModelOp(
+                surface_id=surface.id, value=copy.deepcopy(data), path="/"
             )
         )
-    return clone
+    return operations
 
 
-def _extract_messages(
-    payload: (
-        AgentToRendererMessagePayload
-        | Iterable[AgentToRendererMessage | Mapping[str, Any]]
-    ),
-) -> list[dict[str, Any]]:
+def _discard(_: object) -> None:
+    """Drops a value, so that an undo that pops returns nothing."""
+
+
+def _pointer_tokens(path: str) -> list[str]:
+    """Splits a JSON Pointer into its unescaped segments, as `DataModel` does."""
+    return [t.replace("~1", "/").replace("~0", "~") for t in path.split("/") if t]
+
+
+def _child(container: Any, token: str) -> tuple[bool, Any]:
+    """Returns whether a container holds a segment of a path, and its value."""
+    if isinstance(container, dict):
+        return token in container, container.get(token)
+    if isinstance(container, list) and _INDEX.match(token):
+        index = int(token)
+        if index < len(container):
+            return True, container[index]
+    return False, None
+
+
+def _child_restorer(
+    get_surface: Callable[[], SurfaceModel | None],
+    parent_tokens: list[str],
+    parent: dict[str, Any] | list[Any],
+    token: str,
+    exists: bool,
+    value: Any,
+) -> _Undo:
+    """Returns how to restore one entry of a data model container.
+
+    The undo finds the surface again by its id and the container by its
+    path, since a change undone before it may have put a copy in its place.
+
+    Args:
+      get_surface: Returns the surface whose data model holds the container.
+      parent_tokens: The path of the container.
+      parent: The container now.
+      token: The entry's key or list index.
+      exists: Whether the container holds the entry now.
+      value: The entry's value now, which is copied.
+    """
+    old_value = copy.deepcopy(value) if exists else None
+    # Setting an index past the end pads the list up to it.
+    length = len(parent) if isinstance(parent, list) else 0
+
+    def undo() -> None:
+        surface = get_surface()
+        if surface is None:
+            return
+        container: Any = surface.data_model.get("/")
+        for parent_token in parent_tokens:
+            container = _child(container, parent_token)[1]
+        if isinstance(container, dict):
+            if exists:
+                container[token] = old_value
+            else:
+                container.pop(token, None)
+        elif isinstance(container, list):
+            if exists:
+                container[int(token)] = old_value
+            else:
+                del container[length:]
+
+    return undo
+
+
+def _extract_messages(payload: _MessagePayload) -> list[dict[str, Any]]:
     """Normalizes a payload into a list of message dictionaries.
 
     Message models are converted with `to_message_dicts`, so the check sees

@@ -40,18 +40,30 @@ from a2ui.a2a import (
     stream_response_to_parts,
     to_a2a_parts,
 )
-from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
-from a2ui.core import A2uiError, CatalogApi
+from a2ui.constants import (
+    A2UI_BEGIN_RENDERING_KEY,
+    A2UI_CLOSE_TAG,
+    A2UI_CREATE_SURFACE_KEY,
+    A2UI_DELETE_SURFACE_KEY,
+    A2UI_OPEN_TAG,
+    A2UI_SURFACE_ID_KEY,
+)
+from a2ui.core import A2uiError
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import RendererState, to_version_number
 from a2ui_examples import (
+    delete_surface_message,
     load_close_modal_example,
     load_floor_plan_example,
     load_send_message_example,
 )
-from prompt_builder import get_text_prompt, get_ui_prompt
+from prompt_builder import (
+    get_existing_surfaces_rule,
+    get_text_prompt,
+    get_ui_prompt,
+)
 from tools import get_contact_info
 
 logger = logging.getLogger(__name__)
@@ -61,13 +73,52 @@ MAX_ATTEMPTS = 2
 _MAX_RENDERER_STATES = 1000
 
 
-def _catalog_keys(catalogs: Sequence[CatalogApi]) -> list[tuple[str, str]]:
-    """The ids and protocol versions of catalogs, to compare two sets of them."""
-    return [(c.catalog_id, str(c.protocol_version)) for c in catalogs]
-
-
 def _text_parts(text: str) -> list[Part]:
     return [Part(root=TextPart(text=text))]
+
+
+def _surface_id(message: Mapping[str, Any], keys: Sequence[str]) -> str | None:
+    """Returns the surface of a message of one of the given types, if it is one."""
+    for key in keys:
+        body = message.get(key)
+        if isinstance(body, Mapping):
+            surface_id = body.get(A2UI_SURFACE_ID_KEY)
+            if isinstance(surface_id, str):
+                return surface_id
+    return None
+
+
+def _fit_to_surfaces(
+    messages: list[dict[str, Any]],
+    surface_ids: Sequence[str],
+    version: ProtocolVersion,
+) -> list[dict[str, Any]]:
+    """Adapts the fixed UI of an action to the surfaces the client shows.
+
+    Creating a surface that the client already shows is an error, so the
+    surface is deleted first. The deletions come before every other message,
+    since a v0.8 renderer holds the updates that arrive before
+    `beginRendering`. A deletion of a surface the client doesn't show is
+    dropped.
+    """
+    shown = set(surface_ids)
+    deletions: list[dict[str, Any]] = []
+    kept: list[dict[str, Any]] = []
+    for message in messages:
+        deleted = _surface_id(message, [A2UI_DELETE_SURFACE_KEY])
+        if deleted is not None:
+            if deleted in shown:
+                shown.discard(deleted)
+                kept.append(message)
+            continue
+        created = _surface_id(
+            message, [A2UI_CREATE_SURFACE_KEY, A2UI_BEGIN_RENDERING_KEY]
+        )
+        if created in shown:
+            shown.discard(created)
+            deletions.append(delete_surface_message(created, version))
+        kept.append(message)
+    return deletions + kept
 
 
 class ContactAgent:
@@ -93,13 +144,19 @@ class ContactAgent:
         self._text_runner = self._build_runner(get_text_prompt())
         self._generators: dict[ProtocolVersion, A2uiGenerator] = {
             version: self._build_generator(version)
-            for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]
+            for version in [
+                ProtocolVersion.V0_8,
+                ProtocolVersion.V0_9,
+                ProtocolVersion.V1_0,
+            ]
         }
         # What each conversation's renderer shows. A later turn may update
         # the surfaces that an earlier turn created, such as the contact card
         # after a click on the org chart, so responses are checked against
-        # the UI of the whole conversation. The least recently used states
-        # are dropped once there are more than `_MAX_RENDERER_STATES`.
+        # the UI of the whole conversation. The prompt and the retry message
+        # list the surfaces the client shows, so the model updates them, or
+        # deletes one before it creates it again. The least recently used
+        # states are dropped once there are more than `_MAX_RENDERER_STATES`.
         self._renderer_states: OrderedDict[str, RendererState] = OrderedDict()
         self._agent_card = self._build_agent_card()
 
@@ -126,9 +183,7 @@ class ContactAgent:
         them, so the state starts over.
         """
         state = self._renderer_states.get(session_id)
-        if state is None or _catalog_keys(state.catalogs) != _catalog_keys(
-            processor.active_catalogs
-        ):
+        if state is None or not processor.accepts_state(state):
             state = processor.create_state()
             self._renderer_states[session_id] = state
         self._renderer_states.move_to_end(session_id)
@@ -183,7 +238,11 @@ class ContactAgent:
             model=LiteLlm(model=model),
             name=self._agent_name,
             description="An agent that finds colleague contact info.",
-            instruction=instruction,
+            # A function returns the instruction, so that ADK sends it as it
+            # is. ADK reads `{name}` in an instruction string as a state
+            # variable, and the prompt shows such text, like `{XID_Start}` in
+            # the v1.0 schemas.
+            instruction=lambda _: instruction,
             tools=[get_contact_info],
         )
         return Runner(
@@ -221,7 +280,9 @@ class ContactAgent:
         """Handles simulated UI actions like close_modal or view_location.
 
         The UI that an action shows is validated like a model response, and
-        applied to the conversation's renderer state.
+        applied to the conversation's renderer state. A surface that the
+        client already shows is deleted before the action creates it again,
+        and closing a surface that the client doesn't show sends no UI.
 
         Returns:
             The parts to send, or None if the query is not such an action.
@@ -238,7 +299,7 @@ class ContactAgent:
                 except Exception:
                     pass
             text = f"Message sent to {contact_name}"
-            json_content = load_send_message_example(contact_name, ui_version)
+            messages = json.loads(load_send_message_example(contact_name, ui_version))
 
         elif "view_location" in query:
             logger.info("--- ContactAgent.stream: Detected view_location ACTION ---")
@@ -272,22 +333,26 @@ class ContactAgent:
 
             logger.info("--- ContactAgent.stream: Sending Floor Plan ---")
             text = "Here is the floor plan."
-            json_content = json.dumps(load_floor_plan_example(ui_version, html_content))
+            messages = load_floor_plan_example(ui_version, html_content)
 
         elif "close_modal" in query:
             logger.info("--- ContactAgent.stream: Handling close_modal ACTION ---")
             # Action maps to closing the FloorPlan overlay
             text = "Modal closed."
-            json_content = json.dumps(load_close_modal_example(ui_version))
+            messages = load_close_modal_example(ui_version)
 
         else:
             return None
 
-        content = f"{text}\n{A2UI_OPEN_TAG}\n{json_content}\n{A2UI_CLOSE_TAG}"
+        messages = _fit_to_surfaces(messages, state.surface_ids, ui_version)
+        if not messages:
+            return _text_parts(text)
+        content = f"{text}\n{A2UI_OPEN_TAG}\n{json.dumps(messages)}\n{A2UI_CLOSE_TAG}"
         try:
-            return to_a2a_parts(
+            parts: list[Part] = to_a2a_parts(
                 processor.parse_response(content, state=state), version=ui_version
             )
+            return parts
         except A2uiError as e:
             # For example, the floor plan needs the inline catalog, which the
             # client may not render.
@@ -298,28 +363,37 @@ class ContactAgent:
         self,
         query: str,
         session_id: str,
-        client_ui_capabilities: Mapping[str, Any] | None = None,
         ui_version: ProtocolVersion | None = None,
+        client_ui_capabilities: Mapping[str, Any] | None = None,
+        use_streaming: bool = True,
     ) -> AsyncIterable[dict[str, Any]]:
-        """Answers one request, as text or, if `ui_version` is set, with UI."""
+        """Answers one request, as text or, if `ui_version` is set, with UI.
+
+        A client that sends no renderer capabilities, or none that the agent
+        can use, gets a text answer. With `use_streaming`, the parts of the
+        response are sent as the model writes them, and the final item has no
+        parts. Otherwise the whole response is validated first and sent in
+        the final item.
+        """
         session = await self._get_session(session_id)
-        if not ui_version:
+        processor: A2uiRequestProcessor | None = None
+        if ui_version and client_ui_capabilities is not None:
+            try:
+                processor = self._generators[ui_version].create_processor(
+                    client_ui_capabilities
+                )
+            except A2uiError as e:
+                logger.error(
+                    f"--- ContactAgent.stream: Cannot negotiate catalogs: {e} ---"
+                )
+        if not ui_version or processor is None:
+            if ui_version:
+                logger.warning(
+                    "--- ContactAgent.stream: No usable renderer capabilities."
+                    " Answering in text. ---"
+                )
             async for item in self._stream_text(query, session):
                 yield item
-            return
-
-        try:
-            processor = self._generators[ui_version].create_processor(
-                client_ui_capabilities
-            )
-        except A2uiError as e:
-            logger.error(f"--- ContactAgent.stream: Cannot negotiate catalogs: {e} ---")
-            yield {
-                "is_task_complete": True,
-                "parts": _text_parts(
-                    "I'm sorry, I can't show my interface in this client."
-                ),
-            }
             return
         state = self._renderer_state(session_id, processor)
 
@@ -330,10 +404,12 @@ class ContactAgent:
             return
 
         # The prompt shows the catalogs of this request, including the
-        # client's inline catalog.
+        # client's inline catalog, and the surfaces the client already shows.
         runner = self._build_runner(
             get_ui_prompt(
-                processor, examples_path=f"examples/{to_version_number(ui_version)}"
+                processor,
+                examples_path=f"examples/{to_version_number(ui_version)}",
+                surfaces_rule=get_existing_surfaces_rule(state.surface_ids, ui_version),
             )
         )
         current_query_text = query
@@ -348,30 +424,55 @@ class ContactAgent:
             received: list[str] = []
 
             async def token_stream() -> AsyncIterator[str]:
+                # In SSE mode, ADK sends the text in partial events, and then
+                # the whole text again in a final event. Only the partial text
+                # is sent on, so the parser sees each character once. v1.0
+                # rejects a second `createSurface` for the same surface.
+                saw_partial = False
                 async for event in runner.run_async(
                     user_id=self._user_id,
                     session_id=session.id,
                     run_config=run_config.RunConfig(
-                        streaming_mode=run_config.StreamingMode.SSE
+                        streaming_mode=(
+                            run_config.StreamingMode.SSE
+                            if use_streaming
+                            else run_config.StreamingMode.NONE
+                        )
                     ),
                     new_message=message,
                 ):
+                    is_partial = bool(event.partial)
+                    if not is_partial and saw_partial:
+                        saw_partial = False
+                        continue
+                    saw_partial = saw_partial or is_partial
                     if event.content and event.content.parts:
                         for p in event.content.parts:
                             if p.text:
                                 received.append(p.text)
                                 yield p.text
 
-            # The stream checks each message against the conversation's
-            # renderer state before it is sent, so the client only gets
-            # valid UI, and applies it to the state.
+            # Each message is checked against the conversation's renderer
+            # state before it is sent, so the client only gets valid UI, and
+            # applied to the state. A streamed message stays in the state when
+            # a later one fails, since the client holds it. A response parsed
+            # whole is applied all or nothing.
+            final_parts: list[Part] = []
             try:
-                async for part in stream_response_to_parts(
-                    processor.open_stream(state=state),
-                    token_stream(),
-                    version=ui_version,
-                ):
-                    yield {"is_task_complete": False, "parts": [part]}
+                if use_streaming:
+                    async for part in stream_response_to_parts(
+                        processor.open_stream(state=state),
+                        token_stream(),
+                        version=ui_version,
+                    ):
+                        yield {"is_task_complete": False, "parts": [part]}
+                else:
+                    async for _ in token_stream():
+                        pass
+                    final_parts = to_a2a_parts(
+                        processor.parse_response("".join(received), state=state),
+                        version=ui_version,
+                    )
             except A2uiError as e:
                 logger.warning(
                     f"--- ContactAgent.stream: A2UI validation failed: {e} (Attempt"
@@ -385,9 +486,16 @@ class ContactAgent:
                     " You MUST generate a valid response that strictly follows the"
                     " A2UI JSON SCHEMA. The response MUST be a JSON list of A2UI"
                     f" messages. Ensure each JSON part is wrapped in '{A2UI_OPEN_TAG}'"
-                    f" and '{A2UI_CLOSE_TAG}' tags. Please retry the original"
-                    f" request: '{query}'"
+                    f" and '{A2UI_CLOSE_TAG}' tags."
                 )
+                # The client keeps what was sent before the error, so the retry
+                # must not create those surfaces again.
+                surfaces_rule = get_existing_surfaces_rule(
+                    state.surface_ids, ui_version
+                )
+                if surfaces_rule:
+                    current_query_text += f" {surfaces_rule}"
+                current_query_text += f" Please retry the original request: '{query}'"
                 continue
 
             if not received:
@@ -402,11 +510,10 @@ class ContactAgent:
                 continue
 
             logger.info(
-                "--- ContactAgent.stream: Response is valid and was streamed"
-                f" (Attempt {attempt}). ---"
+                f"--- ContactAgent.stream: Response is valid (Attempt {attempt}). ---"
             )
-            # Every part was already sent while streaming.
-            yield {"is_task_complete": True, "parts": []}
+            # When streaming, every part was already sent.
+            yield {"is_task_complete": True, "parts": final_parts}
             return
 
         logger.error(

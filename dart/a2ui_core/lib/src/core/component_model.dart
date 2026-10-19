@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:collection';
+
 import 'package:meta/meta.dart';
 
 import '../primitives/errors.dart';
@@ -94,6 +96,21 @@ class SurfaceComponentsModel {
   final _onCreated = EventNotifier<ComponentModel>();
   final _onDeleted = EventNotifier<String>();
 
+  /// How many times a component has been added, removed or updated.
+  int _changes = 0;
+
+  /// What the last [checkComponentsUpdate] found about the graph, which
+  /// holds for this model while [_changes] is [_boundAt].
+  _GraphBound? _bound;
+  int _boundAt = -1;
+
+  /// The batch [_bound] describes the graph with, once applied.
+  List<Map<String, Object?>>? _boundBatch;
+
+  /// The catalogs the components name, as [catalogIds] returns them, or null
+  /// until asked for again after a component is removed.
+  List<String?>? _catalogIds;
+
   /// The catalog [refFields] is derived from until it is set.
   final Catalog<ComponentApi, FunctionApi>? _catalog;
 
@@ -145,6 +162,14 @@ class SurfaceComponentsModel {
   /// The components, in insertion order.
   Iterable<ComponentModel> get values => _components.values;
 
+  /// The distinct catalogs the components name, null for the surface's own,
+  /// in the order the first component naming each was added.
+  @internal
+  List<String?> get catalogIds => _catalogIds ??= {
+        for (final ComponentModel component in _components.values)
+          component.catalog,
+      }.toList();
+
   /// Adds a component to the model.
   void addComponent(ComponentModel component) {
     if (_components.containsKey(component.id)) {
@@ -153,6 +178,12 @@ class SurfaceComponentsModel {
       );
     }
     _components[component.id] = component;
+    _changes++;
+    component.onUpdated.subscribe((_) => _changes++);
+    if (_catalogIds case final List<String?> catalogIds
+        when !catalogIds.contains(component.catalog)) {
+      catalogIds.add(component.catalog);
+    }
     _onCreated.emit(component);
   }
 
@@ -160,6 +191,8 @@ class SurfaceComponentsModel {
   void removeComponent(String id) {
     final ComponentModel? component = _components.remove(id);
     if (component != null) {
+      _changes++;
+      _catalogIds = null;
       component.dispose();
       _onDeleted.emit(id);
     }
@@ -250,6 +283,14 @@ class SurfaceComponentsModel {
   /// [validateComponentsUpdate] with [refFields] in place of this model's,
   /// for a batch that draws on catalogs the model has not seen, and
   /// [defaultRootId] as the root when [ValidationConfig.rootId] is null.
+  ///
+  /// Under a [config] that checks neither references nor reachability, the
+  /// model keeps what the last check found about its graph, and once that
+  /// batch is applied and reported to [componentsUpdateApplied], the next
+  /// check walks only the part of the graph its batch reaches when that
+  /// shows the graph passes. Otherwise, or when it cannot show that, the
+  /// whole graph is walked, so a batch the graph rejects fails as it would
+  /// have without the shortcut.
   @internal
   void checkComponentsUpdate(
     List<Map<String, Object?>> components,
@@ -258,12 +299,9 @@ class SurfaceComponentsModel {
     String defaultRootId = 'root',
   }) {
     checkDuplicateComponentIds(components);
-    // Each component as its type and the map its references are read from.
-    // Existing components lend their properties map rather than a copy.
-    final candidate = <String, (String, Map<String, Object?>)>{
-      for (final MapEntry<String, ComponentModel> entry in _components.entries)
-        entry.key: (entry.value.type, entry.value.properties),
-    };
+    // Each component of the batch as its type and the map its references are
+    // read from.
+    final batch = <String, (String, Map<String, Object?>)>{};
     for (final component in components) {
       final Object? id = component['id'];
       if (id is! String) {
@@ -274,19 +312,66 @@ class SurfaceComponentsModel {
       final Object? type = component['component'];
       final ComponentModel? existing = _components[id];
       if (type is String) {
-        candidate[id] = (type, component);
+        batch[id] = (type, component);
       } else if (existing != null) {
-        candidate[id] = (existing.type, component);
+        batch[id] = (existing.type, component);
       } else {
         throw A2uiValidationError(
           "Cannot create component $id without a 'component' type.",
         );
       }
     }
+
+    final bool bounded = config.allowDanglingReferences &&
+        (config.allowOrphanComponents || config.allowMissingRoot);
+    final _GraphBound? bound = _bound;
+    final bool current = bound != null && _boundAt == _changes;
+    // The bound changes with the batch, and holds for the model again only
+    // once the batch is applied.
+    _bound = null;
+    _boundAt = -1;
+    if (bounded &&
+        current &&
+        (config.allowMissingRoot ||
+            batch.containsKey(config.rootId ?? defaultRootId) ||
+            has(config.rootId ?? defaultRootId)) &&
+        bound.admits(
+          batch,
+          refFields,
+          config.maxDepth ?? maxComponentDepth,
+          has,
+        )) {
+      _bound = bound;
+      _boundBatch = components;
+      return;
+    }
+
+    // Each component as its type and the map its references are read from.
+    // Existing components lend their properties map rather than a copy.
+    final candidate = <String, (String, Map<String, Object?>)>{
+      for (final MapEntry<String, ComponentModel> entry in _components.entries)
+        entry.key: (entry.value.type, entry.value.properties),
+      ...batch,
+    };
     checkComponentGraph(candidate.keys.toSet(), (String id) {
       final (String type, Map<String, Object?> source) = candidate[id]!;
       return componentReferences(source, refFields[type]);
     }, config, defaultRootId: defaultRootId);
+    if (bounded) {
+      _bound = _GraphBound.of(candidate, refFields);
+      _boundBatch = components;
+    }
+  }
+
+  /// Reports that [components], the batch the last [checkComponentsUpdate]
+  /// passed, has been applied, so that the next check may start from what
+  /// that one found.
+  @internal
+  void componentsUpdateApplied(List<Map<String, Object?>> components) {
+    if (_bound != null && identical(components, _boundBatch)) {
+      _boundAt = _changes;
+    }
+    _boundBatch = null;
   }
 
   /// Disposes of the model and all its components.
@@ -295,7 +380,153 @@ class SurfaceComponentsModel {
       component.dispose();
     }
     _components.clear();
+    _bound = null;
     _onCreated.dispose();
     _onDeleted.dispose();
+  }
+}
+
+/// What a check found about a surface's component graph, which had no
+/// self-reference and no cycle: the references each component holds, and an
+/// upper bound on the longest chain of references below each.
+///
+/// The bound is what lets a batch be checked without walking the whole
+/// graph again. A cycle the batch makes passes through one of its
+/// components, and only the chains through its components grow, so only
+/// those components and the ones above them are revisited.
+class _GraphBound {
+  _GraphBound._();
+
+  /// The bound of a graph [checkComponentGraph] passed, holding each id of
+  /// [graph] with its type and the map its references are read from through
+  /// [refFields].
+  factory _GraphBound.of(
+    Map<String, (String, Map<String, Object?>)> graph,
+    Map<String, ComponentRefFields> refFields,
+  ) {
+    final bound = _GraphBound._();
+    for (final MapEntry(key: String id, value: (String type, source))
+        in graph.entries) {
+      bound._setChildren(id, type, source, refFields);
+    }
+    // Children before parents, which ends since the graph has no cycle. A
+    // component waits on the stack until its children have their heights.
+    for (final String start in graph.keys) {
+      final stack = <String>[start];
+      while (stack.isNotEmpty) {
+        final String id = stack.last;
+        if (bound._heights.containsKey(id)) {
+          stack.removeLast();
+          continue;
+        }
+        var ready = true;
+        var height = 0;
+        for (final String child in bound._children[id]!) {
+          if (!graph.containsKey(child)) continue;
+          final int? below = bound._heights[child];
+          if (below == null) {
+            ready = false;
+            stack.add(child);
+          } else if (below >= height) {
+            height = below + 1;
+          }
+        }
+        if (!ready) continue;
+        bound._heights[id] = height;
+        if (height > bound._maxHeight) bound._maxHeight = height;
+        stack.removeLast();
+      }
+    }
+    return bound;
+  }
+
+  /// The ids each component references, held or not, in order.
+  final Map<String, List<String>> _children = {};
+
+  /// The components that reference each id, held or not.
+  final Map<String, Set<String>> _parents = {};
+
+  /// For each component, at least the number of references in the longest
+  /// chain below it.
+  final Map<String, int> _heights = {};
+
+  /// At least the largest of [_heights].
+  int _maxHeight = 0;
+
+  /// The reference fields each type's references were read through.
+  final Map<String, ComponentRefFields?> _fields = {};
+
+  void _setChildren(
+    String id,
+    String type,
+    Map<String, Object?> source,
+    Map<String, ComponentRefFields> refFields,
+  ) {
+    for (final String child in _children[id] ?? const <String>[]) {
+      _parents[child]?.remove(id);
+    }
+    final List<String> children = [
+      for (final ComponentReference reference
+          in componentReferences(source, refFields[type]))
+        reference.id,
+    ];
+    for (final child in children) {
+      (_parents[child] ??= <String>{}).add(id);
+    }
+    _children[id] = children;
+    _fields[type] = refFields[type];
+  }
+
+  /// Whether the graph with [batch] applied has no self-reference, no cycle
+  /// and no chain of more than [limit] references, which holds if this
+  /// bound shows it, updating the bound to that graph.
+  ///
+  /// [batch] holds each id with its type and the map its references are
+  /// read from through [refFields], and [held] tells whether the graph
+  /// holds an id before the batch. False means the bound cannot show it,
+  /// not that the graph fails, and leaves the bound unusable.
+  bool admits(
+    Map<String, (String, Map<String, Object?>)> batch,
+    Map<String, ComponentRefFields> refFields,
+    int limit,
+    bool Function(String id) held,
+  ) {
+    if (_maxHeight > limit) return false;
+    for (final MapEntry(key: String type, value: ComponentRefFields? fields)
+        in _fields.entries) {
+      if (!identical(refFields[type], fields)) return false;
+    }
+    bool holds(String id) => batch.containsKey(id) || held(id);
+
+    for (final MapEntry(key: String id, value: (String type, source))
+        in batch.entries) {
+      _setChildren(id, type, source, refFields);
+      if (_children[id]!.contains(id)) return false;
+    }
+    // Raises the bound of each component above one whose bound rose, until
+    // none rises. A cycle would raise its bounds past any limit.
+    final rising = ListQueue<String>();
+    for (final String id in batch.keys) {
+      var height = 0;
+      for (final String child in _children[id]!) {
+        final int below = _heights[child] ?? 0;
+        if (holds(child) && below >= height) height = below + 1;
+      }
+      _heights[id] = height;
+      rising.add(id);
+    }
+    while (rising.isNotEmpty) {
+      final String id = rising.removeFirst();
+      final int height = _heights[id]!;
+      if (height > limit) return false;
+      if (height > _maxHeight) _maxHeight = height;
+      for (final String parent in _parents[id] ?? const <String>{}) {
+        if ((_heights[parent] ?? 0) <= height) {
+          _heights[parent] = height + 1;
+          rising.add(parent);
+        }
+      }
+    }
+    return true;
   }
 }
