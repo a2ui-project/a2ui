@@ -17,7 +17,8 @@ The following directories contain the base protocol logic, parsing, and schema o
 ### Constants (`src/a2ui/constants.py`)
 
 - Protocol and SDK string constants such as `A2UI_OPEN_TAG`,
-  `A2UI_CLOSE_TAG` and `A2UI_CLIENT_CAPABILITIES_KEY`. Protocol versions are
+  `A2UI_CLOSE_TAG`, `A2UI_CLIENT_CAPABILITIES_KEY` and
+  `A2UI_RENDERER_CAPABILITIES_KEY`. Protocol versions are
   `a2ui.core.schema.ProtocolVersion` members. The
   module has no dependencies, so callers that only need a constant can import
   `a2ui.constants` without loading the rest of the SDK.
