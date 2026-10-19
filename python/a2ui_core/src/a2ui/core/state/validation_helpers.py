@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
 
 from ..exceptions import (
@@ -241,57 +242,101 @@ def validate_composition_constraints(
             }
 
     for comp_id, model in components.items():
-        if model.catalog is None or not hasattr(model.catalog, "get_component"):
+        component_api = composition_api(model)
+        if component_api is None:
             continue
-        component_api = model.catalog.get_component(model.type)
-        if not component_api:
-            continue
+        parent_info = parent_map.get(comp_id)
+        check_allowed_parent(
+            comp_id,
+            model,
+            component_api,
+            parent_info["parent_id"] if parent_info else None,
+            parent_info["parent_type"] if parent_info else None,
+        )
+        check_allowed_children(
+            comp_id, model, component_api, child_map.get(comp_id, []), type_map.get
+        )
 
-        allowed_parents = getattr(component_api, "allowed_parents", None)
-        if allowed_parents:
-            parent_info = parent_map.get(comp_id)
-            if parent_info is None:
-                parent_type = "Surface"
-                parent_id = "Surface"
-            else:
-                parent_type = parent_info["parent_type"]
-                parent_id = parent_info["parent_id"]
 
-            if parent_type not in allowed_parents:
-                msg = (
-                    f"Component '{comp_id}' ({model.type}) cannot be placed"
-                    f" under parent '{parent_id}' ({parent_type}). Allowed parents:"
-                    f" {allowed_parents}."
+def composition_api(model: ComponentModel) -> Any:
+    """Returns the catalog entry holding a component's composition constraints.
+
+    Returns None when the component's catalog cannot look up its type, in which
+    case its constraints are not checked.
+    """
+    if model.catalog is None or not hasattr(model.catalog, "get_component"):
+        return None
+    return model.catalog.get_component(model.type) or None
+
+
+def check_allowed_parent(
+    comp_id: str,
+    model: ComponentModel,
+    component_api: Any,
+    parent_id: str | None,
+    parent_type: str | None,
+) -> None:
+    """Checks a component's `allowed_parents` against the parent it is under.
+
+    `parent_id` and `parent_type` are those of the parent
+    `validate_composition_constraints` picks for the component, or None when no
+    component references it, in which case its parent is the surface.
+    """
+    allowed_parents = getattr(component_api, "allowed_parents", None)
+    if not allowed_parents:
+        return
+    if parent_id is None or parent_type is None:
+        parent_type = "Surface"
+        parent_id = "Surface"
+
+    if parent_type not in allowed_parents:
+        msg = (
+            f"Component '{comp_id}' ({model.type}) cannot be placed"
+            f" under parent '{parent_id}' ({parent_type}). Allowed parents:"
+            f" {allowed_parents}."
+        )
+        raise A2uiValidationError(
+            msg,
+            details=[
+                A2uiErrorDetail(
+                    path=f"components.{comp_id}",
+                    code="UNALLOWED_PARENT",
+                    message=msg,
                 )
-                raise A2uiValidationError(
-                    msg,
-                    details=[
-                        A2uiErrorDetail(
-                            path=f"components.{comp_id}",
-                            code="UNALLOWED_PARENT",
-                            message=msg,
-                        )
-                    ],
-                )
+            ],
+        )
 
-        allowed_children = getattr(component_api, "allowed_children", None)
-        if allowed_children:
-            children = child_map.get(comp_id, [])
-            for child_id in children:
-                child_type = type_map.get(child_id)
-                if child_type and child_type not in allowed_children:
-                    msg = (
-                        f"Component '{comp_id}' ({model.type}) cannot contain child"
-                        f" '{child_id}' ({child_type}). Allowed children:"
-                        f" {allowed_children}."
+
+def check_allowed_children(
+    comp_id: str,
+    model: ComponentModel,
+    component_api: Any,
+    children: Iterable[str],
+    type_of: Callable[[str], str | None],
+) -> None:
+    """Checks the types of a component's `children` against its `allowed_children`.
+
+    `type_of` returns the type of a component on the surface, or None for an id
+    the surface does not hold, whose type is not known yet and is not checked.
+    """
+    allowed_children = getattr(component_api, "allowed_children", None)
+    if not allowed_children:
+        return
+    for child_id in children:
+        child_type = type_of(child_id)
+        if child_type and child_type not in allowed_children:
+            msg = (
+                f"Component '{comp_id}' ({model.type}) cannot contain child"
+                f" '{child_id}' ({child_type}). Allowed children:"
+                f" {allowed_children}."
+            )
+            raise A2uiValidationError(
+                msg,
+                details=[
+                    A2uiErrorDetail(
+                        path=f"components.{comp_id}",
+                        code="UNALLOWED_CHILD",
+                        message=msg,
                     )
-                    raise A2uiValidationError(
-                        msg,
-                        details=[
-                            A2uiErrorDetail(
-                                path=f"components.{comp_id}",
-                                code="UNALLOWED_CHILD",
-                                message=msg,
-                            )
-                        ],
-                    )
+                ],
+            )

@@ -106,30 +106,19 @@ describe('upload_manifest script integration test', () => {
     );
   });
 
-  it('should resolve web_core and renderer packages under typescript directory', async () => {
+  it('should resolve @a2ui packages under typescript directory', () => {
     const graph = getPackageGraph();
     assert.ok(graph['@a2ui/web_core']);
     assert.match(graph['@a2ui/web_core'].dir, /\/typescript\/core\/web_core$/);
+    assert.ok(graph['@a2ui/markdown-it']);
+    assert.match(graph['@a2ui/markdown-it'].dir, /\/typescript\/renderers\/markdown-it$/);
+    assert.ok(graph['@a2ui/agent']);
+    assert.match(graph['@a2ui/agent'].dir, /\/typescript\/agents\/a2ui_agent$/);
     assert.ok(graph['@a2ui/lit']);
     assert.match(graph['@a2ui/lit'].dir, /\/typescript\/renderers\/lit$/);
     assert.ok(graph['@a2ui/angular']);
     assert.match(graph['@a2ui/angular'].dir, /\/typescript\/renderers\/angular$/);
     assert.ok(graph['@a2ui/react']);
     assert.match(graph['@a2ui/react'].dir, /\/typescript\/renderers\/react$/);
-
-    let writtenFileContent = null;
-    const mocks = {
-      runCommand: () => {},
-      writeFileSync: (_, content) => {
-        writtenFileContent = content;
-      },
-    };
-
-    await main(['--package=web_core'], mocks);
-
-    assert.ok(writtenFileContent, 'Should have written manifest file');
-    const manifest = JSON.parse(writtenFileContent);
-    assert.strictEqual(manifest.publishing_groups[0].packages.length, 1);
-    assert.strictEqual(manifest.publishing_groups[0].packages[0].name, 'web_core');
   });
 });

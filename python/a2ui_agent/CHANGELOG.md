@@ -1,45 +1,24 @@
 ## Unreleased
 
-- **BREAKING**: Package dependency updated to require `a2ui-core>=0.4.0,<0.5.0`.
-- `resolve_catalogs`, `validate_payload`, and the Direct JSON and Express
-  formats resolve cross-catalog `$ref`s between the catalogs they are given.
-  `resolve_catalogs` also resolves references into registered catalogs that
-  the renderer doesn't support and into the unpruned catalogs that
-  transformers start from. It links per-request copies, so the registered
-  catalogs are never modified, and an inline catalog is only linked when the
-  agent accepts it.
-- **BREAKING**: Remove the `a2ui.schema` package.
-  - The constants move to `a2ui.constants`. For example,
-    `from a2ui.schema import A2UI_OPEN_TAG` becomes
-    `from a2ui.constants import A2UI_OPEN_TAG`.
-  - `load_examples`, `resolve_examples_path`, `load_agent_to_renderer_schema`
-    and `load_common_types_schema` move to `a2ui.utils`.
-  - `find_repo_root`, `get_spec_dir`, `get_basic_catalog_path`,
-    `get_basic_examples_dir`, `wrap_as_json_array` and `deep_update` are
-    removed. The path helpers only worked in a repository checkout.
-  - The `VERSION_0_8`, `VERSION_0_9`, `VERSION_0_9_1` and `VERSION_1_0`
-    constants are removed. Use the `ProtocolVersion` members from
-    `a2ui.core.schema` instead, such as `ProtocolVersion.V0_9`. Their values
-    carry a leading "v" (`"v0.9"`); `a2ui.utils.to_version_number` returns the
-    bare form (`"0.9"`) for paths and URIs.
-  - The `SPECIFICATION_DIR` constant is removed.
-- `resolve_catalogs` and `A2uiGenerator.create_processor` read v0.8
-  capabilities in the shape the v0.8 specification defines, the entry itself
-  (`{"supportedCatalogIds": [...]}`), as well as keyed by `"v0.8"`. From v0.9
-  the capabilities must be keyed by protocol version.
-- Add `RendererState` to `a2ui.utils`. A `RendererState` is the agent's
-  mirror of the surfaces a renderer holds: it wraps one `MessageProcessor`
-  and checks each outbound message against everything sent before it, so a
-  canvas agent that keeps one state for the conversation catches a reference
-  to a component no turn sent, a cycle with components from an earlier turn,
-  or a new component that nothing reaches. A component that an update leaves
+- Add `RendererState` to `a2ui.utils`. A `RendererState` is the agent's mirror
+  of the surfaces a renderer holds: it wraps one `MessageProcessor` and checks
+  each outbound message against everything sent before it, so a canvas agent
+  that keeps one state for the conversation catches a reference to a component
+  no turn sent, a cycle with components from an earlier turn, or a new
+  component that nothing reaches. A component that an update leaves
   unreachable by rewriting its parent's children is accepted, since the
   protocol has no message that removes one component. `apply` is atomic,
-  `transaction` extends that to several calls, and `check_topology` checks
-  the trees of the surfaces a response touched. An update to a surface the
-  state never saw created is rejected, as the renderer would reject it. The
-  state holds the surfaces as they now stand, not the messages that built
-  them.
+  `transaction` extends that to several calls, and `check_topology` checks the
+  trees of the surfaces a response touched. Rolling back costs what the undone
+  messages changed, not the size of the surfaces they touched: the state keeps
+  an undo log and never copies a surface when a message is applied or a
+  transaction opens, so applying n messages to one surface takes time in
+  proportion to n. Transactions nest, and a failed inner transaction undoes
+  only what was applied inside it. `check_topology` rejects a v0.8 surface
+  whose updates are still buffered, waiting for its `beginRendering`. An
+  update to a surface the state never saw created is rejected, as the renderer
+  would reject it. The state holds the surfaces as they now stand, not the
+  messages that built them.
 - `validate_payload` runs the payload through a short-lived `RendererState`
   instead of building a new `MessageProcessor` for each surface and
   candidate catalog. Its results are unchanged, except that a v0.8 update
@@ -93,6 +72,36 @@
   that declare none, and a function call given to a property with a static
   type. Elemental output whose top-level element has no `id="root"` is
   rejected, as its prompt requires.
+
+## 0.9.0 (2026-10-17)
+
+- **BREAKING**: Package dependency updated to require `a2ui-core>=0.4.0,<0.5.0`.
+- `resolve_catalogs`, `validate_payload`, and the Direct JSON and Express
+  formats resolve cross-catalog `$ref`s between the catalogs they are given.
+  `resolve_catalogs` also resolves references into registered catalogs that
+  the renderer doesn't support and into the unpruned catalogs that
+  transformers start from. It links per-request copies, so the registered
+  catalogs are never modified, and an inline catalog is only linked when the
+  agent accepts it.
+- **BREAKING**: Remove the `a2ui.schema` package.
+  - The constants move to `a2ui.constants`. For example,
+    `from a2ui.schema import A2UI_OPEN_TAG` becomes
+    `from a2ui.constants import A2UI_OPEN_TAG`.
+  - `load_examples`, `resolve_examples_path`, `load_agent_to_renderer_schema`
+    and `load_common_types_schema` move to `a2ui.utils`.
+  - `find_repo_root`, `get_spec_dir`, `get_basic_catalog_path`,
+    `get_basic_examples_dir`, `wrap_as_json_array` and `deep_update` are
+    removed. The path helpers only worked in a repository checkout.
+  - The `VERSION_0_8`, `VERSION_0_9`, `VERSION_0_9_1` and `VERSION_1_0`
+    constants are removed. Use the `ProtocolVersion` members from
+    `a2ui.core.schema` instead, such as `ProtocolVersion.V0_9`. Their values
+    carry a leading "v" (`"v0.9"`); `a2ui.utils.to_version_number` returns the
+    bare form (`"0.9"`) for paths and URIs.
+  - The `SPECIFICATION_DIR` constant is removed.
+- `resolve_catalogs` and `A2uiGenerator.create_processor` read v0.8
+  capabilities in the shape the v0.8 specification defines, the entry itself
+  (`{"supportedCatalogIds": [...]}`), as well as keyed by `"v0.8"`. From v0.9
+  the capabilities must be keyed by protocol version.
 - **BREAKING**: Move `a2ui.inference_formats.experimental.express` to
   `a2ui.inference_formats.express`.
 - `ExpressCompiler`: a variable holding a function call that names its

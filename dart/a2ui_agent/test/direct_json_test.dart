@@ -497,6 +497,47 @@ void main() {
       );
     });
 
+    test('holds back a growing data model once its value nests too deep', () {
+      final DirectJsonParser reader = parser();
+      expect(
+        reader.parseChunk(
+          '<a2ui-json>[${create('s')}, {"version": "v0.9", "updateDataModel": '
+          '{"surfaceId": "s", "value": {"a": [1, ',
+        ),
+        isNotEmpty,
+      );
+      expect(reader.parseChunk('[' * 60), isEmpty);
+      expect(
+        () => reader.parseChunk('${']' * 61}}}}]</a2ui-json>'),
+        throwsError<A2uiRecursionError>(),
+      );
+    });
+
+    test('checks a later message against the value a data model closed '
+        'with', () {
+      final DirectJsonParser reader = parser();
+      expect(
+        reader.parseChunk(
+          '<a2ui-json>[${create('s')}, {"version": "v0.9", "updateDataModel": '
+          '{"surfaceId": "s", "path": "/items", "value": [',
+        ),
+        isNotEmpty,
+      );
+      expect(reader.parseChunk('1, 2]}}, '), isNotEmpty);
+      // The first item is a number, which has no property to set.
+      expect(
+        reader.parseChunk(
+          '{"version": "v0.9", "updateDataModel": {"surfaceId": "s", '
+          '"path": "/items/0/name", "value": "x"}}',
+        ),
+        isEmpty,
+      );
+      expect(
+        () => reader.parseChunk(']</a2ui-json>'),
+        throwsError<A2uiDataError>(),
+      );
+    });
+
     test('reads a block wrapped in a markdown fence', () {
       expect(
         stream(['<a2ui-json>\n``', '`json\n[${create('s')}]\n```</a2ui-json>']),
