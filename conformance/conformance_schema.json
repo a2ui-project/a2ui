@@ -1392,14 +1392,28 @@
         "baseline": {"const": "compile"},
         "chunk_size": {"type": "integer", "minimum": 1},
         "payload": {"$ref": "#/$defs/PayloadTemplate"},
-        "size": {"type": "integer", "minimum": 1, "description": "The size n the payload is written at."},
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The size n the payload is written at."
+        },
         "max_ratio": {
           "type": "number",
           "exclusiveMinimum": 1,
           "description": "The largest the median time of `operation` may be, as a multiple of the median time of `baseline`."
         }
       },
-      "required": ["name", "action", "args", "operation", "baseline", "chunk_size", "payload", "size", "max_ratio"],
+      "required": [
+        "name",
+        "action",
+        "args",
+        "operation",
+        "baseline",
+        "chunk_size",
+        "payload",
+        "size",
+        "max_ratio"
+      ],
       "additionalProperties": false
     },
     "CreateFormatTest": {
