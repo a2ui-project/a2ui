@@ -109,6 +109,11 @@ class PartialReadCache {
   final _ReadState _straight = _ReadState();
 }
 
+/// What the reads of a payload keep for the next read.
+///
+/// An offset is the index of a character in the text read, counting from 0
+/// at its first character, so the offset after a closing bracket is the
+/// index of the character that follows it.
 class _ReadState {
   /// Each list or map that closed, by the offset of its opening bracket,
   /// with the offset after its closing one.
@@ -118,8 +123,9 @@ class _ReadState {
   /// items that closed and the offset after the last of them.
   final Map<int, (List<Object?>, int)> open = {};
 
-  /// The messages of the list of messages that closed, with the offset after
-  /// the last of them, or null before the list holds one.
+  /// For a payload written as a list of messages, the messages whose JSON
+  /// object has closed, and the offset after the last of them, where the
+  /// next read goes on. Null until a read stops inside the list.
   (List<PartialMessage>, int)? messages;
 }
 
