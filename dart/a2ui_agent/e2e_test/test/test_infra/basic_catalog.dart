@@ -15,12 +15,11 @@
 import 'package:a2ui_agent/a2ui_agent.dart';
 import 'package:a2ui_core/a2ui_core.dart';
 
-/// The protocol versions each e2e turn runs in, each mapped to the reason the
-/// turn is skipped in it, or to null where it runs.
-const Map<A2uiProtocolVersion, String?> turnVersions = {
-  A2uiProtocolVersion.v0_9: null,
-  A2uiProtocolVersion.v1_0: 'Not implemented yet for v1.0.',
-};
+/// The protocol versions each e2e turn runs in.
+const List<A2uiProtocolVersion> turnVersions = [
+  A2uiProtocolVersion.v0_9,
+  A2uiProtocolVersion.v1_0,
+];
 
 /// The published basic catalog of [version], read from this package's root.
 CatalogApi loadBasicCatalog(A2uiProtocolVersion version) =>

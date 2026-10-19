@@ -26,7 +26,7 @@ import 'validation_config.dart';
 const String _rootComponentId = 'root';
 
 /// The deepest component chain a surface may declare.
-@visibleForTesting
+@internal
 const int maxComponentDepth = 50;
 
 /// The deepest chain of nested function calls a component property may hold.
@@ -179,15 +179,19 @@ final RegExp _pathPattern = RegExp(
   r'^(?:(?:\/(?:[^~\/]|~[01])*)*|(?:[^~\/]|~[01])+(?:\/(?:[^~\/]|~[01])*)*)$',
 );
 
-/// Rejects a batch of components that names the same id twice.
+/// Rejects a batch of components that names the same id twice, or names one
+/// of [earlier], the ids of the earlier batches of the same message.
 ///
 /// Throws [A2uiIntegrityError] for the first id that repeats.
-void checkDuplicateComponentIds(Iterable<Map<String, Object?>> components) {
+void checkDuplicateComponentIds(
+  Iterable<Map<String, Object?>> components, {
+  Set<String> earlier = const {},
+}) {
   final ids = <String>{};
   for (final component in components) {
     final Object? id = component['id'];
     if (id is! String) continue;
-    if (!ids.add(id)) {
+    if (earlier.contains(id) || !ids.add(id)) {
       throw A2uiIntegrityError(
         'Duplicate component ID: $id',
         componentIds: [id],

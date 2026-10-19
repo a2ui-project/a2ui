@@ -25,9 +25,8 @@ import 'test_infra/basic_catalog.dart';
 import 'test_infra/login_form.dart';
 
 void main() {
-  for (final MapEntry(key: A2uiProtocolVersion version, value: String? skip)
-      in turnVersions.entries) {
-    group(version.jsonValue, skip: skip, () => _turns(version));
+  for (final A2uiProtocolVersion version in turnVersions) {
+    group(version.jsonValue, () => _turns(version));
   }
 }
 
@@ -96,9 +95,8 @@ void _turns(A2uiProtocolVersion version) {
   test(
     'a streamed direct JSON turn builds the surface as it arrives',
     () async {
-      final Parser parser = DirectJsonFormatFactory(
-        progressiveKeys: const {'text', 'label'},
-        bufferIncompleteComponents: version.isAtLeast(A2uiProtocolVersion.v1_0),
+      final Parser parser = const DirectJsonFormatFactory(
+        progressiveKeys: {'text', 'label'},
       ).createFormat(processor.activeCatalogs).createParser();
 
       // A renderer applying each part as it arrives. A surface is incomplete

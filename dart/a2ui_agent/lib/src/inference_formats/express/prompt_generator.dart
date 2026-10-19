@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../prompt/allowed_messages.dart';
@@ -48,51 +50,52 @@ class ExpressPromptGenerator extends PromptGenerator {
   /// [allowedMessages], so without `deleteSurface` the model is not told about
   /// `deleteSurface(...)`.
   ///
+  /// From v1.0 the snippet also carries each catalog's `instructions`, with
+  /// the JSON examples in them written in Express where they can be, and,
+  /// when `callRendererFunction` is allowed, the functions the model may ask
+  /// the renderer to run: those the agent may call. With several catalogs it
+  /// tells the model how a component or function call names its catalog.
+  ///
   /// Throws [A2uiCatalogError] if [catalogs] is empty, since there would be
   /// nothing the model could be told to write, or target different protocol
   /// versions, [ArgumentError] if [allowedMessages] names a message type the
   /// catalogs' version does not have, and [A2uiValidationError] if an example
   /// has no Express notation; see [ExpressDecompiler.decompile].
-  ///
-  /// The prompt for v1.0 catalogs is not implemented yet and throws
-  /// [UnimplementedError].
   @override
   String generate() {
     if (this.catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
     }
-    // Linked copies resolve cross-catalog references; [catalogs] stay as
-    // they are.
-    final List<CatalogApi> catalogs = linkCatalogs(this.catalogs);
+    // The decompiler holds linked copies, which resolve cross-catalog
+    // references; [catalogs] stay as they are.
+    final decompiler = ExpressDecompiler(this.catalogs);
+    final List<CatalogApi> catalogs = decompiler.catalogs;
     final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
-    if (version.isAtLeast(A2uiProtocolVersion.v1_0)) {
-      throw UnimplementedError(
-        'ExpressPromptGenerator.generate for protocol v1.0',
-      );
-    }
+    final bool v1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
     final buffer = StringBuffer(
-      _rules(resolveAllowedMessages(allowedMessages, version)),
+      _rules(
+        resolveAllowedMessages(allowedMessages, version),
+        callable: v1 ? _agentCallable(catalogs) : const [],
+      ),
+    );
+    String section(CatalogApi catalog, String heading) => _catalogSection(
+      CatalogSchemaHelper(catalog),
+      heading,
+      instructions: v1 ? _instructions(catalog, decompiler, version) : null,
     );
     if (catalogs.length == 1) {
       buffer
         ..write('\n\n')
-        ..write(_catalogSection(CatalogSchemaHelper(catalogs.single), '##'));
+        ..write(section(catalogs.single, '##'));
     } else {
-      buffer.write(
-        '\n\n## Catalogs\n\n'
-        'Components and functions come from the catalogs below. A surface '
-        'uses one catalog. The first catalog, `${catalogs.first.id}`, is the '
-        'default. To build a surface from another catalog, name it in the '
-        'surface line, e.g. surface("my-surface", "${catalogs.last.id}").',
-      );
+      buffer.write(v1 ? _catalogsV1(catalogs) : _catalogsV0_9(catalogs));
       for (final catalog in catalogs) {
         buffer
           ..write('\n\n## Catalog `${catalog.id}`\n\n')
-          ..write(_catalogSection(CatalogSchemaHelper(catalog), '###'));
+          ..write(section(catalog, '###'));
       }
     }
     if (examples.isNotEmpty) {
-      final decompiler = ExpressDecompiler(catalogs);
       buffer.write(
         '\n\n## Examples\n\n'
         'Each example is one complete response block.',
@@ -105,7 +108,132 @@ class ExpressPromptGenerator extends PromptGenerator {
   }
 }
 
-String _catalogSection(CatalogSchemaHelper helper, String heading) =>
+/// Before v1.0 a surface uses one catalog, which its `surface(...)` line
+/// names unless it is the first.
+String _catalogsV0_9(List<CatalogApi> catalogs) =>
+    '\n\n## Catalogs\n\n'
+    'Components and functions come from the catalogs below. A surface '
+    'uses one catalog. The first catalog, `${catalogs.first.id}`, is the '
+    'default. To build a surface from another catalog, name it in the '
+    'surface line, e.g. surface("my-surface", "${catalogs.last.id}").';
+
+/// From v1.0 a surface names no catalog, and each component and function
+/// call belongs to the catalog declaring its name, which the model names
+/// when several catalogs declare it.
+String _catalogsV1(List<CatalogApi> catalogs) {
+  final String example = catalogs.last.id;
+  final buffer = StringBuffer(
+    '\n\n## Catalogs\n\n'
+    'Components and functions come from the catalogs below. A surface names '
+    'no catalog, so do not name one in the surface line. Each component and '
+    'function call, including checks, actions, nested calls and components '
+    'written inline, belongs to the catalog that declares its name. When '
+    'several catalogs declare a name, say which one you mean with a '
+    'catalogId argument, e.g. Name(..., catalogId="$example") for a '
+    'component or a function call, or ?check(..., {catalogId: "$example"}) '
+    'for a check. Do not add catalogId to any other name.',
+  );
+  final shared = <String>[];
+  for (final (String kind, bool components) in const [
+    ('Component', true),
+    ('Function', false),
+  ]) {
+    final Set<String> names = {
+      for (final CatalogApi catalog in catalogs)
+        ...(components ? catalog.components : catalog.functions).keys,
+    };
+    for (final String name in names.toList()..sort()) {
+      final List<String> declaring = [
+        for (final CatalogApi catalog in catalogs)
+          if ((components ? catalog.components : catalog.functions).containsKey(
+            name,
+          ))
+            '`${catalog.id}`',
+      ];
+      if (declaring.length > 1) {
+        shared.add('- $kind `$name`: ${declaring.join(', ')}');
+      }
+    }
+  }
+  if (shared.isNotEmpty) {
+    buffer
+      ..write(
+        '\n\nThese names are declared by several catalogs and need a '
+        'catalogId:\n',
+      )
+      ..write(shared.join('\n'));
+  }
+  return buffer.toString();
+}
+
+/// The functions of [catalogs] the agent may ask the renderer to run with
+/// `callRendererFunction`: those whose `allowedCallers` admits the agent, and
+/// which need no user activation, which a call from the agent never has.
+List<String> _agentCallable(List<CatalogApi> catalogs) => [
+  for (final CatalogApi catalog in catalogs)
+    for (final FunctionApi function in catalog.functions.values)
+      if (function.allowedCallers != AllowedCallers.rendererOnly &&
+          !function.requiresUserActivation)
+        function.name,
+];
+
+/// The `instructions` of [catalog], with each JSON example of messages in
+/// them written as the Express block it decompiles to, or null if it has
+/// none.
+///
+/// An example that is not a list of messages Express can write is kept as it
+/// is.
+String? _instructions(
+  CatalogApi catalog,
+  ExpressDecompiler decompiler,
+  A2uiProtocolVersion version,
+) {
+  final String? instructions = catalog.instructions;
+  if (instructions == null || instructions.trim().isEmpty) return null;
+  return instructions.replaceAllMapped(_jsonBlock, (Match match) {
+    final String? express = _express(match[1]!, decompiler, version);
+    return express == null ? match[0]! : '```\n<a2ui>\n$express\n</a2ui>\n```';
+  });
+}
+
+/// A fenced JSON code block, and its content.
+final RegExp _jsonBlock = RegExp(r'```json[ \t]*\n([\s\S]*?)\n```');
+
+/// [json], a message or a list of messages of [version], as Express, or null
+/// if it is not one or Express cannot write it.
+String? _express(
+  String json,
+  ExpressDecompiler decompiler,
+  A2uiProtocolVersion version,
+) {
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(json);
+  } on FormatException {
+    return null;
+  }
+  final List<Object?> items = decoded is List ? decoded : [decoded];
+  if (items.isEmpty || !items.every((i) => i is Map<String, Object?>)) {
+    return null;
+  }
+  try {
+    return decompiler.decompile(
+      AgentToRendererMessage.parseAll(
+        items.cast<Map<String, Object?>>(),
+        protocolVersion: version,
+      ).messages,
+    );
+  } on A2uiError {
+    return null;
+  }
+}
+
+String _catalogSection(
+  CatalogSchemaHelper helper,
+  String heading, {
+  String? instructions,
+}) {
+  final buffer = StringBuffer(
     '$heading Positional Component Signatures\n\n'
     'Use these exact positional signatures to instantiate components. Do not '
     'output property keys:\n'
@@ -113,7 +241,13 @@ String _catalogSection(CatalogSchemaHelper helper, String heading) =>
     '$heading Positional Function Signatures\n\n'
     'Use these exact positional signatures to instantiate check rules or '
     'logic functions:\n'
-    '${_functionSignatures(helper)}';
+    '${_functionSignatures(helper)}',
+  );
+  if (instructions != null) {
+    buffer.write('\n\n$heading Catalog Instructions\n\n$instructions');
+  }
+  return buffer.toString();
+}
 
 String _componentSignatures(CatalogSchemaHelper helper) {
   final signatures = <String>[];
@@ -207,7 +341,15 @@ String _functionSignatures(CatalogSchemaHelper helper) {
         details.add('  - $parameter: ${_indent(description)}');
       }
     }
-    signatures.add(['• $name(${arguments.join(', ')})', ...details].join('\n'));
+    signatures.add(
+      [
+        '• $name(${arguments.join(', ')})',
+        if (helper.catalog.functions[name]!.description
+            case final String description)
+          '  - Description: ${_indent(description)}',
+        ...details,
+      ].join('\n'),
+    );
   }
   return signatures.join('\n');
 }
@@ -220,8 +362,10 @@ String _indent(String text) => text.replaceAll('\n', '\n    ');
 /// numbered in order.
 ///
 /// A rule is kept if a statement it describes compiles to an allowed type, or
-/// if any statement may use it, such as the rule for strings.
-String _rules(List<String> allowed) {
+/// if any statement may use it, such as the rule for strings. The rule for
+/// standalone function calls names the [callable] functions, and is left out
+/// when there are none.
+String _rules(List<String> allowed, {required List<String> callable}) {
   final bool creates = allowed.contains('createSurface');
   final bool components = creates || allowed.contains('updateComponents');
   final bool data = allowed.contains('updateDataModel');
@@ -233,6 +377,8 @@ String _rules(List<String> allowed) {
     if (data) _dataModelRule,
     if (components) _templateRule,
     if (allowed.contains('deleteSurface')) _deleteSurfaceRule,
+    if (allowed.contains('callRendererFunction') && callable.isNotEmpty)
+      _rendererCallRule(callable),
     if (components) ..._argumentRules,
     if (components || data)
       creates ? '$_surfaceRule\nroot = ComponentB(...)' : _surfaceRule,
@@ -310,6 +456,11 @@ itemTemplate = Image($url)''';
 const String _deleteSurfaceRule =
     '''To delete a user interface surface, output the standalone `deleteSurface(surfaceId)` command (no variable assignment):
 deleteSurface("dashboard-surface-1")''';
+
+String _rendererCallRule(List<String> callable) =>
+    '''To have the renderer run a function right away, output the call as a standalone command (no variable assignment):
+${callable.first}(...)
+Only these functions can be called this way: ${callable.map((f) => '`$f`').join(', ')}.''';
 
 const List<String> _argumentRules = [
   "Static properties: Arguments annotated with '(static)' in the "

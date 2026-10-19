@@ -33,6 +33,7 @@ from a2ui.core import A2uiParseError
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.inference_formats.direct_json import DirectJsonParser
 from a2ui.parser import A2uiPart, TextPart
+from a2ui.utils import RendererState
 
 _BASIC = BasicCatalog("0.9")
 _CREATE = {
@@ -103,3 +104,27 @@ def test_parse_content_to_parts_falls_back_when_the_response_is_invalid():
     )
 
     assert [part.root.text for part in parts] == ["OK."]
+
+
+def test_parse_content_to_parts_checks_a_canvas_turn_against_its_state():
+    """A response that updates a surface from an earlier turn is kept."""
+    parser = DirectJsonParser([_BASIC])
+    state = RendererState([_BASIC])
+    root = {"id": "root", "component": "Text", "text": "Hi"}
+    update = {
+        "version": "v0.9",
+        "updateComponents": {"surfaceId": "s", "components": [root]},
+    }
+    parse_content_to_parts(
+        f"<a2ui-json>{json.dumps([_CREATE, update])}</a2ui-json>", parser, state=state
+    )
+    changed = {
+        **update,
+        "updateComponents": {"surfaceId": "s", "components": [{**root, "text": "Bye"}]},
+    }
+
+    parts = parse_content_to_parts(
+        f"<a2ui-json>{json.dumps([changed])}</a2ui-json>", parser, state=state
+    )
+
+    assert [part.root.data for part in parts] == [changed]

@@ -45,10 +45,11 @@ from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiGenerator, CatalogConfig
 
 # At startup: the catalogs that the agent supports (basic or bring your own)
-generator = A2uiGenerator([
+catalogs = [
     CatalogConfig(BasicCatalog(ProtocolVersion.V0_9)),
     CatalogConfig.from_path("path/to/catalog.json"),
-])
+]
+generator = A2uiGenerator(catalogs)
 
 # Per request: the capabilities that the client sent, keyed by protocol version
 processor = generator.create_processor({
@@ -83,7 +84,8 @@ Notes:
   `$ref`. The SDK resolves these references against the other catalogs it
   holds: for `A2uiGenerator`, every registered catalog, including ones the
   renderer doesn't support; for `A2uiRequestProcessor(catalogs)`, the catalogs
-  it is given. A reference that matches no catalog is a catalog error. See
+  it is given. A reference that matches no catalog can't be resolved, and a
+  response that uses it fails validation. See
   [Catalog Linking](../../docs/public/concepts/catalogs.md#catalog-linking).
 - You can define one `A2uiGenerator` for each protocol version and select the
   one for the version that the request activates.
@@ -97,8 +99,9 @@ for both the prompt snippet and the parser.
 
 - **Direct JSON** (`DirectJsonFormatFactory`, the default): the model writes
   A2UI messages as JSON inside `<a2ui-json>` tags. It is the only format that
-  streams: `processor.open_stream()` emits each message as soon as it reads
-  whole (see [Option B](#option-b-incremental-streaming-parsing-advanced)).
+  streams: `processor.open_stream()` emits each message as soon as part of it
+  reads, and again each time it grows (see
+  [Option B](#option-b-incremental-streaming-parsing-advanced)).
 - **Express** (`ExpressFormatFactory`): the model writes a compact notation
   inside `<a2ui>` tags, which the SDK compiles into A2UI messages. It needs far
   fewer output tokens than JSON, so a whole response arrives sooner. An Express
@@ -123,7 +126,8 @@ generator's for one request.
 Use the request's `processor.prompt_snippet` to produce the A2UI part of the
 system prompt, and combine it with your agent's role and workflow
 instructions. The snippet describes the format, the catalogs negotiated for
-the request (including inline catalogs that the client sent), and the
+the request (including inline catalogs that the client sent, when the
+generator was created with `accepts_inline_catalogs=True`), and the
 generator's examples, so build the prompt per request.
 
 ```python
@@ -224,15 +228,12 @@ from a2a.server.agent_execution import AgentExecutor
 
 
 class MyAgentExecutor(AgentExecutor):
-  def __init__(self, agent: LlmAgent, ...):
+  def __init__(self, agent: LlmAgent):
     self.agent = agent
-    ...
+    # ...
 
 
-agent_executor = MyAgentExecutor(
-    agent=agent,
-    ...
-)
+agent_executor = MyAgentExecutor(agent=agent)
 ```
 
 #### 4b. A2UI Extension Version Negotiation
@@ -244,12 +245,12 @@ from a2ui.a2a import try_activate_a2ui_extension
 from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 
 # In your request handler:
-activated_version = try_activate_a2ui_extension(context, agent_card)
+version = try_activate_a2ui_extension(context, agent_card)
 
-if activated_version:
+if version:
     # Negotiate the request's processor with the generator of that version
-    capabilities = context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
-    processor = generators[activated_version].create_processor(capabilities)
+    capabilities = (context.message.metadata or {}).get(A2UI_CLIENT_CAPABILITIES_KEY)
+    processor = generators[version].create_processor(capabilities)
 ```
 
 #### 4c. Select a Parsing Strategy
@@ -295,11 +296,15 @@ else:
     yield {"is_task_complete": True, "parts": parts}
 ```
 
-To wrap single messages yourself, use the `create_a2ui_part` helper.
+To wrap single messages yourself, use the `create_a2ui_part` helper. It takes a
+message dictionary, so convert the models in `A2uiPart.a2ui` with
+`to_message_dicts` from `a2ui.inference_formats` first.
 
 ##### Option B: Incremental Streaming Parsing (Advanced)
 
-Use this approach for sub-second UI updates. It needs the Direct JSON format, the only one that streams; `open_stream()` raises `NotImplementedError` for Express. The stream **automatically parses, validates, and fixes (heals)** the JSON payload chunks _incrementally_ as they arrive from the LLM stream. It yields valid UI messages _before_ the entire JSON block is complete by automatically closing open quotes and braces. Open the stream with `processor.open_stream()`, so that it validates against `processor.active_catalogs` and heals the format's progressive keys. From v1.0 on, the parser holds all of the processor's active catalogs and checks each component against the catalog that the component or its surface's `createSurface` names.
+Use this approach for sub-second UI updates. It needs the Direct JSON format, the only one that streams; `open_stream()` raises `NotImplementedError` for Express. The stream parses, heals and checks the JSON _incrementally_ as chunks arrive from the LLM. It emits a message as soon as part of it reads, by closing the open braces and brackets, and emits it again each time it grows. Only `createSurface`, `beginRendering` and `deleteSurface` wait until their object closes. Open the stream with `processor.open_stream()`, so that it checks each message against `processor.active_catalogs`: each component is checked against the catalog its surface uses or, from v1.0 on, the catalog the component names.
+
+A string still being written is emitted only for the format's progressive keys, whose open strings the stream closes where they stand. The default `DirectJsonFormatFactory()` has none, so a message with an open string waits until the string closes. To show text as it is written, pass `progressive_keys`, for example `DirectJsonFormatFactory(progressive_keys=DEFAULT_PROGRESSIVE_KEYS)` with `DEFAULT_PROGRESSIVE_KEYS` from `a2ui.constants`.
 
 > [!IMPORTANT]
 > **Prerequisite**: To use incremental streaming, your agent executor must support streaming mode. In ADK, enable this using `RunConfig`:
@@ -319,20 +324,24 @@ stream = processor.open_stream()
 # Inside your LLM stream loop:
 for chunk in llm_response_stream:
     # Yield text and partial UI updates as soon as they are ready.
-    yield {"is_task_complete": False, "parts": to_a2a_parts(stream.feed(chunk.text))}
+    if parts := to_a2a_parts(stream.feed(chunk.text), version=version):
+        yield {"is_task_complete": False, "parts": parts}
 
 # After the last chunk, close the stream. It emits the text still held back as a
 # possible tag, and raises if a block was left open.
-yield {"is_task_complete": False, "parts": to_a2a_parts(stream.close())}
+if parts := to_a2a_parts(stream.close(), version=version):
+    yield {"is_task_complete": False, "parts": parts}
 ```
 
 Always call `close()` after the last chunk: without it, trailing text that
 could still have started a tag is never emitted, and a block the model left
 open goes unreported.
 
-`feed` and `close` raise an `A2uiError` when a message is invalid. Messages
-emitted before the error were valid and have been sent, so a retry starts from
-the UI they built.
+`feed` and `close` raise an `A2uiError` when a message is invalid. The renderer
+already has the messages emitted before the error, and they may leave a surface
+incomplete: references and the root are checked only when a block closes. Read
+the retry with `processor.open_stream(state=stream.state)`, so it is checked
+against what the renderer holds.
 
 `stream_response_to_parts` from `a2ui.a2a` runs the same loop, closes the
 stream after the last token, and converts the parts to A2A parts:
@@ -341,18 +350,18 @@ stream after the last token, and converts the parts to A2A parts:
 from a2ui.a2a import stream_response_to_parts
 from a2ui.core import A2uiError
 
+stream = processor.open_stream()
 try:
-    async for part in stream_response_to_parts(
-        processor.open_stream(), token_stream, version=version
-    ):
+    async for part in stream_response_to_parts(stream, token_stream, version=version):
         yield {"is_task_complete": False, "parts": [part]}
 except A2uiError as e:
-    # Ask the model again, quoting the error.
+    # Ask the model again, quoting the error, and read the retry with
+    # processor.open_stream(state=stream.state).
     ...
 ```
 
 > [!TIP]
-> The Direct JSON stream performs content-based change detection to ensure components are only re-yielded if their content changes, minimizing bandwidth usage.
+> The Direct JSON stream re-emits a message only when its content changes. Change detection is per message, so a growing `updateComponents` is re-sent with all of its components so far, not only the changed ones.
 
 #### 4d. Chat and Canvas UIs
 
@@ -361,8 +370,10 @@ mirror of the surfaces the renderer holds. How long that state lives is what
 separates the two ways an agent shows UI.
 
 In a chat, each turn shows new UI. Pass no state: each call checks the response
-against an empty state, so a response that updates a surface it did not create
-is rejected. An agent that updates surfaces from earlier turns is a canvas.
+against an empty state, so from v0.9 on, a response that updates a surface it
+did not create is rejected. (A v0.8 renderer buffers updates to a surface until
+its `beginRendering`, so v0.8 accepts them.) An agent that updates surfaces
+from earlier turns is a canvas.
 
 ```python
 parts = processor.parse_response(text)
@@ -388,8 +399,10 @@ send(stream.close())
 
 A response parsed whole is applied to the state only if all of it is valid. A
 streamed response cannot be undone, since the renderer has already received
-what was emitted, so after a failure the state keeps the emitted messages and
-the next turn has to repair the surface.
+what was emitted, so after a failure the state keeps the emitted messages. The
+next turn is not required to make the components they added reachable, since
+no message removes a component, but it must resolve their dangling references
+and give the surface its root.
 
 To avoid passing the state on every call, bind it when creating the
 processor. Calls that pass no state then use it:
@@ -409,10 +422,17 @@ The state holds the surfaces as they now stand, not the messages that built
 them, and lives in memory, so keep it with the conversation session, for
 example in a dict keyed by session id. A state rejects an update to a surface
 it never saw created, as the renderer would. Since the processor is created per
-request, check that the state holds the request's catalogs before passing it;
-the processor raises `A2uiCatalogError` otherwise. The
-[custom-components-example](../../samples/agent/adk/custom-components-example)
-sample starts a new state when the client's catalogs change.
+request, the state must hold the request's catalogs in the same order, or the
+processor raises `A2uiCatalogError`. The active catalogs follow the order of
+the client's `supportedCatalogIds`, so a client that reorders its list needs a
+new state too. Check with `processor.accepts_state(state)`, and start a new
+state with `processor.create_state()` when it returns False:
+
+```python
+state = states.get(session_id)
+if state is None or not processor.accepts_state(state):
+    state = states[session_id] = processor.create_state()
+```
 
 ## Use Cases
 
@@ -435,7 +455,7 @@ instruction = "\n\n".join([
 ])
 
 # Use with your LLM framework (e.g., ADK)
-agent = LlmAgent(instruction=instruction, ...)
+agent = LlmAgent(model=..., name="...", instruction=instruction)
 ```
 
 ### 2. Dynamic Schemas (Context-Aware)
@@ -465,7 +485,7 @@ async def _prepare_session(self, context, run_request, runner):
 
   # 1. Determine client capabilities from metadata, keyed by protocol version,
   #    for example {"v0.9": {"supportedCatalogIds": [...]}}
-  capabilities = context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
+  capabilities = (context.message.metadata or {}).get(A2UI_CLIENT_CAPABILITIES_KEY)
 
   # 2. Negotiate a request processor for the client capabilities and load examples
   processor = self.generator.create_processor(capabilities)
@@ -550,7 +570,7 @@ extensions = [
 version = try_activate_a2ui_extension(context, self.agent_card)
 
 if version:
-    capabilities = context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
+    capabilities = (context.message.metadata or {}).get(A2UI_CLIENT_CAPABILITIES_KEY)
     processor = generators[version].create_processor(capabilities)
     runner = build_runner(build_instruction(processor))
 else:
@@ -575,7 +595,7 @@ supported_catalog_ids = set()
 for subagent in subagents:
   # ... fetch subagent_card ...
   for extension in subagent_card.capabilities.extensions:
-    if extension.uri == A2UI_EXTENSION_URI:
+    if extension.uri == get_a2ui_extension_uri(ProtocolVersion.V0_9):
       supported_catalog_ids.update(
         extension.params.get("supportedCatalogIds") or [])
 
@@ -660,7 +680,7 @@ async def set_proxy_capabilities_interceptor(
   message.metadata[A2UI_CLIENT_CAPABILITIES_KEY] = {
       "v0.9": {
           "supportedCatalogIds": [
-              "https://a2ui.org/specification/v0_9/basic_catalog.json"
+              "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
           ],
       },
   }
