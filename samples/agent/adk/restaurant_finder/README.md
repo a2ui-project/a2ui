@@ -89,9 +89,13 @@ This sample is featured in [Quickstart: Run A2UI in 5 Minutes](https://a2ui.org/
        }'
      ```
 
-     The response holds the A2UI messages as data parts with
-     `"version": "v1.0"`. Button clicks come back as data parts of the form
-     `{"version": "v1.0", "action": {...}}`.
+     The A2UI messages arrive as data parts with `"version": "v1.0"`. By
+     default the agent streams them in `working` status updates, so with
+     `message/send` they are in the task's `history`. Add a data part
+     `{"useStreaming": false}` to the message to get them in the final status
+     message instead. Button clicks come back as data parts of the form
+     `{"version": "v1.0", "action": {...}}`, or as a list of such messages
+     wrapped in `{"messages": [...]}`.
 
 ## How it works
 
@@ -102,15 +106,23 @@ This sample is featured in [Quickstart: Run A2UI in 5 Minutes](https://a2ui.org/
   renderer capabilities in the message metadata, keyed by protocol version:
   `a2uiClientCapabilities` for v0.8 and v0.9, `a2uiRendererCapabilities` for
   v1.0. The sample clients under [`samples/client`](../../../client) send the
-  catalogs that their renderer registers. A client that sends none gets a text
-  answer. Creating the processor checks the examples against the request's
-  catalogs.
+  catalogs that their renderer registers. A client that sends none, or none
+  that the agent can use, gets a text answer. Creating the processor checks
+  the examples against the request's catalogs.
 - The system prompt is built from that processor. Its prompt snippet
   describes the catalogs and lists the examples in the format's notation.
 - Each response shows new UI, so it is checked on its own. When streaming,
   `processor.open_stream()` validates each message before it is sent;
   otherwise `processor.parse_response()` validates the whole response. On an
-  error the agent asks the model to try again.
+  error, or if the response has no A2UI messages, the agent asks the model to
+  try again.
+- The responses use fixed surface ids, such as `default` for the results, and
+  from v0.9 on, creating a surface that the client already holds is an error.
+  The agent remembers which surfaces each conversation's client holds, and
+  sends `deleteSurface` before a response creates one of them again, for
+  example when the user searches a second time. When a streamed attempt fails
+  after some of its messages were sent, the agent deletes the surfaces that
+  attempt created before it retries.
 
 ## Disclaimer
 

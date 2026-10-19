@@ -12,14 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Mapping
 import logging
+from typing import Any
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
 from a2a.server.tasks import TaskUpdater
 from a2a.types import (
     DataPart,
-    Part,
     Task,
     TaskState,
     TextPart,
@@ -31,18 +32,46 @@ from a2a.utils import (
     new_task,
 )
 from a2a.utils.errors import ServerError
+
 from a2ui.a2a import try_activate_a2ui_extension
-from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.constants import (
+    A2UI_ACTIONS_KEY,
+    A2UI_CLIENT_CAPABILITIES_KEY,
+    A2UI_RENDERER_CAPABILITIES_KEY,
+    A2UI_VERSION_KEY,
+)
 from a2ui.core.schema import ProtocolVersion
 from agent import RestaurantAgent
 
 logger = logging.getLogger(__name__)
 
-# The message metadata key of the renderer capabilities in the v1.0 A2A
-# extension. v0.8 and v0.9 use `A2UI_CLIENT_CAPABILITIES_KEY`.
-RENDERER_CAPABILITIES_KEY = "a2uiRendererCapabilities"
 # The versions whose renderers send `{"version": ..., "action": {...}}`.
 _ACTION_VERSIONS = (ProtocolVersion.V0_9, ProtocolVersion.V1_0)
+
+
+def _find_ui_event(data: Any) -> Mapping[str, Any] | None:
+    """Returns the action that a renderer sent in a DataPart's data, if any.
+
+    A v0.8 renderer sends `{"userAction": {...}}`, and later renderers send
+    `{"version": ..., "action": {...}}`. The v1.0 A2A extension sends a list
+    of messages, or `{"messages": [...]}` where the transport needs an
+    object; the first message with an action is used.
+    """
+    if isinstance(data, Mapping) and isinstance(data.get("messages"), list):
+        data = data["messages"]
+    messages = data if isinstance(data, list) else [data]
+    for message in messages:
+        if not isinstance(message, Mapping):
+            continue
+        action = message.get(A2UI_ACTIONS_KEY)
+        if message.get(A2UI_VERSION_KEY) in _ACTION_VERSIONS and isinstance(
+            action, Mapping
+        ):
+            return action
+        user_action = message.get("userAction")
+        if isinstance(user_action, Mapping):
+            return user_action
+    return None
 
 
 class RestaurantAgentExecutor(AgentExecutor):
@@ -81,7 +110,7 @@ class RestaurantAgentExecutor(AgentExecutor):
         client_ui_capabilities = None
         if active_ui_version and context.message and context.message.metadata:
             client_ui_capabilities = context.message.metadata.get(
-                RENDERER_CAPABILITIES_KEY
+                A2UI_RENDERER_CAPABILITIES_KEY
                 if active_ui_version == ProtocolVersion.V1_0
                 else A2UI_CLIENT_CAPABILITIES_KEY
             )
@@ -98,20 +127,10 @@ class RestaurantAgentExecutor(AgentExecutor):
                         use_streaming = part.root.data["useStreaming"]
                         logger.info(f"  Part {i}: Found useStreaming={use_streaming}")
 
-                    if (
-                        part.root.data.get("version") in _ACTION_VERSIONS
-                        and "action" in part.root.data
-                    ):
-                        logger.info(
-                            f"  Part {i}: Found a2ui {part.root.data['version']}"
-                            " action payload."
-                        )
-                        ui_event_part = part.root.data["action"]
-                    elif "userAction" in part.root.data:
-                        logger.info(
-                            f"  Part {i}: Found a2ui v0.8 UI ClientEvent payload."
-                        )
-                        ui_event_part = part.root.data["userAction"]
+                    found_event = _find_ui_event(part.root.data)
+                    if found_event is not None:
+                        logger.info(f"  Part {i}: Found a2ui action payload.")
+                        ui_event_part = found_event
                     else:
                         logger.info(f"  Part {i}: DataPart (data: {part.root.data})")
                 elif isinstance(part.root, TextPart):
