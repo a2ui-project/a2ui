@@ -34,6 +34,10 @@ Object? readJson(String text) {
   }
 }
 
+/// One message of a payload still arriving: the message as it reads so far,
+/// and whether its JSON value has closed.
+typedef PartialMessage = ({Object? message, bool closed});
+
 /// The messages of a direct JSON payload of which [text] is the start,
 /// healed so that each reads as the message it is so far.
 ///
@@ -50,23 +54,68 @@ Object? readJson(String text) {
 /// that have closed: an item still arriving is left out of the list rather
 /// than healed.
 ///
+/// Only the part of [text] from [start] to [end], by default all of it, is
+/// read.
+///
+/// Given a [cache] that earlier reads of the same payload filled, a list or
+/// map that closed in one of them is taken from it rather than read again,
+/// as the same object, and a list still open is read on from its last item
+/// that closed. A caller must not change the lists and maps returned.
+///
 /// Returns no messages if [text] cannot be the start of a JSON document.
-List<Object?> readPartialMessages(
+List<PartialMessage> readPartialMessages(
   String text,
   Set<String> progressiveKeys, {
   Set<String> wholeItemKeys = const {},
+  PartialReadCache? cache,
+  int start = 0,
+  int? end,
 }) {
+  List<PartialMessage> read(String text, _ReadState? state) => _Reader(
+    text,
+    progressiveKeys,
+    wholeItemKeys,
+    state,
+    start,
+    end,
+  ).messages();
+
   try {
-    return _Reader(text, progressiveKeys, wholeItemKeys).messages();
+    return read(text, cache?._plain);
   } on FormatException {
     final String straight = _straightenQuotes(text);
     if (straight == text) return const [];
     try {
-      return _Reader(straight, progressiveKeys, wholeItemKeys).messages();
+      return read(straight, cache?._straight);
     } on FormatException {
       return const [];
     }
   }
+}
+
+/// What the reads of a payload as it arrives keep, so that each read of more
+/// of it reads only what the earlier ones left open.
+///
+/// Every read through a cache must start at the same offset, and read a text
+/// that holds the same characters as the earlier ones wherever both reach,
+/// and that reaches the end of every list or map they read: the direct JSON
+/// parser reads a block that only grows, less any markdown fence at its end.
+class PartialReadCache {
+  final _ReadState _plain = _ReadState();
+
+  /// The state of the reads of the text with curly quotes straightened,
+  /// which has the same offsets.
+  final _ReadState _straight = _ReadState();
+}
+
+class _ReadState {
+  /// Each list or map that closed, by the offset of its opening bracket,
+  /// with the offset after its closing one.
+  final Map<int, (Object?, int)> closed = {};
+
+  /// Each list still open, by the offset of its opening bracket, with the
+  /// items that closed and the offset after the last of them.
+  final Map<int, (List<Object?>, int)> open = {};
 }
 
 String _straightenQuotes(String text) => text
@@ -81,7 +130,15 @@ class _Unfinished implements Exception {
 }
 
 class _Reader {
-  _Reader(this.text, this.progressiveKeys, [this.wholeItemKeys = const {}]);
+  _Reader(
+    this.text,
+    this.progressiveKeys, [
+    this.wholeItemKeys = const {},
+    this._state,
+    int start = 0,
+    int? end,
+  ]) : _i = start,
+       _limit = end ?? text.length;
 
   final String text;
 
@@ -92,7 +149,14 @@ class _Reader {
   /// The keys whose list value holds only the items that have closed.
   final Set<String> wholeItemKeys;
 
-  int _i = 0;
+  /// What earlier reads of [text] found, as [PartialReadCache] keeps it, or
+  /// null.
+  final _ReadState? _state;
+
+  int _i;
+
+  /// Where the part of [text] being read ends.
+  final int _limit;
 
   /// Whether the value last read was closed early because [text] ended in
   /// it.
@@ -100,7 +164,7 @@ class _Reader {
 
   bool get _partial => progressiveKeys != null;
 
-  bool get _atEnd => _i >= text.length;
+  bool get _atEnd => _i >= _limit;
 
   Object? document() {
     _skipSpace();
@@ -110,12 +174,12 @@ class _Reader {
     return value;
   }
 
-  List<Object?> messages() {
+  List<PartialMessage> messages() {
     _skipSpace();
     if (_atEnd) return const [];
     if (text[_i] != '[') {
       try {
-        final Object? message = _value(healable: false);
+        final PartialMessage message = _message();
         _skipSpace();
         if (!_atEnd) _fail('unexpected text after the JSON value');
         return [message];
@@ -124,7 +188,7 @@ class _Reader {
       }
     }
     _i++;
-    final messages = <Object?>[];
+    final messages = <PartialMessage>[];
     while (true) {
       _skipSpace();
       if (_atEnd) return messages;
@@ -135,7 +199,7 @@ class _Reader {
         return messages;
       }
       try {
-        messages.add(_value(healable: false));
+        messages.add(_message());
       } on _Unfinished {
         return messages;
       }
@@ -147,6 +211,13 @@ class _Reader {
         _fail("expected ',' or ']'");
       }
     }
+  }
+
+  /// Reads one message, noting whether the text closed it or it was healed.
+  PartialMessage _message() {
+    _cut = false;
+    final Object? message = _value(healable: false);
+    return (message: message, closed: !_cut);
   }
 
   /// Reads one value. [healable] says whether a string value may be closed
@@ -163,17 +234,37 @@ class _Reader {
       ('false', false),
       ('null', null),
     ]) {
-      if (text.startsWith(word, _i)) {
+      if (_i + word.length <= _limit && text.startsWith(word, _i)) {
         _i += word.length;
         return value;
       }
       // A word cut short by the end of the text is still arriving.
-      if (_partial && word.startsWith(text.substring(_i))) _end();
+      if (_partial && word.startsWith(text.substring(_i, _limit))) _end();
     }
     _fail("unexpected character '$c'");
   }
 
-  Map<String, Object?> _object() {
+  Map<String, Object?> _object() => _closedOr(_readObject);
+
+  /// Reads a list or map through [read], unless an earlier read saw the one
+  /// that starts here close, and keeps it if it closes.
+  T _closedOr<T>(T Function() read) {
+    final Map<int, (Object?, int)>? closedValues = _state?.closed;
+    if (closedValues == null) return read();
+    final int start = _i;
+    if (closedValues[start] case (final Object? value, final int end)) {
+      _i = end;
+      return value as T;
+    }
+    final bool cutBefore = _cut;
+    _cut = false;
+    final T value = read();
+    if (!_cut) closedValues[start] = (value, _i);
+    _cut = cutBefore || _cut;
+    return value;
+  }
+
+  Map<String, Object?> _readObject() {
     _i++;
     final map = <String, Object?>{};
     while (true) {
@@ -206,39 +297,71 @@ class _Reader {
 
   /// Reads a list. When [wholeItems] is true, an item the text ends in is
   /// left out rather than healed.
-  List<Object?> _array({bool wholeItems = false}) {
+  List<Object?> _array({bool wholeItems = false}) =>
+      _closedOr(() => _readArray(wholeItems: wholeItems));
+
+  List<Object?> _readArray({required bool wholeItems}) {
+    final int start = _i;
     _i++;
-    final list = <Object?>[];
+    var list = <Object?>[];
+    // How many of the items closed, and where the text after the last of
+    // them starts, for the next read to go on from.
+    var closedItems = 0;
+    int resume = _i;
+    var afterItem = false;
+    if (_state?.open[start] case (final List<Object?> items, final int at)) {
+      list = [...items];
+      closedItems = items.length;
+      resume = _i = at;
+      afterItem = items.isNotEmpty;
+    }
+
+    List<Object?> healed() {
+      _state?.open[start] = (
+        closedItems == list.length ? list : list.sublist(0, closedItems),
+        resume,
+      );
+      return _healed(list);
+    }
+
     while (true) {
+      if (afterItem) {
+        _skipSpace();
+        if (_atEnd) return healed();
+        if (text[_i] == ',') {
+          _i++;
+        } else if (text[_i] != ']') {
+          _fail("expected ',' or ']'");
+        }
+      }
+      afterItem = true;
       _skipSpace();
-      if (_atEnd) return _healed(list);
+      if (_atEnd) return healed();
       if (text[_i] == ']') {
         _i++;
+        _state?.open.remove(start);
         return list;
       }
+      final bool cutBefore = _cut;
+      _cut = false;
       // An item has no key, so a string item is never closed early.
+      final Object? item;
       if (wholeItems) {
-        final bool cutBefore = _cut;
-        _cut = false;
-        final Object? item;
         try {
           item = _value(healable: false);
         } on _Unfinished {
-          return _healed(list);
+          return healed();
         }
-        if (_cut) return _healed(list);
-        _cut = cutBefore;
-        list.add(item);
+        if (_cut) return healed();
       } else {
-        list.add(_value(healable: false));
+        item = _value(healable: false);
       }
-      _skipSpace();
-      if (_atEnd) return _healed(list);
-      if (text[_i] == ',') {
-        _i++;
-      } else if (text[_i] != ']') {
-        _fail("expected ',' or ']'");
-      }
+      list.add(item);
+      // An item closed early ends the text, so the list closes early too.
+      if (_cut) continue;
+      _cut = cutBefore;
+      closedItems = list.length;
+      resume = _i;
     }
   }
 
@@ -248,6 +371,9 @@ class _Reader {
     _cut = true;
     return value;
   }
+
+  /// The start of a `\uXXXX` escape cut short, or nothing.
+  static final RegExp _cutEscape = RegExp(r'^(\\(u[0-9a-fA-F]{0,3})?)?$');
 
   String _string({required bool healable}) {
     _i++;
@@ -263,8 +389,8 @@ class _Reader {
         _i++;
         continue;
       }
-      if (_i + 1 >= text.length) {
-        _i = text.length;
+      if (_i + 1 >= _limit) {
+        _i = _limit;
         break;
       }
       final String escaped = text[_i + 1];
@@ -282,8 +408,8 @@ class _Reader {
         case 't':
           buffer.write('\t');
         case 'u':
-          if (_i + 6 > text.length) {
-            _i = text.length;
+          if (_i + 6 > _limit) {
+            _i = _limit;
             continue;
           }
           final int? code = int.tryParse(
@@ -291,6 +417,14 @@ class _Reader {
             radix: 16,
           );
           if (code == null) _fail('invalid unicode escape');
+          // The high half of a surrogate pair, with the text ending where
+          // the low half's escape may begin, is left out with it.
+          if (code >= 0xD800 &&
+              code <= 0xDBFF &&
+              _cutEscape.hasMatch(text.substring(_i + 6, _limit))) {
+            _i = _limit;
+            continue;
+          }
           buffer.writeCharCode(code);
           _i += 4;
         default:
