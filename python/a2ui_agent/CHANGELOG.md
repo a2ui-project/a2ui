@@ -41,7 +41,9 @@
   them.
 - `validate_payload` runs the payload through a short-lived `RendererState`
   instead of building a new `MessageProcessor` for each surface and
-  candidate catalog. Its results are unchanged.
+  candidate catalog. Its results are unchanged, except that a v0.8 update
+  that follows a `deleteSurface` of its surface is now buffered, as a v0.8
+  renderer does, instead of rejected.
 - `Parser.parse_response` and `Parser.open_stream` take an optional
   `RendererState`. Without one, a call checks the response against an empty
   state, as a chat turn that shows new UI: **BREAKING**, an update to a
