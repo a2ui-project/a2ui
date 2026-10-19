@@ -121,6 +121,53 @@ def test_each_version_reads_its_own_capabilities_key(protocol_version, capabilit
     assert _ids(resolved) == ["a"]
 
 
+@pytest.mark.parametrize(
+    "capabilities",
+    [
+        {"supportedCatalogIds": ["b", "a"]},
+        v0_8.V08Capabilities.model_validate({"supportedCatalogIds": ["b", "a"]}),
+    ],
+    ids=["mapping", "model"],
+)
+def test_v0_8_reads_the_unkeyed_capabilities_of_its_specification(capabilities):
+    """The v0.8 specification sends the capabilities entry itself."""
+    catalogs = [_config("a", "0.8", "Text"), _config("b", "0.8", "Text")]
+
+    resolved = resolve_catalogs(catalogs, capabilities)
+
+    assert _ids(resolved) == ["b", "a"]
+
+
+def test_v0_8_unkeyed_capabilities_may_declare_inline_catalogs():
+    inline = {"catalogId": "inline", "components": {}, "styles": {}}
+    capabilities = {"supportedCatalogIds": [], "inlineCatalogs": [inline]}
+
+    resolved = resolve_catalogs(
+        [_config("a", "0.8", "Text")], capabilities, accepts_inline_catalogs=True
+    )
+
+    assert _ids(resolved) == ["inline"]
+
+
+def test_unkeyed_capabilities_are_invalid_from_v0_9():
+    with pytest.raises(A2uiValidationError, match="no 'v0.9' entry"):
+        resolve_catalogs([_config("a", "0.9", "Text")], {"supportedCatalogIds": ["a"]})
+
+
+def test_v0_8_unkeyed_capabilities_with_an_unknown_field_are_invalid():
+    """An unknown field doesn't hide the entry; the entry model rejects it."""
+    with pytest.raises(A2uiValidationError, match="Invalid 'v0.8'"):
+        resolve_catalogs(
+            [_config("a", "0.8", "Text")],
+            {"supportedCatalogIds": ["a"], "custom": True},
+        )
+
+
+def test_v0_8_unkeyed_capabilities_need_the_catalog_ids():
+    with pytest.raises(A2uiValidationError, match="Invalid 'v0.8'"):
+        resolve_catalogs([_config("a", "0.8", "Text")], {"inlineCatalogs": []})
+
+
 def test_a_renderer_may_send_capabilities_for_several_versions():
     capabilities = {
         "v0.9": {"supportedCatalogIds": ["old"]},

@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.4.0 (2026-10-17)
+
 - Catalogs can reference components, property schemas and functions in peer
   catalogs with external `$ref`s such as
   `simplified_catalog_v1_0.json#/components/Text`. `Catalog.peer_catalogs`

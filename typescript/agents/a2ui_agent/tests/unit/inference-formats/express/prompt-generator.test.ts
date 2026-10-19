@@ -140,7 +140,7 @@ describe('ExpressPromptGenerator', () => {
       const expected =
         '## Positional Component Signatures\n\n' +
         'Use these exact positional signatures to instantiate components. Do not output property keys:\n' +
-        '• Chart(values (static), caption? (static))\n' +
+        '• Chart(values (static), caption?)\n' +
         '  - Description: Plots a series of numbers.\n' +
         '• Gauge(value (static))\n' +
         '  - Description: Shows a single value on a scale.\n\n' +

@@ -391,20 +391,51 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// Checks [args] against [catalog]'s argument schema for [name], leaving
   /// the calls nested in [args] unchecked.
   ///
-  /// For `MessageProcessor`, which has already checked every call's names
-  /// through [validateComponent] and checks each nested call against the
-  /// catalog it resolves to. [componentId] names the component the call is
-  /// nested in, for the error message.
+  /// For a caller that has already checked every call's names through
+  /// [validateComponent] and checks each nested call against the catalog it
+  /// resolves to, as `MessageProcessor` does, and an agent reading a payload
+  /// that names catalogs per call. [componentId] names the component the call
+  /// is nested in, for the error message.
   ///
   /// Throws [A2uiValidationError] if the catalog declares no such function or
   /// the arguments do not match its schema.
-  @internal
   void validateFunctionArgs(
     String name,
     Map<String, Object?> args, {
     Object? componentId,
   }) =>
       _checkArgs(name, _jsonMap(args), componentId: componentId);
+
+  /// Rejects a field of [call], a v1.0 function call of [catalog], that
+  /// `FunctionCall` does not evaluate: one other than `@call`, `catalogId`,
+  /// `args` and the properties the definition of its function in [catalog]
+  /// declares.
+  ///
+  /// For a call written on its own, such as the `callFunction` of a
+  /// `callRendererFunction`, which no component schema checks. Its arguments
+  /// are left to [validateFunction] or [validateFunctionArgs].
+  ///
+  /// Throws [A2uiValidationError] for such a field, or if [call] has no
+  /// string `@call`.
+  void validateFunctionCallFields(Map<Object?, Object?> call) {
+    final Object? name = call['@call'];
+    if (name is! String) {
+      throw A2uiValidationError("A function call has no string '@call'.");
+    }
+    final Object? declared = catalog.functions[name]?.definition?['properties'];
+    for (final Object? key in call.keys) {
+      if (_functionCallKeys.contains(key) ||
+          (declared is Map && declared.containsKey(key))) {
+        continue;
+      }
+      throw A2uiValidationError(
+        "Function call '$name' has no field '$key'. Its fields are: "
+        "${_functionCallKeys.join(', ')}.",
+      );
+    }
+  }
+
+  static const Set<String> _functionCallKeys = {'@call', 'catalogId', 'args'};
 
   void _checkArgs(
     String name,

@@ -32,12 +32,16 @@ public final class SurfaceViewModel: ObservableObject {
   public let catalogs: [String: AnyCatalog]
   public let defaultCatalogID: String?
 
-  /// The primary default catalog associated with this surface, if available.
+  /// The default catalog of this surface, or an empty catalog when it has none.
+  ///
+  /// A surface without a default catalog (allowed from v1.0) never falls back to one of its
+  /// other catalogs, because components and function calls must name the catalog they run in.
+  /// To resolve that catalog, use ``getCatalog(id:)``.
   public var catalog: AnyCatalog {
     if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
       return catalog
     }
-    return catalogs.values.first ?? Catalog(id: "empty", components: [])
+    return Catalog(id: "empty", components: [])
   }
   public let theme: [String: JSONValue]?
   public let metadata: [String: JSONValue]?
@@ -74,8 +78,17 @@ public final class SurfaceViewModel: ObservableObject {
   ) {
     self.surfaceID = surfaceID
     self.catalogs = catalogs
-    let resolvedDefaultCatalogID =
-      defaultCatalogID ?? (catalogs.count == 1 ? catalogs.keys.first : nil)
+    let allCatalogsAtLeastV10 =
+      !catalogs.isEmpty && catalogs.values.allSatisfy(\.isAtLeastV10)
+    let isAtLeastV10 = protocolVersion?.isAtLeastV10 ?? allCatalogsAtLeastV10
+    let resolvedDefaultCatalogID: String?
+    if let defaultCatalogID {
+      resolvedDefaultCatalogID = defaultCatalogID
+    } else if !isAtLeastV10, catalogs.count == 1 {
+      resolvedDefaultCatalogID = catalogs.keys.first
+    } else {
+      resolvedDefaultCatalogID = nil
+    }
     self.defaultCatalogID = resolvedDefaultCatalogID
     self.theme = theme
     self.metadata = metadata
@@ -89,8 +102,10 @@ public final class SurfaceViewModel: ObservableObject {
       let catVer = defaultCat.a2uiProtocolVersion
     {
       explicitVersion = catVer
-    } else if let firstCatVer = catalogs.values.first?.a2uiProtocolVersion {
-      explicitVersion = firstCatVer
+    } else if allCatalogsAtLeastV10 {
+      explicitVersion = .v10
+    } else if catalogs.count == 1, let onlyCatVer = catalogs.values.first?.a2uiProtocolVersion {
+      explicitVersion = onlyCatVer
     } else {
       explicitVersion = nil
     }
@@ -125,7 +140,7 @@ public final class SurfaceViewModel: ObservableObject {
     self.init(
       surfaceID: surfaceID,
       catalogs: dict,
-      defaultCatalogID: defaultCatalogID ?? (catalogs.count == 1 ? catalogs.first?.id : nil),
+      defaultCatalogID: defaultCatalogID,
       theme: theme,
       metadata: metadata,
       actionHandler: actionHandler,
@@ -187,5 +202,9 @@ extension SurfaceViewModel: FunctionHandler {
 
   public func handleFunctionError(_ error: any Error, functionName: String) {
     nodeResolver.handleFunctionError(error, functionName: functionName)
+  }
+
+  public func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {
+    try nodeResolver.validateFunctionCatalog(id: catalogID, functionName: functionName)
   }
 }

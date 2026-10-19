@@ -26,6 +26,12 @@ dependencies = [
     "regex>=2024.11.6",
 ]
 
+[project.urls]
+Homepage = "https://a2ui.org/"
+Repository = "https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_core"
+Changelog = "https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_core/CHANGELOG.md"
+Issues = "https://github.com/a2ui-project/a2ui/issues"
+
 [dependency-groups]
 dev = [
     "pyyaml>=6.0.3",
