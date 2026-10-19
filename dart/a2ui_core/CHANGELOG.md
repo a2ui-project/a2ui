@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- A component's `accessibility.hidden` resolves as a dynamic value, as its
+  `label` and `description` do, so it reaches `node.props` as a binding to
+  its value, and a `hidden` bound to a data path follows the data.
 - Resolve cross-catalog `$ref` pointers across peer catalogs in
   `resolvedComponentSchemas`, `validationSchema`, `refMap`, `PayloadValidator`
   and `MessageProcessor`:
