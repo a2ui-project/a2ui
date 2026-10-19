@@ -19,17 +19,26 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 /// Plays the media at [url] with a play button and a progress bar, below the
-/// video frame when [showVideo] is true.
+/// video frame when [showVideo] is true. The frame shows the image at
+/// [posterUrl] until the media first plays.
 class MediaPlayer extends StatefulWidget {
   /// Creates a player for [url]. A null or empty one loads nothing, and a URL
   /// that is not `http` or `https` shows a failure.
-  const MediaPlayer({super.key, required this.url, this.showVideo = false});
+  const MediaPlayer({
+    super.key,
+    required this.url,
+    this.showVideo = false,
+    this.posterUrl,
+  });
 
   /// The URL of the media.
   final String? url;
 
   /// Whether to show the video frame.
   final bool showVideo;
+
+  /// The URL of the image the frame shows before the media first plays.
+  final String? posterUrl;
 
   @override
   State<MediaPlayer> createState() => _MediaPlayerState();
@@ -94,6 +103,13 @@ class _MediaPlayerState extends State<MediaPlayer> {
     final VideoPlayerValue? value = failed ? null : controller?.value;
     final bool ready = value?.isInitialized ?? false;
     final bool playing = value?.isPlaying ?? false;
+    final bool started =
+        playing || (value?.position ?? Duration.zero) > Duration.zero;
+    final String poster = widget.posterUrl ?? '';
+    final bool showPoster =
+        !failed &&
+        !started &&
+        (poster.startsWith('http://') || poster.startsWith('https://'));
     final Color errorColor = Theme.of(context).colorScheme.error;
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -102,13 +118,22 @@ class _MediaPlayerState extends State<MediaPlayer> {
         if (widget.showVideo)
           AspectRatio(
             aspectRatio: ready ? value!.aspectRatio : 16 / 9,
-            child: ready
+            child: ready && !showPoster
                 ? VideoPlayer(controller!)
                 : ColoredBox(
                     color: Theme.of(
                       context,
                     ).colorScheme.surfaceContainerHighest,
-                    child: failed ? const Icon(Icons.videocam_off) : null,
+                    child: failed
+                        ? const Icon(Icons.videocam_off)
+                        : showPoster
+                        ? Image.network(
+                            poster,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const SizedBox.shrink(),
+                          )
+                        : null,
                   ),
           ),
         Row(

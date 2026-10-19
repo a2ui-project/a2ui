@@ -19,5 +19,6 @@
 ## Unreleased
 
 - Add the v1.0 basic catalog, `basicCatalogV1_0()`.
+- Support the v1.0 `TextField.placeholder`, `Slider.steps` and `Video.posterUrl`.
 - Ignore `deprecated_member_use` warnings on `package:flutter/material.dart` imports on Flutter beta (#3235).
 - Initial version.

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
@@ -58,6 +59,19 @@ void main() {
 
       expect(find.text('Name'), findsOneWidget);
       expect(_controller(tester).text, 'Ada');
+    });
+
+    testWidgets('shows its v1.0 placeholder as the hint', (tester) async {
+      await pumpComponents(
+        tester,
+        [
+          _field({'placeholder': 'Ada Lovelace'}),
+        ],
+        catalog: basicCatalogV1_0(),
+        version: A2uiProtocolVersion.v1_0,
+      );
+
+      expect(_textField(tester).decoration!.hintText, 'Ada Lovelace');
     });
 
     testWidgets('is empty without a value', (tester) async {

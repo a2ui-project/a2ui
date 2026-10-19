@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
@@ -98,6 +99,31 @@ void main() {
 
     _slider(tester).onChanged!(4.6);
     expect(harness.data('/n'), isA<int>().having((n) => n, 'value', 5));
+  });
+
+  testWidgets('snaps to its v1.0 steps', (tester) async {
+    final SurfaceHarness harness = await pumpComponents(
+      tester,
+      [
+        {
+          'id': 'root',
+          'component': 'Slider',
+          'max': 1,
+          'steps': 4,
+          'value': {'@path': '/level'},
+        },
+      ],
+      catalog: basicCatalogV1_0(),
+      data: {'level': 0},
+      version: A2uiProtocolVersion.v1_0,
+    );
+    expect(_slider(tester).divisions, 4);
+
+    _slider(tester).onChanged!(0.3);
+    expect(harness.data('/level'), 0.25);
+
+    _slider(tester).onChanged!(0.99);
+    expect(harness.data('/level'), isA<int>().having((n) => n, 'value', 1));
   });
 
   testWidgets('writes a whole value from 2^53 up as a double', (tester) async {

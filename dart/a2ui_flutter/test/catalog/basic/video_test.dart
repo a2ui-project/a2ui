@@ -14,6 +14,7 @@
 
 import 'dart:async';
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
@@ -24,6 +25,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../support/basic_test_catalog.dart';
 import '../../support/fake_video_player_platform.dart';
+import '../../support/image_server.dart';
 import '../../support/surface_harness.dart';
 
 final CatalogImplementation _catalog = basicTestCatalog([
@@ -86,6 +88,35 @@ void main() {
       expect(frame.width / frame.height, closeTo(4 / 3, 0.01));
       expect(_enabled(tester, Icons.play_arrow), isTrue);
       expect(_progress, findsOneWidget);
+    });
+
+    testWidgets('shows its v1.0 poster until the video first plays', (
+      tester,
+    ) async {
+      const poster = 'https://example.com/poster.png';
+      final server = ImageServer({}, fallback: widePng);
+      await withImageServer(server, () async {
+        await pumpComponents(
+          tester,
+          [
+            {..._video(_url), 'posterUrl': poster},
+          ],
+          catalog: basicCatalogV1_0(),
+          version: A2uiProtocolVersion.v1_0,
+        );
+        platform.initialize(0);
+        await tester.pump();
+        await settleImages(tester);
+
+        expect(server.requested, [poster]);
+        expect(find.byType(VideoPlayer), findsNothing);
+
+        await tester.tap(_button(Icons.play_arrow));
+        await tester.pump();
+
+        expect(find.byType(VideoPlayer), findsOneWidget);
+        expect(find.byType(Image), findsNothing);
+      });
     });
 
     testWidgets('plays and pauses', (tester) async {
