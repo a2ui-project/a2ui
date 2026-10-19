@@ -186,13 +186,18 @@ python3 .github/scripts/release_version.py plan --package "${PACKAGE}" --bump "$
 > this as "has not been released yet" or "requires ..., but the latest release
 > ... is ...".
 >
-> **First release of `a2ui-a2a` and `a2ui-adk`.** They have no tag yet and
-> start from `0.0.0`, so use a `minor` bump to release `0.1.0`. A `patch` bump
-> gives `0.0.1`, which falls outside the `a2ui-a2a>=0.1.0` pin of `a2ui-adk`.
-> Both require `a2ui-agent-sdk>0.8.0`, the first agent SDK release without
-> `a2ui.a2a` and `a2ui.adk`. Release `a2ui-agent-sdk,a2ui-a2a,a2ui-adk` with a
-> `minor` bump in one run, or release `a2ui-agent-sdk` first, merge its
-> changelog pull request, then release `a2ui-a2a,a2ui-adk` with a `minor` bump.
+> **First release of a brand-new package.** A package with no tag yet starts
+> from `0.0.0`, so use a `minor` bump to release `0.1.0`. Before its first
+> release, the package name must be added to the OSS Exit Gate allowlist for
+> `a2ui/pypi` and registered as a **Pending Publisher** on
+> `https://pypi.org/manage/account/publishing/` under the **Google** tab with
+> email `a2ui-py@oss-exit-gate-prod.iam.gserviceaccount.com` and an empty
+> subject (see `go/a2ui-release#pypi`). PyPI indexes Google Cloud Pending
+> Publishers uniquely by `(email, sub)`, so **only one Pending Publisher can be
+> registered at a time**. Do not release two brand-new packages in the same
+> manifest: register and publish them one at a time so the first upload
+> promotes its Pending Publisher to a project-scoped Trusted Publisher before
+> registering the second.
 
 Put the proposal to the maintainer with `ask_question`, showing the pending
 entries and the resulting versions, and let them correct it.
@@ -412,6 +417,8 @@ is updated. It also cannot be triggered from a branch or a tag, only `main`.
 
 **`... is already on PyPI`** — the version was published previously. It cannot be
 republished. Work out why the tag series and PyPI disagree before retrying.
+
+**`One or more packages are not in the project's allowlist` or `400 Non-user identities cannot create new projects` in Exit Gate logs**: a brand-new package name must be added to the OSS Exit Gate allowlist and registered as a Pending Publisher on `https://pypi.org/manage/account/publishing/` before its first release. Because PyPI allows only one Pending Publisher at a time for `a2ui-py@oss-exit-gate-prod.iam.gserviceaccount.com`, publish brand-new packages one at a time. See [docs/contributing/release.md](../../../docs/contributing/release.md#releasing-a-new-package-for-the-first-time) and `go/a2ui-release#pypi`.
 
 **A dry run or failed staging left artifacts behind** — the cleanup step runs
 even on partial failure, but if it was itself skipped, remove the staged version
