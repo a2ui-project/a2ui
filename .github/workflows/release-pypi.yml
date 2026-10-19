@@ -132,13 +132,12 @@ jobs:
 
       - uses: ./.github/actions/setup-python
 
-      # a2ui-core and a2ui-agent-sdk always have tags, so finding theirs proves
-      # the checkout has the tags. a2ui-a2a and a2ui-adk are left out because
-      # they have no tag before their first release.
+      # Every Python package has release tags, so verifying each tag series
+      # confirms that the checkout includes the tags needed to derive versions.
       - name: Confirm release tags are visible
         run: |
           set -euo pipefail
-          for glob in 'python/a2ui-core/v*' 'python/a2ui-agent-sdk/v*'; do
+          for glob in 'python/a2ui-core/v*' 'python/a2ui-agent-sdk/v*' 'python/a2ui-a2a/v*' 'python/a2ui-adk/v*'; do
             if ! git describe --tags --match "$glob" >/dev/null 2>&1; then
               echo "::error::No tag matching $glob is reachable. Versions would" \
                 "fall back instead of being derived from tags."

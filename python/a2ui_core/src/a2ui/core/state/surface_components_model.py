@@ -23,8 +23,10 @@ from ..exceptions import (
     A2uiValidationError,
 )
 from ..schema import ProtocolVersion
+from ._graph_index import GraphIndex
 from .component_model import ComponentModel
 from .validation_helpers import (
+    MAX_GLOBAL_DEPTH,
     analyze_topology,
     validate_component_integrity,
     validate_composition_constraints,
@@ -40,6 +42,15 @@ class SurfaceComponentsModel:
         self._components: dict[str, ComponentModel] = {}
         self.on_created = EventSource()
         self.on_deleted = EventSource()
+        # Counts the changes to the components, so that `_index` is used only
+        # for the graph it describes.
+        self._changes = 0
+        # What the last check found about the graph (see GraphIndex), which
+        # describes the components while `_changes` is `_index_at`.
+        self._index: GraphIndex | None = None
+        self._index_at = -1
+        # The batch `_index` describes the graph with, until it is applied.
+        self._index_batch: list[ComponentModel] | None = None
 
     def __len__(self) -> int:
         """Returns total number of components."""
@@ -91,6 +102,8 @@ class SurfaceComponentsModel:
         if component.id in self._components:
             raise A2uiStateError(f"Component with id '{component.id}' already exists.")
         self._components[component.id] = component
+        self._changes += 1
+        component.on_updated.subscribe(self._note_change)
         self.on_created.emit(component)
 
     def remove_component(self, component_id: str) -> None:
@@ -98,8 +111,12 @@ class SurfaceComponentsModel:
         if component_id in self._components:
             comp = self._components[component_id]
             del self._components[component_id]
+            self._changes += 1
             comp.dispose()
             self.on_deleted.emit(component_id)
+
+    def _note_change(self, _: object = None) -> None:
+        self._changes += 1
 
     def get_child_references(self, component_id: str) -> list[tuple[str, str]]:
         """Resolves child component references for a given component identifier."""
@@ -176,6 +193,14 @@ class SurfaceComponentsModel:
     ) -> None:
         """Validates inbound component models schema, composition constraints, and graph completeness BEFORE updating surface state.
 
+        Under a config that allows dangling references, and orphans or a
+        missing root, the model keeps what the last check found about its
+        graph (see `GraphIndex`). Once that batch is applied and reported to
+        `components_update_applied`, the next check reads only the components
+        its batch changes, and walks the whole graph only when that cannot
+        show the graph passes. The checks and their errors are the same either
+        way. Under any other config every check reads the whole graph.
+
         Args:
             new_components: The inbound component models.
             root_id: The surface root component id.
@@ -223,20 +248,90 @@ class SurfaceComponentsModel:
                 details=all_errors,
             )
 
-        prospective_components = dict(self._components)
-        for comp_model in new_components:
-            prospective_components[comp_model.id] = comp_model
-
-        validate_composition_constraints(prospective_components)
-        validate_component_integrity(
-            prospective_components, root_id=root_id, config=config
+        batch = {comp_model.id: comp_model for comp_model in new_components}
+        index = self._index if self._index_at == self._changes else None
+        # The index changes with the batch, and describes the components again
+        # only once the batch is applied.
+        self._index = None
+        self._index_at = -1
+        self._index_batch = None
+        # Under a config that checks neither references nor reachability, the
+        # graph checks need only the components the batch changes.
+        deferred = config.allow_dangling_references and (
+            config.allow_orphan_components or config.allow_missing_root
         )
-        analyze_topology(prospective_components, root_id=root_id, config=config)
+        if deferred and index is not None:
+            index.check_composition(batch, self._components)
+            if (
+                not config.allow_missing_root
+                and root_id not in batch
+                and root_id not in self._components
+            ):
+                raise A2uiIntegrityError(
+                    f"Missing root component: No component has id='{root_id}'"
+                )
+            limit = (
+                config.max_depth if config.max_depth is not None else MAX_GLOBAL_DEPTH
+            )
+            if index.admits(
+                batch,
+                limit,
+                lambda comp_id: comp_id in batch or comp_id in self._components,
+            ):
+                index.record_batch(batch, self._components)
+                self._keep_index(index, new_components)
+                return
+            # The index cannot show that the graph passes; walk all of it.
+            prospective_components = dict(self._components)
+            prospective_components.update(batch)
+            analyze_topology(prospective_components, root_id=root_id, config=config)
+        else:
+            prospective_components = dict(self._components)
+            prospective_components.update(batch)
+            validate_composition_constraints(prospective_components)
+            validate_component_integrity(
+                prospective_components, root_id=root_id, config=config
+            )
+            analyze_topology(prospective_components, root_id=root_id, config=config)
+        if deferred:
+            self._keep_index(GraphIndex.of(prospective_components), new_components)
+
+    def _keep_index(
+        self, index: GraphIndex, new_components: list[ComponentModel]
+    ) -> None:
+        """Keeps the index of the graph a checked batch leaves, until it is applied.
+
+        A component replaced by one of another type or catalog moves to the end
+        of the surface when it is applied, which changes the order the index
+        records, so the index is not kept then.
+        """
+        for comp_model in new_components:
+            existing = self._components.get(comp_model.id)
+            if existing is not None and (
+                existing.type != comp_model.type
+                or existing.catalog is not comp_model.catalog
+            ):
+                return
+        self._index = index
+        self._index_batch = new_components
+
+    def components_update_applied(self, new_components: list[ComponentModel]) -> None:
+        """Reports that a batch `validate_components_update` passed has been applied.
+
+        The next check may then start from what that check found about the
+        graph, rather than walking the whole graph. A batch that is checked
+        but not applied, or a change made in any other way, makes the next
+        check walk the whole graph.
+        """
+        if self._index is not None and new_components is self._index_batch:
+            self._index_at = self._changes
+        self._index_batch = None
 
     def dispose(self) -> None:
         """Disposes of the model and all its components."""
         for component in list(self._components.values()):
             component.dispose()
         self._components.clear()
+        self._index = None
         self.on_created.dispose()
         self.on_deleted.dispose()
