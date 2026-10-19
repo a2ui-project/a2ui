@@ -309,6 +309,103 @@ void main() {
     });
   });
 
+  group('accessibility', () {
+    testWidgets('marks a polite or assertive component as a live region', (
+      tester,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      await _pump(tester, [
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['polite', 'assertive', 'off'],
+        },
+        {
+          'id': 'assertive',
+          'component': 'Text',
+          'text': 'Offline',
+          'accessibility': {'label': 'Status', 'live': 'assertive'},
+        },
+        {
+          'id': 'polite',
+          'component': 'Text',
+          'text': '3 new',
+          'accessibility': {'label': 'Unread', 'live': 'polite'},
+        },
+        {
+          'id': 'off',
+          'component': 'Text',
+          'text': 'Archive',
+          'accessibility': {'label': 'Old', 'live': 'off'},
+        },
+      ]);
+
+      expect(
+        tester.getSemantics(find.bySemanticsLabel(RegExp('^Unread'))),
+        isSemantics(isLiveRegion: true),
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel(RegExp('^Status'))),
+        isSemantics(isLiveRegion: true),
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel(RegExp('^Old'))),
+        isSemantics(isLiveRegion: false),
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('hides a component while its bound hidden is true', (
+      tester,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      final SurfaceHarness harness = await _pump(
+        tester,
+        [
+          {
+            'id': 'root',
+            'component': 'Text',
+            'text': 'Secret',
+            'accessibility': {'hidden': _bind('/hidden')},
+          },
+        ],
+        dataModel: {'hidden': true},
+      );
+
+      expect(find.text('Secret'), findsOneWidget);
+      expect(find.bySemanticsLabel('Secret'), findsNothing);
+
+      harness.surface().dataModel.set('/hidden', false);
+      await tester.pump();
+
+      expect(find.bySemanticsLabel('Secret'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('reads a hidden that is a validation result by its validity', (
+      tester,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      await _pump(tester, [
+        {
+          'id': 'root',
+          'component': 'Text',
+          'text': 'Secret',
+          'accessibility': {
+            'hidden': {
+              '@call': 'required',
+              'args': {'value': 'x'},
+            },
+          },
+        },
+      ]);
+
+      expect(find.text('Secret'), findsOneWidget);
+      expect(find.bySemanticsLabel('Secret'), findsNothing);
+      semantics.dispose();
+    });
+  });
+
   group('basic components', () {
     testWidgets('TextField does not check validationRegexp', (tester) async {
       await _pump(
