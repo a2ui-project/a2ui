@@ -31,17 +31,30 @@ Widget buildTextField(
   ComponentNode<ComponentImplementation> node,
   ComponentProps props,
   ChildWidgetBuilder buildChild,
-) => limitUnboundedWidth(
-  context,
-  _TextField(
-    label: props.string('label'),
-    value: props.string('value') ?? '',
-    variant: props.string('variant'),
-    pattern: props.string('validationRegexp'),
-    error: props.validationErrors.firstOrNull,
-    write: writerFor(context, props, 'value'),
-  ),
-);
+) => _build(context, props, null);
+
+/// Builds the v0.9 basic `TextField` component as [buildTextField] does, also
+/// showing an error while a text that is not empty does not match
+/// `validationRegexp`.
+Widget buildTextFieldV0_9(
+  BuildContext context,
+  ComponentNode<ComponentImplementation> node,
+  ComponentProps props,
+  ChildWidgetBuilder buildChild,
+) => _build(context, props, props.string('validationRegexp'));
+
+Widget _build(BuildContext context, ComponentProps props, String? pattern) =>
+    limitUnboundedWidth(
+      context,
+      _TextField(
+        label: props.string('label'),
+        value: props.string('value') ?? '',
+        variant: props.string('variant'),
+        pattern: pattern,
+        error: props.validationErrors.firstOrNull,
+        write: writerFor(context, props, 'value'),
+      ),
+    );
 
 /// Shown when the text does not match `validationRegexp`.
 const String _invalidFormatMessage = 'Invalid format';
