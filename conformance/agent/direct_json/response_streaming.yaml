@@ -3561,6 +3561,12 @@
     catalog: "test_data/catalogs/streaming_catalog_v0_8.json"
     progressive_keys: ["valueString"]
   steps:
+    - input: '<a2ui-json>[{"beginRendering": {"surfaceId": "default", "root": "root"}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - beginRendering:
+                surfaceId: "default"
+                root: "root"
     - input: '<a2ui-json>[ {"dataModelUpdate": {"surfaceId": "default", "contents": [{"key": "infoLink", "valueString": "[More Info](x)"}, {"key'
       expect: []
     - input: '": "rating", "valueString": "5 star'
@@ -3635,6 +3641,12 @@
     catalog: "test_data/catalogs/streaming_catalog_v0_8.json"
     progressive_keys: []
   steps:
+    - input: '<a2ui-json>[{"beginRendering": {"surfaceId": "default", "root": "root"}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - beginRendering:
+                surfaceId: "default"
+                root: "root"
     - input: '<a2ui-json>[ {"dataModelUpdate": {"surfaceId": "default", "contents": [{"key": "title", "valueString": "Top Restaurants"}, {"key": "items", "valueMap": ['
       expect:
         - a2ui:

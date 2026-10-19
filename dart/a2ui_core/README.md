@@ -130,3 +130,5 @@ dart analyze --fatal-infos
 dart format --output=none --set-exit-if-changed .
 dart test
 ```
+
+`dart test` skips the tests tagged `performance`, which time `processMessages` on surfaces of two sizes for `conformance/core/message_processor_scaling.yaml`, since a slow or loaded machine can fail them. Run them with `dart test -P performance`. CI runs them in a job of their own.

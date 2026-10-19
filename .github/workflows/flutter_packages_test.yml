@@ -171,3 +171,35 @@ jobs:
       - name: Analyze code
         working-directory: ${{ matrix.package.path }}
         run: flutter analyze --fatal-infos
+
+  # The tests tagged `performance` time streaming and checking payloads of two
+  # sizes, as conformance/agent/direct_json/scaling.yaml describes. A slow or
+  # loaded runner can fail them, so `dart_test.yaml` skips them in the jobs
+  # above and they run here, in a job of their own. package:test cannot stop a
+  # test that never yields, and a regression can make these run for minutes,
+  # so the job has a time limit of its own.
+  performance:
+    name: ${{ matrix.package.name }} (stable, performance)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - name: dart_a2ui_agent
+            path: dart/a2ui_agent
+          - name: dart_a2ui_core
+            path: dart/a2ui_core
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-dart
+        with:
+          channel: stable
+      - name: Install dependencies
+        working-directory: ${{ matrix.package.path }}
+        run: dart pub get
+      - name: Run performance tests
+        working-directory: ${{ matrix.package.path }}
+        run: dart test -P performance
