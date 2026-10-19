@@ -18,5 +18,7 @@
 
 ## Unreleased
 
+- **Breaking:** The v0.9 basic catalog moved to
+  `package:a2ui_flutter/v0_9/basic_catalog.dart`, under the same names.
 - Ignore `deprecated_member_use` warnings on `package:flutter/material.dart` imports on Flutter beta (#3235).
 - Initial version.

@@ -191,7 +191,7 @@ a `ChildWidgetBuilder`:
 
 ## Basic Catalog Components
 
-`package:a2ui_flutter/basic_catalog.dart` implements the
+`package:a2ui_flutter/v0_9/basic_catalog.dart` implements the
 [v0.9 basic catalog](../../specification/v0_9/catalogs/basic/catalog.json)
 with Material widgets. `basicCatalog()` builds all of it, and
 `BasicComponents` holds each component for a catalog of your own.
