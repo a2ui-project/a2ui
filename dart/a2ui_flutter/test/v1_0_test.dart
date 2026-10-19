@@ -239,6 +239,29 @@ void main() {
       );
     });
 
+    testWidgets('TextField shows its placeholder beside its label', (
+      tester,
+    ) async {
+      await _pump(tester, [
+        {
+          'id': 'root',
+          'component': 'TextField',
+          'label': 'Zip',
+          'placeholder': '94043',
+        },
+      ]);
+
+      final AnimatedOpacity placeholder = tester.widget(
+        find
+            .ancestor(
+              of: find.text('94043'),
+              matching: find.byType(AnimatedOpacity),
+            )
+            .first,
+      );
+      expect(placeholder.opacity, 1);
+    });
+
     testWidgets('Icon follows a bound svgPath', (tester) async {
       final SurfaceHarness harness = await _pump(
         tester,

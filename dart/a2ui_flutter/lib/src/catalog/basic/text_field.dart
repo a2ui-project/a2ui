@@ -22,10 +22,10 @@ import '../../component_props.dart';
 import 'unbounded_width.dart';
 import 'write_back.dart';
 
-/// Builds the basic `TextField` component: a text input labelled `label`
-/// that writes every edit to the path `value` is bound to, and otherwise
-/// keeps the edit itself. An edit the data model rejects is replaced by the
-/// bound value.
+/// Builds the basic `TextField` component: a text input labelled `label`,
+/// showing `placeholder` while it is empty, that writes every edit to the
+/// path `value` is bound to, and otherwise keeps the edit itself. An edit the
+/// data model rejects is replaced by the bound value.
 Widget buildTextField(
   BuildContext context,
   ComponentNode<ComponentImplementation> node,
@@ -48,6 +48,7 @@ Widget _build(BuildContext context, ComponentProps props, String? pattern) =>
       context,
       _TextField(
         label: props.string('label'),
+        placeholder: props.string('placeholder'),
         value: props.string('value') ?? '',
         variant: props.string('variant'),
         pattern: pattern,
@@ -85,6 +86,7 @@ bool _onlyDeletes(String previous, String next) {
 class _TextField extends StatefulWidget {
   const _TextField({
     required this.label,
+    required this.placeholder,
     required this.value,
     required this.variant,
     required this.pattern,
@@ -93,6 +95,7 @@ class _TextField extends StatefulWidget {
   });
 
   final String? label;
+  final String? placeholder;
   final String value;
   final String? variant;
   final String? pattern;
@@ -176,10 +179,17 @@ class _TextFieldState extends State<_TextField> {
     final number = variant == 'number';
     final long = variant == 'longText';
     final String? label = widget.label;
+    final String? placeholder = widget.placeholder;
+    final bool hasPlaceholder = placeholder != null && placeholder.isNotEmpty;
     return TextField(
       controller: _controller,
       decoration: InputDecoration(
         labelText: label == null || label.isEmpty ? null : label,
+        hintText: hasPlaceholder ? placeholder : null,
+        // A label resting in the field would hide the placeholder.
+        floatingLabelBehavior: hasPlaceholder
+            ? FloatingLabelBehavior.always
+            : null,
         errorText: _errorText,
       ),
       obscureText: obscured,
