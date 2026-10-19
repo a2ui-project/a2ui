@@ -765,8 +765,7 @@ def _resolve_surface_components(surface: Any) -> dict[str, dict[str, Any]]:
         parts = [p for p in data_path.strip("/").split("/") if p]
         idx_suffix = parts[-1] if parts and parts[-1].isdigit() else None
         if idx_suffix is not None:
-            known_ids = set(surface.components_model.keys)
-            for child_id, _ in comp.get_child_references(known_ids):
+            for child_id, _ in comp.get_child_references():
                 _resolve_one(child_id, data_path, f"{child_id}_{idx_suffix}")
                 _resolve_one(child_id, data_path, f"{child_id}-[{data_path}]")
 

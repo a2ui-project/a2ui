@@ -207,6 +207,7 @@ class ComponentModel:
             return
 
         target_catalog = catalog if catalog is not None else self.catalog
+        protocol_version = getattr(target_catalog, "protocol_version", None)
         ref_spec = (
             target_catalog.get_component_ref_spec(self.type)
             if target_catalog is not None
@@ -214,7 +215,14 @@ class ComponentModel:
             else None
         )
 
-        if ref_spec is not None and (ref_spec.single_refs or ref_spec.list_refs):
+        if ref_spec is not None and (
+            ref_spec.single_refs
+            or ref_spec.list_refs
+            or (
+                protocol_version is not None
+                and str(protocol_version).lstrip("v") != "0.8"
+            )
+        ):
             yield from ref_spec.extract_child_references(props)
             return
 
