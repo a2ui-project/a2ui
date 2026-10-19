@@ -117,6 +117,15 @@ with these notable differences:
 ./deploy.sh <PROJECT_ID> <SERVICE_NAME> [MODEL_NAME]
 ```
 
+The sample needs A2UI SDK releases that aren't on PyPI yet, so locally it runs
+on the SDKs in this repository, through the path entries in
+`[tool.uv.sources]`. Cloud Run only receives the sample directory, so
+`deploy.sh` deploys a temporary copy of it instead.
+[`build_sdk_wheels.sh`](../build_sdk_wheels.sh) builds wheels of `a2ui-core`,
+`a2ui-agent-sdk` and `a2ui-a2a` into the copy, points its `[tool.uv.sources]`
+at them and updates its `uv.lock`. Run `deploy.sh` from a clone of this
+repository that has its git tags, with `uv` installed.
+
 ## Updating the component catalog
 
 `gemini_enterprise_composite_catalog.json` is a copy of the public A2UI v0.9

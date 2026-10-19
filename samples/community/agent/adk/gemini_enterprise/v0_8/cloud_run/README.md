@@ -20,6 +20,8 @@ Before running the deployment script, ensure you have the following:
 
 - A [Google Cloud Project](https://cloud.google.com/resource-manager/docs/creating-managing-projects) with billing enabled.
 - [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) installed and up to date.
+- [uv](https://docs.astral.sh/uv/) installed, and a clone of this repository
+  that has its git tags. See the deployment section for why.
 
 ### Authentication
 
@@ -78,12 +80,21 @@ For example:
 ./deploy.sh  my-gcp-project my-gemini-agent gemini-2.5-pro
 ```
 
+The sample needs A2UI SDK releases that aren't on PyPI yet, so locally it runs
+on the SDKs in this repository, through the path entries in
+`[tool.uv.sources]`. Cloud Run only receives the sample directory, so the
+script deploys a temporary copy of it instead.
+
 The script will:
 
-1.  **Build a container image** from your source code.
-2.  **Push the image** to the Google Container Registry.
-3.  **Deploy the image** to Cloud Run.
-4.  **Set environment variables**, including the `MODEL` and the public
+1.  **Copy the sample** to a temporary directory.
+    [`build_sdk_wheels.sh`](../../build_sdk_wheels.sh) builds wheels of
+    `a2ui-core`, `a2ui-agent-sdk` and `a2ui-a2a` into the copy, points its
+    `[tool.uv.sources]` at them and updates its `uv.lock`.
+2.  **Build a container image** from the copy.
+3.  **Push the image** to the Google Container Registry.
+4.  **Deploy the image** to Cloud Run.
+5.  **Set environment variables**, including the `MODEL` and the public
     `AGENT_URL` of the service itself.
 
 Once the script completes, it will print the service URL of your deployed agent.

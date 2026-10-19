@@ -119,14 +119,22 @@ NOTE: if you already have an agent that is deployed to Agent Engine, skip to
 
 ## Running the Script
 
-The `main.py` script performs the following actions:
+The `deploy.py` script performs the following actions:
 
 1.  Initializes the Vertex AI client.
 2.  Defines a sample "Contact Card Agent" skill and creates an agent card.
 3.  Creates a local `A2aAgent` instance.
-4.  Deploys the agent to Vertex AI Agent Engine (`client.agent_engines.create`).
-5.  Fetches the deployed agent's card.
-6.  Registers the agent on Gemini Enterprise using the Discovery Engine API.
+4.  Builds wheels of `a2ui-core`, `a2ui-agent-sdk` and `a2ui-a2a` from this
+    repository into `wheels/` with
+    [`build_sdk_wheels.sh`](../../build_sdk_wheels.sh). The sample needs SDK
+    releases that aren't on PyPI yet, so the agent engine installs these
+    wheels, which are listed in both `requirements` and `extra_packages`.
+5.  Deploys the agent to Vertex AI Agent Engine (`client.agent_engines.create`).
+6.  Fetches the deployed agent's card.
+7.  Registers the agent on Gemini Enterprise using the Discovery Engine API.
+
+Run it from a clone of this repository that has its git tags, since the wheel
+versions come from them.
 
 To run the script using `uv`:
 
@@ -136,7 +144,7 @@ To run the script using `uv`:
     - `uv venv`
     - `source .venv/bin/activate`
 3.  **Install dependencies:**
-    - `uv sync --locked`
+    - `uv sync`
 4.  **Run the script:**
     - `uv run deploy.py`
     - It may take 5-10 minutes to finish.
