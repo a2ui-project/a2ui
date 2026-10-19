@@ -434,6 +434,9 @@ if state is None or not processor.accepts_state(state):
     state = states[session_id] = processor.create_state()
 ```
 
+The [custom-components-example](../../samples/agent/adk/custom-components-example)
+sample keeps a state per conversation this way.
+
 ## Use Cases
 
 ### 1. Simple Agents with Static Schemas
