@@ -554,3 +554,16 @@ def test_a_rollback_restores_each_components_own_catalog_on_a_deleted_surface():
     assert item.catalog is not None and item.catalog.catalog_id == "items"
     root = surface.components_model.get("root")
     assert root is not None and root.catalog.catalog_id == basic.catalog_id
+
+
+def test_a_failed_transaction_undoes_mark_checked():
+    state = _canvas()
+    state.apply(_update(_text("orphan")))
+
+    with pytest.raises(A2uiValidationError):
+        with state.transaction():
+            state.mark_checked(["s"])
+            state.apply(_update({"id": "x", "component": "Unknown"}))
+
+    with pytest.raises(A2uiIntegrityError, match="'orphan' is not reachable"):
+        state.check_topology(["s"])
