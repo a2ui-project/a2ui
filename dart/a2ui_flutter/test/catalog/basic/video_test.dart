@@ -15,8 +15,8 @@
 import 'dart:async';
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/basic_catalog.dart' as v1_0;
+import 'package:a2ui_flutter/v0_9.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -101,7 +101,7 @@ void main() {
           [
             {..._video(_url), 'posterUrl': poster},
           ],
-          catalog: basicCatalogV1_0(),
+          catalog: v1_0.basicCatalog(),
           version: A2uiProtocolVersion.v1_0,
         );
         platform.initialize(0);

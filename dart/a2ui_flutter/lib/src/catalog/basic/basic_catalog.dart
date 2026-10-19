@@ -15,50 +15,7 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../component_implementation.dart';
-import 'audio_player.dart';
-import 'button.dart';
-import 'card.dart';
-import 'check_box.dart';
-import 'choice_picker.dart';
-import 'column.dart';
-import 'date_time_input.dart';
-import 'divider.dart';
-import 'icon.dart';
-import 'image.dart';
-import 'list.dart';
-import 'modal.dart';
-import 'row.dart';
-import 'slider.dart';
-import 'tabs.dart';
-import 'text.dart';
-import 'text_field.dart';
-import 'theme.dart';
-import 'video.dart';
-
-/// The v0.9 basic catalog: every basic component, and the functions of
-/// [BasicCatalog.v0_9] formatting for [locale], under the basic catalog's id,
-/// theme schema, title, description, protocol version and instructions.
-///
-/// An `openUrl` call, which fails without [openUrl], may run whenever a bound
-/// property resolves, not only on a tap.
-CatalogImplementation basicCatalog({
-  String locale = 'en-US',
-  OpenUrlCallback? openUrl,
-}) => CatalogImplementation(
-  id: BasicCatalog.v0_9Id,
-  components: BasicComponents.all,
-  functions: BasicCatalog.v0_9(
-    locale: locale,
-    openUrl: openUrl,
-  ).functions.values.toList(),
-  themeSchema: BasicComponents.api.themeSchema,
-  schemaId: BasicComponents.api.schemaId,
-  title: BasicComponents.api.title,
-  description: BasicComponents.api.description,
-  protocolVersion: BasicComponents.api.protocolVersion,
-  instructions: BasicComponents.api.instructions,
-  definitions: BasicComponents.api.definitions,
-);
+import 'basic_components.dart';
 
 /// The v1.0 basic catalog: every basic component, checked against the v1.0
 /// schemas, and the functions of [BasicCatalog.v1_0] formatting for [locale],
@@ -67,7 +24,7 @@ CatalogImplementation basicCatalog({
 ///
 /// An `openUrl` call fails without [openUrl], and outside a user action such
 /// as a tap.
-CatalogImplementation basicCatalogV1_0({
+CatalogImplementation basicCatalog({
   String locale = 'en-US',
   OpenUrlCallback? openUrl,
 }) {
@@ -92,126 +49,5 @@ CatalogImplementation basicCatalogV1_0({
     protocolVersion: api.protocolVersion,
     instructions: api.instructions,
     definitions: api.definitions,
-  );
-}
-
-/// The v0.9 basic catalog's component implementations.
-abstract final class BasicComponents {
-  /// The basic catalog's specification: every component and function schema
-  /// and the theme schema.
-  static final CatalogApi api = BasicCatalog.v0_9();
-
-  /// The basic `AudioPlayer` component.
-  static final ComponentImplementation audioPlayer = _implement(
-    'AudioPlayer',
-    buildAudioPlayer,
-  );
-
-  /// The basic `Button` component.
-  static final ComponentImplementation button = _implement(
-    'Button',
-    buildButton,
-  );
-
-  /// The basic `Card` component.
-  static final ComponentImplementation card = _implement('Card', buildCard);
-
-  /// The basic `CheckBox` component.
-  static final ComponentImplementation checkBox = _implement(
-    'CheckBox',
-    buildCheckBox,
-  );
-
-  /// The basic `ChoicePicker` component.
-  static final ComponentImplementation choicePicker = _implement(
-    'ChoicePicker',
-    buildChoicePicker,
-  );
-
-  /// The basic `Column` component.
-  static final ComponentImplementation column = _implement(
-    'Column',
-    buildColumn,
-  );
-
-  /// The basic `DateTimeInput` component.
-  static final ComponentImplementation dateTimeInput = _implement(
-    'DateTimeInput',
-    buildDateTimeInput,
-  );
-
-  /// The basic `Divider` component.
-  static final ComponentImplementation divider = _implement(
-    'Divider',
-    buildDivider,
-  );
-
-  /// The basic `Icon` component.
-  static final ComponentImplementation icon = _implement('Icon', buildIcon);
-
-  /// The basic `Image` component.
-  static final ComponentImplementation image = _implement('Image', buildImage);
-
-  /// The basic `List` component.
-  static final ComponentImplementation list = _implement('List', buildList);
-
-  /// The basic `Modal` component.
-  static final ComponentImplementation modal = _implement('Modal', buildModal);
-
-  /// The basic `Row` component.
-  static final ComponentImplementation row = _implement('Row', buildRow);
-
-  /// The basic `Slider` component.
-  static final ComponentImplementation slider = _implement(
-    'Slider',
-    buildSlider,
-  );
-
-  /// The basic `Tabs` component.
-  static final ComponentImplementation tabs = _implement('Tabs', buildTabs);
-
-  /// The basic `Text` component.
-  static final ComponentImplementation text = _implement('Text', buildText);
-
-  /// The basic `TextField` component.
-  static final ComponentImplementation textField = _implement(
-    'TextField',
-    buildTextField,
-  );
-
-  /// The basic `Video` component.
-  static final ComponentImplementation video = _implement('Video', buildVideo);
-
-  /// Every basic component.
-  static List<ComponentImplementation> get all => [
-    audioPlayer,
-    button,
-    card,
-    checkBox,
-    choicePicker,
-    column,
-    dateTimeInput,
-    divider,
-    icon,
-    image,
-    list,
-    modal,
-    row,
-    slider,
-    tabs,
-    text,
-    textField,
-    video,
-  ];
-
-  static ComponentImplementation _implement(
-    String name,
-    ComponentWidgetBuilder builder,
-  ) => ComponentImplementation(
-    name: name,
-    schema: api.components[name]!.schema,
-    builder: (context, node, props, buildChild) => BasicTheme(
-      builder: (context) => builder(context, node, props, buildChild),
-    ),
   );
 }

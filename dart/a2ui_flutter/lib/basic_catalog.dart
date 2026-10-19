@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Implementations of the A2UI v0.9 and v1.0 basic catalogs.
+/// The A2UI v1.0 basic catalog, implemented with Material widgets.
 library;
 
 export 'src/catalog/basic/basic_catalog.dart';

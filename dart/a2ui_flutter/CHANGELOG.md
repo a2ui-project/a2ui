@@ -18,7 +18,8 @@
 
 ## Unreleased
 
-- Add the v1.0 basic catalog, `basicCatalogV1_0()`.
+- `package:a2ui_flutter/basic_catalog.dart` implements the v1.0 basic catalog.
+  The v0.9 one, with `BasicComponents`, moved to `package:a2ui_flutter/v0_9.dart`.
 - Support the v1.0 `TextField.placeholder`, `Slider.steps` and `Video.posterUrl`.
 - Remove the Markdown markers from Text when no `A2uiMarkdown` renders it.
 - Ignore `deprecated_member_use` warnings on `package:flutter/material.dart` imports on Flutter beta (#3235).

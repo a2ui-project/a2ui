@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/basic_catalog.dart' as v1_0;
+import 'package:a2ui_flutter/v0_9.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/surface_harness.dart';
@@ -88,7 +89,7 @@ void main() {
             },
           },
         ],
-        catalog: basicCatalogV1_0(openUrl: opened.add),
+        catalog: v1_0.basicCatalog(openUrl: opened.add),
         version: A2uiProtocolVersion.v1_0,
       );
       expect(opened, isEmpty);

@@ -15,8 +15,8 @@
 import 'dart:async';
 
 import 'package:a2ui_core/a2ui_core.dart';
-import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/basic_catalog.dart' as v1_0;
+import 'package:a2ui_flutter/v0_9.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -118,6 +118,66 @@ void main() {
     expect(find.text('Stars'), findsOneWidget);
     expect(find.byIcon(Icons.star), findsNWidgets(2));
     expect(find.byIcon(Icons.star_border), findsNWidgets(3));
+    expect(harness.errors, isEmpty);
+  });
+
+  testWidgets('renders and writes back on v1.0, as the README builds it', (
+    tester,
+  ) async {
+    final CatalogImplementation basic = v1_0.basicCatalog();
+    final SurfaceHarness harness = await pumpComponents(
+      tester,
+      [
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['title', 'rating'],
+        },
+        {'id': 'title', 'component': 'Text', 'text': 'Your review'},
+        {
+          'id': 'rating',
+          'component': 'Rating',
+          'label': 'Stars',
+          'value': {'@path': '/stars'},
+          'onChanged': {
+            'event': {'name': 'rated'},
+          },
+        },
+      ],
+      catalog: CatalogImplementation(
+        id: _demoCatalogId,
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        components: [
+          ...basic.components.values,
+          ComponentImplementation(
+            name: 'Rating',
+            schema: Schema.object(
+              properties: {
+                'label': CommonSchemasV1.dynamicString,
+                'value': CommonSchemasV1.dynamicNumber,
+                'onChanged': Schema.fromMap({
+                  r'$ref':
+                      'https://a2ui.org/specification/v1_0/common_types.json#/\$defs/Action',
+                }),
+              },
+              required: ['value'],
+            ),
+            builder: _rating.builder,
+          ),
+        ],
+        functions: basic.functions.values.toList(),
+        definitions: basic.definitions,
+      ),
+      data: {'stars': 2},
+      version: A2uiProtocolVersion.v1_0,
+    );
+    expect(find.text('Your review'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('4'));
+    await tester.pump();
+
+    expect(harness.data('/stars'), 4);
+    expect(harness.actions.single.name, 'rated');
     expect(harness.errors, isEmpty);
   });
 

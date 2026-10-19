@@ -1,7 +1,8 @@
 # A2UI Flutter
 
-Flutter renderer for [A2UI](https://a2ui.org/) protocol v0.9. It renders the
-surfaces of an `a2ui_core` `MessageProcessor` as widget trees, following the
+Flutter renderer for [A2UI](https://a2ui.org/) protocols v1.0 and v0.9. It
+renders the surfaces of an `a2ui_core` `MessageProcessor` as widget trees,
+following the
 [framework adapter blueprint](../../blueprints/modules/a2ui_framework_adapter.blueprint.md).
 
 The basic catalog is included. A custom component pairs a schema with a
@@ -40,9 +41,9 @@ a surface go back to the agent.
 ```dart
 final processor = MessageProcessor<ComponentImplementation>(
   catalogs: [basicCatalog()],
-  defaultVersion: A2uiProtocolVersion.v0_9,
+  defaultVersion: A2uiProtocolVersion.v1_0,
 );
-final String version = A2uiProtocolVersion.v0_9.jsonValue;
+final String version = A2uiProtocolVersion.v1_0.jsonValue;
 final surfaces = ValueNotifier<List<SurfaceModel<ComponentImplementation>>>(
   const [],
 );
@@ -73,7 +74,7 @@ void onAgentMessages(Object? json) {
     processor.processMessages(
       AgentToRendererMessagePayload.fromJson(
         json,
-        protocolVersion: A2uiProtocolVersion.v0_9,
+        protocolVersion: A2uiProtocolVersion.v1_0,
       ),
     );
   } on A2uiError catch (error) {
@@ -122,20 +123,20 @@ A2uiMarkdown(
 
 ## Defining Custom Components
 
-A v0.9 surface has one catalog, so list your components next to the basic
-components and functions you need, under your own catalog id:
+List your components next to the basic components and functions you need,
+under your own catalog id:
 
 ```dart
 final rating = ComponentImplementation(
   name: 'Rating',
   schema: Schema.object(
     properties: {
-      'label': CommonSchemas.dynamicString,
-      'value': Schema.fromMap({
+      'label': CommonSchemasV1.dynamicString,
+      'value': CommonSchemasV1.dynamicNumber,
+      'onChanged': Schema.fromMap({
         r'$ref':
-            'https://a2ui.org/specification/v0_9/common_types.json#/\$defs/DynamicNumber',
+            'https://a2ui.org/specification/v1_0/common_types.json#/\$defs/Action',
       }),
-      'onChanged': CommonSchemas.action,
     },
     required: ['value'],
   ),
@@ -158,17 +159,19 @@ final rating = ComponentImplementation(
   },
 );
 
+final CatalogImplementation basic = basicCatalog();
 final demoCatalog = CatalogImplementation(
   id: 'https://example.com/demo/catalog.json',
-  components: [...BasicComponents.all, rating],
-  functions: BasicCatalog.v0_9().functions.values.toList(),
-  themeSchema: BasicComponents.api.themeSchema,
-  definitions: BasicComponents.api.definitions,
+  protocolVersion: A2uiProtocolVersion.v1_0,
+  components: [...basic.components.values, rating],
+  functions: basic.functions.values.toList(),
+  definitions: basic.definitions,
 );
 ```
 
-Declare dynamic values with `CommonSchemas`, or with a `$ref` to a type in
-`common_types.json` such as `DynamicNumber` above. Declare child references
+Declare dynamic values with `CommonSchemasV1`, or with a `$ref` to a type in
+the v1.0 `common_types.json` such as `Action` above. A v0.9 catalog uses
+`CommonSchemas` and the v0.9 types instead. Declare child references
 (`ComponentId`, `ChildList`) as top-level properties. Advertise the catalog by
 its id. An agent that does not use `a2ui_core` can be given its document,
 `jsonEncode(demoCatalog.catalogSchema)`.
@@ -194,11 +197,12 @@ a `ChildWidgetBuilder`:
 ## Basic Catalog Components
 
 `package:a2ui_flutter/basic_catalog.dart` implements the
-[v0.9](../../specification/v0_9/catalogs/basic/catalog.json) and
-[v1.0](../../catalogs/basic/v1/catalog.json) basic catalogs with Material
-widgets. `basicCatalog()` builds the v0.9 catalog and `basicCatalogV1_0()` the
-v1.0 one. `BasicComponents` holds each component for a v0.9 catalog of your
-own.
+[v1.0 basic catalog](../../catalogs/basic/v1/catalog.json) with Material
+widgets, and `basicCatalog()` builds it. For v0.9 surfaces,
+`package:a2ui_flutter/v0_9.dart` exports the rest of the package with the
+[v0.9 basic catalog](../../specification/v0_9/catalogs/basic/catalog.json) as
+`basicCatalog()`, and `BasicComponents`, which holds each v0.9 component for a
+catalog of your own.
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
 - **Content**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`
@@ -228,11 +232,11 @@ Not supported yet:
 > degrade the app.
 
 `openUrl` fails unless the app passes a callback, such as `url_launcher`'s
-`launchUrl`: `basicCatalog(openUrl: launchUrl)`. On a v0.9 surface, a bound
-`openUrl` call runs whenever it resolves, not only on a tap, so with a callback
-the agent can open an `http`, `https`, `mailto` or `tel` URL without the user
-acting. Pass one only for an agent you trust. On a v1.0 surface, `openUrl` runs
-only for a user action.
+`launchUrl`: `basicCatalog(openUrl: launchUrl)`. On a v1.0 surface, `openUrl`
+runs only for a user action, such as a tap. On a v0.9 surface, a bound
+`openUrl` call runs whenever it resolves, so with a callback the agent can open
+an `http`, `https`, `mailto` or `tel` URL without the user acting. There, pass
+one only for an agent you trust.
 
 ## Tests
 
