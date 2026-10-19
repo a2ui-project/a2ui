@@ -18,6 +18,7 @@
 
 ## Unreleased
 
+- The v1.0 Slider moves in its `steps`.
 - The v1.0 TextField shows its `placeholder`.
 - The v1.0 TextField does not check `validationRegexp`, which v1.0 removed.
 - **Breaking:** `package:a2ui_flutter/basic_catalog.dart` now implements the

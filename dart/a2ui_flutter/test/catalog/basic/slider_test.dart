@@ -100,6 +100,22 @@ void main() {
     expect(harness.data('/n'), isA<int>().having((n) => n, 'value', 5));
   });
 
+  testWidgets('writes min plus a whole number over a whole range from a '
+      'fractional min', (tester) async {
+    final SurfaceHarness harness = await _pumpSlider(
+      tester,
+      {
+        'min': 0.1,
+        'max': 4.1,
+        'value': {'path': '/n'},
+      },
+      data: {'n': 0.1},
+    );
+
+    _slider(tester).onChanged!(2.2);
+    expect(harness.data('/n'), 2.1);
+  });
+
   testWidgets('writes a whole value from 2^53 up as a double', (tester) async {
     final SurfaceHarness harness = await _pumpSlider(
       tester,
