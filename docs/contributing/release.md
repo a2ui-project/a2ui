@@ -145,13 +145,43 @@ publishes them in dependency order, `a2ui-core`, `a2ui-agent-sdk`,
 Releasing `a2ui-a2a` or `a2ui-adk` on its own requires a released version of
 each dependency that satisfies its pins.
 
-`a2ui-a2a` and `a2ui-adk` start from `0.0.0`, so their first release uses a
-`minor` bump to publish `0.1.0`. Both require an `a2ui-agent-sdk` release newer
-than `0.8.0`, the last one that shipped `a2ui.a2a` and `a2ui.adk` itself. For
-their first release, release `a2ui-agent-sdk`, `a2ui-a2a` and `a2ui-adk`
-together with a `minor` bump, or release `a2ui-agent-sdk` first, merge its
-changelog pull request, then release `a2ui-a2a` and `a2ui-adk` with a `minor`
-bump.
+#### Releasing a new package for the first time
+
+A new package with no release tags starts from `0.0.0` and uses a `minor` bump
+to publish `0.1.0`. Before its first release, complete two one-time setup steps:
+
+1. Add the package name to the OSS Exit Gate allowlist for `a2ui/pypi` (see
+   `go/a2ui-release#pypi`).
+2. Sign in to `https://pypi.org/manage/account/publishing/` with the shared PyPI
+   publisher account (credentials in `go/a2ui-release#pypi`). Under the
+   **Google** tab, register a **Pending Publisher** for the new package name
+   with email `a2ui-py@oss-exit-gate-prod.iam.gserviceaccount.com` and an empty
+   subject.
+
+When signing in to PyPI, you can generate the 6-digit MFA code from the MFA
+setup key on the command line:
+
+```bash
+oathtool --totp -b "YOUR_MFA_SETUP_KEY"
+```
+
+When PyPI reports an "unrecognized device", look up the verification email in
+https://groups.google.com/a/google.com/g/a2ui-pypi-publish-bot.
+
+PyPI indexes pending publishers for Google Cloud uniquely by `(email, sub)`.
+Every A2UI Python package uses
+`a2ui-py@oss-exit-gate-prod.iam.gserviceaccount.com` with an empty subject, so
+**only one Pending Publisher can be registered at a time**. Registering a second
+pending package while the first is still pending fails with:
+
+> A pending trusted publisher matching this configuration has already been
+> registered for a different project name. Please contact PyPI's admins if this
+> wasn't intentional.
+
+When releasing multiple new packages for the first time, register and publish
+them one at a time. Publishing the first package promotes its Pending Publisher
+to a normal project-scoped Trusted Publisher. That frees the service account so
+you can register the next Pending Publisher.
 
 #### If authentication fails
 
