@@ -20,32 +20,31 @@ import '../utils/catalogs.dart';
 /// them in order to surfaces that start empty.
 ///
 /// Each payload is one render: every surface it creates must be complete.
+/// The messages are read as the protocol version [catalogs] target, so a
+/// v1.0 `callRendererFunction` is checked against the function it names, as
+/// `MessageProcessor.forAgent` checks it.
 ///
-/// Throws [A2uiValidationError] for a surface naming a catalog outside
-/// [catalogs], as for anything else a payload names that the catalogs do not
-/// declare, and otherwise the [A2uiError] a renderer would report for the
-/// first message it rejects.
-///
-/// Checking payloads for v1.0 catalogs is not implemented yet and throws
-/// [UnimplementedError].
+/// Throws [A2uiValidationError] for a surface, component or function call
+/// naming a catalog outside [catalogs], as for anything else a payload names
+/// that the catalogs do not declare, and otherwise the [A2uiError] a renderer
+/// would report for the first message it rejects.
 void validatePayloads(
   List<CatalogApi> catalogs,
   Iterable<List<AgentToRendererMessage>> payloads,
 ) {
   if (payloads.every((payload) => payload.isEmpty)) return;
-  if (catalogs.isNotEmpty &&
-      catalogsProtocolVersion(catalogs).isAtLeast(A2uiProtocolVersion.v1_0)) {
-    throw UnimplementedError('Checking payloads of protocol v1.0');
-  }
+  final Set<String> active = {for (final CatalogApi c in catalogs) c.id};
   for (final payload in payloads) {
-    for (final CreateSurfaceMessage message
-        in payload.whereType<CreateSurfaceMessage>()) {
-      if (catalogs.every((CatalogApi c) => c.id != message.catalogId)) {
-        throw A2uiValidationError(
-          "Surface '${message.surfaceId}' names catalog "
-          "'${message.catalogId}', which is not active. Active catalogs: "
-          '${catalogs.map((c) => c.id).join(', ')}.',
-        );
+    for (final message in payload) {
+      for (final (String subject, String catalogId) in _catalogsNamed(
+        message,
+      )) {
+        if (!active.contains(catalogId)) {
+          throw A2uiValidationError(
+            "$subject names catalog '$catalogId', which is not active. "
+            'Active catalogs: ${active.join(', ')}.',
+          );
+        }
       }
     }
   }
@@ -53,7 +52,9 @@ void validatePayloads(
   // resolve, leaving [catalogs] as they are.
   final MessageProcessor<ComponentApi> renderer = MessageProcessor.forAgent(
     catalogs: catalogs,
-    defaultVersion: A2uiProtocolVersion.v0_9,
+    defaultVersion: catalogs.isEmpty
+        ? A2uiProtocolVersion.v0_9
+        : catalogsProtocolVersion(catalogs),
     // A surface may arrive across several messages of one payload, so the
     // checks that span messages wait for the whole payload below. Undeclared
     // types, duplicate ids, cycles, depth and paths are checked per message.
@@ -78,5 +79,68 @@ void validatePayloads(
     }
   } finally {
     renderer.model.dispose();
+  }
+}
+
+/// The catalogs [message] names, each with what names it: the surface it
+/// creates, and from v1.0 its components and the function calls it makes.
+Iterable<(String, String)> _catalogsNamed(
+  AgentToRendererMessage message,
+) sync* {
+  final bool v1 =
+      A2uiProtocolVersion.tryParse(
+        message.version,
+      )?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+      false;
+  switch (message) {
+    case CreateSurfaceMessage(:final String surfaceId, :final catalogId):
+      if (catalogId != null) yield ("Surface '$surfaceId'", catalogId);
+      if (!v1) return;
+      for (final Map<String, Object?> component in message.components ?? []) {
+        yield* _componentCatalogs(component);
+      }
+    case UpdateComponentsMessage(:final components) when v1:
+      for (final Map<String, Object?> component in components) {
+        yield* _componentCatalogs(component);
+      }
+    case CallRendererFunctionMessage(:final callFunction):
+      yield* _callCatalogs(callFunction);
+    default:
+      break;
+  }
+}
+
+/// The catalog [component] names, and those its function calls name.
+Iterable<(String, String)> _componentCatalogs(
+  Map<String, Object?> component,
+) sync* {
+  if (component['catalogId'] case final String catalogId) {
+    yield ("Component '${component['id']}'", catalogId);
+  }
+  // `metadata` holds no calls, as `MessageProcessor` reads it.
+  for (final MapEntry<String, Object?> entry in component.entries) {
+    if (entry.key != 'catalogId' && entry.key != 'metadata') {
+      yield* _callCatalogs(entry.value);
+    }
+  }
+}
+
+/// The catalogs the v1.0 function calls in [value] name.
+Iterable<(String, String)> _callCatalogs(Object? value) sync* {
+  switch (value) {
+    case final List<Object?> items:
+      for (final item in items) {
+        yield* _callCatalogs(item);
+      }
+    case final Map<Object?, Object?> map:
+      if (map case {
+        '@call': final String name,
+        'catalogId': final String catalogId,
+      }) {
+        yield ("Function call '$name'", catalogId);
+      }
+      for (final Object? child in map.values) {
+        yield* _callCatalogs(child);
+      }
   }
 }

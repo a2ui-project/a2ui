@@ -90,13 +90,13 @@
             type: object
             properties:
               component: {const: "Column"}
-              children: {$ref: "common.json#/$defs/ChildList"}
+              children: {$ref: "common_types.json#/$defs/ChildList"}
             required: ["component", "children"]
           Badge:
             type: object
             properties:
               component: {const: "Badge"}
-              label: {$ref: "common.json#/$defs/DynamicString"}
+              label: {$ref: "common_types.json#/$defs/DynamicString"}
             required: ["component", "label"]
       - catalogId: "conformance/cat_b"
         protocolVersion: "v1.0"
@@ -105,8 +105,8 @@
             type: object
             properties:
               component: {const: "Badge"}
-              count: {$ref: "common.json#/$defs/DynamicNumber"}
-              unit: {$ref: "common.json#/$defs/DynamicString"}
+              count: {$ref: "common_types.json#/$defs/DynamicNumber"}
+              unit: {$ref: "common_types.json#/$defs/DynamicString"}
             required: ["component", "count"]
   input: |
     surface("s1")
@@ -133,7 +133,7 @@
             unit: "items"
 
 - name: test_express_compile_function_catalog_override_in_expression_and_action
-  description: Function calls inside property expressions resolve their parameter names from the overridden catalogId and preserve catalogId on the compiled call.
+  description: Function calls inside property expressions resolve their parameter names from the overridden catalogId and preserve catalogId on the compiled call. The call fills a DynamicString, which admits a function call; a property typed as a plain string would reject it.
   action: compile
   args:
     format: express
@@ -142,21 +142,20 @@
       - "test_data/catalogs/custom_catalog_v1_0.json"
   input: |
     surface("s1")
-    root = Chart([1, 2], formatString("Total: ${/total}", catalogId="conformance/simplified"))
+    root = Text(percent(75, catalogId="conformance/custom"))
   expect:
     - version: "v1.0"
       createSurface:
         surfaceId: "s1"
         components:
           - id: "root"
-            component: "Chart"
-            catalogId: "conformance/custom"
-            values: [1, 2]
-            caption:
-              "@call": "formatString"
-              catalogId: "conformance/simplified"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text:
+              "@call": "percent"
+              catalogId: "conformance/custom"
               args:
-                value: "Total: ${/total}"
+                value: 75
 
 - name: test_express_compile_variable_holding_function_call_with_catalog_override
   description: A variable that holds a function call naming its catalogId is inlined wherever it is used, like any other variable holding a function call, rather than compiled as a component.
@@ -168,22 +167,21 @@
       - "test_data/catalogs/custom_catalog_v1_0.json"
   input: |
     surface("s1")
-    root = Chart([1, 2], total)
-    total = formatString("Total: ${/total}", catalogId="conformance/simplified")
+    root = Text(share)
+    share = percent(75, catalogId="conformance/custom")
   expect:
     - version: "v1.0"
       createSurface:
         surfaceId: "s1"
         components:
           - id: "root"
-            component: "Chart"
-            catalogId: "conformance/custom"
-            values: [1, 2]
-            caption:
-              "@call": "formatString"
-              catalogId: "conformance/simplified"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text:
+              "@call": "percent"
+              catalogId: "conformance/custom"
               args:
-                value: "Total: ${/total}"
+                value: 75
 
 - name: test_express_compile_variable_holding_function_call_missing_from_named_catalog_fails
   description: A variable holding a function call whose catalogId names a catalog that does not define the function fails, even though another active catalog defines it.
@@ -240,18 +238,18 @@
     format: express
     catalogs:
       - "test_data/catalogs/simplified_catalog_v1_0.json"
-      - "test_data/catalogs/custom_catalog_v1_0.json"
+      - "test_data/catalogs/agent_functions_catalog_v1_0.json"
   input: |
-    percent(75, catalogId="conformance/custom")
+    notify("Saved", catalogId="conformance/agent_functions")
   expect:
     - version: "v1.0"
       callRendererFunction:
         functionCallId: "call_1"
         callFunction:
-          catalogId: "conformance/custom"
-          "@call": "percent"
+          catalogId: "conformance/agent_functions"
+          "@call": "notify"
           args:
-            value: 75
+            message: "Saved"
 
 - name: test_express_compile_unknown_component_catalog_override_fails
   description: A component with a catalogId override naming an unregistered catalog fails validation.
@@ -315,19 +313,20 @@
           - id: "title"
             component: "Text"
             catalogId: "conformance/simplified"
-            text: "Metrics"
+            text:
+              "@call": "percent"
+              catalogId: "conformance/custom"
+              args:
+                value: 75
           - id: "chart"
             component: "Chart"
             catalogId: "conformance/custom"
             values: [10, 20]
-            caption:
-              "@call": "formatString"
-              catalogId: "conformance/simplified"
-              args:
-                value: "Total"
+            caption: "Total"
   expect_contains:
     - 'surface("s1")'
-    - 'chart = Chart([10, 20], formatString("Total"))'
+    - "title = Text(percent(75))"
+    - 'chart = Chart([10, 20], "Total")'
   expect_absent:
     - 'catalogId="conformance/simplified"'
     - 'catalogId="conformance/custom"'
@@ -365,21 +364,20 @@
       - "test_data/catalogs/custom_catalog_v1_0.json"
   input: |
     surface("s1")
-    root = Chart([1, 2], formatString("Total"), catalogId="conformance/custom")
+    root = Text(percent(75), catalogId="conformance/simplified")
   expect:
     - version: "v1.0"
       createSurface:
         surfaceId: "s1"
         components:
           - id: "root"
-            component: "Chart"
-            catalogId: "conformance/custom"
-            values: [1, 2]
-            caption:
-              "@call": "formatString"
-              catalogId: "conformance/simplified"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text:
+              "@call": "percent"
+              catalogId: "conformance/custom"
               args:
-                value: "Total"
+                value: 75
 
 - name: test_express_compile_unannotated_call_not_in_surface_catalog_fails
   description: A surface statement that names a catalog when multiple catalogs are active fails validation.
@@ -408,7 +406,7 @@
             type: object
             properties:
               component: {const: "Badge"}
-              label: {$ref: "common.json#/$defs/DynamicString"}
+              label: {$ref: "common_types.json#/$defs/DynamicString"}
             required: ["component", "label"]
       - catalogId: "conformance/cat_b"
         protocolVersion: "v1.0"
@@ -417,7 +415,7 @@
             type: object
             properties:
               component: {const: "Badge"}
-              count: {$ref: "common.json#/$defs/DynamicNumber"}
+              count: {$ref: "common_types.json#/$defs/DynamicNumber"}
             required: ["component", "count"]
   messages:
     - version: "v1.0"

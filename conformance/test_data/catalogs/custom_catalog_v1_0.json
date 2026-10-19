@@ -12,7 +12,7 @@
       "properties": {
         "component": {"const": "Chart"},
         "values": {"type": "array", "items": {"type": "number"}},
-        "caption": {"type": "string"}
+        "caption": {"$ref": "common_types.json#/$defs/DynamicString"}
       },
       "required": ["component", "values"]
     },

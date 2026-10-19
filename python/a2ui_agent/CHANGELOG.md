@@ -4,6 +4,10 @@
   left at the edges of a block when a model writes the tags as inline code
   (`` `<a2ui>` ... `</a2ui>` ``), and drop text made of nothing but backticks.
   Before, the leftover backtick made the block fail to compile.
+
+## 0.9.0 (2026-10-17)
+
+- **BREAKING**: Package dependency updated to require `a2ui-core>=0.4.0,<0.5.0`.
 - `resolve_catalogs`, `validate_payload`, and the Direct JSON and Express
   formats resolve cross-catalog `$ref`s between the catalogs they are given.
   `resolve_catalogs` also resolves references into registered catalogs that
@@ -26,6 +30,10 @@
     carry a leading "v" (`"v0.9"`); `a2ui.utils.to_version_number` returns the
     bare form (`"0.9"`) for paths and URIs.
   - The `SPECIFICATION_DIR` constant is removed.
+- `resolve_catalogs` and `A2uiGenerator.create_processor` read v0.8
+  capabilities in the shape the v0.8 specification defines, the entry itself
+  (`{"supportedCatalogIds": [...]}`), as well as keyed by `"v0.8"`. From v0.9
+  the capabilities must be keyed by protocol version.
 - **BREAKING**: Move `a2ui.inference_formats.experimental.express` to
   `a2ui.inference_formats.express`.
 - `ExpressCompiler`: a variable holding a function call that names its
