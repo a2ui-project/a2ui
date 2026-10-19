@@ -194,7 +194,10 @@ a `ChildWidgetBuilder`:
   activation, which a function such as `openUrl` needs, so call it only from
   a gesture handler, synchronously.
 - Enable a control only while its checks pass, with `props.isValid`, and
-  show `props.validationErrors`.
+  show `props.validationErrors`. `props.validationResults` also holds the
+  failing checks of `warning` and `info` severity, which leave the control
+  valid. Its `ValidationResult` is `a2ui_core`'s, so hide
+  `json_schema_builder`'s type of the same name.
 - Render children with `buildChild`. A builder that wraps each child puts
   `KeyedSubtree(key: NodeKey(child.instanceId), ...)` outermost, so children
   keep their state when the list changes.
@@ -214,7 +217,8 @@ component for a catalog of your own.
   `DateTimeInput`
 
 The functions format for the `locale` passed to `basicCatalog()`, `en-US` by
-default.
+default. Inputs other than Button show a failing check of `warning` or `info`
+severity as a hint under them.
 
 Not supported yet:
 

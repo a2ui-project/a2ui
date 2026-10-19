@@ -18,6 +18,9 @@
 
 ## Unreleased
 
+- `ComponentProps.validationResults` holds the failing checks, and the basic
+  inputs other than Button show one of `warning` or `info` severity as a
+  hint.
 - A Text that no `A2uiMarkdown` renders shows its text without common
   Markdown markers, and a body Text that is one Markdown heading line takes
   the style of its level.
