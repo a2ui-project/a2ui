@@ -1,81 +1,7 @@
 # [a2ui_agent](https://pub.dev/packages/a2ui_agent) Changelog
 
-## 0.0.1-wip005
+## Unreleased
 
-- Catalogs are typed `CatalogApi`, the new name of `a2ui_core`'s
-  `SchemaCatalog`. The package requires `a2ui_core` `^0.3.0`.
-- Implemented the rest of the agent SDK blueprint API for protocol v0.9:
-  - `CatalogProvider`, `FileSystemCatalogProvider`, `InMemoryCatalogProvider`
-    and `CatalogConfig.fromPath`. A provider passes its id and protocol
-    version to `Catalog.fromJson` instead of writing the id into the
-    document, so `load().toJson()` writes back a document that omits its
-    `catalogId` without one, and the catalog reports the provider's protocol
-    version when the document declares none. On the web,
-    `FileSystemCatalogProvider` cannot read files.
-  - The direct JSON format: `DirectJsonFormatFactory`, `DirectJsonFormat`,
-    `DirectJsonPromptGenerator` and `DirectJsonParser`. The prompt embeds the
-    agent-to-renderer message schema pruned to `allowedMessages`, the pruned
-    `common_types` schema and each active catalog's `Catalog.toJson()`
-    document, so common type definitions are not inlined twice when several
-    catalogs are active. `allowedMessages` accepts only messages: the
-    definitions the agent-to-renderer schema lists in `oneOf` and their
-    envelope keys; other definitions, such as v1.0's `Component` and
-    `ComponentsList`, throw `ArgumentError`. `parseChunk` emits each message
-    once it reads and satisfies the catalogs, healing `progressiveKeys` while
-    their values stream. `DirectJsonParser`, `DirectJsonFormat` and
-    `DirectJsonFormatFactory` take `bufferIncompleteComponents`: when it is
-    true, a streamed component is emitted only once its JSON object closes,
-    as v1.0 requires, and progressive keys heal only values outside
-    components; it is false by default, which keeps the v0.9 behavior of
-    healing a component while it streams.
-  - Express decompilation, through `Parser.decompile`, and prompt examples
-    in the Express prompt.
-  - Inline catalogs in `resolveCatalogs`, when `acceptsInlineCatalogs` is
-    true. An inline catalog whose id is already active is dropped.
-- Added `CatalogTransformer`, `ComponentPruningTransformer`,
-  `FunctionPruningTransformer` and `CatalogConfig.transformers`. The pruning
-  transformers accept an optional or null allowlist, treating it as empty.
-  `CatalogConfig.transformedCatalog` is computed on first access and then
-  reused, so every request sees the same transformed catalog.
-- Added `resolveCatalogs`, which `A2uiGenerator.createProcessor` now uses. The
-  active catalogs are the transformed ones. Renderer capabilities of null,
-  for a request that carries none, activate every registered catalog.
-- Added `allowedMessages` to `ExpressFormatFactory`. The Express prompt
-  describes only the statements that compile to the allowed message types.
-- Added `examples` to `A2uiGenerator`, `A2uiRequestProcessor`,
-  `ExpressPromptGenerator` and `InferenceFormatFactory.createFormat`. A
-  processor checks each example against its active catalogs when it is
-  created, and renders its prompt then, so an example the format cannot
-  write fails there. Each example is checked as one render: a surface may
-  arrive across several `updateComponents` messages of the example, and must
-  have a root, resolved references and every component reachable from the
-  root once the whole example is applied. Undeclared component types,
-  duplicate ids, cycles and malformed data-model paths are still rejected per
-  message.
-- `A2uiGenerator.createProcessor` takes an `inferenceFormatFactory` that
-  overrides the generator's.
-- `Parser` has new members: `hasFormatContent`, `wrap`, `decompile`,
-  `supportsStreaming` and `parseChunk`. Only the direct JSON parser
-  implements `parseChunk`.
-- The Express compiler reads a block that assigns components but no `root`
-  as an update of a surface created earlier, and compiles it to
-  `updateComponents` alone.
-- Payload checks run through `a2ui_core`'s `MessageProcessor.forAgent`, so a
-  catalog read by `Catalog.fromJson` keeps its protocol version, its authored
-  `$defs` (a recursive `#/$defs/node` no longer fails as an unresolvable
-  reference) and each function's `description` and declared `allowedCallers`
-  and `requiresUserActivation`. A payload whose `createSurface` names an
-  inactive catalog fails with `A2uiValidationError`.
-- The Express syntax rules no longer show `Card(...)`, so a pruned `Card`
-  never reaches the prompt.
-- Breaking: the Express parser reads a direct JSON block (`<a2ui-json>`) as
-  text instead of throwing `A2uiParseError`. A parser reads only its own
-  format's tags.
-- Breaking: `A2uiGenerator.inferenceFormatFactory` and
-  `A2uiRequestProcessor.formatFactory` default to `DirectJsonFormatFactory`
-  instead of being required, as in the blueprint.
-- Breaking: custom `Parser` subclasses must implement the new abstract
-  members.
 - Support cross-catalog `$ref` references across peer catalogs in
   `resolveCatalogs`, `validatePayloads`, `DirectJsonPromptGenerator` (preserving
   unbundled external `$ref`s in `Catalog.toJson()` while retaining transitive
@@ -86,6 +12,8 @@
   catalog as declared and as transformed, and `ExpressCompiler.catalogs` and
   `ExpressDecompiler.catalogs` hold linked copies. An inline catalog the agent
   does not accept is linked with nothing.
+- `CatalogConfig.transformedCatalog` is computed on first access and then
+  reused, so every request sees the same transformed catalog.
 - Implemented protocol v1.0. The SDK reads and writes the protocol version
   that the active catalogs target, rather than always v0.9:
   - `FileSystemCatalogProvider` and `InMemoryCatalogProvider` load documents
@@ -115,29 +43,6 @@
     renderer would reject is never emitted.
   - The direct JSON parser holds a streamed v1.0 component back until it
     closes; `bufferIncompleteComponents` applies only before v1.0.
-- The direct JSON parser emits a streamed message other than
-  `updateComponents` and `updateDataModel` once, after it closes.
-- The direct JSON parser's `parseChunk` reads and checks only what each
-  chunk adds, rather than the whole block so far: a message once it closes,
-  and a growing `updateComponents` for its new components. The time to
-  stream a payload grows with its size rather than with its square:
-  streaming 6.4 KB in 16-byte chunks takes about 0.1 s rather than 1.4 s,
-  and 105 KB about 0.3 s. A message that grows is emitted again with the
-  components it emitted before, as the same objects.
-- Direct JSON `compile` checks each surface the payload creates whole: no
-  message before its `createSurface`, no missing or unreachable component,
-  and no cycle. `parseChunk` may emit a block's messages before these checks
-  reject the block.
-- A streamed string cut inside an escaped surrogate pair is cut before the
-  pair rather than healed with U+FFFD.
-- The Express prompt gives each function's description.
-- The Express compiler rejects an inline component whose id another
-  component has, rather than renaming it.
-- The Express decompiler rejects a check condition with extra fields rather
-  than dropping them, and writes a single check without brackets, a
-  multiline string with backslashes as a raw triple-quoted string, and an
-  `updateDataModel` below the root as assignments at its path.
-- A check's default message has no trailing period, as in the other SDKs.
 - Exported `ExpressFormat`, `ExpressPromptGenerator`, `ExpressParser`,
   `ExpressCompiler` and `ExpressDecompiler`, which the agent SDK blueprint
   lists, as the direct JSON classes are. `ExpressFormat` has a public
@@ -149,11 +54,78 @@
   `A2uiCatalogError` for catalogs that target different protocol versions.
   Catalogs of v0.9 and v0.9.1, which share message shapes, mix as v0.9, there
   and in `resolveCatalogs`.
-- Express component signatures are read from
-  `Catalog.resolvedComponentSchema` and include the common mixin properties
-  (`accessibility`, `weight`) at the end, after component-specific
-  properties, so positional arguments map to component properties while
-  common properties are passed by keyword; previously they were omitted.
+- Payload checks run through `a2ui_core`'s `MessageProcessor.forAgent`.
+- The direct JSON parser emits a streamed message other than
+  `updateComponents` and `updateDataModel` once, after it closes.
+- The direct JSON parser's `parseChunk` reads and checks only what each
+  chunk adds, rather than the whole block so far: a message once it closes,
+  and a growing `updateComponents` for its new components. The time to
+  stream a payload grows with its size rather than with its square:
+  streaming 6.4 KB in 16-byte chunks takes about 0.1 s rather than 1.4 s,
+  and 105 KB about 0.3 s. A message that grows is emitted again with the
+  components it emitted before, as the same objects.
+- The Express decompiler rejects a check condition with extra fields rather
+  than dropping them.
+- The Express prompt gives each function's description.
+- Direct JSON `compile` checks each surface the payload creates whole: no
+  message before its `createSurface`, no missing or unreachable component,
+  and no cycle. `parseChunk` may emit a block's messages before these checks
+  reject the block.
+- A streamed string cut inside an escaped surrogate pair is cut before the
+  pair rather than healed with U+FFFD.
+- The Express compiler rejects an inline component whose id another
+  component has, rather than renaming it.
+- The Express decompiler writes a single check without brackets, a multiline
+  string with backslashes as a raw triple-quoted string, and an
+  `updateDataModel` below the root as assignments at its path.
+- A check's default message has no trailing period, as in the other SDKs.
+- Bump `a2ui_core` dependency to `^0.3.0`.
+- The Direct JSON prompt lists `description` after `type` in the
+  agent-to-renderer and `common_types` schemas it embeds, following the
+  reordered specification files.
+- Align `MessageProcessor.model` and `PayloadValidator` usage with `a2ui_core`.
+- `DirectJsonPromptGenerator` embeds the agent-to-renderer schema, the pruned
+  `common_types` schema, and each active catalog's `Catalog.toJson()` document
+  instead of the deprecated `catalogSchema`, avoiding duplicate inlined common
+  type definitions when multiple catalogs are active.
+- `allowedMessages` of the Direct JSON format accepts only messages: the
+  definitions the agent-to-renderer schema lists in `oneOf` and their envelope
+  keys. Other definitions, such as v1.0's `Component` and `ComponentsList`,
+  throw `ArgumentError`.
+- Payload validation builds its `MessageProcessor` with `defaultVersion`.
+- Payload validation gives `MessageProcessor` the catalog through
+  `Catalog.withFunctions`, so a catalog read by `Catalog.fromJson` keeps its
+  protocol version, its authored `$defs` (a recursive `#/$defs/node` no
+  longer fails as an unresolvable reference) and each function's
+  `description` and declared `allowedCallers` and `requiresUserActivation`.
+- The Express format reads component signatures from
+  `Catalog.resolvedComponentSchema`, since `ComponentApi.schema` now keeps a
+  component's schema as the catalog document wrote it.
+- `FileSystemCatalogProvider` and `InMemoryCatalogProvider` pass the
+  provider's id and protocol version to `Catalog.fromJson` instead of
+  writing the id into the document, so `load().toJson()` writes back a
+  document that omits its `catalogId` without one, and the catalog reports
+  the provider's protocol version when the document declares none.
+- Include common mixin properties (`accessibility`, `weight`) at the end of
+  Express component signatures (after component-specific properties) so
+  positional arguments map to component properties while supporting common
+  properties via keyword arguments; previously they were omitted.
+- `A2uiRequestProcessor` checks each example as one render: a surface may
+  arrive across several `updateComponents` messages of the example, and must
+  have a root, resolved references and every component reachable from the
+  root once the whole example is applied. Undeclared component types,
+  duplicate ids, cycles and malformed data-model paths are still rejected per
+  message.
+- `DirectJsonParser`, `DirectJsonFormat` and `DirectJsonFormatFactory` take
+  `bufferIncompleteComponents`. When it is true, a streamed component is
+  emitted only once its JSON object closes, as v1.0 requires, and progressive
+  keys heal only values outside components. It is false by default, which keeps
+  the v0.9 behavior of healing a component while it streams.
+- The Direct JSON message reader and the Express decompiler continue to
+  reject a `createSurface` message without a `catalogId` with
+  `A2uiValidationError`. The check moved into the agent SDK now that
+  `a2ui_core` makes the field optional for v1.0; previously `a2ui_core`
+  rejected the message during parsing.
 - pub.dev now recognizes the license. The package `LICENSE` linked
   `https://` where the Apache text has `http://`, which pana does not match,
   and carried the root's notice for `eval/bin/transcrypt`, a file outside
@@ -171,6 +143,58 @@
   as part of a string or comment.
 - An Express integer too large for `int` compiles to a double instead of
   throwing `FormatException`.
+
+## 0.0.1-wip005
+
+- Catalogs are typed `CatalogApi`, the new name of `a2ui_core`'s
+  `SchemaCatalog`.
+- `ComponentPruningTransformer` and `FunctionPruningTransformer` now accept an optional or null allowlist, treating it as empty.
+
+- Implemented the rest of the agent SDK blueprint API for protocol v0.9:
+  - `CatalogProvider`, `FileSystemCatalogProvider`, `InMemoryCatalogProvider`
+    and `CatalogConfig.fromPath`. A document's id and version are settled with
+    the provider's; on the web, `FileSystemCatalogProvider` cannot read files.
+  - The direct JSON format: `DirectJsonFormatFactory`, `DirectJsonFormat`,
+    `DirectJsonPromptGenerator` and `DirectJsonParser`. The prompt carries the
+    v0.9 message schema pruned to `allowedMessages`, the common types and the
+    catalogs. `parseChunk` emits each message once it reads and satisfies the
+    catalogs, healing `progressiveKeys` while their values stream.
+  - Express decompilation, through `Parser.decompile`, and prompt examples
+    in the Express prompt.
+  - Inline catalogs in `resolveCatalogs`, when `acceptsInlineCatalogs` is
+    true. An inline catalog whose id is already active is dropped.
+- Added `CatalogTransformer`, `ComponentPruningTransformer`,
+  `FunctionPruningTransformer` and `CatalogConfig.transformers`.
+- Added `resolveCatalogs`, which `A2uiGenerator.createProcessor` now uses. The
+  active catalogs are the transformed ones. Renderer capabilities of null,
+  for a request that carries none, activate every registered catalog.
+- Added `allowedMessages` to `ExpressFormatFactory`. The Express prompt
+  describes only the statements that compile to the allowed message types.
+- Added `examples` to `A2uiGenerator`, `A2uiRequestProcessor`,
+  `ExpressPromptGenerator` and `InferenceFormatFactory.createFormat`. A
+  processor checks each example against its active catalogs when it is
+  created, and renders its prompt then, so an example the format cannot
+  write fails there.
+- `A2uiGenerator.createProcessor` takes an `inferenceFormatFactory` that
+  overrides the generator's.
+- `Parser` has new members: `hasFormatContent`, `wrap`, `decompile`,
+  `supportsStreaming` and `parseChunk`. Only the direct JSON parser
+  implements `parseChunk`.
+- The Express compiler reads a block that assigns components but no `root`
+  as an update of a surface created earlier, and compiles it to
+  `updateComponents` alone.
+- A payload whose `createSurface` names an inactive catalog is an
+  `A2uiValidationError` rather than an `A2uiCatalogError`.
+- The Express syntax rules no longer show `Card(...)`, so a pruned `Card`
+  never reaches the prompt.
+- Breaking: the Express parser reads a direct JSON block (`<a2ui-json>`) as
+  text instead of throwing `A2uiParseError`. A parser reads only its own
+  format's tags.
+- Breaking: `A2uiGenerator.inferenceFormatFactory` and
+  `A2uiRequestProcessor.formatFactory` default to `DirectJsonFormatFactory`
+  instead of being required, as in the blueprint.
+- Breaking: custom `Parser` subclasses must implement the new abstract
+  members.
 
 ## 0.0.1-wip004
 
