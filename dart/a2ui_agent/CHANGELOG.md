@@ -59,7 +59,9 @@
   `updateComponents` and `updateDataModel` once, after it closes.
 - The direct JSON parser's `parseChunk` reads and checks only what each
   chunk adds, rather than the whole block so far: a message once it closes,
-  and a growing `updateComponents` for its new components. The time to
+  after which it is not read again, a growing `updateComponents` for its new
+  components, and a growing `updateDataModel` for the lists and maps its
+  value gains, with the value applied once it closes. The time to
   stream a payload grows with its size rather than with its square:
   streaming 6.4 KB in 16-byte chunks takes about 0.1 s rather than 1.4 s,
   and 105 KB about 0.3 s. A message that grows is emitted again with the

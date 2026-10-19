@@ -5,6 +5,9 @@
   rejected and logged instead of converted. Tool-based A2UI from
   `SendA2uiToClientToolset` is still checked with `validate_payload`, which
   assumes such a surface exists.
+
+## 0.1.0 (2026-10-17)
+
 - First release. `a2ui.adk` moves here from `a2ui-agent-sdk`, so the agent SDK
   no longer depends on `google-adk` or `google-genai`. Import paths are
   unchanged.

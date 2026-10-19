@@ -99,8 +99,9 @@ for both the prompt snippet and the parser.
 
 - **Direct JSON** (`DirectJsonFormatFactory`, the default): the model writes
   A2UI messages as JSON inside `<a2ui-json>` tags. It is the only format that
-  streams: `processor.open_stream()` emits each message as soon as part of it
-  reads, and again each time it grows (see
+  streams: `processor.open_stream()` emits an `updateComponents` or
+  `updateDataModel` as soon as part of it reads, and again each time it grows,
+  and any other message once its object closes (see
   [Option B](#option-b-incremental-streaming-parsing-advanced)).
 - **Express** (`ExpressFormatFactory`): the model writes a compact notation
   inside `<a2ui>` tags, which the SDK compiles into A2UI messages. It needs far
@@ -302,7 +303,7 @@ message dictionary, so convert the models in `A2uiPart.a2ui` with
 
 ##### Option B: Incremental Streaming Parsing (Advanced)
 
-Use this approach for sub-second UI updates. It needs the Direct JSON format, the only one that streams; `open_stream()` raises `NotImplementedError` for Express. The stream parses, heals and checks the JSON _incrementally_ as chunks arrive from the LLM. It emits a message as soon as part of it reads, by closing the open braces and brackets, and emits it again each time it grows. Only `createSurface`, `beginRendering` and `deleteSurface` wait until their object closes. Open the stream with `processor.open_stream()`, so that it checks each message against `processor.active_catalogs`: each component is checked against the catalog its surface uses or, from v1.0 on, the catalog the component names.
+Use this approach for sub-second UI updates. It needs the Direct JSON format, the only one that streams; `open_stream()` raises `NotImplementedError` for Express. The stream parses, heals and checks the JSON _incrementally_ as chunks arrive from the LLM. It emits an `updateComponents` or `updateDataModel` (v0.8's `surfaceUpdate` or `dataModelUpdate`) as soon as part of it reads, by closing the open braces and brackets, and emits it again each time it grows. Any other message, such as `createSurface`, `deleteSurface` or `callRendererFunction`, waits until its object closes, and the messages after it wait with it. Each chunk is read once: the stream goes on from where the previous chunk left off and checks a growing message only for what it gains, so streaming a response takes time in proportion to its length. Open the stream with `processor.open_stream()`, so that it checks each message against `processor.active_catalogs`: each component is checked against the catalog its surface uses or, from v1.0 on, the catalog the component names.
 
 A string still being written is emitted only for the format's progressive keys, whose open strings the stream closes where they stand. The default `DirectJsonFormatFactory()` has none, so a message with an open string waits until the string closes. To show text as it is written, pass `progressive_keys`, for example `DirectJsonFormatFactory(progressive_keys=DEFAULT_PROGRESSIVE_KEYS)` with `DEFAULT_PROGRESSIVE_KEYS` from `a2ui.constants`.
 
@@ -372,8 +373,9 @@ separates the two ways an agent shows UI.
 In a chat, each turn shows new UI. Pass no state: each call checks the response
 against an empty state, so from v0.9 on, a response that updates a surface it
 did not create is rejected. (A v0.8 renderer buffers updates to a surface until
-its `beginRendering`, so v0.8 accepts them.) An agent that updates surfaces
-from earlier turns is a canvas.
+its `beginRendering`, so a v0.8 response may send updates before
+`beginRendering`, but one that never sends it is rejected too.) An agent that
+updates surfaces from earlier turns is a canvas.
 
 ```python
 parts = processor.parse_response(text)
