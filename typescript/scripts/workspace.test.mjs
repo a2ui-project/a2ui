@@ -20,7 +20,7 @@ import {tmpdir} from 'node:os';
 import {join, relative} from 'node:path';
 import {after, before, describe, it} from 'node:test';
 
-import {findPackages, isSkippedDirectory} from './lib/workspace.mjs';
+import {findPackages} from './lib/workspace.mjs';
 
 /**
  * Writes an empty package.json at `dir/.../package.json`, creating directories as needed.
@@ -33,29 +33,6 @@ function writePackage(root, dir) {
   writeFileSync(join(root, dir, 'package.json'), '{}\n');
 }
 
-describe('isSkippedDirectory', () => {
-  it('skips hidden directories, node_modules, dist and virtual environments', () => {
-    for (const name of [
-      '.git',
-      '.venv',
-      '.next',
-      '.wireit',
-      '.yarn',
-      'node_modules',
-      'dist',
-      'venv',
-    ]) {
-      assert.strictEqual(isSkippedDirectory(name), true, `expected ${name} to be skipped`);
-    }
-  });
-
-  it('keeps regular package directories', () => {
-    for (const name of ['typescript', 'samples', 'web_core', 'distributions']) {
-      assert.strictEqual(isSkippedDirectory(name), false, `expected ${name} to be kept`);
-    }
-  });
-});
-
 describe('findPackages', () => {
   let root;
 
@@ -65,26 +42,35 @@ describe('findPackages', () => {
     writePackage(root, 'typescript/core/web_core');
     writePackage(root, 'typescript/renderers/react');
     writePackage(root, 'samples/client/react');
-    // Directories that must not contribute packages.
-    writePackage(root, 'node_modules/react');
-    writePackage(root, 'typescript/core/web_core/dist');
+    // A directory whose name merely starts with "dist" is a regular directory.
+    writePackage(root, 'distributions/pkg');
+    // Directories that must not contribute packages: hidden directories,
+    // installed dependencies, build output and Python virtual environments.
+    writePackage(root, '.git/hooks');
+    writePackage(root, '.next/cache');
+    writePackage(root, '.wireit/cache');
+    writePackage(root, '.yarn/cache/pkg');
     writePackage(
       root,
       '.venv/lib/python3.12/site-packages/inspect_ai/_view/ts-mono/packages/react',
     );
     writePackage(root, 'venv/lib/site-packages/some_tool/ui');
-    writePackage(root, '.yarn/cache/pkg');
+    writePackage(root, 'node_modules/react');
+    writePackage(root, 'typescript/core/web_core/dist');
   });
 
   after(() => {
-    rmSync(root, {recursive: true, force: true});
+    if (root) {
+      rmSync(root, {recursive: true, force: true});
+    }
   });
 
-  it('finds workspace packages and ignores dependency, build and virtualenv directories', () => {
+  it('finds workspace packages and ignores hidden, dependency, build and virtualenv directories', () => {
     const found = findPackages(root)
       .map(path => relative(root, path))
       .sort();
     assert.deepStrictEqual(found, [
+      'distributions/pkg/package.json',
       'package.json',
       'samples/client/react/package.json',
       'typescript/core/web_core/package.json',

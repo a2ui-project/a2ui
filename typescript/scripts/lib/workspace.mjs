@@ -51,7 +51,7 @@ const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', 'venv']);
  * @param {string} name - The directory entry name.
  * @returns {boolean} Whether to skip the entry.
  */
-export function isSkippedDirectory(name) {
+function isSkippedDirectory(name) {
   return name.startsWith('.') || SKIPPED_DIRECTORIES.has(name);
 }
 
