@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Add `A2UI_RENDERER_CAPABILITIES_KEY` to `a2ui.constants`: the message
+  metadata key (`a2uiRendererCapabilities`) that holds a v1.0 renderer's
+  capabilities. Up to v0.9 the key is `A2UI_CLIENT_CAPABILITIES_KEY`.
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.4.0,<0.5.0`.
 - `resolve_catalogs`, `validate_payload`, and the Direct JSON and Express
   formats resolve cross-catalog `$ref`s between the catalogs they are given.

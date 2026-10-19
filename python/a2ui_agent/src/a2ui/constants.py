@@ -38,6 +38,9 @@ DEFAULT_PROGRESSIVE_KEYS = frozenset({
 
 # A2UI Metadata
 A2UI_CLIENT_CAPABILITIES_KEY = "a2uiClientCapabilities"
+# v1.0 renames the client to the renderer, and the message metadata key of its
+# capabilities with it. Up to v0.9 the key is A2UI_CLIENT_CAPABILITIES_KEY.
+A2UI_RENDERER_CAPABILITIES_KEY = "a2uiRendererCapabilities"
 A2UI_CLIENT_DATA_MODEL_KEY = "a2uiClientDataModel"
 A2UI_CLIENT_DATA_MODEL_SURFACES_KEY = "surfaces"
 
