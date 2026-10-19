@@ -150,6 +150,41 @@ describe('publish_npm script integration test', () => {
     assert.ok(hasMdInstall, 'Should run yarn install in markdown-it');
   });
 
+  it('should not add private workspace packages that are only dev dependencies', async () => {
+    const executedCommands = [];
+    const npmInfoQueries = [];
+    const mocks = {
+      runCommand: (cmd, args, options) => {
+        executedCommands.push(
+          `${cmd} ${args.join(' ')} (in ${options?.cwd ? options.cwd.split('/').pop() : 'root'})`,
+        );
+      },
+      execSync: cmd => {
+        if (cmd.includes('npm info')) {
+          npmInfoQueries.push(cmd);
+          return '{"version":"0.0.1"}\n';
+        }
+        return '';
+      },
+    };
+
+    // web_core has a devDependency on the private @a2ui/conformance-timing workspace.
+    await main(['--package=web_core'], mocks);
+
+    assert.ok(
+      executedCommands.some(cmd => cmd.includes('yarn install (in web_core)')),
+      'Should run yarn install in web_core',
+    );
+    assert.ok(
+      !npmInfoQueries.some(cmd => cmd.includes('@a2ui/conformance-timing')),
+      'Should not check the registry version of a private package',
+    );
+    assert.ok(
+      !executedCommands.some(cmd => cmd.includes('conformance_timing')),
+      'Should not prepare or publish a private package',
+    );
+  });
+
   it('should throw an error when no packages are specified', async () => {
     await assert.rejects(
       () => main([]),

@@ -184,6 +184,18 @@ function ensureWorkspaceDependencies(packageObjects, graph) {
     for (const depName of pkg.internalDependencies) {
       if (!names.has(depName)) {
         const depPkg = graph[depName];
+        if (depPkg?.private) {
+          // Private workspace packages are never published. A development-only
+          // dependency on one is fine (it resolves within the workspace when
+          // building and testing), but a runtime or peer dependency would ship
+          // a package that cannot be installed from the registry.
+          if (depName in pkg.dependencies || depName in pkg.peerDependencies) {
+            throw new Error(
+              `${pkg.name} depends on the private workspace package ${depName}, which is never published.`,
+            );
+          }
+          continue;
+        }
         if (depPkg) {
           names.add(depName);
           result.push(depPkg);
