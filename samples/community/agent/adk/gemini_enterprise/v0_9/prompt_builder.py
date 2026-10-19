@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor
 from a2ui.utils import load_examples, to_version_number
@@ -156,7 +158,10 @@ if __name__ == "__main__":
     processor = generator.create_processor(
         {version.value: {"supportedCatalogIds": [MATERIAL_CATALOG_ID]}}
     )
-    demo_prompt = get_ui_prompt(processor, f"examples/{to_version_number(version)}")
+    demo_prompt = get_ui_prompt(
+        processor,
+        os.path.join(os.path.dirname(__file__), "examples", to_version_number(version)),
+    )
 
     print(demo_prompt)
 

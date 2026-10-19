@@ -72,7 +72,7 @@ class A2uiDemoAgentExecutor(AgentExecutor):
             # extension, so the agent always answers with UI.
             logger.info(
                 "--- AGENT_EXECUTOR: A2UI extension is not requested. Answering"
-                f" with A2UI v{A2UI_VERSION} anyway. ---"
+                f" with A2UI {A2UI_VERSION.value} anyway. ---"
             )
             active_ui_version = A2UI_VERSION
 
@@ -179,10 +179,10 @@ class A2uiDemoAgentExecutor(AgentExecutor):
         updater = TaskUpdater(event_queue, task.id, task.context_id)
 
         # Drain the agent's response and send it in one final message, so the
-        # client receives a single, complete response. Parts that the agent
-        # streams in working items aren't repeated in its final item, so they
-        # are collected here. Text tokens are dropped, since the final item of
-        # a text response holds the whole text.
+        # client receives a single, complete response. Gemini Enterprise
+        # renders only the final message's parts, and the agent's final item
+        # holds the whole response, so the parts and text tokens of its
+        # working items aren't repeated.
         final_parts: list[Part] = []
         async for item in self._agent.stream(
             query,
@@ -191,7 +191,8 @@ class A2uiDemoAgentExecutor(AgentExecutor):
             client_ui_capabilities,
             use_streaming=use_streaming,
         ):
-            final_parts.extend(item.get("parts", []))
+            if item["is_task_complete"]:
+                final_parts = item["parts"]
 
         self._log_parts(final_parts)
 

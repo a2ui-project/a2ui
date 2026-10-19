@@ -212,9 +212,12 @@ class A2uiDemoAgent:
     ) -> AsyncIterable[dict[str, Any]]:
         """Answers one request, as text or, if `ui_version` is set, with UI.
 
-        With `use_streaming`, the parts of the response are sent as the model
-        writes them, and the final item holds no parts. Otherwise the whole
-        response is validated first and sent in the final item.
+        The final item always holds the whole response. Gemini Enterprise, like
+        many A2UI clients, renders only the parts of the final message, and a
+        final message without parts shows the response as thoughts with
+        nothing rendered. With `use_streaming`, each part is also sent in a
+        working item as soon as it is validated. Otherwise the whole response
+        is validated before the final item is sent.
         """
         session = await self._get_session(session_id)
         processor: A2uiRequestProcessor | None = None
@@ -238,7 +241,11 @@ class A2uiDemoAgent:
             runner = self._build_runner(
                 get_ui_prompt(
                     processor,
-                    examples_path=f"examples/{to_version_number(ui_version)}",
+                    examples_path=os.path.join(
+                        os.path.dirname(__file__),
+                        "examples",
+                        to_version_number(ui_version),
+                    ),
                 )
             )
         else:
@@ -268,6 +275,11 @@ class A2uiDemoAgent:
                     ),
                     new_message=message,
                 ):
+                    # In SSE mode, ADK sends the text in partial events and
+                    # then repeats all of it in a final aggregated event,
+                    # which is skipped so the text is read once.
+                    if use_streaming and not event.partial:
+                        continue
                     if event.content and event.content.parts:
                         for p in event.content.parts:
                             # Skip the model's "thought"/reasoning parts.
@@ -289,14 +301,15 @@ class A2uiDemoAgent:
 
             # Each message is validated before it is sent, so the client only
             # gets valid UI. A failure ends the attempt.
+            streamed_parts: list[Part] = []
             try:
                 if use_streaming:
                     async for part in stream_response_to_parts(
                         processor.open_stream(), token_stream(), version=ui_version
                     ):
+                        streamed_parts.append(part)
                         yield {"is_task_complete": False, "parts": [part]}
-                    # Every part was already sent while streaming.
-                    final_parts = []
+                    final_parts = streamed_parts
                 else:
                     async for _ in token_stream():
                         pass
@@ -312,6 +325,10 @@ class A2uiDemoAgent:
                 logger.warning(
                     f"--- Failed response content: {''.join(received)[:500]}... ---"
                 )
+                if streamed_parts:
+                    # The client may already show the parts sent so far, and a
+                    # new response would show them again, so the agent stops.
+                    break
                 current_query_text = (
                     f"Your previous response was invalid. Validation failed: {e}."
                     " You MUST generate a valid response that strictly follows the"
@@ -322,6 +339,15 @@ class A2uiDemoAgent:
                 )
                 continue
 
+            if not final_parts:
+                # A retry would add a second user turn with no model turn
+                # between them, so the agent stops here.
+                logger.warning(
+                    "--- A2uiDemoAgent.stream: Received no response content"
+                    f" (Attempt {attempt}). ---"
+                )
+                break
+
             logger.info(
                 "--- A2uiDemoAgent.stream: Response is valid. Sending final"
                 f" response (Attempt {attempt}). ---"
@@ -330,8 +356,7 @@ class A2uiDemoAgent:
             return
 
         logger.error(
-            "--- A2uiDemoAgent.stream: Max retries exhausted. Sending text-only"
-            " error. ---"
+            "--- A2uiDemoAgent.stream: No valid response. Sending text-only error. ---"
         )
         yield {
             "is_task_complete": True,
