@@ -1,0 +1,86 @@
+[
+  {
+    "version": "v1.0",
+    "createSurface": {
+      "surfaceId": "sales-dashboard",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateComponents": {
+      "surfaceId": "sales-dashboard",
+      "components": [
+        {
+          "id": "root",
+          "component": "Column",
+          "children": ["chart_title", "category_list"]
+        },
+        {
+          "id": "chart_title",
+          "component": "Text",
+          "text": {
+            "@call": "formatString",
+            "args": {
+              "value": "## ${/chart.title}"
+            }
+          }
+        },
+        {
+          "id": "category_list",
+          "component": "List",
+          "direction": "vertical",
+          "children": {
+            "componentId": "category_item_template",
+            "path": "/chart.items"
+          }
+        },
+        {
+          "id": "category_item_template",
+          "component": "Card",
+          "child": "item_row"
+        },
+        {
+          "id": "item_row",
+          "component": "Row",
+          "justify": "spaceBetween",
+          "children": ["item_label", "item_value"]
+        },
+        {
+          "id": "item_label",
+          "component": "Text",
+          "text": {
+            "@path": "/label"
+          }
+        },
+        {
+          "id": "item_value",
+          "component": "Text",
+          "text": {
+            "@path": "/value"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateDataModel": {
+      "surfaceId": "sales-dashboard",
+      "path": "/",
+      "value": {
+        "chart.title": "Sales by Category",
+        "chart.items[0].label": "Apparel",
+        "chart.items[0].value": 41,
+        "chart.items[1].label": "Home Goods",
+        "chart.items[1].value": 15,
+        "chart.items[2].label": "Electronics",
+        "chart.items[2].value": 28,
+        "chart.items[3].label": "Health & Beauty",
+        "chart.items[3].value": 10,
+        "chart.items[4].label": "Other",
+        "chart.items[4].value": 6
+      }
+    }
+  }
+]

@@ -35,18 +35,21 @@ create a simple "MCP Apps Proxy" agent that is hosted as an A2A server.
 
 ## How the agent negotiates A2UI
 
-The agent holds one `A2uiGenerator` for each protocol version (v0.8 and v0.9),
-each with the MCP App catalog in [`catalogs/`](catalogs/). The agent card lists
-the generator's catalogs.
+The agent holds one `A2uiGenerator` for each protocol version (v0.8, v0.9 and
+v1.0), each with the MCP App catalog of that version in
+[`catalogs/`](catalogs/). The agent card lists the generators' catalogs.
 
 For each request, the executor ([`agent_executor.py`](agent_executor.py))
-creates an `A2uiRequestProcessor` from the client's `a2uiClientCapabilities`,
-and writes the format rules of the processor and the negotiated catalog into the
-session state. The instruction and the A2UI event converter read them from
-there.
+creates an `A2uiRequestProcessor` from the client's capabilities: the
+`a2uiClientCapabilities` message metadata for v0.8 and v0.9, and
+`a2uiRendererCapabilities` for v1.0. It writes the negotiated version, the
+format rules of the processor and the negotiated catalog into the session
+state. The instruction and the A2UI event converter read them from there, and
+the tools write their A2UI messages in v1.0 when the request negotiated it and
+in v0.9 otherwise.
 
 The capabilities are keyed by protocol version, for example
-`{"v0.9": {"supportedCatalogIds": [...]}}`, and the agent passes them to
+`{"v1.0": {"supportedCatalogIds": [...]}}`, and the agent passes them to
 `A2uiGenerator.create_processor` unchanged. A client that sends none, or names
 none of the agent's catalogs, gets text answers. The [MCP calculator
 client](../../../client/angular/projects/mcp_calculator) names the MCP App

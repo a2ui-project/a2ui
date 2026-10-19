@@ -17,11 +17,57 @@ import os
 import traceback
 from typing import Any
 import uuid
+
 from google.adk.tools import ToolContext
 from google.genai import Client, types
+
+from a2ui.core.schema import ProtocolVersion
+from agent_executor import get_a2ui_version
 from file_resolution import resolve_files
 
 logger = logging.getLogger(__name__)
+
+# The catalog of each protocol version that the tools write messages in.
+_CATALOG_IDS = {
+    ProtocolVersion.V0_9: (
+        "https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/0.9/file_upload_catalog.json"
+    ),
+    ProtocolVersion.V1_0: (
+        "https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/1.0/file_upload_catalog.json"
+    ),
+}
+
+
+def _message_version(tool_context: ToolContext) -> ProtocolVersion:
+    """Returns the protocol version to write the request's A2UI messages in.
+
+    That is v1.0 when the request negotiated it, and v0.9 otherwise.
+    """
+    if get_a2ui_version(tool_context) == ProtocolVersion.V1_0:
+        return ProtocolVersion.V1_0
+    return ProtocolVersion.V0_9
+
+
+def _required_check(version: ProtocolVersion, path: str) -> dict[str, Any]:
+    """Returns the condition that the value at `path` is set.
+
+    v1.0 spells the function call `@call` and the binding `@path`, and leaves
+    the return type to the catalog.
+    """
+    if version == ProtocolVersion.V1_0:
+        return {"@call": "required", "args": {"value": {"@path": path}}}
+    return {
+        "call": "required",
+        "args": {"value": {"path": path}},
+        "returnType": "boolean",
+    }
+
+
+def _binding(version: ProtocolVersion, path: str) -> dict[str, Any]:
+    """Returns a data binding to `path`, which v1.0 spells `@path`."""
+    if version == ProtocolVersion.V1_0:
+        return {"@path": path}
+    return {"path": path}
 
 
 async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = False):
@@ -31,18 +77,17 @@ async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = Fa
         multiple: Set to True if the user asks to upload multiple files, False for a single file.
     """
     surface_id = f"file_upload_surface_{uuid.uuid4().hex[:8]}"
+    version = _message_version(tool_context)
     messages = [
         {
-            "version": "v0.9",
+            "version": version.value,
             "createSurface": {
                 "surfaceId": surface_id,
-                "catalogId": (
-                    "https://a2ui.org/samples/community/agent/adk/file_upload_summarizer/catalogs/0.9/file_upload_catalog.json"
-                ),
+                "catalogId": _CATALOG_IDS[version],
             },
         },
         {
-            "version": "v0.9",
+            "version": version.value,
             "updateComponents": {
                 "surfaceId": surface_id,
                 "components": [
@@ -67,17 +112,15 @@ async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = Fa
                         "component": "Button",
                         "child": "summarize_btn_txt",
                         "checks": [{
-                            "condition": {
-                                "call": "required",
-                                "args": {"value": {"path": "/uploaded_files"}},
-                                "returnType": "boolean",
-                            },
+                            "condition": _required_check(version, "/uploaded_files"),
                             "message": "Please wait for the file upload to complete",
                         }],
                         "action": {
                             "event": {
                                 "name": "summarize_file",
-                                "context": {"files": {"path": "/uploaded_files"}},
+                                "context": {
+                                    "files": _binding(version, "/uploaded_files")
+                                },
                             }
                         },
                     },
@@ -102,8 +145,9 @@ async def update_upload_context_tool(
     """Updates the data model with the uploaded file pointers context.
     IMPORTANT: After calling this tool, you MUST STOP and wait for the user. Do NOT call summarize_file_tool.
     """
+    version = _message_version(tool_context)
     messages = [{
-        "version": "v0.9",
+        "version": version.value,
         "updateDataModel": {
             "surfaceId": surface_id,
             "path": "/uploaded_files",

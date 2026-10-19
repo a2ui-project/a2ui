@@ -121,7 +121,11 @@ class McpAppProxyAgent:
 
         self._generators: dict[ProtocolVersion, A2uiGenerator] = {
             version: self._build_generator(version)
-            for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]
+            for version in [
+                ProtocolVersion.V0_8,
+                ProtocolVersion.V0_9,
+                ProtocolVersion.V1_0,
+            ]
         }
         self._runner = self._build_runner()
         self._agent_card = self._build_agent_card()
@@ -142,8 +146,9 @@ class McpAppProxyAgent:
 
         Args:
             version: The negotiated A2UI protocol version.
-            client_ui_capabilities: The `a2uiClientCapabilities` that the client
-                sent, keyed by protocol version, or None if it sent none.
+            client_ui_capabilities: The capabilities that the client sent,
+                keyed by protocol version (`a2uiClientCapabilities` up to v0.9,
+                `a2uiRendererCapabilities` from v1.0), or None if it sent none.
 
         Raises:
             A2uiError: If the client sent no capabilities, or they are

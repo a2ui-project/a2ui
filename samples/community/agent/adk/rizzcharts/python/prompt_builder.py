@@ -22,6 +22,8 @@ state for each request, from the processor that it negotiates with the client.
 """
 
 # pylint: disable=g-importing-member, line-too-long
+import sys
+
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import schema_to_prompt
@@ -103,8 +105,13 @@ def get_ui_prompt(base_rules: str) -> str:
 if __name__ == "__main__":
     # Builds the prompt of a request from a client that renders the rizzcharts
     # and the basic catalogs, as the agent does: the instruction, then the
-    # schema and the examples that `SendA2uiToClientToolset` adds.
-    version = ProtocolVersion.V0_9
+    # schema and the examples that `SendA2uiToClientToolset` adds. Pass the
+    # protocol version as the argument, such as `1.0`; it defaults to 0.9.
+    version = (
+        ProtocolVersion(f"v{sys.argv[1]}")
+        if len(sys.argv) > 1
+        else ProtocolVersion.V0_9
+    )
     rizzcharts_config = CatalogConfig.from_path(
         catalog_path=f"../catalog_schemas/{to_version_number(version)}/rizzcharts_catalog_definition.json",
         protocol_version=version,

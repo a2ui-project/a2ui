@@ -44,6 +44,17 @@ _A2UI_ENABLED_KEY = "system:a2ui_enabled"
 _A2UI_CATALOGS_KEY = "system:a2ui_catalogs"
 _A2UI_EXAMPLES_KEY = "system:a2ui_examples"
 _A2UI_RULES_KEY = "system:a2ui_rules"
+_A2UI_RENDERER_CAPABILITIES_KEY = "a2uiRendererCapabilities"
+
+
+def _capabilities_key(version: ProtocolVersion) -> str:
+    """Returns the message metadata key of the client's capabilities.
+
+    v1.0 renames the client to the renderer, and its capabilities key with it.
+    """
+    if version in (ProtocolVersion.V0_8, ProtocolVersion.V0_9):
+        return A2UI_CLIENT_CAPABILITIES_KEY
+    return _A2UI_RENDERER_CAPABILITIES_KEY
 
 
 def get_a2ui_catalogs(ctx: ReadonlyContext):
@@ -152,11 +163,12 @@ class RizzchartsAgentExecutor(A2aAgentExecutor):
         """
         if not version:
             return None
-        capabilities = (
-            context.message.metadata.get(A2UI_CLIENT_CAPABILITIES_KEY)
+        metadata = (
+            context.message.metadata
             if context.message and context.message.metadata
-            else None
+            else {}
         )
+        capabilities = metadata.get(_capabilities_key(version))
         try:
             return self._agent.create_processor(version, capabilities)
         except A2uiError as e:
