@@ -165,6 +165,7 @@ void main() {
     }
     expect(_inPane('action-log', find.text('book_now')), findsNWidgets(2));
     expect(_logged('"sourceComponentId": "rc_button"'), findsNWidgets(2));
+    expect(_logged('"timestamp"'), findsNWidgets(2));
   });
 
   testWidgets('Advance, Run all and Reset step through the messages', (

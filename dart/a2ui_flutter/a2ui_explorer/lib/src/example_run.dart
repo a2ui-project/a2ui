@@ -33,25 +33,12 @@ class ExampleRun extends ChangeNotifier {
   ExampleRun(this.example) : messages = example.messages {
     final SurfaceGroupModel<ComponentImplementation> group = _processor.model;
     group.onAction.subscribe(
-      (action) => _log((
-        heading: action.name,
-        details: {
-          'surfaceId': action.surfaceId,
-          'sourceComponentId': action.sourceComponentId,
-          'context': action.context,
-        },
-      )),
+      (action) => _log((heading: action.name, details: action.toJson())),
     );
     group.onSurfaceCreated.subscribe((surface) {
       surface.onError.subscribe(
-        (error) => _log((
-          heading: 'Error ${error.code}',
-          details: {
-            'surfaceId': error.surfaceId,
-            'message': error.message,
-            'path': ?error.path,
-          },
-        )),
+        (error) =>
+            _log((heading: 'Error ${error.code}', details: error.toJson())),
       );
       _surfaces.add(surface);
       _changed();
