@@ -405,3 +405,23 @@ def test_a_truncated_block_does_not_hold_its_components_against_later_turns():
     assert "orphan" in _component_ids(state)
     parser.parse_response(_block(_CHANGE_A), state=state)
     assert _components(state)["a"]["text"] == "Changed"
+
+
+def test_a_chunk_that_finishes_a_block_then_fails_keeps_its_emitted_surfaces():
+    """The rollback restores what the finished block emitted earlier."""
+    parser = DirectJsonParser([_BASIC])
+    state = _canvas(parser)
+    stream = parser.open_stream(state=state)
+
+    assert _emitted(stream.feed("<a2ui-json>[" + json.dumps(_update(_text("b"))) + ","))
+    with pytest.raises(A2uiValidationError, match="Unrecognized component"):
+        stream.feed(
+            json.dumps(_update(_column("a", "b")))
+            + "]</a2ui-json>"
+            + _block(_update({"id": "x", "component": "Unknown"}))
+        )
+
+    # `b` was emitted, but the update that attached it was undone.
+    assert "b" in _component_ids(state)
+    parser.parse_response(_block(_CHANGE_A), state=state)
+    assert _components(state)["a"]["text"] == "Changed"

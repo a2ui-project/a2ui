@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 import json
 from typing import Any
 from typing import TYPE_CHECKING
@@ -100,6 +101,10 @@ class DirectJsonResponseStream(ResponseStream):
     def feed(self, chunk: str) -> list[ResponsePart]:
         if self._closed:
             raise ValueError("The response stream is closed.")
+        # The surfaces of what was emitted before this chunk. Finishing a
+        # block in this chunk clears `_touched`, but the rollback below
+        # restores that block's earlier-emitted messages unchecked.
+        emitted = list(self._touched)
         try:
             # A chunk may apply messages and then fail, for example in a second
             # block, before its parts are returned. The transaction undoes
@@ -107,7 +112,7 @@ class DirectJsonResponseStream(ResponseStream):
             with self._state.transaction():
                 return self._feed(chunk)
         except BaseException:
-            self._fail()
+            self._fail(emitted)
             raise
 
     def close(self) -> list[ResponsePart]:
@@ -125,23 +130,27 @@ class DirectJsonResponseStream(ResponseStream):
                     f" {CLOSE_TAG} tag."
                 )
         except BaseException:
-            self._fail()
+            self._fail(self._touched)
             raise
         if self._held:
             self._emit_text(parts, self._held)
             self._held = ""
         return parts
 
-    def _fail(self) -> None:
+    def _fail(self, surface_ids: Iterable[str]) -> None:
         """Ends the stream after a failure, keeping what it emitted.
 
         The renderer holds the messages already emitted, and so does the
         state. No message removes a component, so the components they added
         are marked checked: a later turn is not required to make them
         reachable.
+
+        Args:
+          surface_ids: The surfaces of the messages the stream emitted that
+            the state still holds.
         """
         self._closed = True
-        self._state.mark_checked(self._touched)
+        self._state.mark_checked(surface_ids)
 
     def _feed(self, chunk: str) -> list[ResponsePart]:
         parts: list[ResponsePart] = []
