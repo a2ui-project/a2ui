@@ -262,6 +262,52 @@ void main() {
       expect(placeholder.opacity, 1);
     });
 
+    testWidgets('Slider moves in its steps', (tester) async {
+      final SurfaceHarness harness = await _pump(
+        tester,
+        [
+          {
+            'id': 'root',
+            'component': 'Slider',
+            'label': 'Volume',
+            'value': _bind('/volume'),
+            'min': 0,
+            'max': 1,
+            'steps': 10,
+          },
+        ],
+        dataModel: {'volume': 0},
+      );
+
+      final Slider slider = tester.widget<Slider>(find.byType(Slider));
+      expect(slider.divisions, 10);
+
+      slider.onChanged!(0.31);
+      expect(harness.data('/volume'), 0.3);
+    });
+
+    testWidgets('Slider snaps to more than 1000 steps', (tester) async {
+      final SurfaceHarness harness = await _pump(
+        tester,
+        [
+          {
+            'id': 'root',
+            'component': 'Slider',
+            'value': _bind('/volume'),
+            'max': 1,
+            'steps': 1001,
+          },
+        ],
+        dataModel: {'volume': 0},
+      );
+
+      final Slider slider = tester.widget<Slider>(find.byType(Slider));
+      expect(slider.divisions, 1001);
+
+      slider.onChanged!(0.5);
+      expect(harness.data('/volume'), 501 / 1001);
+    });
+
     testWidgets('Icon follows a bound svgPath', (tester) async {
       final SurfaceHarness harness = await _pump(
         tester,
