@@ -28,12 +28,12 @@ from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
 from a2ui.utils import RendererState
 
-from .blocks import add_text
-from .blocks import clean
 from .blocks import CLOSE_TAG
 from .blocks import CLOSE_TAG_RE
 from .blocks import OPEN_TAG
 from .blocks import OPEN_TAG_RE
+from .blocks import add_text
+from .blocks import clean
 from .blocks import scan_block
 from .decompiler import DirectJsonDecompiler
 from .json_reader import read_json
@@ -118,7 +118,10 @@ class DirectJsonParser(Parser):
 
     def compile(self, format_content: str, *, is_final: bool = True) -> list[Any]:
         """Reads a block as a JSON message or a JSON array of messages."""
-        del is_final
+        if not is_final:
+            raise A2uiParseError(
+                f"The response ended inside an unclosed {OPEN_TAG} block."
+            )
         cleaned = clean(format_content)
         if not cleaned:
             raise A2uiParseError("The direct JSON block is empty.")

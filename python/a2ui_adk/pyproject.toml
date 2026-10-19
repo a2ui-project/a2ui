@@ -29,6 +29,12 @@ dependencies = [
   "google-genai>=1.27.0",
 ]
 
+[project.urls]
+Homepage = "https://a2ui.org/"
+Repository = "https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_adk"
+Changelog = "https://github.com/a2ui-project/a2ui/blob/main/python/a2ui_adk/CHANGELOG.md"
+Issues = "https://github.com/a2ui-project/a2ui/issues"
+
 [project.optional-dependencies]
 # The ADK-to-A2A converters (`a2ui.adk.a2a`) and the A2A subagent orchestration
 # helpers (`a2ui.adk.orchestration`) need the A2A extension.

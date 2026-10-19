@@ -319,11 +319,14 @@ stream = processor.open_stream()
 # Inside your LLM stream loop:
 for chunk in llm_response_stream:
     # Yield text and partial UI updates as soon as they are ready.
-    yield {"is_task_complete": False, "parts": to_a2a_parts(stream.feed(chunk.text))}
+    yield {
+        "is_task_complete": False,
+        "parts": to_a2a_parts(stream.feed(chunk.text), version=version),
+    }
 
 # After the last chunk, close the stream. It emits the text still held back as a
 # possible tag, and raises if a block was left open.
-yield {"is_task_complete": False, "parts": to_a2a_parts(stream.close())}
+yield {"is_task_complete": False, "parts": to_a2a_parts(stream.close(), version=version)}
 ```
 
 Always call `close()` after the last chunk: without it, trailing text that
