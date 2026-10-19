@@ -18,6 +18,10 @@
 
 ## Unreleased
 
+- **Breaking:** `package:a2ui_flutter/basic_catalog.dart` now implements the
+  v1.0 basic catalog under the same names. v0.9 code that still imports it
+  compiles, but registers the v1.0 catalog, which its v0.9 surfaces do not
+  name.
 - **Breaking:** The v0.9 basic catalog moved to
   `package:a2ui_flutter/v0_9/basic_catalog.dart`, under the same names.
 - Ignore `deprecated_member_use` warnings on `package:flutter/material.dart` imports on Flutter beta (#3235).
