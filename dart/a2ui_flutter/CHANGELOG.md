@@ -18,6 +18,7 @@
 
 ## Unreleased
 
+- `ComponentProps.asBoolean` reads a validation result as its validity.
 - `ComponentProps.validationResults` holds the failing checks, and the basic
   inputs other than Button show one of `warning` or `info` severity as a
   hint.
