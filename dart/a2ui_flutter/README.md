@@ -218,7 +218,11 @@ component for a catalog of your own.
 
 The functions format for the `locale` passed to `basicCatalog()`, `en-US` by
 default. Inputs other than Button show a failing check of `warning` or `info`
-severity as a hint under them.
+severity as a hint under them. A component with an `accessibility.live` of
+`polite` or `assertive` is a live region, which announces changes to its own
+label: a Text's text, a TextField's label, a Slider's label and value, or
+the check message under a CheckBox, ChoicePicker or Slider, but not a
+Button's child text, a CheckBox's label or a TextField's value.
 
 Not supported yet:
 
@@ -229,6 +233,10 @@ Not supported yet:
   `Dialog`.
 - Leaving `video_player` out of an app. Video and AudioPlayer play through
   it.
+- An explicit `accessibility.label` in place of the label a control takes
+  from its own text. On a Button, CheckBox or Slider the `accessibility`
+  attributes go on a node around the control, and on a TextField or Text an
+  explicit label is joined to the widget's own label.
 
 ## Security
 
