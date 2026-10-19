@@ -69,7 +69,7 @@ SAMPLE_CONFIGS = [
         "path": SAMPLES_DIR / "restaurant_finder",
         "catalogs": [(
             lambda: CatalogConfig(BasicCatalog(ProtocolVersion.V0_9)),
-            "examples/0.9",
+            f"examples/{to_version_number(ProtocolVersion.V0_9)}",
         )],
         "validate": True,
     },
@@ -78,7 +78,7 @@ SAMPLE_CONFIGS = [
         "path": SAMPLES_DIR / "restaurant_finder",
         "catalogs": [(
             lambda: CatalogConfig(BasicCatalog(ProtocolVersion.V1_0)),
-            "examples/1.0",
+            f"examples/{to_version_number(ProtocolVersion.V1_0)}",
         )],
         "validate": True,
     },
