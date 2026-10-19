@@ -533,7 +533,7 @@ class _StreamedChecks {
             final UpdateDataModelMessage growing,
             final Map<String, Object?> message,
           )
-          when rest != null && rest == _growingJson:
+          when growing.hasValue && rest != null && rest == _growingJson:
         return _checkGrown(growing, message, closed: closed);
       case (final AgentToRendererMessage growing, _)
           when rest == null && jsonEncode(envelope) == _growingJson:
