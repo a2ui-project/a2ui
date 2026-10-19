@@ -46,11 +46,26 @@
   response, with `feed` and `close`. Messages the stream emits are applied to
   its state as they are emitted, and the stream checks each message against
   the state instead of building a new `MessageProcessor` for every message on
-  every chunk. A `deleteSurface` is held until its object closes, like
-  `createSurface`. `close` emits text still held back as a possible tag,
-  raises `A2uiParseError` if a block is still open, and checks the tree of an
-  unwrapped stream. `ResponseStream` is exported from `a2ui.parser` and
-  `DirectJsonResponseStream` from `a2ui.inference_formats.direct_json`.
+  every chunk. Only `updateComponents` and `updateDataModel` (v0.8's
+  `surfaceUpdate` and `dataModelUpdate`) are emitted while they grow; any
+  other message, such as `createSurface`, `deleteSurface` or
+  `callRendererFunction`, is held until its object closes. `close` emits text
+  still held back as a possible tag, raises `A2uiParseError` if a block is
+  still open, and checks the tree of an unwrapped stream. `ResponseStream` is
+  exported from `a2ui.parser` and `DirectJsonResponseStream` from
+  `a2ui.inference_formats.direct_json`.
+- `DirectJsonResponseStream` reads each chunk once. The scan for the close tag
+  and the read of the open block go on from where the previous chunk left
+  them, a message that has closed is not read or checked again, and a message
+  that grows is checked for what it gains: an `updateComponents` applies only
+  the components it added, and an `updateDataModel` is applied again once it
+  closes. Streaming a response of n components or n messages in small chunks
+  now takes time in proportion to n rather than its square.
+- **BREAKING**: `DirectJsonParser.compile` returns `AgentToRendererMessage`
+  models, as the other formats' `compile` does, rather than the decoded JSON
+  mappings. A message that matches no protocol version's message schema
+  raises `A2uiValidationError` there. Use `to_message_dicts` for the wire
+  form.
 - **BREAKING**: A parser holds no state, and the APIs that assumed one parser
   per response are removed. To migrate:
   - `Parser.parse_chunk(chunk, wrapped)`: open a stream with
