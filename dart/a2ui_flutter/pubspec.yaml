@@ -29,7 +29,7 @@ dependencies:
   flutter:
     sdk: flutter
   path_parsing: ^1.1.0
-  video_player: ^2.14.1
+  video_player: ^2.11.1
 
 dev_dependencies:
   flutter_test:

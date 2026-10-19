@@ -1,5 +1,8 @@
 ## Unreleased
 
+## 0.2.2
+
+- Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.
 - Relocate package directory from `renderers/markdown/markdown-it` to `typescript/renderers/markdown-it`.
 
 ## 0.2.1

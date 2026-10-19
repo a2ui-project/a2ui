@@ -2,6 +2,15 @@
   "name": "@a2ui/agent",
   "version": "0.0.1",
   "description": "A2UI Agent SDK for TypeScript and Node.js",
+  "homepage": "https://a2ui.org/",
+  "repository": {
+    "directory": "typescript/agents/a2ui_agent",
+    "type": "git",
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/a2ui-project/a2ui/issues"
+  },
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "type": "module",
