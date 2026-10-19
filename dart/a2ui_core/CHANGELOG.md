@@ -45,6 +45,12 @@
   each batch of components, for an agent that checks one message's
   components in several batches as they stream. Its `earlier` argument
   takes the ids of the earlier batches.
+- Exported `checkPathsAndRecursion`, the check of data-model paths and
+  nesting depth that `MessageProcessor` runs on each message under a
+  validation config. Its new `grownFrom` argument takes an earlier form of
+  the message that passed the check, and a list or map the two hold at the
+  same place is not checked again, so a message that grows as it streams is
+  checked for what it gained.
 - A `MessageProcessor` whose `validationConfig` allows dangling references,
   and orphan components or a missing root, as an agent checking a payload
   that is still arriving does, checks each `updateComponents` without
