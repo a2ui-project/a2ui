@@ -245,6 +245,16 @@ class DirectJsonParser(Parser):
                 # it grows. The messages after it wait with it.
                 if not closed and any(key in envelope for key in _CREATE_KEYS):
                     break
+                # An updateDataModel without `value` deletes the path in v0.9,
+                # so a message still arriving without `value` waits until
+                # `value` arrives or the object closes.
+                udm_body = envelope.get("updateDataModel")
+                if (
+                    not closed
+                    and isinstance(udm_body, dict)
+                    and "value" not in udm_body
+                ):
+                    break
                 trial_surfaces = dict(surfaces)
                 validate_payload(
                     self._catalogs,
