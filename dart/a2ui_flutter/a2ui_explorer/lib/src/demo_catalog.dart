@@ -34,7 +34,7 @@ final Schema _dynamicNumber = Schema.fromMap({
 });
 
 /// A `CustomGrid`: its `title` and `description` over its `children` in two
-/// columns.
+/// columns, as wide as the screen when the incoming width is unbounded.
 final ComponentImplementation customGrid = ComponentImplementation(
   name: 'CustomGrid',
   schema: Schema.object(
@@ -61,19 +61,22 @@ final ComponentImplementation customGrid = ComponentImplementation(
             ),
           )
         : const Spacer();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (props.string('title') case final String title)
-          Text(title, style: text.titleMedium),
-        if (props.string('description') case final String description)
-          Text(description, style: text.bodySmall),
-        for (var row = 0; row < children.length; row += 2)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [cell(row), cell(row + 1)],
-          ),
-      ],
+    return LimitedBox(
+      maxWidth: MediaQuery.sizeOf(context).width,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (props.string('title') case final String title)
+            Text(title, style: text.titleMedium),
+          if (props.string('description') case final String description)
+            Text(description, style: text.bodySmall),
+          for (var row = 0; row < children.length; row += 2)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [cell(row), cell(row + 1)],
+            ),
+        ],
+      ),
     );
   },
 );

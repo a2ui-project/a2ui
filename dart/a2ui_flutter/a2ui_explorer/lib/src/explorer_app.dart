@@ -89,7 +89,13 @@ class _ExplorerPageState extends State<ExplorerPage> {
                 const VerticalDivider(width: 1),
                 Expanded(child: _runPane(context)),
                 const VerticalDivider(width: 1),
-                SizedBox(width: 360, child: _inspectorPane()),
+                SizedBox(
+                  width: 360,
+                  child: KeyedSubtree(
+                    key: ObjectKey(_run),
+                    child: _inspectorPane(),
+                  ),
+                ),
               ],
             ),
           ),
@@ -160,39 +166,45 @@ class _ExplorerPageState extends State<ExplorerPage> {
         const Divider(height: 1),
         Expanded(
           flex: 3,
-          child: surfaces.isEmpty
-              ? const Center(child: Text('No surface yet.'))
-              : A2uiMarkdown(
-                  builder: _markdown,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      spacing: 16,
-                      children: [
-                        for (final surface in surfaces)
-                          A2uiSurface(
-                            key: ObjectKey(surface),
-                            surface: surface,
-                          ),
-                      ],
+          child: KeyedSubtree(
+            key: ObjectKey(run),
+            child: surfaces.isEmpty
+                ? const Center(child: Text('No surface yet.'))
+                : A2uiMarkdown(
+                    builder: _markdown,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: 16,
+                        children: [
+                          for (final surface in surfaces)
+                            A2uiSurface(
+                              key: ObjectKey(surface),
+                              surface: surface,
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
+          ),
         ),
         const Divider(height: 1),
         Expanded(
           flex: 2,
-          child: _Pane(
-            title: 'Messages',
-            child: _JsonList(
-              key: const Key('messages'),
-              empty: 'No message.',
-              children: [
-                for (final (int index, Map<String, Object?> message)
-                    in run.messages.indexed)
-                  _messageCard(index, message),
-              ],
+          child: KeyedSubtree(
+            key: ObjectKey(run),
+            child: _Pane(
+              title: 'Messages',
+              child: _JsonList(
+                key: const Key('messages'),
+                empty: 'No message.',
+                children: [
+                  for (final (int index, Map<String, Object?> message)
+                      in run.messages.indexed)
+                    _messageCard(index, message),
+                ],
+              ),
             ),
           ),
         ),

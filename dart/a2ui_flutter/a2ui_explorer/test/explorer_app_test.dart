@@ -167,7 +167,7 @@ void main() {
     expect(_logged('"sourceComponentId": "rc_button"'), findsNWidgets(2));
   });
 
-  testWidgets('Advance processes one message and Reset starts over', (
+  testWidgets('Advance, Run all and Reset step through the messages', (
     tester,
   ) async {
     await _open(tester, '00_incremental.json');
@@ -208,20 +208,65 @@ void main() {
     expect(_noAction, findsOneWidget);
   });
 
+  testWidgets('a newly selected example starts its lists at the top', (
+    tester,
+  ) async {
+    double offset(String pane) => tester
+        .state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byKey(Key(pane)),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        )
+        .position
+        .pixels;
+
+    await _open(tester, '18_track-list.json');
+    for (final pane in ['messages', 'data-model']) {
+      await tester.drag(find.byKey(Key(pane)), const Offset(0, -3000));
+    }
+    await tester.pump();
+    expect(offset('messages'), greaterThan(0));
+    expect(offset('data-model'), greaterThan(0));
+
+    await _open(tester, '24_recipe-card.json');
+
+    expect(offset('messages'), 0);
+    expect(offset('data-model'), 0);
+  });
+
   testWidgets('Markdown Text renders its markdown', (tester) async {
     await _open(tester, '35_markdown-text.json');
 
     expect(_inSurface(find.byType(MarkdownBody)), findsWidgets);
+    expect(
+      _inSurface(find.text('Heading 1', findRichText: true)),
+      findsOneWidget,
+    );
     expect(
       _inSurface(find.textContaining('**', findRichText: true)),
       findsNothing,
     );
   });
 
-  testWidgets('Native Grid renders its custom components', (tester) async {
+  testWidgets('Native Grid lays out its custom components in two columns '
+      'and writes back a slider', (tester) async {
     await _open(tester, '37_native-grid.json');
     expect(_inSurface(find.byType(Slider)), findsNWidgets(3));
-    expect(_inSurface(find.text('Master Volume (Native): 65')), findsOneWidget);
+    final Rect volume = tester.getRect(
+      _inSurface(find.text('Master Volume (Native): 65')),
+    );
+    final Rect card = tester.getRect(
+      _inSurface(find.text('Universal Web Component: Text & Card')),
+    );
+    final Rect brightness = tester.getRect(
+      _inSurface(find.text('Brightness Level (Native): 30')),
+    );
+    expect(volume.right, lessThanOrEqualTo(card.left));
+    expect(brightness.left, volume.left);
+    expect(brightness.top, greaterThan(card.bottom));
 
     await tester.drag(
       _inSurface(find.byType(Slider)).first,
