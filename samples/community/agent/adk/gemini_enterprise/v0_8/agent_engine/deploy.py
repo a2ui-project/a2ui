@@ -18,7 +18,6 @@ import json
 import os
 
 from a2a.types import AgentSkill
-from agent import ContactAgent
 import agent_executor
 from dotenv import load_dotenv
 from google.auth import default
@@ -156,9 +155,6 @@ def main():
         default_input_modes=["text/plain"],
         default_output_modes=["text/plain"],
     )
-
-    base_url = "http://0.0.0.0:8080"
-    contact_agent = ContactAgent(base_url=base_url)
 
     print(f"✓ Contact Card agent card created. {cc_agent_card}")
 
