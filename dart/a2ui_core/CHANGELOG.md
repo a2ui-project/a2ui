@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- A component's `accessibility.hidden` resolves as a dynamic value, as its
+  `label` and `description` do, so it reaches `node.props` as a binding to
+  its value, and a `hidden` bound to a data path follows the data.
 - `regex` with an invalid pattern puts the parse message in the error's
   `details` instead of the `FormatException` object, so the error encodes as
   JSON.
