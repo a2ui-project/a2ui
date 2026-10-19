@@ -82,7 +82,8 @@ final ComponentImplementation customGrid = ComponentImplementation(
 );
 
 /// A `CustomSlider`: its `label` and `value` over a [Slider] from `min` to
-/// `max` that writes each move to the path `value` is bound to.
+/// `max` that writes each move to the path `value` is bound to, as a whole
+/// number of steps of 1 from `min` that stays within `max`.
 final ComponentImplementation customSlider = ComponentImplementation(
   name: 'CustomSlider',
   schema: Schema.object(
@@ -104,7 +105,10 @@ final ComponentImplementation customSlider = ComponentImplementation(
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('${props.string('label') ?? 'Value'}: ${value.round()}'),
+        Text(
+          '${props.string('label') ?? 'Value'}: '
+          '${ComponentProps.asString(value)}',
+        ),
         Slider(
           value: value,
           min: min,
@@ -112,8 +116,13 @@ final ComponentImplementation customSlider = ComponentImplementation(
           onChanged: binding == null
               ? null
               : (moved) {
+                  final int steps = math.min(
+                    (moved - min).round(),
+                    (max - min).floor(),
+                  );
+                  final double next = min + steps;
                   try {
-                    binding.set(moved.round());
+                    binding.set(next % 1 == 0 ? next.toInt() : next);
                   } on A2uiDataError catch (error) {
                     unawaited(
                       surface.dispatchError(

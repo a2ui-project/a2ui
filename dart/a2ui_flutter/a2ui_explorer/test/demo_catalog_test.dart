@@ -101,4 +101,36 @@ void main() {
     expect(c.top, greaterThan(a.bottom));
     expect(run.log, isEmpty);
   });
+
+  testWidgets('CustomSlider shows its value and writes whole steps from min '
+      'within its range', (tester) async {
+    final ExampleRun run = await _render(
+      tester,
+      [
+        {
+          'id': 'root',
+          'component': 'CustomSlider',
+          'label': 'Level',
+          'value': {'path': '/level'},
+          'min': 0.5,
+          'max': 2.8,
+        },
+      ],
+      data: {'level': 0.5},
+    );
+    expect(find.text('Level: 0.5'), findsOneWidget);
+
+    await tester.tap(find.byType(Slider));
+    await tester.pump();
+    expect(run.surfaces.single.dataModel.get('/level'), 1.5);
+    expect(find.text('Level: 1.5'), findsOneWidget);
+
+    await tester.drag(find.byType(Slider), const Offset(1000, 0));
+    await tester.pump();
+    expect(run.surfaces.single.dataModel.get('/level'), 2.5);
+
+    await tester.drag(find.byType(Slider), const Offset(-1000, 0));
+    await tester.pump();
+    expect(run.surfaces.single.dataModel.get('/level'), 0.5);
+  });
 }
