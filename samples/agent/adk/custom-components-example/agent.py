@@ -88,7 +88,11 @@ class ContactAgent:
         self._text_runner = self._build_runner(get_text_prompt())
         self._generators: dict[ProtocolVersion, A2uiGenerator] = {
             version: self._build_generator(version)
-            for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]
+            for version in [
+                ProtocolVersion.V0_8,
+                ProtocolVersion.V0_9,
+                ProtocolVersion.V1_0,
+            ]
         }
         # What each conversation's renderer shows. A later turn may update
         # the surfaces that an earlier turn created, such as the contact card
@@ -176,7 +180,11 @@ class ContactAgent:
             model=LiteLlm(model=model),
             name=self._agent_name,
             description="An agent that finds colleague contact info.",
-            instruction=instruction,
+            # A function returns the instruction, so that ADK sends it as it
+            # is. ADK reads `{name}` in an instruction string as a state
+            # variable, and the prompt shows such text, like `{XID_Start}` in
+            # the v1.0 schemas.
+            instruction=lambda _: instruction,
             tools=[get_contact_info],
         )
         return Runner(
@@ -341,6 +349,11 @@ class ContactAgent:
             received: list[str] = []
 
             async def token_stream() -> AsyncIterator[str]:
+                # In SSE mode, ADK sends the text in partial events, and then
+                # the whole text again in a final event. Only the partial text
+                # is sent on, so the parser sees each character once. v1.0
+                # rejects a second `createSurface` for the same surface.
+                saw_partial = False
                 async for event in runner.run_async(
                     user_id=self._user_id,
                     session_id=session.id,
@@ -349,6 +362,11 @@ class ContactAgent:
                     ),
                     new_message=message,
                 ):
+                    is_partial = bool(event.partial)
+                    if not is_partial and saw_partial:
+                        saw_partial = False
+                        continue
+                    saw_partial = saw_partial or is_partial
                     if event.content and event.content.parts:
                         for p in event.content.parts:
                             if p.text:

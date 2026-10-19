@@ -81,7 +81,11 @@ class RestaurantAgent:
                 [CatalogConfig(BasicCatalog(version))],
                 examples=load_example_turns(version),
             )
-            for version in [ProtocolVersion.V0_8, ProtocolVersion.V0_9]
+            for version in [
+                ProtocolVersion.V0_8,
+                ProtocolVersion.V0_9,
+                ProtocolVersion.V1_0,
+            ]
         }
         self._agent_card = self._build_agent_card()
 
@@ -142,7 +146,11 @@ class RestaurantAgent:
             ),
             name="restaurant_agent",
             description="An agent that finds restaurants and helps book tables.",
-            instruction=instruction,
+            # A function returns the instruction, so that ADK sends it as it
+            # is. ADK reads `{name}` in an instruction string as a state
+            # variable, and the prompt shows such text, like `{XID_Start}` in
+            # the v1.0 schemas.
+            instruction=lambda _: instruction,
             tools=[get_restaurants],
         )
         return Runner(
@@ -163,9 +171,7 @@ class RestaurantAgent:
             session = await self._session_service.create_session(
                 app_name=self._agent_name,
                 user_id=self._user_id,
-                # The prompt shows `{expression}`, which ADK reads as a state
-                # variable, so the variable holds the text itself.
-                state={"base_url": self.base_url, "expression": "{expression}"},
+                state={"base_url": self.base_url},
                 session_id=session_id,
             )
         elif "base_url" not in session.state:
@@ -223,6 +229,11 @@ class RestaurantAgent:
             received: list[str] = []
 
             async def token_stream() -> AsyncIterator[str]:
+                # In SSE mode, ADK sends the text in partial events, and then
+                # the whole text again in a final event. Only the partial text
+                # is sent on, so the parser sees each character once. v1.0
+                # rejects a second `createSurface` for the same surface.
+                saw_partial = False
                 async for event in runner.run_async(
                     user_id=self._user_id,
                     session_id=session.id,
@@ -235,6 +246,11 @@ class RestaurantAgent:
                     ),
                     new_message=message,
                 ):
+                    is_partial = bool(event.partial)
+                    if not is_partial and saw_partial:
+                        saw_partial = False
+                        continue
+                    saw_partial = saw_partial or is_partial
                     if event.content and event.content.parts:
                         for p in event.content.parts:
                             if p.text:

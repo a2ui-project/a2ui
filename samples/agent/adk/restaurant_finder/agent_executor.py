@@ -32,10 +32,17 @@ from a2a.utils import (
 )
 from a2a.utils.errors import ServerError
 from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
 from a2ui.core.schema import ProtocolVersion
 from agent import RestaurantAgent
 
 logger = logging.getLogger(__name__)
+
+# The message metadata key of the renderer capabilities in the v1.0 A2A
+# extension. v0.8 and v0.9 use `A2UI_CLIENT_CAPABILITIES_KEY`.
+RENDERER_CAPABILITIES_KEY = "a2uiRendererCapabilities"
+# The versions whose renderers send `{"version": ..., "action": {...}}`.
+_ACTION_VERSIONS = (ProtocolVersion.V0_9, ProtocolVersion.V1_0)
 
 
 class RestaurantAgentExecutor(AgentExecutor):
@@ -69,11 +76,14 @@ class RestaurantAgentExecutor(AgentExecutor):
                 " agent. ---"
             )
 
-        # Renderers send their capabilities in the message metadata.
+        # Renderers send their capabilities in the message metadata. The v1.0
+        # A2A extension renamed the key.
         client_ui_capabilities = None
         if active_ui_version and context.message and context.message.metadata:
             client_ui_capabilities = context.message.metadata.get(
-                "a2uiClientCapabilities"
+                RENDERER_CAPABILITIES_KEY
+                if active_ui_version == ProtocolVersion.V1_0
+                else A2UI_CLIENT_CAPABILITIES_KEY
             )
 
         use_streaming = True
@@ -89,10 +99,13 @@ class RestaurantAgentExecutor(AgentExecutor):
                         logger.info(f"  Part {i}: Found useStreaming={use_streaming}")
 
                     if (
-                        part.root.data.get("version") == ProtocolVersion.V0_9
+                        part.root.data.get("version") in _ACTION_VERSIONS
                         and "action" in part.root.data
                     ):
-                        logger.info(f"  Part {i}: Found a2ui v0.9 action payload.")
+                        logger.info(
+                            f"  Part {i}: Found a2ui {part.root.data['version']}"
+                            " action payload."
+                        )
                         ui_event_part = part.root.data["action"]
                     elif "userAction" in part.root.data:
                         logger.info(

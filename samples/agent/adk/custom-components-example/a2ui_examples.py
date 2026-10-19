@@ -125,17 +125,17 @@ def load_floor_plan_example(
             },
         ]
 
-    if version == ProtocolVersion.V0_9:
+    if version in (ProtocolVersion.V0_9, ProtocolVersion.V1_0):
         return [
             {
-                "version": "v0.9",
+                "version": version.value,
                 "createSurface": {
                     "surfaceId": LOCATION_SURFACE_ID,
                     "catalogId": "inline_catalog",
                 },
             },
             {
-                "version": "v0.9",
+                "version": version.value,
                 "updateComponents": {
                     "surfaceId": LOCATION_SURFACE_ID,
                     "components": [{
@@ -154,9 +154,9 @@ def load_close_modal_example(version: str | None = None) -> list[dict]:
     """Constructs the JSON for closing the floor plan modal."""
     if version == ProtocolVersion.V0_8:
         return [{"deleteSurface": {"surfaceId": LOCATION_SURFACE_ID}}]
-    if version == ProtocolVersion.V0_9:
+    if version in (ProtocolVersion.V0_9, ProtocolVersion.V1_0):
         return [{
-            "version": "v0.9",
+            "version": version.value,
             "deleteSurface": {
                 "surfaceId": LOCATION_SURFACE_ID,
             },
@@ -199,4 +199,16 @@ def load_send_message_example(contact_name: str, version: str | None = None) -> 
             ' "msg", "open": true }, { "id": "hidden", "component": "Text", "text": " "'
             ' }, { "id": "msg", "component": "Text", "text": "Message Sent (Fallback)"'
             " } ] } } ]"
+        )
+
+    if version == ProtocolVersion.V1_0:
+        # The v1.0 basic Modal has no `open` property, and component ids are
+        # UAX #31 identifiers.
+        return (
+            '[{ "version": "v1.0", "createSurface": { "surfaceId": "action-modal",'
+            ' "catalogId": "inline_catalog" } }, { "version": "v1.0",'
+            ' "updateComponents": { "surfaceId": "action-modal", "components": [ {'
+            ' "id": "root", "component": "Modal", "trigger": "hidden", "content":'
+            ' "msg" }, { "id": "hidden", "component": "Text", "text": " " }, { "id":'
+            ' "msg", "component": "Text", "text": "Message Sent (Fallback)" } ] } } ]'
         )

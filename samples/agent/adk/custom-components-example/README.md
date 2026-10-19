@@ -42,16 +42,47 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
    USE_MCP_SANDBOX=false uv run .
    ```
 
+6. (Optional) Ask for UI with A2UI v1.0. The `X-A2A-Extensions` header
+   activates the v1.0 extension, and the message metadata carries the
+   renderer's catalogs under `a2uiRendererCapabilities`, keyed by version. To
+   render the `OrgChart` and `WebFrame` components, the renderer also sends
+   [`inline_catalog_1.0.json`](inline_catalog_1.0.json) in `inlineCatalogs`:
+
+   ```bash
+   jq -n --slurpfile inline inline_catalog_1.0.json '{
+     jsonrpc: "2.0", id: 1, method: "message/send",
+     params: {message: {
+       role: "user", messageId: "1",
+       parts: [{text: "Who is Casey Smith?"}],
+       metadata: {a2uiRendererCapabilities: {"v1.0": {
+         supportedCatalogIds: ["https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"],
+         inlineCatalogs: $inline
+       }}}
+     }}
+   }' | curl http://localhost:10004 \
+     -H 'Content-Type: application/json' \
+     -H 'X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v1.0' \
+     -d @-
+   ```
+
+   Button clicks come back as data parts of the form
+   `{"version": "v1.0", "action": {...}}`.
+
 ## How it works
 
 - The agent holds one `A2uiGenerator` for each protocol version it speaks
-  (v0.8 and v0.9), with the basic catalog, and accepts inline catalogs. The
-  agent card lists the generators' catalogs.
+  (v0.8, v0.9 and v1.0), with the basic catalog, and accepts inline catalogs.
+  The agent card lists the generators' catalogs.
 - Each request gets its own `A2uiRequestProcessor`, negotiated from the
-  `a2uiClientCapabilities` that the client sent, keyed by protocol version.
-  A client that sends none gets a text answer. The system prompt is built from that
-  processor, so it describes the client's inline catalog too, such as the
-  `OrgChart` and `WebFrame` components.
+  renderer capabilities that the client sent, keyed by protocol version:
+  `a2uiClientCapabilities` for v0.8 and v0.9, `a2uiRendererCapabilities` for
+  v1.0. A client that sends none gets a text answer. The system prompt is built
+  from that processor, so it describes the client's inline catalog too, such as
+  the `OrgChart` and `WebFrame` components. The examples in
+  `examples/<version>/` use the catalog `inline_catalog`, which
+  [`inline_catalog_0.9.json`](inline_catalog_0.9.json) and
+  [`inline_catalog_1.0.json`](inline_catalog_1.0.json) define for v0.9 and
+  v1.0.
 - Later turns update the surfaces that earlier turns created, for example the
   contact card after a click on the org chart. The agent keeps a
   `RendererState` for each conversation, and checks every response against it

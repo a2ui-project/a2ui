@@ -32,11 +32,19 @@ from a2a.utils import (
     new_task,
 )
 from a2a.utils.errors import ServerError
-from agent import ContactAgent
 from a2ui.a2a import try_activate_a2ui_extension
+from a2ui.constants import A2UI_CLIENT_CAPABILITIES_KEY
+from a2ui.core.schema import ProtocolVersion
 from a2ui.utils import to_version_number
+from agent import ContactAgent
 
 logger = logging.getLogger(__name__)
+
+# The message metadata key of the renderer capabilities in the v1.0 A2A
+# extension. v0.8 and v0.9 use `A2UI_CLIENT_CAPABILITIES_KEY`.
+RENDERER_CAPABILITIES_KEY = "a2uiRendererCapabilities"
+# The versions whose renderers send `{"version": ..., "action": {...}}`.
+_ACTION_VERSIONS = (ProtocolVersion.V0_9, ProtocolVersion.V1_0)
 
 
 class ContactAgentExecutor(AgentExecutor):
@@ -72,11 +80,15 @@ class ContactAgentExecutor(AgentExecutor):
             )
 
         # Renderers send their capabilities in the message metadata, or in the
-        # metadata of a DataPart, which is read below.
+        # metadata of a DataPart, which is read below. The v1.0 A2A extension
+        # renamed the key.
+        capabilities_key = (
+            RENDERER_CAPABILITIES_KEY
+            if active_ui_version == ProtocolVersion.V1_0
+            else A2UI_CLIENT_CAPABILITIES_KEY
+        )
         if active_ui_version and context.message and context.message.metadata:
-            client_ui_capabilities = context.message.metadata.get(
-                "a2uiClientCapabilities"
-            )
+            client_ui_capabilities = context.message.metadata.get(capabilities_key)
 
         if context.message and context.message.parts:
             logger.info(
@@ -89,16 +101,25 @@ class ContactAgentExecutor(AgentExecutor):
                     if (
                         active_ui_version
                         and "metadata" in part.root.data
-                        and "a2uiClientCapabilities" in part.root.data["metadata"]
+                        and capabilities_key in part.root.data["metadata"]
                     ):
                         logger.info(
-                            f"  Part {i}: Found 'a2uiClientCapabilities' in DataPart."
+                            f"  Part {i}: Found '{capabilities_key}' in DataPart."
                         )
                         client_ui_capabilities = part.root.data["metadata"][
-                            "a2uiClientCapabilities"
+                            capabilities_key
                         ]
 
-                    if "userAction" in part.root.data:
+                    if (
+                        part.root.data.get("version") in _ACTION_VERSIONS
+                        and "action" in part.root.data
+                    ):
+                        logger.info(
+                            f"  Part {i}: Found a2ui {part.root.data['version']}"
+                            " action payload."
+                        )
+                        ui_event_part = part.root.data["action"]
+                    elif "userAction" in part.root.data:
                         logger.info(f"  Part {i}: Found a2ui UI ClientEvent payload.")
                         ui_event_part = part.root.data["userAction"]
                     elif "request" in part.root.data:
