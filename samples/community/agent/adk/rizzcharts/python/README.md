@@ -4,7 +4,7 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
 
 ## Prerequisites
 
-- Python 3.9 or higher
+- Python 3.10 or higher
 - [UV](https://docs.astral.sh/uv/)
 - Access to an LLM and API Key
 
@@ -33,7 +33,7 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
 
 The agent holds one `A2uiGenerator` for each protocol version (v0.8, v0.9 and v1.0), with the rizzcharts catalog of that version (in [`../catalog_schemas`](../catalog_schemas/)) and the basic catalog. The agent card lists the generators' catalogs, one A2UI extension per version.
 
-For each request, the executor ([`agent_executor.py`](agent_executor.py)) creates an `A2uiRequestProcessor` from the client's capabilities: the `a2uiClientCapabilities` message metadata for v0.8 and v0.9, and `a2uiRendererCapabilities` for v1.0. It writes what the request needs into the session state: the format rules of the processor, the catalogs, and the examples for the client's preferred catalog. The instruction ([`prompt_builder.py`](prompt_builder.py)) and `SendA2uiToClientToolset` read these values, so the prompt, the schema and the validation of the `send_a2ui_json_to_client` tool all follow the catalogs of the request.
+For each request, the executor ([`agent_executor.py`](agent_executor.py)) creates an `A2uiRequestProcessor` from the client's capabilities: the `a2uiClientCapabilities` message metadata for v0.8 and v0.9, and `a2uiRendererCapabilities` for v1.0. It writes what the request needs into the session state: the format rules of the processor, the catalogs, and the examples for the client's preferred catalog. A request that negotiates as the previous request in the session did reuses the session state and adds no event to the session. The instruction ([`prompt_builder.py`](prompt_builder.py)) and `SendA2uiToClientToolset` read these values, so the prompt, the schema and the validation of the `send_a2ui_json_to_client` tool all follow the catalogs of the request.
 
 The capabilities are keyed by protocol version, and the agent passes them to `A2uiGenerator.create_processor` unchanged. A v1.0 request names both catalogs:
 
@@ -48,7 +48,9 @@ The capabilities are keyed by protocol version, and the agent passes them to `A2
 }
 ```
 
-v1.0 mixes catalogs on one surface, so the v1.0 rizzcharts catalog holds only the Canvas, Chart and GoogleMap components. A v1.0 dashboard uses the basic catalog as the surface's default (`createSurface.catalogId`), and each rizzcharts component names the rizzcharts catalog in its own `catalogId`; the prompt and validation get both catalogs. A v0.8 or v0.9 surface uses one catalog, so the rizzcharts catalog of those versions also contains every basic component, and only that catalog is passed on. The examples of each version are in `../examples/<catalog>/<version>`. A client that names only the basic catalog gets dashboards built from it and the examples in `../examples/standard_catalog`. A client that sends no capabilities, or names none of the agent's catalogs, gets text answers.
+v1.0 mixes catalogs on one surface, so the v1.0 rizzcharts catalog holds only the Canvas, Chart and GoogleMap components. A v1.0 dashboard uses the basic catalog as the surface's default (`createSurface.catalogId`), and each rizzcharts component names the rizzcharts catalog in its own `catalogId`; the prompt and validation get both catalogs. A v0.8 or v0.9 surface uses one catalog, so the rizzcharts catalog of those versions also contains every basic component, and only that catalog is passed on. The examples of each version are in `../examples/<catalog>/<version>`. The agent validates them once at startup against the catalogs their surfaces use, and gives a request the examples of the client's most preferred catalog whose examples use only catalogs the client named. A client that names only the basic catalog gets dashboards built from it and the examples in `../examples/standard_catalog`. A client that sends no capabilities, or names none of the agent's catalogs, gets text answers. So does a v1.0 client that names the rizzcharts catalog without the basic catalog, since a v1.0 rizzcharts surface defaults to the basic catalog.
+
+The examples bind their components to a nested data model, such as `/chart/items`, and the components that a `List` template repeats bind paths relative to the list item, such as `label`. v0.8 can't nest more than one level in a `dataModelUpdate`, so the v0.8 examples send one `dataModelUpdate` for each level.
 
 To print the prompt of a version and validate its examples, run `uv run prompt_builder.py 1.0` (or `0.9`).
 

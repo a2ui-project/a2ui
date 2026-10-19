@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+import dataclasses
 import logging
 from typing import Any, ClassVar
 
@@ -28,10 +29,11 @@ from google.genai import types
 
 from a2ui.a2a import get_a2ui_agent_extension
 from a2ui.adk import SendA2uiToClientToolset
+from a2ui.core import CatalogApi
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
-from a2ui.utils import to_version_number
+from a2ui.utils import load_examples, to_version_number
 from agent_executor import (
     get_a2ui_catalogs,
     get_a2ui_enabled,
@@ -42,6 +44,14 @@ from prompt_builder import get_text_prompt, get_ui_prompt
 from tools import get_sales_data, get_store_sales
 
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class _Examples:
+    """Few-shot examples, and the ids of every catalog that their surfaces use."""
+
+    catalog_ids: frozenset[str]
+    text: str
 
 
 class RizzchartsAgent:
@@ -72,7 +82,7 @@ class RizzchartsAgent:
         self._memory_service = InMemoryMemoryService()
         self._artifact_service = InMemoryArtifactService()
 
-        self._examples_paths: dict[ProtocolVersion, dict[str, str]] = {}
+        self._examples: dict[ProtocolVersion, dict[str, _Examples]] = {}
         self._generators: dict[ProtocolVersion, A2uiGenerator] = {
             version: self._build_generator(version)
             for version in [
@@ -110,11 +120,28 @@ class RizzchartsAgent:
         """
         return self._generators[version].create_processor(client_ui_capabilities)
 
-    def get_examples_path(
-        self, version: ProtocolVersion, catalog_id: str
+    def get_examples(
+        self, version: ProtocolVersion, catalog_ids: Sequence[str]
     ) -> str | None:
-        """Returns the examples directory path for the given version and catalog."""
-        return self._examples_paths.get(version, {}).get(catalog_id)
+        """Returns the examples that a request's catalogs can render.
+
+        Each catalog has its own examples. They are those of the first catalog
+        in `catalog_ids` whose examples use only catalogs in `catalog_ids`.
+
+        Args:
+            version: The negotiated A2UI protocol version.
+            catalog_ids: The ids of the request's catalogs, in the client's
+                order of preference.
+
+        Returns:
+            The examples, or None if the catalogs can render none of them.
+        """
+        examples = self._examples[version]
+        for catalog_id in catalog_ids:
+            candidate = examples.get(catalog_id)
+            if candidate and candidate.catalog_ids <= set(catalog_ids):
+                return candidate.text
+        return None
 
     def _build_generator(self, version: ProtocolVersion) -> A2uiGenerator:
         rizzcharts_config = CatalogConfig.from_path(
@@ -124,17 +151,42 @@ class RizzchartsAgent:
             protocol_version=version,
         )
         basic_config = CatalogConfig(BasicCatalog(version))
-        self._examples_paths[version] = {
-            rizzcharts_config.transformed_catalog.catalog_id: (
-                f"../examples/rizzcharts_catalog/{to_version_number(version)}"
+        rizzcharts_catalog = rizzcharts_config.transformed_catalog
+        basic_catalog = basic_config.transformed_catalog
+        # Up to v0.9 a surface uses one catalog, and the rizzcharts catalog
+        # holds every basic component. A v1.0 surface defaults to the basic
+        # catalog, and the rizzcharts components name their own catalog.
+        rizzcharts_example_catalogs = (
+            [rizzcharts_catalog]
+            if version in (ProtocolVersion.V0_8, ProtocolVersion.V0_9)
+            else [basic_catalog, rizzcharts_catalog]
+        )
+        # The examples are static, so they are loaded and validated once.
+        self._examples[version] = {
+            rizzcharts_catalog.catalog_id: self._load_examples(
+                f"../examples/rizzcharts_catalog/{to_version_number(version)}",
+                rizzcharts_example_catalogs,
             ),
-            basic_config.transformed_catalog.catalog_id: (
-                f"../examples/standard_catalog/{to_version_number(version)}"
+            basic_catalog.catalog_id: self._load_examples(
+                f"../examples/standard_catalog/{to_version_number(version)}",
+                [basic_catalog],
             ),
         }
         return A2uiGenerator(
             [rizzcharts_config, basic_config],
             accepts_inline_catalogs=True,
+        )
+
+    @staticmethod
+    def _load_examples(path: str, catalogs: Sequence[CatalogApi]) -> _Examples:
+        """Loads the examples in `path`, which may use only `catalogs`.
+
+        Raises:
+            A2uiCatalogError: If an example fails validation against `catalogs`.
+        """
+        return _Examples(
+            catalog_ids=frozenset(c.catalog_id for c in catalogs),
+            text=load_examples(catalogs, path, validate=True),
         )
 
     def _build_agent_card(self) -> AgentCard:

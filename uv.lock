@@ -4483,6 +4483,7 @@ dependencies = [
     { name = "google-genai" },
     { name = "litellm" },
     { name = "python-dotenv" },
+    { name = "typing-extensions" },
     { name = "uvicorn" },
 ]
 
@@ -4497,6 +4498,7 @@ requires-dist = [
     { name = "google-genai", specifier = ">=1.27.0" },
     { name = "litellm", specifier = ">=1.83.7" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
+    { name = "typing-extensions", specifier = ">=4.4.0" },
     { name = "uvicorn", specifier = ">=0.40.0" },
 ]
 
