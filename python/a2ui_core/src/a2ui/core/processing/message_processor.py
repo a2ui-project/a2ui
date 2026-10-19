@@ -818,6 +818,7 @@ class MessageProcessor:
                     existing.properties = new_comp.properties
             else:
                 surface.components_model.add_component(new_comp)
+        surface.components_model.components_update_applied(new_component_models)
 
     def _validate_nested_function_calls(
         self, surface: SurfaceModel, components: list[ComponentModel]
