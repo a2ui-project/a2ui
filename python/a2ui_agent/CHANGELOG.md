@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Add `A2UI_RENDERER_CAPABILITIES_KEY` (`"a2uiRendererCapabilities"`) to
+  `a2ui.constants`, the message metadata key under which the v1.0 A2A
+  extension sends the renderer capabilities. v0.8 and v0.9 use
+  `A2UI_CLIENT_CAPABILITIES_KEY`.
 - **BREAKING**: Package dependency updated to require `a2ui-core>=0.4.0,<0.5.0`.
 - `resolve_catalogs`, `validate_payload`, and the Direct JSON and Express
   formats resolve cross-catalog `$ref`s between the catalogs they are given.
@@ -27,10 +31,6 @@
   capabilities in the shape the v0.8 specification defines, the entry itself
   (`{"supportedCatalogIds": [...]}`), as well as keyed by `"v0.8"`. From v0.9
   the capabilities must be keyed by protocol version.
-- Add `A2UI_RENDERER_CAPABILITIES_KEY` (`"a2uiRendererCapabilities"`) to
-  `a2ui.constants`, the message metadata key under which the v1.0 A2A
-  extension sends the renderer capabilities. v0.8 and v0.9 use
-  `A2UI_CLIENT_CAPABILITIES_KEY`.
 - Add `RendererState` to `a2ui.utils`. A `RendererState` is the agent's
   mirror of the surfaces a renderer holds: it wraps one `MessageProcessor`
   and checks each outbound message against everything sent before it, so a
