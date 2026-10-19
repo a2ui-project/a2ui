@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from collections.abc import AsyncIterable, AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterable, AsyncIterator, Mapping
 import json
 import logging
 import os
@@ -41,7 +41,7 @@ from a2ui.a2a import (
     to_a2a_parts,
 )
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
-from a2ui.core import A2uiError, CatalogApi
+from a2ui.core import A2uiError
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
@@ -59,11 +59,6 @@ logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 2
 # How many conversations' renderer states to keep in memory.
 _MAX_RENDERER_STATES = 1000
-
-
-def _catalog_keys(catalogs: Sequence[CatalogApi]) -> list[tuple[str, str]]:
-    """The ids and protocol versions of catalogs, to compare two sets of them."""
-    return [(c.catalog_id, str(c.protocol_version)) for c in catalogs]
 
 
 def _text_parts(text: str) -> list[Part]:
@@ -126,9 +121,7 @@ class ContactAgent:
         them, so the state starts over.
         """
         state = self._renderer_states.get(session_id)
-        if state is None or _catalog_keys(state.catalogs) != _catalog_keys(
-            processor.active_catalogs
-        ):
+        if state is None or not processor.accepts_state(state):
             state = processor.create_state()
             self._renderer_states[session_id] = state
         self._renderer_states.move_to_end(session_id)
