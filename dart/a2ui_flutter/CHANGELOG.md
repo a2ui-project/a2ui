@@ -18,6 +18,8 @@
 
 ## Unreleased
 
+- **Breaking:** The v0.9 basic catalog moved to
+  `package:a2ui_flutter/v0_9/basic_catalog.dart`, under the same names.
 - Error and warning listeners no longer run while an `A2uiSurface` builds, so
   they may call `setState` directly instead of deferring it to the next frame.
 - Ignore `deprecated_member_use` warnings on `package:flutter/material.dart` imports on Flutter beta (#3235).

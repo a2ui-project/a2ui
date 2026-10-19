@@ -15,5 +15,5 @@
 /// Implementations of the A2UI v0.9 basic catalog.
 library;
 
-export 'src/catalog/basic/basic_catalog.dart';
-export 'src/catalog/basic/markdown.dart';
+export '../src/catalog/basic/basic_catalog_v0_9.dart';
+export '../src/catalog/basic/markdown.dart';
