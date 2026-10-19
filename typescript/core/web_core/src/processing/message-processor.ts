@@ -25,7 +25,11 @@ import {DataModel} from '../state/data-model.js';
 import {Subscription} from '../common/events.js';
 
 import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
-import {ComponentGraphBound, ComponentsWatcher} from '../state/component-graph-bound.js';
+import {
+  RecordedGraphBound,
+  recordComponentGraphBound,
+  validateComponentGraph,
+} from '../state/validation-helpers.js';
 import {defaultVersionAdapterFactory} from './adapters/factory.js';
 import {compareSemVer, isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {
@@ -63,8 +67,6 @@ import {
 } from '../rpc/index.js';
 import {DataContext} from '../resolution/data-context.js';
 import {
-  getComponentReferences,
-  MAX_GLOBAL_DEPTH,
   RELAXED_VALIDATION,
   STRICT_VALIDATION,
   validateRecursionAndPaths,
@@ -149,16 +151,6 @@ import {
 export {formatZodIssue};
 
 /**
- * A batch of components as `validateCandidateTopology` reads it: each
- * component's child references, type and catalog, keyed by id.
- */
-interface BatchGraph<T extends ComponentApi> {
-  children: Map<string, string[]>;
-  types: Map<string, string>;
-  catalogs: Map<string, Catalog<T>>;
-}
-
-/**
  * Central processor for A2UI protocol messages and surface state management.
  *
  * @template T Concrete type of the ComponentApi.
@@ -174,12 +166,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * that defers the reference and reachability checks, with the number of
    * changes the components had seen once that batch was applied.
    */
-  private readonly graphBounds = new WeakMap<
-    SurfaceComponentsModel,
-    {bound: ComponentGraphBound; changes: number}
-  >();
-  /** Whether each catalog declares `allowedParents` or `allowedChildren`. */
-  private readonly catalogRules = new WeakMap<Catalog<any>, boolean>();
+  private readonly graphBounds = new WeakMap<SurfaceComponentsModel, RecordedGraphBound>();
 
   /**
    * Initializes a new `MessageProcessor` instance.
@@ -1097,240 +1084,21 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       this.validateComponentProperties(comp, surface);
     }
 
-    const bound = this.validateComponentGraph(surface, op.components);
+    const bound = validateComponentGraph(
+      surface,
+      op.components,
+      this.validationConfig,
+      (comp, s) => this.resolveComponentCatalog(comp, s),
+      this.graphBounds,
+    );
 
     // 2. Mutation pass: apply state updates
     for (const comp of op.components) {
       this.applyComponentUpdate(comp, surface);
     }
     if (bound) {
-      const model = surface.componentsModel;
-      this.graphBounds.set(model, {bound, changes: ComponentsWatcher.of(model).changes});
+      recordComponentGraphBound(surface.componentsModel, bound, this.graphBounds);
     }
-  }
-
-  /**
-   * Checks the composition constraints and, under a `validationConfig`, the
-   * topology of the surface a batch of components would leave behind,
-   * changing nothing.
-   *
-   * Under a config that allows dangling references and does not check
-   * reachability (it allows orphans or a missing root), as an agent's
-   * renderer state configures it, the batch is checked against the
-   * components it changes when the last check of the surface left a
-   * `ComponentGraphBound` that still holds: cycles and depth through the
-   * bound, and composition constraints on the components whose parents,
-   * children or types the batch changes. When that cannot show the batch
-   * passes, the whole surface is checked, so a batch that fails reports the
-   * same error as before. Under any other config every check walks the whole
-   * surface.
-   *
-   * @param surface Surface the batch updates.
-   * @param newComponents Components of the batch.
-   * @returns The bound of the surface with the batch applied, to record once
-   *     it is applied, or undefined when there is none to record.
-   */
-  private validateComponentGraph(
-    surface: SurfaceModel<T>,
-    newComponents: Array<Record<string, unknown>>,
-  ): ComponentGraphBound | undefined {
-    const model = surface.componentsModel;
-    const config = this.validationConfig;
-    const recorded = this.graphBounds.get(model);
-    // A bound changes with the batch, and holds again only once it is applied.
-    this.graphBounds.delete(model);
-
-    if (!config || !this.defersGraphChecks()) {
-      this.validateCompositionConstraints(surface, newComponents);
-      this.validateCandidateTopology(surface, newComponents);
-      return undefined;
-    }
-
-    const batch = this.batchGraph(surface, newComponents);
-    const rootId = config.rootId ?? surface.rootId;
-    if (
-      batch &&
-      recorded &&
-      recorded.changes === ComponentsWatcher.of(model).changes &&
-      (config.allowMissingRoot || batch.children.has(rootId) || model.has(rootId))
-    ) {
-      const {bound} = recorded;
-      const previousChildren = new Map<string, readonly string[]>();
-      for (const id of batch.children.keys()) {
-        previousChildren.set(id, bound.childrenOf(id));
-      }
-      const admitted = bound.admits(batch.children, config.maxDepth ?? MAX_GLOBAL_DEPTH, id =>
-        model.has(id),
-      );
-      if (!this.compositionHolds(surface, batch, previousChildren, bound)) {
-        // Reports the first violation in the order of the whole-surface check.
-        this.validateCompositionConstraints(surface, newComponents);
-      }
-      if (admitted) return bound;
-      return ComponentGraphBound.of(this.validateCandidateTopology(surface, newComponents, true)!);
-    }
-
-    this.validateCompositionConstraints(surface, newComponents);
-    return ComponentGraphBound.of(this.validateCandidateTopology(surface, newComponents, true)!);
-  }
-
-  /**
-   * Whether the `validationConfig` allows dangling references and does not
-   * check reachability, because it allows orphans or a missing root.
-   */
-  private defersGraphChecks(): boolean {
-    const config = this.validationConfig;
-    return (
-      config !== undefined &&
-      config.allowDanglingReferences === true &&
-      (config.allowOrphanComponents === true || config.allowMissingRoot === true)
-    );
-  }
-
-  /**
-   * Reads a batch of components as `validateCandidateTopology` reads it into
-   * its candidate model: each component's type, catalog and child references.
-   *
-   * @returns The batch, or undefined when a component in it has no type or a
-   *     catalog that declares no components, whose references the topology
-   *     and composition checks read differently; such a batch is checked
-   *     against the whole surface.
-   */
-  private batchGraph(
-    surface: SurfaceModel<T>,
-    newComponents: Array<Record<string, unknown>>,
-  ): BatchGraph<T> | undefined {
-    const batch: BatchGraph<T> = {children: new Map(), types: new Map(), catalogs: new Map()};
-    for (const comp of newComponents) {
-      const {id, component, ...properties} = comp;
-      if (typeof id !== 'string' || !id) continue;
-      const catalog = this.resolveComponentCatalog(comp, surface);
-      delete properties.catalogId;
-      delete properties.metadata;
-      const type =
-        (typeof component === 'string' ? component : surface.componentsModel.get(id)?.type) || '';
-      if (!type || catalog.components.size === 0) return undefined;
-      const children = Array.from(
-        getComponentReferences({...properties, id, component: type}, catalog.componentRefMap),
-        ([childId]) => childId,
-      );
-      batch.children.set(id, children);
-      batch.types.set(id, type);
-      batch.catalogs.set(id, catalog);
-    }
-    return batch;
-  }
-
-  /**
-   * Whether the composition constraints hold on the components a batch
-   * affects, which are the only ones whose parents, children or types it
-   * changes: its own, the children they reference before and after it, and
-   * the components that reference them. The rest passed the check of an
-   * earlier batch and are unchanged.
-   *
-   * @param surface Surface the batch updates.
-   * @param batch The batch, as `batchGraph` reads it.
-   * @param previousChildren The references each component of the batch held
-   *     before it.
-   * @param bound The bound of the surface with the batch applied.
-   */
-  private compositionHolds(
-    surface: SurfaceModel<T>,
-    batch: BatchGraph<T>,
-    previousChildren: ReadonlyMap<string, readonly string[]>,
-    bound: ComponentGraphBound,
-  ): boolean {
-    if (!this.hasCompositionRules(surface, batch.catalogs.values())) return true;
-    const model = surface.componentsModel;
-    const typeMap = {
-      get: (id: string) => batch.types.get(id) ?? model.get(id)?.type,
-    };
-    const affected = new Set<string>();
-    for (const [id, children] of batch.children) {
-      affected.add(id);
-      for (const child of children) affected.add(child);
-      for (const child of previousChildren.get(id) ?? []) affected.add(child);
-      for (const parent of bound.parentsOf(id)) affected.add(parent);
-    }
-    try {
-      for (const id of affected) {
-        const componentType = typeMap.get(id);
-        if (!componentType) continue;
-        const catalog = batch.catalogs.get(id) ?? (model.get(id)!.catalog as Catalog<T>);
-        const componentApi = catalog.components.get(componentType);
-        if (!componentApi) continue;
-        if (componentApi.allowedParents && componentApi.allowedParents.length > 0) {
-          const parents = Array.from(bound.parentsOf(id), parentId => ({
-            parentId,
-            parentType: typeMap.get(parentId) || 'Unknown',
-          }));
-          this.validateParentConstraints(id, componentType, componentApi.allowedParents, parents);
-        }
-        if (componentApi.allowedChildren && componentApi.allowedChildren.length > 0) {
-          this.validateChildConstraints(
-            id,
-            componentType,
-            componentApi.allowedChildren,
-            bound.childrenOf(id),
-            typeMap,
-          );
-        }
-      }
-    } catch {
-      return false;
-    }
-    return true;
-  }
-
-  /**
-   * Whether any catalog a surface's components may come from declares
-   * `allowedParents` or `allowedChildren`. When none does, the composition
-   * check has nothing to check.
-   *
-   * @param surface Surface to check.
-   * @param batchCatalogs Catalogs the components of the current batch resolve to.
-   */
-  private hasCompositionRules(
-    surface: SurfaceModel<T>,
-    batchCatalogs: Iterable<Catalog<any>>,
-  ): boolean {
-    const declaresRules = (catalog: Catalog<any>) => {
-      let rules = this.catalogRules.get(catalog);
-      if (rules === undefined) {
-        rules = Array.from(catalog.components.values()).some(
-          api =>
-            (api.allowedParents !== undefined && api.allowedParents.length > 0) ||
-            (api.allowedChildren !== undefined && api.allowedChildren.length > 0),
-        );
-        this.catalogRules.set(catalog, rules);
-      }
-      return rules;
-    };
-    for (const catalog of batchCatalogs) {
-      if (declaresRules(catalog)) return true;
-    }
-    if (this.defersGraphChecks()) {
-      // An agent's processor follows the components it checks incrementally.
-      for (const catalog of ComponentsWatcher.of(surface.componentsModel).catalogs) {
-        if (declaresRules(catalog)) return true;
-      }
-      return false;
-    }
-    // A renderer's processor adds no listeners of its own to the surface's
-    // components. Components added through the processor resolve their
-    // catalogs on the surface, so only one added from outside it can come
-    // from another catalog.
-    const surfaceCatalogs = new Set<Catalog<any>>(surface.availableCatalogs.values());
-    if (surface.defaultCatalog) surfaceCatalogs.add(surface.defaultCatalog);
-    for (const catalog of surfaceCatalogs) {
-      if (declaresRules(catalog)) return true;
-    }
-    for (const component of surface.componentsModel.values) {
-      if (!surfaceCatalogs.has(component.catalog) && declaresRules(component.catalog)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private processUpdateDataModelOp(op: InternalUpdateDataModelOp): void {
@@ -1344,215 +1112,6 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     const path = op.path || '/';
     const value = op.value;
     surface.dataModel.set(path, value);
-  }
-
-  private validateParentConstraints(
-    id: string,
-    componentType: string,
-    allowedParents: string[],
-    parents?: Array<{parentId: string; parentType: string}>,
-  ): void {
-    if (!parents || parents.length === 0) {
-      const isRoot = id === 'root';
-      const enforceTopLevel =
-        isRoot || (this.validationConfig && this.validationConfig.allowOrphanComponents === false);
-      if (enforceTopLevel && !allowedParents.includes('Surface')) {
-        throw new A2uiValidationError(
-          `Component '${id}' (${componentType}) cannot be placed under parent 'Surface' (Surface). Allowed parents: ${JSON.stringify(allowedParents)}.`,
-          undefined,
-          'UNALLOWED_PARENT',
-        );
-      }
-      return;
-    }
-
-    for (const parentInfo of parents) {
-      if (!allowedParents.includes(parentInfo.parentType)) {
-        throw new A2uiValidationError(
-          `Component '${id}' (${componentType}) cannot be placed under parent '${parentInfo.parentId}' (${parentInfo.parentType || 'unknown'}). Allowed parents: ${JSON.stringify(allowedParents)}.`,
-          undefined,
-          'UNALLOWED_PARENT',
-        );
-      }
-    }
-  }
-
-  private validateChildConstraints(
-    id: string,
-    componentType: string,
-    allowedChildren: string[],
-    children: readonly string[],
-    typeMap: {get(id: string): string | undefined},
-  ): void {
-    for (const childId of children) {
-      const childType = typeMap.get(childId);
-      if (childType && !allowedChildren.includes(childType)) {
-        throw new A2uiValidationError(
-          `Container '${id}' (${componentType}) cannot contain child '${childId}' (${childType}). Allowed children: ${JSON.stringify(allowedChildren)}.`,
-          undefined,
-          'UNALLOWED_CHILD',
-        );
-      }
-    }
-  }
-
-  private buildCompositionTopology(
-    surface: SurfaceModel<T>,
-    newComponents: Array<Record<string, unknown>>,
-  ) {
-    const typeMap = new Map<string, string>();
-    const compCatalogMap = new Map<string, Catalog<T>>();
-    const childMap = new Map<string, string[]>();
-
-    for (const [id, model] of surface.componentsModel.entries) {
-      typeMap.set(id, model.type);
-      compCatalogMap.set(id, model.catalog as Catalog<T>);
-      const children = surface.componentsModel.getChildIds(id);
-      if (children.length > 0) {
-        childMap.set(id, children);
-      }
-    }
-
-    for (const comp of newComponents) {
-      const {id, component, ...props} = comp;
-      if (typeof id !== 'string') continue;
-
-      const compCatalog = this.resolveComponentCatalog(comp, surface);
-      compCatalogMap.set(id, compCatalog);
-      const existing = surface.componentsModel.get(id);
-      const compType = (typeof component === 'string' ? component : existing?.type) ?? '';
-      if (compType) {
-        typeMap.set(id, compType);
-      }
-      const compDef = {id, component: compType, ...props};
-      const children = Array.from(getComponentReferences(compDef, compCatalog as Catalog<any>)).map(
-        ([childId]) => childId,
-      );
-      if (children.length > 0) {
-        childMap.set(id, children);
-      } else {
-        childMap.delete(id);
-      }
-    }
-
-    const parentMap = new Map<string, Array<{parentId: string; parentType: string}>>();
-    for (const [parentId, children] of childMap.entries()) {
-      const parentType = typeMap.get(parentId) || 'Unknown';
-      for (const childId of children) {
-        const parents = parentMap.get(childId) ?? [];
-        parents.push({parentId, parentType});
-        parentMap.set(childId, parents);
-      }
-    }
-
-    return {typeMap, compCatalogMap, childMap, parentMap};
-  }
-
-  private validateCompositionConstraints(
-    surface: SurfaceModel<T>,
-    newComponents: Array<Record<string, unknown>>,
-  ): void {
-    // The components of the batch have resolved their catalogs already, in
-    // `validateComponentProperties`.
-    const batchCatalogs = newComponents
-      .filter(comp => typeof comp.id === 'string')
-      .map(comp => this.resolveComponentCatalog(comp, surface));
-    if (!this.hasCompositionRules(surface, batchCatalogs)) return;
-
-    const {typeMap, compCatalogMap, childMap, parentMap} = this.buildCompositionTopology(
-      surface,
-      newComponents,
-    );
-
-    for (const [id, componentType] of typeMap.entries()) {
-      const compCatalog = compCatalogMap.get(id);
-      const componentApi = compCatalog?.components.get(componentType);
-      if (!componentApi) continue;
-
-      if (componentApi.allowedParents && componentApi.allowedParents.length > 0) {
-        this.validateParentConstraints(
-          id,
-          componentType,
-          componentApi.allowedParents,
-          parentMap.get(id),
-        );
-      }
-
-      if (componentApi.allowedChildren && componentApi.allowedChildren.length > 0) {
-        this.validateChildConstraints(
-          id,
-          componentType,
-          componentApi.allowedChildren,
-          childMap.get(id) || [],
-          typeMap,
-        );
-      }
-    }
-  }
-
-  /**
-   * Checks the topology of the surface a batch would leave behind against the
-   * `validationConfig`, walking the whole surface.
-   *
-   * @param surface Surface the batch updates.
-   * @param newComponents Components of the batch.
-   * @param collectGraph Whether to return the references of that surface.
-   * @returns When `collectGraph` is set, each component of that surface with
-   *     the ids it references; otherwise, or without a config, undefined.
-   */
-  private validateCandidateTopology(
-    surface: SurfaceModel<T>,
-    newComponents: Array<Record<string, unknown>>,
-    collectGraph = false,
-  ): Map<string, string[]> | undefined {
-    if (!this.validationConfig) return undefined;
-
-    const candidateModel = new SurfaceComponentsModel(surface.defaultCatalog);
-    for (const [id, comp] of surface.componentsModel.entries) {
-      candidateModel.addComponent(
-        new ComponentModel(id, comp.type, comp.properties, comp.catalog as Catalog<T>),
-      );
-    }
-
-    for (const comp of newComponents) {
-      const {id, component, ...properties} = comp;
-      if (typeof id !== 'string' || !id) continue;
-
-      const targetCatalog = this.resolveComponentCatalog(comp, surface);
-      delete properties.catalogId;
-      delete properties.metadata;
-
-      const existing = candidateModel.get(id);
-      const componentType = (typeof component === 'string' ? component : existing?.type) || '';
-      if (!componentType) continue;
-
-      if (existing) {
-        if (componentType !== existing.type || existing.catalog.id !== targetCatalog.id) {
-          candidateModel.removeComponent(id);
-          candidateModel.addComponent(
-            new ComponentModel(id, componentType, properties, targetCatalog),
-          );
-        } else {
-          existing.properties = properties;
-        }
-      } else {
-        candidateModel.addComponent(
-          new ComponentModel(id, componentType, properties, targetCatalog),
-        );
-      }
-    }
-
-    candidateModel.validateTopology({
-      ...this.validationConfig,
-      rootId: this.validationConfig.rootId ?? surface.rootId,
-    });
-    if (!collectGraph) return undefined;
-
-    const graph = new Map<string, string[]>();
-    for (const id of candidateModel.keys) {
-      graph.set(id, candidateModel.getChildIds(id));
-    }
-    return graph;
   }
 }
 

@@ -68,28 +68,33 @@ export class ComponentGraphBound {
     const waiting = new Set<string>();
     for (const start of graph.keys()) {
       if (bound.heights.has(start)) continue;
-      const stack = [start];
+      const stack: Array<{id: string; childIndex: number; height: number}> = [
+        {id: start, childIndex: 0, height: 0},
+      ];
       waiting.add(start);
       while (stack.length > 0) {
-        const id = stack[stack.length - 1];
+        const frame = stack[stack.length - 1];
+        const children = bound.children.get(frame.id) ?? [];
         let ready = true;
-        let height = 0;
-        for (const child of bound.children.get(id)!) {
+        while (frame.childIndex < children.length) {
+          const child = children[frame.childIndex];
+          frame.childIndex++;
           if (!graph.has(child)) continue;
           const below = bound.heights.get(child);
           if (below === undefined) {
             if (waiting.has(child)) return undefined;
-            ready = false;
-            stack.push(child);
+            frame.childIndex--;
+            stack.push({id: child, childIndex: 0, height: 0});
             waiting.add(child);
+            ready = false;
             break;
           }
-          if (below >= height) height = below + 1;
+          if (below >= frame.height) frame.height = below + 1;
         }
         if (!ready) continue;
-        bound.heights.set(id, height);
-        if (height > bound.maxHeight) bound.maxHeight = height;
-        waiting.delete(id);
+        bound.heights.set(frame.id, frame.height);
+        if (frame.height > bound.maxHeight) bound.maxHeight = frame.height;
+        waiting.delete(frame.id);
         stack.pop();
       }
     }
@@ -163,7 +168,7 @@ export class ComponentGraphBound {
     }
     for (let next = 0; next < rising.length; next++) {
       const id = rising[next];
-      const height = this.heights.get(id)!;
+      const height = this.heights.get(id) ?? 0;
       if (height > limit) return false;
       if (height > this.maxHeight) this.maxHeight = height;
       for (const parent of this.parents.get(id) ?? []) {
