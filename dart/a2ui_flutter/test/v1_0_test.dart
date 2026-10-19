@@ -18,7 +18,10 @@ import 'package:a2ui_flutter/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:video_player/video_player.dart';
 
+import 'support/fake_video_player_platform.dart';
+import 'support/image_server.dart';
 import 'support/surface_harness.dart';
 
 /// A v1.0 `createSurface` message on the basic catalog that carries
@@ -327,6 +330,86 @@ void main() {
       await tester.pump();
 
       expect(find.byIcon(Icons.help_outline), findsOneWidget);
+    });
+
+    testWidgets('Video shows its poster until playback starts', (tester) async {
+      final platform = FakeVideoPlayerPlatform()..install();
+      const poster = 'https://example.com/poster.png';
+      final Finder posterImage = find.byWidgetPredicate(
+        (w) =>
+            w is Image &&
+            w.image is NetworkImage &&
+            (w.image as NetworkImage).url == poster,
+      );
+      await withImageServer(ImageServer({}, fallback: widePng), () async {
+        await _pump(tester, [
+          {
+            'id': 'root',
+            'component': 'Video',
+            'url': 'https://example.com/trailer.mp4',
+            'posterUrl': poster,
+          },
+        ]);
+        expect(posterImage, findsOneWidget);
+
+        platform.initialize(0);
+        await tester.pump();
+        expect(posterImage, findsOneWidget);
+
+        await tester.tap(find.byIcon(Icons.play_arrow));
+        await tester.pump();
+        expect(posterImage, findsNothing);
+        expect(find.byType(VideoPlayer), findsOneWidget);
+
+        // Paused at 0:00, the video has still been played.
+        await tester.tap(find.byIcon(Icons.pause));
+        await tester.pump();
+        expect(posterImage, findsNothing);
+        expect(find.byType(VideoPlayer), findsOneWidget);
+      });
+    });
+
+    testWidgets('Video shows the video once ready when its poster fails to '
+        'load', (tester) async {
+      final platform = FakeVideoPlayerPlatform()..install();
+      await withImageServer(ImageServer({}), () async {
+        await _pump(tester, [
+          {
+            'id': 'root',
+            'component': 'Video',
+            'url': 'https://example.com/trailer.mp4',
+            'posterUrl': 'https://example.com/missing.png',
+          },
+        ]);
+        await settleImages(tester);
+        expect(find.byType(VideoPlayer), findsNothing);
+
+        platform.initialize(0);
+        await tester.pump();
+
+        expect(find.byType(VideoPlayer), findsOneWidget);
+      });
+    });
+
+    testWidgets('Video drops its poster when the video fails', (tester) async {
+      final platform = FakeVideoPlayerPlatform()..install();
+      await withImageServer(ImageServer({}, fallback: widePng), () async {
+        await _pump(tester, [
+          {
+            'id': 'root',
+            'component': 'Video',
+            'url': 'https://example.com/trailer.mp4',
+            'posterUrl': 'https://example.com/poster.png',
+          },
+        ]);
+        expect(find.byType(Image), findsOneWidget);
+
+        platform.fail(0);
+        await tester.pump();
+
+        expect(find.byType(Image), findsNothing);
+        expect(find.byIcon(Icons.videocam_off), findsOneWidget);
+      });
     });
   });
 }
