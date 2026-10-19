@@ -86,11 +86,34 @@ void main() {
     expect(find.textContaining('md:'), findsNothing);
   });
 
-  testWidgets('shows markdown as written without a builder', (tester) async {
+  testWidgets('removes the markdown markers without a builder', (tester) async {
     await pumpComponents(tester, [
-      {'id': 'root', 'component': 'Text', 'text': '**a**'},
+      {
+        'id': 'root',
+        'component': 'Text',
+        'text':
+            '**Bold**, _italic_ and snake_case `code` with '
+            '[a link](https://example.com)\n> quoted',
+      },
     ], catalog: _catalog);
 
-    expect(find.text('**a**'), findsOneWidget);
+    expect(
+      find.text('Bold, italic and snake_case code with a link\nquoted'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shows one heading in its heading style without a builder', (
+    tester,
+  ) async {
+    await pumpComponents(tester, [
+      {'id': 'root', 'component': 'Text', 'text': '## Welcome **back**'},
+    ], catalog: _catalog);
+
+    final Finder heading = find.text('Welcome back');
+    expect(
+      tester.widget<Text>(heading).style!.fontSize,
+      Theme.of(tester.element(heading)).textTheme.headlineMedium!.fontSize,
+    );
   });
 }

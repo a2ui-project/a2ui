@@ -107,9 +107,11 @@ processor.model.dispose();
 - On macOS, network images and media need the
   `com.apple.security.network.client` entitlement.
 
-Models often write Markdown in Text. To render it, wrap the surface in an
-`A2uiMarkdown` with a Markdown package's widget, such as `MarkdownBody` from
-`flutter_markdown_plus`:
+Models often write Markdown in Text, and v1.0 Text has no heading variants.
+Without help, Text shows the text with its Markdown markers removed, and a
+Text that is one heading in that heading's style. To render the Markdown, wrap
+the surface in an `A2uiMarkdown` with a Markdown package's widget, such as
+`MarkdownBody` from `flutter_markdown_plus`:
 
 ```dart
 A2uiMarkdown(

@@ -23,7 +23,7 @@ typedef A2uiMarkdownBuilder =
 ///
 /// A Text with the `body` variant, or none, is built by [builder]. Headings
 /// and captions stay plain text. Without an [A2uiMarkdown] above it, a Text
-/// shows its text as written.
+/// shows its text with the Markdown markers removed.
 class A2uiMarkdown extends InheritedWidget {
   const A2uiMarkdown({super.key, required this.builder, required super.child});
 
