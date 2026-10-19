@@ -1,0 +1,39 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# How the time to compile an Express block grows with the block.
+#
+# A `measure_growth` case times `compile` on a block written at two sizes, n and
+# 4n. Its `max_ratio` is the largest value allowed for the time at 4n divided by
+# the time at n. `agent/direct_json/scaling.yaml` explains the measure and the
+# limit of 8, how a harness times a case, and why the cases run apart from the
+# other tests. The Express parser does not stream, so there is nothing else to
+# time.
+
+- name: test_scaling_compile_express_v10
+  description: Compiling a block of n components takes about four times as long at 4n.
+  action: measure_growth
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  operation: compile
+  payload:
+    - "root = Column(["
+    - repeat: "item_{i}"
+      separator: ", "
+    - "])\n"
+    - repeat: 'item_{i} = Text("Item number {i}")'
+      separator: "\n"
+  sizes: [200, 800]
+  max_ratio: 8
