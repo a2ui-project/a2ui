@@ -16,8 +16,8 @@ import 'dart:collection';
 
 import 'package:meta/meta.dart';
 
-import 'component_graph.dart';
-import 'component_refs.dart';
+import '../validation/component_graph.dart';
+import '../validation/component_refs.dart';
 
 /// What a check found about a surface's component graph, which had no
 /// self-reference and no cycle: the references each component holds, and an

@@ -17,10 +17,10 @@ import 'package:meta/meta.dart';
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
 import '../validation/component_graph.dart';
-import '../validation/component_graph_bound.dart';
 import '../validation/component_refs.dart';
 import '../validation/validation_config.dart';
 import 'catalog.dart';
+import 'component_graph_bound.dart';
 
 /// Represents the state model for an individual UI component.
 ///
