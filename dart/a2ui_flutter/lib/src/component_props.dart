@@ -104,12 +104,23 @@ extension type const ComponentProps(NodeProps _props) implements NodeProps {
         _ => const [],
       };
 
-  /// False when one of the component's `checks` fails.
+  /// False when one of the component's `checks` fails with `error`
+  /// severity, which a check without a severity has.
   bool get isValid => this['isValid'] != false;
 
-  /// The messages of the failing `checks`.
+  /// The messages of the `checks` failing with `error` severity.
   List<String> get validationErrors => switch (this['validationErrors']) {
     final List<Object?> l => l.whereType<String>().toList(growable: false),
     _ => const [],
   };
+
+  /// The results of the failing `checks`, including those of `warning` or
+  /// `info` severity, which leave the component valid.
+  List<ValidationResult> get validationResults =>
+      switch (this['validationResults']) {
+        final List<Object?> l => l.whereType<ValidationResult>().toList(
+          growable: false,
+        ),
+        _ => const [],
+      };
 }
