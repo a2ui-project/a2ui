@@ -238,6 +238,12 @@ runs only for a user action, such as a tap. On a v0.9 surface, a bound
 an `http`, `https`, `mailto` or `tel` URL without the user acting. There, pass
 one only for an agent you trust.
 
+## Example
+
+[example](example) is a chat app in which a Gemini model, prompted through
+`a2ui_agent`, answers with surfaces, and each event action and error on them
+goes back to the model. [e2e_test](e2e_test) runs it against the live model.
+
 ## Tests
 
 `test/catalog/basic/examples_test.dart` renders every
