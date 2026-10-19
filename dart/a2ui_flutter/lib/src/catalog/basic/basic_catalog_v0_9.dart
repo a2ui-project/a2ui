@@ -141,7 +141,7 @@ abstract final class BasicComponents {
   /// The basic `TextField` component.
   static final ComponentImplementation textField = _implement(
     'TextField',
-    buildTextField,
+    buildTextFieldV0_9,
   );
 
   /// The basic `Video` component.
