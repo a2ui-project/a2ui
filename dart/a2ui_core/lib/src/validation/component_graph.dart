@@ -466,7 +466,11 @@ void checkPathsAndRecursion(
       for (final MapEntry<Object?, Object?> entry in object.entries) {
         traverse(
           entry.value,
-          entries?[entry.key],
+          entries != null &&
+                  (entry.key != 'args' ||
+                      _isFunctionCall(entries, usesDirectives: usesDirectives))
+              ? entries[entry.key]
+              : null,
           depth + 1,
           entry.key == 'args' ? callDepth + 1 : callDepth,
           inDataValue: false,
