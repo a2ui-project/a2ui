@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Sequence
+import json
+
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
 from a2ui.processor import A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import load_examples, to_version_number
+from a2ui_examples import delete_surface_message
 
 ROLE_DESCRIPTION = (
     "You are a helpful contact lookup assistant. Your final output MUST be a a2ui UI"
@@ -63,10 +67,40 @@ def get_text_prompt() -> str:
     """
 
 
+def get_existing_surfaces_rule(
+    surface_ids: Sequence[str], version: ProtocolVersion
+) -> str:
+    """Tells the model which surfaces the client shows, and how to change them.
+
+    Creating a surface that the client already shows is an error, so a later
+    turn updates such a surface, or deletes it before it creates it again.
+
+    Args:
+        surface_ids: The surfaces the client shows.
+        version: The protocol version of the request.
+
+    Returns:
+        The rule, or an empty string if the client shows no surfaces.
+    """
+    if not surface_ids:
+        return ""
+    listed = ", ".join(f"`{surface_id}`" for surface_id in surface_ids)
+    delete_message = json.dumps(delete_surface_message(surface_ids[0], version))
+    return (
+        f"The client already shows these surfaces: {listed}. Creating one of"
+        " them again is an error. To change what one of them shows, send"
+        " `updateComponents` or `updateDataModel` messages for it. To show a"
+        " template that creates one of them, first send a `deleteSurface`"
+        " message for it, before any other message of the response, for"
+        f" example `{delete_message}`. Only delete surfaces from this list."
+    )
+
+
 def get_ui_prompt(
     processor: A2uiRequestProcessor,
     examples_path: str | None = None,
     *,
+    surfaces_rule: str = "",
     validate_examples: bool = False,
 ) -> str:
     """Constructs the system prompt for one UI request.
@@ -75,6 +109,9 @@ def get_ui_prompt(
         processor: The request's processor. The prompt describes the catalogs
             it negotiated with the client.
         examples_path: The directory of example responses.
+        surfaces_rule: The rule from `get_existing_surfaces_rule` about the
+            surfaces that earlier turns of the conversation left on the
+            client, if any.
         validate_examples: Whether to check the examples against the
             processor's catalogs. The examples use the inline catalog, which a
             client may not send, so the agent leaves this off.
@@ -90,6 +127,8 @@ def get_ui_prompt(
     )
     if examples:
         prompt_parts.append(f"### Examples:\n{examples}")
+    if surfaces_rule:
+        prompt_parts.append(f"## Surfaces on the client:\n{surfaces_rule}")
     return "\n\n".join(prompt_parts)
 
 

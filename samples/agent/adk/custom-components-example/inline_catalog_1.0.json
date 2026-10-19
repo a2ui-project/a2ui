@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/samples/agent/adk/custom-components-example/inline_catalog_1.0.json",
   "protocolVersion": "1.0",
   "catalogId": "https://a2ui.org/samples/agent/adk/custom-components-example/inline_catalog_1.0.json",
   "title": "Custom components",

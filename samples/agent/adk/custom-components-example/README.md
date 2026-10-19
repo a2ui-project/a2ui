@@ -66,8 +66,13 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
      -d @-
    ```
 
-   Button clicks come back as data parts of the form
-   `{"version": "v1.0", "action": {...}}`.
+   The A2UI messages arrive as data parts with `"version": "v1.0"`. By
+   default the agent streams them in `working` status updates, so with
+   `message/send` they are in the task's `history`. Add a data part
+   `{"useStreaming": false}` to the message to get them in the final status
+   message instead. Button clicks come back as data parts of the form
+   `{"version": "v1.0", "action": {...}}`, or as a list of such messages
+   wrapped in `{"messages": [...]}`.
 
 ## How it works
 
@@ -77,9 +82,10 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
 - Each request gets its own `A2uiRequestProcessor`, negotiated from the
   renderer capabilities that the client sent, keyed by protocol version:
   `a2uiClientCapabilities` for v0.8 and v0.9, `a2uiRendererCapabilities` for
-  v1.0. A client that sends none gets a text answer. The system prompt is built
-  from that processor, so it describes the client's inline catalog too, such as
-  the `OrgChart` and `WebFrame` components.
+  v1.0. A client that sends none, or none that the agent can use, gets a text
+  answer. The system prompt is built from that processor, so it describes the
+  client's inline catalog too, such as the `OrgChart` and `WebFrame`
+  components.
 - In v0.9, a surface uses one catalog, so the inline catalog
   [`inline_catalog_0.9.json`](inline_catalog_0.9.json) repeats the basic
   components next to `OrgChart` and `WebFrame`, and the surfaces in
@@ -94,10 +100,18 @@ This sample uses the Agent Development Kit (ADK) along with the A2A protocol to 
 - Later turns update the surfaces that earlier turns created, for example the
   contact card after a click on the org chart. The agent keeps a
   `RendererState` for each conversation, and checks every response against it
-  with `processor.open_stream(state=...)`. Invalid messages are never sent:
-  the stream raises, and the agent asks the model to try again.
+  with `processor.open_stream(state=...)`, or with
+  `processor.parse_response(..., state=...)` when the client doesn't stream.
+  Invalid messages are never sent: the agent asks the model to try again.
+- Creating a surface that the client already shows is an error, so the
+  system prompt and the retry message list the surfaces in the state. The
+  model updates one of them with `updateComponents` or `updateDataModel`, or
+  sends `deleteSurface` before it creates it again, for example when the user
+  looks up a second person.
 - The UI that simulated actions show, like the floor plan, is checked against
-  the same state.
+  the same state. An action deletes its surface before it creates it again,
+  so a second "send message" works, and closing the floor plan sends nothing
+  when it isn't open.
 
 ## Disclaimer
 
