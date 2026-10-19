@@ -303,28 +303,22 @@ class _DataModelView extends StatefulWidget {
 }
 
 class _DataModelViewState extends State<_DataModelView> {
-  late final ReadonlySignal<Object?> _root = widget.surface.dataModel
-      .watch<Object?>('/');
-  late final void Function() _unsubscribe;
+  late final DataSubscription<Object?> _subscription;
 
   @override
   void initState() {
     super.initState();
-    var primed = false;
-    // subscribe calls back with the current value first, which this skips.
-    _unsubscribe = _root.subscribe((_) {
-      if (primed) {
-        runOutsideBuild(() {
-          if (mounted) setState(() {});
-        });
-      }
-    });
-    primed = true;
+    _subscription = widget.surface.dataModel.subscribe<Object?>(
+      '/',
+      (_) => runOutsideBuild(() {
+        if (mounted) setState(() {});
+      }),
+    );
   }
 
   @override
   void dispose() {
-    _unsubscribe();
+    _subscription.unsubscribe();
     super.dispose();
   }
 

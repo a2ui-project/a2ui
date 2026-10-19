@@ -139,7 +139,7 @@ class ExampleRun extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _processor.model.dispose();
+    _processor.dispose();
     super.dispose();
   }
 }
