@@ -132,7 +132,9 @@ class RendererState:
     An update to a surface the state never saw created is rejected, as the
     renderer would reject it. A v0.8 renderer buffers the updates that arrive
     before `beginRendering`, so v0.8 updates are accepted and checked again
-    once the surface begins rendering.
+    once the surface begins rendering. A v0.8 renderer also accepts a second
+    `beginRendering` for a surface it holds, but the state rejects it, so a
+    v0.8 canvas must begin each surface once.
 
     The state is authoritative for surfaces and their components. The data
     model values it holds can drift from the renderer's, since the user edits
@@ -194,7 +196,7 @@ class RendererState:
 
     @property
     def surface_ids(self) -> list[str]:
-        """The ids of the surfaces the renderer holds."""
+        """The ids of the surfaces the renderer holds, in no particular order."""
         return list(self._processor.model.surfaces)
 
     def get_surface(self, surface_id: str) -> SurfaceModel | None:
@@ -283,7 +285,9 @@ class RendererState:
                     f"Component '{unreachable[0]}' is not reachable from '{root_id}'"
                 )
         for surface_id in surface_ids:
-            if self._changed.get(surface_id):
+            # An assumed surface was not checked, so what changed on it stays
+            # recorded for the check after its v0.8 `beginRendering`.
+            if surface_id not in self._assumed and self._changed.get(surface_id):
                 self._save(surface_id)
                 self._changed.pop(surface_id, None)
 
@@ -398,14 +402,25 @@ class RendererState:
         A v0.8 renderer buffers updates to a surface until its
         `beginRendering`, even after the surface is deleted. A payload state
         assumes a surface the payload never named before, but not one that an
-        earlier message of the payload deleted: a renderer rejects updates to
-        it.
+        earlier message of the payload deleted, nor one that a later message
+        creates before any message deletes it: a renderer rejects updates to
+        either, since the surface does not exist yet when they arrive.
         """
         if self._protocol_version is ProtocolVersion.V0_8:
             return True
-        return self._assumes_unknown_surfaces and all(
-            _target(m)[0] != surface_id for m in payload[:index]
-        )
+        if not self._assumes_unknown_surfaces:
+            return False
+        if any(_target(m)[0] == surface_id for m in payload[:index]):
+            return False
+        for later in payload[index + 1 :]:
+            target, creates = _target(later)
+            if target != surface_id:
+                continue
+            if creates:
+                return False
+            if "deleteSurface" in later:
+                break
+        return True
 
     def _assume_surface(
         self, surface_id: str, payload: list[dict[str, Any]], index: int
@@ -537,7 +552,8 @@ def validate_payload(
     catalog only.
 
     To check a payload against what earlier payloads sent, keep a
-    `RendererState` and call its `apply` and `check_topology` instead.
+    `RendererState` and call its `apply` and `check_topology` inside
+    `with state.transaction():`, so a rejected response is rolled back whole.
 
     Each message must state a `version` that the catalogs' protocol version
     accepts, spelled as the specification spells it: none for v0.8, `v0.9` or

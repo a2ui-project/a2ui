@@ -224,6 +224,33 @@ def test_v08_updates_before_begin_rendering_are_buffered():
         state.check_topology(touched)
 
 
+def test_v08_updates_buffered_in_an_earlier_turn_are_checked_on_begin_rendering():
+    catalog = BasicCatalog("0.8")
+    state = RendererState([catalog])
+    text = {"Text": {"text": {"literalString": "Hi"}}}
+    update = {
+        "surfaceUpdate": {
+            "surfaceId": "s",
+            "components": [
+                {
+                    "id": "root",
+                    "component": {"Column": {"children": {"explicitList": ["t"]}}},
+                },
+                {"id": "t", "component": text},
+                {"id": "orphan", "component": text},
+            ],
+        }
+    }
+    begin = {"beginRendering": {"surfaceId": "s", "root": "root"}}
+
+    # The surface is assumed until it begins rendering, so its tree isn't
+    # checked yet.
+    state.check_topology(state.apply(update))
+
+    with pytest.raises(A2uiIntegrityError, match="'orphan' is not reachable"):
+        state.check_topology(state.apply(begin))
+
+
 def test_catalogs_with_incompatible_versions_are_rejected():
     with pytest.raises(A2uiCatalogError, match="incompatible protocol versions"):
         RendererState([_BASIC, BasicCatalog("1.0")])
@@ -258,9 +285,13 @@ def test_nested_rollbacks_restore_the_outer_snapshot():
 
     with pytest.raises(A2uiValidationError):
         with state.transaction():
-            state.apply(_update(_text("a", "Outer")))
+            # The inner `apply` changes `a` before it fails, so its rollback
+            # restores the snapshot it shares with the outer transaction.
             with pytest.raises(A2uiValidationError):
-                state.apply(_update({"id": "x", "component": "Unknown"}))
+                state.apply([
+                    _update(_text("a", "Inner")),
+                    _update({"id": "x", "component": "Unknown"}),
+                ])
             state.apply(_update(_text("a", "Changed again")))
             state.apply(_update({"id": "y", "component": "Unknown"}))
 
