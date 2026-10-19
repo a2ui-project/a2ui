@@ -14,11 +14,12 @@
 
 # How the time to compile an Express block grows with the block.
 #
-# A `measure_growth` case times `compile` on a block written at two sizes, n
-# and 4n, and fails when the larger takes more than `max_ratio` times as long
-# as the smaller. `agent/direct_json/scaling.yaml` explains the measure, how a
-# harness times a case, and why the cases run apart from the other tests. The
-# Express parser does not stream, so there is nothing else to time.
+# A `measure_growth` case times `compile` on a block written at two sizes, n and
+# 4n. Its `max_ratio` is the largest value allowed for the time at 4n divided by
+# the time at n. `agent/direct_json/scaling.yaml` explains the measure and the
+# limit of 8, how a harness times a case, and why the cases run apart from the
+# other tests. The Express parser does not stream, so there is nothing else to
+# time.
 
 - name: test_scaling_compile_express_v10
   description: Compiling a block of n components takes about four times as long at 4n.

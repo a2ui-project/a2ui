@@ -522,16 +522,20 @@ class _StreamedChecks {
   AgentToRendererMessage _check(Object? envelope, {required bool closed}) {
     final AgentToRendererMessage? growing = _growing;
     final String? rest = growing == null ? null : _restOf(envelope);
-    switch (growing) {
-      case UpdateComponentsMessage() when rest != null && rest == _growingJson:
-        return _checkAdded(growing, envelope! as Map<String, Object?>);
-      case UpdateDataModelMessage() when rest != null && rest == _growingJson:
-        return _checkGrown(
-          growing,
-          envelope! as Map<String, Object?>,
-          closed: closed,
-        );
-      case final AgentToRendererMessage growing
+    switch ((growing, envelope)) {
+      case (
+            final UpdateComponentsMessage growing,
+            final Map<String, Object?> message,
+          )
+          when rest != null && rest == _growingJson:
+        return _checkAdded(growing, message);
+      case (
+            final UpdateDataModelMessage growing,
+            final Map<String, Object?> message,
+          )
+          when rest != null && rest == _growingJson:
+        return _checkGrown(growing, message, closed: closed);
+      case (final AgentToRendererMessage growing, _)
           when rest == null && jsonEncode(envelope) == _growingJson:
         return growing;
     }
@@ -592,8 +596,7 @@ class _StreamedChecks {
     Map<String, Object?> envelope, {
     required bool closed,
   }) {
-    final Object? value =
-        (envelope['updateDataModel']! as Map<String, Object?>)['value'];
+    final Object? value = _dataModelBodyOf(envelope)!['value'];
     final message = _sameJson(value, growing.value)
         ? growing
         : UpdateDataModelMessage(
@@ -629,26 +632,34 @@ Map<String, Object?>? _bodyOf(Object? envelope) => switch (envelope) {
   _ => null,
 };
 
+/// The body of [envelope] if it is an `updateDataModel` with a value, or
+/// null.
+Map<String, Object?>? _dataModelBodyOf(Object? envelope) => switch (envelope) {
+  {'updateDataModel': final Map<String, Object?> body}
+      when body.containsKey('value') =>
+    body,
+  _ => null,
+};
+
 /// The JSON of [envelope] less what it grows by: the components of an
 /// `updateComponents` with a list of components, or the value of an
-/// `updateDataModel` that has one. Null for any other message.
+/// `updateDataModel` that has one. Null for any other message, and for an
+/// envelope that is not a `Map<String, Object?>`.
 String? _restOf(Object? envelope) {
-  String without(Map<String, Object?> message, String type, String field) =>
+  if (envelope is! Map<String, Object?>) return null;
+  String without(String type, Map<String, Object?> body, String field) =>
       jsonEncode({
-        ...message,
-        type: {...message[type]! as Map<String, Object?>}..remove(field),
+        ...envelope,
+        type: {...body}..remove(field),
       });
 
-  return switch (envelope) {
-    final Map<String, Object?> message when _bodyOf(message) != null => without(
-      message,
-      'updateComponents',
-      'components',
-    ),
-    final Map<String, Object?> message && {'updateDataModel': {'value': _}} =>
-      without(message, 'updateDataModel', 'value'),
-    _ => null,
-  };
+  if (_bodyOf(envelope) case final Map<String, Object?> body) {
+    return without('updateComponents', body, 'components');
+  }
+  if (_dataModelBodyOf(envelope) case final Map<String, Object?> body) {
+    return without('updateDataModel', body, 'value');
+  }
+  return null;
 }
 
 /// Whether [a] and [b] are the same JSON value. A list or map that is the

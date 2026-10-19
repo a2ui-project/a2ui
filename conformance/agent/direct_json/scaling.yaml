@@ -20,19 +20,21 @@
 # while the time it takes to stream a payload grows with the square of the
 # payload's size.
 #
-# A `measure_growth` case times one operation on a payload written at two
-# sizes, n and 4n, and fails when the larger takes more than `max_ratio` times
-# as long as the smaller. A cost that grows in proportion to the payload takes
-# about 4 times as long at 4n, and one that grows with its square about 16
-# times, so a limit of 8 tells the two apart with room for noise. CI machines
-# differ in speed and load too much for a limit in milliseconds, but two times
-# taken on the same machine moments apart can be compared.
+# A `measure_growth` case times one operation on a payload written at the two
+# `sizes`, n and 4n. Its `max_ratio` is the largest value allowed for the time
+# at 4n divided by the time at n, and the case fails above it. A cost that
+# grows in proportion to the payload gives a ratio of about 4, and one that
+# grows with its square a ratio of about 16, so a `max_ratio` of 8 tells the
+# two apart with room for noise. CI machines differ in speed and load too much
+# for a limit in milliseconds, but two times taken on the same machine moments
+# apart can be compared.
 #
-# `measure_overhead` times streaming a payload against compiling it whole, and
-# fails when streaming takes more than `max_ratio` times as long. Streaming
-# reads what each chunk adds and checks what it changes, so it does more work
-# than compiling, but that work should stay a fixed multiple of it. The limit
-# is loose and catches a parser that does far more on each chunk than the chunk
+# A `measure_overhead` case times streaming a payload against compiling it
+# whole, at one `size`. Its `max_ratio` is the largest value allowed for the
+# time to stream divided by the time to compile. Streaming reads what each
+# chunk adds and checks what it changes, so it does more work than compiling,
+# but that work should stay a fixed multiple of it. A `max_ratio` of 10 is
+# loose, and catches a parser that does far more on each chunk than the chunk
 # needs.
 #
 # `payload` is a template, written out at each size as `PayloadTemplate` in

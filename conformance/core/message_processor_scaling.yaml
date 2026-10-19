@@ -19,12 +19,13 @@
 # with the square of the surface's size when the surface arrives in many small
 # messages, as it does from an agent that streams.
 #
-# A `measure_growth` case processes a payload written at two sizes, n and 4n,
-# and fails when the larger takes more than `max_ratio` times as long as the
-# smaller. `agent/direct_json/scaling.yaml` explains the measure, how a harness
-# times a case, and why the cases run apart from the other tests. Each timed run
-# creates a processor holding the catalogs of `catalogPaths` and hands it the
-# payload's messages in one `processMessages` call.
+# A `measure_growth` case processes a payload written at two sizes, n and 4n.
+# Its `max_ratio` is the largest value allowed for the time at 4n divided by the
+# time at n. `agent/direct_json/scaling.yaml` explains the measure and the limit
+# of 8, how a harness times a case, and why the cases run apart from the other
+# tests. Each timed run creates a processor holding the catalogs of
+# `catalogPaths` and hands it the payload's messages in one `processMessages`
+# call.
 
 - name: test_scaling_process_single_component_messages_relaxed_v10
   description: Processing n messages of one component each, under a validation config, takes about four times as long at 4n, since each message is checked against what it changes rather than the whole surface.
