@@ -61,6 +61,7 @@ export 'src/resolution/node_resolver.dart';
 export 'src/resolution/resolved_binding.dart';
 export 'src/rpc/rpc_handler.dart';
 // Payload validation.
+export 'src/validation/component_graph.dart' show checkDuplicateComponentIds;
 export 'src/validation/schema_resolution.dart'
     show inlineLocalRefs, resolveSchemaRefs;
 export 'src/validation/validation_config.dart';

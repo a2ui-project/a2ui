@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING**: Package dependency updated to require `a2ui-core>=0.4.0,<0.5.0`.
 - `resolve_catalogs`, `validate_payload`, and the Direct JSON and Express
   formats resolve cross-catalog `$ref`s between the catalogs they are given.
   `resolve_catalogs` also resolves references into registered catalogs that
@@ -41,7 +42,9 @@
   them.
 - `validate_payload` runs the payload through a short-lived `RendererState`
   instead of building a new `MessageProcessor` for each surface and
-  candidate catalog. Its results are unchanged.
+  candidate catalog. Its results are unchanged, except that a v0.8 update
+  that follows a `deleteSurface` of its surface is now buffered, as a v0.8
+  renderer does, instead of rejected.
 - `Parser.parse_response` and `Parser.open_stream` take an optional
   `RendererState`. Without one, a call checks the response against an empty
   state, as a chat turn that shows new UI: **BREAKING**, an update to a
@@ -51,7 +54,15 @@
   exists.
 - `parse_response` applies a response to the state all or nothing, and checks
   the trees of the surfaces it touches once every block is applied, so a
-  component may name a child that a later block of the response adds.
+  component may name a child that a later block of the response adds. When
+  that check fails, the error's `partial_results` holds only the text, since
+  the check spans every block.
+- Add `RendererState.mark_checked(surface_ids)`, which stops holding the
+  components each surface changed against later `check_topology` calls. A
+  stream that fails after emitting messages, and a block cut off at the end
+  of a response, mark their surfaces checked: the renderer holds those
+  components and no message removes one, so later turns aren't required to
+  make them reachable.
 - Add `Parser.open_stream`, which returns a `ResponseStream` for one
   response, with `feed` and `close`. Messages the stream emits are applied to
   its state as they are emitted, and the stream checks each message against
@@ -67,7 +78,9 @@
   `A2uiRequestProcessor(state=...)` and
   `A2uiGenerator.create_processor(..., state=...)` bind one so that calls
   need not pass it. A state that holds other catalogs than the processor is
-  rejected with `A2uiCatalogError`.
+  rejected with `A2uiCatalogError`. `A2uiRequestProcessor.accepts_state`
+  tells whether a state holds the processor's catalogs, so an agent that
+  keeps a state per conversation can tell when to make a new one.
 - **BREAKING**: A parser holds no state, and the APIs that assumed one parser
   per response are removed. To migrate:
   - `Parser.parse_chunk(chunk, wrapped)`: open a stream with
