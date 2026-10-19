@@ -25,7 +25,8 @@ typedef LogEntry = ({String heading, Map<String, Object?> details});
 
 /// One run of an [Example]: a [MessageProcessor] over [demoCatalog] that
 /// processes the example's messages in order on request, the surfaces it
-/// creates, and a log of the actions and errors they report.
+/// creates, and a log of the actions the surfaces send and the errors the
+/// surfaces and the processor report.
 ///
 /// Notifies its listeners when a message is processed, a surface is created
 /// or deleted, or an entry is logged.
@@ -55,9 +56,9 @@ class ExampleRun extends ChangeNotifier {
   /// The example's messages.
   final List<Map<String, Object?>> messages;
 
-  /// Validates each message on its own, so a missing root, dangling
-  /// references and orphan components are allowed until later messages
-  /// complete the surface.
+  /// Checks each message against the surface it leaves behind, which may
+  /// lack a root, reference components a later message adds, and hold
+  /// components nothing reaches.
   final MessageProcessor<ComponentImplementation> _processor = MessageProcessor(
     catalogs: [demoCatalog],
     defaultVersion: A2uiProtocolVersion.v0_9,

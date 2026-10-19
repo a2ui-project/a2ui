@@ -231,9 +231,9 @@ only for an agent you trust.
 
 ## Gallery
 
-[a2ui_explorer](a2ui_explorer) is the gallery app. It steps through the v0.9
-basic catalog examples one message at a time, next to each surface's data
-model and the actions and errors it reports.
+[a2ui_explorer](a2ui_explorer) is the gallery app. It renders the v0.9 basic
+catalog examples and steps through their messages, next to each surface's
+data model and a log of actions and errors.
 
 ## Tests
 

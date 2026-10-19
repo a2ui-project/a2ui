@@ -102,12 +102,10 @@ class _Example {
 /// Processes [example]'s messages as one payload, as an agent sends them,
 /// then pumps the surface and lets its images load.
 ///
-/// Each message is checked on its own, so the graph checks a surface built
-/// across several messages cannot pass yet are relaxed: a missing root,
-/// references to components a later message adds, and components left
-/// unreachable, since v0.9 cannot remove a component. Fails on any other
-/// processing error, an exception while rendering or an error the surface
-/// reports.
+/// Each message is checked against the surface it leaves behind, which may
+/// lack a root, reference components a later message adds, and hold
+/// components nothing reaches. Fails on any other processing error, an
+/// exception while rendering or an error the surface reports.
 Future<void> _render(WidgetTester tester, _Example example) async {
   final SurfaceHarness harness = await pumpSurface(
     tester,
