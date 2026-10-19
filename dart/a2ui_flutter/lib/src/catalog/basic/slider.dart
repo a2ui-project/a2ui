@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 
 import '../../component_implementation.dart';
 import '../../component_props.dart';
+import 'check_hint.dart';
 import 'unbounded_width.dart';
 import 'write_back.dart';
 
@@ -56,6 +57,7 @@ Widget buildSlider(
   final double value = raw.isFinite ? raw.clamp(min, max) : min;
   final String valueText = ComponentProps.asString(value)!;
   final String? error = props.validationErrors.firstOrNull;
+  final String? hint = checkHint(props);
   final void Function(Object?)? write = writerFor(context, props, 'value');
   return limitUnboundedWidth(
     context,
@@ -108,7 +110,9 @@ Widget buildSlider(
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.error,
             ),
-          ),
+          )
+        else if (hint != null)
+          Text(hint, style: theme.textTheme.bodySmall),
       ],
     ),
   );

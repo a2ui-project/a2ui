@@ -205,6 +205,97 @@ void main() {
       expect(decoration(tester).errorText, isNull);
     });
 
+    testWidgets('a warning result leaves the button enabled and shows a hint', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        form(_bind('/check')),
+        dataModel: {
+          'name': 'Al',
+          'check': {
+            'valid': false,
+            'severity': 'warning',
+            'message': 'Short names are often typos.',
+          },
+        },
+      );
+
+      expect(sendEnabled(tester), isTrue);
+      expect(decoration(tester).helperText, 'Short names are often typos.');
+      expect(decoration(tester).errorText, isNull);
+      expect(find.byType(Tooltip), findsNothing);
+    });
+
+    testWidgets('the other inputs show an info result as a hint, and an '
+        'error in its place', (tester) async {
+      final List<Map<String, Object?>> checks = [
+        {'condition': _bind('/error'), 'message': 'Fix this.'},
+        {'condition': _bind('/warning')},
+      ];
+      final SurfaceHarness harness = await _pump(
+        tester,
+        [
+          {
+            'id': 'root',
+            'component': 'Column',
+            'children': ['check', 'slider', 'picker', 'date'],
+          },
+          {
+            'id': 'check',
+            'component': 'CheckBox',
+            'label': 'Subscribe',
+            'value': _bind('/subscribe'),
+            'checks': checks,
+          },
+          {
+            'id': 'slider',
+            'component': 'Slider',
+            'value': _bind('/volume'),
+            'max': 10,
+            'checks': checks,
+          },
+          {
+            'id': 'picker',
+            'component': 'ChoicePicker',
+            'options': [
+              {'label': 'Red', 'value': 'red'},
+            ],
+            'value': _bind('/colors'),
+            'checks': checks,
+          },
+          {
+            'id': 'date',
+            'component': 'DateTimeInput',
+            'value': _bind('/date'),
+            'checks': checks,
+          },
+        ],
+        dataModel: {
+          'subscribe': false,
+          'volume': 3,
+          'colors': <String>[],
+          'date': '',
+          'error': true,
+          'warning': {
+            'valid': false,
+            'severity': 'info',
+            'message': 'Check this.',
+          },
+        },
+      );
+
+      expect(find.text('Check this.'), findsNWidgets(4));
+      expect(find.text('Fix this.'), findsNothing);
+
+      harness.surface().dataModel.set('/error', false);
+      // DateTimeInput's field fades its hint out.
+      await tester.pumpAndSettle();
+
+      expect(find.text('Fix this.'), findsNWidgets(4));
+      expect(find.text('Check this.'), findsNothing);
+    });
+
     testWidgets('a false boolean result acts as an error', (tester) async {
       await _pump(
         tester,
@@ -214,6 +305,7 @@ void main() {
 
       expect(sendEnabled(tester), isFalse);
       expect(decoration(tester).errorText, 'Name is required.');
+      expect(decoration(tester).helperText, isNull);
     });
   });
 

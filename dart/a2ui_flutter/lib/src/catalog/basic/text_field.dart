@@ -19,6 +19,7 @@ import 'package:flutter/services.dart';
 
 import '../../component_implementation.dart';
 import '../../component_props.dart';
+import 'check_hint.dart';
 import 'unbounded_width.dart';
 import 'write_back.dart';
 
@@ -53,6 +54,7 @@ Widget _build(BuildContext context, ComponentProps props, String? pattern) =>
         variant: props.string('variant'),
         pattern: pattern,
         error: props.validationErrors.firstOrNull,
+        hint: checkHint(props),
         write: writerFor(context, props, 'value'),
       ),
     );
@@ -91,6 +93,7 @@ class _TextField extends StatefulWidget {
     required this.variant,
     required this.pattern,
     required this.error,
+    required this.hint,
     required this.write,
   });
 
@@ -100,6 +103,7 @@ class _TextField extends StatefulWidget {
   final String? variant;
   final String? pattern;
   final String? error;
+  final String? hint;
   final bool Function(String)? write;
 
   @override
@@ -190,6 +194,7 @@ class _TextFieldState extends State<_TextField> {
         floatingLabelBehavior: hasPlaceholder
             ? FloatingLabelBehavior.always
             : null,
+        helperText: widget.hint,
         errorText: _errorText,
       ),
       obscureText: obscured,
