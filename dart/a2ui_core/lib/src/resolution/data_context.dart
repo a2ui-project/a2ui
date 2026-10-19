@@ -15,12 +15,14 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:json_schema_builder/json_schema_builder.dart';
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
 
 import '../core/catalog.dart';
 import '../core/common.dart';
 import '../core/data_model.dart';
 import '../core/surface_model.dart';
+import '../core/validation_result.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
@@ -1188,17 +1190,23 @@ extension CatalogInvokerExtension
   }
 
   /// The ways [args] fail [fn]'s argument schema, or an empty list when they
-  /// match. Null arguments are left unchecked, as in [invoke].
+  /// match. Null arguments are left unchecked, as in [invoke]. A
+  /// [ValidationResult], which a v1.0 validation rule returns, is checked as
+  /// its validity.
   List<ValidationError> argumentErrors(
     FunctionImplementation fn,
     Map<String, dynamic> args,
   ) {
-    final Set<String> unresolved = {
+    final checked = <String, dynamic>{
       for (final MapEntry<String, dynamic> entry in args.entries)
+        entry.key: _validityOf(entry.value),
+    };
+    final Set<String> unresolved = {
+      for (final MapEntry<String, dynamic> entry in checked.entries)
         if (entry.value == null) entry.key,
     };
     final Map<String, Object?> schema = _resolvedArgumentSchema(fn);
-    if (unresolved.isEmpty) return Schema.fromMap(schema).validateSync(args);
+    if (unresolved.isEmpty) return Schema.fromMap(schema).validateSync(checked);
     final Object? required = schema['required'];
     return Schema.fromMap({
       ...schema,
@@ -1208,8 +1216,21 @@ extension CatalogInvokerExtension
             if (!unresolved.contains(key)) key,
         ],
     }).validateSync({
-      for (final MapEntry<String, dynamic> entry in args.entries)
+      for (final MapEntry<String, dynamic> entry in checked.entries)
         if (entry.value != null) entry.key: entry.value,
     });
   }
+
+  /// [value] with each [ValidationResult] in it replaced by its validity.
+  static Object? _validityOf(Object? value) => switch (value) {
+        ValidationResult(:final bool valid) => valid,
+        List<Object?>() => [
+            for (final Object? item in value) _validityOf(item)
+          ],
+        Map<String, Object?>() => {
+            for (final MapEntry<String, Object?> entry in value.entries)
+              entry.key: _validityOf(entry.value),
+          },
+        _ => value,
+      };
 }

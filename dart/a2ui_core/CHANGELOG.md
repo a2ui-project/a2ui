@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `Catalog.invoke` checks a v1.0 `ValidationResult` argument as its validity,
+  so `and`, `or` and `not` over validation rules no longer fail with
+  `EXPRESSION_ERROR`.
 - Resolve cross-catalog `$ref` pointers across peer catalogs in
   `resolvedComponentSchemas`, `validationSchema`, `refMap`, `PayloadValidator`
   and `MessageProcessor`:

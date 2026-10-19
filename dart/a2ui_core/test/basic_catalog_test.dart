@@ -399,6 +399,30 @@ void main() {
         expect(buttonEnabled(terms: true, email: '', phone: '555'), isTrue);
       });
 
+      test('and over rule calls resolves through Catalog.invoke', () {
+        final DataContext context = _contextFor(
+          v10,
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          dataModel: DataModel({'email': 'a@b.co'}),
+        );
+        Map<String, Object?> rule(String name) => {
+              '@call': name,
+              'args': {
+                'value': {'@path': '/email'},
+              },
+            };
+
+        expect(
+          context.resolveDynamicValue({
+            '@call': 'and',
+            'args': {
+              'values': [rule('required'), rule('email')],
+            },
+          }),
+          isTrue,
+        );
+      });
+
       test('v0.9 validators return booleans, so the result is unchanged', () {
         Object? requiredV09(Object? value) =>
             _call(v09, 'required', {'value': value});
